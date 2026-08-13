@@ -18,6 +18,8 @@ and how it achieves cross-platform portability.
 | 06 | [Cross-Platform Architecture](06-cross-platform.md) | Source correspondence, FFI via `.dec` files, constant-folding conditionals, assembly startup, `xbiface.c` |
 | 07 | [Build System](07-build-system.md) | Toolchains, OS autodetection, Makefiles, template system, bootstrap order |
 | 08 | [Language Reference](08-language-reference.md) | Types, scoping, statements, operator table, intrinsics, dot commands, grid messages |
+| 09 | [Version History](09-version-history.md) | The post-6.2.3 forks: 6.3.26-D (Win32 unofficial) and 6.4.5 (Linux xb64 64-bit), per-file version tables, the crtl/ C-runtime experiment |
+| 10 | [Unification Plan](10-unification-plan.md) | Proposal for merging 6.3.26-D + 6.4.5 back into one cross-platform tree (6.5.0) |
 
 ## The big picture
 
