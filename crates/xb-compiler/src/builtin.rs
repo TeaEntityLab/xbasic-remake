@@ -24,6 +24,12 @@ fn sig(name: &str) -> Option<BuiltinSig> {
             &[ValueType::String, ValueType::Integer, ValueType::Integer][..],
             ValueType::String,
         ),
+        "INSTR" => (
+            &[ValueType::String, ValueType::String][..],
+            ValueType::Integer,
+        ),
+        "VAL" => (&[ValueType::String][..], ValueType::Integer),
+        "STR$" => (&[ValueType::Integer][..], ValueType::String),
         _ => return None,
     };
     Some(BuiltinSig {

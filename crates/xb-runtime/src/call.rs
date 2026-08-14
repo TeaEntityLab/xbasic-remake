@@ -66,5 +66,8 @@ fn find_function<'a>(
 }
 
 fn is_builtin(name: &str) -> bool {
-    matches!(name, "LEN" | "ASC" | "CHR$" | "LEFT$" | "RIGHT$" | "MID$")
+    matches!(
+        name,
+        "LEN" | "ASC" | "CHR$" | "LEFT$" | "RIGHT$" | "MID$" | "INSTR" | "VAL" | "STR$"
+    )
 }

@@ -1,0 +1,16 @@
+version 0.1
+function Main() -> integer
+  dim s:string
+  dim p:integer
+  dim n:integer
+  dim r:string
+  assign s:string = string("Hello,World")
+  assign p:integer = call INSTR(symbol(s:string), string(","))
+  print symbol(p:integer)
+  assign n:integer = call VAL(string("42"))
+  print symbol(n:integer)
+  assign r:string = call STR$(symbol(n:integer))
+  print symbol(r:string)
+  assign p:integer = call INSTR(symbol(s:string), string("xyz"))
+  print symbol(p:integer)
+end function

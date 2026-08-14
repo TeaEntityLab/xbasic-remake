@@ -56,6 +56,31 @@ pub(crate) fn eval_builtin(
                 chars[start_idx..end_idx].iter().collect(),
             ))
         }
+        "INSTR" => {
+            let RuntimeValue::String(hay) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            let RuntimeValue::String(needle) = &args[1] else {
+                return Err(type_err(args[1].value_type()));
+            };
+            Ok(RuntimeValue::Integer(
+                hay.find(needle.as_str())
+                    .map(|i| (i + 1) as i32)
+                    .unwrap_or(0),
+            ))
+        }
+        "VAL" => {
+            let RuntimeValue::String(s) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::Integer(s.trim().parse().unwrap_or(0)))
+        }
+        "STR$" => {
+            let RuntimeValue::Integer(n) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::String(n.to_string()))
+        }
         _ => Err(RuntimeError::UnknownFunction {
             name: name.to_owned(),
         }),
