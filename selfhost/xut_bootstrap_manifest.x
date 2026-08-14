@@ -1,6 +1,12 @@
 VERSION "0.0001"
 $$XBSysLinux = 1
 $$XBSysWin32 = 2
+FUNCTION PlatformName$
+IF $$XBSysLinux THEN
+RETURN "linux"
+END IF
+RETURN "unknown"
+END FUNCTION
 FUNCTION Main
 DIM utilityName$
 DIM utilityVersion#
@@ -18,4 +24,5 @@ END IF
 IF ##XBSystem = $$XBSysLinux THEN
 PRINT "match"
 END IF
+PRINT PlatformName()
 END FUNCTION

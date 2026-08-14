@@ -4,6 +4,7 @@ mod entry_lookup;
 
 pub mod ir;
 pub mod semantics;
+mod semantics_expr;
 #[cfg(test)]
 mod semantics_shared_tests;
 #[cfg(test)]
@@ -11,12 +12,12 @@ mod semantics_tests;
 pub mod text_ir;
 
 pub use checked::{
-    CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol, ComparisonOp,
-    SemanticError, ValueType,
+    CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam, CheckedProgram, CheckedSymbol,
+    ComparisonOp, SemanticError, ValueType,
 };
 pub use diagnostic::{BACKEND_DIAGNOSTIC_CODES, SOURCE_DIAGNOSTIC_CODES};
 pub use entry_lookup::EntryLookupError;
-pub use ir::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol};
+pub use ir::{IrExpr, IrExprKind, IrItem, IrParam, IrProgram, IrSymbol};
 pub use semantics::Analyzer;
 pub use text_ir::TextIrEmitter;
 

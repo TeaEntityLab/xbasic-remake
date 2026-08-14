@@ -1,5 +1,8 @@
+function Identity(x:integer) -> integer
+  return symbol(x:integer)
+end function
 version 0.1
-function Main
+function Main() -> integer
   dim plain:integer
   dim percent:integer
   dim single:float
@@ -25,5 +28,6 @@ function Main
   end if
   if compare(integer(1) = integer(1))
     print string("compare")
+    print call Identity(integer(42))
   end if
 end function

@@ -1,23 +1,31 @@
 use std::collections::BTreeMap;
-use xb_frontend::{ComparisonOp, Expression, FunctionDecl, Program, Statement, TypeSuffix};
+use xb_frontend::{Expression, FunctionDecl, Program, Statement, TypeSuffix};
 
 pub use crate::checked::{
-    CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol, SemanticError,
-    ValueType,
+    CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam, CheckedProgram, CheckedSymbol,
+    SemanticError, ValueType,
 };
 
-type ExprResult = Result<CheckedExpr, SemanticError>;
+pub(crate) type ExprResult = Result<CheckedExpr, SemanticError>;
 type ItemResult = Result<CheckedItem, SemanticError>;
+
+#[derive(Debug, Clone)]
+pub(crate) struct FuncSig {
+    pub(crate) params: Vec<ValueType>,
+    pub(crate) return_type: ValueType,
+}
 
 #[derive(Debug, Default)]
 pub struct Analyzer {
-    symbols: BTreeMap<String, ValueType>,
-    constants: BTreeMap<String, String>,
-    shared: BTreeMap<String, ValueType>,
+    pub(crate) symbols: BTreeMap<String, ValueType>,
+    pub(crate) constants: BTreeMap<String, String>,
+    pub(crate) shared: BTreeMap<String, ValueType>,
+    pub(crate) functions: BTreeMap<String, FuncSig>,
+    pub(crate) return_type: Option<ValueType>,
 }
 
-#[derive(Debug, Clone, Copy)]
-enum Scope {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Scope {
     TopLevel,
     Function,
 }
@@ -77,6 +85,7 @@ impl Analyzer {
                     else_body: eb,
                 })
             }
+            Statement::Return { value } => self.return_stmt(scope, value.as_ref()),
             Statement::Function(function) => self.function(function),
         }
     }
@@ -154,110 +163,59 @@ impl Analyzer {
         Ok(CheckedItem::Assignment { target, value })
     }
 
-    fn function(&mut self, function: &FunctionDecl) -> ItemResult {
+    fn function(&mut self, f: &FunctionDecl) -> ItemResult {
+        let ret = ValueType::from_suffix(f.suffix);
+        let param_types: Vec<ValueType> = f
+            .params
+            .iter()
+            .map(|p| ValueType::from_suffix(p.suffix))
+            .collect();
+        self.functions.insert(
+            f.name.clone(),
+            FuncSig {
+                params: param_types.clone(),
+                return_type: ret,
+            },
+        );
         let mut scoped = Self {
             symbols: BTreeMap::new(),
             constants: self.constants.clone(),
             shared: self.shared.clone(),
+            functions: self.functions.clone(),
+            return_type: Some(ret),
         };
-        let body = scoped.blk(&function.body, Scope::Function)?;
+        for (p, vt) in f.params.iter().zip(param_types) {
+            scoped.symbols.insert(p.name.clone(), vt);
+        }
+        let body = scoped.blk(&f.body, Scope::Function)?;
         self.shared = scoped.shared;
+        let cps: Vec<CheckedParam> = f.params.iter().map(CheckedParam::from_ast).collect();
         Ok(CheckedItem::Function {
-            name: function.name.clone(),
+            name: f.name.clone(),
+            params: cps,
+            return_type: ret,
             body,
         })
     }
-
-    fn expr(&self, expr: &Expression) -> ExprResult {
-        match expr {
-            Expression::IntegerLiteral(v) => Ok(CheckedExpr::new(
-                CheckedExprKind::IntegerLiteral(v.clone()),
-                ValueType::Integer,
-            )),
-            Expression::FloatLiteral(v) => Ok(CheckedExpr::new(
-                CheckedExprKind::FloatLiteral(v.clone()),
-                ValueType::Float,
-            )),
-            Expression::StringLiteral(v) => Ok(CheckedExpr::new(
-                CheckedExprKind::StringLiteral(v.clone()),
-                ValueType::String,
-            )),
-            Expression::SystemConstant { name } => self.constant(name),
-            Expression::SystemVariable { name, suffix } => self.shared_variable(name, *suffix),
-            Expression::Identifier { name, .. } => self.symbol(name),
-            Expression::Comparison { op, left, right } => self.comparison(*op, left, right),
+    fn return_stmt(&mut self, scope: Scope, value: Option<&Expression>) -> ItemResult {
+        if scope != Scope::Function {
+            return Err(SemanticError::ReturnOutsideFunction);
         }
-    }
-
-    fn comparison(&self, op: ComparisonOp, l: &Expression, r: &Expression) -> ExprResult {
-        let lv = self.expr(l)?;
-        let rv = self.expr(r)?;
-        if lv.value_type != rv.value_type {
-            return Err(SemanticError::ComparisonTypeMismatch {
-                left: lv.value_type,
-                right: rv.value_type,
-            });
-        }
-        Ok(CheckedExpr::new(
-            CheckedExprKind::Comparison {
-                op,
-                left: Box::new(lv),
-                right: Box::new(rv),
-            },
-            ValueType::Integer,
-        ))
-    }
-
-    fn constant(&self, name: &str) -> ExprResult {
-        let Some(value) = self.constants.get(name) else {
-            return Err(SemanticError::UnknownConstant {
-                name: name.to_owned(),
-            });
+        let ret = self.return_type.unwrap();
+        let checked = match value {
+            Some(e) => {
+                let v = self.expr(e)?;
+                if v.value_type != ret {
+                    return Err(SemanticError::ReturnTypeMismatch {
+                        expected: ret,
+                        actual: v.value_type,
+                    });
+                }
+                Some(v)
+            }
+            None => None,
         };
-        Ok(CheckedExpr::new(
-            CheckedExprKind::Constant {
-                name: name.to_owned(),
-                value: value.clone(),
-            },
-            ValueType::Integer,
-        ))
-    }
-
-    fn shared_variable(&self, name: &str, s: Option<TypeSuffix>) -> ExprResult {
-        let Some(declared) = self.shared.get(name).copied() else {
-            return Err(SemanticError::UnknownSharedVariable {
-                name: name.to_owned(),
-            });
-        };
-        let requested = ValueType::from_suffix(s);
-        if declared != requested {
-            return Err(SemanticError::TypeMismatch {
-                name: name.to_owned(),
-                expected: requested,
-                actual: declared,
-            });
-        }
-        Ok(CheckedExpr::new(
-            CheckedExprKind::SharedVariable(CheckedSymbol::new(name.to_owned(), declared)),
-            declared,
-        ))
-    }
-
-    fn symbol(&self, name: &str) -> ExprResult {
-        let s = self.checked_symbol(name)?;
-        Ok(CheckedExpr::new(
-            CheckedExprKind::Symbol(s.clone()),
-            s.value_type,
-        ))
-    }
-
-    fn checked_symbol(&self, name: &str) -> Result<CheckedSymbol, SemanticError> {
-        let Some(vt) = self.symbols.get(name).copied() else {
-            return Err(SemanticError::UnknownSymbol {
-                name: name.to_owned(),
-            });
-        };
-        Ok(CheckedSymbol::new(name.to_owned(), vt))
+        Ok(CheckedItem::Return { value: checked })
     }
 
     fn blk(&mut self, s: &[Statement], sc: Scope) -> Result<Vec<CheckedItem>, SemanticError> {

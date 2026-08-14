@@ -2,13 +2,13 @@ version 0.1
 dim topMessage:string
 assign topMessage:string = string("top")
 print symbol(topMessage:string)
-function main
+function main() -> integer
   print string("lowercase main must not run")
 end function
-function Helper
+function Helper() -> integer
   print string("helper must not run")
 end function
-function Main
+function Main() -> integer
   dim mainMessage:string
   assign mainMessage:string = string("main")
   print symbol(mainMessage:string)

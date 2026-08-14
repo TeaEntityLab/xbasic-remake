@@ -38,18 +38,39 @@ pub enum Statement {
         then_body: Vec<Statement>,
         else_body: Option<Vec<Statement>>,
     },
+    Return {
+        value: Option<Expression>,
+    },
     Function(FunctionDecl),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Param {
+    pub name: String,
+    pub suffix: Option<TypeSuffix>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionDecl {
     pub name: String,
+    pub suffix: Option<TypeSuffix>,
+    pub params: Vec<Param>,
     pub body: Vec<Statement>,
 }
 
 impl FunctionDecl {
-    pub fn new(name: String, body: Vec<Statement>) -> Self {
-        Self { name, body }
+    pub fn new(
+        name: String,
+        suffix: Option<TypeSuffix>,
+        params: Vec<Param>,
+        body: Vec<Statement>,
+    ) -> Self {
+        Self {
+            name,
+            suffix,
+            params,
+            body,
+        }
     }
 }
 
@@ -83,5 +104,9 @@ pub enum Expression {
         op: ComparisonOp,
         left: Box<Expression>,
         right: Box<Expression>,
+    },
+    FunctionCall {
+        name: String,
+        args: Vec<Expression>,
     },
 }

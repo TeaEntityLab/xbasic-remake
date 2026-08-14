@@ -1,3 +1,4 @@
+use crate::ast::{Expression, Param, Statement};
 use crate::parser::{ParseError, Parser};
 use crate::token::{Keyword, SourcePos, TokenKind, TypeSuffix};
 
@@ -59,6 +60,10 @@ impl Parser {
         }
     }
 
+    pub(crate) fn at_line_end(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Newline | TokenKind::Eof)
+    }
+
     pub(crate) fn peek_keyword(&self) -> Option<Keyword> {
         match self.peek_kind() {
             TokenKind::Keyword(keyword) => Some(*keyword),
@@ -93,5 +98,76 @@ impl Parser {
         self.tokens
             .get(self.index)
             .map_or(SourcePos::new(0, 0), |token| token.pos)
+    }
+
+    pub(crate) fn starts_end_function(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::End))
+            && matches!(
+                self.peek_next_kind(),
+                Some(TokenKind::Keyword(Keyword::Function))
+            )
+    }
+    pub(crate) fn starts_end_if(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::End))
+            && matches!(self.peek_next_kind(), Some(TokenKind::Keyword(Keyword::If)))
+    }
+    pub(crate) fn starts_else(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Else))
+    }
+    pub(crate) fn starts_assignment(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Identifier { .. })
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
+    }
+    pub(crate) fn starts_constant_definition(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::SystemConstant(_))
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
+    }
+    pub(crate) fn starts_shared_assignment(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::SystemVariable { .. })
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
+    }
+
+    pub(crate) fn parse_params(&mut self) -> Result<Vec<Param>, ParseError> {
+        self.expect_symbol('(')?;
+        let mut params = Vec::new();
+        if !matches!(self.peek_kind(), TokenKind::Symbol(')')) {
+            loop {
+                let (name, suffix) = self.expect_identifier()?;
+                params.push(Param { name, suffix });
+                if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                    self.index += 1;
+                } else {
+                    break;
+                }
+            }
+        }
+        self.expect_symbol(')')?;
+        Ok(params)
+    }
+    pub(crate) fn parse_args(&mut self) -> Result<Vec<Expression>, ParseError> {
+        self.expect_symbol('(')?;
+        let mut args = Vec::new();
+        if !matches!(self.peek_kind(), TokenKind::Symbol(')')) {
+            loop {
+                args.push(self.expression()?);
+                if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                    self.index += 1;
+                } else {
+                    break;
+                }
+            }
+        }
+        self.expect_symbol(')')?;
+        Ok(args)
+    }
+    pub(crate) fn return_stmt(&mut self) -> Result<Statement, ParseError> {
+        self.expect_keyword(Keyword::Return)?;
+        let value = if self.at_line_end() {
+            None
+        } else {
+            Some(self.expression()?)
+        };
+        self.expect_line_end()?;
+        Ok(Statement::Return { value })
     }
 }

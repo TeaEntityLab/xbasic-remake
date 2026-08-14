@@ -1,4 +1,4 @@
-function Main
+function Main() -> integer
   dim result:integer
   assign result:integer = integer(0)
   if integer(1)

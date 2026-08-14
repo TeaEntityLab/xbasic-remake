@@ -36,7 +36,13 @@ fn cli_prints_stable_ir_for_static_xut_bootstrap_manifest() {
             "version 0.0001\n",
             "const $$XBSysLinux:integer = integer(1)\n",
             "const $$XBSysWin32:integer = integer(2)\n",
-            "function Main\n",
+            "function PlatformName() -> string\n",
+            "  if constant($$XBSysLinux:integer = integer(1))\n",
+            "    return string(\"linux\")\n",
+            "  end if\n",
+            "  return string(\"unknown\")\n",
+            "end function\n",
+            "function Main() -> integer\n",
             "  dim utilityName:string\n",
             "  dim utilityVersion:float\n",
             "  assign utilityName:string = string(\"xut\")\n",
@@ -53,6 +59,7 @@ fn cli_prints_stable_ir_for_static_xut_bootstrap_manifest() {
             "  if compare(shared(##XBSystem:integer) = constant($$XBSysLinux:integer = integer(1)))\n",
             "    print string(\"match\")\n",
             "  end if\n",
+            "  print call PlatformName()\n",
             "end function\n",
         )
     );

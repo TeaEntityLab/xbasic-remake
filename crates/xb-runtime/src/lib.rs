@@ -1,7 +1,9 @@
+mod call;
 pub mod compare;
 pub mod entry;
 pub mod exception;
 pub mod fault;
+mod helpers;
 pub mod interpreter;
 pub mod math;
 

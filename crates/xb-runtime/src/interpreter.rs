@@ -1,7 +1,8 @@
 use std::collections::{btree_map::Entry, BTreeMap};
 
+use crate::helpers::{parse_float, parse_integer, read_slot, require_type};
 use thiserror::Error;
-use xb_compiler::{EntryLookupError, IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol, ValueType};
+use xb_compiler::{EntryLookupError, IrExpr, IrExprKind, IrItem, IrProgram, ValueType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
@@ -38,16 +39,19 @@ impl RuntimeValue {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypedSlot {
-    value_type: ValueType,
-    value: RuntimeValue,
+    pub(crate) value_type: ValueType,
+    pub(crate) value: RuntimeValue,
 }
 
 impl TypedSlot {
-    fn new(value_type: ValueType) -> Self {
+    pub(crate) fn new(value_type: ValueType) -> Self {
         Self {
             value_type,
             value: RuntimeValue::default_for(value_type),
         }
+    }
+    pub(crate) fn set(&mut self, v: RuntimeValue) {
+        self.value = v;
     }
 
     pub const fn value_type(&self) -> ValueType {
@@ -72,9 +76,9 @@ impl ProgramMetadata {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ExecutionState {
-    metadata: ProgramMetadata,
-    slots: BTreeMap<String, TypedSlot>,
-    shared: BTreeMap<String, TypedSlot>,
+    pub(crate) metadata: ProgramMetadata,
+    pub(crate) slots: BTreeMap<String, TypedSlot>,
+    pub(crate) shared: BTreeMap<String, TypedSlot>,
 }
 
 impl ExecutionState {
@@ -109,6 +113,8 @@ pub enum RuntimeError {
         literal: String,
         value_type: ValueType,
     },
+    #[error("unknown function {name}")]
+    UnknownFunction { name: String },
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -125,7 +131,7 @@ impl Interpreter {
         output: &mut Vec<String>,
     ) -> Result<ExecutionState, RuntimeError> {
         let mut state = ExecutionState::default();
-        execute_items(&program.items, &mut state, output)?;
+        exec_items(program, &program.items, &mut state, output)?;
         Ok(state)
     }
 
@@ -135,21 +141,27 @@ impl Interpreter {
         output: &mut Vec<String>,
     ) -> Result<ExecutionState, RuntimeError> {
         let mut state = ExecutionState::default();
-        execute_items(&program.items, &mut state, output)?;
-        execute_items(program.entry("Main")?, &mut state, output)?;
+        exec_items(program, &program.items, &mut state, output)?;
+        exec_items(program, program.entry("Main")?, &mut state, output)?;
         Ok(state)
     }
 }
 
-fn execute_items(
+pub(crate) enum Flow {
+    Continue,
+    Return(Option<RuntimeValue>),
+}
+
+pub(crate) fn exec_items(
+    program: &IrProgram,
     items: &[IrItem],
     state: &mut ExecutionState,
     output: &mut Vec<String>,
-) -> Result<(), RuntimeError> {
+) -> Result<Flow, RuntimeError> {
     for item in items {
         match item {
-            IrItem::Version(version) => state.metadata.version = Some(version.clone()),
-            IrItem::Print(expr) => output.push(evaluate(expr, state)?.render()),
+            IrItem::Version(v) => state.metadata.version = Some(v.clone()),
+            IrItem::Print(expr) => output.push(eval(program, expr, state)?.render()),
             IrItem::ConstantDefinition { .. } => {}
             IrItem::Dim { symbol } => match state.slots.entry(symbol.name.clone()) {
                 Entry::Vacant(e) => drop(e.insert(TypedSlot::new(symbol.value_type))),
@@ -160,7 +172,7 @@ fn execute_items(
                 }
             },
             IrItem::Assignment { target, value } => {
-                let v = evaluate(value, state)?;
+                let v = eval(program, value, state)?;
                 require_type(target.value_type, v.value_type())?;
                 let slot =
                     state
@@ -173,100 +185,69 @@ fn execute_items(
                 slot.value = v;
             }
             IrItem::SharedAssignment { target, value } => {
-                let value = evaluate(value, state)?;
-                require_type(target.value_type, value.value_type())?;
+                let v = eval(program, value, state)?;
+                require_type(target.value_type, v.value_type())?;
                 let slot = state
                     .shared
                     .entry(target.name.clone())
                     .or_insert_with(|| TypedSlot::new(target.value_type));
                 require_type(slot.value_type, target.value_type)?;
-                slot.value = value;
+                slot.value = v;
             }
             IrItem::If {
                 condition,
                 then_body,
                 else_body,
             } => {
-                let cond = evaluate(condition, state)?;
+                let cond = eval(program, condition, state)?;
                 if let RuntimeValue::Integer(v) = cond {
                     if v != 0 {
-                        execute_items(then_body, state, output)?;
-                    } else if let Some(else_body) = else_body {
-                        execute_items(else_body, state, output)?;
+                        match exec_items(program, then_body, state, output)? {
+                            Flow::Return(r) => return Ok(Flow::Return(r)),
+                            Flow::Continue => {}
+                        }
+                    } else if let Some(eb) = else_body {
+                        match exec_items(program, eb, state, output)? {
+                            Flow::Return(r) => return Ok(Flow::Return(r)),
+                            Flow::Continue => {}
+                        }
                     }
                 }
             }
-            IrItem::Function { name: _, body: _ } => {}
+            IrItem::Function { .. } => {}
+            IrItem::Return { value } => {
+                let v = match value {
+                    Some(e) => Some(eval(program, e, state)?),
+                    None => None,
+                };
+                return Ok(Flow::Return(v));
+            }
         }
     }
-    Ok(())
+    Ok(Flow::Continue)
 }
 
-fn evaluate(expr: &IrExpr, state: &ExecutionState) -> Result<RuntimeValue, RuntimeError> {
+pub(crate) fn eval(
+    program: &IrProgram,
+    expr: &IrExpr,
+    state: &ExecutionState,
+) -> Result<RuntimeValue, RuntimeError> {
     let value = match &expr.kind {
-        IrExprKind::StringLiteral(value) => RuntimeValue::String(value.clone()),
-        IrExprKind::IntegerLiteral(value) => RuntimeValue::Integer(parse_integer(value)?),
-        IrExprKind::FloatLiteral(value) => RuntimeValue::Float(parse_float(value)?),
+        IrExprKind::StringLiteral(v) => RuntimeValue::String(v.clone()),
+        IrExprKind::IntegerLiteral(v) => RuntimeValue::Integer(parse_integer(v)?),
+        IrExprKind::FloatLiteral(v) => RuntimeValue::Float(parse_float(v)?),
         IrExprKind::Constant { value, .. } => RuntimeValue::Integer(parse_integer(value)?),
         IrExprKind::Comparison { op, left, right } => {
-            let l = evaluate(left, state)?;
-            let r = evaluate(right, state)?;
+            let l = eval(program, left, state)?;
+            let r = eval(program, right, state)?;
             RuntimeValue::Integer(crate::compare::compare(*op, &l, &r)?)
         }
-        IrExprKind::SharedVariable(symbol) => read_slot(&state.shared, symbol)?,
-        IrExprKind::Symbol(symbol) => read_slot(&state.slots, symbol)?,
+        IrExprKind::SharedVariable(s) => read_slot(&state.shared, s)?,
+        IrExprKind::Symbol(s) => read_slot(&state.slots, s)?,
+        IrExprKind::FunctionCall { name, args } => {
+            return crate::call::call_function(program, name, args, state)
+        }
     };
     require_type(expr.value_type, value.value_type())?;
     Ok(value)
-}
-
-fn read_slot(
-    slots: &BTreeMap<String, TypedSlot>,
-    symbol: &IrSymbol,
-) -> Result<RuntimeValue, RuntimeError> {
-    let slot = slots
-        .get(&symbol.name)
-        .ok_or_else(|| RuntimeError::UnknownSlot {
-            name: symbol.name.clone(),
-        })?;
-    require_type(symbol.value_type, slot.value_type)?;
-    Ok(slot.value.clone())
-}
-
-fn parse_integer(literal: &str) -> Result<i32, RuntimeError> {
-    let parsed = if let Some(hex) = literal
-        .strip_prefix("0x")
-        .or_else(|| literal.strip_prefix("0X"))
-    {
-        i32::from_str_radix(hex, 16)
-    } else {
-        literal.parse::<i32>()
-    };
-    parsed.map_err(|_| invalid_literal(literal, ValueType::Integer))
-}
-
-fn parse_float(literal: &str) -> Result<f64, RuntimeError> {
-    let value = literal
-        .parse::<f64>()
-        .map_err(|_| invalid_literal(literal, ValueType::Float))?;
-    if value.is_finite() {
-        Ok(value)
-    } else {
-        Err(invalid_literal(literal, ValueType::Float))
-    }
-}
-
-fn invalid_literal(literal: &str, value_type: ValueType) -> RuntimeError {
-    RuntimeError::InvalidLiteral {
-        literal: literal.to_string(),
-        value_type,
-    }
-}
-
-fn require_type(expected: ValueType, actual: ValueType) -> Result<(), RuntimeError> {
-    if expected == actual {
-        Ok(())
-    } else {
-        Err(RuntimeError::TypeMismatch { expected, actual })
-    }
 }

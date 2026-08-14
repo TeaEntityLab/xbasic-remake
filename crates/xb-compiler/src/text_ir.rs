@@ -67,13 +67,31 @@ impl TextIrEmitter {
                 }
                 out.push_str(&format!("{prefix}end if\n"));
             }
-            IrItem::Function { name, body } => {
-                out.push_str(&format!("{prefix}function {name}\n"));
+            IrItem::Function {
+                name,
+                params,
+                return_type,
+                body,
+            } => {
+                let ps: Vec<String> = params
+                    .iter()
+                    .map(|p| format!("{}:{}", p.name, self.emit_type(p.value_type)))
+                    .collect();
+                out.push_str(&format!(
+                    "{prefix}function {}({}) -> {}\n",
+                    name,
+                    ps.join(", "),
+                    self.emit_type(*return_type)
+                ));
                 for item in body {
                     self.emit_item(item, out, indent + 1);
                 }
                 out.push_str(&format!("{prefix}end function\n"));
             }
+            IrItem::Return { value } => match value {
+                Some(e) => out.push_str(&format!("{prefix}return {}\n", self.emit_expr(e))),
+                None => out.push_str(&format!("{prefix}return\n")),
+            },
         }
     }
 
@@ -95,6 +113,10 @@ impl TextIrEmitter {
                     self.emit_op(*op),
                     self.emit_expr(right)
                 )
+            }
+            IrExprKind::FunctionCall { name, args } => {
+                let as_str: Vec<String> = args.iter().map(|a| self.emit_expr(a)).collect();
+                format!("call {}({})", name, as_str.join(", "))
             }
         }
     }
@@ -175,7 +197,7 @@ mod tests {
         assert_eq!(
             text,
             concat!(
-                "function Main\n",
+                "function Main() -> integer\n",
                 "  shared ##XBSystem:integer = integer(1)\n",
                 "  print shared(##XBSystem:integer)\n",
                 "end function\n",

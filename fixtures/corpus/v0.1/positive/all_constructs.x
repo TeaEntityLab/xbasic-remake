@@ -1,3 +1,6 @@
+FUNCTION Identity(x)
+RETURN x
+END FUNCTION
 VERSION "0.1"
 FUNCTION Main
 DIM plain
@@ -25,5 +28,6 @@ PRINT "branch"
 END IF
 IF 1 = 1 THEN
 PRINT "compare"
+PRINT Identity(42)
 END IF
 END FUNCTION

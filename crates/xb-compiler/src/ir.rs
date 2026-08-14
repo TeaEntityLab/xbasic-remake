@@ -1,6 +1,6 @@
 use crate::checked::{
-    CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol, ComparisonOp,
-    ValueType,
+    CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam, CheckedProgram, CheckedSymbol,
+    ComparisonOp, ValueType,
 };
 use crate::text_ir::TextIrEmitter;
 
@@ -48,7 +48,12 @@ pub enum IrItem {
     },
     Function {
         name: String,
+        params: Vec<IrParam>,
+        return_type: ValueType,
         body: Vec<IrItem>,
+    },
+    Return {
+        value: Option<IrExpr>,
     },
 }
 
@@ -88,9 +93,19 @@ impl IrItem {
                 target: IrSymbol::lower(target),
                 value: IrExpr::lower(value),
             },
-            CheckedItem::Function { name, body } => Self::Function {
+            CheckedItem::Function {
+                name,
+                params,
+                return_type,
+                body,
+            } => Self::Function {
                 name: name.clone(),
+                params: params.iter().map(IrParam::lower).collect(),
+                return_type: *return_type,
                 body: body.iter().map(Self::lower_item).collect(),
+            },
+            CheckedItem::Return { value } => Self::Return {
+                value: value.as_ref().map(IrExpr::lower),
             },
         }
     }
@@ -125,6 +140,10 @@ impl IrExpr {
                 left: Box::new(IrExpr::lower(left)),
                 right: Box::new(IrExpr::lower(right)),
             },
+            CheckedExprKind::FunctionCall { name, args } => IrExprKind::FunctionCall {
+                name: name.clone(),
+                args: args.iter().map(IrExpr::lower).collect(),
+            },
         };
         Self::new(kind, expr.value_type)
     }
@@ -146,6 +165,10 @@ pub enum IrExprKind {
         left: Box<IrExpr>,
         right: Box<IrExpr>,
     },
+    FunctionCall {
+        name: String,
+        args: Vec<IrExpr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -159,6 +182,21 @@ impl IrSymbol {
         Self {
             name: symbol.name.clone(),
             value_type: symbol.value_type,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IrParam {
+    pub name: String,
+    pub value_type: ValueType,
+}
+
+impl IrParam {
+    fn lower(p: &CheckedParam) -> Self {
+        Self {
+            name: p.name.clone(),
+            value_type: p.value_type,
         }
     }
 }
@@ -180,11 +218,10 @@ mod tests {
         assert!(matches!(ir.items[0], IrItem::Version(ref version) if version == "6.5.0"));
         assert!(matches!(
             ir.items[1],
-            IrItem::Function { ref name, ref body }
+            IrItem::Function { ref name, ref body, .. }
                 if name == "Main" && matches!(body.first(), Some(IrItem::Print(IrExpr { value_type: ValueType::String, .. })))
         ));
     }
-
     #[test]
     fn lowers_assignment_into_typed_ir() {
         let program = parse_program("DIM name$\nname$ = \"hello\"\nPRINT name$\n").unwrap();

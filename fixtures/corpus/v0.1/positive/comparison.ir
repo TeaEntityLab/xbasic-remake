@@ -1,4 +1,4 @@
-function Main
+function Main() -> integer
   dim a:integer
   dim b:integer
   assign a:integer = integer(5)

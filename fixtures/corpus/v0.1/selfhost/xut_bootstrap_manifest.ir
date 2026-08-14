@@ -1,7 +1,13 @@
 version 0.0001
 const $$XBSysLinux:integer = integer(1)
 const $$XBSysWin32:integer = integer(2)
-function Main
+function PlatformName() -> string
+  if constant($$XBSysLinux:integer = integer(1))
+    return string("linux")
+  end if
+  return string("unknown")
+end function
+function Main() -> integer
   dim utilityName:string
   dim utilityVersion:float
   assign utilityName:string = string("xut")
@@ -18,4 +24,5 @@ function Main
   if compare(shared(##XBSystem:integer) = constant($$XBSysLinux:integer = integer(1)))
     print string("match")
   end if
+  print call PlatformName()
 end function

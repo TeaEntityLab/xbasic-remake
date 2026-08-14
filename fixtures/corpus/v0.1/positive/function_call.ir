@@ -1,0 +1,14 @@
+version 0.1
+function First(a:integer, b:integer) -> integer
+  if compare(symbol(a:integer) = symbol(b:integer))
+    return symbol(a:integer)
+  end if
+  return symbol(b:integer)
+end function
+function Main() -> integer
+  dim result:integer
+  assign result:integer = call First(integer(3), integer(3))
+  print symbol(result:integer)
+  assign result:integer = call First(integer(3), integer(4))
+  print symbol(result:integer)
+end function

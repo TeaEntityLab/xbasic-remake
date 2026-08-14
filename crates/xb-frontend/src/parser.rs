@@ -52,6 +52,7 @@ impl Parser {
             Some(Keyword::Dim) => self.dim_stmt(),
             Some(Keyword::If) => self.if_stmt(),
             Some(Keyword::Function) => self.function_stmt(),
+            Some(Keyword::Return) => self.return_stmt(),
             _ if self.starts_assignment() => self.assignment_stmt(),
             _ => Err(self.expected("statement")),
         }
@@ -121,7 +122,12 @@ impl Parser {
 
     fn function_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::Function)?;
-        let (name, _) = self.expect_identifier()?;
+        let (name, suffix) = self.expect_identifier()?;
+        let params = if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+            self.parse_params()?
+        } else {
+            Vec::new()
+        };
         self.expect_line_end()?;
         let mut body = Vec::new();
         self.skip_newlines();
@@ -132,7 +138,9 @@ impl Parser {
         self.expect_keyword(Keyword::End)?;
         self.expect_keyword(Keyword::Function)?;
         self.expect_line_end()?;
-        Ok(Statement::Function(FunctionDecl::new(name, body)))
+        Ok(Statement::Function(FunctionDecl::new(
+            name, suffix, params, body,
+        )))
     }
     fn if_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::If)?;
@@ -168,7 +176,7 @@ impl Parser {
         })
     }
 
-    fn expression(&mut self) -> Result<Expression, ParseError> {
+    pub(crate) fn expression(&mut self) -> Result<Expression, ParseError> {
         let left = self.primary()?;
         if let Some(op) = self.comparison_op() {
             let right = self.primary()?;
@@ -223,40 +231,14 @@ impl Parser {
             }
             TokenKind::Identifier { name, suffix } => {
                 self.index += 1;
-                Ok(Expression::Identifier { name, suffix })
+                if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+                    let args = self.parse_args()?;
+                    Ok(Expression::FunctionCall { name, args })
+                } else {
+                    Ok(Expression::Identifier { name, suffix })
+                }
             }
             _ => Err(self.expected("expression")),
         }
-    }
-
-    fn starts_end_function(&self) -> bool {
-        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::End))
-            && matches!(
-                self.peek_next_kind(),
-                Some(TokenKind::Keyword(Keyword::Function))
-            )
-    }
-    fn starts_end_if(&self) -> bool {
-        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::End))
-            && matches!(self.peek_next_kind(), Some(TokenKind::Keyword(Keyword::If)))
-    }
-
-    fn starts_else(&self) -> bool {
-        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Else))
-    }
-
-    fn starts_assignment(&self) -> bool {
-        matches!(self.peek_kind(), TokenKind::Identifier { .. })
-            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
-    }
-
-    fn starts_constant_definition(&self) -> bool {
-        matches!(self.peek_kind(), TokenKind::SystemConstant(_))
-            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
-    }
-
-    fn starts_shared_assignment(&self) -> bool {
-        matches!(self.peek_kind(), TokenKind::SystemVariable { .. })
-            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
     }
 }

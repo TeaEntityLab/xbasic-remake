@@ -1,0 +1,3 @@
+FUNCTION Main
+PRINT unknownFunc(1)
+END FUNCTION

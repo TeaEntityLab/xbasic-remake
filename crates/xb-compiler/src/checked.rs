@@ -1,6 +1,6 @@
 use thiserror::Error;
-pub use xb_frontend::ComparisonOp;
 use xb_frontend::TypeSuffix;
+pub use xb_frontend::{ComparisonOp, Param};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
@@ -45,6 +45,28 @@ pub enum SemanticError {
     IfConditionNotInteger { actual: ValueType },
     #[error("comparison operand type mismatch: {left:?} vs {right:?}")]
     ComparisonTypeMismatch { left: ValueType, right: ValueType },
+    #[error("unknown function {name}")]
+    UnknownFunction { name: String },
+    #[error("function {name} expects {expected} args, got {actual}")]
+    FunctionArgCount {
+        name: String,
+        expected: usize,
+        actual: usize,
+    },
+    #[error("function {name} arg {index} type mismatch: expected {expected:?}, got {actual:?}")]
+    FunctionArgType {
+        name: String,
+        index: usize,
+        expected: ValueType,
+        actual: ValueType,
+    },
+    #[error("return outside function")]
+    ReturnOutsideFunction,
+    #[error("return type mismatch: expected {expected:?}, got {actual:?}")]
+    ReturnTypeMismatch {
+        expected: ValueType,
+        actual: ValueType,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,7 +99,12 @@ pub enum CheckedItem {
     },
     Function {
         name: String,
+        params: Vec<CheckedParam>,
+        return_type: ValueType,
         body: Vec<CheckedItem>,
+    },
+    Return {
+        value: Option<CheckedExpr>,
     },
 }
 
@@ -109,6 +136,10 @@ pub enum CheckedExprKind {
         left: Box<CheckedExpr>,
         right: Box<CheckedExpr>,
     },
+    FunctionCall {
+        name: String,
+        args: Vec<CheckedExpr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,5 +151,20 @@ pub struct CheckedSymbol {
 impl CheckedSymbol {
     pub(crate) const fn new(name: String, value_type: ValueType) -> Self {
         Self { name, value_type }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedParam {
+    pub name: String,
+    pub value_type: ValueType,
+}
+
+impl CheckedParam {
+    pub(crate) fn from_ast(p: &Param) -> Self {
+        Self {
+            name: p.name.clone(),
+            value_type: ValueType::from_suffix(p.suffix),
+        }
     }
 }

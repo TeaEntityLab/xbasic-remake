@@ -16,6 +16,7 @@ impl CheckedProgram {
                 CheckedItem::Function {
                     name: candidate,
                     body,
+                    ..
                 } => (candidate == name).then_some(body.as_slice()),
                 CheckedItem::Version(_)
                 | CheckedItem::Print(_)
@@ -23,7 +24,8 @@ impl CheckedProgram {
                 | CheckedItem::Assignment { .. }
                 | CheckedItem::ConstantDefinition { .. }
                 | CheckedItem::If { .. }
-                | CheckedItem::SharedAssignment { .. } => None,
+                | CheckedItem::SharedAssignment { .. }
+                | CheckedItem::Return { .. } => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),
@@ -39,6 +41,7 @@ impl IrProgram {
                 IrItem::Function {
                     name: candidate,
                     body,
+                    ..
                 } => (candidate == name).then_some(body.as_slice()),
                 IrItem::Version(_)
                 | IrItem::Print(_)
@@ -46,7 +49,8 @@ impl IrProgram {
                 | IrItem::ConstantDefinition { .. }
                 | IrItem::Assignment { .. }
                 | IrItem::If { .. }
-                | IrItem::SharedAssignment { .. } => None,
+                | IrItem::SharedAssignment { .. }
+                | IrItem::Return { .. } => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),
