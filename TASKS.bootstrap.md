@@ -7,7 +7,7 @@ Each `- [ ]` line below is one loop-dispatch task. The loop script copies this f
 - [x] Add typed IR assignment item and tests proving `DIM name$ / name$ = "hello" / PRINT name$` lowers with matching types.
 - [x] Add a minimal CLI crate `xb` that can parse/analyze/lower a `.x` file and print a stable IR summary for the bootstrap subset.
 - [x] Add a fixture under `fixtures/bootstrap/hello.x` and an integration test that runs the CLI over it.
-- [ ] Add a text IR emitter module that serializes the typed IR deterministically for golden-style tests without snapshotting prose.
+- [x] Add a text IR emitter module that serializes the typed IR deterministically for golden-style tests without snapshotting prose.
 - [ ] Add first runtime-backed interpreter for the typed IR subset: VERSION is metadata, DIM allocates a typed slot, assignment stores, PRINT appends to an output sink.
 - [ ] Add semantic support for function entry lookup (`Main`) and an interpreter test that executes `FUNCTION Main ... END FUNCTION`.
 - [ ] Add a minimal self-host utility written in XBasic source under `selfhost/` that the Rust CLI parses/analyzes/lowers successfully.

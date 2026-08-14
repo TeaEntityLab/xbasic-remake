@@ -1,11 +1,13 @@
 pub mod ir;
 pub mod semantics;
+pub mod text_ir;
 
 pub use ir::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol};
 pub use semantics::{
     Analyzer, CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol,
     SemanticError, ValueType,
 };
+pub use text_ir::TextIrEmitter;
 
 use thiserror::Error;
 use xb_frontend::{parse_program, ParseError, Program};

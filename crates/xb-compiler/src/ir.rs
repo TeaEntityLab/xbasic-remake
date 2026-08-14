@@ -1,6 +1,7 @@
 use crate::semantics::{
     CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol, ValueType,
 };
+use crate::text_ir::TextIrEmitter;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IrProgram {
@@ -15,11 +16,7 @@ impl IrProgram {
     }
 
     pub fn summary(&self) -> String {
-        let mut out = String::new();
-        for item in &self.items {
-            item.write_summary(&mut out, 0);
-        }
-        out
+        TextIrEmitter::new().emit_program(self)
     }
 }
 
@@ -50,29 +47,6 @@ impl IrItem {
             },
         }
     }
-
-    fn write_summary(&self, out: &mut String, indent: usize) {
-        let prefix = "  ".repeat(indent);
-        match self {
-            Self::Version(value) => out.push_str(&format!("{prefix}version {value}\n")),
-            Self::Print(expr) => out.push_str(&format!("{prefix}print {}\n", expr.summary())),
-            Self::Dim { symbol } => out.push_str(&format!("{prefix}dim {}\n", symbol.summary())),
-            Self::Assignment { target, value } => {
-                out.push_str(&format!(
-                    "{prefix}assign {} = {}\n",
-                    target.summary(),
-                    value.summary()
-                ));
-            }
-            Self::Function { name, body } => {
-                out.push_str(&format!("{prefix}function {name}\n"));
-                for item in body {
-                    item.write_summary(out, indent + 1);
-                }
-                out.push_str(&format!("{prefix}end function\n"));
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,15 +68,6 @@ impl IrExpr {
             CheckedExprKind::Symbol(symbol) => IrExprKind::Symbol(IrSymbol::lower(symbol)),
         };
         Self::new(kind, expr.value_type)
-    }
-
-    fn summary(&self) -> String {
-        match &self.kind {
-            IrExprKind::StringLiteral(value) => format!("string({value:?})"),
-            IrExprKind::IntegerLiteral(value) => format!("integer({value})"),
-            IrExprKind::FloatLiteral(value) => format!("float({value})"),
-            IrExprKind::Symbol(symbol) => format!("symbol({})", symbol.summary()),
-        }
     }
 }
 
@@ -126,18 +91,6 @@ impl IrSymbol {
             name: symbol.name.clone(),
             value_type: symbol.value_type,
         }
-    }
-
-    fn summary(&self) -> String {
-        format!("{}:{}", self.name, value_type_name(self.value_type))
-    }
-}
-
-fn value_type_name(value_type: ValueType) -> &'static str {
-    match value_type {
-        ValueType::Integer => "integer",
-        ValueType::Float => "float",
-        ValueType::String => "string",
     }
 }
 
@@ -173,18 +126,5 @@ mod tests {
             IrItem::Assignment { ref target, ref value }
                 if target.name == "name" && target.value_type == ValueType::String && value.value_type == ValueType::String
         ));
-    }
-
-    #[test]
-    fn writes_stable_summary_without_debug_formatting() {
-        let program =
-            parse_program("VERSION \"6.5.0\"\nDIM name$\nname$ = \"hello\"\nPRINT name$\n")
-                .unwrap();
-        let checked = Analyzer::analyze(&program).unwrap();
-        let ir = IrProgram::lower(&checked);
-        assert_eq!(
-            ir.summary(),
-            "version 6.5.0\ndim name:string\nassign name:string = string(\"hello\")\nprint symbol(name:string)\n"
-        );
     }
 }
