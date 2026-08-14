@@ -1,0 +1,4 @@
+FUNCTION Main
+PRINT $$Later
+END FUNCTION
+$$Later = 7

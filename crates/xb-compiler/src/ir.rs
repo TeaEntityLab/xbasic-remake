@@ -24,9 +24,22 @@ impl IrProgram {
 pub enum IrItem {
     Version(String),
     Print(IrExpr),
-    Dim { symbol: IrSymbol },
-    Assignment { target: IrSymbol, value: IrExpr },
-    Function { name: String, body: Vec<IrItem> },
+    Dim {
+        symbol: IrSymbol,
+    },
+    Assignment {
+        target: IrSymbol,
+        value: IrExpr,
+    },
+    ConstantDefinition {
+        name: String,
+        value: String,
+        value_type: ValueType,
+    },
+    Function {
+        name: String,
+        body: Vec<IrItem>,
+    },
 }
 
 impl IrItem {
@@ -40,6 +53,15 @@ impl IrItem {
             CheckedItem::Assignment { target, value } => Self::Assignment {
                 target: IrSymbol::lower(target),
                 value: IrExpr::lower(value),
+            },
+            CheckedItem::ConstantDefinition {
+                name,
+                value,
+                value_type,
+            } => Self::ConstantDefinition {
+                name: name.clone(),
+                value: value.clone(),
+                value_type: *value_type,
             },
             CheckedItem::Function { name, body } => Self::Function {
                 name: name.clone(),
@@ -65,6 +87,10 @@ impl IrExpr {
             CheckedExprKind::StringLiteral(value) => IrExprKind::StringLiteral(value.clone()),
             CheckedExprKind::IntegerLiteral(value) => IrExprKind::IntegerLiteral(value.clone()),
             CheckedExprKind::FloatLiteral(value) => IrExprKind::FloatLiteral(value.clone()),
+            CheckedExprKind::Constant { name, value } => IrExprKind::Constant {
+                name: name.clone(),
+                value: value.clone(),
+            },
             CheckedExprKind::Symbol(symbol) => IrExprKind::Symbol(IrSymbol::lower(symbol)),
         };
         Self::new(kind, expr.value_type)
@@ -76,6 +102,7 @@ pub enum IrExprKind {
     StringLiteral(String),
     IntegerLiteral(String),
     FloatLiteral(String),
+    Constant { name: String, value: String },
     Symbol(IrSymbol),
 }
 
@@ -125,6 +152,25 @@ mod tests {
             ir.items[1],
             IrItem::Assignment { ref target, ref value }
                 if target.name == "name" && target.value_type == ValueType::String && value.value_type == ValueType::String
+        ));
+    }
+
+    #[test]
+    fn lowers_constant_definition_and_reference_into_typed_ir() {
+        // Given
+        let program = parse_program("$$Answer = 42\nPRINT $$Answer\n").unwrap();
+        let checked = Analyzer::analyze(&program).unwrap();
+
+        // When
+        let ir = IrProgram::lower(&checked);
+
+        // Then
+        assert!(matches!(
+            &ir.items[..],
+            [
+                IrItem::ConstantDefinition { name, value, value_type: ValueType::Integer },
+                IrItem::Print(IrExpr { kind: IrExprKind::Constant { name: reference, value: resolved }, value_type: ValueType::Integer })
+            ] if name == "Answer" && value == "42" && reference == "Answer" && resolved == "42"
         ));
     }
 }

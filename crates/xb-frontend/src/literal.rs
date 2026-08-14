@@ -40,8 +40,8 @@ impl Lexer<'_> {
         if self.lookahead == Some('0') {
             text.push('0');
             self.advance();
-            if matches!(self.lookahead, Some('x' | 'X')) {
-                text.push('x');
+            if let Some(prefix @ ('x' | 'X')) = self.lookahead {
+                text.push(prefix);
                 self.advance();
                 self.take_while(&mut text, is_hex_digit);
                 return Token::new(TokenKind::IntegerLiteral(text), pos);
@@ -85,7 +85,7 @@ impl Lexer<'_> {
         if self.lookahead == Some('#') {
             self.advance();
             let name = self.name_after_prefix(pos)?;
-            return Ok(Token::new(TokenKind::SystemConstant(name), pos));
+            return Ok(Token::new(TokenKind::SystemVariable(name), pos));
         }
         let name = self.name_after_prefix(pos)?;
         Ok(Token::new(TokenKind::SharedName(name), pos))

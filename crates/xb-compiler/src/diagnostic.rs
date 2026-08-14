@@ -9,7 +9,8 @@ use crate::{CompileError, SemanticError};
 
 /// Stable codes for errors originating in the frontend (lexer, parser, semantics).
 pub const SOURCE_DIAGNOSTIC_CODES: &[&str] = &[
-    "XB-L001", "XB-L002", "XB-P001", "XB-S001", "XB-S002", "XB-S003",
+    "XB-L001", "XB-L002", "XB-P001", "XB-S001", "XB-S002", "XB-S003", "XB-S004", "XB-S005",
+    "XB-S006",
 ];
 
 /// Stable codes for errors originating in the backend (codegen).
@@ -30,6 +31,9 @@ impl CompileError {
                 SemanticError::DuplicateSymbol { .. } => "XB-S001",
                 SemanticError::UnknownSymbol { .. } => "XB-S002",
                 SemanticError::TypeMismatch { .. } => "XB-S003",
+                SemanticError::DuplicateConstant { .. } => "XB-S004",
+                SemanticError::UnknownConstant { .. } => "XB-S005",
+                SemanticError::ConstantDefinitionNotTopLevel { .. } => "XB-S006",
             },
             CompileError::LlvmDisabled => "XB-B001",
         }
@@ -85,6 +89,24 @@ mod tests {
         })
     }
 
+    fn duplicate_constant() -> CompileError {
+        CompileError::Semantic(SemanticError::DuplicateConstant {
+            name: "Answer".to_string(),
+        })
+    }
+
+    fn unknown_constant() -> CompileError {
+        CompileError::Semantic(SemanticError::UnknownConstant {
+            name: "Answer".to_string(),
+        })
+    }
+
+    fn constant_definition_not_top_level() -> CompileError {
+        CompileError::Semantic(SemanticError::ConstantDefinitionNotTopLevel {
+            name: "Answer".to_string(),
+        })
+    }
+
     #[test]
     fn unterminated_string_maps_to_xb_l001() {
         assert_eq!(unterminated_string().diagnostic_code(), "XB-L001");
@@ -116,6 +138,24 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_constant_maps_to_xb_s004() {
+        assert_eq!(duplicate_constant().diagnostic_code(), "XB-S004");
+    }
+
+    #[test]
+    fn unknown_constant_maps_to_xb_s005() {
+        assert_eq!(unknown_constant().diagnostic_code(), "XB-S005");
+    }
+
+    #[test]
+    fn nested_constant_definition_maps_to_xb_s006() {
+        assert_eq!(
+            constant_definition_not_top_level().diagnostic_code(),
+            "XB-S006"
+        );
+    }
+
+    #[test]
     fn llvm_disabled_maps_to_xb_b001() {
         assert_eq!(CompileError::LlvmDisabled.diagnostic_code(), "XB-B001");
     }
@@ -134,6 +174,12 @@ mod tests {
         assert_eq!(duplicate_symbol().diagnostic_code(), "XB-S001");
         assert_eq!(unknown_symbol().diagnostic_code(), "XB-S002");
         assert_eq!(type_mismatch().diagnostic_code(), "XB-S003");
+        assert_eq!(duplicate_constant().diagnostic_code(), "XB-S004");
+        assert_eq!(unknown_constant().diagnostic_code(), "XB-S005");
+        assert_eq!(
+            constant_definition_not_top_level().diagnostic_code(),
+            "XB-S006"
+        );
     }
 
     #[test]
@@ -145,11 +191,14 @@ mod tests {
             duplicate_symbol().diagnostic_code(),
             unknown_symbol().diagnostic_code(),
             type_mismatch().diagnostic_code(),
+            duplicate_constant().diagnostic_code(),
+            unknown_constant().diagnostic_code(),
+            constant_definition_not_top_level().diagnostic_code(),
             CompileError::LlvmDisabled.diagnostic_code(),
         ];
         codes.sort_unstable();
         codes.dedup();
-        assert_eq!(codes.len(), 7);
+        assert_eq!(codes.len(), 10);
     }
 
     #[test]
@@ -157,7 +206,7 @@ mod tests {
         let mut codes = crate::SOURCE_DIAGNOSTIC_CODES.to_vec();
         codes.sort_unstable();
         codes.dedup();
-        assert_eq!(codes.len(), 6);
+        assert_eq!(codes.len(), 9);
         for code in codes {
             assert!(code.starts_with("XB-"));
         }
@@ -172,6 +221,9 @@ mod tests {
             duplicate_symbol().diagnostic_code(),
             unknown_symbol().diagnostic_code(),
             type_mismatch().diagnostic_code(),
+            duplicate_constant().diagnostic_code(),
+            unknown_constant().diagnostic_code(),
+            constant_definition_not_top_level().diagnostic_code(),
         ] {
             assert!(
                 crate::SOURCE_DIAGNOSTIC_CODES.contains(&code),

@@ -40,6 +40,11 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
+        if matches!(self.peek_kind(), TokenKind::SystemConstant(_))
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
+        {
+            return self.constant_definition_stmt();
+        }
         match self.peek_keyword() {
             Some(Keyword::Version) => self.version_stmt(),
             Some(Keyword::Print) => self.print_stmt(),
@@ -48,6 +53,20 @@ impl Parser {
             _ if self.starts_assignment() => self.assignment_stmt(),
             _ => Err(self.expected("statement")),
         }
+    }
+
+    fn constant_definition_stmt(&mut self) -> Result<Statement, ParseError> {
+        let TokenKind::SystemConstant(name) = self.peek_kind().clone() else {
+            return Err(self.expected("system constant"));
+        };
+        self.index += 1;
+        self.expect_symbol('=')?;
+        let TokenKind::IntegerLiteral(value) = self.peek_kind().clone() else {
+            return Err(self.expected("integer literal"));
+        };
+        self.index += 1;
+        self.expect_line_end()?;
+        Ok(Statement::ConstantDefinition { name, value })
     }
 
     fn version_stmt(&mut self) -> Result<Statement, ParseError> {
@@ -113,6 +132,10 @@ impl Parser {
             TokenKind::FloatLiteral(value) => {
                 self.index += 1;
                 Ok(Expression::FloatLiteral(value))
+            }
+            TokenKind::SystemConstant(name) => {
+                self.index += 1;
+                Ok(Expression::SystemConstant { name })
             }
             TokenKind::Identifier { name, suffix } => {
                 self.index += 1;

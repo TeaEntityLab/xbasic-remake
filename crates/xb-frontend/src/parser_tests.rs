@@ -1,4 +1,4 @@
-use crate::{parse_program, ParseError, Statement, TypeSuffix};
+use crate::{parse_program, Expression, ParseError, Statement, TypeSuffix};
 
 #[test]
 fn parses_bootstrap_subset_when_program_has_function_body() {
@@ -144,6 +144,71 @@ fn rejects_trailing_tokens_after_end_function() {
         result,
         Err(ParseError::Expected {
             expected: "end of line",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn parses_integer_constant_definitions_and_references() {
+    let src = "$$XBSysLinux = 1\nFUNCTION Main\n$$Local = 0x2\nPRINT $$XBSysLinux\nEND FUNCTION\n";
+    let program = parse_program(src).unwrap();
+
+    assert!(matches!(
+        program.statements[0],
+        Statement::ConstantDefinition { ref name, ref value }
+            if name == "XBSysLinux" && value == "1"
+    ));
+    assert!(matches!(
+        program.statements[1],
+        Statement::Function(ref function)
+            if matches!(
+                function.body.as_slice(),
+                [
+                    Statement::ConstantDefinition { name, value },
+                    Statement::Print(Expression::SystemConstant { name: reference }),
+                ] if name == "Local" && value == "0x2" && reference == "XBSysLinux"
+            )
+    ));
+}
+
+#[test]
+fn rejects_constant_definition_when_value_is_not_integer_literal() {
+    for src in [
+        "$$Value = 1.5\n",
+        "$$Value = \"text\"\n",
+        "$$Value = $$Other\n",
+    ] {
+        let result = parse_program(src);
+        assert!(matches!(
+            result,
+            Err(ParseError::Expected {
+                expected: "integer literal",
+                ..
+            })
+        ));
+    }
+}
+
+#[test]
+fn rejects_bare_system_constant_statement() {
+    let result = parse_program("$$XBSysLinux\n");
+    assert!(matches!(
+        result,
+        Err(ParseError::Expected {
+            expected: "statement",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn rejects_system_variable_expression() {
+    let result = parse_program("PRINT ##XBSystem\n");
+    assert!(matches!(
+        result,
+        Err(ParseError::Expected {
+            expected: "expression",
             ..
         })
     ));

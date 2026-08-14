@@ -94,6 +94,7 @@ pub enum TokenKind {
         suffix: Option<TypeSuffix>,
     },
     SystemConstant(String),
+    SystemVariable(String),
     SharedName(String),
     IntegerLiteral(String),
     FloatLiteral(String),

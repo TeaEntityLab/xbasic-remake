@@ -3,6 +3,8 @@ mod entry_lookup;
 
 pub mod ir;
 pub mod semantics;
+#[cfg(test)]
+mod semantics_tests;
 pub mod text_ir;
 
 pub use diagnostic::{BACKEND_DIAGNOSTIC_CODES, SOURCE_DIAGNOSTIC_CODES};

@@ -101,6 +101,22 @@ fn prints_hexadecimal_integer_literal() {
 }
 
 #[test]
+fn prints_system_constant_without_allocating_runtime_slot() {
+    // Given
+    let program = lower("$$XBSysLinux = 1\nFUNCTION Main\nPRINT $$XBSysLinux\nEND FUNCTION\n");
+    let mut output = Vec::new();
+
+    // When
+    let state = Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+
+    // Then
+    assert_eq!(output, ["1"]);
+    assert!(state.slot("XBSysLinux").is_none());
+}
+
+#[test]
 fn rejects_unknown_runtime_slot() {
     // Given
     let program = IrProgram {

@@ -145,6 +145,7 @@ fn execute_items(
         match item {
             IrItem::Version(version) => state.metadata.version = Some(version.clone()),
             IrItem::Print(expr) => output.push(evaluate(expr, state)?.render()),
+            IrItem::ConstantDefinition { .. } => {}
             IrItem::Dim { symbol } => match state.slots.entry(symbol.name.clone()) {
                 Entry::Vacant(entry) => {
                     entry.insert(TypedSlot::new(symbol.value_type));
@@ -179,6 +180,7 @@ fn evaluate(expr: &IrExpr, state: &ExecutionState) -> Result<RuntimeValue, Runti
         IrExprKind::StringLiteral(value) => RuntimeValue::String(value.clone()),
         IrExprKind::IntegerLiteral(value) => RuntimeValue::Integer(parse_integer(value)?),
         IrExprKind::FloatLiteral(value) => RuntimeValue::Float(parse_float(value)?),
+        IrExprKind::Constant { value, .. } => RuntimeValue::Integer(parse_integer(value)?),
         IrExprKind::Symbol(symbol) => {
             let slot = state
                 .slots

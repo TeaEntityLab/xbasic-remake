@@ -20,7 +20,8 @@ impl CheckedProgram {
                 CheckedItem::Version(_)
                 | CheckedItem::Print(_)
                 | CheckedItem::Dim(_)
-                | CheckedItem::Assignment { .. } => None,
+                | CheckedItem::Assignment { .. }
+                | CheckedItem::ConstantDefinition { .. } => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),
@@ -40,7 +41,8 @@ impl IrProgram {
                 IrItem::Version(_)
                 | IrItem::Print(_)
                 | IrItem::Dim { .. }
-                | IrItem::Assignment { .. } => None,
+                | IrItem::Assignment { .. }
+                | IrItem::ConstantDefinition { .. } => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),
@@ -112,5 +114,30 @@ mod tests {
             [IrItem::Print(expr)]
                 if matches!(&expr.kind, IrExprKind::StringLiteral(value) if value == "main")
         ));
+    }
+
+    #[test]
+    fn checked_entry_skips_constant_definitions() {
+        // Given
+        let checked = analyze("$$Answer = 1\nFUNCTION Main\nPRINT $$Answer\nEND FUNCTION\n");
+
+        // When
+        let body = checked.entry("Main").unwrap();
+
+        // Then
+        assert!(matches!(body, [CheckedItem::Print(_)]));
+    }
+
+    #[test]
+    fn ir_entry_skips_constant_definitions() {
+        // Given
+        let checked = analyze("$$Answer = 1\nFUNCTION Main\nPRINT $$Answer\nEND FUNCTION\n");
+        let ir = IrProgram::lower(&checked);
+
+        // When
+        let body = ir.entry("Main").unwrap();
+
+        // Then
+        assert!(matches!(body, [IrItem::Print(_)]));
     }
 }

@@ -1,0 +1,3 @@
+FUNCTION Main
+$$Mode = 7
+END FUNCTION

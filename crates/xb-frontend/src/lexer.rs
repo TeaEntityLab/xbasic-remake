@@ -112,7 +112,7 @@ mod tests {
 
     #[test]
     fn lexes_fork_features_when_present() {
-        let src = "PACKED Vec2\nDIM name$\nIF a :: b THEN\nmask = 0xFF\n##XBSystem\n";
+        let src = "PACKED Vec2\nDIM name$\nIF a :: b THEN\nmask = 0xFF\n$$XBSysLinux\n##XBSystem\n";
         let tokens = lex(src).unwrap();
         assert!(tokens
             .iter()
@@ -124,6 +124,9 @@ mod tests {
             .any(|t| t.kind == TokenKind::IntegerLiteral("0xFF".to_string())));
         assert!(tokens
             .iter()
-            .any(|t| t.kind == TokenKind::SystemConstant("XBSystem".to_string())));
+            .any(|t| t.kind == TokenKind::SystemConstant("XBSysLinux".to_string())));
+        assert!(tokens
+            .iter()
+            .any(|t| t.kind == TokenKind::SystemVariable("XBSystem".to_string())));
     }
 }

@@ -34,6 +34,14 @@ impl TextIrEmitter {
                     self.emit_expr(value)
                 ));
             }
+            IrItem::ConstantDefinition {
+                name,
+                value,
+                value_type,
+            } => out.push_str(&format!(
+                "{prefix}const $${name}:{} = integer({value})\n",
+                self.emit_type(*value_type)
+            )),
             IrItem::Function { name, body } => {
                 out.push_str(&format!("{prefix}function {name}\n"));
                 for item in body {
@@ -49,6 +57,10 @@ impl TextIrEmitter {
             IrExprKind::StringLiteral(value) => format!("string({value:?})"),
             IrExprKind::IntegerLiteral(value) => format!("integer({value})"),
             IrExprKind::FloatLiteral(value) => format!("float({value})"),
+            IrExprKind::Constant { name, value } => format!(
+                "constant($${name}:{} = integer({value}))",
+                self.emit_type(expr.value_type)
+            ),
             IrExprKind::Symbol(symbol) => format!("symbol({})", self.emit_symbol(symbol)),
         }
     }
@@ -82,6 +94,40 @@ mod tests {
         assert_eq!(
             TextIrEmitter::new().emit_program(&ir),
             "version 6.5.0\ndim name:string\nassign name:string = string(\"hello\")\nprint symbol(name:string)\n"
+        );
+    }
+
+    #[test]
+    fn emits_constant_definition_and_reference_exactly() {
+        // Given
+        let program = parse_program("$$Answer = 1\nPRINT $$Answer\n").unwrap();
+        let checked = Analyzer::analyze(&program).unwrap();
+        let ir = IrProgram::lower(&checked);
+
+        // When
+        let text = TextIrEmitter::new().emit_program(&ir);
+
+        // Then
+        assert_eq!(
+            text,
+            "const $$Answer:integer = integer(1)\nprint constant($$Answer:integer = integer(1))\n"
+        );
+    }
+
+    #[test]
+    fn preserves_uppercase_hexadecimal_prefix() {
+        // Given
+        let program = parse_program("$$Answer = 0X2A\nPRINT $$Answer\n").unwrap();
+        let checked = Analyzer::analyze(&program).unwrap();
+        let ir = IrProgram::lower(&checked);
+
+        // When
+        let text = TextIrEmitter::new().emit_program(&ir);
+
+        // Then
+        assert_eq!(
+            text,
+            "const $$Answer:integer = integer(0X2A)\nprint constant($$Answer:integer = integer(0X2A))\n"
         );
     }
 }

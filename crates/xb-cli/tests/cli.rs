@@ -34,19 +34,17 @@ fn cli_prints_stable_ir_for_static_xut_bootstrap_manifest() {
         String::from_utf8(output.stdout).unwrap(),
         concat!(
             "version 0.0001\n",
+            "const $$XBSysLinux:integer = integer(1)\n",
+            "const $$XBSysWin32:integer = integer(2)\n",
             "function Main\n",
             "  dim utilityName:string\n",
             "  dim utilityVersion:float\n",
-            "  dim xbSysLinux:integer\n",
-            "  dim xbSysWin32:integer\n",
             "  assign utilityName:string = string(\"xut\")\n",
             "  assign utilityVersion:float = float(0.0001)\n",
-            "  assign xbSysLinux:integer = integer(1)\n",
-            "  assign xbSysWin32:integer = integer(2)\n",
             "  print symbol(utilityName:string)\n",
             "  print symbol(utilityVersion:float)\n",
-            "  print symbol(xbSysLinux:integer)\n",
-            "  print symbol(xbSysWin32:integer)\n",
+            "  print constant($$XBSysLinux:integer = integer(1))\n",
+            "  print constant($$XBSysWin32:integer = integer(2))\n",
             "end function\n",
         )
     );

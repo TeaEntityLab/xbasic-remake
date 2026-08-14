@@ -24,6 +24,10 @@ pub enum Statement {
         suffix: Option<TypeSuffix>,
         value: Expression,
     },
+    ConstantDefinition {
+        name: String,
+        value: String,
+    },
     Function(FunctionDecl),
 }
 
@@ -44,6 +48,9 @@ pub enum Expression {
     StringLiteral(String),
     IntegerLiteral(String),
     FloatLiteral(String),
+    SystemConstant {
+        name: String,
+    },
     Identifier {
         name: String,
         suffix: Option<TypeSuffix>,

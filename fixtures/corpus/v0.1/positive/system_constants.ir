@@ -1,0 +1,7 @@
+const $$Mode:integer = integer(7)
+dim Mode:integer
+assign Mode:integer = constant($$Mode:integer = integer(7))
+print symbol(Mode:integer)
+function Main
+  print constant($$Mode:integer = integer(7))
+end function

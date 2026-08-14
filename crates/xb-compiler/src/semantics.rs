@@ -31,6 +31,12 @@ pub enum SemanticError {
         expected: ValueType,
         actual: ValueType,
     },
+    #[error("duplicate constant {name}")]
+    DuplicateConstant { name: String },
+    #[error("unknown constant {name}")]
+    UnknownConstant { name: String },
+    #[error("constant definition {name} is not at top level")]
+    ConstantDefinitionNotTopLevel { name: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,6 +52,11 @@ pub enum CheckedItem {
     Assignment {
         target: CheckedSymbol,
         value: CheckedExpr,
+    },
+    ConstantDefinition {
+        name: String,
+        value: String,
+        value_type: ValueType,
     },
     Function {
         name: String,
@@ -70,6 +81,7 @@ pub enum CheckedExprKind {
     StringLiteral(String),
     IntegerLiteral(String),
     FloatLiteral(String),
+    Constant { name: String, value: String },
     Symbol(CheckedSymbol),
 }
 
@@ -88,6 +100,13 @@ impl CheckedSymbol {
 #[derive(Debug, Default)]
 pub struct Analyzer {
     symbols: BTreeMap<String, ValueType>,
+    constants: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Scope {
+    TopLevel,
+    Function,
 }
 
 impl Analyzer {
@@ -99,19 +118,50 @@ impl Analyzer {
     fn program(&mut self, program: &Program) -> Result<CheckedProgram, SemanticError> {
         let mut items = Vec::with_capacity(program.statements.len());
         for statement in &program.statements {
-            items.push(self.statement(statement)?);
+            items.push(self.statement(statement, Scope::TopLevel)?);
         }
         Ok(CheckedProgram { items })
     }
 
-    fn statement(&mut self, statement: &Statement) -> Result<CheckedItem, SemanticError> {
+    fn statement(
+        &mut self,
+        statement: &Statement,
+        scope: Scope,
+    ) -> Result<CheckedItem, SemanticError> {
         match statement {
             Statement::Version(value) => Ok(CheckedItem::Version(value.clone())),
             Statement::Print(expr) => Ok(CheckedItem::Print(self.expr(expr)?)),
             Statement::Dim { name, suffix } => self.dim(name, *suffix),
             Statement::Assignment { target, value, .. } => self.assignment(target, value),
+            Statement::ConstantDefinition { name, value } => match scope {
+                Scope::TopLevel => self.constant_definition(name, value),
+                Scope::Function => {
+                    Err(SemanticError::ConstantDefinitionNotTopLevel { name: name.clone() })
+                }
+            },
             Statement::Function(function) => self.function(function),
         }
+    }
+
+    fn constant_definition(
+        &mut self,
+        name: &str,
+        value: &str,
+    ) -> Result<CheckedItem, SemanticError> {
+        if self
+            .constants
+            .insert(name.to_owned(), value.to_owned())
+            .is_some()
+        {
+            return Err(SemanticError::DuplicateConstant {
+                name: name.to_owned(),
+            });
+        }
+        Ok(CheckedItem::ConstantDefinition {
+            name: name.to_owned(),
+            value: value.to_owned(),
+            value_type: ValueType::Integer,
+        })
     }
 
     fn dim(
@@ -144,12 +194,15 @@ impl Analyzer {
         Ok(CheckedItem::Assignment { target, value })
     }
 
-    fn function(&mut self, function: &FunctionDecl) -> Result<CheckedItem, SemanticError> {
-        let mut scoped = Self::default();
+    fn function(&self, function: &FunctionDecl) -> Result<CheckedItem, SemanticError> {
+        let mut scoped = Self {
+            symbols: BTreeMap::new(),
+            constants: self.constants.clone(),
+        };
         let body = function
             .body
             .iter()
-            .map(|statement| scoped.statement(statement))
+            .map(|statement| scoped.statement(statement, Scope::Function))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(CheckedItem::Function {
             name: function.name.clone(),
@@ -171,8 +224,24 @@ impl Analyzer {
                 CheckedExprKind::FloatLiteral(value.clone()),
                 ValueType::Float,
             )),
+            Expression::SystemConstant { name } => self.constant(name),
             Expression::Identifier { name, .. } => self.symbol(name),
         }
+    }
+
+    fn constant(&self, name: &str) -> Result<CheckedExpr, SemanticError> {
+        let Some(value) = self.constants.get(name) else {
+            return Err(SemanticError::UnknownConstant {
+                name: name.to_owned(),
+            });
+        };
+        Ok(CheckedExpr::new(
+            CheckedExprKind::Constant {
+                name: name.to_owned(),
+                value: value.clone(),
+            },
+            ValueType::Integer,
+        ))
     }
 
     fn symbol(&self, name: &str) -> Result<CheckedExpr, SemanticError> {
@@ -190,72 +259,5 @@ impl Analyzer {
             });
         };
         Ok(CheckedSymbol::new(name.to_owned(), value_type))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use xb_frontend::parse_program;
-
-    #[test]
-    fn resolves_dimmed_symbol_when_printed() {
-        let program = parse_program("DIM name$\nPRINT name$\n").unwrap();
-        let checked = Analyzer::analyze(&program).unwrap();
-        assert!(matches!(
-            checked.items[1],
-            CheckedItem::Print(CheckedExpr {
-                value_type: ValueType::String,
-                ..
-            })
-        ));
-    }
-
-    #[test]
-    fn accepts_assignment_when_type_matches_dimmed_symbol() {
-        let program = parse_program("DIM name$\nname$ = \"hello\"\n").unwrap();
-        let checked = Analyzer::analyze(&program).unwrap();
-        assert!(
-            matches!(checked.items[1], CheckedItem::Assignment { ref target, ref value } if target.value_type == ValueType::String && value.value_type == ValueType::String)
-        );
-    }
-
-    #[test]
-    fn rejects_assignment_to_unknown_symbol() {
-        let program = parse_program("name$ = \"hello\"\n").unwrap();
-        let result = Analyzer::analyze(&program);
-        assert!(matches!(result, Err(SemanticError::UnknownSymbol { ref name }) if name == "name"));
-    }
-
-    #[test]
-    fn rejects_assignment_type_mismatch() {
-        let program = parse_program("DIM name$\nname$ = 42\n").unwrap();
-        let result = Analyzer::analyze(&program);
-        assert!(matches!(
-            result,
-            Err(SemanticError::TypeMismatch {
-                ref name,
-                expected: ValueType::String,
-                actual: ValueType::Integer,
-            }) if name == "name"
-        ));
-    }
-
-    #[test]
-    fn rejects_duplicate_symbols_in_scope() {
-        let program = parse_program("DIM name$\nDIM name$\n").unwrap();
-        let result = Analyzer::analyze(&program);
-        assert!(
-            matches!(result, Err(SemanticError::DuplicateSymbol { ref name }) if name == "name")
-        );
-    }
-
-    #[test]
-    fn rejects_unknown_symbol_in_print() {
-        let program = parse_program("PRINT missing\n").unwrap();
-        let result = Analyzer::analyze(&program);
-        assert!(
-            matches!(result, Err(SemanticError::UnknownSymbol { ref name }) if name == "missing")
-        );
     }
 }
