@@ -61,6 +61,7 @@ pub enum Statement {
         name: String,
         args: Vec<Expression>,
     },
+    ExitLoop,
     Function(FunctionDecl),
 }
 

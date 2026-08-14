@@ -75,6 +75,7 @@ pub enum IrItem {
         name: String,
         args: Vec<IrExpr>,
     },
+    ExitLoop,
 }
 
 impl IrItem {
@@ -156,6 +157,7 @@ impl IrItem {
                 name: name.clone(),
                 args: args.iter().map(IrExpr::lower).collect(),
             },
+            CheckedItem::ExitLoop => Self::ExitLoop,
         }
     }
 }

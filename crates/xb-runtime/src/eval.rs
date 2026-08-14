@@ -103,6 +103,7 @@ pub(crate) fn exec_for(
         slot.value = RuntimeValue::Integer(i);
         match exec_items(program, body, state, output)? {
             Flow::Return(r) => return Ok(Flow::Return(r)),
+            Flow::Break => break,
             Flow::Continue => {}
         }
         i += 1;

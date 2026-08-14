@@ -54,6 +54,7 @@ impl Parser {
             Some(Keyword::For) => self.for_stmt(),
             Some(Keyword::While) => self.while_stmt(),
             Some(Keyword::Function) => self.function_stmt(),
+            Some(Keyword::Exit) => self.exit_stmt(),
             Some(Keyword::Return) => self.return_stmt(),
             _ if self.starts_assignment() => self.assignment_stmt(),
             _ if self.starts_call() => self.call_stmt(),
@@ -179,7 +180,16 @@ impl Parser {
         self.expect_line_end()?;
         Ok(stmt)
     }
-
+    fn exit_stmt(&mut self) -> Result<Statement, ParseError> {
+        self.expect_keyword(Keyword::Exit)?;
+        if matches!(self.peek_kind(), TokenKind::Keyword(Keyword::For)) {
+            self.index += 1;
+        } else {
+            self.expect_keyword(Keyword::While)?;
+        }
+        self.expect_line_end()?;
+        Ok(Statement::ExitLoop)
+    }
     pub(crate) fn return_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::Return)?;
         let value = if self.at_line_end() {

@@ -29,7 +29,8 @@ impl CheckedProgram {
                 | CheckedItem::For { .. }
                 | CheckedItem::SharedAssignment { .. }
                 | CheckedItem::Return { .. }
-                | CheckedItem::Call { .. } => None,
+                | CheckedItem::Call { .. }
+                | CheckedItem::ExitLoop => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),
@@ -58,7 +59,8 @@ impl IrProgram {
                 | IrItem::For { .. }
                 | IrItem::SharedAssignment { .. }
                 | IrItem::Return { .. }
-                | IrItem::Call { .. } => None,
+                | IrItem::Call { .. }
+                | IrItem::ExitLoop => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),

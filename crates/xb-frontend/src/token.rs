@@ -48,6 +48,7 @@ pub enum Keyword {
     And,
     Or,
     Not,
+    Exit,
     Version,
 }
 impl Keyword {
@@ -79,6 +80,7 @@ impl Keyword {
             "AND" => Some(Self::And),
             "OR" => Some(Self::Or),
             "NOT" => Some(Self::Not),
+            "EXIT" => Some(Self::Exit),
             "VERSION" => Some(Self::Version),
             _ => None,
         }

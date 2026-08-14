@@ -33,6 +33,7 @@ impl Interpreter {
 
 pub(crate) enum Flow {
     Continue,
+    Break,
     Return(Option<RuntimeValue>),
 }
 
@@ -136,11 +137,13 @@ pub(crate) fn exec_items(
                     if v != 0 {
                         match exec_items(program, then_body, state, output)? {
                             Flow::Return(r) => return Ok(Flow::Return(r)),
+                            Flow::Break => return Ok(Flow::Break),
                             Flow::Continue => {}
                         }
                     } else if let Some(eb) = else_body {
                         match exec_items(program, eb, state, output)? {
                             Flow::Return(r) => return Ok(Flow::Return(r)),
+                            Flow::Break => return Ok(Flow::Break),
                             Flow::Continue => {}
                         }
                     }
@@ -155,6 +158,7 @@ pub(crate) fn exec_items(
                 }
                 match exec_items(program, body, state, output)? {
                     Flow::Return(r) => return Ok(Flow::Return(r)),
+                    Flow::Break => break,
                     Flow::Continue => {}
                 }
             },
@@ -165,8 +169,10 @@ pub(crate) fn exec_items(
                 body,
             } => match crate::eval::exec_for(program, var, start, end, body, state, output)? {
                 Flow::Return(r) => return Ok(Flow::Return(r)),
+                Flow::Break => {}
                 Flow::Continue => {}
             },
+            IrItem::ExitLoop => return Ok(Flow::Break),
             IrItem::Function { .. } => {}
             IrItem::Call { name, args } => {
                 let _ = crate::call::call_function(program, name, args, state, output)?;

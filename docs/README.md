@@ -39,6 +39,7 @@ and how it achieves cross-platform portability.
 | 27 | [Stage-2 Contract v0.13](stage2-contract-v0.13.md) | FOR/NEXT loops with integer counter, inclusive range, optional variable after NEXT |
 | 28 | [Stage-2 Contract v0.14](stage2-contract-v0.14.md) | Standalone function call statements: procedure-style calls with output propagation |
 | 29 | [Stage-2 Contract v0.15](stage2-contract-v0.15.md) | ELSEIF chains: multi-branch conditionals desugared to nested IF |
+| 30 | [Stage-2 Contract v0.16](stage2-contract-v0.16.md) | EXIT FOR / EXIT WHILE: early loop termination via Flow::Break |
 
 ## The big picture
 

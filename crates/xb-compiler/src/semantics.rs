@@ -128,6 +128,7 @@ impl Analyzer {
             }
             Statement::Return { value } => self.return_stmt(scope, value.as_ref()),
             Statement::Call { name, args } => self.call_stmt(name, args),
+            Statement::ExitLoop => Ok(CheckedItem::ExitLoop),
             Statement::Function(function) => self.function(function),
         }
     }

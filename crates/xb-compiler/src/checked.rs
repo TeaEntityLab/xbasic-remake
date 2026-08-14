@@ -124,6 +124,7 @@ pub enum CheckedItem {
         name: String,
         args: Vec<CheckedExpr>,
     },
+    ExitLoop,
     Function {
         name: String,
         params: Vec<CheckedParam>,

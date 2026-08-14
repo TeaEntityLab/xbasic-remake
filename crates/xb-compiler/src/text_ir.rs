@@ -137,6 +137,7 @@ impl TextIrEmitter {
                 let as_str: Vec<String> = args.iter().map(|a| self.emit_expr(a)).collect();
                 out.push_str(&format!("{prefix}call {}({})\n", name, as_str.join(", ")));
             }
+            IrItem::ExitLoop => out.push_str(&format!("{prefix}exit_loop\n")),
         }
     }
 
