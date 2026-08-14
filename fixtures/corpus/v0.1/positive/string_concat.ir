@@ -1,0 +1,11 @@
+version 0.1
+function Main() -> integer
+  dim a:string
+  dim b:string
+  dim c:string
+  assign a:string = string("hello")
+  assign b:string = string(" world")
+  assign c:string = arith(symbol(a:string) + symbol(b:string))
+  print symbol(c:string)
+  print arith(arith(string("foo") + string("bar")) + string("baz"))
+end function

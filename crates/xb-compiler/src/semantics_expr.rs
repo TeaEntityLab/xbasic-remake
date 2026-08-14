@@ -49,6 +49,19 @@ impl Analyzer {
     fn arithmetic(&self, op: ArithmeticOp, l: &Expression, r: &Expression) -> ExprResult {
         let lv = self.expr(l)?;
         let rv = self.expr(r)?;
+        if lv.value_type == ValueType::String && rv.value_type == ValueType::String {
+            if op != ArithmeticOp::Add {
+                return Err(SemanticError::ArithmeticStringOperand);
+            }
+            return Ok(CheckedExpr::new(
+                CheckedExprKind::Arithmetic {
+                    op,
+                    left: Box::new(lv),
+                    right: Box::new(rv),
+                },
+                ValueType::String,
+            ));
+        }
         if lv.value_type == ValueType::String || rv.value_type == ValueType::String {
             return Err(SemanticError::ArithmeticStringOperand);
         }

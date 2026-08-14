@@ -8,6 +8,15 @@ pub(crate) fn arith(
     r: &RuntimeValue,
 ) -> Result<RuntimeValue, RuntimeError> {
     match (l, r) {
+        (RuntimeValue::String(a), RuntimeValue::String(b)) => {
+            if op != ArithmeticOp::Add {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: ValueType::Integer,
+                    actual: ValueType::String,
+                });
+            }
+            Ok(RuntimeValue::String(format!("{a}{b}")))
+        }
         (RuntimeValue::Integer(a), RuntimeValue::Integer(b)) => {
             let v = match op {
                 ArithmeticOp::Add => a.wrapping_add(*b),
