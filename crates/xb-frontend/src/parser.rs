@@ -52,28 +52,28 @@ impl Parser {
     fn version_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::Version)?;
         let version = self.expect_string()?;
-        self.consume_line_tail();
+        self.expect_line_end()?;
         Ok(Statement::Version(version))
     }
 
     fn print_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::Print)?;
         let expr = self.expression()?;
-        self.consume_line_tail();
+        self.expect_line_end()?;
         Ok(Statement::Print(expr))
     }
 
     fn dim_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::Dim)?;
         let (name, suffix) = self.expect_identifier()?;
-        self.consume_line_tail();
+        self.expect_line_end()?;
         Ok(Statement::Dim { name, suffix })
     }
 
     fn function_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::Function)?;
         let (name, _) = self.expect_identifier()?;
-        self.consume_line_tail();
+        self.expect_line_end()?;
         let mut body = Vec::new();
         self.skip_newlines();
         while !self.at_eof() && !self.starts_end_function() {
@@ -82,30 +82,49 @@ impl Parser {
         }
         self.expect_keyword(Keyword::End)?;
         self.expect_keyword(Keyword::Function)?;
-        self.consume_line_tail();
+        self.expect_line_end()?;
         Ok(Statement::Function(FunctionDecl::new(name, body)))
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
-        match self.advance_kind() {
-            TokenKind::StringLiteral(value) => Ok(Expression::StringLiteral(value)),
-            TokenKind::IntegerLiteral(value) => Ok(Expression::IntegerLiteral(value)),
-            TokenKind::FloatLiteral(value) => Ok(Expression::FloatLiteral(value)),
-            TokenKind::Identifier { name, suffix } => Ok(Expression::Identifier { name, suffix }),
+        let kind = self.peek_kind().clone();
+        match kind {
+            TokenKind::StringLiteral(value) => {
+                self.index += 1;
+                Ok(Expression::StringLiteral(value))
+            }
+            TokenKind::IntegerLiteral(value) => {
+                self.index += 1;
+                Ok(Expression::IntegerLiteral(value))
+            }
+            TokenKind::FloatLiteral(value) => {
+                self.index += 1;
+                Ok(Expression::FloatLiteral(value))
+            }
+            TokenKind::Identifier { name, suffix } => {
+                self.index += 1;
+                Ok(Expression::Identifier { name, suffix })
+            }
             _ => Err(self.expected("expression")),
         }
     }
 
     fn expect_identifier(&mut self) -> Result<(String, Option<TypeSuffix>), ParseError> {
-        match self.advance_kind() {
-            TokenKind::Identifier { name, suffix } => Ok((name, suffix)),
+        match self.peek_kind().clone() {
+            TokenKind::Identifier { name, suffix } => {
+                self.index += 1;
+                Ok((name, suffix))
+            }
             _ => Err(self.expected("identifier")),
         }
     }
 
     fn expect_string(&mut self) -> Result<String, ParseError> {
-        match self.advance_kind() {
-            TokenKind::StringLiteral(value) => Ok(value),
+        match self.peek_kind().clone() {
+            TokenKind::StringLiteral(value) => {
+                self.index += 1;
+                Ok(value)
+            }
             _ => Err(self.expected("string literal")),
         }
     }
@@ -128,13 +147,14 @@ impl Parser {
             )
     }
 
-    fn consume_line_tail(&mut self) {
-        while !self.at_eof() {
-            if matches!(self.peek_kind(), TokenKind::Newline) {
+    fn expect_line_end(&mut self) -> Result<(), ParseError> {
+        match self.peek_kind() {
+            TokenKind::Newline => {
                 self.index += 1;
-                return;
+                Ok(())
             }
-            self.index += 1;
+            TokenKind::Eof => Ok(()),
+            _ => Err(self.expected("end of line")),
         }
     }
 
@@ -142,14 +162,6 @@ impl Parser {
         while matches!(self.peek_kind(), TokenKind::Newline) {
             self.index += 1;
         }
-    }
-
-    fn advance_kind(&mut self) -> TokenKind {
-        let kind = self.peek_kind().clone();
-        if !matches!(kind, TokenKind::Eof) {
-            self.index += 1;
-        }
-        kind
     }
 
     fn peek_keyword(&self) -> Option<Keyword> {
@@ -186,26 +198,5 @@ impl Parser {
         self.tokens
             .get(self.index)
             .map_or(SourcePos::new(0, 0), |token| token.pos)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_bootstrap_subset_when_program_has_function_body() {
-        let src = "VERSION \"6.5.0\"\nDIM name$\nFUNCTION Main\nPRINT \"hello\"\nEND FUNCTION\n";
-        let program = parse_program(src).unwrap();
-        assert_eq!(program.statements.len(), 3);
-        assert!(matches!(program.statements[0], Statement::Version(_)));
-        assert!(matches!(
-            program.statements[1],
-            Statement::Dim {
-                suffix: Some(TypeSuffix::String),
-                ..
-            }
-        ));
-        assert!(matches!(program.statements[2], Statement::Function(_)));
     }
 }

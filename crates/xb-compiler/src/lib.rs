@@ -1,3 +1,7 @@
+pub mod ir;
+
+pub use ir::{IrExpr, IrItem, IrProgram, IrSymbol};
+
 use thiserror::Error;
 use xb_frontend::{parse_program, ParseError, Program};
 
@@ -23,6 +27,10 @@ impl FrontendUnit {
 
     pub fn program(&self) -> &Program {
         &self.program
+    }
+
+    pub fn lower_ir(&self) -> IrProgram {
+        IrProgram::lower(&self.program)
     }
 }
 
@@ -63,7 +71,7 @@ pub mod llvm_backend {
 
     impl Codegen for LlvmBackend {
         fn compile(&self, unit: &FrontendUnit) -> Result<ObjectFile, CompileError> {
-            let _statement_count = unit.program().statements.len();
+            let _item_count = unit.lower_ir().items.len();
             Ok(ObjectFile::from_bytes(Vec::new()))
         }
     }
@@ -77,6 +85,16 @@ mod tests {
     fn parses_frontend_unit_when_source_has_statements() {
         let unit = FrontendUnit::parse("VERSION \"6.5.0\"\nPRINT \"hello\"\n").unwrap();
         assert_eq!(unit.program().statements.len(), 2);
+    }
+
+    #[test]
+    fn lowers_frontend_unit_into_ir() {
+        let unit = FrontendUnit::parse(
+            "VERSION \"6.5.0\"\nFUNCTION Main\nPRINT \"hello\"\nEND FUNCTION\n",
+        )
+        .unwrap();
+        let ir = unit.lower_ir();
+        assert_eq!(ir.items.len(), 2);
     }
 
     #[test]

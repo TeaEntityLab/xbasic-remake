@@ -3,6 +3,8 @@ mod lexeme;
 pub mod lexer;
 mod literal;
 pub mod parser;
+#[cfg(test)]
+mod parser_tests;
 pub mod token;
 
 pub use ast::{Expression, FunctionDecl, Program, Statement};
