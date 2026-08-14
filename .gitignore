@@ -2,6 +2,7 @@
 .omx
 .DS_Store
 /target/
+/state/
 xbasic-6.2.*/
 xbasic-6.3.*/
 xbasic-6.4.*/

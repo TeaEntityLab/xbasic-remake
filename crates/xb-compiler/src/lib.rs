@@ -1,6 +1,11 @@
 pub mod ir;
+pub mod semantics;
 
-pub use ir::{IrExpr, IrItem, IrProgram, IrSymbol};
+pub use ir::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol};
+pub use semantics::{
+    Analyzer, CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol,
+    SemanticError, ValueType,
+};
 
 use thiserror::Error;
 use xb_frontend::{parse_program, ParseError, Program};
@@ -9,6 +14,8 @@ use xb_frontend::{parse_program, ParseError, Program};
 pub enum CompileError {
     #[error(transparent)]
     Parse(#[from] ParseError),
+    #[error(transparent)]
+    Semantic(#[from] SemanticError),
     #[error("LLVM backend is disabled; rebuild xb-compiler with the `llvm` feature")]
     LlvmDisabled,
 }
@@ -29,8 +36,12 @@ impl FrontendUnit {
         &self.program
     }
 
-    pub fn lower_ir(&self) -> IrProgram {
-        IrProgram::lower(&self.program)
+    pub fn analyze(&self) -> Result<CheckedProgram, CompileError> {
+        Ok(Analyzer::analyze(&self.program)?)
+    }
+
+    pub fn lower_ir(&self) -> Result<IrProgram, CompileError> {
+        Ok(IrProgram::lower(&self.analyze()?))
     }
 }
 
@@ -71,7 +82,7 @@ pub mod llvm_backend {
 
     impl Codegen for LlvmBackend {
         fn compile(&self, unit: &FrontendUnit) -> Result<ObjectFile, CompileError> {
-            let _item_count = unit.lower_ir().items.len();
+            let _item_count = unit.lower_ir()?.items.len();
             Ok(ObjectFile::from_bytes(Vec::new()))
         }
     }
@@ -93,8 +104,18 @@ mod tests {
             "VERSION \"6.5.0\"\nFUNCTION Main\nPRINT \"hello\"\nEND FUNCTION\n",
         )
         .unwrap();
-        let ir = unit.lower_ir();
+        let ir = unit.lower_ir().unwrap();
         assert_eq!(ir.items.len(), 2);
+    }
+
+    #[test]
+    fn rejects_unknown_identifier_during_analysis() {
+        let unit = FrontendUnit::parse("PRINT missing\n").unwrap();
+        let result = unit.analyze();
+        assert!(matches!(
+            result,
+            Err(CompileError::Semantic(SemanticError::UnknownSymbol { ref name })) if name == "missing"
+        ));
     }
 
     #[test]

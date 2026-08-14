@@ -1,4 +1,6 @@
-use xb_frontend::{Expression, FunctionDecl, Program, Statement, TypeSuffix};
+use crate::semantics::{
+    CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol, ValueType,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IrProgram {
@@ -6,13 +8,9 @@ pub struct IrProgram {
 }
 
 impl IrProgram {
-    pub fn lower(program: &Program) -> Self {
+    pub fn lower(program: &CheckedProgram) -> Self {
         Self {
-            items: program
-                .statements
-                .iter()
-                .map(IrItem::lower_statement)
-                .collect(),
+            items: program.items.iter().map(IrItem::lower_item).collect(),
         }
     }
 }
@@ -22,66 +20,79 @@ pub enum IrItem {
     Version(String),
     Print(IrExpr),
     Dim { symbol: IrSymbol },
+    Assignment { target: IrSymbol, value: IrExpr },
     Function { name: String, body: Vec<IrItem> },
 }
 
 impl IrItem {
-    fn lower_statement(statement: &Statement) -> Self {
-        match statement {
-            Statement::Version(value) => Self::Version(value.clone()),
-            Statement::Print(expr) => Self::Print(IrExpr::lower(expr)),
-            Statement::Dim { name, suffix } => Self::Dim {
-                symbol: IrSymbol::new(name.clone(), *suffix),
+    fn lower_item(item: &CheckedItem) -> Self {
+        match item {
+            CheckedItem::Version(value) => Self::Version(value.clone()),
+            CheckedItem::Print(expr) => Self::Print(IrExpr::lower(expr)),
+            CheckedItem::Dim(symbol) => Self::Dim {
+                symbol: IrSymbol::lower(symbol),
             },
-            Statement::Function(function) => Self::lower_function(function),
-        }
-    }
-
-    fn lower_function(function: &FunctionDecl) -> Self {
-        let body = function.body.iter().map(Self::lower_statement).collect();
-        Self::Function {
-            name: function.name.clone(),
-            body,
+            CheckedItem::Assignment { target, value } => Self::Assignment {
+                target: IrSymbol::lower(target),
+                value: IrExpr::lower(value),
+            },
+            CheckedItem::Function { name, body } => Self::Function {
+                name: name.clone(),
+                body: body.iter().map(Self::lower_item).collect(),
+            },
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum IrExpr {
+pub struct IrExpr {
+    pub kind: IrExprKind,
+    pub value_type: ValueType,
+}
+
+impl IrExpr {
+    fn new(kind: IrExprKind, value_type: ValueType) -> Self {
+        Self { kind, value_type }
+    }
+
+    fn lower(expr: &CheckedExpr) -> Self {
+        let kind = match &expr.kind {
+            CheckedExprKind::StringLiteral(value) => IrExprKind::StringLiteral(value.clone()),
+            CheckedExprKind::IntegerLiteral(value) => IrExprKind::IntegerLiteral(value.clone()),
+            CheckedExprKind::FloatLiteral(value) => IrExprKind::FloatLiteral(value.clone()),
+            CheckedExprKind::Symbol(symbol) => IrExprKind::Symbol(IrSymbol::lower(symbol)),
+        };
+        Self::new(kind, expr.value_type)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IrExprKind {
     StringLiteral(String),
     IntegerLiteral(String),
     FloatLiteral(String),
     Symbol(IrSymbol),
 }
 
-impl IrExpr {
-    fn lower(expr: &Expression) -> Self {
-        match expr {
-            Expression::StringLiteral(value) => Self::StringLiteral(value.clone()),
-            Expression::IntegerLiteral(value) => Self::IntegerLiteral(value.clone()),
-            Expression::FloatLiteral(value) => Self::FloatLiteral(value.clone()),
-            Expression::Identifier { name, suffix } => {
-                Self::Symbol(IrSymbol::new(name.clone(), *suffix))
-            }
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IrSymbol {
     pub name: String,
-    pub suffix: Option<TypeSuffix>,
+    pub value_type: ValueType,
 }
 
 impl IrSymbol {
-    pub fn new(name: String, suffix: Option<TypeSuffix>) -> Self {
-        Self { name, suffix }
+    fn lower(symbol: &CheckedSymbol) -> Self {
+        Self {
+            name: symbol.name.clone(),
+            value_type: symbol.value_type,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::semantics::Analyzer;
     use xb_frontend::parse_program;
 
     #[test]
@@ -89,13 +100,26 @@ mod tests {
         let program =
             parse_program("VERSION \"6.5.0\"\nFUNCTION Main\nPRINT \"hello\"\nEND FUNCTION\n")
                 .unwrap();
-        let ir = IrProgram::lower(&program);
+        let checked = Analyzer::analyze(&program).unwrap();
+        let ir = IrProgram::lower(&checked);
         assert_eq!(ir.items.len(), 2);
         assert!(matches!(ir.items[0], IrItem::Version(ref version) if version == "6.5.0"));
         assert!(matches!(
             ir.items[1],
             IrItem::Function { ref name, ref body }
-                if name == "Main" && matches!(body.first(), Some(IrItem::Print(IrExpr::StringLiteral(value))) if value == "hello")
+                if name == "Main" && matches!(body.first(), Some(IrItem::Print(IrExpr { value_type: ValueType::String, .. })))
+        ));
+    }
+
+    #[test]
+    fn lowers_assignment_into_typed_ir() {
+        let program = parse_program("DIM name$\nname$ = \"hello\"\nPRINT name$\n").unwrap();
+        let checked = Analyzer::analyze(&program).unwrap();
+        let ir = IrProgram::lower(&checked);
+        assert!(matches!(
+            ir.items[1],
+            IrItem::Assignment { ref target, ref value }
+                if target.name == "name" && target.value_type == ValueType::String && value.value_type == ValueType::String
         ));
     }
 }

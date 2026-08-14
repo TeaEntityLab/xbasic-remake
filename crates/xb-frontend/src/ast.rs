@@ -19,6 +19,11 @@ pub enum Statement {
         name: String,
         suffix: Option<TypeSuffix>,
     },
+    Assignment {
+        target: String,
+        suffix: Option<TypeSuffix>,
+        value: Expression,
+    },
     Function(FunctionDecl),
 }
 

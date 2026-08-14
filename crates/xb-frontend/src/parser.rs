@@ -45,6 +45,7 @@ impl Parser {
             Some(Keyword::Print) => self.print_stmt(),
             Some(Keyword::Dim) => self.dim_stmt(),
             Some(Keyword::Function) => self.function_stmt(),
+            _ if self.starts_assignment() => self.assignment_stmt(),
             _ => Err(self.expected("statement")),
         }
     }
@@ -68,6 +69,18 @@ impl Parser {
         let (name, suffix) = self.expect_identifier()?;
         self.expect_line_end()?;
         Ok(Statement::Dim { name, suffix })
+    }
+
+    fn assignment_stmt(&mut self) -> Result<Statement, ParseError> {
+        let (target, suffix) = self.expect_identifier()?;
+        self.expect_symbol('=')?;
+        let value = self.expression()?;
+        self.expect_line_end()?;
+        Ok(Statement::Assignment {
+            target,
+            suffix,
+            value,
+        })
     }
 
     fn function_stmt(&mut self) -> Result<Statement, ParseError> {
@@ -145,6 +158,21 @@ impl Parser {
                 self.peek_next_kind(),
                 Some(TokenKind::Keyword(Keyword::Function))
             )
+    }
+
+    fn starts_assignment(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Identifier { .. })
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
+    }
+
+    fn expect_symbol(&mut self, symbol: char) -> Result<(), ParseError> {
+        match self.peek_kind() {
+            TokenKind::Symbol(found) if *found == symbol => {
+                self.index += 1;
+                Ok(())
+            }
+            _ => Err(self.expected("symbol")),
+        }
     }
 
     fn expect_line_end(&mut self) -> Result<(), ParseError> {

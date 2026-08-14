@@ -17,6 +17,55 @@ fn parses_bootstrap_subset_when_program_has_function_body() {
 }
 
 #[test]
+fn parses_assignment_statement_when_target_is_identifier() {
+    let program = parse_program("name$ = \"hello\"\n").unwrap();
+    assert!(matches!(
+        program.statements[0],
+        Statement::Assignment {
+            ref target,
+            suffix: Some(TypeSuffix::String),
+            value: crate::Expression::StringLiteral(_),
+        } if target == "name"
+    ));
+}
+
+#[test]
+fn rejects_trailing_tokens_after_assignment() {
+    let result = parse_program("name$ = \"hello\" garbage\n");
+    assert!(matches!(
+        result,
+        Err(ParseError::Expected {
+            expected: "end of line",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn rejects_assignment_without_value() {
+    let result = parse_program("name$ =\n");
+    assert!(matches!(
+        result,
+        Err(ParseError::Expected {
+            expected: "expression",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn rejects_bare_identifier_statement() {
+    let result = parse_program("name$\n");
+    assert!(matches!(
+        result,
+        Err(ParseError::Expected {
+            expected: "statement",
+            ..
+        })
+    ));
+}
+
+#[test]
 fn rejects_trailing_tokens_after_print_expression() {
     let result = parse_program("PRINT \"hello\" garbage\n");
     assert!(matches!(
