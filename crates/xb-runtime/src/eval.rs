@@ -5,7 +5,7 @@ use xb_compiler::{BooleanOp, IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol, Va
 pub(crate) fn eval_expr(
     program: &IrProgram,
     expr: &IrExpr,
-    state: &ExecutionState,
+    state: &mut ExecutionState,
 ) -> Result<RuntimeValue, RuntimeError> {
     let value = match &expr.kind {
         IrExprKind::StringLiteral(v) => RuntimeValue::String(v.clone()),

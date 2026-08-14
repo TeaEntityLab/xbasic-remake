@@ -1,0 +1,14 @@
+version 0.1
+function Main() -> integer
+  dim line:string
+  dim count:integer
+  assign count:integer = integer(0)
+  while compare(call EOF() = integer(0))
+    assign line:string = call READLINE$()
+    if compare(call EOF() = integer(0))
+      assign count:integer = arith(symbol(count:integer) + integer(1))
+      print symbol(line:string)
+    end if
+  wend
+  print call STR$(symbol(count:integer))
+end function

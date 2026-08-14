@@ -76,6 +76,7 @@ fn validate_layout(
     directory: &Path,
     paths: &[PathBuf],
     required: &[&str],
+    optional: &[&str],
 ) -> Result<Vec<PathBuf>, String> {
     if paths.is_empty() {
         return Err(path_error("empty corpus layout", directory));
@@ -87,7 +88,7 @@ fn validate_layout(
         let (Some(stem), Some(extension)) = (stem, extension) else {
             return Err(path_error("malformed corpus path", path));
         };
-        if stem.is_empty() || !required.contains(&extension) {
+        if stem.is_empty() || (!required.contains(&extension) && !optional.contains(&extension)) {
             return Err(path_error("unexpected extension or malformed path", path));
         }
         let stem_path = path.with_file_name(stem);
@@ -119,7 +120,12 @@ fn corpus_v0_1_is_valid_and_executable() -> Result<(), String> {
     let corpus = root.join("fixtures/corpus/v0.1");
     validate_corpus_root(&corpus)?;
     let positive = corpus.join("positive");
-    let positive_cases = validate_layout(&positive, &discover(&positive)?, &["x", "ir", "out"])?;
+    let positive_cases = validate_layout(
+        &positive,
+        &discover(&positive)?,
+        &["x", "ir", "out"],
+        &["in"],
+    )?;
     for stem in positive_cases {
         let (ir, output, state) = compile_and_run(&stem.with_extension("x"))?;
         assert_golden(&stem.with_extension("ir"), ir.as_bytes())?;
@@ -137,7 +143,7 @@ fn corpus_v0_1_is_valid_and_executable() -> Result<(), String> {
     }
 
     let negative = corpus.join("negative");
-    let negative_cases = validate_layout(&negative, &discover(&negative)?, &["x", "diag"])?;
+    let negative_cases = validate_layout(&negative, &discover(&negative)?, &["x", "diag"], &[])?;
     let mut covered = BTreeSet::new();
     for stem in negative_cases {
         let source_path = stem.with_extension("x");
@@ -178,7 +184,7 @@ fn corpus_v0_1_is_valid_and_executable() -> Result<(), String> {
     }
 
     let selfhost = corpus.join("selfhost");
-    let selfhost_cases = validate_layout(&selfhost, &discover(&selfhost)?, &["ir", "out"])?;
+    let selfhost_cases = validate_layout(&selfhost, &discover(&selfhost)?, &["ir", "out"], &[])?;
     let expected_stems = [
         selfhost.join("lexer"),
         selfhost.join("xut_bootstrap_manifest"),
@@ -194,7 +200,7 @@ fn corpus_v0_1_is_valid_and_executable() -> Result<(), String> {
 fn bad(paths: &[&str], required: &[&str], message: &str) {
     let directory = Path::new("/synthetic");
     let paths: Vec<_> = paths.iter().map(|path| directory.join(path)).collect();
-    let error = match validate_layout(directory, &paths, required) {
+    let error = match validate_layout(directory, &paths, required, &[]) {
         Ok(cases) => panic!("layout unexpectedly accepted: {cases:?}"),
         Err(error) => error,
     };

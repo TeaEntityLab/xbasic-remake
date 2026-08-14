@@ -104,6 +104,8 @@ pub struct ExecutionState {
     pub(crate) metadata: ProgramMetadata,
     pub(crate) slots: BTreeMap<String, TypedSlot>,
     pub(crate) shared: BTreeMap<String, TypedSlot>,
+    pub(crate) input: Vec<String>,
+    pub(crate) input_pos: usize,
 }
 
 impl ExecutionState {

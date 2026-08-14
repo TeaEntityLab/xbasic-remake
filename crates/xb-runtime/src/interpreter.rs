@@ -29,6 +29,18 @@ impl Interpreter {
         exec_items(program, program.entry("Main")?, &mut state, output)?;
         Ok(state)
     }
+    pub fn execute_main_with_input(
+        &self,
+        program: &IrProgram,
+        input: Vec<String>,
+        output: &mut Vec<String>,
+    ) -> Result<ExecutionState, RuntimeError> {
+        let mut state = ExecutionState::default();
+        state.input = input;
+        exec_items(program, &program.items, &mut state, output)?;
+        exec_items(program, program.entry("Main")?, &mut state, output)?;
+        Ok(state)
+    }
 }
 
 pub(crate) enum Flow {
@@ -192,7 +204,7 @@ pub(crate) fn exec_items(
 pub(crate) fn eval(
     program: &IrProgram,
     expr: &IrExpr,
-    state: &ExecutionState,
+    state: &mut ExecutionState,
 ) -> Result<RuntimeValue, RuntimeError> {
     crate::eval::eval_expr(program, expr, state)
 }

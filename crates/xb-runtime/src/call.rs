@@ -9,9 +9,29 @@ pub(crate) fn call_function(
     program: &IrProgram,
     name: &str,
     args: &[IrExpr],
-    state: &ExecutionState,
+    state: &mut ExecutionState,
     output: &mut Vec<String>,
 ) -> Result<RuntimeValue, RuntimeError> {
+    match name {
+        "READLINE$" => {
+            if state.input_pos < state.input.len() {
+                let line = state.input[state.input_pos].clone();
+                state.input_pos += 1;
+                return Ok(RuntimeValue::String(line));
+            }
+            return Ok(RuntimeValue::String(String::new()));
+        }
+        "EOF" => {
+            return Ok(RuntimeValue::Integer(
+                if state.input_pos >= state.input.len() {
+                    1
+                } else {
+                    0
+                },
+            ));
+        }
+        _ => {}
+    }
     if is_builtin(name) {
         let mut vals = Vec::with_capacity(args.len());
         for arg in args {
@@ -37,11 +57,15 @@ pub(crate) fn call_function(
         metadata: state.metadata.clone(),
         slots: local,
         shared: state.shared.clone(),
+        input: state.input.clone(),
+        input_pos: state.input_pos,
     };
-    match exec_items(program, body, &mut sub, output)? {
+    let result = match exec_items(program, body, &mut sub, output)? {
         Flow::Return(Some(v)) => Ok(v),
         _ => Ok(RuntimeValue::Integer(0)),
-    }
+    };
+    state.input_pos = sub.input_pos;
+    result
 }
 fn find_function<'a>(
     program: &'a IrProgram,

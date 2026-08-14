@@ -30,6 +30,8 @@ fn sig(name: &str) -> Option<BuiltinSig> {
         ),
         "VAL" => (&[ValueType::String][..], ValueType::Integer),
         "STR$" => (&[ValueType::Integer][..], ValueType::String),
+        "READLINE$" => (&[][..], ValueType::String),
+        "EOF" => (&[][..], ValueType::Integer),
         _ => return None,
     };
     Some(BuiltinSig {

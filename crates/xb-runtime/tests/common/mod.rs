@@ -31,9 +31,21 @@ pub fn compile_and_run(
         .map_err(|error| format!("cannot lower {}: {error}", source_path.display()))?;
     let text_ir = TextIrEmitter::new().emit_program(&program);
     let mut lines = Vec::new();
-    let state = Interpreter::new()
-        .execute_main(&program, &mut lines)
-        .map_err(|error| format!("cannot execute {}: {error}", source_path.display()))?;
+    let input_path = source_path.with_extension("in");
+    let state = if input_path.exists() {
+        let input: Vec<String> = fs::read_to_string(&input_path)
+            .map_err(|error| format!("cannot read {}: {error}", input_path.display()))?
+            .lines()
+            .map(|l| l.to_string())
+            .collect();
+        Interpreter::new()
+            .execute_main_with_input(&program, input, &mut lines)
+            .map_err(|error| format!("cannot execute {}: {error}", source_path.display()))?
+    } else {
+        Interpreter::new()
+            .execute_main(&program, &mut lines)
+            .map_err(|error| format!("cannot execute {}: {error}", source_path.display()))?
+    };
     let output = lines.into_iter().map(|line| format!("{line}\n")).collect();
     Ok((text_ir, output, state))
 }

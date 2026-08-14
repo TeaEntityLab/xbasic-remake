@@ -41,6 +41,7 @@ and how it achieves cross-platform portability.
 | 29 | [Stage-2 Contract v0.15](stage2-contract-v0.15.md) | ELSEIF chains: multi-branch conditionals desugared to nested IF |
 | 30 | [Stage-2 Contract v0.16](stage2-contract-v0.16.md) | EXIT FOR / EXIT WHILE: early loop termination via Flow::Break |
 | 31 | [Stage-2 Contract v0.17](stage2-contract-v0.17.md) | String functions INSTR, VAL, STR$ for parsing and conversion |
+| 32 | [Stage-2 Contract v0.18](stage2-contract-v0.18.md) | Runtime input: READLINE$() and EOF() for stdin-style input buffer |
 
 ## The big picture
 
