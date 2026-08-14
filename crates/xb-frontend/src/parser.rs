@@ -1,6 +1,6 @@
-use crate::ast::{Expression, FunctionDecl, Program, Statement};
+use crate::ast::{FunctionDecl, Program, Statement};
 use crate::lexer::{lex, LexError};
-use crate::token::{Keyword, Token, TokenKind, TypeSuffix};
+use crate::token::{Keyword, Token, TokenKind};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -177,86 +177,28 @@ impl Parser {
         })
     }
 
-    pub(crate) fn expression(&mut self) -> Result<Expression, ParseError> {
-        let left = self.additive()?;
-        if let Some(op) = self.comparison_op() {
-            let right = self.additive()?;
-            Ok(Expression::Comparison {
-                op,
-                left: Box::new(left),
-                right: Box::new(right),
-            })
+    pub(crate) fn return_stmt(&mut self) -> Result<Statement, ParseError> {
+        self.expect_keyword(Keyword::Return)?;
+        let value = if self.at_line_end() {
+            None
         } else {
-            Ok(left)
-        }
+            Some(self.expression()?)
+        };
+        self.expect_line_end()?;
+        Ok(Statement::Return { value })
     }
-
-    fn additive(&mut self) -> Result<Expression, ParseError> {
-        let mut left = self.multiplicative()?;
-        while let Some(op) = self.add_op() {
-            let right = self.multiplicative()?;
-            left = Expression::Arithmetic {
-                op,
-                left: Box::new(left),
-                right: Box::new(right),
-            };
+    pub(crate) fn while_stmt(&mut self) -> Result<Statement, ParseError> {
+        self.expect_keyword(Keyword::While)?;
+        let condition = self.expression()?;
+        self.expect_line_end()?;
+        let mut body = Vec::new();
+        self.skip_newlines();
+        while !self.at_eof() && !self.starts_wend() {
+            body.push(self.statement()?);
+            self.skip_newlines();
         }
-        Ok(left)
-    }
-
-    fn multiplicative(&mut self) -> Result<Expression, ParseError> {
-        let mut left = self.primary()?;
-        while let Some(op) = self.mul_op() {
-            let right = self.primary()?;
-            left = Expression::Arithmetic {
-                op,
-                left: Box::new(left),
-                right: Box::new(right),
-            };
-        }
-        Ok(left)
-    }
-
-    fn primary(&mut self) -> Result<Expression, ParseError> {
-        let kind = self.peek_kind().clone();
-        match kind {
-            TokenKind::StringLiteral(value) => {
-                self.index += 1;
-                Ok(Expression::StringLiteral(value))
-            }
-            TokenKind::IntegerLiteral(value) => {
-                self.index += 1;
-                Ok(Expression::IntegerLiteral(value))
-            }
-            TokenKind::FloatLiteral(value) => {
-                self.index += 1;
-                Ok(Expression::FloatLiteral(value))
-            }
-            TokenKind::SystemConstant(name) => {
-                self.index += 1;
-                Ok(Expression::SystemConstant { name })
-            }
-            TokenKind::SystemVariable { name, suffix } => {
-                self.index += 1;
-                Ok(Expression::SystemVariable { name, suffix })
-            }
-            TokenKind::Identifier { name, suffix } => {
-                self.index += 1;
-                if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
-                    let args = self.parse_args()?;
-                    let full = match suffix {
-                        Some(TypeSuffix::String) => format!("{name}$"),
-                        Some(TypeSuffix::Single) => format!("{name}!"),
-                        Some(TypeSuffix::Double) => format!("{name}#"),
-                        Some(TypeSuffix::Integer) => format!("{name}%"),
-                        None => name,
-                    };
-                    Ok(Expression::FunctionCall { name: full, args })
-                } else {
-                    Ok(Expression::Identifier { name, suffix })
-                }
-            }
-            _ => Err(self.expected("expression")),
-        }
+        self.expect_keyword(Keyword::Wend)?;
+        self.expect_line_end()?;
+        Ok(Statement::While { condition, body })
     }
 }

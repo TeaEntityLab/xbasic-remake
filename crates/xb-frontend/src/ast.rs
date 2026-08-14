@@ -96,6 +96,12 @@ pub enum ArithmeticOp {
     Div,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BooleanOp {
+    And,
+    Or,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
     StringLiteral(String),
@@ -114,6 +120,12 @@ pub enum Expression {
     },
     Comparison {
         op: ComparisonOp,
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+    Not(Box<Expression>),
+    Boolean {
+        op: BooleanOp,
         left: Box<Expression>,
         right: Box<Expression>,
     },

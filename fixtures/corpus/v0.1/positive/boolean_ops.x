@@ -1,0 +1,20 @@
+VERSION "0.1"
+FUNCTION Main
+DIM a
+DIM b
+DIM c
+a = 1
+b = 0
+c = a AND b
+PRINT c
+c = a OR b
+PRINT c
+c = NOT a
+PRINT c
+IF a AND 1 THEN
+PRINT 100
+END IF
+IF NOT b THEN
+PRINT 200
+END IF
+END FUNCTION

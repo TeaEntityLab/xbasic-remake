@@ -43,9 +43,11 @@ pub enum Keyword {
     Packed,
     Print,
     Import,
+    And,
+    Or,
+    Not,
     Version,
 }
-
 impl Keyword {
     pub fn parse(input: &str) -> Option<Self> {
         match input.to_ascii_uppercase().as_str() {
@@ -71,6 +73,9 @@ impl Keyword {
             "PACKED" => Some(Self::Packed),
             "PRINT" => Some(Self::Print),
             "IMPORT" => Some(Self::Import),
+            "AND" => Some(Self::And),
+            "OR" => Some(Self::Or),
+            "NOT" => Some(Self::Not),
             "VERSION" => Some(Self::Version),
             _ => None,
         }

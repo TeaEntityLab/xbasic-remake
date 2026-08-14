@@ -1,6 +1,6 @@
 use crate::checked::{
-    ArithmeticOp, CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam, CheckedProgram,
-    CheckedSymbol, ComparisonOp, ValueType,
+    ArithmeticOp, BooleanOp, CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam,
+    CheckedProgram, CheckedSymbol, ComparisonOp, ValueType,
 };
 use crate::text_ir::TextIrEmitter;
 
@@ -153,6 +153,12 @@ impl IrExpr {
                 left: Box::new(IrExpr::lower(left)),
                 right: Box::new(IrExpr::lower(right)),
             },
+            CheckedExprKind::Not(inner) => IrExprKind::Not(Box::new(IrExpr::lower(inner))),
+            CheckedExprKind::Boolean { op, left, right } => IrExprKind::Boolean {
+                op: *op,
+                left: Box::new(IrExpr::lower(left)),
+                right: Box::new(IrExpr::lower(right)),
+            },
             CheckedExprKind::FunctionCall { name, args } => IrExprKind::FunctionCall {
                 name: name.clone(),
                 args: args.iter().map(IrExpr::lower).collect(),
@@ -180,6 +186,12 @@ pub enum IrExprKind {
     },
     Arithmetic {
         op: ArithmeticOp,
+        left: Box<IrExpr>,
+        right: Box<IrExpr>,
+    },
+    Not(Box<IrExpr>),
+    Boolean {
+        op: BooleanOp,
         left: Box<IrExpr>,
         right: Box<IrExpr>,
     },

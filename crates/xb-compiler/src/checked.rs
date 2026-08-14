@@ -1,6 +1,6 @@
 use thiserror::Error;
 use xb_frontend::TypeSuffix;
-pub use xb_frontend::{ArithmeticOp, ComparisonOp, Param};
+pub use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, Param};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
@@ -144,6 +144,12 @@ pub enum CheckedExprKind {
     },
     Arithmetic {
         op: ArithmeticOp,
+        left: Box<CheckedExpr>,
+        right: Box<CheckedExpr>,
+    },
+    Not(Box<CheckedExpr>),
+    Boolean {
+        op: BooleanOp,
         left: Box<CheckedExpr>,
         right: Box<CheckedExpr>,
     },

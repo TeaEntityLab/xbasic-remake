@@ -3,6 +3,7 @@ mod builtin;
 mod call;
 pub mod compare;
 pub mod entry;
+mod eval;
 pub mod exception;
 pub mod fault;
 mod helpers;

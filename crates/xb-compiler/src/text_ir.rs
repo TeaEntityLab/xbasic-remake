@@ -1,4 +1,4 @@
-use crate::checked::{ArithmeticOp, ComparisonOp};
+use crate::checked::{ArithmeticOp, BooleanOp, ComparisonOp};
 use crate::ir::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol};
 use crate::ValueType;
 
@@ -128,6 +128,14 @@ impl TextIrEmitter {
                     self.emit_arith_op(*op),
                     self.emit_expr(right)
                 )
+            }
+            IrExprKind::Not(inner) => format!("not({})", self.emit_expr(inner)),
+            IrExprKind::Boolean { op, left, right } => {
+                let s = match op {
+                    BooleanOp::And => "and",
+                    BooleanOp::Or => "or",
+                };
+                format!("{}({} {})", s, self.emit_expr(left), self.emit_expr(right))
             }
             IrExprKind::FunctionCall { name, args } => {
                 let as_str: Vec<String> = args.iter().map(|a| self.emit_expr(a)).collect();

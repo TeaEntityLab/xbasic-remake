@@ -1,4 +1,4 @@
-use xb_frontend::{ArithmeticOp, ComparisonOp, Expression, TypeSuffix};
+use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, Expression, TypeSuffix};
 
 use crate::checked::{CheckedExpr, CheckedExprKind, CheckedSymbol};
 use crate::semantics::{Analyzer, ExprResult, SemanticError, ValueType};
@@ -23,6 +23,8 @@ impl Analyzer {
             Expression::Identifier { name, .. } => self.symbol(name),
             Expression::Comparison { op, left, right } => self.comparison(*op, left, right),
             Expression::Arithmetic { op, left, right } => self.arithmetic(*op, left, right),
+            Expression::Not(inner) => self.not_expr(inner),
+            Expression::Boolean { op, left, right } => self.boolean(*op, left, right),
             Expression::FunctionCall { name, args } => self.function_call(name, args),
         }
     }
@@ -80,6 +82,40 @@ impl Analyzer {
         ))
     }
 
+    fn not_expr(&self, inner: &Expression) -> ExprResult {
+        let v = self.expr(inner)?;
+        if v.value_type != ValueType::Integer {
+            return Err(SemanticError::IfConditionNotInteger {
+                actual: v.value_type,
+            });
+        }
+        Ok(CheckedExpr::new(
+            CheckedExprKind::Not(Box::new(v)),
+            ValueType::Integer,
+        ))
+    }
+
+    fn boolean(&self, op: BooleanOp, l: &Expression, r: &Expression) -> ExprResult {
+        let lv = self.expr(l)?;
+        let rv = self.expr(r)?;
+        if lv.value_type != ValueType::Integer || rv.value_type != ValueType::Integer {
+            return Err(SemanticError::IfConditionNotInteger {
+                actual: if lv.value_type != ValueType::Integer {
+                    lv.value_type
+                } else {
+                    rv.value_type
+                },
+            });
+        }
+        Ok(CheckedExpr::new(
+            CheckedExprKind::Boolean {
+                op,
+                left: Box::new(lv),
+                right: Box::new(rv),
+            },
+            ValueType::Integer,
+        ))
+    }
     fn function_call(&self, name: &str, args: &[Expression]) -> ExprResult {
         if let Some(rt) = crate::builtin::builtin_return_type(name) {
             return crate::builtin::builtin_call(self, name, args, rt);

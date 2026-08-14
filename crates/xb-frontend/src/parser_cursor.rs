@@ -163,30 +163,6 @@ impl Parser {
         self.expect_symbol(')')?;
         Ok(args)
     }
-    pub(crate) fn return_stmt(&mut self) -> Result<Statement, ParseError> {
-        self.expect_keyword(Keyword::Return)?;
-        let value = if self.at_line_end() {
-            None
-        } else {
-            Some(self.expression()?)
-        };
-        self.expect_line_end()?;
-        Ok(Statement::Return { value })
-    }
-    pub(crate) fn while_stmt(&mut self) -> Result<Statement, ParseError> {
-        self.expect_keyword(Keyword::While)?;
-        let condition = self.expression()?;
-        self.expect_line_end()?;
-        let mut body = Vec::new();
-        self.skip_newlines();
-        while !self.at_eof() && !self.starts_wend() {
-            body.push(self.statement()?);
-            self.skip_newlines();
-        }
-        self.expect_keyword(Keyword::Wend)?;
-        self.expect_line_end()?;
-        Ok(Statement::While { condition, body })
-    }
 }
 
 impl Parser {
@@ -228,5 +204,54 @@ impl Parser {
             self.index += 1;
         }
         op
+    }
+
+    pub(crate) fn primary(&mut self) -> Result<Expression, ParseError> {
+        let kind = self.peek_kind().clone();
+        match kind {
+            TokenKind::StringLiteral(v) => {
+                self.index += 1;
+                Ok(Expression::StringLiteral(v))
+            }
+            TokenKind::IntegerLiteral(v) => {
+                self.index += 1;
+                Ok(Expression::IntegerLiteral(v))
+            }
+            TokenKind::FloatLiteral(v) => {
+                self.index += 1;
+                Ok(Expression::FloatLiteral(v))
+            }
+            TokenKind::SystemConstant(name) => {
+                self.index += 1;
+                Ok(Expression::SystemConstant { name })
+            }
+            TokenKind::SystemVariable { name, suffix } => {
+                self.index += 1;
+                Ok(Expression::SystemVariable { name, suffix })
+            }
+            TokenKind::Identifier { name, suffix } => self.identifier_expr(name, suffix),
+            _ => Err(self.expected("expression")),
+        }
+    }
+
+    fn identifier_expr(
+        &mut self,
+        name: String,
+        suffix: Option<TypeSuffix>,
+    ) -> Result<Expression, ParseError> {
+        self.index += 1;
+        if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+            let args = self.parse_args()?;
+            let full = match suffix {
+                Some(TypeSuffix::String) => format!("{name}$"),
+                Some(TypeSuffix::Single) => format!("{name}!"),
+                Some(TypeSuffix::Double) => format!("{name}#"),
+                Some(TypeSuffix::Integer) => format!("{name}%"),
+                None => name,
+            };
+            Ok(Expression::FunctionCall { name: full, args })
+        } else {
+            Ok(Expression::Identifier { name, suffix })
+        }
     }
 }
