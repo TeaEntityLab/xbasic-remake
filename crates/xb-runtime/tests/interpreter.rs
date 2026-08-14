@@ -1,22 +1,7 @@
-use xb_compiler::{
-    EntryLookupError, FrontendUnit, IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol, ValueType,
-};
+mod common;
+use common::{expression, lower, symbol};
+use xb_compiler::{EntryLookupError, IrExprKind, IrItem, IrProgram, ValueType};
 use xb_runtime::{Interpreter, RuntimeError, RuntimeValue};
-
-fn lower(source: &str) -> IrProgram {
-    FrontendUnit::parse(source).unwrap().lower_ir().unwrap()
-}
-
-fn symbol(name: &str, value_type: ValueType) -> IrSymbol {
-    IrSymbol {
-        name: name.to_string(),
-        value_type,
-    }
-}
-
-fn expression(kind: IrExprKind, value_type: ValueType) -> IrExpr {
-    IrExpr { kind, value_type }
-}
 
 #[test]
 fn executes_top_level_items_without_entering_functions() {
@@ -168,8 +153,12 @@ fn rejects_duplicate_runtime_slot() {
         items: vec![
             IrItem::Dim {
                 symbol: repeated.clone(),
+                size: None,
             },
-            IrItem::Dim { symbol: repeated },
+            IrItem::Dim {
+                symbol: repeated,
+                size: None,
+            },
         ],
     };
     let mut output = Vec::new();
@@ -217,6 +206,7 @@ fn rejects_runtime_type_mismatch() {
         items: vec![
             IrItem::Dim {
                 symbol: count.clone(),
+                size: None,
             },
             IrItem::Assignment {
                 target: count,

@@ -107,8 +107,16 @@ impl Parser {
     fn dim_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::Dim)?;
         let (name, suffix) = self.expect_identifier()?;
+        let size = if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+            self.index += 1;
+            let e = self.expression()?;
+            self.expect_symbol(')')?;
+            Some(e)
+        } else {
+            None
+        };
         self.expect_line_end()?;
-        Ok(Statement::Dim { name, suffix })
+        Ok(Statement::Dim { name, suffix, size })
     }
 
     fn assignment_stmt(&mut self) -> Result<Statement, ParseError> {
@@ -126,6 +134,16 @@ impl Parser {
     fn call_stmt(&mut self) -> Result<Statement, ParseError> {
         let (name, suffix) = self.expect_identifier()?;
         let args = self.parse_args()?;
+        if matches!(self.peek_kind(), TokenKind::Symbol('=')) && args.len() == 1 {
+            self.index += 1;
+            let value = self.expression()?;
+            self.expect_line_end()?;
+            return Ok(Statement::ArrayAssignment {
+                target: name,
+                index: args.into_iter().next().unwrap(),
+                value,
+            });
+        }
         self.expect_line_end()?;
         let full = match suffix {
             Some(TypeSuffix::String) => format!("{name}$"),

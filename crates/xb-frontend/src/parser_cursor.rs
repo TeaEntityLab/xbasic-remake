@@ -1,4 +1,4 @@
-use crate::ast::{ArithmeticOp, ComparisonOp, Expression, Param, Statement};
+use crate::ast::{ArithmeticOp, ComparisonOp, Expression, Param};
 use crate::parser::{ParseError, Parser};
 use crate::token::{Keyword, SourcePos, TokenKind, TypeSuffix};
 

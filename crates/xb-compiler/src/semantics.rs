@@ -18,6 +18,7 @@ pub(crate) struct FuncSig {
 #[derive(Debug, Default)]
 pub struct Analyzer {
     pub(crate) symbols: BTreeMap<String, ValueType>,
+    pub(crate) arrays: BTreeMap<String, ValueType>,
     pub(crate) constants: BTreeMap<String, String>,
     pub(crate) shared: BTreeMap<String, ValueType>,
     pub(crate) functions: BTreeMap<String, FuncSig>,
@@ -48,8 +49,13 @@ impl Analyzer {
         match statement {
             Statement::Version(value) => Ok(CheckedItem::Version(value.clone())),
             Statement::Print(expr) => Ok(CheckedItem::Print(self.expr(expr)?)),
-            Statement::Dim { name, suffix } => self.dim(name, *suffix),
+            Statement::Dim { name, suffix, size } => self.dim(name, *suffix, size.as_ref()),
             Statement::Assignment { target, value, .. } => self.assignment(target, value),
+            Statement::ArrayAssignment {
+                target,
+                index,
+                value,
+            } => self.array_assignment(target, index, value),
             Statement::ConstantDefinition { name, value } => match scope {
                 Scope::TopLevel => self.constant_definition(name, value),
                 Scope::Function => {
@@ -176,29 +182,6 @@ impl Analyzer {
         }
     }
 
-    fn dim(&mut self, name: &str, suffix: Option<TypeSuffix>) -> ItemResult {
-        let vt = ValueType::from_suffix(suffix);
-        match self.symbols.insert(name.to_owned(), vt) {
-            Some(_) => Err(SemanticError::DuplicateSymbol {
-                name: name.to_owned(),
-            }),
-            None => Ok(CheckedItem::Dim(CheckedSymbol::new(name.to_owned(), vt))),
-        }
-    }
-
-    fn assignment(&self, name: &str, value: &Expression) -> ItemResult {
-        let target = self.checked_symbol(name)?;
-        let value = self.expr(value)?;
-        if target.value_type != value.value_type {
-            return Err(SemanticError::TypeMismatch {
-                name: name.to_owned(),
-                expected: target.value_type,
-                actual: value.value_type,
-            });
-        }
-        Ok(CheckedItem::Assignment { target, value })
-    }
-
     fn function(&mut self, f: &FunctionDecl) -> ItemResult {
         let ret = ValueType::from_suffix(f.suffix);
         let param_types: Vec<ValueType> = f
@@ -215,6 +198,7 @@ impl Analyzer {
         );
         let mut scoped = Self {
             symbols: BTreeMap::new(),
+            arrays: BTreeMap::new(),
             constants: self.constants.clone(),
             shared: self.shared.clone(),
             functions: self.functions.clone(),

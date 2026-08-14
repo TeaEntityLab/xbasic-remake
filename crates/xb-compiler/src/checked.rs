@@ -80,9 +80,17 @@ pub struct CheckedProgram {
 pub enum CheckedItem {
     Version(String),
     Print(CheckedExpr),
-    Dim(CheckedSymbol),
+    Dim {
+        symbol: CheckedSymbol,
+        size: Option<CheckedExpr>,
+    },
     Assignment {
         target: CheckedSymbol,
+        value: CheckedExpr,
+    },
+    ArrayAssignment {
+        target: CheckedSymbol,
+        index: CheckedExpr,
         value: CheckedExpr,
     },
     ConstantDefinition {
@@ -166,6 +174,10 @@ pub enum CheckedExprKind {
     FunctionCall {
         name: String,
         args: Vec<CheckedExpr>,
+    },
+    ArrayAccess {
+        symbol: CheckedSymbol,
+        index: Box<CheckedExpr>,
     },
 }
 

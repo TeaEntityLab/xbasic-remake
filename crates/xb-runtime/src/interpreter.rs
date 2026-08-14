@@ -1,124 +1,6 @@
-use std::collections::{btree_map::Entry, BTreeMap};
-
 use crate::helpers::require_type;
-use thiserror::Error;
-use xb_compiler::{EntryLookupError, IrExpr, IrItem, IrProgram, ValueType};
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum RuntimeValue {
-    Integer(i32),
-    Float(f64),
-    String(String),
-}
-
-impl RuntimeValue {
-    pub const fn value_type(&self) -> ValueType {
-        match self {
-            Self::Integer(_) => ValueType::Integer,
-            Self::Float(_) => ValueType::Float,
-            Self::String(_) => ValueType::String,
-        }
-    }
-
-    fn default_for(value_type: ValueType) -> Self {
-        match value_type {
-            ValueType::Integer => Self::Integer(0),
-            ValueType::Float => Self::Float(0.0),
-            ValueType::String => Self::String(String::new()),
-        }
-    }
-
-    fn render(&self) -> String {
-        match self {
-            Self::Integer(value) => value.to_string(),
-            Self::Float(value) => value.to_string(),
-            Self::String(value) => value.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct TypedSlot {
-    pub(crate) value_type: ValueType,
-    pub(crate) value: RuntimeValue,
-}
-
-impl TypedSlot {
-    pub(crate) fn new(value_type: ValueType) -> Self {
-        Self {
-            value_type,
-            value: RuntimeValue::default_for(value_type),
-        }
-    }
-    pub(crate) fn set(&mut self, v: RuntimeValue) {
-        self.value = v;
-    }
-
-    pub const fn value_type(&self) -> ValueType {
-        self.value_type
-    }
-
-    pub const fn value(&self) -> &RuntimeValue {
-        &self.value
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ProgramMetadata {
-    version: Option<String>,
-}
-
-impl ProgramMetadata {
-    pub fn version(&self) -> Option<&str> {
-        self.version.as_deref()
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct ExecutionState {
-    pub(crate) metadata: ProgramMetadata,
-    pub(crate) slots: BTreeMap<String, TypedSlot>,
-    pub(crate) shared: BTreeMap<String, TypedSlot>,
-}
-
-impl ExecutionState {
-    pub const fn metadata(&self) -> &ProgramMetadata {
-        &self.metadata
-    }
-
-    pub fn slot(&self, name: &str) -> Option<&TypedSlot> {
-        self.slots.get(name)
-    }
-
-    pub fn shared_slot(&self, name: &str) -> Option<&TypedSlot> {
-        self.shared.get(name)
-    }
-}
-
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum RuntimeError {
-    #[error(transparent)]
-    EntryLookup(#[from] EntryLookupError),
-    #[error("duplicate runtime slot {name}")]
-    DuplicateSlot { name: String },
-    #[error("unknown runtime slot {name}")]
-    UnknownSlot { name: String },
-    #[error("runtime type mismatch: expected {expected:?}, got {actual:?}")]
-    TypeMismatch {
-        expected: ValueType,
-        actual: ValueType,
-    },
-    #[error("invalid {value_type:?} literal {literal}")]
-    InvalidLiteral {
-        literal: String,
-        value_type: ValueType,
-    },
-    #[error("unknown function {name}")]
-    UnknownFunction { name: String },
-    #[error("division by zero")]
-    DivisionByZero,
-}
-
+pub use crate::slot::{ExecutionState, ProgramMetadata, RuntimeError, RuntimeValue, TypedSlot};
+use xb_compiler::{IrExpr, IrItem, IrProgram, ValueType};
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Interpreter;
 
@@ -165,14 +47,36 @@ pub(crate) fn exec_items(
             IrItem::Version(v) => state.metadata.version = Some(v.clone()),
             IrItem::Print(expr) => output.push(eval(program, expr, state)?.render()),
             IrItem::ConstantDefinition { .. } => {}
-            IrItem::Dim { symbol } => match state.slots.entry(symbol.name.clone()) {
-                Entry::Vacant(e) => drop(e.insert(TypedSlot::new(symbol.value_type))),
-                Entry::Occupied(_) => {
+            IrItem::Dim { symbol, size } => {
+                if state.slots.contains_key(&symbol.name) {
                     return Err(RuntimeError::DuplicateSlot {
                         name: symbol.name.clone(),
-                    })
+                    });
                 }
-            },
+                match size {
+                    Some(sz) => {
+                        let n = eval(program, sz, state)?;
+                        let len = match n {
+                            RuntimeValue::Integer(i) => i as usize,
+                            _ => {
+                                return Err(RuntimeError::TypeMismatch {
+                                    expected: ValueType::Integer,
+                                    actual: n.value_type(),
+                                })
+                            }
+                        };
+                        state.slots.insert(
+                            symbol.name.clone(),
+                            TypedSlot::new_array(symbol.value_type, len),
+                        );
+                    }
+                    None => {
+                        state
+                            .slots
+                            .insert(symbol.name.clone(), TypedSlot::new(symbol.value_type));
+                    }
+                }
+            }
             IrItem::Assignment { target, value } => {
                 let v = eval(program, value, state)?;
                 require_type(target.value_type, v.value_type())?;
@@ -185,6 +89,32 @@ pub(crate) fn exec_items(
                         })?;
                 require_type(slot.value_type, target.value_type)?;
                 slot.value = v;
+            }
+            IrItem::ArrayAssignment {
+                target,
+                index,
+                value,
+            } => {
+                let idx = eval(program, index, state)?;
+                let v = eval(program, value, state)?;
+                let i = match idx {
+                    RuntimeValue::Integer(i) => i as usize,
+                    _ => {
+                        return Err(RuntimeError::TypeMismatch {
+                            expected: ValueType::Integer,
+                            actual: idx.value_type(),
+                        })
+                    }
+                };
+                let slot =
+                    state
+                        .slots
+                        .get_mut(&target.name)
+                        .ok_or_else(|| RuntimeError::UnknownSlot {
+                            name: target.name.clone(),
+                        })?;
+                require_type(slot.value_type, target.value_type)?;
+                slot.array_set(i, v)?;
             }
             IrItem::SharedAssignment { target, value } => {
                 let v = eval(program, value, state)?;

@@ -26,7 +26,21 @@ impl Analyzer {
             Expression::Not(inner) => self.not_expr(inner),
             Expression::Boolean { op, left, right } => self.boolean(*op, left, right),
             Expression::FunctionCall { name, args } => self.function_call(name, args),
+            Expression::ArrayAccess { name, index } => self.array_access(name, index),
         }
+    }
+
+    fn array_access(&self, name: &str, index: &Expression) -> ExprResult {
+        let sym = self.checked_symbol(name)?;
+        let vt = sym.value_type;
+        let idx = self.expr(index)?;
+        Ok(CheckedExpr::new(
+            CheckedExprKind::ArrayAccess {
+                symbol: sym,
+                index: Box::new(idx),
+            },
+            vt,
+        ))
     }
 
     fn comparison(&self, op: ComparisonOp, l: &Expression, r: &Expression) -> ExprResult {
@@ -117,6 +131,18 @@ impl Analyzer {
         ))
     }
     pub(crate) fn function_call(&self, name: &str, args: &[Expression]) -> ExprResult {
+        if self.arrays.contains_key(name) && args.len() == 1 {
+            let sym = self.checked_symbol(name)?;
+            let vt = sym.value_type;
+            let index = self.expr(&args[0])?;
+            return Ok(CheckedExpr::new(
+                CheckedExprKind::ArrayAccess {
+                    symbol: sym,
+                    index: Box::new(index),
+                },
+                vt,
+            ));
+        }
         if let Some(rt) = crate::builtin::builtin_return_type(name) {
             return crate::builtin::builtin_call(self, name, args, rt);
         }

@@ -8,7 +8,7 @@ pub mod exception;
 pub mod fault;
 mod helpers;
 pub mod interpreter;
-pub mod math;
+mod slot;
 
 pub use entry::{xb_xxx_main, EntryCallback, StartApplicationCallback, XxxMainArgs};
 pub use exception::{Exception, Signal};

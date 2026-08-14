@@ -52,6 +52,25 @@ pub(crate) fn eval_expr(
             let mut out = Vec::new();
             return crate::call::call_function(program, name, args, state, &mut out);
         }
+        IrExprKind::ArrayAccess { symbol, index } => {
+            let idx = eval(program, index, state)?;
+            let i = match idx {
+                RuntimeValue::Integer(n) => n as usize,
+                _ => {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: ValueType::Integer,
+                        actual: idx.value_type(),
+                    })
+                }
+            };
+            let slot = state
+                .slots
+                .get(&symbol.name)
+                .ok_or_else(|| RuntimeError::UnknownSlot {
+                    name: symbol.name.clone(),
+                })?;
+            return slot.array_get(i);
+        }
     };
     require_type(expr.value_type, value.value_type())?;
     Ok(value)

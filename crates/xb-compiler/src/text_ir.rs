@@ -1,5 +1,5 @@
-use crate::checked::{ArithmeticOp, BooleanOp, ComparisonOp};
-use crate::ir::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol};
+use crate::checked::{ArithmeticOp, ComparisonOp};
+use crate::ir::{IrItem, IrProgram, IrSymbol};
 use crate::ValueType;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -25,13 +25,30 @@ impl TextIrEmitter {
             IrItem::Print(expr) => {
                 out.push_str(&format!("{prefix}print {}\n", self.emit_expr(expr)))
             }
-            IrItem::Dim { symbol } => {
-                out.push_str(&format!("{prefix}dim {}\n", self.emit_symbol(symbol)))
-            }
+            IrItem::Dim { symbol, size } => match size {
+                Some(sz) => out.push_str(&format!(
+                    "{prefix}dim {}[{}]\n",
+                    self.emit_symbol(symbol),
+                    self.emit_expr(sz)
+                )),
+                None => out.push_str(&format!("{prefix}dim {}\n", self.emit_symbol(symbol))),
+            },
             IrItem::Assignment { target, value } => {
                 out.push_str(&format!(
                     "{prefix}assign {} = {}\n",
                     self.emit_symbol(target),
+                    self.emit_expr(value)
+                ));
+            }
+            IrItem::ArrayAssignment {
+                target,
+                index,
+                value,
+            } => {
+                out.push_str(&format!(
+                    "{prefix}array_assign {}[{}] = {}\n",
+                    self.emit_symbol(target),
+                    self.emit_expr(index),
                     self.emit_expr(value)
                 ));
             }
@@ -123,53 +140,11 @@ impl TextIrEmitter {
         }
     }
 
-    fn emit_expr(self, expr: &IrExpr) -> String {
-        match &expr.kind {
-            IrExprKind::StringLiteral(value) => format!("string({value:?})"),
-            IrExprKind::IntegerLiteral(value) => format!("integer({value})"),
-            IrExprKind::FloatLiteral(value) => format!("float({value})"),
-            IrExprKind::Constant { name, value } => format!(
-                "constant($${name}:{} = integer({value}))",
-                self.emit_type(expr.value_type)
-            ),
-            IrExprKind::SharedVariable(symbol) => format!("shared(##{})", self.emit_symbol(symbol)),
-            IrExprKind::Symbol(symbol) => format!("symbol({})", self.emit_symbol(symbol)),
-            IrExprKind::Comparison { op, left, right } => {
-                format!(
-                    "compare({} {} {})",
-                    self.emit_expr(left),
-                    self.emit_op(*op),
-                    self.emit_expr(right)
-                )
-            }
-            IrExprKind::Arithmetic { op, left, right } => {
-                format!(
-                    "arith({} {} {})",
-                    self.emit_expr(left),
-                    self.emit_arith_op(*op),
-                    self.emit_expr(right)
-                )
-            }
-            IrExprKind::Not(inner) => format!("not({})", self.emit_expr(inner)),
-            IrExprKind::Boolean { op, left, right } => {
-                let s = match op {
-                    BooleanOp::And => "and",
-                    BooleanOp::Or => "or",
-                };
-                format!("{}({} {})", s, self.emit_expr(left), self.emit_expr(right))
-            }
-            IrExprKind::FunctionCall { name, args } => {
-                let as_str: Vec<String> = args.iter().map(|a| self.emit_expr(a)).collect();
-                format!("call {}({})", name, as_str.join(", "))
-            }
-        }
-    }
-
-    fn emit_symbol(self, symbol: &IrSymbol) -> String {
+    pub(crate) fn emit_symbol(self, symbol: &IrSymbol) -> String {
         format!("{}:{}", symbol.name, self.emit_type(symbol.value_type))
     }
 
-    fn emit_op(self, op: ComparisonOp) -> &'static str {
+    pub(crate) fn emit_op(self, op: ComparisonOp) -> &'static str {
         match op {
             ComparisonOp::Equal => "=",
             ComparisonOp::NotEqual => "<>",
@@ -180,7 +155,7 @@ impl TextIrEmitter {
         }
     }
 
-    fn emit_arith_op(self, op: ArithmeticOp) -> &'static str {
+    pub(crate) fn emit_arith_op(self, op: ArithmeticOp) -> &'static str {
         match op {
             ArithmeticOp::Add => "+",
             ArithmeticOp::Sub => "-",
@@ -189,7 +164,7 @@ impl TextIrEmitter {
         }
     }
 
-    fn emit_type(self, value_type: ValueType) -> &'static str {
+    pub(crate) fn emit_type(self, value_type: ValueType) -> &'static str {
         match value_type {
             ValueType::Integer => "integer",
             ValueType::Float => "float",

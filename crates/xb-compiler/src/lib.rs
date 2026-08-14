@@ -5,15 +5,18 @@ mod diagnostic;
 mod diagnostic_tests;
 mod entry_lookup;
 pub mod ir;
+mod ir_lower;
 #[cfg(test)]
 mod ir_tests;
 pub mod semantics;
 mod semantics_expr;
 #[cfg(test)]
 mod semantics_shared_tests;
+mod semantics_stmts;
 #[cfg(test)]
 mod semantics_tests;
 pub mod text_ir;
+mod text_ir_expr;
 
 pub use checked::{
     ArithmeticOp, BooleanOp, CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam,

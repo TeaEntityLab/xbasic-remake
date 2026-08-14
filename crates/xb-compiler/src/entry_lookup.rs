@@ -20,8 +20,9 @@ impl CheckedProgram {
                 } => (candidate == name).then_some(body.as_slice()),
                 CheckedItem::Version(_)
                 | CheckedItem::Print(_)
-                | CheckedItem::Dim(_)
+                | CheckedItem::Dim { .. }
                 | CheckedItem::Assignment { .. }
+                | CheckedItem::ArrayAssignment { .. }
                 | CheckedItem::ConstantDefinition { .. }
                 | CheckedItem::If { .. }
                 | CheckedItem::While { .. }
@@ -51,6 +52,7 @@ impl IrProgram {
                 | IrItem::Dim { .. }
                 | IrItem::ConstantDefinition { .. }
                 | IrItem::Assignment { .. }
+                | IrItem::ArrayAssignment { .. }
                 | IrItem::If { .. }
                 | IrItem::While { .. }
                 | IrItem::For { .. }

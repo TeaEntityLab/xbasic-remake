@@ -1,0 +1,11 @@
+VERSION "0.1"
+FUNCTION Main
+DIM a(5)
+DIM i
+FOR i = 0 TO 4
+a(i) = i * 2
+NEXT i
+FOR i = 0 TO 4
+PRINT a(i)
+NEXT i
+END FUNCTION

@@ -1,0 +1,11 @@
+version 0.1
+function Main() -> integer
+  dim a:integer[integer(5)]
+  dim i:integer
+  for i:integer = integer(0) to integer(4)
+    array_assign a:integer[symbol(i:integer)] = arith(symbol(i:integer) * integer(2))
+  next
+  for i:integer = integer(0) to integer(4)
+    print array_access(a:integer[symbol(i:integer)])
+  next
+end function

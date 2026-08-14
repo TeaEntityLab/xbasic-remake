@@ -73,7 +73,7 @@ fn resolves_constant_reference_on_assignment_rhs() {
         &checked.items[..],
         [
             CheckedItem::ConstantDefinition { name, value, value_type: ValueType::Integer },
-            CheckedItem::Dim(_),
+            CheckedItem::Dim { .. },
             CheckedItem::Assignment { value: CheckedExpr { kind: CheckedExprKind::Constant { name: reference, value: resolved }, value_type: ValueType::Integer }, .. }
         ] if name == "Answer" && value == "42" && reference == "Answer" && resolved == "42"
     ));

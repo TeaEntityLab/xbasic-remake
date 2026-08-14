@@ -1,6 +1,6 @@
 use crate::checked::{
-    ArithmeticOp, BooleanOp, CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam,
-    CheckedProgram, CheckedSymbol, ComparisonOp, ValueType,
+    ArithmeticOp, BooleanOp, CheckedItem, CheckedParam, CheckedProgram, CheckedSymbol,
+    ComparisonOp, ValueType,
 };
 use crate::text_ir::TextIrEmitter;
 
@@ -27,9 +27,15 @@ pub enum IrItem {
     Print(IrExpr),
     Dim {
         symbol: IrSymbol,
+        size: Option<IrExpr>,
     },
     Assignment {
         target: IrSymbol,
+        value: IrExpr,
+    },
+    ArrayAssignment {
+        target: IrSymbol,
+        index: IrExpr,
         value: IrExpr,
     },
     ConstantDefinition {
@@ -72,15 +78,25 @@ pub enum IrItem {
 }
 
 impl IrItem {
-    fn lower_item(item: &CheckedItem) -> Self {
+    pub(crate) fn lower_item(item: &CheckedItem) -> Self {
         match item {
             CheckedItem::Version(value) => Self::Version(value.clone()),
             CheckedItem::Print(expr) => Self::Print(IrExpr::lower(expr)),
-            CheckedItem::Dim(symbol) => Self::Dim {
+            CheckedItem::Dim { symbol, size } => Self::Dim {
                 symbol: IrSymbol::lower(symbol),
+                size: size.as_ref().map(IrExpr::lower),
             },
             CheckedItem::Assignment { target, value } => Self::Assignment {
                 target: IrSymbol::lower(target),
+                value: IrExpr::lower(value),
+            },
+            CheckedItem::ArrayAssignment {
+                target,
+                index,
+                value,
+            } => Self::ArrayAssignment {
+                target: IrSymbol::lower(target),
+                index: IrExpr::lower(index),
                 value: IrExpr::lower(value),
             },
             CheckedItem::ConstantDefinition {
@@ -151,45 +167,8 @@ pub struct IrExpr {
 }
 
 impl IrExpr {
-    fn new(kind: IrExprKind, value_type: ValueType) -> Self {
+    pub(crate) fn new(kind: IrExprKind, value_type: ValueType) -> Self {
         Self { kind, value_type }
-    }
-
-    fn lower(expr: &CheckedExpr) -> Self {
-        let kind = match &expr.kind {
-            CheckedExprKind::StringLiteral(value) => IrExprKind::StringLiteral(value.clone()),
-            CheckedExprKind::IntegerLiteral(value) => IrExprKind::IntegerLiteral(value.clone()),
-            CheckedExprKind::FloatLiteral(value) => IrExprKind::FloatLiteral(value.clone()),
-            CheckedExprKind::Constant { name, value } => IrExprKind::Constant {
-                name: name.clone(),
-                value: value.clone(),
-            },
-            CheckedExprKind::SharedVariable(symbol) => {
-                IrExprKind::SharedVariable(IrSymbol::lower(symbol))
-            }
-            CheckedExprKind::Symbol(symbol) => IrExprKind::Symbol(IrSymbol::lower(symbol)),
-            CheckedExprKind::Comparison { op, left, right } => IrExprKind::Comparison {
-                op: *op,
-                left: Box::new(IrExpr::lower(left)),
-                right: Box::new(IrExpr::lower(right)),
-            },
-            CheckedExprKind::Arithmetic { op, left, right } => IrExprKind::Arithmetic {
-                op: *op,
-                left: Box::new(IrExpr::lower(left)),
-                right: Box::new(IrExpr::lower(right)),
-            },
-            CheckedExprKind::Not(inner) => IrExprKind::Not(Box::new(IrExpr::lower(inner))),
-            CheckedExprKind::Boolean { op, left, right } => IrExprKind::Boolean {
-                op: *op,
-                left: Box::new(IrExpr::lower(left)),
-                right: Box::new(IrExpr::lower(right)),
-            },
-            CheckedExprKind::FunctionCall { name, args } => IrExprKind::FunctionCall {
-                name: name.clone(),
-                args: args.iter().map(IrExpr::lower).collect(),
-            },
-        };
-        Self::new(kind, expr.value_type)
     }
 }
 
@@ -224,6 +203,10 @@ pub enum IrExprKind {
         name: String,
         args: Vec<IrExpr>,
     },
+    ArrayAccess {
+        symbol: IrSymbol,
+        index: Box<IrExpr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -233,7 +216,7 @@ pub struct IrSymbol {
 }
 
 impl IrSymbol {
-    fn lower(symbol: &CheckedSymbol) -> Self {
+    pub(crate) fn lower(symbol: &CheckedSymbol) -> Self {
         Self {
             name: symbol.name.clone(),
             value_type: symbol.value_type,

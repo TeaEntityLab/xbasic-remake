@@ -18,10 +18,16 @@ pub enum Statement {
     Dim {
         name: String,
         suffix: Option<TypeSuffix>,
+        size: Option<Expression>,
     },
     Assignment {
         target: String,
         suffix: Option<TypeSuffix>,
+        value: Expression,
+    },
+    ArrayAssignment {
+        target: String,
+        index: Expression,
         value: Expression,
     },
     ConstantDefinition {
@@ -147,5 +153,9 @@ pub enum Expression {
     FunctionCall {
         name: String,
         args: Vec<Expression>,
+    },
+    ArrayAccess {
+        name: String,
+        index: Box<Expression>,
     },
 }
