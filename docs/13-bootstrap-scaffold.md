@@ -33,6 +33,7 @@
     ├── xb-compiler/   codegen trait + optional inkwell LLVM backend
     ├── xb-runtime/    XxxMain ABI, exception maps, f64 math defaults
     ├── xb-link/       linker command construction
+    ├── xb-cli/        `xb` parser/analyzer/lowerer CLI
     ├── xb-gui/        GDI-shim trait + software framebuffer
     └── xb-ide/        feature-gated eframe/egui shell
 ```

@@ -4,6 +4,7 @@ members = [
   "crates/xb-compiler",
   "crates/xb-runtime",
   "crates/xb-link",
+  "crates/xb-cli",
   "crates/xb-gui",
   "crates/xb-ide",
 ]

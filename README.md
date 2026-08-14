@@ -16,6 +16,7 @@ Resolved decisions:
 | `xb-compiler` | Typed compiler boundary and optional LLVM backend (`llvm` feature; default off) |
 | `xb-runtime` | `XxxMain` entry contract, exception mappings, f64 math defaults, fault-hook skeletons |
 | `xb-link` | Object-link command construction for Unix and Win64 drivers |
+| `xb-cli` | `xb` command that parses/analyzes/lowers `.x` files and prints stable IR summaries |
 | `xb-gui` | GDI-spirit drawing trait and deterministic framebuffer backend |
 | `xb-ide` | eframe/egui IDE shell, feature-gated behind `eframe-app` |
 

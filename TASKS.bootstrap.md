@@ -5,7 +5,7 @@ Each `- [ ]` line below is one loop-dispatch task. The loop script copies this f
 - [x] Add assignment parsing for `identifier = expression`, including tests for `name$ = "hello"`, numeric assignment, and trailing-token rejection.
 - [x] Add semantic assignment checks: target symbol must exist, RHS type must match target type, and tests cover unknown assignment target plus string/integer mismatch.
 - [x] Add typed IR assignment item and tests proving `DIM name$ / name$ = "hello" / PRINT name$` lowers with matching types.
-- [ ] Add a minimal CLI crate `xb` that can parse/analyze/lower a `.x` file and print a stable IR summary for the bootstrap subset.
+- [x] Add a minimal CLI crate `xb` that can parse/analyze/lower a `.x` file and print a stable IR summary for the bootstrap subset.
 - [ ] Add a fixture under `fixtures/bootstrap/hello.x` and an integration test that runs the CLI over it.
 - [ ] Add a text IR emitter module that serializes the typed IR deterministically for golden-style tests without snapshotting prose.
 - [ ] Add first runtime-backed interpreter for the typed IR subset: VERSION is metadata, DIM allocates a typed slot, assignment stores, PRINT appends to an output sink.
