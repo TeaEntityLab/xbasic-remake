@@ -1,0 +1,41 @@
+version 0.1
+function Main() -> integer
+  dim ttype:string
+  dim tval:string
+  dim pos:integer
+  dim line:string
+  while compare(call EOF() = integer(0))
+    assign line:string = call READLINE$()
+    assign pos:integer = call INSTR(symbol(line:string), string(","))
+    if compare(symbol(pos:integer) > integer(0))
+      assign ttype:string = call LEFT$(symbol(line:string), arith(symbol(pos:integer) - integer(1)))
+      assign tval:string = call MID$(symbol(line:string), arith(symbol(pos:integer) + integer(1)), arith(call LEN(symbol(line:string)) - symbol(pos:integer)))
+    else
+      assign ttype:string = symbol(line:string)
+      assign tval:string = string("")
+    end if
+    if and(compare(symbol(ttype:string) = string("keyword")) compare(symbol(tval:string) = string("VERSION")))
+      assign line:string = call READLINE$()
+      assign pos:integer = call INSTR(symbol(line:string), string(","))
+      assign tval:string = call MID$(symbol(line:string), arith(symbol(pos:integer) + integer(1)), arith(call LEN(symbol(line:string)) - symbol(pos:integer)))
+      print arith(string("version ") + symbol(tval:string))
+    else
+      if and(compare(symbol(ttype:string) = string("keyword")) compare(symbol(tval:string) = string("DIM")))
+        assign line:string = call READLINE$()
+        assign pos:integer = call INSTR(symbol(line:string), string(","))
+        assign tval:string = call MID$(symbol(line:string), arith(symbol(pos:integer) + integer(1)), arith(call LEN(symbol(line:string)) - symbol(pos:integer)))
+        print arith(string("dim ") + symbol(tval:string))
+      else
+        if and(compare(symbol(ttype:string) = string("keyword")) compare(symbol(tval:string) = string("PRINT")))
+          print string("print ...")
+        else
+          if compare(symbol(ttype:string) = string("newline"))
+            print string("")
+          else
+            print arith(arith(symbol(ttype:string) + string(":")) + symbol(tval:string))
+          end if
+        end if
+      end if
+    end if
+  wend
+end function

@@ -1,0 +1,16 @@
+version 0.1
+
+keyword:FUNCTION
+ident:Main
+
+dim x
+
+ident:x
+symbol:=
+number:42
+
+print ...
+ident:x
+
+keyword:END
+keyword:FUNCTION

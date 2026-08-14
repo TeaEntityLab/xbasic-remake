@@ -188,13 +188,15 @@ fn corpus_v0_1_is_valid_and_executable() -> Result<(), String> {
         validate_layout(&selfhost, &discover(&selfhost)?, &["ir", "out"], &["in"])?;
     let expected_stems = [
         selfhost.join("lexer"),
+        selfhost.join("parser"),
         selfhost.join("xut_bootstrap_manifest"),
     ];
     if selfhost_cases != expected_stems {
         return Err(path_error("unexpected selfhost cases", &selfhost));
     }
     check_selfhost(&root, &expected_stems, "lexer", 0)?;
-    check_selfhost(&root, &expected_stems, "xut_bootstrap_manifest", 1)?;
+    check_selfhost(&root, &expected_stems, "parser", 1)?;
+    check_selfhost(&root, &expected_stems, "xut_bootstrap_manifest", 2)?;
     Ok(())
 }
 
