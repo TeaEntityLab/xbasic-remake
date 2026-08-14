@@ -74,6 +74,23 @@ impl TextIrEmitter {
                 }
                 out.push_str(&format!("{prefix}wend\n"));
             }
+            IrItem::For {
+                var,
+                start,
+                end,
+                body,
+            } => {
+                out.push_str(&format!(
+                    "{prefix}for {} = {} to {}\n",
+                    self.emit_symbol(var),
+                    self.emit_expr(start),
+                    self.emit_expr(end)
+                ));
+                for item in body {
+                    self.emit_item(item, out, indent + 1);
+                }
+                out.push_str(&format!("{prefix}next\n"));
+            }
             IrItem::Function {
                 name,
                 params,

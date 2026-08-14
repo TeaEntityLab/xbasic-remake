@@ -42,6 +42,12 @@ pub enum Statement {
         condition: Expression,
         body: Vec<Statement>,
     },
+    For {
+        var: String,
+        start: Expression,
+        end: Expression,
+        body: Vec<Statement>,
+    },
     Return {
         value: Option<Expression>,
     },

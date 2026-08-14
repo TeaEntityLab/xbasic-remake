@@ -228,6 +228,15 @@ pub(crate) fn exec_items(
                     Flow::Continue => {}
                 }
             },
+            IrItem::For {
+                var,
+                start,
+                end,
+                body,
+            } => match crate::eval::exec_for(program, var, start, end, body, state, output)? {
+                Flow::Return(r) => return Ok(Flow::Return(r)),
+                Flow::Continue => {}
+            },
             IrItem::Function { .. } => {}
             IrItem::Return { value } => {
                 let v = match value {

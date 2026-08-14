@@ -1,6 +1,6 @@
 use crate::helpers::{parse_float, parse_integer, read_slot, require_type};
-use crate::interpreter::{eval, ExecutionState, RuntimeError, RuntimeValue};
-use xb_compiler::{BooleanOp, IrExpr, IrExprKind, IrProgram, ValueType};
+use crate::interpreter::{eval, exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue};
+use xb_compiler::{BooleanOp, IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol, ValueType};
 
 pub(crate) fn eval_expr(
     program: &IrProgram,
@@ -54,4 +54,38 @@ pub(crate) fn eval_expr(
     };
     require_type(expr.value_type, value.value_type())?;
     Ok(value)
+}
+
+pub(crate) fn exec_for(
+    program: &IrProgram,
+    var: &IrSymbol,
+    start: &IrExpr,
+    end: &IrExpr,
+    body: &[IrItem],
+    state: &mut ExecutionState,
+    output: &mut Vec<String>,
+) -> Result<Flow, RuntimeError> {
+    let s = eval(program, start, state)?;
+    let e = eval(program, end, state)?;
+    let (RuntimeValue::Integer(mut i), RuntimeValue::Integer(ei)) = (s, e) else {
+        return Err(RuntimeError::TypeMismatch {
+            expected: ValueType::Integer,
+            actual: ValueType::Float,
+        });
+    };
+    while i <= ei {
+        let slot = state
+            .slots
+            .get_mut(&var.name)
+            .ok_or_else(|| RuntimeError::UnknownSlot {
+                name: var.name.clone(),
+            })?;
+        slot.value = RuntimeValue::Integer(i);
+        match exec_items(program, body, state, output)? {
+            Flow::Return(r) => return Ok(Flow::Return(r)),
+            Flow::Continue => {}
+        }
+        i += 1;
+    }
+    Ok(Flow::Continue)
 }

@@ -98,6 +98,28 @@ impl Analyzer {
                     body,
                 })
             }
+            Statement::For {
+                var,
+                start,
+                end,
+                body,
+            } => {
+                let sym = self.checked_symbol(var)?;
+                if sym.value_type != ValueType::Integer {
+                    return Err(SemanticError::IfConditionNotInteger {
+                        actual: sym.value_type,
+                    });
+                }
+                let start = self.expr(start)?;
+                let end = self.expr(end)?;
+                let body = self.blk(body, scope)?;
+                Ok(CheckedItem::For {
+                    var: sym,
+                    start,
+                    end,
+                    body,
+                })
+            }
             Statement::Return { value } => self.return_stmt(scope, value.as_ref()),
             Statement::Function(function) => self.function(function),
         }

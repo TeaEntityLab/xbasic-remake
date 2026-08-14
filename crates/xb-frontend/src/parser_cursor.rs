@@ -114,6 +114,9 @@ impl Parser {
     pub(crate) fn starts_wend(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Wend))
     }
+    pub(crate) fn starts_next(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Next))
+    }
     pub(crate) fn starts_else(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Else))
     }

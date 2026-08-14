@@ -50,6 +50,12 @@ pub enum IrItem {
         condition: IrExpr,
         body: Vec<IrItem>,
     },
+    For {
+        var: IrSymbol,
+        start: IrExpr,
+        end: IrExpr,
+        body: Vec<IrItem>,
+    },
     Function {
         name: String,
         params: Vec<IrParam>,
@@ -95,6 +101,17 @@ impl IrItem {
             },
             CheckedItem::While { condition, body } => Self::While {
                 condition: IrExpr::lower(condition),
+                body: body.iter().map(Self::lower_item).collect(),
+            },
+            CheckedItem::For {
+                var,
+                start,
+                end,
+                body,
+            } => Self::For {
+                var: IrSymbol::lower(var),
+                start: IrExpr::lower(start),
+                end: IrExpr::lower(end),
                 body: body.iter().map(Self::lower_item).collect(),
             },
             CheckedItem::SharedAssignment { target, value } => Self::SharedAssignment {

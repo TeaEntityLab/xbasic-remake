@@ -25,6 +25,7 @@ impl CheckedProgram {
                 | CheckedItem::ConstantDefinition { .. }
                 | CheckedItem::If { .. }
                 | CheckedItem::While { .. }
+                | CheckedItem::For { .. }
                 | CheckedItem::SharedAssignment { .. }
                 | CheckedItem::Return { .. } => None,
             })
@@ -51,6 +52,7 @@ impl IrProgram {
                 | IrItem::Assignment { .. }
                 | IrItem::If { .. }
                 | IrItem::While { .. }
+                | IrItem::For { .. }
                 | IrItem::SharedAssignment { .. }
                 | IrItem::Return { .. } => None,
             })

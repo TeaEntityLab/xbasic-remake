@@ -103,6 +103,12 @@ pub enum CheckedItem {
         condition: CheckedExpr,
         body: Vec<CheckedItem>,
     },
+    For {
+        var: CheckedSymbol,
+        start: CheckedExpr,
+        end: CheckedExpr,
+        body: Vec<CheckedItem>,
+    },
     Function {
         name: String,
         params: Vec<CheckedParam>,
