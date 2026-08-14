@@ -1,0 +1,18 @@
+version 0.1
+function Main() -> integer
+  dim x:integer
+  assign x:integer = integer(2)
+  if compare(symbol(x:integer) = integer(1))
+    print string("one")
+  else
+    if compare(symbol(x:integer) = integer(2))
+      print string("two")
+    else
+      if compare(symbol(x:integer) = integer(3))
+        print string("three")
+      else
+        print string("other")
+      end if
+    end if
+  end if
+end function

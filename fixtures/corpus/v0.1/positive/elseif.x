@@ -1,0 +1,14 @@
+VERSION "0.1"
+FUNCTION Main
+DIM x
+x = 2
+IF x = 1 THEN
+  PRINT "one"
+ELSEIF x = 2 THEN
+  PRINT "two"
+ELSEIF x = 3 THEN
+  PRINT "three"
+ELSE
+  PRINT "other"
+END IF
+END FUNCTION

@@ -33,7 +33,12 @@ and how it achieves cross-platform portability.
 | 21 | [Stage-2 Contract v0.7](stage2-contract-v0.7.md) | Arithmetic operators (+, -, *, /) with precedence, Integer/Float type promotion, XB-S016 diagnostic, runtime division-by-zero error |
 | 22 | [Stage-2 Contract v0.8](stage2-contract-v0.8.md) | WHILE/WEND loops: integer-valued condition, body iteration, RETURN propagation through Flow |
 | 23 | [Stage-2 Contract v0.9](stage2-contract-v0.9.md) | One-dimensional arrays: DIM a(n), a(i) access, a(i) = value assignment, array storage in TypedSlot |
-| 27 | [Stage-2 Contract v0.14](stage2-contract-v0.14.md) | Standalone function call statements: procedure-style calls with output propagation |
+| 24 | [Stage-2 Contract v0.10](stage2-contract-v0.10.md) | String concatenation via + operator |
+| 25 | [Stage-2 Contract v0.11](stage2-contract-v0.11.md) | Built-in string functions: LEN, ASC, CHR$, LEFT$, RIGHT$, MID$ |
+| 26 | [Stage-2 Contract v0.12](stage2-contract-v0.12.md) | Boolean operators AND, OR, NOT with bitwise i32 semantics |
+| 27 | [Stage-2 Contract v0.13](stage2-contract-v0.13.md) | FOR/NEXT loops with integer counter, inclusive range, optional variable after NEXT |
+| 28 | [Stage-2 Contract v0.14](stage2-contract-v0.14.md) | Standalone function call statements: procedure-style calls with output propagation |
+| 29 | [Stage-2 Contract v0.15](stage2-contract-v0.15.md) | ELSEIF chains: multi-branch conditionals desugared to nested IF |
 
 ## The big picture
 

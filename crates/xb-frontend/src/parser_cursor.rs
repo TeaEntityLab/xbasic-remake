@@ -120,6 +120,12 @@ impl Parser {
     pub(crate) fn starts_else(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Else))
     }
+    pub(crate) fn starts_elseif(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::ElseIf))
+    }
+    pub(crate) fn starts_if_boundary(&self) -> bool {
+        self.starts_else() || self.starts_elseif() || self.starts_end_if()
+    }
     pub(crate) fn starts_assignment(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Identifier { .. })
             && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))

@@ -173,36 +173,11 @@ impl Parser {
     }
     fn if_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::If)?;
-        let condition = self.expression()?;
-        self.expect_keyword(Keyword::Then)?;
-        self.expect_line_end()?;
-        let mut then_body = Vec::new();
-        self.skip_newlines();
-        while !self.at_eof() && !self.starts_else() && !self.starts_end_if() {
-            then_body.push(self.statement()?);
-            self.skip_newlines();
-        }
-        let else_body = if self.starts_else() {
-            self.expect_keyword(Keyword::Else)?;
-            self.expect_line_end()?;
-            let mut body = Vec::new();
-            self.skip_newlines();
-            while !self.at_eof() && !self.starts_end_if() {
-                body.push(self.statement()?);
-                self.skip_newlines();
-            }
-            Some(body)
-        } else {
-            None
-        };
+        let stmt = self.parse_if_chain()?;
         self.expect_keyword(Keyword::End)?;
         self.expect_keyword(Keyword::If)?;
         self.expect_line_end()?;
-        Ok(Statement::If {
-            condition,
-            then_body,
-            else_body,
-        })
+        Ok(stmt)
     }
 
     pub(crate) fn return_stmt(&mut self) -> Result<Statement, ParseError> {
