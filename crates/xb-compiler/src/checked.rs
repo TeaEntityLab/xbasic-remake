@@ -1,4 +1,5 @@
 use thiserror::Error;
+pub use xb_frontend::ComparisonOp;
 use xb_frontend::TypeSuffix;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +43,8 @@ pub enum SemanticError {
     SharedAssignmentNotInFunction { name: String },
     #[error("if condition must be integer, got {actual:?}")]
     IfConditionNotInteger { actual: ValueType },
+    #[error("comparison operand type mismatch: {left:?} vs {right:?}")]
+    ComparisonTypeMismatch { left: ValueType, right: ValueType },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,9 +98,17 @@ pub enum CheckedExprKind {
     StringLiteral(String),
     IntegerLiteral(String),
     FloatLiteral(String),
-    Constant { name: String, value: String },
+    Constant {
+        name: String,
+        value: String,
+    },
     SharedVariable(CheckedSymbol),
     Symbol(CheckedSymbol),
+    Comparison {
+        op: ComparisonOp,
+        left: Box<CheckedExpr>,
+        right: Box<CheckedExpr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

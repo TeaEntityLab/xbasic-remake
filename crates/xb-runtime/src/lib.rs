@@ -1,3 +1,4 @@
+pub mod compare;
 pub mod entry;
 pub mod exception;
 pub mod fault;

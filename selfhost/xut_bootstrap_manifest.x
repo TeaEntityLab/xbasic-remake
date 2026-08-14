@@ -15,4 +15,7 @@ PRINT ##XBSystem
 IF $$XBSysLinux THEN
 PRINT "linux"
 END IF
+IF ##XBSystem = $$XBSysLinux THEN
+PRINT "match"
+END IF
 END FUNCTION

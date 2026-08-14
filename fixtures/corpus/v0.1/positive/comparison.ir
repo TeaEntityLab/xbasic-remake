@@ -1,0 +1,24 @@
+function Main
+  dim a:integer
+  dim b:integer
+  assign a:integer = integer(5)
+  assign b:integer = integer(3)
+  if compare(symbol(a:integer) = symbol(b:integer))
+    print integer(1)
+  end if
+  if compare(symbol(a:integer) <> symbol(b:integer))
+    print integer(1)
+  end if
+  if compare(symbol(a:integer) < symbol(b:integer))
+    print integer(1)
+  end if
+  if compare(symbol(a:integer) > symbol(b:integer))
+    print integer(1)
+  end if
+  if compare(symbol(a:integer) <= symbol(b:integer))
+    print integer(1)
+  end if
+  if compare(symbol(a:integer) >= symbol(b:integer))
+    print integer(1)
+  end if
+end function

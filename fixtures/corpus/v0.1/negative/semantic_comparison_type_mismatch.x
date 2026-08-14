@@ -1,0 +1,9 @@
+FUNCTION Main
+DIM A%
+DIM B!
+A% = 1
+B! = 2.0
+IF A% = B! THEN
+PRINT 1
+END IF
+END FUNCTION

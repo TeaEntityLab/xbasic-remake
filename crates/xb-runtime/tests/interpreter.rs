@@ -44,20 +44,15 @@ fn allocates_default_values_for_each_typed_slot() {
     let state = Interpreter::new().execute(&program, &mut output).unwrap();
 
     // Then
-    let expected = [
-        ("count", ValueType::Integer, RuntimeValue::Integer(0)),
-        ("ratio", ValueType::Float, RuntimeValue::Float(0.0)),
-        (
-            "name",
-            ValueType::String,
-            RuntimeValue::String(String::new()),
-        ),
-    ];
-    for (name, value_type, value) in expected {
-        let slot = state.slot(name).unwrap();
-        assert_eq!(slot.value_type(), value_type);
-        assert_eq!(slot.value(), &value);
-    }
+    let s = state.slot("count").unwrap();
+    assert_eq!(s.value_type(), ValueType::Integer);
+    assert_eq!(s.value(), &RuntimeValue::Integer(0));
+    let s = state.slot("ratio").unwrap();
+    assert_eq!(s.value_type(), ValueType::Float);
+    assert_eq!(s.value(), &RuntimeValue::Float(0.0));
+    let s = state.slot("name").unwrap();
+    assert_eq!(s.value_type(), ValueType::String);
+    assert_eq!(s.value(), &RuntimeValue::String(String::new()));
 }
 
 #[test]
@@ -89,47 +84,32 @@ fn stores_and_prints_each_supported_value_type() {
 
 #[test]
 fn prints_hexadecimal_integer_literal() {
-    // Given
     let program = lower("PRINT 0x2A\n");
     let mut output = Vec::new();
-
-    // When
     Interpreter::new().execute(&program, &mut output).unwrap();
-
-    // Then
     assert_eq!(output, ["42"]);
 }
 
 #[test]
 fn prints_system_constant_without_allocating_runtime_slot() {
-    // Given
     let program = lower("$$XBSysLinux = 1\nFUNCTION Main\nPRINT $$XBSysLinux\nEND FUNCTION\n");
     let mut output = Vec::new();
-
-    // When
     let state = Interpreter::new()
         .execute_main(&program, &mut output)
         .unwrap();
-
-    // Then
     assert_eq!(output, ["1"]);
     assert!(state.slot("XBSysLinux").is_none());
 }
 
 #[test]
 fn mutates_shared_slot_across_reassignment() {
-    // Given
     let program = lower(
         "FUNCTION Main\n##XBSystem = 1\nPRINT ##XBSystem\n##XBSystem = 2\nPRINT ##XBSystem\nEND FUNCTION\n",
     );
     let mut output = Vec::new();
-
-    // When
     let state = Interpreter::new()
         .execute_main(&program, &mut output)
         .unwrap();
-
-    // Then
     assert_eq!(output, ["1", "2"]);
     assert_eq!(
         state.shared_slot("XBSystem").unwrap().value(),
@@ -139,18 +119,13 @@ fn mutates_shared_slot_across_reassignment() {
 
 #[test]
 fn keeps_shared_slot_separate_from_the_dimmed_variable_of_the_same_name() {
-    // Given
     let program = lower(
         "DIM Value\nValue = 1\nPRINT Value\nFUNCTION Main\n##Value = 2\nPRINT ##Value\nEND FUNCTION\n",
     );
     let mut output = Vec::new();
-
-    // When
     let state = Interpreter::new()
         .execute_main(&program, &mut output)
         .unwrap();
-
-    // Then
     assert_eq!(output, ["1", "2"]);
     assert_eq!(
         state.slot("Value").unwrap().value(),
@@ -237,7 +212,6 @@ fn rejects_invalid_integer_literal() {
 
 #[test]
 fn rejects_runtime_type_mismatch() {
-    // Given
     let count = symbol("count", ValueType::Integer);
     let program = IrProgram {
         items: vec![
@@ -254,16 +228,12 @@ fn rejects_runtime_type_mismatch() {
         ],
     };
     let mut output = Vec::new();
-
-    // When
     let result = Interpreter::new().execute(&program, &mut output);
-
-    // Then
     assert_eq!(
         result,
         Err(RuntimeError::TypeMismatch {
             expected: ValueType::Integer,
-            actual: ValueType::String,
+            actual: ValueType::String
         })
     );
 }
@@ -284,14 +254,10 @@ fn execute_main_runs_top_level_then_main_in_same_state() {
     // Then
     assert_eq!(output, ["top", "main"]);
     assert_eq!(state.metadata().version(), Some("6.5.0"));
-    assert_eq!(
-        state.slot("global").unwrap().value(),
-        &RuntimeValue::String("global".to_string())
-    );
-    assert_eq!(
-        state.slot("local").unwrap().value(),
-        &RuntimeValue::String("main".to_string())
-    );
+    let g = state.slot("global").unwrap();
+    assert_eq!(g.value(), &RuntimeValue::String("global".to_string()));
+    let l = state.slot("local").unwrap();
+    assert_eq!(l.value(), &RuntimeValue::String("main".to_string()));
 }
 
 #[test]
@@ -315,17 +281,25 @@ fn execute_main_reports_typed_error_when_main_is_missing() {
 }
 
 #[test]
-fn executes_if_then_when_condition_is_true() {
+fn executes_if_branches() {
     let prog = lower("IF 1 THEN\nPRINT 42\nEND IF\n");
     let mut out = Vec::new();
     Interpreter::new().execute(&prog, &mut out).unwrap();
     assert_eq!(out, ["42"]);
+    let prog = lower("IF 0 THEN\nPRINT 1\nELSE\nPRINT 0\nEND IF\n");
+    out.clear();
+    Interpreter::new().execute(&prog, &mut out).unwrap();
+    assert_eq!(out, ["0"]);
 }
 
 #[test]
-fn executes_if_else_when_condition_is_false() {
-    let prog = lower("IF 0 THEN\nPRINT 1\nELSE\nPRINT 0\nEND IF\n");
+fn executes_comparison_branches() {
+    let prog = lower("IF 1 = 1 THEN\nPRINT 1\nEND IF\n");
     let mut out = Vec::new();
+    Interpreter::new().execute(&prog, &mut out).unwrap();
+    assert_eq!(out, ["1"]);
+    let prog = lower("IF 1 <> 1 THEN\nPRINT 1\nELSE\nPRINT 0\nEND IF\n");
+    out.clear();
     Interpreter::new().execute(&prog, &mut out).unwrap();
     assert_eq!(out, ["0"]);
 }

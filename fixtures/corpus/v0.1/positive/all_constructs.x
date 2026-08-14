@@ -23,4 +23,7 @@ PRINT text$
 IF 1 THEN
 PRINT "branch"
 END IF
+IF 1 = 1 THEN
+PRINT "compare"
+END IF
 END FUNCTION

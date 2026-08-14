@@ -23,4 +23,7 @@ function Main
   if integer(1)
     print string("branch")
   end if
+  if compare(integer(1) = integer(1))
+    print string("compare")
+  end if
 end function

@@ -53,6 +53,16 @@ impl FunctionDecl {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ComparisonOp {
+    Equal,
+    NotEqual,
+    Less,
+    Greater,
+    LessEqual,
+    GreaterEqual,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
     StringLiteral(String),
@@ -68,5 +78,10 @@ pub enum Expression {
     Identifier {
         name: String,
         suffix: Option<TypeSuffix>,
+    },
+    Comparison {
+        op: ComparisonOp,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
 }

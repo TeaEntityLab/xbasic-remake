@@ -15,4 +15,7 @@ function Main
   if constant($$XBSysLinux:integer = integer(1))
     print string("linux")
   end if
+  if compare(shared(##XBSystem:integer) = constant($$XBSysLinux:integer = integer(1)))
+    print string("match")
+  end if
 end function

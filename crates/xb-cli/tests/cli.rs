@@ -50,6 +50,9 @@ fn cli_prints_stable_ir_for_static_xut_bootstrap_manifest() {
             "  if constant($$XBSysLinux:integer = integer(1))\n",
             "    print string(\"linux\")\n",
             "  end if\n",
+            "  if compare(shared(##XBSystem:integer) = constant($$XBSysLinux:integer = integer(1)))\n",
+            "    print string(\"match\")\n",
+            "  end if\n",
             "end function\n",
         )
     );

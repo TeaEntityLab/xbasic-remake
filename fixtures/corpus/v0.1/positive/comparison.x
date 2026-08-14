@@ -1,0 +1,24 @@
+FUNCTION Main
+DIM a%
+DIM b%
+a% = 5
+b% = 3
+IF a% = b% THEN
+PRINT 1
+END IF
+IF a% <> b% THEN
+PRINT 1
+END IF
+IF a% < b% THEN
+PRINT 1
+END IF
+IF a% > b% THEN
+PRINT 1
+END IF
+IF a% <= b% THEN
+PRINT 1
+END IF
+IF a% >= b% THEN
+PRINT 1
+END IF
+END FUNCTION

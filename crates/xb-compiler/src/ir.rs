@@ -1,5 +1,6 @@
 use crate::checked::{
-    CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol, ValueType,
+    CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol, ComparisonOp,
+    ValueType,
 };
 use crate::text_ir::TextIrEmitter;
 
@@ -119,6 +120,11 @@ impl IrExpr {
                 IrExprKind::SharedVariable(IrSymbol::lower(symbol))
             }
             CheckedExprKind::Symbol(symbol) => IrExprKind::Symbol(IrSymbol::lower(symbol)),
+            CheckedExprKind::Comparison { op, left, right } => IrExprKind::Comparison {
+                op: *op,
+                left: Box::new(IrExpr::lower(left)),
+                right: Box::new(IrExpr::lower(right)),
+            },
         };
         Self::new(kind, expr.value_type)
     }
@@ -129,9 +135,17 @@ pub enum IrExprKind {
     StringLiteral(String),
     IntegerLiteral(String),
     FloatLiteral(String),
-    Constant { name: String, value: String },
+    Constant {
+        name: String,
+        value: String,
+    },
     SharedVariable(IrSymbol),
     Symbol(IrSymbol),
+    Comparison {
+        op: ComparisonOp,
+        left: Box<IrExpr>,
+        right: Box<IrExpr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

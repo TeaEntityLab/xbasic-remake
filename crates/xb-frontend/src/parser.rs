@@ -1,4 +1,4 @@
-use crate::ast::{Expression, FunctionDecl, Program, Statement};
+use crate::ast::{ComparisonOp, Expression, FunctionDecl, Program, Statement};
 use crate::lexer::{lex, LexError};
 use crate::token::{Keyword, Token, TokenKind};
 use thiserror::Error;
@@ -169,6 +169,36 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
+        let left = self.primary()?;
+        if let Some(op) = self.comparison_op() {
+            let right = self.primary()?;
+            Ok(Expression::Comparison {
+                op,
+                left: Box::new(left),
+                right: Box::new(right),
+            })
+        } else {
+            Ok(left)
+        }
+    }
+
+    fn comparison_op(&mut self) -> Option<ComparisonOp> {
+        let op = match self.peek_kind() {
+            TokenKind::Symbol('=') => Some(ComparisonOp::Equal),
+            TokenKind::NotEqual => Some(ComparisonOp::NotEqual),
+            TokenKind::Symbol('<') => Some(ComparisonOp::Less),
+            TokenKind::Symbol('>') => Some(ComparisonOp::Greater),
+            TokenKind::LessEqual => Some(ComparisonOp::LessEqual),
+            TokenKind::GreaterEqual => Some(ComparisonOp::GreaterEqual),
+            _ => None,
+        };
+        if op.is_some() {
+            self.index += 1;
+        }
+        op
+    }
+
+    fn primary(&mut self) -> Result<Expression, ParseError> {
         let kind = self.peek_kind().clone();
         match kind {
             TokenKind::StringLiteral(value) => {

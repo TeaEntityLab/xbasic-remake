@@ -152,18 +152,16 @@ fn execute_items(
             IrItem::Print(expr) => output.push(evaluate(expr, state)?.render()),
             IrItem::ConstantDefinition { .. } => {}
             IrItem::Dim { symbol } => match state.slots.entry(symbol.name.clone()) {
-                Entry::Vacant(entry) => {
-                    entry.insert(TypedSlot::new(symbol.value_type));
-                }
+                Entry::Vacant(e) => drop(e.insert(TypedSlot::new(symbol.value_type))),
                 Entry::Occupied(_) => {
                     return Err(RuntimeError::DuplicateSlot {
                         name: symbol.name.clone(),
-                    });
+                    })
                 }
             },
             IrItem::Assignment { target, value } => {
-                let value = evaluate(value, state)?;
-                require_type(target.value_type, value.value_type())?;
+                let v = evaluate(value, state)?;
+                require_type(target.value_type, v.value_type())?;
                 let slot =
                     state
                         .slots
@@ -172,7 +170,7 @@ fn execute_items(
                             name: target.name.clone(),
                         })?;
                 require_type(slot.value_type, target.value_type)?;
-                slot.value = value;
+                slot.value = v;
             }
             IrItem::SharedAssignment { target, value } => {
                 let value = evaluate(value, state)?;
@@ -210,6 +208,11 @@ fn evaluate(expr: &IrExpr, state: &ExecutionState) -> Result<RuntimeValue, Runti
         IrExprKind::IntegerLiteral(value) => RuntimeValue::Integer(parse_integer(value)?),
         IrExprKind::FloatLiteral(value) => RuntimeValue::Float(parse_float(value)?),
         IrExprKind::Constant { value, .. } => RuntimeValue::Integer(parse_integer(value)?),
+        IrExprKind::Comparison { op, left, right } => {
+            let l = evaluate(left, state)?;
+            let r = evaluate(right, state)?;
+            RuntimeValue::Integer(crate::compare::compare(*op, &l, &r)?)
+        }
         IrExprKind::SharedVariable(symbol) => read_slot(&state.shared, symbol)?,
         IrExprKind::Symbol(symbol) => read_slot(&state.slots, symbol)?,
     };

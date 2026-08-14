@@ -1,3 +1,4 @@
+use crate::checked::ComparisonOp;
 use crate::ir::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol};
 use crate::ValueType;
 
@@ -87,11 +88,30 @@ impl TextIrEmitter {
             ),
             IrExprKind::SharedVariable(symbol) => format!("shared(##{})", self.emit_symbol(symbol)),
             IrExprKind::Symbol(symbol) => format!("symbol({})", self.emit_symbol(symbol)),
+            IrExprKind::Comparison { op, left, right } => {
+                format!(
+                    "compare({} {} {})",
+                    self.emit_expr(left),
+                    self.emit_op(*op),
+                    self.emit_expr(right)
+                )
+            }
         }
     }
 
     fn emit_symbol(self, symbol: &IrSymbol) -> String {
         format!("{}:{}", symbol.name, self.emit_type(symbol.value_type))
+    }
+
+    fn emit_op(self, op: ComparisonOp) -> &'static str {
+        match op {
+            ComparisonOp::Equal => "=",
+            ComparisonOp::NotEqual => "<>",
+            ComparisonOp::Less => "<",
+            ComparisonOp::Greater => ">",
+            ComparisonOp::LessEqual => "<=",
+            ComparisonOp::GreaterEqual => ">=",
+        }
     }
 
     fn emit_type(self, value_type: ValueType) -> &'static str {

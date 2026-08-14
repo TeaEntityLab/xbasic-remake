@@ -1,4 +1,4 @@
-use crate::{parse_program, Expression, ParseError, Statement, TypeSuffix};
+use crate::{parse_program, ComparisonOp, Expression, ParseError, Statement, TypeSuffix};
 
 #[test]
 fn parses_bootstrap_subset_when_program_has_function_body() {
@@ -30,39 +30,16 @@ fn parses_assignment_statement_when_target_is_identifier() {
 }
 
 #[test]
-fn rejects_trailing_tokens_after_assignment() {
-    let result = parse_program("name$ = \"hello\" garbage\n");
-    assert!(matches!(
-        result,
-        Err(ParseError::Expected {
-            expected: "end of line",
-            ..
-        })
-    ));
-}
-
-#[test]
-fn rejects_assignment_without_value() {
-    let result = parse_program("name$ =\n");
-    assert!(matches!(
-        result,
-        Err(ParseError::Expected {
-            expected: "expression",
-            ..
-        })
-    ));
-}
-
-#[test]
-fn rejects_bare_identifier_statement() {
-    let result = parse_program("name$\n");
-    assert!(matches!(
-        result,
-        Err(ParseError::Expected {
-            expected: "statement",
-            ..
-        })
-    ));
+fn rejects_malformed_statements() {
+    for (src, expected) in [
+        ("name$ = \"hello\" garbage\n", "end of line"),
+        ("name$ =\n", "expression"),
+        ("name$\n", "statement"),
+    ] {
+        assert!(
+            matches!(parse_program(src), Err(ParseError::Expected { expected: e, .. }) if e == expected)
+        );
+    }
 }
 
 #[test]
@@ -274,4 +251,19 @@ fn parses_if_then_else_end_if() {
     assert!(
         matches!(&prog.statements[0], Statement::If { condition: Expression::IntegerLiteral(_), then_body, else_body: Some(_) } if then_body.len() == 1)
     );
+}
+
+#[test]
+fn parses_comparison_expression() {
+    let prog = parse_program("IF 1 = 1 THEN\nPRINT 1\nEND IF\n").unwrap();
+    let Statement::If { condition, .. } = &prog.statements[0] else {
+        panic!("not If")
+    };
+    assert!(matches!(
+        condition,
+        Expression::Comparison {
+            op: ComparisonOp::Equal,
+            ..
+        }
+    ));
 }

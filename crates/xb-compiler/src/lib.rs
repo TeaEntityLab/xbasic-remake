@@ -11,8 +11,8 @@ mod semantics_tests;
 pub mod text_ir;
 
 pub use checked::{
-    CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol, SemanticError,
-    ValueType,
+    CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol, ComparisonOp,
+    SemanticError, ValueType,
 };
 pub use diagnostic::{BACKEND_DIAGNOSTIC_CODES, SOURCE_DIAGNOSTIC_CODES};
 pub use entry_lookup::EntryLookupError;

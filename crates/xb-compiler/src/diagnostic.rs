@@ -10,7 +10,7 @@ use crate::{CompileError, SemanticError};
 /// Stable codes for errors originating in the frontend (lexer, parser, semantics).
 pub const SOURCE_DIAGNOSTIC_CODES: &[&str] = &[
     "XB-L001", "XB-L002", "XB-P001", "XB-S001", "XB-S002", "XB-S003", "XB-S004", "XB-S005",
-    "XB-S006", "XB-S007", "XB-S008", "XB-S009",
+    "XB-S006", "XB-S007", "XB-S008", "XB-S009", "XB-S010",
 ];
 
 /// Stable codes for errors originating in the backend (codegen).
@@ -35,8 +35,9 @@ impl CompileError {
                 SemanticError::UnknownConstant { .. } => "XB-S005",
                 SemanticError::ConstantDefinitionNotTopLevel { .. } => "XB-S006",
                 SemanticError::UnknownSharedVariable { .. } => "XB-S007",
-                SemanticError::IfConditionNotInteger { .. } => "XB-S009",
                 SemanticError::SharedAssignmentNotInFunction { .. } => "XB-S008",
+                SemanticError::IfConditionNotInteger { .. } => "XB-S009",
+                SemanticError::ComparisonTypeMismatch { .. } => "XB-S010",
             },
             CompileError::LlvmDisabled => "XB-B001",
         }
@@ -126,75 +127,34 @@ mod tests {
             actual: ValueType::Float,
         })
     }
+    fn comparison_type_mismatch() -> CompileError {
+        CompileError::Semantic(SemanticError::ComparisonTypeMismatch {
+            left: ValueType::Integer,
+            right: ValueType::Float,
+        })
+    }
 
     #[test]
-    fn unterminated_string_maps_to_xb_l001() {
+    fn simple_codes_map_correctly() {
         assert_eq!(unterminated_string().diagnostic_code(), "XB-L001");
-    }
-
-    #[test]
-    fn unexpected_char_maps_to_xb_l002() {
         assert_eq!(unexpected_char().diagnostic_code(), "XB-L002");
-    }
-
-    #[test]
-    fn expected_maps_to_xb_p001() {
         assert_eq!(expected().diagnostic_code(), "XB-P001");
-    }
-
-    #[test]
-    fn duplicate_symbol_maps_to_xb_s001() {
         assert_eq!(duplicate_symbol().diagnostic_code(), "XB-S001");
-    }
-
-    #[test]
-    fn unknown_symbol_maps_to_xb_s002() {
         assert_eq!(unknown_symbol().diagnostic_code(), "XB-S002");
-    }
-
-    #[test]
-    fn type_mismatch_maps_to_xb_s003() {
         assert_eq!(type_mismatch().diagnostic_code(), "XB-S003");
-    }
-
-    #[test]
-    fn duplicate_constant_maps_to_xb_s004() {
         assert_eq!(duplicate_constant().diagnostic_code(), "XB-S004");
-    }
-
-    #[test]
-    fn unknown_constant_maps_to_xb_s005() {
         assert_eq!(unknown_constant().diagnostic_code(), "XB-S005");
-    }
-
-    #[test]
-    fn nested_constant_definition_maps_to_xb_s006() {
         assert_eq!(
             constant_definition_not_top_level().diagnostic_code(),
             "XB-S006"
         );
-    }
-
-    #[test]
-    fn unknown_shared_variable_maps_to_xb_s007() {
         assert_eq!(unknown_shared_variable().diagnostic_code(), "XB-S007");
-    }
-
-    #[test]
-    fn top_level_shared_assignment_maps_to_xb_s008() {
         assert_eq!(
             shared_assignment_not_in_function().diagnostic_code(),
             "XB-S008"
         );
-    }
-
-    #[test]
-    fn if_condition_not_integer_maps_to_xb_s009() {
         assert_eq!(if_condition_not_integer().diagnostic_code(), "XB-S009");
-    }
-
-    #[test]
-    fn llvm_disabled_maps_to_xb_b001() {
+        assert_eq!(comparison_type_mismatch().diagnostic_code(), "XB-S010");
         assert_eq!(CompileError::LlvmDisabled.diagnostic_code(), "XB-B001");
     }
 
@@ -203,27 +163,6 @@ mod tests {
         // ParseError::Lex must delegate to the wrapped LexError's code.
         assert_eq!(unterminated_string().diagnostic_code(), "XB-L001");
         assert_eq!(unexpected_char().diagnostic_code(), "XB-L002");
-    }
-
-    #[test]
-    fn compile_error_wrappers_delegate_to_inner_code() {
-        // CompileError::Parse and CompileError::Semantic must delegate inward.
-        assert_eq!(expected().diagnostic_code(), "XB-P001");
-        assert_eq!(duplicate_symbol().diagnostic_code(), "XB-S001");
-        assert_eq!(unknown_symbol().diagnostic_code(), "XB-S002");
-        assert_eq!(type_mismatch().diagnostic_code(), "XB-S003");
-        assert_eq!(duplicate_constant().diagnostic_code(), "XB-S004");
-        assert_eq!(unknown_constant().diagnostic_code(), "XB-S005");
-        assert_eq!(
-            constant_definition_not_top_level().diagnostic_code(),
-            "XB-S006"
-        );
-        assert_eq!(unknown_shared_variable().diagnostic_code(), "XB-S007");
-        assert_eq!(
-            shared_assignment_not_in_function().diagnostic_code(),
-            "XB-S008"
-        );
-        assert_eq!(if_condition_not_integer().diagnostic_code(), "XB-S009");
     }
 
     #[test]
@@ -241,11 +180,12 @@ mod tests {
             unknown_shared_variable().diagnostic_code(),
             shared_assignment_not_in_function().diagnostic_code(),
             if_condition_not_integer().diagnostic_code(),
+            comparison_type_mismatch().diagnostic_code(),
             CompileError::LlvmDisabled.diagnostic_code(),
         ];
         codes.sort_unstable();
         codes.dedup();
-        assert_eq!(codes.len(), 13);
+        assert_eq!(codes.len(), 14);
     }
 
     #[test]
@@ -253,7 +193,7 @@ mod tests {
         let mut codes = crate::SOURCE_DIAGNOSTIC_CODES.to_vec();
         codes.sort_unstable();
         codes.dedup();
-        assert_eq!(codes.len(), 12);
+        assert_eq!(codes.len(), 13);
         for code in codes {
             assert!(code.starts_with("XB-"));
         }
@@ -274,6 +214,7 @@ mod tests {
             unknown_shared_variable().diagnostic_code(),
             shared_assignment_not_in_function().diagnostic_code(),
             if_condition_not_integer().diagnostic_code(),
+            comparison_type_mismatch().diagnostic_code(),
         ] {
             assert!(
                 crate::SOURCE_DIAGNOSTIC_CODES.contains(&code),
