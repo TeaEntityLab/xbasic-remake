@@ -1,4 +1,5 @@
 mod arith;
+mod builtin;
 mod call;
 pub mod compare;
 pub mod entry;

@@ -11,6 +11,13 @@ pub(crate) fn call_function(
     args: &[IrExpr],
     state: &ExecutionState,
 ) -> Result<RuntimeValue, RuntimeError> {
+    if is_builtin(name) {
+        let mut vals = Vec::with_capacity(args.len());
+        for arg in args {
+            vals.push(eval(program, arg, state)?);
+        }
+        return crate::builtin::eval_builtin(name, &vals);
+    }
     let (params, body) = find_function(program, name)?;
     let mut local = BTreeMap::new();
     for (p, arg) in params.iter().zip(args) {
@@ -57,4 +64,8 @@ fn find_function<'a>(
     Err(RuntimeError::UnknownFunction {
         name: name.to_owned(),
     })
+}
+
+fn is_builtin(name: &str) -> bool {
+    matches!(name, "LEN" | "ASC" | "CHR$" | "LEFT$" | "RIGHT$" | "MID$")
 }

@@ -1,0 +1,13 @@
+version 0.1
+function Main() -> integer
+  dim s:string
+  dim n:integer
+  assign s:string = string("hello world")
+  assign n:integer = call LEN(symbol(s:string))
+  print symbol(n:integer)
+  print call LEFT$(symbol(s:string), integer(5))
+  print call RIGHT$(symbol(s:string), integer(5))
+  print call MID$(symbol(s:string), integer(7), integer(5))
+  print call CHR$(integer(65))
+  print call ASC(string("A"))
+end function

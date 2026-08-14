@@ -1,0 +1,13 @@
+VERSION "0.1"
+FUNCTION Main
+DIM s$
+DIM n
+s$ = "hello world"
+n = LEN(s$)
+PRINT n
+PRINT LEFT$(s$, 5)
+PRINT RIGHT$(s$, 5)
+PRINT MID$(s$, 7, 5)
+PRINT CHR$(65)
+PRINT ASC("A")
+END FUNCTION

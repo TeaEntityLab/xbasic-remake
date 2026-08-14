@@ -1,6 +1,6 @@
 use crate::ast::{Expression, FunctionDecl, Program, Statement};
 use crate::lexer::{lex, LexError};
-use crate::token::{Keyword, Token, TokenKind};
+use crate::token::{Keyword, Token, TokenKind, TypeSuffix};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -244,7 +244,14 @@ impl Parser {
                 self.index += 1;
                 if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
                     let args = self.parse_args()?;
-                    Ok(Expression::FunctionCall { name, args })
+                    let full = match suffix {
+                        Some(TypeSuffix::String) => format!("{name}$"),
+                        Some(TypeSuffix::Single) => format!("{name}!"),
+                        Some(TypeSuffix::Double) => format!("{name}#"),
+                        Some(TypeSuffix::Integer) => format!("{name}%"),
+                        None => name,
+                    };
+                    Ok(Expression::FunctionCall { name: full, args })
                 } else {
                     Ok(Expression::Identifier { name, suffix })
                 }

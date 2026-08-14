@@ -32,7 +32,7 @@ and how it achieves cross-platform portability.
 | 20 | [Stage-2 Contract v0.6](stage2-contract-v0.6.md) | Function calls with typed parameters, RETURN statements, function call expressions, XB-S011 through XB-S015 diagnostics |
 | 21 | [Stage-2 Contract v0.7](stage2-contract-v0.7.md) | Arithmetic operators (+, -, *, /) with precedence, Integer/Float type promotion, XB-S016 diagnostic, runtime division-by-zero error |
 | 22 | [Stage-2 Contract v0.8](stage2-contract-v0.8.md) | WHILE/WEND loops: integer-valued condition, body iteration, RETURN propagation through Flow |
-| 23 | [Stage-2 Contract v0.10](stage2-contract-v0.10.md) | String concatenation via + operator on two String operands |
+| 24 | [Stage-2 Contract v0.11](stage2-contract-v0.11.md) | Built-in string functions: LEN, ASC, CHR$, LEFT$, RIGHT$, MID$ |
 
 ## The big picture
 

@@ -81,6 +81,9 @@ impl Analyzer {
     }
 
     fn function_call(&self, name: &str, args: &[Expression]) -> ExprResult {
+        if let Some(rt) = crate::builtin::builtin_return_type(name) {
+            return crate::builtin::builtin_call(self, name, args, rt);
+        }
         let Some(sig) = self.functions.get(name) else {
             return Err(SemanticError::UnknownFunction {
                 name: name.to_owned(),
