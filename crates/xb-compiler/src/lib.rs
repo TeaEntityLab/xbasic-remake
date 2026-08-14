@@ -1,19 +1,23 @@
+pub mod checked;
 mod diagnostic;
 mod entry_lookup;
 
 pub mod ir;
 pub mod semantics;
 #[cfg(test)]
+mod semantics_shared_tests;
+#[cfg(test)]
 mod semantics_tests;
 pub mod text_ir;
 
+pub use checked::{
+    CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol, SemanticError,
+    ValueType,
+};
 pub use diagnostic::{BACKEND_DIAGNOSTIC_CODES, SOURCE_DIAGNOSTIC_CODES};
 pub use entry_lookup::EntryLookupError;
 pub use ir::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol};
-pub use semantics::{
-    Analyzer, CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol,
-    SemanticError, ValueType,
-};
+pub use semantics::Analyzer;
 pub use text_ir::TextIrEmitter;
 
 use thiserror::Error;

@@ -6,8 +6,10 @@ function Main
   dim utilityVersion:float
   assign utilityName:string = string("xut")
   assign utilityVersion:float = float(0.0001)
+  shared ##XBSystem:integer = constant($$XBSysLinux:integer = integer(1))
   print symbol(utilityName:string)
   print symbol(utilityVersion:float)
   print constant($$XBSysLinux:integer = integer(1))
   print constant($$XBSysWin32:integer = integer(2))
+  print shared(##XBSystem:integer)
 end function

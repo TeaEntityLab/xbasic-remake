@@ -85,7 +85,8 @@ impl Lexer<'_> {
         if self.lookahead == Some('#') {
             self.advance();
             let name = self.name_after_prefix(pos)?;
-            return Ok(Token::new(TokenKind::SystemVariable(name), pos));
+            let suffix = self.type_suffix();
+            return Ok(Token::new(TokenKind::SystemVariable { name, suffix }, pos));
         }
         let name = self.name_after_prefix(pos)?;
         Ok(Token::new(TokenKind::SharedName(name), pos))

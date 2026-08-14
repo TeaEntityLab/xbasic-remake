@@ -21,7 +21,8 @@ impl CheckedProgram {
                 | CheckedItem::Print(_)
                 | CheckedItem::Dim(_)
                 | CheckedItem::Assignment { .. }
-                | CheckedItem::ConstantDefinition { .. } => None,
+                | CheckedItem::ConstantDefinition { .. }
+                | CheckedItem::SharedAssignment { .. } => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),
@@ -42,7 +43,8 @@ impl IrProgram {
                 | IrItem::Print(_)
                 | IrItem::Dim { .. }
                 | IrItem::Assignment { .. }
-                | IrItem::ConstantDefinition { .. } => None,
+                | IrItem::ConstantDefinition { .. }
+                | IrItem::SharedAssignment { .. } => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),
@@ -53,9 +55,8 @@ impl IrProgram {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        Analyzer, CheckedExprKind, CheckedItem, CheckedProgram, IrExprKind, IrItem, IrProgram,
-    };
+    use crate::semantics::{Analyzer, CheckedExprKind, CheckedItem, CheckedProgram};
+    use crate::{IrExprKind, IrItem, IrProgram};
     use xb_frontend::parse_program;
 
     fn analyze(source: &str) -> CheckedProgram {

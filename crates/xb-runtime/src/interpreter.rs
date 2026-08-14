@@ -1,7 +1,7 @@
 use std::collections::{btree_map::Entry, BTreeMap};
 
 use thiserror::Error;
-use xb_compiler::{EntryLookupError, IrExpr, IrExprKind, IrItem, IrProgram, ValueType};
+use xb_compiler::{EntryLookupError, IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol, ValueType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
@@ -74,6 +74,7 @@ impl ProgramMetadata {
 pub struct ExecutionState {
     metadata: ProgramMetadata,
     slots: BTreeMap<String, TypedSlot>,
+    shared: BTreeMap<String, TypedSlot>,
 }
 
 impl ExecutionState {
@@ -83,6 +84,10 @@ impl ExecutionState {
 
     pub fn slot(&self, name: &str) -> Option<&TypedSlot> {
         self.slots.get(name)
+    }
+
+    pub fn shared_slot(&self, name: &str) -> Option<&TypedSlot> {
+        self.shared.get(name)
     }
 }
 
@@ -169,6 +174,16 @@ fn execute_items(
                 require_type(slot.value_type, target.value_type)?;
                 slot.value = value;
             }
+            IrItem::SharedAssignment { target, value } => {
+                let value = evaluate(value, state)?;
+                require_type(target.value_type, value.value_type())?;
+                let slot = state
+                    .shared
+                    .entry(target.name.clone())
+                    .or_insert_with(|| TypedSlot::new(target.value_type));
+                require_type(slot.value_type, target.value_type)?;
+                slot.value = value;
+            }
             IrItem::Function { name: _, body: _ } => {}
         }
     }
@@ -181,19 +196,24 @@ fn evaluate(expr: &IrExpr, state: &ExecutionState) -> Result<RuntimeValue, Runti
         IrExprKind::IntegerLiteral(value) => RuntimeValue::Integer(parse_integer(value)?),
         IrExprKind::FloatLiteral(value) => RuntimeValue::Float(parse_float(value)?),
         IrExprKind::Constant { value, .. } => RuntimeValue::Integer(parse_integer(value)?),
-        IrExprKind::Symbol(symbol) => {
-            let slot = state
-                .slots
-                .get(&symbol.name)
-                .ok_or_else(|| RuntimeError::UnknownSlot {
-                    name: symbol.name.clone(),
-                })?;
-            require_type(symbol.value_type, slot.value_type)?;
-            slot.value.clone()
-        }
+        IrExprKind::SharedVariable(symbol) => read_slot(&state.shared, symbol)?,
+        IrExprKind::Symbol(symbol) => read_slot(&state.slots, symbol)?,
     };
     require_type(expr.value_type, value.value_type())?;
     Ok(value)
+}
+
+fn read_slot(
+    slots: &BTreeMap<String, TypedSlot>,
+    symbol: &IrSymbol,
+) -> Result<RuntimeValue, RuntimeError> {
+    let slot = slots
+        .get(&symbol.name)
+        .ok_or_else(|| RuntimeError::UnknownSlot {
+            name: symbol.name.clone(),
+        })?;
+    require_type(symbol.value_type, slot.value_type)?;
+    Ok(slot.value.clone())
 }
 
 fn parse_integer(literal: &str) -> Result<i32, RuntimeError> {

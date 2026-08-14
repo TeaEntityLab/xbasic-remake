@@ -1,4 +1,4 @@
-use crate::semantics::{
+use crate::checked::{
     CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol, ValueType,
 };
 use crate::text_ir::TextIrEmitter;
@@ -36,6 +36,10 @@ pub enum IrItem {
         value: String,
         value_type: ValueType,
     },
+    SharedAssignment {
+        target: IrSymbol,
+        value: IrExpr,
+    },
     Function {
         name: String,
         body: Vec<IrItem>,
@@ -62,6 +66,10 @@ impl IrItem {
                 name: name.clone(),
                 value: value.clone(),
                 value_type: *value_type,
+            },
+            CheckedItem::SharedAssignment { target, value } => Self::SharedAssignment {
+                target: IrSymbol::lower(target),
+                value: IrExpr::lower(value),
             },
             CheckedItem::Function { name, body } => Self::Function {
                 name: name.clone(),
@@ -91,6 +99,9 @@ impl IrExpr {
                 name: name.clone(),
                 value: value.clone(),
             },
+            CheckedExprKind::SharedVariable(symbol) => {
+                IrExprKind::SharedVariable(IrSymbol::lower(symbol))
+            }
             CheckedExprKind::Symbol(symbol) => IrExprKind::Symbol(IrSymbol::lower(symbol)),
         };
         Self::new(kind, expr.value_type)
@@ -103,6 +114,7 @@ pub enum IrExprKind {
     IntegerLiteral(String),
     FloatLiteral(String),
     Constant { name: String, value: String },
+    SharedVariable(IrSymbol),
     Symbol(IrSymbol),
 }
 

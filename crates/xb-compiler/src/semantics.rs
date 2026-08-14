@@ -1,106 +1,16 @@
 use std::collections::BTreeMap;
-use thiserror::Error;
 use xb_frontend::{Expression, FunctionDecl, Program, Statement, TypeSuffix};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ValueType {
-    Integer,
-    Float,
-    String,
-}
-
-impl ValueType {
-    pub const fn from_suffix(suffix: Option<TypeSuffix>) -> Self {
-        match suffix {
-            Some(TypeSuffix::String) => Self::String,
-            Some(TypeSuffix::Single | TypeSuffix::Double) => Self::Float,
-            Some(TypeSuffix::Integer) | None => Self::Integer,
-        }
-    }
-}
-
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum SemanticError {
-    #[error("duplicate symbol {name}")]
-    DuplicateSymbol { name: String },
-    #[error("unknown symbol {name}")]
-    UnknownSymbol { name: String },
-    #[error("type mismatch for {name}: expected {expected:?}, got {actual:?}")]
-    TypeMismatch {
-        name: String,
-        expected: ValueType,
-        actual: ValueType,
-    },
-    #[error("duplicate constant {name}")]
-    DuplicateConstant { name: String },
-    #[error("unknown constant {name}")]
-    UnknownConstant { name: String },
-    #[error("constant definition {name} is not at top level")]
-    ConstantDefinitionNotTopLevel { name: String },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedProgram {
-    pub items: Vec<CheckedItem>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CheckedItem {
-    Version(String),
-    Print(CheckedExpr),
-    Dim(CheckedSymbol),
-    Assignment {
-        target: CheckedSymbol,
-        value: CheckedExpr,
-    },
-    ConstantDefinition {
-        name: String,
-        value: String,
-        value_type: ValueType,
-    },
-    Function {
-        name: String,
-        body: Vec<CheckedItem>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedExpr {
-    pub kind: CheckedExprKind,
-    pub value_type: ValueType,
-}
-
-impl CheckedExpr {
-    fn new(kind: CheckedExprKind, value_type: ValueType) -> Self {
-        Self { kind, value_type }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CheckedExprKind {
-    StringLiteral(String),
-    IntegerLiteral(String),
-    FloatLiteral(String),
-    Constant { name: String, value: String },
-    Symbol(CheckedSymbol),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedSymbol {
-    pub name: String,
-    pub value_type: ValueType,
-}
-
-impl CheckedSymbol {
-    fn new(name: String, value_type: ValueType) -> Self {
-        Self { name, value_type }
-    }
-}
+pub use crate::checked::{
+    CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol, SemanticError,
+    ValueType,
+};
 
 #[derive(Debug, Default)]
 pub struct Analyzer {
     symbols: BTreeMap<String, ValueType>,
     constants: BTreeMap<String, String>,
+    shared: BTreeMap<String, ValueType>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -139,6 +49,16 @@ impl Analyzer {
                     Err(SemanticError::ConstantDefinitionNotTopLevel { name: name.clone() })
                 }
             },
+            Statement::SharedAssignment {
+                name,
+                suffix,
+                value,
+            } => match scope {
+                Scope::Function => self.shared_assignment(name, *suffix, value),
+                Scope::TopLevel => {
+                    Err(SemanticError::SharedAssignmentNotInFunction { name: name.clone() })
+                }
+            },
             Statement::Function(function) => self.function(function),
         }
     }
@@ -162,6 +82,45 @@ impl Analyzer {
             value: value.to_owned(),
             value_type: ValueType::Integer,
         })
+    }
+
+    fn shared_assignment(
+        &mut self,
+        name: &str,
+        suffix: Option<TypeSuffix>,
+        value: &Expression,
+    ) -> Result<CheckedItem, SemanticError> {
+        let value = self.expr(value)?;
+        let value_type = self.declare_shared(name, suffix)?;
+        if value_type != value.value_type {
+            return Err(SemanticError::TypeMismatch {
+                name: name.to_owned(),
+                expected: value_type,
+                actual: value.value_type,
+            });
+        }
+        Ok(CheckedItem::SharedAssignment {
+            target: CheckedSymbol::new(name.to_owned(), value_type),
+            value,
+        })
+    }
+
+    fn declare_shared(
+        &mut self,
+        name: &str,
+        suffix: Option<TypeSuffix>,
+    ) -> Result<ValueType, SemanticError> {
+        let requested = ValueType::from_suffix(suffix);
+        let declared = *self.shared.entry(name.to_owned()).or_insert(requested);
+        if declared == requested {
+            Ok(declared)
+        } else {
+            Err(SemanticError::TypeMismatch {
+                name: name.to_owned(),
+                expected: requested,
+                actual: declared,
+            })
+        }
     }
 
     fn dim(
@@ -194,16 +153,18 @@ impl Analyzer {
         Ok(CheckedItem::Assignment { target, value })
     }
 
-    fn function(&self, function: &FunctionDecl) -> Result<CheckedItem, SemanticError> {
+    fn function(&mut self, function: &FunctionDecl) -> Result<CheckedItem, SemanticError> {
         let mut scoped = Self {
             symbols: BTreeMap::new(),
             constants: self.constants.clone(),
+            shared: self.shared.clone(),
         };
         let body = function
             .body
             .iter()
             .map(|statement| scoped.statement(statement, Scope::Function))
             .collect::<Result<Vec<_>, _>>()?;
+        self.shared = scoped.shared;
         Ok(CheckedItem::Function {
             name: function.name.clone(),
             body,
@@ -225,6 +186,7 @@ impl Analyzer {
                 ValueType::Float,
             )),
             Expression::SystemConstant { name } => self.constant(name),
+            Expression::SystemVariable { name, suffix } => self.shared_variable(name, *suffix),
             Expression::Identifier { name, .. } => self.symbol(name),
         }
     }
@@ -241,6 +203,30 @@ impl Analyzer {
                 value: value.clone(),
             },
             ValueType::Integer,
+        ))
+    }
+
+    fn shared_variable(
+        &self,
+        name: &str,
+        suffix: Option<TypeSuffix>,
+    ) -> Result<CheckedExpr, SemanticError> {
+        let Some(declared) = self.shared.get(name).copied() else {
+            return Err(SemanticError::UnknownSharedVariable {
+                name: name.to_owned(),
+            });
+        };
+        let requested = ValueType::from_suffix(suffix);
+        if declared != requested {
+            return Err(SemanticError::TypeMismatch {
+                name: name.to_owned(),
+                expected: requested,
+                actual: declared,
+            });
+        }
+        Ok(CheckedExpr::new(
+            CheckedExprKind::SharedVariable(CheckedSymbol::new(name.to_owned(), declared)),
+            declared,
         ))
     }
 

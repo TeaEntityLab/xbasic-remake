@@ -203,12 +203,57 @@ fn rejects_bare_system_constant_statement() {
 }
 
 #[test]
-fn rejects_system_variable_expression() {
-    let result = parse_program("PRINT ##XBSystem\n");
+fn parses_shared_variable_assignment_and_reference() {
+    // Given the historical xrun.x:79 form, assigned inside a function body.
+    let src = "##XBSystem = $$XBSysLinux\nFUNCTION Main\n##XBSystem = 2\nPRINT ##XBSystem\nEND FUNCTION\n";
+
+    // When
+    let program = parse_program(src).unwrap();
+
+    // Then
+    assert!(matches!(
+        program.statements[0],
+        Statement::SharedAssignment {
+            ref name,
+            suffix: None,
+            value: Expression::SystemConstant { name: ref source },
+        } if name == "XBSystem" && source == "XBSysLinux"
+    ));
+    assert!(matches!(
+        program.statements[1],
+        Statement::Function(ref function)
+            if matches!(
+                function.body.as_slice(),
+                [
+                    Statement::SharedAssignment { name, value: Expression::IntegerLiteral(value), .. },
+                    Statement::Print(Expression::SystemVariable { name: reference, suffix: None }),
+                ] if name == "XBSystem" && value == "2" && reference == "XBSystem"
+            )
+    ));
+}
+
+#[test]
+fn parses_suffixed_shared_variable_as_single_typed_name() {
+    // Given the historical xutpde.x:62 string form.
+    let program = parse_program("##XBDir$ = \"/usr/xb\"\n").unwrap();
+
+    assert!(matches!(
+        program.statements[0],
+        Statement::SharedAssignment {
+            ref name,
+            suffix: Some(TypeSuffix::String),
+            value: Expression::StringLiteral(_),
+        } if name == "XBDir"
+    ));
+}
+
+#[test]
+fn rejects_bare_system_variable_statement() {
+    let result = parse_program("##XBSystem\n");
     assert!(matches!(
         result,
         Err(ParseError::Expected {
-            expected: "expression",
+            expected: "statement",
             ..
         })
     ));

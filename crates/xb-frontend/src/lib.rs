@@ -3,6 +3,7 @@ mod lexeme;
 pub mod lexer;
 mod literal;
 pub mod parser;
+mod parser_cursor;
 #[cfg(test)]
 mod parser_tests;
 pub mod token;

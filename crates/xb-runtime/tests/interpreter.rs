@@ -117,6 +117,52 @@ fn prints_system_constant_without_allocating_runtime_slot() {
 }
 
 #[test]
+fn mutates_shared_slot_across_reassignment() {
+    // Given
+    let program = lower(
+        "FUNCTION Main\n##XBSystem = 1\nPRINT ##XBSystem\n##XBSystem = 2\nPRINT ##XBSystem\nEND FUNCTION\n",
+    );
+    let mut output = Vec::new();
+
+    // When
+    let state = Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+
+    // Then
+    assert_eq!(output, ["1", "2"]);
+    assert_eq!(
+        state.shared_slot("XBSystem").unwrap().value(),
+        &RuntimeValue::Integer(2)
+    );
+}
+
+#[test]
+fn keeps_shared_slot_separate_from_the_dimmed_variable_of_the_same_name() {
+    // Given
+    let program = lower(
+        "DIM Value\nValue = 1\nPRINT Value\nFUNCTION Main\n##Value = 2\nPRINT ##Value\nEND FUNCTION\n",
+    );
+    let mut output = Vec::new();
+
+    // When
+    let state = Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+
+    // Then
+    assert_eq!(output, ["1", "2"]);
+    assert_eq!(
+        state.slot("Value").unwrap().value(),
+        &RuntimeValue::Integer(1)
+    );
+    assert_eq!(
+        state.shared_slot("Value").unwrap().value(),
+        &RuntimeValue::Integer(2)
+    );
+}
+
+#[test]
 fn rejects_unknown_runtime_slot() {
     // Given
     let program = IrProgram {

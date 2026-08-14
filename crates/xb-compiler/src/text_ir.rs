@@ -42,6 +42,13 @@ impl TextIrEmitter {
                 "{prefix}const $${name}:{} = integer({value})\n",
                 self.emit_type(*value_type)
             )),
+            IrItem::SharedAssignment { target, value } => {
+                out.push_str(&format!(
+                    "{prefix}shared ##{} = {}\n",
+                    self.emit_symbol(target),
+                    self.emit_expr(value)
+                ));
+            }
             IrItem::Function { name, body } => {
                 out.push_str(&format!("{prefix}function {name}\n"));
                 for item in body {
@@ -61,6 +68,7 @@ impl TextIrEmitter {
                 "constant($${name}:{} = integer({value}))",
                 self.emit_type(expr.value_type)
             ),
+            IrExprKind::SharedVariable(symbol) => format!("shared(##{})", self.emit_symbol(symbol)),
             IrExprKind::Symbol(symbol) => format!("symbol({})", self.emit_symbol(symbol)),
         }
     }
@@ -111,6 +119,30 @@ mod tests {
         assert_eq!(
             text,
             "const $$Answer:integer = integer(1)\nprint constant($$Answer:integer = integer(1))\n"
+        );
+    }
+
+    #[test]
+    fn emits_shared_assignment_and_reference_exactly() {
+        // Given
+        let program =
+            parse_program("FUNCTION Main\n##XBSystem = 1\nPRINT ##XBSystem\nEND FUNCTION\n")
+                .unwrap();
+        let checked = Analyzer::analyze(&program).unwrap();
+        let ir = IrProgram::lower(&checked);
+
+        // When
+        let text = TextIrEmitter::new().emit_program(&ir);
+
+        // Then
+        assert_eq!(
+            text,
+            concat!(
+                "function Main\n",
+                "  shared ##XBSystem:integer = integer(1)\n",
+                "  print shared(##XBSystem:integer)\n",
+                "end function\n",
+            )
         );
     }
 

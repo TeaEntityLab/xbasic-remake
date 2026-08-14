@@ -41,10 +41,12 @@ fn cli_prints_stable_ir_for_static_xut_bootstrap_manifest() {
             "  dim utilityVersion:float\n",
             "  assign utilityName:string = string(\"xut\")\n",
             "  assign utilityVersion:float = float(0.0001)\n",
+            "  shared ##XBSystem:integer = constant($$XBSysLinux:integer = integer(1))\n",
             "  print symbol(utilityName:string)\n",
             "  print symbol(utilityVersion:float)\n",
             "  print constant($$XBSysLinux:integer = integer(1))\n",
             "  print constant($$XBSysWin32:integer = integer(2))\n",
+            "  print shared(##XBSystem:integer)\n",
             "end function\n",
         )
     );

@@ -28,6 +28,11 @@ pub enum Statement {
         name: String,
         value: String,
     },
+    SharedAssignment {
+        name: String,
+        suffix: Option<TypeSuffix>,
+        value: Expression,
+    },
     Function(FunctionDecl),
 }
 
@@ -50,6 +55,10 @@ pub enum Expression {
     FloatLiteral(String),
     SystemConstant {
         name: String,
+    },
+    SystemVariable {
+        name: String,
+        suffix: Option<TypeSuffix>,
     },
     Identifier {
         name: String,

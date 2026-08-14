@@ -1,0 +1,9 @@
+const $$XBSysLinux:integer = integer(1)
+function Main
+  shared ##XBSystem:integer = constant($$XBSysLinux:integer = integer(1))
+  shared ##XBDir:string = string("/usr/xb")
+  print shared(##XBSystem:integer)
+  print shared(##XBDir:string)
+  shared ##XBSystem:integer = integer(2)
+  print shared(##XBSystem:integer)
+end function

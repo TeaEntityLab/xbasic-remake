@@ -1,6 +1,6 @@
 use crate::ast::{Expression, FunctionDecl, Program, Statement};
 use crate::lexer::{lex, LexError};
-use crate::token::{Keyword, SourcePos, Token, TokenKind, TypeSuffix};
+use crate::token::{Keyword, Token, TokenKind};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -20,8 +20,8 @@ pub fn parse_program(source: &str) -> Result<Program, ParseError> {
 }
 
 pub struct Parser {
-    tokens: Vec<Token>,
-    index: usize,
+    pub(crate) tokens: Vec<Token>,
+    pub(crate) index: usize,
 }
 
 impl Parser {
@@ -40,10 +40,11 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
-        if matches!(self.peek_kind(), TokenKind::SystemConstant(_))
-            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
-        {
+        if self.starts_constant_definition() {
             return self.constant_definition_stmt();
+        }
+        if self.starts_shared_assignment() {
+            return self.shared_assignment_stmt();
         }
         match self.peek_keyword() {
             Some(Keyword::Version) => self.version_stmt(),
@@ -67,6 +68,21 @@ impl Parser {
         self.index += 1;
         self.expect_line_end()?;
         Ok(Statement::ConstantDefinition { name, value })
+    }
+
+    fn shared_assignment_stmt(&mut self) -> Result<Statement, ParseError> {
+        let TokenKind::SystemVariable { name, suffix } = self.peek_kind().clone() else {
+            return Err(self.expected("system variable"));
+        };
+        self.index += 1;
+        self.expect_symbol('=')?;
+        let value = self.expression()?;
+        self.expect_line_end()?;
+        Ok(Statement::SharedAssignment {
+            name,
+            suffix,
+            value,
+        })
     }
 
     fn version_stmt(&mut self) -> Result<Statement, ParseError> {
@@ -137,41 +153,15 @@ impl Parser {
                 self.index += 1;
                 Ok(Expression::SystemConstant { name })
             }
+            TokenKind::SystemVariable { name, suffix } => {
+                self.index += 1;
+                Ok(Expression::SystemVariable { name, suffix })
+            }
             TokenKind::Identifier { name, suffix } => {
                 self.index += 1;
                 Ok(Expression::Identifier { name, suffix })
             }
             _ => Err(self.expected("expression")),
-        }
-    }
-
-    fn expect_identifier(&mut self) -> Result<(String, Option<TypeSuffix>), ParseError> {
-        match self.peek_kind().clone() {
-            TokenKind::Identifier { name, suffix } => {
-                self.index += 1;
-                Ok((name, suffix))
-            }
-            _ => Err(self.expected("identifier")),
-        }
-    }
-
-    fn expect_string(&mut self) -> Result<String, ParseError> {
-        match self.peek_kind().clone() {
-            TokenKind::StringLiteral(value) => {
-                self.index += 1;
-                Ok(value)
-            }
-            _ => Err(self.expected("string literal")),
-        }
-    }
-
-    fn expect_keyword(&mut self, keyword: Keyword) -> Result<(), ParseError> {
-        match self.peek_kind() {
-            TokenKind::Keyword(found) if *found == keyword => {
-                self.index += 1;
-                Ok(())
-            }
-            _ => Err(self.expected("keyword")),
         }
     }
 
@@ -188,66 +178,13 @@ impl Parser {
             && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
     }
 
-    fn expect_symbol(&mut self, symbol: char) -> Result<(), ParseError> {
-        match self.peek_kind() {
-            TokenKind::Symbol(found) if *found == symbol => {
-                self.index += 1;
-                Ok(())
-            }
-            _ => Err(self.expected("symbol")),
-        }
+    fn starts_constant_definition(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::SystemConstant(_))
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
     }
 
-    fn expect_line_end(&mut self) -> Result<(), ParseError> {
-        match self.peek_kind() {
-            TokenKind::Newline => {
-                self.index += 1;
-                Ok(())
-            }
-            TokenKind::Eof => Ok(()),
-            _ => Err(self.expected("end of line")),
-        }
-    }
-
-    fn skip_newlines(&mut self) {
-        while matches!(self.peek_kind(), TokenKind::Newline) {
-            self.index += 1;
-        }
-    }
-
-    fn peek_keyword(&self) -> Option<Keyword> {
-        match self.peek_kind() {
-            TokenKind::Keyword(keyword) => Some(*keyword),
-            _ => None,
-        }
-    }
-
-    fn peek_kind(&self) -> &TokenKind {
-        self.tokens
-            .get(self.index)
-            .map_or(&TokenKind::Eof, |token| &token.kind)
-    }
-
-    fn peek_next_kind(&self) -> Option<&TokenKind> {
-        self.tokens.get(self.index + 1).map(|token| &token.kind)
-    }
-
-    fn at_eof(&self) -> bool {
-        matches!(self.peek_kind(), TokenKind::Eof)
-    }
-
-    fn expected(&self, expected: &'static str) -> ParseError {
-        let pos = self.current_pos();
-        ParseError::Expected {
-            expected,
-            line: pos.line,
-            column: pos.column,
-        }
-    }
-
-    fn current_pos(&self) -> SourcePos {
-        self.tokens
-            .get(self.index)
-            .map_or(SourcePos::new(0, 0), |token| token.pos)
+    fn starts_shared_assignment(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::SystemVariable { .. })
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
     }
 }

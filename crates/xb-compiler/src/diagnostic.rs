@@ -10,7 +10,7 @@ use crate::{CompileError, SemanticError};
 /// Stable codes for errors originating in the frontend (lexer, parser, semantics).
 pub const SOURCE_DIAGNOSTIC_CODES: &[&str] = &[
     "XB-L001", "XB-L002", "XB-P001", "XB-S001", "XB-S002", "XB-S003", "XB-S004", "XB-S005",
-    "XB-S006",
+    "XB-S006", "XB-S007", "XB-S008",
 ];
 
 /// Stable codes for errors originating in the backend (codegen).
@@ -34,6 +34,8 @@ impl CompileError {
                 SemanticError::DuplicateConstant { .. } => "XB-S004",
                 SemanticError::UnknownConstant { .. } => "XB-S005",
                 SemanticError::ConstantDefinitionNotTopLevel { .. } => "XB-S006",
+                SemanticError::UnknownSharedVariable { .. } => "XB-S007",
+                SemanticError::SharedAssignmentNotInFunction { .. } => "XB-S008",
             },
             CompileError::LlvmDisabled => "XB-B001",
         }
@@ -107,6 +109,18 @@ mod tests {
         })
     }
 
+    fn unknown_shared_variable() -> CompileError {
+        CompileError::Semantic(SemanticError::UnknownSharedVariable {
+            name: "XBSystem".to_string(),
+        })
+    }
+
+    fn shared_assignment_not_in_function() -> CompileError {
+        CompileError::Semantic(SemanticError::SharedAssignmentNotInFunction {
+            name: "XBSystem".to_string(),
+        })
+    }
+
     #[test]
     fn unterminated_string_maps_to_xb_l001() {
         assert_eq!(unterminated_string().diagnostic_code(), "XB-L001");
@@ -156,6 +170,19 @@ mod tests {
     }
 
     #[test]
+    fn unknown_shared_variable_maps_to_xb_s007() {
+        assert_eq!(unknown_shared_variable().diagnostic_code(), "XB-S007");
+    }
+
+    #[test]
+    fn top_level_shared_assignment_maps_to_xb_s008() {
+        assert_eq!(
+            shared_assignment_not_in_function().diagnostic_code(),
+            "XB-S008"
+        );
+    }
+
+    #[test]
     fn llvm_disabled_maps_to_xb_b001() {
         assert_eq!(CompileError::LlvmDisabled.diagnostic_code(), "XB-B001");
     }
@@ -180,6 +207,11 @@ mod tests {
             constant_definition_not_top_level().diagnostic_code(),
             "XB-S006"
         );
+        assert_eq!(unknown_shared_variable().diagnostic_code(), "XB-S007");
+        assert_eq!(
+            shared_assignment_not_in_function().diagnostic_code(),
+            "XB-S008"
+        );
     }
 
     #[test]
@@ -194,11 +226,13 @@ mod tests {
             duplicate_constant().diagnostic_code(),
             unknown_constant().diagnostic_code(),
             constant_definition_not_top_level().diagnostic_code(),
+            unknown_shared_variable().diagnostic_code(),
+            shared_assignment_not_in_function().diagnostic_code(),
             CompileError::LlvmDisabled.diagnostic_code(),
         ];
         codes.sort_unstable();
         codes.dedup();
-        assert_eq!(codes.len(), 10);
+        assert_eq!(codes.len(), 12);
     }
 
     #[test]
@@ -206,7 +240,7 @@ mod tests {
         let mut codes = crate::SOURCE_DIAGNOSTIC_CODES.to_vec();
         codes.sort_unstable();
         codes.dedup();
-        assert_eq!(codes.len(), 9);
+        assert_eq!(codes.len(), 11);
         for code in codes {
             assert!(code.starts_with("XB-"));
         }
@@ -224,6 +258,8 @@ mod tests {
             duplicate_constant().diagnostic_code(),
             unknown_constant().diagnostic_code(),
             constant_definition_not_top_level().diagnostic_code(),
+            unknown_shared_variable().diagnostic_code(),
+            shared_assignment_not_in_function().diagnostic_code(),
         ] {
             assert!(
                 crate::SOURCE_DIAGNOSTIC_CODES.contains(&code),

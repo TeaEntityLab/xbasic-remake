@@ -1,0 +1,4 @@
+##XBSystem = 1
+FUNCTION Main
+PRINT ##XBSystem
+END FUNCTION

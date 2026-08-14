@@ -125,8 +125,24 @@ mod tests {
         assert!(tokens
             .iter()
             .any(|t| t.kind == TokenKind::SystemConstant("XBSysLinux".to_string())));
-        assert!(tokens
-            .iter()
-            .any(|t| t.kind == TokenKind::SystemVariable("XBSystem".to_string())));
+        assert!(tokens.iter().any(
+            |t| matches!(t.kind, TokenKind::SystemVariable { ref name, suffix: None } if name == "XBSystem")
+        ));
+    }
+
+    #[test]
+    fn lexes_suffixed_system_variable_as_one_token() {
+        // Given the historical `##XBDir$` string shared variable.
+        let tokens = lex("##XBDir$\n").unwrap();
+
+        // Then the suffix belongs to the shared name, not a following symbol.
+        assert!(matches!(
+            tokens[0].kind,
+            TokenKind::SystemVariable {
+                ref name,
+                suffix: Some(TypeSuffix::String)
+            } if name == "XBDir"
+        ));
+        assert_eq!(tokens[1].kind, TokenKind::Newline);
     }
 }
