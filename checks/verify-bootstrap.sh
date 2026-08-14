@@ -18,6 +18,14 @@ cargo clippy --workspace --all-targets
   cat /tmp/xbasic-verify-docrefs.txt >&2
   fail "docs still reference nested xbasic-6.5.0"
 }
+[ -f docs/14-self-hosting-progress.md ] || fail "self-hosting progress report missing"
+grep -Fq '# 14 — Self-Hosting Progress' docs/14-self-hosting-progress.md \
+  || fail "self-hosting progress report title missing"
+grep -Fq 'This closes the current Stage-0-to-Stage-1 backlog; it does not equal full compiler self-hosting.' \
+  docs/14-self-hosting-progress.md \
+  || fail "self-hosting completion boundary missing"
+grep -Fq '| 14 | [Self-Hosting Progress](14-self-hosting-progress.md) |' docs/README.md \
+  || fail "self-hosting progress chapter index entry missing"
 
 # ERE for BSD/GNU grep parity; matches real `unsafe` only, not the safe extern "C" XxxMain ABI.
 if grep -REn 'unsafe[[:space:]]*(\{|fn|impl)' crates --include='*.rs' >/tmp/xbasic-verify-unsafe.txt 2>&1; then
@@ -51,5 +59,8 @@ grep -RIn 'IrProgram' crates/xb-compiler/src >/dev/null || fail "typed IR missin
 grep -RIn 'TextIrEmitter' crates/xb-compiler/src >/dev/null || fail "text IR emitter type missing"
 [ -f fixtures/bootstrap/hello.x ] || fail "bootstrap hello fixture missing"
 grep -RIn 'cli_prints_stable_ir_summary_for_committed_fixture' crates/xb-cli/tests >/dev/null || fail "CLI fixture integration test missing"
+[ -f selfhost/xut_bootstrap_manifest.x ] || fail "static xut self-host manifest missing"
+grep -RIn 'cli_prints_stable_ir_for_static_xut_bootstrap_manifest' crates/xb-cli/tests >/dev/null || fail "static xut self-host CLI integration test missing"
+grep -RIn 'cli_accepts_every_selfhost_source' crates/xb-cli/tests >/dev/null || fail "recursive self-host smoke test missing"
 
 echo "verify-bootstrap: ok"

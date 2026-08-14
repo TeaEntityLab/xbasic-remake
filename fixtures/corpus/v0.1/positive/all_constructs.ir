@@ -1,0 +1,23 @@
+version 0.1
+function Main
+  dim plain:integer
+  dim percent:integer
+  dim single:float
+  dim double:float
+  dim text:string
+  assign plain:integer = integer(7)
+  assign percent:integer = integer(0x2A)
+  assign single:float = float(1.5)
+  assign double:float = float(2e2)
+  assign text:string = string("symbol")
+  print integer(9)
+  print integer(0x10)
+  print float(3.25)
+  print float(4e1)
+  print string("literal")
+  print symbol(plain:integer)
+  print symbol(percent:integer)
+  print symbol(single:float)
+  print symbol(double:float)
+  print symbol(text:string)
+end function

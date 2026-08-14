@@ -1,7 +1,12 @@
+mod diagnostic;
+mod entry_lookup;
+
 pub mod ir;
 pub mod semantics;
 pub mod text_ir;
 
+pub use diagnostic::{BACKEND_DIAGNOSTIC_CODES, SOURCE_DIAGNOSTIC_CODES};
+pub use entry_lookup::EntryLookupError;
 pub use ir::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol};
 pub use semantics::{
     Analyzer, CheckedExpr, CheckedExprKind, CheckedItem, CheckedProgram, CheckedSymbol,

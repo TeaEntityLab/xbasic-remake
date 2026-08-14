@@ -1,0 +1,15 @@
+version 0.0001
+function Main
+  dim utilityName:string
+  dim utilityVersion:float
+  dim xbSysLinux:integer
+  dim xbSysWin32:integer
+  assign utilityName:string = string("xut")
+  assign utilityVersion:float = float(0.0001)
+  assign xbSysLinux:integer = integer(1)
+  assign xbSysWin32:integer = integer(2)
+  print symbol(utilityName:string)
+  print symbol(utilityVersion:float)
+  print symbol(xbSysLinux:integer)
+  print symbol(xbSysWin32:integer)
+end function

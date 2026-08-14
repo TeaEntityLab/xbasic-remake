@@ -1,0 +1,15 @@
+version 0.1
+dim topMessage:string
+assign topMessage:string = string("top")
+print symbol(topMessage:string)
+function main
+  print string("lowercase main must not run")
+end function
+function Helper
+  print string("helper must not run")
+end function
+function Main
+  dim mainMessage:string
+  assign mainMessage:string = string("main")
+  print symbol(mainMessage:string)
+end function

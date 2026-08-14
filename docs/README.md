@@ -23,6 +23,7 @@ and how it achieves cross-platform portability.
 | 11 | [Syscall Surface Survey](11-syscall-surface-survey.md) | Every `.s`/syscall in the three trees: zero raw syscalls, 6 hand-written `.s` files, FPU-intrinsic / libc / frame-helper classification, signal & exception model |
 | 12 | [Rust + LLVM Rewrite Survey](12-rust-llvm-rewrite-survey.md) | Crates for the 6.5.0 rewrite: inkwell/LLVM pipeline, iced-x86 FPU JIT, rustix/windows-sys FFI, egui+winit GUI, plus what to preserve from 6.3.26-D and 6.4.5 |
 | 13 | [6.5.0 Bootstrap Scaffold](13-bootstrap-scaffold.md) | Resolved decisions (f64/libm, Win64 first, staged self-hosting), stage plan, and the repo-root Rust workspace layout |
+| 14 | [Self-Hosting Progress](14-self-hosting-progress.md) | Completed Stage-0-to-Stage-1 bootstrap path, verifier evidence, current limitations, and falsifiable Stage-2 compiler-self-host tasks |
 
 ## The big picture
 

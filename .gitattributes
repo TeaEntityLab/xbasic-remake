@@ -1,0 +1,5 @@
+.gitattributes text eol=lf
+TASKS.bootstrap.md text eol=lf
+TASKS.stage2.md text eol=lf
+fixtures/corpus/v0.1/** text eol=lf
+selfhost/xut_bootstrap_manifest.x text eol=lf
