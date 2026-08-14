@@ -47,5 +47,7 @@ grep -RIn 'rejects_trailing_tokens_after_print_expression' crates/xb-frontend/sr
 grep -RIn 'DuplicateSymbol' crates/xb-compiler/src >/dev/null || fail "semantic duplicate-symbol check missing"
 grep -RIn 'UnknownSymbol' crates/xb-compiler/src >/dev/null || fail "semantic unknown-symbol check missing"
 grep -RIn 'IrProgram' crates/xb-compiler/src >/dev/null || fail "typed IR missing"
+[ -f fixtures/bootstrap/hello.x ] || fail "bootstrap hello fixture missing"
+grep -RIn 'cli_prints_stable_ir_summary_for_committed_fixture' crates/xb-cli/tests >/dev/null || fail "CLI fixture integration test missing"
 
 echo "verify-bootstrap: ok"

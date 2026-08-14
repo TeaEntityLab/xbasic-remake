@@ -1,20 +1,13 @@
-use std::fs;
+use std::path::Path;
 use std::process::Command;
 
 #[test]
-fn cli_prints_stable_ir_summary_for_file() {
-    let path = std::env::temp_dir().join(format!("xb-cli-{}.x", std::process::id()));
-    fs::write(
-        &path,
-        "VERSION \"6.5.0\"\nDIM name$\nname$ = \"hello\"\nPRINT name$\n",
-    )
-    .unwrap();
-
+fn cli_prints_stable_ir_summary_for_committed_fixture() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/bootstrap/hello.x");
     let output = Command::new(env!("CARGO_BIN_EXE_xb"))
-        .arg(&path)
+        .arg(fixture)
         .output()
         .unwrap();
-    let _ = fs::remove_file(&path);
 
     assert!(output.status.success());
     assert_eq!(
