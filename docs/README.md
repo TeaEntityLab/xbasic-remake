@@ -30,6 +30,7 @@ and how it achieves cross-platform portability.
 | 18 | [Stage-2 Contract v0.4](stage2-contract-v0.4.md) | IF/THEN/ELSE/END IF conditional branching: integer-valued condition, no new scope, XB-S009 diagnostic, runtime branch selection |
 | 19 | [Stage-2 Contract v0.5](stage2-contract-v0.5.md) | Comparison operators (=, <>, <, >, <=, >=): expression-level binary operators returning Integer TRUE/FALSE, XB-S010 diagnostic, runtime ordering |
 | 20 | [Stage-2 Contract v0.6](stage2-contract-v0.6.md) | Function calls with typed parameters, RETURN statements, function call expressions, XB-S011 through XB-S015 diagnostics |
+| 21 | [Stage-2 Contract v0.7](stage2-contract-v0.7.md) | Arithmetic operators (+, -, *, /) with precedence, Integer/Float type promotion, XB-S016 diagnostic, runtime division-by-zero error |
 
 ## The big picture
 

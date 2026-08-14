@@ -84,6 +84,14 @@ pub enum ComparisonOp {
     GreaterEqual,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArithmeticOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
     StringLiteral(String),
@@ -102,6 +110,11 @@ pub enum Expression {
     },
     Comparison {
         op: ComparisonOp,
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+    Arithmetic {
+        op: ArithmeticOp,
         left: Box<Expression>,
         right: Box<Expression>,
     },

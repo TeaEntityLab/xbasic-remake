@@ -1,5 +1,7 @@
 pub mod checked;
 mod diagnostic;
+#[cfg(test)]
+mod diagnostic_tests;
 mod entry_lookup;
 
 pub mod ir;
@@ -12,8 +14,8 @@ mod semantics_tests;
 pub mod text_ir;
 
 pub use checked::{
-    CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam, CheckedProgram, CheckedSymbol,
-    ComparisonOp, SemanticError, ValueType,
+    ArithmeticOp, CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam, CheckedProgram,
+    CheckedSymbol, ComparisonOp, SemanticError, ValueType,
 };
 pub use diagnostic::{BACKEND_DIAGNOSTIC_CODES, SOURCE_DIAGNOSTIC_CODES};
 pub use entry_lookup::EntryLookupError;

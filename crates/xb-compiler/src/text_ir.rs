@@ -1,4 +1,4 @@
-use crate::checked::ComparisonOp;
+use crate::checked::{ArithmeticOp, ComparisonOp};
 use crate::ir::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol};
 use crate::ValueType;
 
@@ -114,6 +114,14 @@ impl TextIrEmitter {
                     self.emit_expr(right)
                 )
             }
+            IrExprKind::Arithmetic { op, left, right } => {
+                format!(
+                    "arith({} {} {})",
+                    self.emit_expr(left),
+                    self.emit_arith_op(*op),
+                    self.emit_expr(right)
+                )
+            }
             IrExprKind::FunctionCall { name, args } => {
                 let as_str: Vec<String> = args.iter().map(|a| self.emit_expr(a)).collect();
                 format!("call {}({})", name, as_str.join(", "))
@@ -133,6 +141,15 @@ impl TextIrEmitter {
             ComparisonOp::Greater => ">",
             ComparisonOp::LessEqual => "<=",
             ComparisonOp::GreaterEqual => ">=",
+        }
+    }
+
+    fn emit_arith_op(self, op: ArithmeticOp) -> &'static str {
+        match op {
+            ArithmeticOp::Add => "+",
+            ArithmeticOp::Sub => "-",
+            ArithmeticOp::Mul => "*",
+            ArithmeticOp::Div => "/",
         }
     }
 

@@ -29,5 +29,6 @@ END IF
 IF 1 = 1 THEN
 PRINT "compare"
 PRINT Identity(42)
+PRINT 3 + 4 * 2
 END IF
 END FUNCTION

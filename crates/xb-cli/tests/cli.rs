@@ -58,8 +58,9 @@ fn cli_prints_stable_ir_for_static_xut_bootstrap_manifest() {
             "  end if\n",
             "  if compare(shared(##XBSystem:integer) = constant($$XBSysLinux:integer = integer(1)))\n",
             "    print string(\"match\")\n",
+            "    print arith(constant($$XBSysLinux:integer = integer(1)) + constant($$XBSysWin32:integer = integer(2)))\n",
+            "    print call PlatformName()\n",
             "  end if\n",
-            "  print call PlatformName()\n",
             "end function\n",
         )
     );

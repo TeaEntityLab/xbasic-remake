@@ -29,5 +29,6 @@ function Main() -> integer
   if compare(integer(1) = integer(1))
     print string("compare")
     print call Identity(integer(42))
+    print arith(integer(3) + arith(integer(4) * integer(2)))
   end if
 end function

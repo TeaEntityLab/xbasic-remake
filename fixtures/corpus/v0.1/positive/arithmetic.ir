@@ -1,0 +1,12 @@
+version 0.1
+function Add(a:integer, b:integer) -> integer
+  return arith(symbol(a:integer) + symbol(b:integer))
+end function
+function Main() -> integer
+  dim result:integer
+  assign result:integer = call Add(integer(3), integer(4))
+  print symbol(result:integer)
+  print arith(arith(integer(2) * integer(3)) + integer(1))
+  print arith(integer(10) - arith(integer(3) * integer(2)))
+  print arith(integer(20) / integer(4))
+end function

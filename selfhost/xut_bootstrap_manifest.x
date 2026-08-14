@@ -23,6 +23,7 @@ PRINT "linux"
 END IF
 IF ##XBSystem = $$XBSysLinux THEN
 PRINT "match"
-END IF
+PRINT $$XBSysLinux + $$XBSysWin32
 PRINT PlatformName()
+END IF
 END FUNCTION

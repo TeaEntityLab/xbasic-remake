@@ -115,6 +115,8 @@ pub enum RuntimeError {
     },
     #[error("unknown function {name}")]
     UnknownFunction { name: String },
+    #[error("division by zero")]
+    DivisionByZero,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -241,6 +243,11 @@ pub(crate) fn eval(
             let l = eval(program, left, state)?;
             let r = eval(program, right, state)?;
             RuntimeValue::Integer(crate::compare::compare(*op, &l, &r)?)
+        }
+        IrExprKind::Arithmetic { op, left, right } => {
+            let l = eval(program, left, state)?;
+            let r = eval(program, right, state)?;
+            crate::arith::arith(*op, &l, &r)?
         }
         IrExprKind::SharedVariable(s) => read_slot(&state.shared, s)?,
         IrExprKind::Symbol(s) => read_slot(&state.slots, s)?,

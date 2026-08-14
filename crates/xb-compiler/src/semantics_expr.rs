@@ -1,4 +1,4 @@
-use xb_frontend::{ComparisonOp, Expression, TypeSuffix};
+use xb_frontend::{ArithmeticOp, ComparisonOp, Expression, TypeSuffix};
 
 use crate::checked::{CheckedExpr, CheckedExprKind, CheckedSymbol};
 use crate::semantics::{Analyzer, ExprResult, SemanticError, ValueType};
@@ -22,6 +22,7 @@ impl Analyzer {
             Expression::SystemVariable { name, suffix } => self.shared_variable(name, *suffix),
             Expression::Identifier { name, .. } => self.symbol(name),
             Expression::Comparison { op, left, right } => self.comparison(*op, left, right),
+            Expression::Arithmetic { op, left, right } => self.arithmetic(*op, left, right),
             Expression::FunctionCall { name, args } => self.function_call(name, args),
         }
     }
@@ -42,6 +43,27 @@ impl Analyzer {
                 right: Box::new(rv),
             },
             ValueType::Integer,
+        ))
+    }
+
+    fn arithmetic(&self, op: ArithmeticOp, l: &Expression, r: &Expression) -> ExprResult {
+        let lv = self.expr(l)?;
+        let rv = self.expr(r)?;
+        if lv.value_type == ValueType::String || rv.value_type == ValueType::String {
+            return Err(SemanticError::ArithmeticStringOperand);
+        }
+        let rt = if lv.value_type == ValueType::Float || rv.value_type == ValueType::Float {
+            ValueType::Float
+        } else {
+            ValueType::Integer
+        };
+        Ok(CheckedExpr::new(
+            CheckedExprKind::Arithmetic {
+                op,
+                left: Box::new(lv),
+                right: Box::new(rv),
+            },
+            rt,
         ))
     }
 

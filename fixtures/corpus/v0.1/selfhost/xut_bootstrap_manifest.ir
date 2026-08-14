@@ -23,6 +23,7 @@ function Main() -> integer
   end if
   if compare(shared(##XBSystem:integer) = constant($$XBSysLinux:integer = integer(1)))
     print string("match")
+    print arith(constant($$XBSysLinux:integer = integer(1)) + constant($$XBSysWin32:integer = integer(2)))
+    print call PlatformName()
   end if
-  print call PlatformName()
 end function

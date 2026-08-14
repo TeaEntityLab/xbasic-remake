@@ -1,0 +1,6 @@
+VERSION "0.1"
+FUNCTION Main
+DIM s$
+s$ = "hello"
+PRINT s$ + 1
+END FUNCTION

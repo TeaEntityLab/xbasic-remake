@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Param, Statement};
+use crate::ast::{ArithmeticOp, ComparisonOp, Expression, Param, Statement};
 use crate::parser::{ParseError, Parser};
 use crate::token::{Keyword, SourcePos, TokenKind, TypeSuffix};
 
@@ -169,5 +169,47 @@ impl Parser {
         };
         self.expect_line_end()?;
         Ok(Statement::Return { value })
+    }
+}
+
+impl Parser {
+    pub(crate) fn comparison_op(&mut self) -> Option<ComparisonOp> {
+        let op = match self.peek_kind() {
+            TokenKind::Symbol('=') => Some(ComparisonOp::Equal),
+            TokenKind::NotEqual => Some(ComparisonOp::NotEqual),
+            TokenKind::Symbol('<') => Some(ComparisonOp::Less),
+            TokenKind::Symbol('>') => Some(ComparisonOp::Greater),
+            TokenKind::LessEqual => Some(ComparisonOp::LessEqual),
+            TokenKind::GreaterEqual => Some(ComparisonOp::GreaterEqual),
+            _ => None,
+        };
+        if op.is_some() {
+            self.index += 1;
+        }
+        op
+    }
+
+    pub(crate) fn add_op(&mut self) -> Option<ArithmeticOp> {
+        let op = match self.peek_kind() {
+            TokenKind::Symbol('+') => Some(ArithmeticOp::Add),
+            TokenKind::Symbol('-') => Some(ArithmeticOp::Sub),
+            _ => None,
+        };
+        if op.is_some() {
+            self.index += 1;
+        }
+        op
+    }
+
+    pub(crate) fn mul_op(&mut self) -> Option<ArithmeticOp> {
+        let op = match self.peek_kind() {
+            TokenKind::Symbol('*') => Some(ArithmeticOp::Mul),
+            TokenKind::Symbol('/') => Some(ArithmeticOp::Div),
+            _ => None,
+        };
+        if op.is_some() {
+            self.index += 1;
+        }
+        op
     }
 }

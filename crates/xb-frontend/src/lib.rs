@@ -8,7 +8,7 @@ mod parser_cursor;
 mod parser_tests;
 pub mod token;
 
-pub use ast::{ComparisonOp, Expression, FunctionDecl, Param, Program, Statement};
+pub use ast::{ArithmeticOp, ComparisonOp, Expression, FunctionDecl, Param, Program, Statement};
 pub use lexer::{lex, LexError, Lexer};
 pub use parser::{parse_program, ParseError, Parser};
 pub use token::{Keyword, SourcePos, Token, TokenKind, TypeSuffix};

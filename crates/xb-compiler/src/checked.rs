@@ -1,6 +1,6 @@
 use thiserror::Error;
 use xb_frontend::TypeSuffix;
-pub use xb_frontend::{ComparisonOp, Param};
+pub use xb_frontend::{ArithmeticOp, ComparisonOp, Param};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
@@ -67,6 +67,8 @@ pub enum SemanticError {
         expected: ValueType,
         actual: ValueType,
     },
+    #[error("arithmetic on string operand")]
+    ArithmeticStringOperand,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -133,6 +135,11 @@ pub enum CheckedExprKind {
     Symbol(CheckedSymbol),
     Comparison {
         op: ComparisonOp,
+        left: Box<CheckedExpr>,
+        right: Box<CheckedExpr>,
+    },
+    Arithmetic {
+        op: ArithmeticOp,
         left: Box<CheckedExpr>,
         right: Box<CheckedExpr>,
     },

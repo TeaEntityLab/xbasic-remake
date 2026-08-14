@@ -1,4 +1,4 @@
-use crate::ast::{ComparisonOp, Expression, FunctionDecl, Program, Statement};
+use crate::ast::{Expression, FunctionDecl, Program, Statement};
 use crate::lexer::{lex, LexError};
 use crate::token::{Keyword, Token, TokenKind};
 use thiserror::Error;
@@ -177,9 +177,9 @@ impl Parser {
     }
 
     pub(crate) fn expression(&mut self) -> Result<Expression, ParseError> {
-        let left = self.primary()?;
+        let left = self.additive()?;
         if let Some(op) = self.comparison_op() {
-            let right = self.primary()?;
+            let right = self.additive()?;
             Ok(Expression::Comparison {
                 op,
                 left: Box::new(left),
@@ -190,20 +190,30 @@ impl Parser {
         }
     }
 
-    fn comparison_op(&mut self) -> Option<ComparisonOp> {
-        let op = match self.peek_kind() {
-            TokenKind::Symbol('=') => Some(ComparisonOp::Equal),
-            TokenKind::NotEqual => Some(ComparisonOp::NotEqual),
-            TokenKind::Symbol('<') => Some(ComparisonOp::Less),
-            TokenKind::Symbol('>') => Some(ComparisonOp::Greater),
-            TokenKind::LessEqual => Some(ComparisonOp::LessEqual),
-            TokenKind::GreaterEqual => Some(ComparisonOp::GreaterEqual),
-            _ => None,
-        };
-        if op.is_some() {
-            self.index += 1;
+    fn additive(&mut self) -> Result<Expression, ParseError> {
+        let mut left = self.multiplicative()?;
+        while let Some(op) = self.add_op() {
+            let right = self.multiplicative()?;
+            left = Expression::Arithmetic {
+                op,
+                left: Box::new(left),
+                right: Box::new(right),
+            };
         }
-        op
+        Ok(left)
+    }
+
+    fn multiplicative(&mut self) -> Result<Expression, ParseError> {
+        let mut left = self.primary()?;
+        while let Some(op) = self.mul_op() {
+            let right = self.primary()?;
+            left = Expression::Arithmetic {
+                op,
+                left: Box::new(left),
+                right: Box::new(right),
+            };
+        }
+        Ok(left)
     }
 
     fn primary(&mut self) -> Result<Expression, ParseError> {

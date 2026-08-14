@@ -1,0 +1,12 @@
+VERSION "0.1"
+FUNCTION Add(a, b)
+RETURN a + b
+END FUNCTION
+FUNCTION Main
+DIM result
+result = Add(3, 4)
+PRINT result
+PRINT 2 * 3 + 1
+PRINT 10 - 3 * 2
+PRINT 20 / 4
+END FUNCTION
