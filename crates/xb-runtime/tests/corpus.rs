@@ -184,7 +184,8 @@ fn corpus_v0_1_is_valid_and_executable() -> Result<(), String> {
     }
 
     let selfhost = corpus.join("selfhost");
-    let selfhost_cases = validate_layout(&selfhost, &discover(&selfhost)?, &["ir", "out"], &[])?;
+    let selfhost_cases =
+        validate_layout(&selfhost, &discover(&selfhost)?, &["ir", "out"], &["in"])?;
     let expected_stems = [
         selfhost.join("lexer"),
         selfhost.join("xut_bootstrap_manifest"),

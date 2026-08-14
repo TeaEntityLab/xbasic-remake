@@ -1,54 +1,40 @@
 version 0.1
 function Main() -> integer
   dim src:string
+  dim line:string
   dim pos:integer
   dim ch:integer
   dim tok:string
   dim tokType:string
-  dim tokens$:string[integer(32)]
-  dim tokTypes$:string[integer(32)]
-  dim ntok:integer
-  dim i:integer
   dim done:integer
-  assign src:string = string("PRINT 42")
+  assign src:string = string("")
+  while compare(call EOF() = integer(0))
+    assign line:string = call READLINE$()
+    if compare(call EOF() = integer(0))
+      assign src:string = arith(arith(symbol(src:string) + symbol(line:string)) + call CHR$(integer(10)))
+    else
+      assign src:string = arith(symbol(src:string) + symbol(line:string))
+    end if
+  wend
   assign pos:integer = integer(1)
-  assign ntok:integer = integer(0)
   while compare(symbol(pos:integer) <= call LEN(symbol(src:string)))
     assign ch:integer = call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1)))
-    if compare(symbol(ch:integer) = integer(32))
+    if or(or(compare(symbol(ch:integer) = integer(32)) compare(symbol(ch:integer) = integer(9))) compare(symbol(ch:integer) = integer(13)))
       assign pos:integer = arith(symbol(pos:integer) + integer(1))
     else
-      assign tok:string = string("")
-      assign tokType:string = string("")
-      if or(and(compare(symbol(ch:integer) >= integer(65)) compare(symbol(ch:integer) <= integer(90))) and(compare(symbol(ch:integer) >= integer(97)) compare(symbol(ch:integer) <= integer(122))))
-        assign tokType:string = string("ident")
-        assign done:integer = integer(0)
-        while compare(symbol(done:integer) = integer(0))
-          if compare(symbol(pos:integer) > call LEN(symbol(src:string)))
-            assign done:integer = integer(1)
-          else
-            assign ch:integer = call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1)))
-            if or(or(and(compare(symbol(ch:integer) >= integer(65)) compare(symbol(ch:integer) <= integer(90))) and(compare(symbol(ch:integer) >= integer(97)) compare(symbol(ch:integer) <= integer(122)))) and(compare(symbol(ch:integer) >= integer(48)) compare(symbol(ch:integer) <= integer(57))))
-              assign tok:string = arith(symbol(tok:string) + call CHR$(symbol(ch:integer)))
-              assign pos:integer = arith(symbol(pos:integer) + integer(1))
-            else
-              assign done:integer = integer(1)
-            end if
-          end if
-        wend
-        array_assign tokens$:string[symbol(ntok:integer)] = symbol(tok:string)
-        array_assign tokTypes$:string[symbol(ntok:integer)] = symbol(tokType:string)
-        assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
+      if compare(symbol(ch:integer) = integer(10))
+        print string("newline,")
+        assign pos:integer = arith(symbol(pos:integer) + integer(1))
       else
-        if and(compare(symbol(ch:integer) >= integer(48)) compare(symbol(ch:integer) <= integer(57)))
-          assign tokType:string = string("number")
+        if or(and(compare(symbol(ch:integer) >= integer(65)) compare(symbol(ch:integer) <= integer(90))) and(compare(symbol(ch:integer) >= integer(97)) compare(symbol(ch:integer) <= integer(122))))
+          assign tok:string = string("")
           assign done:integer = integer(0)
           while compare(symbol(done:integer) = integer(0))
             if compare(symbol(pos:integer) > call LEN(symbol(src:string)))
               assign done:integer = integer(1)
             else
               assign ch:integer = call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1)))
-              if and(compare(symbol(ch:integer) >= integer(48)) compare(symbol(ch:integer) <= integer(57)))
+              if or(or(or(or(and(compare(symbol(ch:integer) >= integer(65)) compare(symbol(ch:integer) <= integer(90))) and(compare(symbol(ch:integer) >= integer(97)) compare(symbol(ch:integer) <= integer(122)))) and(compare(symbol(ch:integer) >= integer(48)) compare(symbol(ch:integer) <= integer(57)))) compare(symbol(ch:integer) = integer(36))) compare(symbol(ch:integer) = integer(37)))
                 assign tok:string = arith(symbol(tok:string) + call CHR$(symbol(ch:integer)))
                 assign pos:integer = arith(symbol(pos:integer) + integer(1))
               else
@@ -56,22 +42,68 @@ function Main() -> integer
               end if
             end if
           wend
-          array_assign tokens$:string[symbol(ntok:integer)] = symbol(tok:string)
-          array_assign tokTypes$:string[symbol(ntok:integer)] = symbol(tokType:string)
-          assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
+          assign tokType:string = string("ident")
+          if or(or(or(or(compare(symbol(tok:string) = string("PRINT")) compare(symbol(tok:string) = string("IF"))) compare(symbol(tok:string) = string("THEN"))) compare(symbol(tok:string) = string("ELSE"))) compare(symbol(tok:string) = string("END")))
+            assign tokType:string = string("keyword")
+          else
+            if or(or(or(or(compare(symbol(tok:string) = string("FUNCTION")) compare(symbol(tok:string) = string("DIM"))) compare(symbol(tok:string) = string("FOR"))) compare(symbol(tok:string) = string("TO"))) compare(symbol(tok:string) = string("NEXT")))
+              assign tokType:string = string("keyword")
+            else
+              if or(or(or(or(compare(symbol(tok:string) = string("WHILE")) compare(symbol(tok:string) = string("WEND"))) compare(symbol(tok:string) = string("RETURN"))) compare(symbol(tok:string) = string("AND"))) compare(symbol(tok:string) = string("OR")))
+                assign tokType:string = string("keyword")
+              else
+                if or(or(or(compare(symbol(tok:string) = string("NOT")) compare(symbol(tok:string) = string("EXIT"))) compare(symbol(tok:string) = string("ELSEIF"))) compare(symbol(tok:string) = string("VERSION")))
+                  assign tokType:string = string("keyword")
+                end if
+              end if
+            end if
+          end if
+          print arith(arith(symbol(tokType:string) + string(",")) + symbol(tok:string))
         else
-          assign tok:string = call CHR$(symbol(ch:integer))
-          assign tokType:string = string("symbol")
-          array_assign tokens$:string[symbol(ntok:integer)] = symbol(tok:string)
-          array_assign tokTypes$:string[symbol(ntok:integer)] = symbol(tokType:string)
-          assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
-          assign pos:integer = arith(symbol(pos:integer) + integer(1))
+          if and(compare(symbol(ch:integer) >= integer(48)) compare(symbol(ch:integer) <= integer(57)))
+            assign tok:string = string("")
+            assign done:integer = integer(0)
+            while compare(symbol(done:integer) = integer(0))
+              if compare(symbol(pos:integer) > call LEN(symbol(src:string)))
+                assign done:integer = integer(1)
+              else
+                assign ch:integer = call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1)))
+                if or(and(compare(symbol(ch:integer) >= integer(48)) compare(symbol(ch:integer) <= integer(57))) compare(symbol(ch:integer) = integer(46)))
+                  assign tok:string = arith(symbol(tok:string) + call CHR$(symbol(ch:integer)))
+                  assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                else
+                  assign done:integer = integer(1)
+                end if
+              end if
+            wend
+            print arith(string("number,") + symbol(tok:string))
+          else
+            if compare(symbol(ch:integer) = integer(34))
+              assign tok:string = string("")
+              assign pos:integer = arith(symbol(pos:integer) + integer(1))
+              assign done:integer = integer(0)
+              while compare(symbol(done:integer) = integer(0))
+                if compare(symbol(pos:integer) > call LEN(symbol(src:string)))
+                  assign done:integer = integer(1)
+                else
+                  assign ch:integer = call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1)))
+                  if compare(symbol(ch:integer) = integer(34))
+                    assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                    assign done:integer = integer(1)
+                  else
+                    assign tok:string = arith(symbol(tok:string) + call CHR$(symbol(ch:integer)))
+                    assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                  end if
+                end if
+              wend
+              print arith(string("string,") + symbol(tok:string))
+            else
+              print arith(string("symbol,") + call CHR$(symbol(ch:integer)))
+              assign pos:integer = arith(symbol(pos:integer) + integer(1))
+            end if
+          end if
         end if
       end if
     end if
   wend
-  for i:integer = integer(0) to arith(symbol(ntok:integer) - integer(1))
-    print array_access(tokens$:string[symbol(i:integer)])
-    print array_access(tokTypes$:string[symbol(i:integer)])
-  next
 end function
