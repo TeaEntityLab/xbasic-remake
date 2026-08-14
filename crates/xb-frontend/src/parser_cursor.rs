@@ -111,6 +111,9 @@ impl Parser {
         matches!(self.peek_kind(), TokenKind::Keyword(Keyword::End))
             && matches!(self.peek_next_kind(), Some(TokenKind::Keyword(Keyword::If)))
     }
+    pub(crate) fn starts_wend(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Wend))
+    }
     pub(crate) fn starts_else(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Else))
     }
@@ -169,6 +172,20 @@ impl Parser {
         };
         self.expect_line_end()?;
         Ok(Statement::Return { value })
+    }
+    pub(crate) fn while_stmt(&mut self) -> Result<Statement, ParseError> {
+        self.expect_keyword(Keyword::While)?;
+        let condition = self.expression()?;
+        self.expect_line_end()?;
+        let mut body = Vec::new();
+        self.skip_newlines();
+        while !self.at_eof() && !self.starts_wend() {
+            body.push(self.statement()?);
+            self.skip_newlines();
+        }
+        self.expect_keyword(Keyword::Wend)?;
+        self.expect_line_end()?;
+        Ok(Statement::While { condition, body })
     }
 }
 

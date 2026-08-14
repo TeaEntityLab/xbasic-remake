@@ -67,6 +67,13 @@ impl TextIrEmitter {
                 }
                 out.push_str(&format!("{prefix}end if\n"));
             }
+            IrItem::While { condition, body } => {
+                out.push_str(&format!("{prefix}while {}\n", self.emit_expr(condition)));
+                for item in body {
+                    self.emit_item(item, out, indent + 1);
+                }
+                out.push_str(&format!("{prefix}wend\n"));
+            }
             IrItem::Function {
                 name,
                 params,

@@ -38,6 +38,10 @@ pub enum Statement {
         then_body: Vec<Statement>,
         else_body: Option<Vec<Statement>>,
     },
+    While {
+        condition: Expression,
+        body: Vec<Statement>,
+    },
     Return {
         value: Option<Expression>,
     },

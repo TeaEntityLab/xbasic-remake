@@ -216,6 +216,18 @@ pub(crate) fn exec_items(
                     }
                 }
             }
+            IrItem::While { condition, body } => loop {
+                let cond = eval(program, condition, state)?;
+                if let RuntimeValue::Integer(v) = cond {
+                    if v == 0 {
+                        break;
+                    }
+                }
+                match exec_items(program, body, state, output)? {
+                    Flow::Return(r) => return Ok(Flow::Return(r)),
+                    Flow::Continue => {}
+                }
+            },
             IrItem::Function { .. } => {}
             IrItem::Return { value } => {
                 let v = match value {

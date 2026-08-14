@@ -1,0 +1,12 @@
+version 0.1
+function Main() -> integer
+  dim i:integer
+  dim sum:integer
+  assign i:integer = integer(1)
+  assign sum:integer = integer(0)
+  while compare(symbol(i:integer) <= integer(5))
+    assign sum:integer = arith(symbol(sum:integer) + symbol(i:integer))
+    assign i:integer = arith(symbol(i:integer) + integer(1))
+  wend
+  print symbol(sum:integer)
+end function

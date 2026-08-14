@@ -60,6 +60,12 @@ fn cli_prints_stable_ir_for_static_xut_bootstrap_manifest() {
             "    print string(\"match\")\n",
             "    print arith(constant($$XBSysLinux:integer = integer(1)) + constant($$XBSysWin32:integer = integer(2)))\n",
             "    print call PlatformName()\n",
+            "    dim counter:integer\n",
+            "    assign counter:integer = integer(3)\n",
+            "    while compare(symbol(counter:integer) > integer(0))\n",
+            "      print symbol(counter:integer)\n",
+            "      assign counter:integer = arith(symbol(counter:integer) - integer(1))\n",
+            "    wend\n",
             "  end if\n",
             "end function\n",
         )

@@ -3,8 +3,9 @@ mod diagnostic;
 #[cfg(test)]
 mod diagnostic_tests;
 mod entry_lookup;
-
 pub mod ir;
+#[cfg(test)]
+mod ir_tests;
 pub mod semantics;
 mod semantics_expr;
 #[cfg(test)]

@@ -30,5 +30,8 @@ IF 1 = 1 THEN
 PRINT "compare"
 PRINT Identity(42)
 PRINT 3 + 4 * 2
+WHILE plain > 0
+plain = plain - 1
+WEND
 END IF
 END FUNCTION

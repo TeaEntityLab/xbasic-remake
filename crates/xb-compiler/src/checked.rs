@@ -99,6 +99,10 @@ pub enum CheckedItem {
         then_body: Vec<CheckedItem>,
         else_body: Option<Vec<CheckedItem>>,
     },
+    While {
+        condition: CheckedExpr,
+        body: Vec<CheckedItem>,
+    },
     Function {
         name: String,
         params: Vec<CheckedParam>,

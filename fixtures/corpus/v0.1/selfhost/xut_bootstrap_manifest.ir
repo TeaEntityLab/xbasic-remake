@@ -25,5 +25,11 @@ function Main() -> integer
     print string("match")
     print arith(constant($$XBSysLinux:integer = integer(1)) + constant($$XBSysWin32:integer = integer(2)))
     print call PlatformName()
+    dim counter:integer
+    assign counter:integer = integer(3)
+    while compare(symbol(counter:integer) > integer(0))
+      print symbol(counter:integer)
+      assign counter:integer = arith(symbol(counter:integer) - integer(1))
+    wend
   end if
 end function

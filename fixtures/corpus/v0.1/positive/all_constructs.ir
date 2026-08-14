@@ -30,5 +30,8 @@ function Main() -> integer
     print string("compare")
     print call Identity(integer(42))
     print arith(integer(3) + arith(integer(4) * integer(2)))
+    while compare(symbol(plain:integer) > integer(0))
+      assign plain:integer = arith(symbol(plain:integer) - integer(1))
+    wend
   end if
 end function

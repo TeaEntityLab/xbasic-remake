@@ -25,5 +25,11 @@ IF ##XBSystem = $$XBSysLinux THEN
 PRINT "match"
 PRINT $$XBSysLinux + $$XBSysWin32
 PRINT PlatformName()
+DIM counter
+counter = 3
+WHILE counter > 0
+PRINT counter
+counter = counter - 1
+WEND
 END IF
 END FUNCTION

@@ -85,6 +85,19 @@ impl Analyzer {
                     else_body: eb,
                 })
             }
+            Statement::While { condition, body } => {
+                let cond = self.expr(condition)?;
+                if cond.value_type != ValueType::Integer {
+                    return Err(SemanticError::IfConditionNotInteger {
+                        actual: cond.value_type,
+                    });
+                }
+                let body = self.blk(body, scope)?;
+                Ok(CheckedItem::While {
+                    condition: cond,
+                    body,
+                })
+            }
             Statement::Return { value } => self.return_stmt(scope, value.as_ref()),
             Statement::Function(function) => self.function(function),
         }

@@ -39,7 +39,7 @@ impl Parser {
         Ok(Program::new(statements))
     }
 
-    fn statement(&mut self) -> Result<Statement, ParseError> {
+    pub(crate) fn statement(&mut self) -> Result<Statement, ParseError> {
         if self.starts_constant_definition() {
             return self.constant_definition_stmt();
         }
@@ -51,6 +51,7 @@ impl Parser {
             Some(Keyword::Print) => self.print_stmt(),
             Some(Keyword::Dim) => self.dim_stmt(),
             Some(Keyword::If) => self.if_stmt(),
+            Some(Keyword::While) => self.while_stmt(),
             Some(Keyword::Function) => self.function_stmt(),
             Some(Keyword::Return) => self.return_stmt(),
             _ if self.starts_assignment() => self.assignment_stmt(),
