@@ -1,0 +1,19 @@
+[package]
+name = "xb-ide"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish.workspace = true
+license = "GPL-2.0-or-later"
+
+[features]
+default = []
+eframe-app = ["dep:eframe", "dep:egui", "dep:egui_code_editor", "dep:egui_dock"]
+
+[dependencies]
+xb-frontend.workspace = true
+eframe = { workspace = true, optional = true }
+egui = { workspace = true, optional = true }
+egui_code_editor = { workspace = true, optional = true }
+egui_dock = { workspace = true, optional = true }

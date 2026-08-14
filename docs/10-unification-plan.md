@@ -60,7 +60,7 @@ versions into one source that compiles on both platforms using the existing
 ## 3. Target tree layout
 
 ```
-xbasic-6.5.0/                      (proposed version)
+<repo root>/                      (6.5.0; historical C-tree layout — superseded by the Rust workspace, see docs/13)
 ├── Makefile                       top-level driver (OS autodetect, as 6.2.3)
 ├── src/
 │   ├── Makefile
@@ -82,8 +82,7 @@ xbasic-6.5.0/                      (proposed version)
 
 ### Phase 0 — Rebase and baseline (verify assumptions)
 
-1. Copy `xbasic-6.4.5` to `xbasic-6.5.0/` as the base (it is the newer, 64-bit,
-   actively-built tree).
+1. Historical tree-merge option: copy `xbasic-6.4.5` into a new 6.5.0 tree as the base (it is the newer, 64-bit, actively-built tree). **Superseded for the Rust bootstrap:** this repository root is now the 6.5.0 Rust workspace, while `xbasic-6.4.5/` remains a read-only reference tree.
 2. Re-apply the 6.2.3 directory structure: recreate `src/win32/`, `templates/win32/`,
    `src/lib/win32/`, `README.Win32`.
 3. From `xbasic-6.3.26-D`, copy the Win32-specific sources into the new

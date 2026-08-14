@@ -242,7 +242,7 @@ All versions verified against crates.io API Aug 2026.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  xbasic-6.5.0 (Rust workspace, cargo)                       │
+│  xbasic-remake repo root (6.5.0 Rust workspace, cargo)       │
 │                                                             │
 │  crates:                                                    │
 │  ┌───────────────┐  ┌───────────────┐  ┌─────────────────┐  │
@@ -292,14 +292,14 @@ All versions verified against crates.io API Aug 2026.
 
 ---
 
-## 7. Open questions for maintainers
+## 7. Resolved bootstrap decisions (2026-08-14)
 
-1. **x87 vs SSE2 for FP intrinsics**: preserve exact FPREM partial-remainder semantics (x87) or accept SSE2/libm equivalence? (Affects the JIT scope.)
-2. **Win32 target width**: 32-bit AND 64-bit Windows, or 64-bit only (plus 32-bit for legacy)? The report's plan assumed Win32 stays 32-bit; the crates support both. (Affects Cranelift eligibility — moot if inkwell.)
-3. **`xb_gethomepath` stub** (`/home/cw` hardcoded) — replace with `dirs` crate or `std::env`? (Recommend yes.)
-4. **GUI spirit**: how faithful must the GDI-shim be? (Option: exact-API-parity trait vs "best-effort 20 core functions" first cut.)
-5. **crtl/ C-port**: treat as dead reference (recommended) or as a migration template to port from? (It cannot compile — recommend reference-only.)
-6. **Self-hosting**: 6.2.3's compiler was written in XBasic itself. Does 6.5.0 stay self-hosted (the Rust compiler compiles `.x` sources that re-implement the compiler)? (This changes frontend scope massively.)
+1. **FP intrinsics:** use plain `f64` / libm-style operations by default. Exact x87/JIT semantics are deferred until compatibility tests prove a real program needs them.
+2. **Windows target:** focus on **Win64** first. Linux and macOS remain first-class targets. Dropping i686 from the first milestone re-opens Cranelift as a theoretical debug backend, but LLVM remains the primary AOT backend because it best supports the long-term self-hosting path and can keep i686 as a future option.
+3. **Self-hosting:** Rust is the stage-0 host. Keep the frontend, runtime ABI, and standard-library surface simple enough that low-level utilities can be reimplemented in XBasic first, then gradually move toward a self-hosted compiler after the Rust implementation is stable.
+4. **`xb_gethomepath` stub:** do not preserve the `/home/cw` hardcode; replace it with platform home-directory discovery in the Rust runtime/library layer.
+5. **GUI spirit:** start with a typed GDI-shim trait and a deterministic software framebuffer backend; add exact Win32 GDI calls only when the Win64 backend needs parity.
+6. **`crtl/` C-port:** reference-only. Preserve the `XxxMain(argc, argv, envp, envx, main_foo, StartApp)` contract, not the unfinished C implementation.
 
 ---
 

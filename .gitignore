@@ -1,4 +1,7 @@
 .omo
 .omx
 .DS_Store
-xbasic-6.?.*/
+/target/
+xbasic-6.2.*/
+xbasic-6.3.*/
+xbasic-6.4.*/

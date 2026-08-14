@@ -1,0 +1,41 @@
+[workspace]
+members = [
+  "crates/xb-frontend",
+  "crates/xb-compiler",
+  "crates/xb-runtime",
+  "crates/xb-link",
+  "crates/xb-gui",
+  "crates/xb-ide",
+]
+resolver = "2"
+
+[workspace.package]
+version = "6.5.0-alpha.0"
+edition = "2021"
+rust-version = "1.94"
+authors = ["XBasic Remake contributors"]
+repository = "https://example.invalid/xbasic-remake"
+publish = false
+
+[workspace.dependencies]
+xb-frontend = { path = "crates/xb-frontend" }
+xb-compiler = { path = "crates/xb-compiler" }
+xb-runtime = { path = "crates/xb-runtime" }
+xb-link = { path = "crates/xb-link" }
+xb-gui = { path = "crates/xb-gui" }
+
+thiserror = "2.0.17"
+libc = "0.2.189"
+rustix = "1.1.4"
+memmap2 = "0.9.11"
+socket2 = "0.6.5"
+libloading = "0.9.0"
+cc = "1.4.2"
+windows-sys = "0.61.2"
+inkwell = { version = "0.10.0", features = ["llvm22-1"], default-features = false }
+egui = "0.36.1"
+eframe = { version = "0.36.1", default-features = false, features = ["default_fonts", "glow"] }
+egui_code_editor = "0.3.8"
+egui_dock = "0.21.1"
+winit = "0.30.13"
+softbuffer = "0.4.8"
