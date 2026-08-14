@@ -1,6 +1,6 @@
 use crate::ast::{FunctionDecl, Program, Statement};
 use crate::lexer::{lex, LexError};
-use crate::token::{Keyword, Token, TokenKind, TypeSuffix};
+use crate::token::{full_name, Keyword, Token, TokenKind};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -138,20 +138,15 @@ impl Parser {
             self.index += 1;
             let value = self.expression()?;
             self.expect_line_end()?;
+            let full = full_name(name, suffix);
             return Ok(Statement::ArrayAssignment {
-                target: name,
+                target: full,
                 index: args.into_iter().next().unwrap(),
                 value,
             });
         }
         self.expect_line_end()?;
-        let full = match suffix {
-            Some(TypeSuffix::String) => format!("{name}$"),
-            Some(TypeSuffix::Single) => format!("{name}!"),
-            Some(TypeSuffix::Double) => format!("{name}#"),
-            Some(TypeSuffix::Integer) => format!("{name}%"),
-            None => name,
-        };
+        let full = full_name(name, suffix);
         Ok(Statement::Call { name: full, args })
     }
     fn function_stmt(&mut self) -> Result<Statement, ParseError> {

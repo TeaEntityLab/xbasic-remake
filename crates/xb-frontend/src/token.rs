@@ -119,3 +119,13 @@ pub enum TokenKind {
     Newline,
     Eof,
 }
+
+pub fn full_name(name: String, suffix: Option<TypeSuffix>) -> String {
+    match suffix {
+        Some(TypeSuffix::String) => format!("{name}$"),
+        Some(TypeSuffix::Single) => format!("{name}!"),
+        Some(TypeSuffix::Double) => format!("{name}#"),
+        Some(TypeSuffix::Integer) => format!("{name}%"),
+        None => name,
+    }
+}

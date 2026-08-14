@@ -1,6 +1,6 @@
 use crate::ast::{ArithmeticOp, ComparisonOp, Expression, Param};
 use crate::parser::{ParseError, Parser};
-use crate::token::{Keyword, SourcePos, TokenKind, TypeSuffix};
+use crate::token::{full_name, Keyword, SourcePos, TokenKind, TypeSuffix};
 
 impl Parser {
     pub(crate) fn expect_identifier(&mut self) -> Result<(String, Option<TypeSuffix>), ParseError> {
@@ -237,10 +237,15 @@ impl Parser {
                 Ok(Expression::SystemVariable { name, suffix })
             }
             TokenKind::Identifier { name, suffix } => self.identifier_expr(name, suffix),
+            TokenKind::Symbol('(') => {
+                self.index += 1;
+                let expr = self.expression()?;
+                self.expect_symbol(')')?;
+                Ok(expr)
+            }
             _ => Err(self.expected("expression")),
         }
     }
-
     fn identifier_expr(
         &mut self,
         name: String,
@@ -249,13 +254,7 @@ impl Parser {
         self.index += 1;
         if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
             let args = self.parse_args()?;
-            let full = match suffix {
-                Some(TypeSuffix::String) => format!("{name}$"),
-                Some(TypeSuffix::Single) => format!("{name}!"),
-                Some(TypeSuffix::Double) => format!("{name}#"),
-                Some(TypeSuffix::Integer) => format!("{name}%"),
-                None => name,
-            };
+            let full = full_name(name, suffix);
             Ok(Expression::FunctionCall { name: full, args })
         } else {
             Ok(Expression::Identifier { name, suffix })

@@ -1,10 +1,10 @@
+mod common;
+use common::{assert_golden, check_selfhost, compile_and_run};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-use xb_compiler::{FrontendUnit, TextIrEmitter, SOURCE_DIAGNOSTIC_CODES};
-use xb_runtime::{ExecutionState, Interpreter};
+use xb_compiler::{FrontendUnit, SOURCE_DIAGNOSTIC_CODES};
 
 fn path_error(message: &str, path: &Path) -> String {
     format!("{message}: {}", path.display())
@@ -113,31 +113,6 @@ fn validate_layout(
     Ok(cases.into_keys().collect())
 }
 
-fn compile_and_run(source_path: &Path) -> Result<(String, String, ExecutionState), String> {
-    let source = fs::read_to_string(source_path)
-        .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
-    let unit = FrontendUnit::parse(&source)
-        .map_err(|error| format!("cannot parse {}: {error}", source_path.display()))?;
-    let program = unit
-        .lower_ir()
-        .map_err(|error| format!("cannot lower {}: {error}", source_path.display()))?;
-    let text_ir = TextIrEmitter::new().emit_program(&program);
-    let mut lines = Vec::new();
-    let state = Interpreter::new()
-        .execute_main(&program, &mut lines)
-        .map_err(|error| format!("cannot execute {}: {error}", source_path.display()))?;
-    let output = lines.into_iter().map(|line| format!("{line}\n")).collect();
-    Ok((text_ir, output, state))
-}
-
-fn assert_golden(path: &Path, actual: &[u8]) -> Result<(), String> {
-    let expected = fs::read(path)
-        .map_err(|error| format!("cannot read golden {}: {error}", path.display()))?;
-    (actual == expected)
-        .then_some(())
-        .ok_or_else(|| path_error("golden mismatch", path))
-}
-
 #[test]
 fn corpus_v0_1_is_valid_and_executable() -> Result<(), String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -204,15 +179,15 @@ fn corpus_v0_1_is_valid_and_executable() -> Result<(), String> {
 
     let selfhost = corpus.join("selfhost");
     let selfhost_cases = validate_layout(&selfhost, &discover(&selfhost)?, &["ir", "out"])?;
-    let expected_stem = selfhost.join("xut_bootstrap_manifest");
-    if selfhost_cases != [expected_stem.clone()] {
+    let expected_stems = [
+        selfhost.join("lexer"),
+        selfhost.join("xut_bootstrap_manifest"),
+    ];
+    if selfhost_cases != expected_stems {
         return Err(path_error("unexpected selfhost cases", &selfhost));
     }
-    let live_source = root.join("selfhost/xut_bootstrap_manifest.x");
-    let (ir, output, state) = compile_and_run(&live_source)?;
-    assert_golden(&expected_stem.with_extension("ir"), ir.as_bytes())?;
-    assert_golden(&expected_stem.with_extension("out"), output.as_bytes())?;
-    assert_eq!(state.metadata().version(), Some("0.0001"));
+    check_selfhost(&root, &expected_stems, "lexer", 0)?;
+    check_selfhost(&root, &expected_stems, "xut_bootstrap_manifest", 1)?;
     Ok(())
 }
 

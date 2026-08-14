@@ -11,6 +11,13 @@ impl Analyzer {
         size: Option<&Expression>,
     ) -> ItemResult {
         let vt = ValueType::from_suffix(suffix);
+        let full_name = match suffix {
+            Some(TypeSuffix::String) => format!("{name}$"),
+            Some(TypeSuffix::Single) => format!("{name}!"),
+            Some(TypeSuffix::Double) => format!("{name}#"),
+            Some(TypeSuffix::Integer) => format!("{name}%"),
+            None => name.to_owned(),
+        };
         let checked_size = match size {
             Some(e) => {
                 let ce = self.expr(e)?;
@@ -19,17 +26,18 @@ impl Analyzer {
                         actual: ce.value_type,
                     });
                 }
-                self.arrays.insert(name.to_owned(), vt);
+                self.arrays.insert(full_name.clone(), vt);
                 Some(ce)
             }
             None => None,
         };
-        match self.symbols.insert(name.to_owned(), vt) {
+        let sym_name = if size.is_some() { &full_name } else { name };
+        match self.symbols.insert(sym_name.to_owned(), vt) {
             Some(_) => Err(SemanticError::DuplicateSymbol {
-                name: name.to_owned(),
+                name: sym_name.to_owned(),
             }),
             None => Ok(CheckedItem::Dim {
-                symbol: CheckedSymbol::new(name.to_owned(), vt),
+                symbol: CheckedSymbol::new(sym_name.to_owned(), vt),
                 size: checked_size,
             }),
         }

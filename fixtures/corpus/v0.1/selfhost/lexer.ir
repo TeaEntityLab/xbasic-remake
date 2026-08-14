@@ -1,0 +1,77 @@
+version 0.1
+function Main() -> integer
+  dim src:string
+  dim pos:integer
+  dim ch:integer
+  dim tok:string
+  dim tokType:string
+  dim tokens$:string[integer(32)]
+  dim tokTypes$:string[integer(32)]
+  dim ntok:integer
+  dim i:integer
+  dim done:integer
+  assign src:string = string("PRINT 42")
+  assign pos:integer = integer(1)
+  assign ntok:integer = integer(0)
+  while compare(symbol(pos:integer) <= call LEN(symbol(src:string)))
+    assign ch:integer = call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1)))
+    if compare(symbol(ch:integer) = integer(32))
+      assign pos:integer = arith(symbol(pos:integer) + integer(1))
+    else
+      assign tok:string = string("")
+      assign tokType:string = string("")
+      if or(and(compare(symbol(ch:integer) >= integer(65)) compare(symbol(ch:integer) <= integer(90))) and(compare(symbol(ch:integer) >= integer(97)) compare(symbol(ch:integer) <= integer(122))))
+        assign tokType:string = string("ident")
+        assign done:integer = integer(0)
+        while compare(symbol(done:integer) = integer(0))
+          if compare(symbol(pos:integer) > call LEN(symbol(src:string)))
+            assign done:integer = integer(1)
+          else
+            assign ch:integer = call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1)))
+            if or(or(and(compare(symbol(ch:integer) >= integer(65)) compare(symbol(ch:integer) <= integer(90))) and(compare(symbol(ch:integer) >= integer(97)) compare(symbol(ch:integer) <= integer(122)))) and(compare(symbol(ch:integer) >= integer(48)) compare(symbol(ch:integer) <= integer(57))))
+              assign tok:string = arith(symbol(tok:string) + call CHR$(symbol(ch:integer)))
+              assign pos:integer = arith(symbol(pos:integer) + integer(1))
+            else
+              assign done:integer = integer(1)
+            end if
+          end if
+        wend
+        array_assign tokens$:string[symbol(ntok:integer)] = symbol(tok:string)
+        array_assign tokTypes$:string[symbol(ntok:integer)] = symbol(tokType:string)
+        assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
+      else
+        if and(compare(symbol(ch:integer) >= integer(48)) compare(symbol(ch:integer) <= integer(57)))
+          assign tokType:string = string("number")
+          assign done:integer = integer(0)
+          while compare(symbol(done:integer) = integer(0))
+            if compare(symbol(pos:integer) > call LEN(symbol(src:string)))
+              assign done:integer = integer(1)
+            else
+              assign ch:integer = call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1)))
+              if and(compare(symbol(ch:integer) >= integer(48)) compare(symbol(ch:integer) <= integer(57)))
+                assign tok:string = arith(symbol(tok:string) + call CHR$(symbol(ch:integer)))
+                assign pos:integer = arith(symbol(pos:integer) + integer(1))
+              else
+                assign done:integer = integer(1)
+              end if
+            end if
+          wend
+          array_assign tokens$:string[symbol(ntok:integer)] = symbol(tok:string)
+          array_assign tokTypes$:string[symbol(ntok:integer)] = symbol(tokType:string)
+          assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
+        else
+          assign tok:string = call CHR$(symbol(ch:integer))
+          assign tokType:string = string("symbol")
+          array_assign tokens$:string[symbol(ntok:integer)] = symbol(tok:string)
+          array_assign tokTypes$:string[symbol(ntok:integer)] = symbol(tokType:string)
+          assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
+          assign pos:integer = arith(symbol(pos:integer) + integer(1))
+        end if
+      end if
+    end if
+  wend
+  for i:integer = integer(0) to arith(symbol(ntok:integer) - integer(1))
+    print array_access(tokens$:string[symbol(i:integer)])
+    print array_access(tokTypes$:string[symbol(i:integer)])
+  next
+end function
