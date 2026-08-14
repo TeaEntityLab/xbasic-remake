@@ -124,6 +124,10 @@ impl Parser {
         matches!(self.peek_kind(), TokenKind::Identifier { .. })
             && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
     }
+    pub(crate) fn starts_call(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Identifier { .. })
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('(')))
+    }
     pub(crate) fn starts_constant_definition(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::SystemConstant(_))
             && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))

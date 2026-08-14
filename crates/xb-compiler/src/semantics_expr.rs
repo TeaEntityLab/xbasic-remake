@@ -1,7 +1,7 @@
 use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, Expression, TypeSuffix};
 
-use crate::checked::{CheckedExpr, CheckedExprKind, CheckedSymbol};
-use crate::semantics::{Analyzer, ExprResult, SemanticError, ValueType};
+use crate::checked::{CheckedExpr, CheckedExprKind, CheckedItem, CheckedSymbol};
+use crate::semantics::{Analyzer, ExprResult, ItemResult, SemanticError, ValueType};
 
 impl Analyzer {
     pub(crate) fn expr(&self, expr: &Expression) -> ExprResult {
@@ -116,7 +116,7 @@ impl Analyzer {
             ValueType::Integer,
         ))
     }
-    fn function_call(&self, name: &str, args: &[Expression]) -> ExprResult {
+    pub(crate) fn function_call(&self, name: &str, args: &[Expression]) -> ExprResult {
         if let Some(rt) = crate::builtin::builtin_return_type(name) {
             return crate::builtin::builtin_call(self, name, args, rt);
         }
@@ -204,5 +204,17 @@ impl Analyzer {
             });
         };
         Ok(CheckedSymbol::new(name.to_owned(), vt))
+    }
+
+    pub(crate) fn call_stmt(&self, name: &str, args: &[Expression]) -> ItemResult {
+        self.function_call(name, args)?;
+        let checked_args = args
+            .iter()
+            .map(|a| self.expr(a))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(CheckedItem::Call {
+            name: name.to_owned(),
+            args: checked_args,
+        })
     }
 }

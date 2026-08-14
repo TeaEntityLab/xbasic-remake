@@ -1,0 +1,12 @@
+VERSION "0.1"
+FUNCTION PrintSum(a, b)
+DIM s
+s = a + b
+PRINT s
+END FUNCTION
+
+FUNCTION Main
+DIM n
+n = 5
+PrintSum(n, 10)
+END FUNCTION

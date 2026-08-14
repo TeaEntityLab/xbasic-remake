@@ -10,6 +10,7 @@ pub(crate) fn call_function(
     name: &str,
     args: &[IrExpr],
     state: &ExecutionState,
+    output: &mut Vec<String>,
 ) -> Result<RuntimeValue, RuntimeError> {
     if is_builtin(name) {
         let mut vals = Vec::with_capacity(args.len());
@@ -37,13 +38,11 @@ pub(crate) fn call_function(
         slots: local,
         shared: state.shared.clone(),
     };
-    let mut out = Vec::new();
-    match exec_items(program, body, &mut sub, &mut out)? {
+    match exec_items(program, body, &mut sub, output)? {
         Flow::Return(Some(v)) => Ok(v),
         _ => Ok(RuntimeValue::Integer(0)),
     }
 }
-
 fn find_function<'a>(
     program: &'a IrProgram,
     name: &str,

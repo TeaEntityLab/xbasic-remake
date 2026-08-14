@@ -7,7 +7,7 @@ pub use crate::checked::{
 };
 
 pub(crate) type ExprResult = Result<CheckedExpr, SemanticError>;
-type ItemResult = Result<CheckedItem, SemanticError>;
+pub(crate) type ItemResult = Result<CheckedItem, SemanticError>;
 
 #[derive(Debug, Clone)]
 pub(crate) struct FuncSig {
@@ -121,6 +121,7 @@ impl Analyzer {
                 })
             }
             Statement::Return { value } => self.return_stmt(scope, value.as_ref()),
+            Statement::Call { name, args } => self.call_stmt(name, args),
             Statement::Function(function) => self.function(function),
         }
     }

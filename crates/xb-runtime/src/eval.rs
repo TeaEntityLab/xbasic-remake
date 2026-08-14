@@ -49,7 +49,8 @@ pub(crate) fn eval_expr(
         IrExprKind::SharedVariable(s) => read_slot(&state.shared, s)?,
         IrExprKind::Symbol(s) => read_slot(&state.slots, s)?,
         IrExprKind::FunctionCall { name, args } => {
-            return crate::call::call_function(program, name, args, state)
+            let mut out = Vec::new();
+            return crate::call::call_function(program, name, args, state, &mut out);
         }
     };
     require_type(expr.value_type, value.value_type())?;

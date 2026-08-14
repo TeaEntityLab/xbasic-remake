@@ -1,6 +1,6 @@
 use crate::ast::{FunctionDecl, Program, Statement};
 use crate::lexer::{lex, LexError};
-use crate::token::{Keyword, Token, TokenKind};
+use crate::token::{Keyword, Token, TokenKind, TypeSuffix};
 use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -56,6 +56,7 @@ impl Parser {
             Some(Keyword::Function) => self.function_stmt(),
             Some(Keyword::Return) => self.return_stmt(),
             _ if self.starts_assignment() => self.assignment_stmt(),
+            _ if self.starts_call() => self.call_stmt(),
             _ => Err(self.expected("statement")),
         }
     }
@@ -122,6 +123,19 @@ impl Parser {
         })
     }
 
+    fn call_stmt(&mut self) -> Result<Statement, ParseError> {
+        let (name, suffix) = self.expect_identifier()?;
+        let args = self.parse_args()?;
+        self.expect_line_end()?;
+        let full = match suffix {
+            Some(TypeSuffix::String) => format!("{name}$"),
+            Some(TypeSuffix::Single) => format!("{name}!"),
+            Some(TypeSuffix::Double) => format!("{name}#"),
+            Some(TypeSuffix::Integer) => format!("{name}%"),
+            None => name,
+        };
+        Ok(Statement::Call { name: full, args })
+    }
     fn function_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::Function)?;
         let (name, suffix) = self.expect_identifier()?;

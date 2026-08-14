@@ -238,6 +238,9 @@ pub(crate) fn exec_items(
                 Flow::Continue => {}
             },
             IrItem::Function { .. } => {}
+            IrItem::Call { name, args } => {
+                let _ = crate::call::call_function(program, name, args, state, output)?;
+            }
             IrItem::Return { value } => {
                 let v = match value {
                     Some(e) => Some(eval(program, e, state)?),

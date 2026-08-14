@@ -65,6 +65,10 @@ pub enum IrItem {
     Return {
         value: Option<IrExpr>,
     },
+    Call {
+        name: String,
+        args: Vec<IrExpr>,
+    },
 }
 
 impl IrItem {
@@ -131,6 +135,10 @@ impl IrItem {
             },
             CheckedItem::Return { value } => Self::Return {
                 value: value.as_ref().map(IrExpr::lower),
+            },
+            CheckedItem::Call { name, args } => Self::Call {
+                name: name.clone(),
+                args: args.iter().map(IrExpr::lower).collect(),
             },
         }
     }

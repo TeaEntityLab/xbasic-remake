@@ -1,0 +1,11 @@
+version 0.1
+function PrintSum(a:integer, b:integer) -> integer
+  dim s:integer
+  assign s:integer = arith(symbol(a:integer) + symbol(b:integer))
+  print symbol(s:integer)
+end function
+function Main() -> integer
+  dim n:integer
+  assign n:integer = integer(5)
+  call PrintSum(symbol(n:integer), integer(10))
+end function

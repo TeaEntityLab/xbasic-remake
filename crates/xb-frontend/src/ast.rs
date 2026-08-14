@@ -51,6 +51,10 @@ pub enum Statement {
     Return {
         value: Option<Expression>,
     },
+    Call {
+        name: String,
+        args: Vec<Expression>,
+    },
     Function(FunctionDecl),
 }
 

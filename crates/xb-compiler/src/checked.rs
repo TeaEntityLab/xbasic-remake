@@ -109,14 +109,18 @@ pub enum CheckedItem {
         end: CheckedExpr,
         body: Vec<CheckedItem>,
     },
+    Return {
+        value: Option<CheckedExpr>,
+    },
+    Call {
+        name: String,
+        args: Vec<CheckedExpr>,
+    },
     Function {
         name: String,
         params: Vec<CheckedParam>,
         return_type: ValueType,
         body: Vec<CheckedItem>,
-    },
-    Return {
-        value: Option<CheckedExpr>,
     },
 }
 
