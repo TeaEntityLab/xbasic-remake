@@ -33,6 +33,11 @@ pub enum Statement {
         suffix: Option<TypeSuffix>,
         value: Expression,
     },
+    If {
+        condition: Expression,
+        then_body: Vec<Statement>,
+        else_body: Option<Vec<Statement>>,
+    },
     Function(FunctionDecl),
 }
 

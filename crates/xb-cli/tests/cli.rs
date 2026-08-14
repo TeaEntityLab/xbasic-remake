@@ -47,6 +47,9 @@ fn cli_prints_stable_ir_for_static_xut_bootstrap_manifest() {
             "  print constant($$XBSysLinux:integer = integer(1))\n",
             "  print constant($$XBSysWin32:integer = integer(2))\n",
             "  print shared(##XBSystem:integer)\n",
+            "  if constant($$XBSysLinux:integer = integer(1))\n",
+            "    print string(\"linux\")\n",
+            "  end if\n",
             "end function\n",
         )
     );

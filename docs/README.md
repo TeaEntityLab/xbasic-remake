@@ -24,6 +24,10 @@ and how it achieves cross-platform portability.
 | 12 | [Rust + LLVM Rewrite Survey](12-rust-llvm-rewrite-survey.md) | Crates for the 6.5.0 rewrite: inkwell/LLVM pipeline, iced-x86 FPU JIT, rustix/windows-sys FFI, egui+winit GUI, plus what to preserve from 6.3.26-D and 6.4.5 |
 | 13 | [6.5.0 Bootstrap Scaffold](13-bootstrap-scaffold.md) | Resolved decisions (f64/libm, Win64 first, staged self-hosting), stage plan, and the repo-root Rust workspace layout |
 | 14 | [Self-Hosting Progress](14-self-hosting-progress.md) | Completed Stage-0-to-Stage-1 bootstrap path, verifier evidence, current limitations, and falsifiable Stage-2 compiler-self-host tasks |
+| 15 | [Stage-2 Contract v0.1](stage2-contract-v0.1.md) | Baseline accepted subset: VERSION, PRINT, DIM, assignment, FUNCTION/END FUNCTION, integer/float/string literals |
+| 16 | [Stage-2 Contract v0.2](stage2-contract-v0.2.md) | $$ constants and ## shared variable tokenization: lexer support, constant definitions, constant references |
+| 17 | [Stage-2 Contract v0.3](stage2-contract-v0.3.md) | ## shared system variables: parser, semantic, IR, and runtime support as mutable typed storage |
+| 18 | [Stage-2 Contract v0.4](stage2-contract-v0.4.md) | IF/THEN/ELSE/END IF conditional branching: integer-valued condition, no new scope, XB-S009 diagnostic, runtime branch selection |
 
 ## The big picture
 

@@ -1,0 +1,15 @@
+function Main
+  dim result:integer
+  assign result:integer = integer(0)
+  if integer(1)
+    assign result:integer = integer(42)
+  else
+    assign result:integer = integer(99)
+  end if
+  print symbol(result:integer)
+  if integer(0)
+    print integer(1)
+  else
+    print integer(0)
+  end if
+end function

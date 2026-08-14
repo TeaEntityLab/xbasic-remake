@@ -40,6 +40,11 @@ pub enum IrItem {
         target: IrSymbol,
         value: IrExpr,
     },
+    If {
+        condition: IrExpr,
+        then_body: Vec<IrItem>,
+        else_body: Option<Vec<IrItem>>,
+    },
     Function {
         name: String,
         body: Vec<IrItem>,
@@ -66,6 +71,17 @@ impl IrItem {
                 name: name.clone(),
                 value: value.clone(),
                 value_type: *value_type,
+            },
+            CheckedItem::If {
+                condition,
+                then_body,
+                else_body,
+            } => Self::If {
+                condition: IrExpr::lower(condition),
+                then_body: then_body.iter().map(Self::lower_item).collect(),
+                else_body: else_body
+                    .as_ref()
+                    .map(|body| body.iter().map(Self::lower_item).collect()),
             },
             CheckedItem::SharedAssignment { target, value } => Self::SharedAssignment {
                 target: IrSymbol::lower(target),

@@ -12,4 +12,7 @@ PRINT utilityVersion#
 PRINT $$XBSysLinux
 PRINT $$XBSysWin32
 PRINT ##XBSystem
+IF $$XBSysLinux THEN
+PRINT "linux"
+END IF
 END FUNCTION

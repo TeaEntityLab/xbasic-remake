@@ -1,0 +1,15 @@
+FUNCTION Main
+DIM result%
+result% = 0
+IF 1 THEN
+result% = 42
+ELSE
+result% = 99
+END IF
+PRINT result%
+IF 0 THEN
+PRINT 1
+ELSE
+PRINT 0
+END IF
+END FUNCTION

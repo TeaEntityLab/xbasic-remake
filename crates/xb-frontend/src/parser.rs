@@ -50,6 +50,7 @@ impl Parser {
             Some(Keyword::Version) => self.version_stmt(),
             Some(Keyword::Print) => self.print_stmt(),
             Some(Keyword::Dim) => self.dim_stmt(),
+            Some(Keyword::If) => self.if_stmt(),
             Some(Keyword::Function) => self.function_stmt(),
             _ if self.starts_assignment() => self.assignment_stmt(),
             _ => Err(self.expected("statement")),
@@ -133,6 +134,39 @@ impl Parser {
         self.expect_line_end()?;
         Ok(Statement::Function(FunctionDecl::new(name, body)))
     }
+    fn if_stmt(&mut self) -> Result<Statement, ParseError> {
+        self.expect_keyword(Keyword::If)?;
+        let condition = self.expression()?;
+        self.expect_keyword(Keyword::Then)?;
+        self.expect_line_end()?;
+        let mut then_body = Vec::new();
+        self.skip_newlines();
+        while !self.at_eof() && !self.starts_else() && !self.starts_end_if() {
+            then_body.push(self.statement()?);
+            self.skip_newlines();
+        }
+        let else_body = if self.starts_else() {
+            self.expect_keyword(Keyword::Else)?;
+            self.expect_line_end()?;
+            let mut body = Vec::new();
+            self.skip_newlines();
+            while !self.at_eof() && !self.starts_end_if() {
+                body.push(self.statement()?);
+                self.skip_newlines();
+            }
+            Some(body)
+        } else {
+            None
+        };
+        self.expect_keyword(Keyword::End)?;
+        self.expect_keyword(Keyword::If)?;
+        self.expect_line_end()?;
+        Ok(Statement::If {
+            condition,
+            then_body,
+            else_body,
+        })
+    }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
         let kind = self.peek_kind().clone();
@@ -171,6 +205,14 @@ impl Parser {
                 self.peek_next_kind(),
                 Some(TokenKind::Keyword(Keyword::Function))
             )
+    }
+    fn starts_end_if(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::End))
+            && matches!(self.peek_next_kind(), Some(TokenKind::Keyword(Keyword::If)))
+    }
+
+    fn starts_else(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Else))
     }
 
     fn starts_assignment(&self) -> bool {

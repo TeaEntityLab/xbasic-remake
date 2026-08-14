@@ -201,3 +201,26 @@ fn rejects_constant_definition_nested_in_function() {
         Err(SemanticError::ConstantDefinitionNotTopLevel { ref name }) if name == "Local"
     ));
 }
+
+#[test]
+fn accepts_if_with_integer_condition() {
+    let prog = parse_program("FUNCTION Main\nIF 1 THEN\nPRINT 1\nEND IF\nEND FUNCTION\n").unwrap();
+    let checked = Analyzer::analyze(&prog).unwrap();
+    let has_if = checked.items.iter().any(|item| {
+        matches!(item, CheckedItem::Function { body, .. } if body.iter().any(|bi| matches!(bi, CheckedItem::If { .. })))
+    });
+    assert!(has_if);
+}
+
+#[test]
+fn rejects_if_with_float_condition() {
+    let prog =
+        parse_program("FUNCTION Main\nIF 1.5 THEN\nPRINT 1\nEND IF\nEND FUNCTION\n").unwrap();
+    let err = Analyzer::analyze(&prog).unwrap_err();
+    assert!(matches!(
+        err,
+        SemanticError::IfConditionNotInteger {
+            actual: ValueType::Float
+        }
+    ));
+}

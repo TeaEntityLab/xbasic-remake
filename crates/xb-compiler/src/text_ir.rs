@@ -49,6 +49,23 @@ impl TextIrEmitter {
                     self.emit_expr(value)
                 ));
             }
+            IrItem::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                out.push_str(&format!("{prefix}if {}\n", self.emit_expr(condition)));
+                for item in then_body {
+                    self.emit_item(item, out, indent + 1);
+                }
+                if let Some(else_body) = else_body {
+                    out.push_str(&format!("{prefix}else\n"));
+                    for item in else_body {
+                        self.emit_item(item, out, indent + 1);
+                    }
+                }
+                out.push_str(&format!("{prefix}end if\n"));
+            }
             IrItem::Function { name, body } => {
                 out.push_str(&format!("{prefix}function {name}\n"));
                 for item in body {

@@ -12,4 +12,7 @@ function Main
   print constant($$XBSysLinux:integer = integer(1))
   print constant($$XBSysWin32:integer = integer(2))
   print shared(##XBSystem:integer)
+  if constant($$XBSysLinux:integer = integer(1))
+    print string("linux")
+  end if
 end function

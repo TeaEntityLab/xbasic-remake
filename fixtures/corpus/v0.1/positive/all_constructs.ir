@@ -20,4 +20,7 @@ function Main
   print symbol(single:float)
   print symbol(double:float)
   print symbol(text:string)
+  if integer(1)
+    print string("branch")
+  end if
 end function

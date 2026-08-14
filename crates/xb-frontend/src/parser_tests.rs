@@ -258,3 +258,20 @@ fn rejects_bare_system_variable_statement() {
         })
     ));
 }
+
+#[test]
+fn parses_if_then_end_if() {
+    let prog = parse_program("IF 1 THEN\nPRINT 1\nEND IF\n").unwrap();
+    let Statement::If { else_body, .. } = &prog.statements[0] else {
+        panic!("not If")
+    };
+    assert!(else_body.is_none());
+}
+
+#[test]
+fn parses_if_then_else_end_if() {
+    let prog = parse_program("IF 1 THEN\nPRINT 1\nELSE\nPRINT 0\nEND IF\n").unwrap();
+    assert!(
+        matches!(&prog.statements[0], Statement::If { condition: Expression::IntegerLiteral(_), then_body, else_body: Some(_) } if then_body.len() == 1)
+    );
+}

@@ -184,6 +184,20 @@ fn execute_items(
                 require_type(slot.value_type, target.value_type)?;
                 slot.value = value;
             }
+            IrItem::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                let cond = evaluate(condition, state)?;
+                if let RuntimeValue::Integer(v) = cond {
+                    if v != 0 {
+                        execute_items(then_body, state, output)?;
+                    } else if let Some(else_body) = else_body {
+                        execute_items(else_body, state, output)?;
+                    }
+                }
+            }
             IrItem::Function { name: _, body: _ } => {}
         }
     }

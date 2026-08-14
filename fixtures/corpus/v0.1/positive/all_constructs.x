@@ -20,4 +20,7 @@ PRINT percent%
 PRINT single!
 PRINT double#
 PRINT text$
+IF 1 THEN
+PRINT "branch"
+END IF
 END FUNCTION

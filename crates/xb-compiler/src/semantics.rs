@@ -59,6 +59,25 @@ impl Analyzer {
                     Err(SemanticError::SharedAssignmentNotInFunction { name: name.clone() })
                 }
             },
+            Statement::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                let cond = self.expr(condition)?;
+                if cond.value_type != ValueType::Integer {
+                    return Err(SemanticError::IfConditionNotInteger {
+                        actual: cond.value_type,
+                    });
+                }
+                let then_body = self.blk(then_body, scope)?;
+                let eb = else_body.as_ref().map(|b| self.blk(b, scope)).transpose()?;
+                Ok(CheckedItem::If {
+                    condition: cond,
+                    then_body,
+                    else_body: eb,
+                })
+            }
             Statement::Function(function) => self.function(function),
         }
     }
@@ -104,7 +123,6 @@ impl Analyzer {
             value,
         })
     }
-
     fn declare_shared(
         &mut self,
         name: &str,
@@ -159,11 +177,7 @@ impl Analyzer {
             constants: self.constants.clone(),
             shared: self.shared.clone(),
         };
-        let body = function
-            .body
-            .iter()
-            .map(|statement| scoped.statement(statement, Scope::Function))
-            .collect::<Result<Vec<_>, _>>()?;
+        let body = scoped.blk(&function.body, Scope::Function)?;
         self.shared = scoped.shared;
         Ok(CheckedItem::Function {
             name: function.name.clone(),
@@ -173,10 +187,6 @@ impl Analyzer {
 
     fn expr(&self, expr: &Expression) -> Result<CheckedExpr, SemanticError> {
         match expr {
-            Expression::StringLiteral(value) => Ok(CheckedExpr::new(
-                CheckedExprKind::StringLiteral(value.clone()),
-                ValueType::String,
-            )),
             Expression::IntegerLiteral(value) => Ok(CheckedExpr::new(
                 CheckedExprKind::IntegerLiteral(value.clone()),
                 ValueType::Integer,
@@ -184,6 +194,10 @@ impl Analyzer {
             Expression::FloatLiteral(value) => Ok(CheckedExpr::new(
                 CheckedExprKind::FloatLiteral(value.clone()),
                 ValueType::Float,
+            )),
+            Expression::StringLiteral(value) => Ok(CheckedExpr::new(
+                CheckedExprKind::StringLiteral(value.clone()),
+                ValueType::String,
             )),
             Expression::SystemConstant { name } => self.constant(name),
             Expression::SystemVariable { name, suffix } => self.shared_variable(name, *suffix),
@@ -245,5 +259,9 @@ impl Analyzer {
             });
         };
         Ok(CheckedSymbol::new(name.to_owned(), value_type))
+    }
+
+    fn blk(&mut self, s: &[Statement], sc: Scope) -> Result<Vec<CheckedItem>, SemanticError> {
+        s.iter().map(|st| self.statement(st, sc)).collect()
     }
 }

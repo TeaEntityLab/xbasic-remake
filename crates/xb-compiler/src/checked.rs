@@ -40,6 +40,8 @@ pub enum SemanticError {
     UnknownSharedVariable { name: String },
     #[error("shared assignment {name} is not inside a function")]
     SharedAssignmentNotInFunction { name: String },
+    #[error("if condition must be integer, got {actual:?}")]
+    IfConditionNotInteger { actual: ValueType },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,6 +66,11 @@ pub enum CheckedItem {
     SharedAssignment {
         target: CheckedSymbol,
         value: CheckedExpr,
+    },
+    If {
+        condition: CheckedExpr,
+        then_body: Vec<CheckedItem>,
+        else_body: Option<Vec<CheckedItem>>,
     },
     Function {
         name: String,

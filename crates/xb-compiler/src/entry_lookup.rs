@@ -22,6 +22,7 @@ impl CheckedProgram {
                 | CheckedItem::Dim(_)
                 | CheckedItem::Assignment { .. }
                 | CheckedItem::ConstantDefinition { .. }
+                | CheckedItem::If { .. }
                 | CheckedItem::SharedAssignment { .. } => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
@@ -42,8 +43,9 @@ impl IrProgram {
                 IrItem::Version(_)
                 | IrItem::Print(_)
                 | IrItem::Dim { .. }
-                | IrItem::Assignment { .. }
                 | IrItem::ConstantDefinition { .. }
+                | IrItem::Assignment { .. }
+                | IrItem::If { .. }
                 | IrItem::SharedAssignment { .. } => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {

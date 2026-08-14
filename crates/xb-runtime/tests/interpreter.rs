@@ -313,3 +313,19 @@ fn execute_main_reports_typed_error_when_main_is_missing() {
         }))
     );
 }
+
+#[test]
+fn executes_if_then_when_condition_is_true() {
+    let prog = lower("IF 1 THEN\nPRINT 42\nEND IF\n");
+    let mut out = Vec::new();
+    Interpreter::new().execute(&prog, &mut out).unwrap();
+    assert_eq!(out, ["42"]);
+}
+
+#[test]
+fn executes_if_else_when_condition_is_false() {
+    let prog = lower("IF 0 THEN\nPRINT 1\nELSE\nPRINT 0\nEND IF\n");
+    let mut out = Vec::new();
+    Interpreter::new().execute(&prog, &mut out).unwrap();
+    assert_eq!(out, ["0"]);
+}
