@@ -24,7 +24,7 @@
 | Sockets | **`std::net`** + **`socket2` 0.6.5** + `getifaddrs` 0.6.2 | raw socket/bind/listen/select surface; `rustix::io::poll` for Windows-safe multiplex |
 | Object emission | **LLVM `TargetMachine::write_to_file`** (not the `object` crate) | LLVM emits correct ELF/COFF/Mach-O for all targets incl. i686 COFF |
 | Linking | **`cc` crate 1.4.2** → system linker (link.exe / ld.lld / ld64 / gcc) | standard, least code |
-| IDE GUI | **egui/eframe 0.36.1** + `egui_code_editor` 0.3.8 + `egui_dock` 0.21.0 | most complete IDE-shaped widget story; HWND access; embeddable in own loop |
+| IDE GUI | **egui/eframe 0.36.1** + `egui_code_editor` 0.3.8 + `egui_dock` 0.21.1 | most complete IDE-shaped widget story; HWND access; embeddable in own loop |
 | Runtime graphics (GDI spirit) | **winit 0.30.13 + softbuffer 0.4.8** with a thin GDI-shim; `windows` crate for faithful Win32 GDI | winit windows *are* HWNDs on Windows → real GDI; softbuffer on Linux/macOS |
 | Runtime startup | **std CRT startup** (skip `no_std` unless size is a hard requirement) | even ChrisDenton says keep the CRT |
 
@@ -87,12 +87,12 @@ The 64-bit bring-up — all of this is what "64-bit correctness" means and must 
 - **New library functions**: `XstOpenLibrary`/`XstCloseLibrary`/`XstGetLibraryAddress` (dlopen/LoadLibrary wrappers), `XstGetHomePath$`.
 - **FILEINFO**: split 32-bit fields → `GIANT` (64-bit) create/access/modify times + size.
 - **`src/crtl/`** — the abandoned 2013 C-port of the runtime (`xlib.c`/`xstart.c`/`Xzzz.c`/`xbxtrns.c`; README: "highly experimental and not yet working") — **the direct ancestor of this Rust rewrite's runtime**. Its `XxxMain(argc, argv, envp, envx, main_foo, StartApp)` signature is the entry-point contract to reproduce.
-- Exception mapping is **identical** 36-case map in 6.2.3 (`xst.x:1977-2018`) and 6.4.5 (`xst.x:2914-2955`) — **not expanded** (see corrections below).
+- Exception mapping is **not expanded**: the 36-case signal→exception map in 6.4.5 (`xst.x:2914-2955`) matches 6.2.3 (`xst.x:1977-2018`) except one entry — `SIGSTKFLT` now maps to `$$ExceptionStackOverflow` (was `$$ExceptionUnknown`) (see corrections below).
 - Known leftover: Makefile `PLATFORM = i386`, `DISTOS = linux-i386` despite 64-bit — do not copy.
 
 ### 2.3 Corrections to prior assumptions (verified in trees)
 
-1. **"6.4.5 maps 12 exception types vs 6.2.3 fewer"** — not supported. 6.2.3 and 6.4.5 have the *identical* 36-signal map; the **Win32 fork maps fewer (23)** (`xst.x:3549`). The real change is the handler signature (ptregs/ucontext).
+1. **"6.4.5 maps 12 exception types vs 6.2.3 fewer"** — not supported. 6.2.3 and 6.4.5 have the same 36-signal map (single diff: `SIGSTKFLT` → `$$ExceptionStackOverflow`, was `$$ExceptionUnknown`); the **Win32 fork maps fewer (21 exception cases + CASE ELSE)** (`xst.x:3549-3576`). The real change is the handler signature (ptregs/ucontext).
 2. **`xb_readdir` already existed in 6.2.3** (`xbiface.c:208`); the new functions are `xb_lstat`, `xb_geterrno`, `xb_seterrno`, `xb_gethomepath`.
 3. **xlib backups** (`xlib230325.s` = v6.4.3, `xlib230803.s` = v6.4.4) bracket the 230819 `__rsp_*` rewrite — regression snapshots; no in-tree comment names a specific breakage.
 
@@ -177,7 +177,7 @@ All versions verified against crates.io API Aug 2026.
 | Linux raw syscalls | **`rustix`** | 1.1.4 | `rustix::mm::mmap(addr, len, ProtFlags::READ\|WRITE, MapFlags::PRIVATE\|ANONYMOUS, fd, 0)` | `linux_raw` backend = direct asm! syscalls (no libc); same source works on macOS/Win via libc/Winsock backends |
 | libc bindings | `libc` | 0.2.189 | `unsafe { libc::sigaction(...) }` | still needed for sigaction/sockaddr |
 | Win32 raw | **`windows-sys`** | 0.61.2 | feature `Win32_System_Diagnostics_Debug` etc. | **breaks semver on every minor** (0.48→0.52→0.59→0.61); pin exactly |
-| Win32 safe | `windows` | 0.61.x | COM/WinRT wrappers | only if COM needed — GDI-only plans don't |
+| Win32 safe | `windows` | 0.62.2 | COM/WinRT wrappers | only if COM needed — GDI-only plans don't |
 | Fault handling | **raw `libc::sigaction` + `AddVectoredExceptionHandler`/`SetUnhandledExceptionFilter`** | — | see §4.2 | **`signal-hook` 0.4.4 PANICS on SIGSEGV** (FORBIDDEN list) |
 | SIGINT/TERM | `signal-hook` | 0.4.4 | `signal_hook::flag::register(SIGINT, Arc::new(AtomicBool))` | fine for non-fault signals only |
 | dlopen/LoadLibrary | **`libloading`** | **0.9.0** (0.8.9 for 0.8 line) | `lib.get::<Symbol<unsafe extern "C" fn(i32)->i32>>(c"name".as_ref())` | 0.9: MSRV 1.88, `AsFilename`, `no_std` feature; macOS needs `os::unix::Library::open` for framework paths |
@@ -198,7 +198,7 @@ All versions verified against crates.io API Aug 2026.
 - mirrord, uv, wasmtime, RustPython all use `SetUnhandledExceptionFilter` + `AddVectoredExceptionHandler` for crash capture/traps.
 - Handler must be async-signal-safe: atomics, raw pointer reads, `write(2)` only — no allocation/locks.
 
-**Mapping to XBasic semantics:** 6.2.3 `XxxXitMain(signal)` → 6.4.5 `XxxXitMain(signal, siginfo, ucontext)`/ptregs → Rust: a `#[no_mangle] extern "C"` handler receiving siginfo/ucontext; on Windows VEH receives `EXCEPTION_POINTERS`. The 36-case exception→signal map (6.2.3 `xst.x:1977-2018`, identical in 6.4.5 `xst.x:2914-2955`) becomes a Rust match table. Save raw register context → `CPUCONTEXT` equivalent (r8–r15/rip/rsp/rbp) for the debugger.
+**Mapping to XBasic semantics:** 6.2.3 `XxxXitMain(signal)` → 6.4.5 `XxxXitMain(signal, siginfo, ucontext)`/ptregs → Rust: a `#[no_mangle] extern "C"` handler receiving siginfo/ucontext; on Windows VEH receives `EXCEPTION_POINTERS`. The 36-case signal→exception map (6.2.3 `xst.x:1977-2018`; 6.4.5 `xst.x:2914-2955` identical except `SIGSTKFLT`→`$$ExceptionStackOverflow`) becomes a Rust match table. Save raw register context → `CPUCONTEXT` equivalent (r8–r15/rip/rsp/rbp) for the debugger.
 
 ### 4.3 CRT-free / no_std startup — recommendation: DON'T
 
@@ -215,7 +215,7 @@ All versions verified against crates.io API Aug 2026.
 
 | Framework | License | Backend | Version | Widgets | IDE score | HWND/native | Embedding |
 |---|---|---|---|---|---|---|---|
-| **egui/eframe** | MIT OR Apache-2.0 | winit 0.30.13 + wgpu 30 (or glow) | 0.36.1 | high: `egui_code_editor` 0.3.8 + `egui_dock` 0.21.0 + menus built-in | **8/10** | ✅ `Frame::winit_window()`, `CreationContext::raw_window_handle` | ✅ library; `create_native()` returns winit `ApplicationHandler` for your own loop |
+| **egui/eframe** | MIT OR Apache-2.0 | winit 0.30.13 + wgpu 30 (or glow) | 0.36.1 | high: `egui_code_editor` 0.3.8 + `egui_dock` 0.21.1 + menus built-in | **8/10** | ✅ `Frame::winit_window()`, `CreationContext::raw_window_handle` | ✅ library; `create_native()` returns winit `ApplicationHandler` for your own loop |
 | iced | MIT | wgpu 26 + tiny-skia | 0.14.0 (experimental label) | med-high: built-in `text_editor`+`highlighter`; `iced_code_editor` 0.3 (LSP, multi-cursor) | **7/10** | ✅ via winit integration path | ✅ official `examples/integration` |
 | slint | ⚠️ Royalty-free/GPLv3/Commercial | winit (X11+Wayland) | 1.17 | **no code editor** (maintainer-confirmed #2723) | **4/10** | ✅ `WindowAdapter::window_handle_06()`, `WinitWindowAccessor` | ⚠️ custom `Platform` trait; wants own loop |
 | tauri v2 | MIT OR Apache-2.0 | tao + wry (WebView2/WKWebView/WebKitGTK) | v2 (2.12 drops Win7) | high for text (Monaco) but webview variance | **7/10 but spirit conflict** | ✅ `hwnd()`, `ns_window()`, `gtk_window()` | ❌ owns `main()` — not embeddable |

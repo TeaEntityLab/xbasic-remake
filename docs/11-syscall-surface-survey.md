@@ -6,12 +6,10 @@
 ## 1. Headline findings
 
 1. **Zero raw assembly syscalls in any tree.** Greps for `int $0x80`, `sysenter`, `lcall`, `int 0x2E`, `INT 21h` across every `*.s` file return nothing. All "syscall" grep hits are comments (e.g. "save it where read/write syscall can't get to it"). All OS access is via **libc calls** (from assembly or via CFUNCTION declarations in `.x` sources) or **Win32 API imports**.
-2. **Only 6 hand-written `.s` files exist** — exactly `src/linux/lib/` in 6.4.5:
-   - `xlib.s` — 14,772 lines, 463 `.globl` exports, `VERSION "6.4.2"` (fake statement)
-   - `xstart.s` — 42 lines, 0 exports
-   - `appstart.s` — 67 lines, `VERSION "0.0002"`, 4 exports
-   - `xzzz.s` — 25 lines, 2 exports
-   - `xlib230325.s` / `xlib230803.s` — dated backups (why kept? → see §5)
+2. **Each tree ships a small hand-written runtime in `lib/`** (files with no sibling `.x`); everything else is codegen. Verified inventory:
+   - **6.2.3** `src/linux/lib/`: `appstart.s` (53), `xlib.s` (14,574 lines / 471 `.globl`), `xstart.s` (61), `xzzz.s` (25); `src/win32/lib/`: `xlib.s` (15,112 / 465), `xstart.s` (39), `xzzz.s` (26) — **no win32 `appstart.s` yet**
+   - **6.3.26-D** `src/win32/lib/`: `appstart.s` (39, **new** — the PDE/standalone split), `xlib.s` (15,200 / 467), `xstart.s` (42), `xzzz.s` (26)
+   - **6.4.5** `src/linux/lib/`: `xlib.s` — 14,772 lines, 469 `.globl` exports, `VERSION "6.4.2"` (fake statement); `xstart.s` — 42 lines, 1 export; `appstart.s` — 67 lines, `VERSION "0.0002"`, 4 exports; `xzzz.s` — 25 lines, 2 exports; `xlib230325.s` / `xlib230803.s` — dated backups (why kept? → see §5)
 3. **Everything else is compiler-generated** via the `%.s: %.x` rule (`.PRECIOUS: %.s`): `xcol.s` (206,767 lines), `xui.s` (298,334), `xit.s` (180,740), `xrun.s` (2,113), `user32.s` (2,210), `gdi32.s` (1,796), `kernel32.s` (3,821). These are **codegen output, not hand-written GAS** — irrelevant to toolchain migration except as a build-artifact concern.
 4. **The hand-written runtime is legacy-dated**: copyright 1988–2000 Max Reason (LGPL), x87 FPU intrinsics, `*cw*` markers showing 2023 patches for Debian 10 ABI (`__rsp_odd/even`, REX-prefix 64-bit idioms).
 
@@ -65,9 +63,9 @@ Counts are per src tree (files matched, not raw lines); all verified with target
 
 ### Signals / exceptions
 
-- **6.2.3** (sigaction-based): `src/linux/xrun.x` `DECLARE CFUNCTION XxxXitMain(sigNumber)` L29, `sig.sa_handler = &XxxXitMain()` L183, `getpid` L293; `src/linux/xst.x` exception→signal mapping L918–934 (SegmentViolation→SIGSEGV, DivideByZero→SIGFPE, InvalidInstruction→SIGILL), reverse mapping L1984–1995 (SIGILL/SIGFPE/SIGSEGV/SIGALRM), signal-name table L6884–6895. Win32 `xit.x` has 3 XxxXitMain references.
+- **6.2.3** (sigaction-based): `src/linux/xrun.x` `DECLARE CFUNCTION XxxXitMain(sigNumber)` L29, `sig.sa_handler = &XxxXitMain()` L183, `getpid` L293; `src/linux/xst.x` exception→signal table in `XstExceptionToSystemException` L918–934 (16 pairs + CASE ELSE), 36-case signal→exception map `XstSystemExceptionToException` L1977–2018, signal-name table L6884–6895. Win32 `xit.x` has 3 XxxXitMain references.
 - **6.3.26-D** — **no signal machinery**; SEH instead: `src/win32/xexcept.c` L78 `_except( XitMain(GetExceptionCode(), GetExceptionInformation()) )`, `extern long PASCAL XitMain(DWORD code, LPEXCEPTION_POINTERS ep)` L24. `xit.x` L1351/1466 comments only.
-- **6.4.5** — **ptregs-aware**: `src/linux/xrun.x` `DECLARE CFUNCTION XxxXitMain(sigNumber, ptregs)` L30 (old single-arg signature commented L29), `DECLARE CFUNCTION XxxXitSigAlrm(signal)` L31, CFUNCTION defs L107/L175, `sig.sa_handler = &XxxXitMain()` L235, `&XxxXitSigAlrm()` L255. Extended mapping in `xst.x` L1188–1204 (12 pairs: SegmentViolation→SIGSEGV, OutOfBounds→SIGBUS, Breakpoint→SIGTRAP, BreakKey→SIGINT, Alignment→SIGBUS, Denormal/DivideByZero/InvalidOperation/Overflow/Underflow→SIGFPE, StackCheck/Privilege/StackOverflow→SIGSEGV, InvalidInstruction→SIGILL); plus `xit.s` L136, `xit.x` L113, `xrun.s` L37, `xst.s` L26.
+- **6.4.5** — **ptregs-aware**: `src/linux/xrun.x` `DECLARE CFUNCTION XxxXitMain(sigNumber, ptregs)` L30 (old single-arg signature commented L29), `DECLARE CFUNCTION XxxXitSigAlrm(signal)` L31, CFUNCTION defs L107/L175, `sig.sa_handler = &XxxXitMain()` L235, `&XxxXitSigAlrm()` L255. Exception→signal table at `xst.x` L1188–1204 is **byte-identical to 6.2.3's L918–934** (16 pairs + CASE ELSE — NOT extended); the 36-case signal→exception map (L2914–2955) differs from 6.2.3's (L1977–2018) in exactly one entry: `SIGSTKFLT` → `$$ExceptionStackOverflow` (was `$$ExceptionUnknown`); plus `xit.s` L136, `xit.x` L113, `xrun.s` L37, `xst.s` L26.
 
 ## 4. Raw-vs-libc verdict
 
