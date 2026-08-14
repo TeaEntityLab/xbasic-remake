@@ -20,6 +20,8 @@ and how it achieves cross-platform portability.
 | 08 | [Language Reference](08-language-reference.md) | Types, scoping, statements, operator table, intrinsics, dot commands, grid messages |
 | 09 | [Version History](09-version-history.md) | The post-6.2.3 forks: 6.3.26-D (Win32 unofficial) and 6.4.5 (Linux xb64 64-bit), per-file version tables, the crtl/ C-runtime experiment |
 | 10 | [Unification Plan](10-unification-plan.md) | Proposal for merging 6.3.26-D + 6.4.5 back into one cross-platform tree (6.5.0) |
+| 11 | [Syscall Surface Survey](11-syscall-surface-survey.md) | Every `.s`/syscall in the three trees: zero raw syscalls, 6 hand-written `.s` files, FPU-intrinsic / libc / frame-helper classification, signal & exception model |
+| 12 | [Rust + LLVM Rewrite Survey](12-rust-llvm-rewrite-survey.md) | Crates for the 6.5.0 rewrite: inkwell/LLVM pipeline, iced-x86 FPU JIT, rustix/windows-sys FFI, egui+winit GUI, plus what to preserve from 6.3.26-D and 6.4.5 |
 
 ## The big picture
 
