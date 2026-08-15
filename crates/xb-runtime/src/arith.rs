@@ -28,6 +28,27 @@ pub(crate) fn arith(
                     }
                     a.wrapping_div(*b)
                 }
+                ArithmeticOp::IntegerDiv => {
+                    if *b == 0 {
+                        return Err(RuntimeError::DivisionByZero);
+                    }
+                    a.wrapping_div(*b)
+                }
+                ArithmeticOp::Mod => {
+                    if *b == 0 {
+                        return Err(RuntimeError::DivisionByZero);
+                    }
+                    a.wrapping_rem(*b)
+                }
+                ArithmeticOp::Pow => {
+                    if *b < 0 {
+                        return Err(RuntimeError::TypeMismatch {
+                            expected: ValueType::Integer,
+                            actual: ValueType::Float,
+                        });
+                    }
+                    (*a).wrapping_pow(*b as u32)
+                }
             };
             Ok(RuntimeValue::Integer(v))
         }
@@ -41,6 +62,9 @@ pub(crate) fn arith(
                 }
                 a / b
             }
+            ArithmeticOp::IntegerDiv => (a / b).trunc(),
+            ArithmeticOp::Mod => a % b,
+            ArithmeticOp::Pow => a.powf(*b),
         })),
         (RuntimeValue::Float(a), RuntimeValue::Integer(b)) => Ok(RuntimeValue::Float(match op {
             ArithmeticOp::Add => a + *b as f64,
@@ -52,6 +76,9 @@ pub(crate) fn arith(
                 }
                 a / *b as f64
             }
+            ArithmeticOp::IntegerDiv => (a / *b as f64).trunc(),
+            ArithmeticOp::Mod => a % *b as f64,
+            ArithmeticOp::Pow => a.powf(*b as f64),
         })),
         (RuntimeValue::Integer(a), RuntimeValue::Float(b)) => Ok(RuntimeValue::Float(match op {
             ArithmeticOp::Add => *a as f64 + b,
@@ -63,6 +90,9 @@ pub(crate) fn arith(
                 }
                 *a as f64 / b
             }
+            ArithmeticOp::IntegerDiv => (*a as f64 / b).trunc(),
+            ArithmeticOp::Mod => *a as f64 % b,
+            ArithmeticOp::Pow => (*a as f64).powf(*b),
         })),
         _ => Err(RuntimeError::TypeMismatch {
             expected: ValueType::Integer,

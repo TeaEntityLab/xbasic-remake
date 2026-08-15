@@ -1,6 +1,6 @@
-use crate::ast::{ArithmeticOp, ComparisonOp, Expression, Param};
+use crate::ast::{Expression, Param};
 use crate::parser::{ParseError, Parser};
-use crate::token::{full_name, Keyword, SourcePos, TokenKind, TypeSuffix};
+use crate::token::{Keyword, SourcePos, TokenKind, TypeSuffix};
 
 impl Parser {
     pub(crate) fn expect_identifier(&mut self) -> Result<(String, Option<TypeSuffix>), ParseError> {
@@ -114,6 +114,9 @@ impl Parser {
     pub(crate) fn starts_wend(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Wend))
     }
+    pub(crate) fn starts_loop(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Loop))
+    }
     pub(crate) fn starts_next(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Next))
     }
@@ -175,95 +178,5 @@ impl Parser {
         }
         self.expect_symbol(')')?;
         Ok(args)
-    }
-}
-
-impl Parser {
-    pub(crate) fn comparison_op(&mut self) -> Option<ComparisonOp> {
-        let op = match self.peek_kind() {
-            TokenKind::Symbol('=') => Some(ComparisonOp::Equal),
-            TokenKind::NotEqual => Some(ComparisonOp::NotEqual),
-            TokenKind::Symbol('<') => Some(ComparisonOp::Less),
-            TokenKind::Symbol('>') => Some(ComparisonOp::Greater),
-            TokenKind::LessEqual => Some(ComparisonOp::LessEqual),
-            TokenKind::GreaterEqual => Some(ComparisonOp::GreaterEqual),
-            _ => None,
-        };
-        if op.is_some() {
-            self.index += 1;
-        }
-        op
-    }
-
-    pub(crate) fn add_op(&mut self) -> Option<ArithmeticOp> {
-        let op = match self.peek_kind() {
-            TokenKind::Symbol('+') => Some(ArithmeticOp::Add),
-            TokenKind::Symbol('-') => Some(ArithmeticOp::Sub),
-            _ => None,
-        };
-        if op.is_some() {
-            self.index += 1;
-        }
-        op
-    }
-
-    pub(crate) fn mul_op(&mut self) -> Option<ArithmeticOp> {
-        let op = match self.peek_kind() {
-            TokenKind::Symbol('*') => Some(ArithmeticOp::Mul),
-            TokenKind::Symbol('/') => Some(ArithmeticOp::Div),
-            _ => None,
-        };
-        if op.is_some() {
-            self.index += 1;
-        }
-        op
-    }
-
-    pub(crate) fn primary(&mut self) -> Result<Expression, ParseError> {
-        let kind = self.peek_kind().clone();
-        match kind {
-            TokenKind::StringLiteral(v) => {
-                self.index += 1;
-                Ok(Expression::StringLiteral(v))
-            }
-            TokenKind::IntegerLiteral(v) => {
-                self.index += 1;
-                Ok(Expression::IntegerLiteral(v))
-            }
-            TokenKind::FloatLiteral(v) => {
-                self.index += 1;
-                Ok(Expression::FloatLiteral(v))
-            }
-            TokenKind::SystemConstant(name) => {
-                self.index += 1;
-                Ok(Expression::SystemConstant { name })
-            }
-            TokenKind::SystemVariable { name, suffix } => {
-                self.index += 1;
-                Ok(Expression::SystemVariable { name, suffix })
-            }
-            TokenKind::Identifier { name, suffix } => self.identifier_expr(name, suffix),
-            TokenKind::Symbol('(') => {
-                self.index += 1;
-                let expr = self.expression()?;
-                self.expect_symbol(')')?;
-                Ok(expr)
-            }
-            _ => Err(self.expected("expression")),
-        }
-    }
-    fn identifier_expr(
-        &mut self,
-        name: String,
-        suffix: Option<TypeSuffix>,
-    ) -> Result<Expression, ParseError> {
-        self.index += 1;
-        if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
-            let args = self.parse_args()?;
-            let full = full_name(name, suffix);
-            Ok(Expression::FunctionCall { name: full, args })
-        } else {
-            Ok(Expression::Identifier { name, suffix })
-        }
     }
 }

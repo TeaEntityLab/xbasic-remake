@@ -48,10 +48,16 @@ pub enum Statement {
         condition: Expression,
         body: Vec<Statement>,
     },
+    DoLoop {
+        pre_condition: Option<(Expression, bool)>,
+        post_condition: Option<(Expression, bool)>,
+        body: Vec<Statement>,
+    },
     For {
         var: String,
         start: Expression,
         end: Expression,
+        step: Option<Expression>,
         body: Vec<Statement>,
     },
     Return {
@@ -111,6 +117,9 @@ pub enum ArithmeticOp {
     Sub,
     Mul,
     Div,
+    IntegerDiv,
+    Mod,
+    Pow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

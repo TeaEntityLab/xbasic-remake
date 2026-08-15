@@ -1,6 +1,7 @@
 mod builtin;
 mod c_emit;
 mod c_emit_expr;
+mod c_emit_stmt;
 mod c_runtime;
 pub mod checked;
 mod diagnostic;
@@ -15,6 +16,7 @@ pub mod semantics;
 mod semantics_expr;
 #[cfg(test)]
 mod semantics_shared_tests;
+mod semantics_statement;
 mod semantics_stmts;
 #[cfg(test)]
 mod semantics_tests;
@@ -26,6 +28,8 @@ mod text_ir_parser_helpers;
 mod text_ir_parser_item;
 #[cfg(test)]
 mod text_ir_parser_tests;
+#[cfg(test)]
+mod text_ir_tests;
 
 pub use c_emit::CEmitter;
 pub use checked::{

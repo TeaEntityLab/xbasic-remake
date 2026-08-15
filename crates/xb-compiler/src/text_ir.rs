@@ -91,18 +91,51 @@ impl TextIrEmitter {
                 }
                 out.push_str(&format!("{prefix}wend\n"));
             }
+            IrItem::DoLoop {
+                pre_condition,
+                post_condition,
+                body,
+            } => {
+                match pre_condition {
+                    Some((cond, is_while)) => {
+                        let kw = if *is_while { "while" } else { "until" };
+                        out.push_str(&format!("{prefix}do {kw} {}\n", self.emit_expr(cond)));
+                    }
+                    None => out.push_str(&format!("{prefix}do\n")),
+                }
+                for item in body {
+                    self.emit_item(item, out, indent + 1);
+                }
+                match post_condition {
+                    Some((cond, is_while)) => {
+                        let kw = if *is_while { "while" } else { "until" };
+                        out.push_str(&format!("{prefix}loop {kw} {}\n", self.emit_expr(cond)));
+                    }
+                    None => out.push_str(&format!("{prefix}loop\n")),
+                }
+            }
             IrItem::For {
                 var,
                 start,
                 end,
+                step,
                 body,
             } => {
-                out.push_str(&format!(
-                    "{prefix}for {} = {} to {}\n",
-                    self.emit_symbol(var),
-                    self.emit_expr(start),
-                    self.emit_expr(end)
-                ));
+                match step {
+                    Some(s) => out.push_str(&format!(
+                        "{prefix}for {} = {} to {} step {}\n",
+                        self.emit_symbol(var),
+                        self.emit_expr(start),
+                        self.emit_expr(end),
+                        self.emit_expr(s)
+                    )),
+                    None => out.push_str(&format!(
+                        "{prefix}for {} = {} to {}\n",
+                        self.emit_symbol(var),
+                        self.emit_expr(start),
+                        self.emit_expr(end)
+                    )),
+                }
                 for item in body {
                     self.emit_item(item, out, indent + 1);
                 }
@@ -162,6 +195,9 @@ impl TextIrEmitter {
             ArithmeticOp::Sub => "-",
             ArithmeticOp::Mul => "*",
             ArithmeticOp::Div => "/",
+            ArithmeticOp::IntegerDiv => "\\",
+            ArithmeticOp::Mod => "mod",
+            ArithmeticOp::Pow => "**",
         }
     }
 
@@ -171,83 +207,5 @@ impl TextIrEmitter {
             ValueType::Float => "float",
             ValueType::String => "string",
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{Analyzer, IrProgram};
-    use xb_frontend::parse_program;
-
-    #[test]
-    fn emits_structural_text_ir_for_fixture_subset() {
-        let program =
-            parse_program("VERSION \"6.5.0\"\nDIM name$\nname$ = \"hello\"\nPRINT name$\n")
-                .unwrap();
-        let checked = Analyzer::analyze(&program).unwrap();
-        let ir = IrProgram::lower(&checked);
-        assert_eq!(
-            TextIrEmitter::new().emit_program(&ir),
-            "version 6.5.0\ndim name:string\nassign name:string = string(\"hello\")\nprint symbol(name:string)\n"
-        );
-    }
-
-    #[test]
-    fn emits_constant_definition_and_reference_exactly() {
-        // Given
-        let program = parse_program("$$Answer = 1\nPRINT $$Answer\n").unwrap();
-        let checked = Analyzer::analyze(&program).unwrap();
-        let ir = IrProgram::lower(&checked);
-
-        // When
-        let text = TextIrEmitter::new().emit_program(&ir);
-
-        // Then
-        assert_eq!(
-            text,
-            "const $$Answer:integer = integer(1)\nprint constant($$Answer:integer = integer(1))\n"
-        );
-    }
-
-    #[test]
-    fn emits_shared_assignment_and_reference_exactly() {
-        // Given
-        let program =
-            parse_program("FUNCTION Main\n##XBSystem = 1\nPRINT ##XBSystem\nEND FUNCTION\n")
-                .unwrap();
-        let checked = Analyzer::analyze(&program).unwrap();
-        let ir = IrProgram::lower(&checked);
-
-        // When
-        let text = TextIrEmitter::new().emit_program(&ir);
-
-        // Then
-        assert_eq!(
-            text,
-            concat!(
-                "function Main() -> integer\n",
-                "  shared ##XBSystem:integer = integer(1)\n",
-                "  print shared(##XBSystem:integer)\n",
-                "end function\n",
-            )
-        );
-    }
-
-    #[test]
-    fn preserves_uppercase_hexadecimal_prefix() {
-        // Given
-        let program = parse_program("$$Answer = 0X2A\nPRINT $$Answer\n").unwrap();
-        let checked = Analyzer::analyze(&program).unwrap();
-        let ir = IrProgram::lower(&checked);
-
-        // When
-        let text = TextIrEmitter::new().emit_program(&ir);
-
-        // Then
-        assert_eq!(
-            text,
-            "const $$Answer:integer = integer(0X2A)\nprint constant($$Answer:integer = integer(0X2A))\n"
-        );
     }
 }

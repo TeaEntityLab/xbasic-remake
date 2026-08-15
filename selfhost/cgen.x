@@ -52,6 +52,7 @@ PRINT "#include <stdio.h>"
 PRINT "#include <stdlib.h>"
 PRINT "#include <string.h>"
 PRINT "#include <ctype.h>"
+PRINT "#include <math.h>"
 PRINT ""
 PRINT "static char* xb_strdup(const char* s) { size_t n = strlen(s) + 1; char* r = (char*)malloc(n); memcpy(r, s, n); return r; }"
 PRINT "static char* xb_str(const char* s) { return xb_strdup(s); }"
@@ -115,6 +116,18 @@ PRINT "    int len = (int)strlen(buf);"
 PRINT "    if (len > 0 && buf[len-1] == '\n') buf[len-1] = 0;"
 PRINT "    return xb_strdup(buf);"
 PRINT "}"
+PRINT "static char* xb_ucase(const char* s) { char* r = xb_strdup(s); for (char* p = r; *p; p++) *p = toupper((unsigned char)*p); return r; }"
+PRINT "static char* xb_lcase(const char* s) { char* r = xb_strdup(s); for (char* p = r; *p; p++) *p = tolower((unsigned char)*p); return r; }"
+PRINT "static char* xb_trim(const char* s) { const char* start = s; while (*start == ' ' || *start == '\t') start++; const char* end = s + strlen(s) - 1; while (end > start && (*end == ' ' || *end == '\t')) end--; int len = end - start + 1; char* r = malloc(len + 1); memcpy(r, start, len); r[len] = 0; return r; }"
+PRINT "static char* xb_ltrim(const char* s) { const char* start = s; while (*start == ' ' || *start == '\t') start++; return xb_strdup(start); }"
+PRINT "static char* xb_rtrim(const char* s) { int len = (int)strlen(s); while (len > 0 && (s[len-1] == ' ' || s[len-1] == '\t')) len--; char* r = malloc(len + 1); memcpy(r, s, len); r[len] = 0; return r; }"
+PRINT "static char* xb_space(int n) { if (n < 0) n = 0; char* r = malloc(n + 1); memset(r, ' ', n); r[n] = 0; return r; }"
+PRINT "static int xb_abs(int v) { return v < 0 ? -v : v; }"
+PRINT "static int xb_sgn(int v) { return (v > 0) - (v < 0); }"
+PRINT "static int xb_int(int v) { return v; }"
+PRINT "static int xb_fix(int v) { return v; }"
+PRINT "static int xb_max(int a, int b) { return a > b ? a : b; }"
+PRINT "static int xb_min(int a, int b) { return a < b ? a : b; }"
 PRINT "static void xb_print_int(int v) { printf(" + CHR$(34) + "%d\n" + CHR$(34) + ", v); }"
 PRINT "static void xb_print_str(const char* s) { printf(" + CHR$(34) + "%s\n" + CHR$(34) + ", s); }"
 PRINT "static void xb_print_float(double v) { printf(" + CHR$(34) + "%g\n" + CHR$(34) + ", v); }"
@@ -297,6 +310,30 @@ FUNCTION c_func_name$(n$)
     c_func_name$ = "xb_val"
   ELSEIF n$ = "STR$" THEN
     c_func_name$ = "xb_str_num"
+  ELSEIF n$ = "UCASE$" THEN
+    c_func_name$ = "xb_ucase"
+  ELSEIF n$ = "LCASE$" THEN
+    c_func_name$ = "xb_lcase"
+  ELSEIF n$ = "TRIM$" THEN
+    c_func_name$ = "xb_trim"
+  ELSEIF n$ = "LTRIM$" THEN
+    c_func_name$ = "xb_ltrim"
+  ELSEIF n$ = "RTRIM$" THEN
+    c_func_name$ = "xb_rtrim"
+  ELSEIF n$ = "SPACE$" THEN
+    c_func_name$ = "xb_space"
+  ELSEIF n$ = "ABS" THEN
+    c_func_name$ = "xb_abs"
+  ELSEIF n$ = "SGN" THEN
+    c_func_name$ = "xb_sgn"
+  ELSEIF n$ = "INT" THEN
+    c_func_name$ = "xb_int"
+  ELSEIF n$ = "FIX" THEN
+    c_func_name$ = "xb_fix"
+  ELSEIF n$ = "MAX" THEN
+    c_func_name$ = "xb_max"
+  ELSEIF n$ = "MIN" THEN
+    c_func_name$ = "xb_min"
   ELSEIF n$ = "READLINE$" THEN
     c_func_name$ = "xb_readline"
   ELSEIF n$ = "EOF" THEN
@@ -365,9 +402,9 @@ FUNCTION expr_type$(e$)
     ELSE
       fn$ = rest$
     END IF
-    IF fn$ = "LEN" OR fn$ = "ASC" OR fn$ = "INSTR" OR fn$ = "VAL" OR fn$ = "EOF" THEN
+    IF fn$ = "LEN" OR fn$ = "ASC" OR fn$ = "INSTR" OR fn$ = "VAL" OR fn$ = "EOF" OR fn$ = "ABS" OR fn$ = "SGN" OR fn$ = "INT" OR fn$ = "FIX" OR fn$ = "MAX" OR fn$ = "MIN" THEN
       expr_type$ = "integer"
-    ELSEIF fn$ = "CHR$" OR fn$ = "LEFT$" OR fn$ = "RIGHT$" OR fn$ = "MID$" OR fn$ = "STR$" OR fn$ = "READLINE$" THEN
+    ELSEIF fn$ = "CHR$" OR fn$ = "LEFT$" OR fn$ = "RIGHT$" OR fn$ = "MID$" OR fn$ = "STR$" OR fn$ = "READLINE$" OR fn$ = "UCASE$" OR fn$ = "LCASE$" OR fn$ = "TRIM$" OR fn$ = "LTRIM$" OR fn$ = "RTRIM$" OR fn$ = "SPACE$" THEN
       expr_type$ = "string"
     ELSE
       ftPos = INSTR(##funcTypes$, fn$ + ":")
@@ -621,6 +658,12 @@ FUNCTION emit_expr$(e$)
     END IF
     IF op$ = "+" AND (expr_type$(left$) = "string" OR expr_type$(right$) = "string") THEN
       emit_expr$ = "xb_concat(" + emit_expr$(left$) + ", " + emit_expr$(right$) + ")"
+    ELSEIF op$ = "mod" THEN
+      emit_expr$ = "(" + emit_expr$(left$) + " % " + emit_expr$(right$) + ")"
+    ELSEIF op$ = "**" THEN
+      emit_expr$ = "pow(" + emit_expr$(left$) + ", " + emit_expr$(right$) + ")"
+    ELSEIF op$ = "\" THEN
+      emit_expr$ = "(" + emit_expr$(left$) + " / " + emit_expr$(right$) + ")"
     ELSE
       emit_expr$ = "(" + emit_expr$(left$) + " " + op$ + " " + emit_expr$(right$) + ")"
     END IF
@@ -846,6 +889,12 @@ FUNCTION emit_stmt$(s$)
   DIM args$
   DIM parenPos
   DIM pName$
+  DIM afterTo$
+  DIM stepPos
+  DIM stepVal$
+  DIM cStep$
+  DIM negStep
+  DIM cmpOp$
   DIM pType$
   DIM hashPos
   DIM eqPos
@@ -1010,6 +1059,43 @@ FUNCTION emit_stmt$(s$)
     emit_stmt$ = "    }"
     RETURN emit_stmt$
   END IF
+  IF s$ = "do" THEN
+    emit_stmt$ = "    do {"
+    RETURN emit_stmt$
+  END IF
+
+  IF LEFT$(s$, 9) = "do while " THEN
+    rest$ = MID$(s$, 10, LEN(s$) - 9)
+    cExpr$ = emit_expr$(rest$)
+    emit_stmt$ = "    while (" + cExpr$ + ") {"
+    RETURN emit_stmt$
+  END IF
+
+  IF LEFT$(s$, 9) = "do until " THEN
+    rest$ = MID$(s$, 10, LEN(s$) - 9)
+    cExpr$ = emit_expr$(rest$)
+    emit_stmt$ = "    while (!(" + cExpr$ + ")) {"
+    RETURN emit_stmt$
+  END IF
+
+  IF s$ = "loop" THEN
+    emit_stmt$ = "    }"
+    RETURN emit_stmt$
+  END IF
+
+  IF LEFT$(s$, 11) = "loop while " THEN
+    rest$ = MID$(s$, 12, LEN(s$) - 11)
+    cExpr$ = emit_expr$(rest$)
+    emit_stmt$ = "    } while (" + cExpr$ + ");"
+    RETURN emit_stmt$
+  END IF
+
+  IF LEFT$(s$, 11) = "loop until " THEN
+    rest$ = MID$(s$, 12, LEN(s$) - 11)
+    cExpr$ = emit_expr$(rest$)
+    emit_stmt$ = "    } while (!(" + cExpr$ + "));"
+    RETURN emit_stmt$
+  END IF
 
   IF LEFT$(s$, 4) = "for " THEN
     rest$ = MID$(s$, 5, LEN(s$) - 4)
@@ -1025,10 +1111,29 @@ FUNCTION emit_stmt$(s$)
     rest$ = MID$(rest$, spacePos + 3, LEN(rest$) - spacePos - 2)
     spacePos = INSTR(rest$, " to ")
     start$ = LEFT$(rest$, spacePos - 1)
-    end$ = MID$(rest$, spacePos + 4, LEN(rest$) - spacePos - 3)
-    cExpr$ = emit_expr$(start$)
-    c2$ = emit_expr$(end$)
-    emit_stmt$ = "    for (" + c_var_name$(varName$, varType$) + " = " + cExpr$ + "; " + c_var_name$(varName$, varType$) + " <= " + c2$ + "; " + c_var_name$(varName$, varType$) + "++) {"
+    afterTo$ = MID$(rest$, spacePos + 4, LEN(rest$) - spacePos - 3)
+    stepPos = INSTR(afterTo$, " step ")
+    IF stepPos > 0 THEN
+      end$ = LEFT$(afterTo$, stepPos - 1)
+      stepVal$ = MID$(afterTo$, stepPos + 6, LEN(afterTo$) - stepPos - 5)
+      cExpr$ = emit_expr$(start$)
+      c2$ = emit_expr$(end$)
+      cStep$ = emit_expr$(stepVal$)
+      negStep = 0
+      IF LEFT$(stepVal$, 1) = "-" THEN
+        negStep = 1
+      END IF
+      cmpOp$ = " <= "
+      IF negStep THEN
+        cmpOp$ = " >= "
+      END IF
+      emit_stmt$ = "    for (" + c_var_name$(varName$, varType$) + " = " + cExpr$ + "; " + c_var_name$(varName$, varType$) + cmpOp$ + c2$ + "; " + c_var_name$(varName$, varType$) + " += " + cStep$ + ") {"
+    ELSE
+      end$ = afterTo$
+      cExpr$ = emit_expr$(start$)
+      c2$ = emit_expr$(end$)
+      emit_stmt$ = "    for (" + c_var_name$(varName$, varType$) + " = " + cExpr$ + "; " + c_var_name$(varName$, varType$) + " <= " + c2$ + "; " + c_var_name$(varName$, varType$) + "++) {"
+    END IF
     RETURN emit_stmt$
   END IF
 

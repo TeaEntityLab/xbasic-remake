@@ -72,6 +72,9 @@ pub(crate) fn parse_cmp_op(s: &str) -> Result<(ComparisonOp, &str), String> {
 }
 
 pub(crate) fn parse_arith_op(s: &str) -> Result<(ArithmeticOp, &str), String> {
+    if let Some(r) = s.strip_prefix("** ") {
+        return Ok((ArithmeticOp::Pow, r));
+    }
     if let Some(r) = s.strip_prefix('+') {
         return Ok((ArithmeticOp::Add, r));
     }
@@ -83,6 +86,12 @@ pub(crate) fn parse_arith_op(s: &str) -> Result<(ArithmeticOp, &str), String> {
     }
     if let Some(r) = s.strip_prefix('/') {
         return Ok((ArithmeticOp::Div, r));
+    }
+    if let Some(r) = s.strip_prefix("\\ ") {
+        return Ok((ArithmeticOp::IntegerDiv, r));
+    }
+    if let Some(r) = s.strip_prefix("mod ") {
+        return Ok((ArithmeticOp::Mod, r));
     }
     Err(format!("expected arith op, got: {s}"))
 }
@@ -119,9 +128,44 @@ pub(crate) fn infer_arith_type(op: ArithmeticOp, left: &IrExpr, right: &IrExpr) 
         && (left.value_type == ValueType::String || right.value_type == ValueType::String)
     {
         ValueType::String
+    } else if op == ArithmeticOp::IntegerDiv || op == ArithmeticOp::Mod {
+        ValueType::Integer
     } else if left.value_type == ValueType::Float || right.value_type == ValueType::Float {
         ValueType::Float
     } else {
         ValueType::Integer
     }
+}
+
+pub(crate) fn parse_symbol_decl(s: &str) -> Result<crate::ir::IrSymbol, String> {
+    let colon = s
+        .find(':')
+        .ok_or_else(|| format!("missing : in symbol: {s}"))?;
+    let name = s[..colon].to_string();
+    let vt = parse_type(s[colon + 1..].trim())?;
+    Ok(crate::ir::IrSymbol {
+        name,
+        value_type: vt,
+    })
+}
+
+pub(crate) fn parse_params(s: &str) -> Result<Vec<crate::ir::IrParam>, String> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Ok(Vec::new());
+    }
+    s.split(',')
+        .map(|p| {
+            let p = p.trim();
+            let colon = p
+                .find(':')
+                .ok_or_else(|| format!("missing : in param: {p}"))?;
+            let name = p[..colon].to_string();
+            let vt = parse_type(p[colon + 1..].trim())?;
+            Ok(crate::ir::IrParam {
+                name,
+                value_type: vt,
+            })
+        })
+        .collect()
 }

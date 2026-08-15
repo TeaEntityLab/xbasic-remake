@@ -1,0 +1,19 @@
+version 0.1
+function Main() -> integer
+  dim s:string
+  dim n:integer
+  assign s:string = string("  Hello World  ")
+  assign n:integer = integer(5)
+  print call UCASE$(symbol(s:string))
+  print call LCASE$(symbol(s:string))
+  print call TRIM$(symbol(s:string))
+  print call LTRIM$(symbol(s:string))
+  print call RTRIM$(symbol(s:string))
+  print arith(call SPACE$(integer(3)) + string("X"))
+  print call ABS(arith(integer(0) - symbol(n:integer)))
+  print call SGN(arith(integer(0) - symbol(n:integer)))
+  print call SGN(integer(0))
+  print call SGN(symbol(n:integer))
+  print call MAX(integer(3), integer(7))
+  print call MIN(integer(3), integer(7))
+end function

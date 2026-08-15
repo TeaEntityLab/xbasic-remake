@@ -101,6 +101,10 @@ impl<'a> Lexer<'a> {
     fn symbol(&mut self, ch: char) -> Token {
         let pos = self.pos();
         self.advance();
+        if ch == '*' && self.lookahead == Some('*') {
+            self.advance();
+            return Token::new(TokenKind::Power, pos);
+        }
         Token::new(TokenKind::Symbol(ch), pos)
     }
 }

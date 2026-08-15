@@ -2,6 +2,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("#include <stdio.h>\n");
     out.push_str("#include <stdlib.h>\n");
     out.push_str("#include <string.h>\n");
+    out.push_str("#include <math.h>\n");
     out.push_str("#include <ctype.h>\n");
     out.push('\n');
     out.push_str("static char* xb_strdup(const char* s) { size_t n = strlen(s) + 1; char* r = (char*)malloc(n); memcpy(r, s, n); return r; }\n");
@@ -72,7 +73,18 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("}\n");
     out.push_str("static void xb_print_int(int v) { printf(\"%d\\n\", v); }\n");
     out.push_str("static void xb_print_str(const char* s) { printf(\"%s\\n\", s); }\n");
-    out.push_str("static void xb_print_float(double v) { printf(\"%g\\n\", v); }\n");
+    out.push_str("static char* xb_ucase(const char* s) { char* r = xb_strdup(s); for (char* p = r; *p; p++) *p = toupper((unsigned char)*p); return r; }\n");
+    out.push_str("static char* xb_lcase(const char* s) { char* r = xb_strdup(s); for (char* p = r; *p; p++) *p = tolower((unsigned char)*p); return r; }\n");
+    out.push_str("static char* xb_trim(const char* s) { const char* start = s; while (*start == ' ' || *start == '\\t') start++; const char* end = s + strlen(s) - 1; while (end > start && (*end == ' ' || *end == '\\t')) end--; int len = end - start + 1; char* r = malloc(len + 1); memcpy(r, start, len); r[len] = 0; return r; }\n");
+    out.push_str("static char* xb_ltrim(const char* s) { const char* start = s; while (*start == ' ' || *start == '\\t') start++; return xb_strdup(start); }\n");
+    out.push_str("static char* xb_rtrim(const char* s) { int len = (int)strlen(s); while (len > 0 && (s[len-1] == ' ' || s[len-1] == '\\t')) len--; char* r = malloc(len + 1); memcpy(r, s, len); r[len] = 0; return r; }\n");
+    out.push_str("static char* xb_space(int n) { if (n < 0) n = 0; char* r = malloc(n + 1); memset(r, ' ', n); r[n] = 0; return r; }\n");
+    out.push_str("static int xb_abs(int v) { return v < 0 ? -v : v; }\n");
+    out.push_str("static int xb_sgn(int v) { return (v > 0) - (v < 0); }\n");
+    out.push_str("static int xb_int(int v) { return v; }\n");
+    out.push_str("static int xb_fix(int v) { return v; }\n");
+    out.push_str("static int xb_max(int a, int b) { return a > b ? a : b; }\n");
+    out.push_str("static int xb_min(int a, int b) { return a < b ? a : b; }\n");
     out.push('\n');
 }
 

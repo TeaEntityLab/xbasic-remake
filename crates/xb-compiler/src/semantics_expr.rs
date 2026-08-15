@@ -81,7 +81,9 @@ impl Analyzer {
         if lv.value_type == ValueType::String || rv.value_type == ValueType::String {
             return Err(SemanticError::ArithmeticStringOperand);
         }
-        let rt = if lv.value_type == ValueType::Float || rv.value_type == ValueType::Float {
+        let rt = if op == ArithmeticOp::IntegerDiv || op == ArithmeticOp::Mod {
+            ValueType::Integer
+        } else if lv.value_type == ValueType::Float || rv.value_type == ValueType::Float {
             ValueType::Float
         } else {
             ValueType::Integer

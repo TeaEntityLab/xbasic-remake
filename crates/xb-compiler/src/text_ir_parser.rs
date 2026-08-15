@@ -65,5 +65,34 @@ pub(crate) fn parse_items(
 }
 
 fn is_closer(s: &str) -> bool {
-    matches!(s, "end if" | "else" | "wend" | "next" | "end function")
+    matches!(
+        s,
+        "end if" | "else" | "wend" | "next" | "end function" | "loop"
+    )
+}
+
+pub(crate) fn parse_loop_condition(
+    lines: &[&str],
+    idx: &mut usize,
+    l: usize,
+) -> Result<Option<(crate::ir::IrExpr, bool)>, TextIrParseError> {
+    if *idx >= lines.len() {
+        return Err(err("expected 'loop'".into(), l));
+    }
+    let content = lines[*idx].trim();
+    if content == "loop" {
+        *idx += 1;
+        return Ok(None);
+    }
+    if let Some(rest) = content.strip_prefix("loop while ") {
+        *idx += 1;
+        let cond = crate::text_ir_parser_expr::parse_expr(rest).map_err(|e| err(e, l))?;
+        return Ok(Some((cond, true)));
+    }
+    if let Some(rest) = content.strip_prefix("loop until ") {
+        *idx += 1;
+        let cond = crate::text_ir_parser_expr::parse_expr(rest).map_err(|e| err(e, l))?;
+        return Ok(Some((cond, false)));
+    }
+    Err(err("expected 'loop'".into(), l))
 }

@@ -1,8 +1,8 @@
-use crate::ir::{IrExprKind, IrItem, IrParam, IrSymbol};
+use crate::ir::{IrExprKind, IrItem};
 use crate::text_ir_parser_expr::parse_expr;
-use crate::text_ir_parser_helpers::parse_type;
+use crate::text_ir_parser_helpers::{parse_params, parse_symbol_decl, parse_type};
 
-use crate::text_ir_parser::{err, parse_items, TextIrParseError};
+use crate::text_ir_parser::{err, parse_items, parse_loop_condition, TextIrParseError};
 
 pub(crate) fn parse_item(
     content: &str,
@@ -129,6 +129,35 @@ pub(crate) fn parse_item(
             body,
         });
     }
+    if content == "do" {
+        let body = parse_items(lines, idx, indent + 1)?;
+        let post = parse_loop_condition(lines, idx, l)?;
+        return Ok(IrItem::DoLoop {
+            pre_condition: None,
+            post_condition: post,
+            body,
+        });
+    }
+    if let Some(rest) = content.strip_prefix("do while ") {
+        let cond = parse_expr(rest).map_err(|e| err(e, l))?;
+        let body = parse_items(lines, idx, indent + 1)?;
+        let post = parse_loop_condition(lines, idx, l)?;
+        return Ok(IrItem::DoLoop {
+            pre_condition: Some((cond, true)),
+            post_condition: post,
+            body,
+        });
+    }
+    if let Some(rest) = content.strip_prefix("do until ") {
+        let cond = parse_expr(rest).map_err(|e| err(e, l))?;
+        let body = parse_items(lines, idx, indent + 1)?;
+        let post = parse_loop_condition(lines, idx, l)?;
+        return Ok(IrItem::DoLoop {
+            pre_condition: Some((cond, false)),
+            post_condition: post,
+            body,
+        });
+    }
     if let Some(rest) = content.strip_prefix("for ") {
         let eq = rest
             .find(" = ")
@@ -139,7 +168,14 @@ pub(crate) fn parse_item(
             .find(" to ")
             .ok_or_else(|| err("missing to".into(), l))?;
         let start = parse_expr(&after[..to]).map_err(|e| err(e, l))?;
-        let end = parse_expr(&after[to + 4..]).map_err(|e| err(e, l))?;
+        let after_to = &after[to + 4..];
+        let (end_str, step) = if let Some(sp) = after_to.find(" step ") {
+            let end = parse_expr(&after_to[..sp]).map_err(|e| err(e, l))?;
+            let s = parse_expr(&after_to[sp + 6..]).map_err(|e| err(e, l))?;
+            (end, Some(s))
+        } else {
+            (parse_expr(after_to).map_err(|e| err(e, l))?, None)
+        };
         let body = parse_items(lines, idx, indent + 1)?;
         if *idx >= lines.len() || lines[*idx].trim() != "next" {
             return Err(err("expected 'next'".into(), l));
@@ -148,7 +184,8 @@ pub(crate) fn parse_item(
         return Ok(IrItem::For {
             var,
             start,
-            end,
+            end: end_str,
+            step,
             body,
         });
     }
@@ -192,37 +229,4 @@ pub(crate) fn parse_item(
         return Ok(IrItem::Call { name, args });
     }
     Err(err(format!("unknown item: {content}"), l))
-}
-
-fn parse_symbol_decl(s: &str) -> Result<IrSymbol, String> {
-    let colon = s
-        .find(':')
-        .ok_or_else(|| format!("missing : in symbol: {s}"))?;
-    let name = s[..colon].to_string();
-    let vt = parse_type(s[colon + 1..].trim())?;
-    Ok(IrSymbol {
-        name,
-        value_type: vt,
-    })
-}
-
-fn parse_params(s: &str) -> Result<Vec<IrParam>, String> {
-    let s = s.trim();
-    if s.is_empty() {
-        return Ok(Vec::new());
-    }
-    s.split(',')
-        .map(|p| {
-            let p = p.trim();
-            let colon = p
-                .find(':')
-                .ok_or_else(|| format!("missing : in param: {p}"))?;
-            let name = p[..colon].to_string();
-            let vt = parse_type(p[colon + 1..].trim())?;
-            Ok(IrParam {
-                name,
-                value_type: vt,
-            })
-        })
-        .collect()
 }

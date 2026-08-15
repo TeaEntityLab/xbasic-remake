@@ -81,6 +81,84 @@ pub(crate) fn eval_builtin(
             };
             Ok(RuntimeValue::String(n.to_string()))
         }
+        "UCASE$" => {
+            let RuntimeValue::String(s) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::String(s.to_uppercase()))
+        }
+        "LCASE$" => {
+            let RuntimeValue::String(s) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::String(s.to_lowercase()))
+        }
+        "TRIM$" => {
+            let RuntimeValue::String(s) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::String(s.trim().to_string()))
+        }
+        "LTRIM$" => {
+            let RuntimeValue::String(s) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::String(s.trim_start().to_string()))
+        }
+        "RTRIM$" => {
+            let RuntimeValue::String(s) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::String(s.trim_end().to_string()))
+        }
+        "SPACE$" => {
+            let RuntimeValue::Integer(n) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::String(" ".repeat(*n as usize)))
+        }
+        "ABS" => {
+            let RuntimeValue::Integer(n) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::Integer(n.wrapping_abs()))
+        }
+        "SGN" => {
+            let RuntimeValue::Integer(n) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::Integer(n.signum()))
+        }
+        "INT" => {
+            let RuntimeValue::Integer(n) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::Integer(*n))
+        }
+        "FIX" => {
+            let RuntimeValue::Integer(n) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::Integer(*n))
+        }
+        "MAX" => {
+            let RuntimeValue::Integer(a) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            let RuntimeValue::Integer(b) = &args[1] else {
+                return Err(type_err(args[1].value_type()));
+            };
+            Ok(RuntimeValue::Integer(*a.max(b)))
+        }
+        "MIN" => {
+            let RuntimeValue::Integer(a) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            let RuntimeValue::Integer(b) = &args[1] else {
+                return Err(type_err(args[1].value_type()));
+            };
+            Ok(RuntimeValue::Integer(*a.min(b)))
+        }
         _ => Err(RuntimeError::UnknownFunction {
             name: name.to_owned(),
         }),

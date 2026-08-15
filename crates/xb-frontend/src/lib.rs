@@ -6,6 +6,7 @@ pub mod parser;
 mod parser_cursor;
 mod parser_expr;
 mod parser_if;
+mod parser_loops;
 #[cfg(test)]
 mod parser_tests;
 pub mod token;

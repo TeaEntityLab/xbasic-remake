@@ -53,6 +53,20 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(", ");
                 emit_expr(right, out);
                 out.push(')');
+            } else if op == &ArithmeticOp::Pow {
+                out.push_str("pow(");
+                emit_expr(left, out);
+                out.push_str(", ");
+                emit_expr(right, out);
+                out.push(')');
+            } else if op == &ArithmeticOp::IntegerDiv
+                && (left.value_type == ValueType::Float || right.value_type == ValueType::Float)
+            {
+                out.push_str("(double)(int)(");
+                emit_expr(left, out);
+                out.push_str(" / ");
+                emit_expr(right, out);
+                out.push(')');
             } else {
                 out.push('(');
                 emit_expr(left, out);
@@ -112,6 +126,18 @@ fn emit_c_function_name(name: &str, out: &mut String) {
         "INSTR" => out.push_str("xb_instr"),
         "VAL" => out.push_str("xb_val"),
         "STR$" => out.push_str("xb_str_num"),
+        "UCASE$" => out.push_str("xb_ucase"),
+        "LCASE$" => out.push_str("xb_lcase"),
+        "TRIM$" => out.push_str("xb_trim"),
+        "LTRIM$" => out.push_str("xb_ltrim"),
+        "RTRIM$" => out.push_str("xb_rtrim"),
+        "SPACE$" => out.push_str("xb_space"),
+        "ABS" => out.push_str("xb_abs"),
+        "SGN" => out.push_str("xb_sgn"),
+        "INT" => out.push_str("xb_int"),
+        "FIX" => out.push_str("xb_fix"),
+        "MAX" => out.push_str("xb_max"),
+        "MIN" => out.push_str("xb_min"),
         "READLINE$" => out.push_str("xb_readline"),
         "EOF" => out.push_str("xb_eof"),
         _ => {
@@ -138,6 +164,9 @@ fn arith_op(op: ArithmeticOp) -> &'static str {
         ArithmeticOp::Sub => "-",
         ArithmeticOp::Mul => "*",
         ArithmeticOp::Div => "/",
+        ArithmeticOp::IntegerDiv => "/",
+        ArithmeticOp::Mod => "%",
+        ArithmeticOp::Pow => "**",
     }
 }
 

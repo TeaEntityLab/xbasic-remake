@@ -53,6 +53,7 @@ impl Parser {
             Some(Keyword::If) => self.if_stmt(),
             Some(Keyword::For) => self.for_stmt(),
             Some(Keyword::While) => self.while_stmt(),
+            Some(Keyword::Do) => self.do_stmt(),
             Some(Keyword::Function) => self.function_stmt(),
             Some(Keyword::Exit) => self.exit_stmt(),
             Some(Keyword::Return) => self.return_stmt(),
@@ -213,32 +214,5 @@ impl Parser {
         self.expect_keyword(Keyword::Wend)?;
         self.expect_line_end()?;
         Ok(Statement::While { condition, body })
-    }
-
-    fn for_stmt(&mut self) -> Result<Statement, ParseError> {
-        self.expect_keyword(Keyword::For)?;
-        let (var, _) = self.expect_identifier()?;
-        self.expect_symbol('=')?;
-        let start = self.expression()?;
-        self.expect_keyword(Keyword::To)?;
-        let end = self.expression()?;
-        self.expect_line_end()?;
-        let mut body = Vec::new();
-        self.skip_newlines();
-        while !self.at_eof() && !self.starts_next() {
-            body.push(self.statement()?);
-            self.skip_newlines();
-        }
-        self.expect_keyword(Keyword::Next)?;
-        if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
-            self.index += 1;
-        }
-        self.expect_line_end()?;
-        Ok(Statement::For {
-            var,
-            start,
-            end,
-            body,
-        })
     }
 }

@@ -104,6 +104,26 @@ fn find_function<'a>(program: &'a IrProgram, name: &str) -> Result<FuncInfo<'a>,
 fn is_builtin(name: &str) -> bool {
     matches!(
         name,
-        "LEN" | "ASC" | "CHR$" | "LEFT$" | "RIGHT$" | "MID$" | "INSTR" | "VAL" | "STR$"
+        "LEN"
+            | "ASC"
+            | "CHR$"
+            | "LEFT$"
+            | "RIGHT$"
+            | "MID$"
+            | "INSTR"
+            | "VAL"
+            | "STR$"
+            | "UCASE$"
+            | "LCASE$"
+            | "TRIM$"
+            | "LTRIM$"
+            | "RTRIM$"
+            | "SPACE$"
+            | "ABS"
+            | "SGN"
+            | "INT"
+            | "FIX"
+            | "MAX"
+            | "MIN"
     )
 }

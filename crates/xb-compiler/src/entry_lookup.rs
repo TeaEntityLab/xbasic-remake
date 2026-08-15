@@ -26,6 +26,7 @@ impl CheckedProgram {
                 | CheckedItem::ConstantDefinition { .. }
                 | CheckedItem::If { .. }
                 | CheckedItem::While { .. }
+                | CheckedItem::DoLoop { .. }
                 | CheckedItem::For { .. }
                 | CheckedItem::SharedAssignment { .. }
                 | CheckedItem::Return { .. }
@@ -56,6 +57,7 @@ impl IrProgram {
                 | IrItem::ArrayAssignment { .. }
                 | IrItem::If { .. }
                 | IrItem::While { .. }
+                | IrItem::DoLoop { .. }
                 | IrItem::For { .. }
                 | IrItem::SharedAssignment { .. }
                 | IrItem::Return { .. }

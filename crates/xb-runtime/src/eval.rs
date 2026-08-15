@@ -1,6 +1,6 @@
 use crate::helpers::{parse_float, parse_integer, read_slot, require_type};
 use crate::interpreter::{eval, exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue};
-use xb_compiler::{BooleanOp, IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol, ValueType};
+use xb_compiler::{BooleanOp, IrExpr, IrExprKind, IrItem, IrProgram, ValueType};
 
 pub(crate) fn eval_expr(
     program: &IrProgram,
@@ -78,22 +78,44 @@ pub(crate) fn eval_expr(
 
 pub(crate) fn exec_for(
     program: &IrProgram,
-    var: &IrSymbol,
-    start: &IrExpr,
-    end: &IrExpr,
-    body: &[IrItem],
+    item: &IrItem,
     state: &mut ExecutionState,
     output: &mut Vec<String>,
 ) -> Result<Flow, RuntimeError> {
+    let IrItem::For {
+        var,
+        start,
+        end,
+        step,
+        body,
+    } = item
+    else {
+        return Err(RuntimeError::TypeMismatch {
+            expected: ValueType::Integer,
+            actual: ValueType::Integer,
+        });
+    };
     let s = eval(program, start, state)?;
     let e = eval(program, end, state)?;
-    let (RuntimeValue::Integer(mut i), RuntimeValue::Integer(ei)) = (s, e) else {
+    let st = match step {
+        Some(se) => eval(program, se, state)?,
+        None => RuntimeValue::Integer(1),
+    };
+    let (RuntimeValue::Integer(mut i), RuntimeValue::Integer(ei), RuntimeValue::Integer(si)) =
+        (s, e, st)
+    else {
         return Err(RuntimeError::TypeMismatch {
             expected: ValueType::Integer,
             actual: ValueType::Float,
         });
     };
-    while i <= ei {
+    if si == 0 {
+        return Err(RuntimeError::TypeMismatch {
+            expected: ValueType::Integer,
+            actual: ValueType::Integer,
+        });
+    }
+    while if si > 0 { i <= ei } else { i >= ei } {
         let slot = state
             .slots
             .get_mut(&var.name)
@@ -106,7 +128,7 @@ pub(crate) fn exec_for(
             Flow::Break => break,
             Flow::Continue => {}
         }
-        i += 1;
+        i += si;
     }
     Ok(Flow::Continue)
 }

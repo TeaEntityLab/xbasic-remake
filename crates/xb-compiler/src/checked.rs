@@ -111,10 +111,16 @@ pub enum CheckedItem {
         condition: CheckedExpr,
         body: Vec<CheckedItem>,
     },
+    DoLoop {
+        pre_condition: Option<(CheckedExpr, bool)>,
+        post_condition: Option<(CheckedExpr, bool)>,
+        body: Vec<CheckedItem>,
+    },
     For {
         var: CheckedSymbol,
         start: CheckedExpr,
         end: CheckedExpr,
+        step: Option<CheckedExpr>,
         body: Vec<CheckedItem>,
     },
     Return {

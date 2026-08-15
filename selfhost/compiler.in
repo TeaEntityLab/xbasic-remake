@@ -61,6 +61,8 @@ DIM assignTarget$
 DIM assignType$
 DIM forVar$
 DIM forStart$
+DIM forEnd$
+DIM doMode$
 DIM arrName$
 DIM arrIndex$
 DIM dimName$
@@ -166,11 +168,11 @@ WHILE pos <= LEN(src$)
     tk$ = "ident"
     IF tok$ = "PRINT" OR tok$ = "IF" OR tok$ = "THEN" OR tok$ = "ELSE" OR tok$ = "END" THEN
       tk$ = "keyword"
-    ELSEIF tok$ = "FUNCTION" OR tok$ = "DIM" OR tok$ = "FOR" OR tok$ = "TO" OR tok$ = "NEXT" THEN
+    ELSEIF tok$ = "FUNCTION" OR tok$ = "DIM" OR tok$ = "FOR" OR tok$ = "TO" OR tok$ = "NEXT" OR tok$ = "STEP" OR tok$ = "DO" THEN
       tk$ = "keyword"
-    ELSEIF tok$ = "WHILE" OR tok$ = "WEND" OR tok$ = "RETURN" OR tok$ = "AND" OR tok$ = "OR" THEN
+    ELSEIF tok$ = "WHILE" OR tok$ = "WEND" OR tok$ = "RETURN" OR tok$ = "AND" OR tok$ = "OR" OR tok$ = "UNTIL" OR tok$ = "LOOP" THEN
       tk$ = "keyword"
-    ELSEIF tok$ = "NOT" OR tok$ = "EXIT" OR tok$ = "ELSEIF" OR tok$ = "VERSION" THEN
+    ELSEIF tok$ = "NOT" OR tok$ = "MOD" OR tok$ = "EXIT" OR tok$ = "ELSEIF" OR tok$ = "VERSION" THEN
       tk$ = "keyword"
     END IF
     ntok = ntok + 1
@@ -305,6 +307,25 @@ WHILE pos <= LEN(src$)
     ntok = ntok + 1
     tt$(ntok) = "symbol"
     tv$(ntok) = tok$
+  ELSEIF ch = 42 THEN
+    IF pos + 1 <= LEN(src$) THEN
+      IF ASC(MID$(src$, pos + 1, 1)) = 42 THEN
+        ntok = ntok + 1
+        tt$(ntok) = "power"
+        tv$(ntok) = "**"
+        pos = pos + 2
+      ELSE
+        ntok = ntok + 1
+        tt$(ntok) = "symbol"
+        tv$(ntok) = "*"
+        pos = pos + 1
+      END IF
+    ELSE
+      ntok = ntok + 1
+      tt$(ntok) = "symbol"
+      tv$(ntok) = "*"
+      pos = pos + 1
+    END IF
   ELSE
     ntok = ntok + 1
     tt$(ntok) = "symbol"
@@ -454,6 +475,40 @@ WHILE tpos <= ntok
       WEND
       PRINT prefix$ + "wend"
       tpos = tpos + 1
+    ELSEIF t$ = "keyword" AND v$ = "DO" THEN
+      tpos = tpos + 1
+      IF tpos <= ntok AND tt$(tpos) = "keyword" AND (tv$(tpos) = "WHILE" OR tv$(tpos) = "UNTIL") THEN
+        doMode$ = tv$(tpos)
+        tpos = tpos + 1
+        stmtState = 15
+        exprStop$ = "newline"
+      ELSE
+        prefix$ = ""
+        i = 1
+        WHILE i <= indent
+          prefix$ = prefix$ + "  "
+          i = i + 1
+        WEND
+        PRINT prefix$ + "do"
+        indent = indent + 1
+      END IF
+    ELSEIF t$ = "keyword" AND v$ = "LOOP" THEN
+      indent = indent - 1
+      tpos = tpos + 1
+      IF tpos <= ntok AND tt$(tpos) = "keyword" AND (tv$(tpos) = "WHILE" OR tv$(tpos) = "UNTIL") THEN
+        doMode$ = tv$(tpos)
+        tpos = tpos + 1
+        stmtState = 16
+        exprStop$ = "newline"
+      ELSE
+        prefix$ = ""
+        i = 1
+        WHILE i <= indent
+          prefix$ = prefix$ + "  "
+          i = i + 1
+        WEND
+        PRINT prefix$ + "loop"
+      END IF
     ELSEIF t$ = "keyword" AND v$ = "FOR" THEN
       tpos = tpos + 1
       forVar$ = tv$(tpos)
@@ -589,7 +644,7 @@ WHILE tpos <= ntok
                   WEND
                   bn$ = fname$
                   IF RIGHT$(bn$, 1) = "$" THEN
-                    IF bn$ <> "CHR$" AND bn$ <> "LEFT$" AND bn$ <> "RIGHT$" AND bn$ <> "MID$" AND bn$ <> "STR$" AND bn$ <> "READLINE$" THEN
+                    IF bn$ <> "CHR$" AND bn$ <> "LEFT$" AND bn$ <> "RIGHT$" AND bn$ <> "MID$" AND bn$ <> "STR$" AND bn$ <> "READLINE$" AND bn$ <> "UCASE$" AND bn$ <> "LCASE$" AND bn$ <> "TRIM$" AND bn$ <> "LTRIM$" AND bn$ <> "RTRIM$" AND bn$ <> "SPACE$" THEN
                       bn$ = strip_suffix$(bn$)
                     END IF
                   ELSEIF RIGHT$(bn$, 1) = "%" OR RIGHT$(bn$, 1) = "!" OR RIGHT$(bn$, 1) = "#" THEN
@@ -663,11 +718,15 @@ WHILE tpos <= ntok
             spVal = spVal - 1
             bleft$ = valStack$(spVal)
             blt$ = valType$(spVal)
-            IF bop$ = "+" OR bop$ = "-" OR bop$ = "*" OR bop$ = "/" THEN
+            IF bop$ = "+" OR bop$ = "-" OR bop$ = "*" OR bop$ = "/" OR bop$ = "\" OR bop$ = "MOD" OR bop$ = "**" THEN
               bres$ = "arith(" + bleft$ + " " + bop$ + " " + bright$ + ")"
               valStack$(spVal) = bres$
               IF bop$ = "+" AND (blt$ = "string" OR brt$ = "string") THEN
                 valType$(spVal) = "string"
+              ELSEIF bop$ = "\" OR bop$ = "MOD" THEN
+                valType$(spVal) = "integer"
+              ELSEIF blt$ = "float" OR brt$ = "float" THEN
+                valType$(spVal) = "float"
               ELSE
                 valType$(spVal) = "integer"
               END IF
@@ -692,6 +751,10 @@ WHILE tpos <= ntok
         ELSEIF exprStop$ = "THEN" AND t$ = "keyword" AND v$ = "THEN" THEN
           isStop = 1
         ELSEIF exprStop$ = "TO" AND t$ = "keyword" AND v$ = "TO" THEN
+          isStop = 1
+        ELSEIF exprStop$ = "STEP_OR_NL" AND t$ = "newline" THEN
+          isStop = 1
+        ELSEIF exprStop$ = "STEP_OR_NL" AND t$ = "keyword" AND v$ = "STEP" THEN
           isStop = 1
         ELSEIF exprStop$ = ")" AND t$ = "symbol" AND v$ = ")" AND parenDepth = 0 THEN
           isStop = 1
@@ -829,10 +892,22 @@ WHILE tpos <= ntok
             pendingOp$ = v$
             pendingPrec = prec
             tpos = tpos + 1
-          ELSEIF t$ = "symbol" AND (v$ = "*" OR v$ = "/") THEN
+          ELSEIF t$ = "symbol" AND (v$ = "*" OR v$ = "/" OR v$ = "\") THEN
             prec = 6
             popPrec = prec
             pendingOp$ = v$
+            pendingPrec = prec
+            tpos = tpos + 1
+          ELSEIF t$ = "keyword" AND v$ = "MOD" THEN
+            prec = 6
+            popPrec = prec
+            pendingOp$ = "MOD"
+            pendingPrec = prec
+            tpos = tpos + 1
+          ELSEIF t$ = "power" AND v$ = "**" THEN
+            prec = 7
+            popPrec = prec
+            pendingOp$ = "**"
             pendingPrec = prec
             tpos = tpos + 1
           ELSEIF t$ = "symbol" AND (v$ = "=" OR v$ = "<" OR v$ = ">" OR v$ = "<=" OR v$ = ">=" OR v$ = "<>") THEN
@@ -913,20 +988,27 @@ WHILE tpos <= ntok
       forStart$ = eir$
       tpos = tpos + 1
       stmtState = 6
-      exprStop$ = "newline"
+      exprStop$ = "STEP_OR_NL"
     ELSEIF stmtState = 6 THEN
-      prefix$ = ""
-      i = 1
-      WHILE i <= indent
-        prefix$ = prefix$ + "  "
-        i = i + 1
-      WEND
-      vtype$ = "integer"
-      vname$ = strip_suffix$(forVar$)
-      vtype$ = ##suffixType$
-      PRINT prefix$ + "for " + vname$ + ":" + vtype$ + " = " + forStart$ + " to " + eir$
-      indent = indent + 1
-      stmtState = 0
+      forEnd$ = eir$
+      IF tpos <= ntok AND tt$(tpos) = "keyword" AND tv$(tpos) = "STEP" THEN
+        tpos = tpos + 1
+        stmtState = 14
+        exprStop$ = "newline"
+      ELSE
+        prefix$ = ""
+        i = 1
+        WHILE i <= indent
+          prefix$ = prefix$ + "  "
+          i = i + 1
+        WEND
+        vtype$ = "integer"
+        vname$ = strip_suffix$(forVar$)
+        vtype$ = ##suffixType$
+        PRINT prefix$ + "for " + vname$ + ":" + vtype$ + " = " + forStart$ + " to " + forEnd$
+        indent = indent + 1
+        stmtState = 0
+      END IF
     ELSEIF stmtState = 7 THEN
       tpos = tpos + 1
       prefix$ = ""
@@ -990,6 +1072,44 @@ WHILE tpos <= ntok
       constName$(nConst) = assignTarget$
       constType$(nConst) = assignType$
       constValue$(nConst) = eir$
+    ELSEIF stmtState = 14 THEN
+      prefix$ = ""
+      i = 1
+      WHILE i <= indent
+        prefix$ = prefix$ + "  "
+        i = i + 1
+      WEND
+      vtype$ = "integer"
+      vname$ = strip_suffix$(forVar$)
+      vtype$ = ##suffixType$
+      PRINT prefix$ + "for " + vname$ + ":" + vtype$ + " = " + forStart$ + " to " + forEnd$ + " step " + eir$
+      indent = indent + 1
+    ELSEIF stmtState = 15 THEN
+      prefix$ = ""
+      i = 1
+      WHILE i <= indent
+        prefix$ = prefix$ + "  "
+        i = i + 1
+      WEND
+      IF doMode$ = "WHILE" THEN
+        PRINT prefix$ + "do while " + eir$
+      ELSE
+        PRINT prefix$ + "do until " + eir$
+      END IF
+      indent = indent + 1
+      stmtState = 0
+    ELSEIF stmtState = 16 THEN
+      prefix$ = ""
+      i = 1
+      WHILE i <= indent
+        prefix$ = prefix$ + "  "
+        i = i + 1
+      WEND
+      IF doMode$ = "WHILE" THEN
+        PRINT prefix$ + "loop while " + eir$
+      ELSE
+        PRINT prefix$ + "loop until " + eir$
+      END IF
       stmtState = 0
     END IF
   END IF

@@ -176,12 +176,34 @@ pub(crate) fn exec_items(
                     Flow::Continue => {}
                 }
             },
-            IrItem::For {
-                var,
-                start,
-                end,
+            IrItem::DoLoop {
+                pre_condition,
+                post_condition,
                 body,
-            } => match crate::eval::exec_for(program, var, start, end, body, state, output)? {
+            } => loop {
+                if let Some((cond, is_while)) = pre_condition {
+                    let v = eval(program, cond, state)?;
+                    if let RuntimeValue::Integer(n) = v {
+                        if (*is_while && n == 0) || (!*is_while && n != 0) {
+                            break;
+                        }
+                    }
+                }
+                match exec_items(program, body, state, output)? {
+                    Flow::Return(r) => return Ok(Flow::Return(r)),
+                    Flow::Break => break,
+                    Flow::Continue => {}
+                }
+                if let Some((cond, is_while)) = post_condition {
+                    let v = eval(program, cond, state)?;
+                    if let RuntimeValue::Integer(n) = v {
+                        if (*is_while && n == 0) || (!*is_while && n != 0) {
+                            break;
+                        }
+                    }
+                }
+            },
+            IrItem::For { .. } => match crate::eval::exec_for(program, item, state, output)? {
                 Flow::Return(r) => return Ok(Flow::Return(r)),
                 Flow::Break => {}
                 Flow::Continue => {}

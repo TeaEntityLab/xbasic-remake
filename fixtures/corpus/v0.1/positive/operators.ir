@@ -1,0 +1,14 @@
+version 0.1
+function Main() -> integer
+  dim a:integer
+  dim b:integer
+  dim c:integer
+  assign a:integer = integer(17)
+  assign b:integer = integer(5)
+  assign c:integer = arith(symbol(a:integer) \ symbol(b:integer))
+  print symbol(c:integer)
+  assign c:integer = arith(symbol(a:integer) mod symbol(b:integer))
+  print symbol(c:integer)
+  assign c:integer = arith(integer(2) ** integer(10))
+  print symbol(c:integer)
+end function

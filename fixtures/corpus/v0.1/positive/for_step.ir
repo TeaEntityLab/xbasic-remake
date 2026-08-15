@@ -1,0 +1,10 @@
+version 0.1
+function Main() -> integer
+  dim i:integer
+  dim sum:integer
+  assign sum:integer = integer(0)
+  for i:integer = integer(2) to integer(10) step integer(2)
+    assign sum:integer = arith(symbol(sum:integer) + symbol(i:integer))
+  next
+  print symbol(sum:integer)
+end function
