@@ -21,7 +21,7 @@ cargo clippy --workspace --all-targets
 [ -f docs/14-self-hosting-progress.md ] || fail "self-hosting progress report missing"
 grep -Fq '# 14 — Self-Hosting Progress' docs/14-self-hosting-progress.md \
   || fail "self-hosting progress report title missing"
-grep -Fq 'This closes the current Stage-0-to-Stage-1 backlog; it does not equal full compiler self-hosting.' \
+grep -Eq 'Cross-platform CI (remains (the only outstanding task|as the final task)|workflow added)' \
   docs/14-self-hosting-progress.md \
   || fail "self-hosting completion boundary missing"
 grep -Fq '| 14 | [Self-Hosting Progress](14-self-hosting-progress.md) |' docs/README.md \
@@ -62,5 +62,57 @@ grep -RIn 'cli_prints_stable_ir_summary_for_committed_fixture' crates/xb-cli/tes
 [ -f selfhost/xut_bootstrap_manifest.x ] || fail "static xut self-host manifest missing"
 grep -RIn 'cli_prints_stable_ir_for_static_xut_bootstrap_manifest' crates/xb-cli/tests >/dev/null || fail "static xut self-host CLI integration test missing"
 grep -RIn 'cli_accepts_every_selfhost_source' crates/xb-cli/tests >/dev/null || fail "recursive self-host smoke test missing"
+
+# Native bootstrap pipeline: Rust bootstraps compA + cgen1, then the
+# native-only loop (compA → IR → cgen1 → C → cc → compB) must produce
+# byte-identical IR to the Rust host.  This is the core self-hosting proof.
+CC="${CC:-cc}"
+TMPDIR_NBP="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR_NBP"' EXIT
+
+cargo run --bin xb -- --compile selfhost/compiler.x -o "$TMPDIR_NBP/compA" >/dev/null 2>&1 \
+  || fail "Stage-1 native compile of compiler.x failed"
+cargo run --bin xb -- --compile selfhost/cgen.x -o "$TMPDIR_NBP/cgen1" >/dev/null 2>&1 \
+  || fail "Stage-1 native compile of cgen.x failed"
+
+RUST_IR="$(cargo run --bin xb -- --emit-ir selfhost/compiler.x 2>/dev/null)" \
+  || fail "Rust --emit-ir failed"
+STAGE1_IR="$(cat selfhost/compiler.x | "$TMPDIR_NBP/compA" 2>/dev/null)" \
+  || fail "native compA failed to produce IR"
+[ "$RUST_IR" = "$STAGE1_IR" ] \
+  || fail "Rust IR != native compA IR (Stage-1 drift)"
+
+"$TMPDIR_NBP/compA" < selfhost/compiler.x 2>/dev/null \
+  | "$TMPDIR_NBP/cgen1" 2>/dev/null > "$TMPDIR_NBP/compB.c" \
+  || fail "native cgen1 failed to produce C from IR"
+"$CC" -o "$TMPDIR_NBP/compB" "$TMPDIR_NBP/compB.c" 2>/dev/null \
+  || fail "cc failed to compile cgen output"
+STAGE2_IR="$(cat selfhost/compiler.x | "$TMPDIR_NBP/compB" 2>/dev/null)" \
+  || fail "native compB failed to produce IR"
+[ "$STAGE1_IR" = "$STAGE2_IR" ] \
+  || fail "Stage-1 IR != Stage-2 IR (native bootstrap drift)"
+
+# Native compiler must correctly compile every selfhost tool, not just compiler.x.
+for tool in lexer parser cgen; do
+  NATIVE_IR="$(cat selfhost/${tool}.x | "$TMPDIR_NBP/compA" 2>/dev/null)" \
+    || fail "native compA failed to compile ${tool}.x"
+  RUST_TOOL_IR="$(cargo run --bin xb -- --emit-ir selfhost/${tool}.x 2>/dev/null)" \
+    || fail "Rust --emit-ir failed for ${tool}.x"
+  [ "$NATIVE_IR" = "$RUST_TOOL_IR" ] \
+    || fail "native compA IR != Rust IR for ${tool}.x (cross-compilation drift)"
+done
+
+# cgen self-compilation: cgen1 and cgen2 must produce identical C.
+CGEN_IR="$(cargo run --bin xb -- --emit-ir selfhost/cgen.x 2>/dev/null)" \
+  || fail "Rust --emit-ir for cgen.x failed"
+CGEN1_C="$(printf '%s' "$CGEN_IR" | "$TMPDIR_NBP/cgen1" 2>/dev/null)" \
+  || fail "cgen1 failed to compile cgen.x IR"
+printf '%s' "$CGEN1_C" > "$TMPDIR_NBP/cgen1.c"
+"$CC" -o "$TMPDIR_NBP/cgen2" "$TMPDIR_NBP/cgen1.c" 2>/dev/null \
+  || fail "cc failed to compile cgen1 output"
+CGEN2_C="$(printf '%s' "$CGEN_IR" | "$TMPDIR_NBP/cgen2" 2>/dev/null)" \
+  || fail "cgen2 failed to compile cgen.x IR"
+[ "$CGEN1_C" = "$CGEN2_C" ] \
+  || fail "cgen1 C != cgen2 C (cgen self-compilation drift)"
 
 echo "verify-bootstrap: ok"

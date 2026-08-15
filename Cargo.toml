@@ -39,4 +39,4 @@ eframe = { version = "0.36.1", default-features = false, features = ["default_fo
 egui_code_editor = "0.3.8"
 egui_dock = "0.21.1"
 winit = "0.30.13"
-softbuffer = "0.4.8"
+sha2 = "0.10"

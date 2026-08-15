@@ -75,6 +75,16 @@ DIM lookPos
 DIM parenCount
 DIM params$
 DIM pname$
+DIM esc$
+DIM ei
+DIM constName$(64)
+DIM constType$(64)
+DIM constValue$(64)
+DIM nConst
+DIM ci
+DIM isFloat
+##suffixType$ = ""
+nConst = 0
 
 src$ = ""
 WHILE EOF() = 0
@@ -92,11 +102,42 @@ WHILE pos <= LEN(src$)
   ch = ASC(MID$(src$, pos, 1))
   IF ch = 32 OR ch = 9 OR ch = 13 THEN
     pos = pos + 1
+  ELSEIF ch = 39 THEN
+    WHILE pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) <> 10
+      pos = pos + 1
+    WEND
   ELSEIF ch = 10 THEN
     ntok = ntok + 1
     tt$(ntok) = "newline"
     tv$(ntok) = ""
     pos = pos + 1
+  ELSEIF ch = 36 THEN
+    pos = pos + 1
+    IF pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) = 36 THEN
+      pos = pos + 1
+      tok$ = ""
+      done = 0
+      WHILE done = 0
+        IF pos > LEN(src$) THEN
+          done = 1
+        ELSE
+          ch = ASC(MID$(src$, pos, 1))
+          IF (ch >= 65 AND ch <= 90) OR (ch >= 97 AND ch <= 122) OR (ch >= 48 AND ch <= 57) OR ch = 95 THEN
+            tok$ = tok$ + CHR$(ch)
+            pos = pos + 1
+          ELSE
+            done = 1
+          END IF
+        END IF
+      WEND
+      ntok = ntok + 1
+      tt$(ntok) = "sysconst"
+      tv$(ntok) = tok$
+    ELSE
+      ntok = ntok + 1
+      tt$(ntok) = "symbol"
+      tv$(ntok) = "$"
+    END IF
   ELSEIF (ch >= 65 AND ch <= 90) OR (ch >= 97 AND ch <= 122) THEN
     tok$ = ""
     done = 0
@@ -105,7 +146,7 @@ WHILE pos <= LEN(src$)
         done = 1
       ELSE
         ch = ASC(MID$(src$, pos, 1))
-        IF (ch >= 65 AND ch <= 90) OR (ch >= 97 AND ch <= 122) OR (ch >= 48 AND ch <= 57) OR ch = 36 OR ch = 37 THEN
+        IF (ch >= 65 AND ch <= 90) OR (ch >= 97 AND ch <= 122) OR (ch >= 48 AND ch <= 57) OR ch = 36 OR ch = 37 OR ch = 95 THEN
           tok$ = tok$ + CHR$(ch)
           pos = pos + 1
         ELSE
@@ -113,6 +154,15 @@ WHILE pos <= LEN(src$)
         END IF
       END IF
     WEND
+    IF pos <= LEN(src$) AND ch = 33 THEN
+      tok$ = tok$ + CHR$(ch)
+      pos = pos + 1
+    ELSEIF pos <= LEN(src$) AND ch = 35 THEN
+      IF pos + 1 > LEN(src$) OR ASC(MID$(src$, pos + 1, 1)) <> 35 THEN
+        tok$ = tok$ + CHR$(ch)
+        pos = pos + 1
+      END IF
+    END IF
     tk$ = "ident"
     IF tok$ = "PRINT" OR tok$ = "IF" OR tok$ = "THEN" OR tok$ = "ELSE" OR tok$ = "END" THEN
       tk$ = "keyword"
@@ -129,22 +179,75 @@ WHILE pos <= LEN(src$)
   ELSEIF (ch >= 48 AND ch <= 57) THEN
     tok$ = ""
     done = 0
-    WHILE done = 0
-      IF pos > LEN(src$) THEN
-        done = 1
+    IF ch = 48 AND pos + 1 <= LEN(src$) THEN
+      ch = ASC(MID$(src$, pos + 1, 1))
+      IF ch = 120 OR ch = 88 THEN
+        tok$ = "0x"
+        pos = pos + 2
+        WHILE done = 0
+          IF pos > LEN(src$) THEN
+            done = 1
+          ELSE
+            ch = ASC(MID$(src$, pos, 1))
+            IF (ch >= 48 AND ch <= 57) OR (ch >= 65 AND ch <= 70) OR (ch >= 97 AND ch <= 102) THEN
+              tok$ = tok$ + CHR$(ch)
+              pos = pos + 1
+            ELSE
+              done = 1
+            END IF
+          END IF
+        WEND
+        ntok = ntok + 1
+        tt$(ntok) = "number"
+        tv$(ntok) = tok$
       ELSE
-        ch = ASC(MID$(src$, pos, 1))
-        IF (ch >= 48 AND ch <= 57) OR ch = 46 THEN
-          tok$ = tok$ + CHR$(ch)
-          pos = pos + 1
-        ELSE
-          done = 1
-        END IF
+        done = 0
       END IF
-    WEND
-    ntok = ntok + 1
-    tt$(ntok) = "number"
-    tv$(ntok) = tok$
+    ELSE
+      done = 0
+    END IF
+    IF done = 0 OR tok$ = "" THEN
+      tok$ = ""
+      done = 0
+      WHILE done = 0
+        IF pos > LEN(src$) THEN
+          done = 1
+        ELSE
+          ch = ASC(MID$(src$, pos, 1))
+          IF (ch >= 48 AND ch <= 57) OR ch = 46 THEN
+            tok$ = tok$ + CHR$(ch)
+            pos = pos + 1
+          ELSE
+            done = 1
+          END IF
+        END IF
+      WEND
+      IF pos <= LEN(src$) AND (ASC(MID$(src$, pos, 1)) = 101 OR ASC(MID$(src$, pos, 1)) = 69) THEN
+        tok$ = tok$ + CHR$(ASC(MID$(src$, pos, 1)))
+        pos = pos + 1
+        IF pos <= LEN(src$) AND (ASC(MID$(src$, pos, 1)) = 43 OR ASC(MID$(src$, pos, 1)) = 45) THEN
+          tok$ = tok$ + CHR$(ASC(MID$(src$, pos, 1)))
+          pos = pos + 1
+        END IF
+        done = 0
+        WHILE done = 0
+          IF pos > LEN(src$) THEN
+            done = 1
+          ELSE
+            ch = ASC(MID$(src$, pos, 1))
+            IF ch >= 48 AND ch <= 57 THEN
+              tok$ = tok$ + CHR$(ch)
+              pos = pos + 1
+            ELSE
+              done = 1
+            END IF
+          END IF
+        WEND
+      END IF
+      ntok = ntok + 1
+      tt$(ntok) = "number"
+      tv$(ntok) = tok$
+    END IF
   ELSEIF ch = 34 THEN
     tok$ = ""
     pos = pos + 1
@@ -165,6 +268,29 @@ WHILE pos <= LEN(src$)
     WEND
     ntok = ntok + 1
     tt$(ntok) = "string"
+    tv$(ntok) = tok$
+  ELSEIF ch = 35 THEN
+    pos = pos + 1
+    IF pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) = 35 THEN
+      pos = pos + 1
+    END IF
+    tok$ = ""
+    done = 0
+    WHILE done = 0
+      IF pos > LEN(src$) THEN
+        done = 1
+      ELSE
+        ch = ASC(MID$(src$, pos, 1))
+        IF (ch >= 65 AND ch <= 90) OR (ch >= 97 AND ch <= 122) OR (ch >= 48 AND ch <= 57) OR ch = 36 OR ch = 95 THEN
+          tok$ = tok$ + CHR$(ch)
+          pos = pos + 1
+        ELSE
+          done = 1
+        END IF
+      END IF
+    WEND
+    ntok = ntok + 1
+    tt$(ntok) = "shared"
     tv$(ntok) = tok$
   ELSEIF ch = 60 OR ch = 62 THEN
     tok$ = CHR$(ch)
@@ -219,27 +345,25 @@ WHILE tpos <= ntok
           ELSEIF tt$(tpos) = "ident" THEN
             pname$ = tv$(tpos)
             vt$ = "integer"
-            IF RIGHT$(pname$, 1) = "$" THEN
-              vt$ = "string"
-              pname$ = LEFT$(pname$, LEN(pname$) - 1)
-            END IF
+            pname$ = strip_suffix$(pname$)
+            vt$ = ##suffixType$
             params$ = params$ + pname$ + ":" + vt$
           END IF
           tpos = tpos + 1
         WEND
         tpos = tpos + 1
       END IF
-      PRINT "function " + v$ + "(" + params$ + ") -> integer"
+      vt$ = "integer"
+      bn$ = strip_suffix$(v$)
+      vt$ = ##suffixType$
+      PRINT "function " + bn$ + "(" + params$ + ") -> " + vt$
     ELSEIF t$ = "keyword" AND v$ = "DIM" THEN
       tpos = tpos + 1
       v$ = tv$(tpos)
       tpos = tpos + 1
       vt$ = "integer"
-      bn$ = v$
-      IF RIGHT$(v$, 1) = "$" THEN
-        vt$ = "string"
-        bn$ = LEFT$(v$, LEN(v$) - 1)
-      END IF
+      bn$ = strip_suffix$(v$)
+      vt$ = ##suffixType$
       IF tpos <= ntok AND tt$(tpos) = "symbol" AND tv$(tpos) = "(" THEN
         tpos = tpos + 1
         arrSP = arrSP + 1
@@ -369,6 +493,12 @@ WHILE tpos <= ntok
         stmtState = 10
         exprStop$ = "newline"
       END IF
+    ELSEIF t$ = "sysconst" THEN
+      assignTarget$ = v$
+      assignType$ = "integer"
+      tpos = tpos + 2
+      stmtState = 13
+      exprStop$ = "newline"
     ELSEIF t$ = "ident" THEN
       isArr = 0
       j = 1
@@ -391,11 +521,8 @@ WHILE tpos <= ntok
         ELSE
           assignTarget$ = v$
           vt$ = "integer"
-          bn$ = v$
-          IF RIGHT$(v$, 1) = "$" THEN
-            vt$ = "string"
-            bn$ = LEFT$(v$, LEN(v$) - 1)
-          END IF
+          bn$ = strip_suffix$(v$)
+          vt$ = ##suffixType$
           assignType$ = vt$
           assignTarget$ = bn$
           tpos = tpos + 2
@@ -403,6 +530,16 @@ WHILE tpos <= ntok
           exprStop$ = "newline"
         END IF
       END IF
+    ELSEIF t$ = "shared" THEN
+      assignTarget$ = v$
+      vt$ = "integer"
+      bn$ = strip_suffix$(v$)
+      vt$ = ##suffixType$
+      assignType$ = vt$
+      assignTarget$ = bn$
+      tpos = tpos + 2
+      stmtState = 12
+      exprStop$ = "newline"
     ELSE
       tpos = tpos + 1
     END IF
@@ -450,7 +587,15 @@ WHILE tpos <= ntok
                     spVal = spVal - 1
                     nargs = nargs - 1
                   WEND
-                  cir$ = "call " + fname$ + "("
+                  bn$ = fname$
+                  IF RIGHT$(bn$, 1) = "$" THEN
+                    IF bn$ <> "CHR$" AND bn$ <> "LEFT$" AND bn$ <> "RIGHT$" AND bn$ <> "MID$" AND bn$ <> "STR$" AND bn$ <> "READLINE$" THEN
+                      bn$ = strip_suffix$(bn$)
+                    END IF
+                  ELSEIF RIGHT$(bn$, 1) = "%" OR RIGHT$(bn$, 1) = "!" OR RIGHT$(bn$, 1) = "#" THEN
+                    bn$ = strip_suffix$(bn$)
+                  END IF
+                  cir$ = "call " + bn$ + "("
                   i = 1
                   WHILE i <= fnargs
                     IF i > 1 THEN
@@ -464,6 +609,8 @@ WHILE tpos <= ntok
                   valStack$(spVal) = cir$
                   IF RIGHT$(fname$, 1) = "$" THEN
                     valType$(spVal) = "string"
+                  ELSEIF RIGHT$(fname$, 1) = "!" OR RIGHT$(fname$, 1) = "#" THEN
+                    valType$(spVal) = "float"
                   ELSE
                     valType$(spVal) = "integer"
                   END IF
@@ -482,6 +629,8 @@ WHILE tpos <= ntok
                   vtype$ = "integer"
                   IF RIGHT$(fname$, 1) = "$" THEN
                     vtype$ = "string"
+                  ELSEIF RIGHT$(fname$, 1) = "!" OR RIGHT$(fname$, 1) = "#" THEN
+                    vtype$ = "float"
                   END IF
                   spVal = spVal + 1
                   valStack$(spVal) = "array_access(" + fname$ + ":" + vtype$ + "[" + fargs$(1) + "])"
@@ -553,13 +702,39 @@ WHILE tpos <= ntok
         ELSEIF expectOp = 0 THEN
           IF t$ = "number" THEN
             spVal = spVal + 1
-            valStack$(spVal) = "integer(" + v$ + ")"
-            valType$(spVal) = "integer"
+            isFloat = 0
+            IF LEFT$(v$, 2) <> "0x" AND LEFT$(v$, 2) <> "0X" THEN
+              ei = 1
+              WHILE ei <= LEN(v$)
+                IF ASC(MID$(v$, ei, 1)) = 46 OR ASC(MID$(v$, ei, 1)) = 101 OR ASC(MID$(v$, ei, 1)) = 69 THEN
+                  isFloat = 1
+                  ei = LEN(v$) + 1
+                END IF
+                ei = ei + 1
+              WEND
+            END IF
+            IF isFloat = 1 THEN
+              valStack$(spVal) = "float(" + v$ + ")"
+              valType$(spVal) = "float"
+            ELSE
+              valStack$(spVal) = "integer(" + v$ + ")"
+              valType$(spVal) = "integer"
+            END IF
             tpos = tpos + 1
             expectOp = 1
           ELSEIF t$ = "string" THEN
+            esc$ = ""
+            ei = 1
+            WHILE ei <= LEN(v$)
+              IF ASC(MID$(v$, ei, 1)) = 92 THEN
+                esc$ = esc$ + CHR$(92) + CHR$(92)
+              ELSE
+                esc$ = esc$ + MID$(v$, ei, 1)
+              END IF
+              ei = ei + 1
+            WEND
             spVal = spVal + 1
-            valStack$(spVal) = "string(" + CHR$(34) + v$ + CHR$(34) + ")"
+            valStack$(spVal) = "string(" + CHR$(34) + esc$ + CHR$(34) + ")"
             valType$(spVal) = "string"
             tpos = tpos + 1
             expectOp = 1
@@ -591,16 +766,44 @@ WHILE tpos <= ntok
               tpos = tpos + 1
             ELSE
               vtype$ = "integer"
-              vname$ = iname$
-              IF RIGHT$(iname$, 1) = "$" THEN
-                vtype$ = "string"
-                vname$ = LEFT$(iname$, LEN(iname$) - 1)
-              END IF
+              vname$ = strip_suffix$(iname$)
+              vtype$ = ##suffixType$
               spVal = spVal + 1
               valStack$(spVal) = "symbol(" + vname$ + ":" + vtype$ + ")"
               valType$(spVal) = vtype$
               expectOp = 1
             END IF
+          ELSEIF t$ = "shared" THEN
+            vtype$ = "integer"
+            vname$ = strip_suffix$(v$)
+            vtype$ = ##suffixType$
+            spVal = spVal + 1
+            valStack$(spVal) = "shared(##" + vname$ + ":" + vtype$ + ")"
+            valType$(spVal) = vtype$
+            tpos = tpos + 1
+            expectOp = 1
+          ELSEIF t$ = "sysconst" THEN
+            vtype$ = "integer"
+            ci = 1
+            WHILE ci <= nConst
+              IF constName$(ci) = v$ THEN
+                vtype$ = constType$(ci)
+                ci = nConst + 1
+              END IF
+              ci = ci + 1
+            WEND
+            spVal = spVal + 1
+            ci = 1
+            WHILE ci <= nConst
+              IF constName$(ci) = v$ THEN
+                valStack$(spVal) = "constant($$" + v$ + ":" + vtype$ + " = " + constValue$(ci) + ")"
+                ci = nConst + 1
+              END IF
+              ci = ci + 1
+            WEND
+            valType$(spVal) = vtype$
+            tpos = tpos + 1
+            expectOp = 1
           ELSEIF t$ = "symbol" AND v$ = "(" THEN
             spOp = spOp + 1
             opStack$(spOp) = "("
@@ -719,10 +922,8 @@ WHILE tpos <= ntok
         i = i + 1
       WEND
       vtype$ = "integer"
-      vname$ = forVar$
-      IF RIGHT$(forVar$, 1) = "$" THEN
-        vname$ = LEFT$(forVar$, LEN(forVar$) - 1)
-      END IF
+      vname$ = strip_suffix$(forVar$)
+      vtype$ = ##suffixType$
       PRINT prefix$ + "for " + vname$ + ":" + vtype$ + " = " + forStart$ + " to " + eir$
       indent = indent + 1
       stmtState = 0
@@ -751,6 +952,8 @@ WHILE tpos <= ntok
       vtype$ = "integer"
       IF RIGHT$(arrName$, 1) = "$" THEN
         vtype$ = "string"
+      ELSEIF RIGHT$(arrName$, 1) = "!" OR RIGHT$(arrName$, 1) = "#" THEN
+        vtype$ = "float"
       END IF
       PRINT prefix$ + "array_assign " + arrName$ + ":" + vtype$ + "[" + arrIndex$ + "] = " + eir$
       stmtState = 0
@@ -772,7 +975,44 @@ WHILE tpos <= ntok
       WEND
       PRINT prefix$ + eir$
       stmtState = 0
+    ELSEIF stmtState = 12 THEN
+      prefix$ = ""
+      i = 1
+      WHILE i <= indent
+        prefix$ = prefix$ + "  "
+        i = i + 1
+      WEND
+      PRINT prefix$ + "shared ##" + assignTarget$ + ":" + assignType$ + " = " + eir$
+      stmtState = 0
+    ELSEIF stmtState = 13 THEN
+      PRINT "const $$" + assignTarget$ + ":" + assignType$ + " = " + eir$
+      nConst = nConst + 1
+      constName$(nConst) = assignTarget$
+      constType$(nConst) = assignType$
+      constValue$(nConst) = eir$
+      stmtState = 0
     END IF
   END IF
 WEND
+END FUNCTION
+
+FUNCTION strip_suffix$(name$)
+  DIM lastChar
+  lastChar = ASC(RIGHT$(name$, 1))
+  IF lastChar = 36 THEN
+    ##suffixType$ = "string"
+    strip_suffix$ = LEFT$(name$, LEN(name$) - 1)
+  ELSEIF lastChar = 37 THEN
+    ##suffixType$ = "integer"
+    strip_suffix$ = LEFT$(name$, LEN(name$) - 1)
+  ELSEIF lastChar = 33 THEN
+    ##suffixType$ = "float"
+    strip_suffix$ = LEFT$(name$, LEN(name$) - 1)
+  ELSEIF lastChar = 35 THEN
+    ##suffixType$ = "float"
+    strip_suffix$ = LEFT$(name$, LEN(name$) - 1)
+  ELSE
+    ##suffixType$ = "integer"
+    strip_suffix$ = name$
+  END IF
 END FUNCTION

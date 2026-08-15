@@ -1,0 +1,1087 @@
+version 0.1
+function Main() -> integer
+  dim src:string
+  dim line:string
+  dim pos:integer
+  dim ch:integer
+  dim numLines:integer
+  dim i:integer
+  dim j:integer
+  dim stmt:string
+  dim inFunc:integer
+  dim hasMain:integer
+  dim cCode:string
+  dim mainBody:string
+  dim rest:string
+  dim parenPos:integer
+  dim funcName:string
+  dim afterParen:string
+  dim closeParen:integer
+  dim params:string
+  dim retType:string
+  dim fwdPos:integer
+  dim fwdLine:string
+  dim fwdCh:integer
+  dim fwdJ:integer
+  dim fwdStmt:string
+  dim fwdRest:string
+  dim fwdParen:integer
+  dim fwdName:string
+  dim fwdAfter:string
+  dim fwdClose:integer
+  dim fwdParams:string
+  dim fwdRet:string
+  dim fwdHash:integer
+  dim fwdColon:integer
+  dim fwdSName:string
+  dim fwdSAfter:string
+  dim fwdSPos:integer
+  dim fwdSType:string
+  assign src:string = string("")
+  while compare(call EOF() = integer(0))
+    assign line:string = call READLINE$()
+    if compare(call EOF() = integer(0))
+      assign src:string = arith(arith(symbol(src:string) + symbol(line:string)) + call CHR$(integer(10)))
+    else
+      assign src:string = arith(symbol(src:string) + symbol(line:string))
+    end if
+  wend
+  print string("#include <stdio.h>")
+  print string("#include <stdlib.h>")
+  print string("#include <string.h>")
+  print string("#include <ctype.h>")
+  print string("")
+  print string("static char* xb_strdup(const char* s) { size_t n = strlen(s) + 1; char* r = (char*)malloc(n); memcpy(r, s, n); return r; }")
+  print string("static char* xb_str(const char* s) { return xb_strdup(s); }")
+  print string("static char* xb_concat(const char* a, const char* b) {")
+  print string("    size_t la = strlen(a), lb = strlen(b);")
+  print string("    char* r = malloc(la + lb + 1);")
+  print string("    memcpy(r, a, la);")
+  print string("    memcpy(r + la, b, lb);")
+  print string("    r[la + lb] = 0;")
+  print string("    return r;")
+  print string("}")
+  print string("static int xb_len(const char* s) { return (int)strlen(s); }")
+  print string("static int xb_asc(const char* s) { return (unsigned char)s[0]; }")
+  print string("static char* xb_chr(int c) { char* r = malloc(2); r[0] = (char)c; r[1] = 0; return r; }")
+  print string("static char* xb_left(const char* s, int n) {")
+  print string("    int len = (int)strlen(s);")
+  print string("    if (n < 0) n = 0;")
+  print string("    if (n > len) n = len;")
+  print string("    char* r = malloc(n + 1);")
+  print string("    memcpy(r, s, n);")
+  print string("    r[n] = 0;")
+  print string("    return r;")
+  print string("}")
+  print string("static char* xb_right(const char* s, int n) {")
+  print string("    int len = (int)strlen(s);")
+  print string("    if (n < 0) n = 0;")
+  print string("    if (n > len) n = len;")
+  print string("    char* r = malloc(n + 1);")
+  print string("    memcpy(r, s + len - n, n);")
+  print string("    r[n] = 0;")
+  print string("    return r;")
+  print string("}")
+  print string("static char* xb_mid(const char* s, int start, int len) {")
+  print string("    int slen = (int)strlen(s);")
+  print string("    if (start < 1) start = 1;")
+  print string("    int off = start - 1;")
+  print arith(arith(arith(string("    if (off >= slen) return xb_strdup(") + call CHR$(integer(34))) + call CHR$(integer(34))) + string(");"))
+  print string("    if (len < 0) len = slen - off;")
+  print string("    if (off + len > slen) len = slen - off;")
+  print string("    char* r = malloc(len + 1);")
+  print string("    memcpy(r, s + off, len);")
+  print string("    r[len] = 0;")
+  print string("    return r;")
+  print string("}")
+  print string("static int xb_instr(const char* s, const char* sub) {")
+  print string("    const char* p = strstr(s, sub);")
+  print string("    return p ? (int)(p - s) + 1 : 0;")
+  print string("}")
+  print string("static int xb_val(const char* s) { return atoi(s); }")
+  print arith(arith(arith(arith(string("static char* xb_str_num(int v) { char* r = malloc(16); snprintf(r, 16, ") + call CHR$(integer(34))) + string("%d")) + call CHR$(integer(34))) + string(", v); return r; }"))
+  print string("static int xb_eof(void) {")
+  print string("    int c = fgetc(stdin);")
+  print string("    if (c == EOF) return 1;")
+  print string("    ungetc(c, stdin);")
+  print string("    return 0;")
+  print string("}")
+  print string("static char* xb_readline(void) {")
+  print string("    char buf[65536];")
+  print arith(arith(arith(string("    if (!fgets(buf, sizeof(buf), stdin)) return xb_strdup(") + call CHR$(integer(34))) + call CHR$(integer(34))) + string(");"))
+  print string("    int len = (int)strlen(buf);")
+  print string("    if (len > 0 && buf[len-1] == '\\n') buf[len-1] = 0;")
+  print string("    return xb_strdup(buf);")
+  print string("}")
+  print arith(arith(arith(arith(string("static void xb_print_int(int v) { printf(") + call CHR$(integer(34))) + string("%d\\n")) + call CHR$(integer(34))) + string(", v); }"))
+  print arith(arith(arith(arith(string("static void xb_print_str(const char* s) { printf(") + call CHR$(integer(34))) + string("%s\\n")) + call CHR$(integer(34))) + string(", s); }"))
+  print arith(arith(arith(arith(string("static void xb_print_float(double v) { printf(") + call CHR$(integer(34))) + string("%g\\n")) + call CHR$(integer(34))) + string(", v); }"))
+  print string("")
+  shared ##funcTypes:string = string("")
+  shared ##sharedDecls:string = string("")
+  assign fwdPos:integer = integer(1)
+  while compare(symbol(fwdPos:integer) <= call LEN(symbol(src:string)))
+    assign fwdLine:string = string("")
+    while compare(symbol(fwdPos:integer) <= call LEN(symbol(src:string)))
+      assign fwdCh:integer = call ASC(call MID$(symbol(src:string), symbol(fwdPos:integer), integer(1)))
+      assign fwdPos:integer = arith(symbol(fwdPos:integer) + integer(1))
+      if compare(symbol(fwdCh:integer) = integer(10))
+        exit_loop
+      end if
+      assign fwdLine:string = arith(symbol(fwdLine:string) + call CHR$(symbol(fwdCh:integer)))
+    wend
+    assign fwdJ:integer = integer(1)
+    while compare(symbol(fwdJ:integer) <= call LEN(symbol(fwdLine:string)))
+      if compare(call ASC(call MID$(symbol(fwdLine:string), symbol(fwdJ:integer), integer(1))) = integer(32))
+        assign fwdJ:integer = arith(symbol(fwdJ:integer) + integer(1))
+      else
+        exit_loop
+      end if
+    wend
+    if compare(symbol(fwdJ:integer) <= call LEN(symbol(fwdLine:string)))
+      assign fwdStmt:string = call MID$(symbol(fwdLine:string), symbol(fwdJ:integer), arith(arith(call LEN(symbol(fwdLine:string)) - symbol(fwdJ:integer)) + integer(1)))
+      if compare(call LEFT$(symbol(fwdStmt:string), integer(9)) = string("function "))
+        assign fwdRest:string = call MID$(symbol(fwdStmt:string), integer(10), arith(call LEN(symbol(fwdStmt:string)) - integer(9)))
+        assign fwdParen:integer = call INSTR(symbol(fwdRest:string), string("("))
+        assign fwdName:string = call LEFT$(symbol(fwdRest:string), arith(symbol(fwdParen:integer) - integer(1)))
+        assign fwdAfter:string = call MID$(symbol(fwdRest:string), arith(symbol(fwdParen:integer) + integer(1)), arith(call LEN(symbol(fwdRest:string)) - symbol(fwdParen:integer)))
+        assign fwdClose:integer = call INSTR(symbol(fwdAfter:string), string(")"))
+        assign fwdParams:string = call LEFT$(symbol(fwdAfter:string), arith(symbol(fwdClose:integer) - integer(1)))
+        assign fwdRet:string = call MID$(symbol(fwdAfter:string), arith(symbol(fwdClose:integer) + integer(5)), arith(arith(call LEN(symbol(fwdAfter:string)) - symbol(fwdClose:integer)) - integer(4)))
+        print arith(arith(arith(arith(arith(call c_type(symbol(fwdRet:string)) + string(" xb_user_")) + symbol(fwdName:string)) + string("(")) + call emit_params(symbol(fwdParams:string))) + string(");"))
+        shared ##funcTypes:string = arith(arith(arith(arith(shared(##funcTypes:string) + symbol(fwdName:string)) + string(":")) + symbol(fwdRet:string)) + string(","))
+      else
+        if compare(call LEFT$(symbol(fwdStmt:string), integer(7)) = string("shared "))
+          assign fwdRest:string = call MID$(symbol(fwdStmt:string), integer(8), arith(call LEN(symbol(fwdStmt:string)) - integer(7)))
+          assign fwdHash:integer = call INSTR(symbol(fwdRest:string), string("#"))
+          if compare(symbol(fwdHash:integer) > integer(0))
+            assign fwdRest:string = call MID$(symbol(fwdRest:string), arith(symbol(fwdHash:integer) + integer(2)), arith(arith(call LEN(symbol(fwdRest:string)) - symbol(fwdHash:integer)) - integer(1)))
+          end if
+          assign fwdColon:integer = call INSTR(symbol(fwdRest:string), string(":"))
+          if compare(symbol(fwdColon:integer) > integer(0))
+            assign fwdSName:string = call LEFT$(symbol(fwdRest:string), arith(symbol(fwdColon:integer) - integer(1)))
+            assign fwdSAfter:string = call MID$(symbol(fwdRest:string), arith(symbol(fwdColon:integer) + integer(1)), arith(call LEN(symbol(fwdRest:string)) - symbol(fwdColon:integer)))
+            assign fwdSPos:integer = call INSTR(symbol(fwdSAfter:string), string(" "))
+            if compare(symbol(fwdSPos:integer) > integer(0))
+              assign fwdSType:string = call LEFT$(symbol(fwdSAfter:string), arith(symbol(fwdSPos:integer) - integer(1)))
+            else
+              assign fwdSType:string = symbol(fwdSAfter:string)
+            end if
+            if compare(call INSTR(shared(##sharedDecls:string), arith(arith(string(":") + symbol(fwdSName:string)) + string(":"))) = integer(0))
+              shared ##sharedDecls:string = arith(arith(arith(shared(##sharedDecls:string) + string(":")) + symbol(fwdSName:string)) + string(":"))
+              print arith(arith(arith(call c_type(symbol(fwdSType:string)) + string(" xb_shared_")) + symbol(fwdSName:string)) + string(" = 0;"))
+            end if
+          end if
+        end if
+      end if
+    end if
+  wend
+  print string("")
+  assign hasMain:integer = integer(0)
+  assign inFunc:integer = integer(0)
+  assign mainBody:string = string("")
+  assign pos:integer = integer(1)
+  while compare(symbol(pos:integer) <= call LEN(symbol(src:string)))
+    assign line:string = string("")
+    while compare(symbol(pos:integer) <= call LEN(symbol(src:string)))
+      assign ch:integer = call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1)))
+      assign pos:integer = arith(symbol(pos:integer) + integer(1))
+      if compare(symbol(ch:integer) = integer(10))
+        exit_loop
+      end if
+      assign line:string = arith(symbol(line:string) + call CHR$(symbol(ch:integer)))
+    wend
+    assign j:integer = integer(1)
+    while compare(symbol(j:integer) <= call LEN(symbol(line:string)))
+      if compare(call ASC(call MID$(symbol(line:string), symbol(j:integer), integer(1))) = integer(32))
+        assign j:integer = arith(symbol(j:integer) + integer(1))
+      else
+        exit_loop
+      end if
+    wend
+    if compare(symbol(j:integer) > call LEN(symbol(line:string)))
+    else
+      assign stmt:string = call MID$(symbol(line:string), symbol(j:integer), arith(arith(call LEN(symbol(line:string)) - symbol(j:integer)) + integer(1)))
+      if compare(call LEFT$(symbol(stmt:string), integer(9)) = string("function "))
+        assign inFunc:integer = integer(1)
+        assign rest:string = call MID$(symbol(stmt:string), integer(10), arith(call LEN(symbol(stmt:string)) - integer(9)))
+        assign parenPos:integer = call INSTR(symbol(rest:string), string("("))
+        assign funcName:string = call LEFT$(symbol(rest:string), arith(symbol(parenPos:integer) - integer(1)))
+        if compare(symbol(funcName:string) = string("Main"))
+          assign hasMain:integer = integer(1)
+        end if
+        assign afterParen:string = call MID$(symbol(rest:string), arith(symbol(parenPos:integer) + integer(1)), arith(call LEN(symbol(rest:string)) - symbol(parenPos:integer)))
+        assign closeParen:integer = call INSTR(symbol(afterParen:string), string(")"))
+        assign params:string = call LEFT$(symbol(afterParen:string), arith(symbol(closeParen:integer) - integer(1)))
+        assign retType:string = call MID$(symbol(afterParen:string), arith(symbol(closeParen:integer) + integer(5)), arith(arith(call LEN(symbol(afterParen:string)) - symbol(closeParen:integer)) - integer(4)))
+        print arith(arith(arith(arith(arith(call c_type(symbol(retType:string)) + string(" xb_user_")) + symbol(funcName:string)) + string("(")) + call emit_params(symbol(params:string))) + string(") {"))
+        print arith(arith(arith(arith(arith(arith(string("    ") + call c_type(symbol(retType:string))) + string(" ")) + call c_var_name(symbol(funcName:string), symbol(retType:string))) + string(" = ")) + call c_default(symbol(retType:string))) + string(";"))
+      else
+        if compare(symbol(stmt:string) = string("end function"))
+          assign inFunc:integer = integer(0)
+          print arith(arith(string("    return ") + call c_var_name(symbol(funcName:string), symbol(retType:string))) + string(";"))
+          print string("}")
+        else
+          assign cCode:string = call emit_stmt(symbol(stmt:string))
+          if compare(symbol(inFunc:integer) = integer(1))
+            print symbol(cCode:string)
+          else
+            assign mainBody:string = arith(arith(symbol(mainBody:string) + symbol(cCode:string)) + call CHR$(integer(10)))
+          end if
+        end if
+      end if
+    end if
+  wend
+  print string("int main(void) {")
+  if compare(call LEN(symbol(mainBody:string)) > integer(0))
+    print symbol(mainBody:string)
+  end if
+  if compare(symbol(hasMain:integer) = integer(1))
+    print string("    xb_user_Main();")
+  end if
+  print string("    fflush(stdout);")
+  print string("    return 0;")
+  print string("}")
+end function
+function c_type(t:string) -> string
+  if compare(symbol(t:string) = string("string"))
+    assign c_type:string = string("char*")
+  else
+    if compare(symbol(t:string) = string("float"))
+      assign c_type:string = string("double")
+    else
+      assign c_type:string = string("int")
+    end if
+  end if
+end function
+function c_var_name(n:string, t:string) -> string
+  if compare(symbol(t:string) = string("string"))
+    assign c_var_name:string = arith(string("xb_str_") + symbol(n:string))
+  else
+    assign c_var_name:string = arith(string("xb_var_") + symbol(n:string))
+  end if
+end function
+function c_default(t:string) -> string
+  if compare(symbol(t:string) = string("string"))
+    assign c_default:string = arith(arith(arith(string("xb_strdup(") + call CHR$(integer(34))) + call CHR$(integer(34))) + string(")"))
+  else
+    if compare(symbol(t:string) = string("float"))
+      assign c_default:string = string("0.0")
+    else
+      assign c_default:string = string("0")
+    end if
+  end if
+end function
+function c_func_name(n:string) -> string
+  if compare(symbol(n:string) = string("LEN"))
+    assign c_func_name:string = string("xb_len")
+  else
+    if compare(symbol(n:string) = string("ASC"))
+      assign c_func_name:string = string("xb_asc")
+    else
+      if compare(symbol(n:string) = string("CHR$"))
+        assign c_func_name:string = string("xb_chr")
+      else
+        if compare(symbol(n:string) = string("LEFT$"))
+          assign c_func_name:string = string("xb_left")
+        else
+          if compare(symbol(n:string) = string("RIGHT$"))
+            assign c_func_name:string = string("xb_right")
+          else
+            if compare(symbol(n:string) = string("MID$"))
+              assign c_func_name:string = string("xb_mid")
+            else
+              if compare(symbol(n:string) = string("INSTR"))
+                assign c_func_name:string = string("xb_instr")
+              else
+                if compare(symbol(n:string) = string("VAL"))
+                  assign c_func_name:string = string("xb_val")
+                else
+                  if compare(symbol(n:string) = string("STR$"))
+                    assign c_func_name:string = string("xb_str_num")
+                  else
+                    if compare(symbol(n:string) = string("READLINE$"))
+                      assign c_func_name:string = string("xb_readline")
+                    else
+                      if compare(symbol(n:string) = string("EOF"))
+                        assign c_func_name:string = string("xb_eof")
+                      else
+                        assign c_func_name:string = arith(string("xb_user_") + symbol(n:string))
+                      end if
+                    end if
+                  end if
+                end if
+              end if
+            end if
+          end if
+        end if
+      end if
+    end if
+  end if
+end function
+function c_cmp_op(o:string) -> string
+  if compare(symbol(o:string) = string("="))
+    assign c_cmp_op:string = string("==")
+  else
+    if compare(symbol(o:string) = string("<>"))
+      assign c_cmp_op:string = string("!=")
+    else
+      if compare(symbol(o:string) = string("<"))
+        assign c_cmp_op:string = string("<")
+      else
+        if compare(symbol(o:string) = string(">"))
+          assign c_cmp_op:string = string(">")
+        else
+          if compare(symbol(o:string) = string("<="))
+            assign c_cmp_op:string = string("<=")
+          else
+            if compare(symbol(o:string) = string(">="))
+              assign c_cmp_op:string = string(">=")
+            else
+              assign c_cmp_op:string = string("==")
+            end if
+          end if
+        end if
+      end if
+    end if
+  end if
+end function
+function expr_type(e:string) -> string
+  dim rest:string
+  dim colonPos:integer
+  dim fn:string
+  dim parenPos:integer
+  dim left:string
+  dim r:string
+  dim right:string
+  dim op:string
+  dim sp:integer
+  dim sym:string
+  dim br:integer
+  dim ftPos:integer
+  dim ftStart:integer
+  dim ftEnd:integer
+  dim ftRest:string
+  if compare(call LEFT$(symbol(e:string), integer(7)) = string("string("))
+    assign expr_type:string = string("string")
+  else
+    if compare(call LEFT$(symbol(e:string), integer(8)) = string("integer("))
+      assign expr_type:string = string("integer")
+    else
+      if compare(call LEFT$(symbol(e:string), integer(6)) = string("float("))
+        assign expr_type:string = string("float")
+      else
+        if compare(call LEFT$(symbol(e:string), integer(7)) = string("symbol("))
+          assign rest:string = call MID$(symbol(e:string), integer(8), arith(call LEN(symbol(e:string)) - integer(7)))
+          if compare(call RIGHT$(symbol(rest:string), integer(1)) = string(")"))
+            assign rest:string = call LEFT$(symbol(rest:string), arith(call LEN(symbol(rest:string)) - integer(1)))
+          end if
+          assign colonPos:integer = call INSTR(symbol(rest:string), string(":"))
+          if compare(symbol(colonPos:integer) > integer(0))
+            assign expr_type:string = call MID$(symbol(rest:string), arith(symbol(colonPos:integer) + integer(1)), arith(call LEN(symbol(rest:string)) - symbol(colonPos:integer)))
+          else
+            assign expr_type:string = string("integer")
+          end if
+        else
+          if compare(call LEFT$(symbol(e:string), integer(5)) = string("call "))
+            assign rest:string = call MID$(symbol(e:string), integer(6), arith(call LEN(symbol(e:string)) - integer(5)))
+            assign parenPos:integer = call INSTR(symbol(rest:string), string("("))
+            if compare(symbol(parenPos:integer) > integer(0))
+              assign fn:string = call LEFT$(symbol(rest:string), arith(symbol(parenPos:integer) - integer(1)))
+            else
+              assign fn:string = symbol(rest:string)
+            end if
+            if or(or(or(or(compare(symbol(fn:string) = string("LEN")) compare(symbol(fn:string) = string("ASC"))) compare(symbol(fn:string) = string("INSTR"))) compare(symbol(fn:string) = string("VAL"))) compare(symbol(fn:string) = string("EOF")))
+              assign expr_type:string = string("integer")
+            else
+              if or(or(or(or(or(compare(symbol(fn:string) = string("CHR$")) compare(symbol(fn:string) = string("LEFT$"))) compare(symbol(fn:string) = string("RIGHT$"))) compare(symbol(fn:string) = string("MID$"))) compare(symbol(fn:string) = string("STR$"))) compare(symbol(fn:string) = string("READLINE$")))
+                assign expr_type:string = string("string")
+              else
+                assign ftPos:integer = call INSTR(shared(##funcTypes:string), arith(symbol(fn:string) + string(":")))
+                if compare(symbol(ftPos:integer) > integer(0))
+                  assign ftStart:integer = arith(arith(symbol(ftPos:integer) + call LEN(symbol(fn:string))) + integer(1))
+                  assign ftRest:string = call MID$(shared(##funcTypes:string), symbol(ftStart:integer), arith(arith(call LEN(shared(##funcTypes:string)) - symbol(ftStart:integer)) + integer(1)))
+                  assign ftEnd:integer = call INSTR(symbol(ftRest:string), string(","))
+                  if compare(symbol(ftEnd:integer) > integer(0))
+                    assign expr_type:string = call LEFT$(symbol(ftRest:string), arith(symbol(ftEnd:integer) - integer(1)))
+                  else
+                    assign expr_type:string = string("integer")
+                  end if
+                else
+                  assign expr_type:string = string("integer")
+                end if
+              end if
+            end if
+          else
+            if compare(call LEFT$(symbol(e:string), integer(6)) = string("arith("))
+              assign rest:string = call MID$(symbol(e:string), integer(7), arith(call LEN(symbol(e:string)) - integer(6)))
+              if compare(call RIGHT$(symbol(rest:string), integer(1)) = string(")"))
+                assign rest:string = call LEFT$(symbol(rest:string), arith(call LEN(symbol(rest:string)) - integer(1)))
+              end if
+              assign left:string = call first_expr(symbol(rest:string))
+              assign r:string = call after_first(symbol(rest:string))
+              assign sp:integer = call INSTR(symbol(r:string), string(" "))
+              if compare(symbol(sp:integer) > integer(0))
+                assign op:string = call LEFT$(symbol(r:string), arith(symbol(sp:integer) - integer(1)))
+                assign right:string = call MID$(symbol(r:string), arith(symbol(sp:integer) + integer(1)), arith(call LEN(symbol(r:string)) - symbol(sp:integer)))
+              else
+                assign op:string = symbol(r:string)
+                assign right:string = string("")
+              end if
+              if and(compare(symbol(op:string) = string("+")) or(compare(call expr_type(symbol(left:string)) = string("string")) compare(call expr_type(symbol(right:string)) = string("string"))))
+                assign expr_type:string = string("string")
+              else
+                assign expr_type:string = string("integer")
+              end if
+            else
+              if compare(call LEFT$(symbol(e:string), integer(8)) = string("compare("))
+                assign expr_type:string = string("integer")
+              else
+                if compare(call LEFT$(symbol(e:string), integer(4)) = string("not("))
+                  assign expr_type:string = string("integer")
+                else
+                  if compare(call LEFT$(symbol(e:string), integer(4)) = string("and("))
+                    assign expr_type:string = string("integer")
+                  else
+                    if compare(call LEFT$(symbol(e:string), integer(3)) = string("or("))
+                      assign expr_type:string = string("integer")
+                    else
+                      if compare(call LEFT$(symbol(e:string), integer(13)) = string("array_access("))
+                        assign rest:string = call MID$(symbol(e:string), integer(14), arith(call LEN(symbol(e:string)) - integer(13)))
+                        if compare(call RIGHT$(symbol(rest:string), integer(1)) = string(")"))
+                          assign rest:string = call LEFT$(symbol(rest:string), arith(call LEN(symbol(rest:string)) - integer(1)))
+                        end if
+                        assign br:integer = call INSTR(symbol(rest:string), string("["))
+                        if compare(symbol(br:integer) > integer(0))
+                          assign sym:string = call LEFT$(symbol(rest:string), arith(symbol(br:integer) - integer(1)))
+                          assign colonPos:integer = call INSTR(symbol(sym:string), string(":"))
+                          if compare(symbol(colonPos:integer) > integer(0))
+                            assign expr_type:string = call MID$(symbol(sym:string), arith(symbol(colonPos:integer) + integer(1)), arith(call LEN(symbol(sym:string)) - symbol(colonPos:integer)))
+                          else
+                            assign expr_type:string = string("integer")
+                          end if
+                        else
+                          assign expr_type:string = string("integer")
+                        end if
+                      else
+                        if compare(call LEFT$(symbol(e:string), integer(7)) = string("shared("))
+                          assign rest:string = call MID$(symbol(e:string), integer(8), arith(call LEN(symbol(e:string)) - integer(7)))
+                          if compare(call RIGHT$(symbol(rest:string), integer(1)) = string(")"))
+                            assign rest:string = call LEFT$(symbol(rest:string), arith(call LEN(symbol(rest:string)) - integer(1)))
+                          end if
+                          assign sp:integer = call INSTR(symbol(rest:string), string("##"))
+                          if compare(symbol(sp:integer) > integer(0))
+                            assign rest:string = call MID$(symbol(rest:string), arith(symbol(sp:integer) + integer(2)), arith(arith(call LEN(symbol(rest:string)) - symbol(sp:integer)) - integer(1)))
+                          end if
+                          assign colonPos:integer = call INSTR(symbol(rest:string), string(":"))
+                          if compare(symbol(colonPos:integer) > integer(0))
+                            assign expr_type:string = call MID$(symbol(rest:string), arith(symbol(colonPos:integer) + integer(1)), arith(call LEN(symbol(rest:string)) - symbol(colonPos:integer)))
+                          else
+                            assign expr_type:string = string("integer")
+                          end if
+                        else
+                          assign expr_type:string = string("integer")
+                        end if
+                      end if
+                    end if
+                  end if
+                end if
+              end if
+            end if
+          end if
+        end if
+      end if
+    end if
+  end if
+end function
+function first_expr(s:string) -> string
+  dim p:integer
+  dim depth:integer
+  dim ch:integer
+  dim q:integer
+  dim inQuote:integer
+  if compare(call LEFT$(symbol(s:string), integer(7)) = string("string("))
+    assign q:integer = integer(9)
+    while compare(symbol(q:integer) <= call LEN(symbol(s:string)))
+      if compare(call ASC(call MID$(symbol(s:string), symbol(q:integer), integer(1))) = integer(34))
+        if and(compare(arith(symbol(q:integer) + integer(1)) <= call LEN(symbol(s:string))) compare(call ASC(call MID$(symbol(s:string), arith(symbol(q:integer) + integer(1)), integer(1))) = integer(41)))
+          assign first_expr:string = call LEFT$(symbol(s:string), arith(symbol(q:integer) + integer(1)))
+          return symbol(first_expr:string)
+        end if
+      end if
+      assign q:integer = arith(symbol(q:integer) + integer(1))
+    wend
+    assign first_expr:string = symbol(s:string)
+    return symbol(first_expr:string)
+  end if
+  assign p:integer = call INSTR(symbol(s:string), string("("))
+  if compare(symbol(p:integer) = integer(0))
+    assign first_expr:string = symbol(s:string)
+    return symbol(first_expr:string)
+  end if
+  assign depth:integer = integer(1)
+  assign p:integer = arith(symbol(p:integer) + integer(1))
+  assign inQuote:integer = integer(0)
+  while and(compare(symbol(p:integer) <= call LEN(symbol(s:string))) compare(symbol(depth:integer) > integer(0)))
+    assign ch:integer = call ASC(call MID$(symbol(s:string), symbol(p:integer), integer(1)))
+    if compare(symbol(ch:integer) = integer(34))
+      assign inQuote:integer = arith(integer(1) - symbol(inQuote:integer))
+    else
+      if compare(symbol(inQuote:integer) = integer(0))
+        if compare(symbol(ch:integer) = integer(40))
+          assign depth:integer = arith(symbol(depth:integer) + integer(1))
+        else
+          if compare(symbol(ch:integer) = integer(41))
+            assign depth:integer = arith(symbol(depth:integer) - integer(1))
+          end if
+        end if
+      end if
+    end if
+    assign p:integer = arith(symbol(p:integer) + integer(1))
+  wend
+  assign first_expr:string = call LEFT$(symbol(s:string), arith(symbol(p:integer) - integer(1)))
+end function
+function after_first(s:string) -> string
+  dim fe:string
+  dim p:integer
+  assign fe:string = call first_expr(symbol(s:string))
+  assign p:integer = arith(call LEN(symbol(fe:string)) + integer(1))
+  if and(compare(symbol(p:integer) <= call LEN(symbol(s:string))) compare(call ASC(call MID$(symbol(s:string), symbol(p:integer), integer(1))) = integer(32)))
+    assign p:integer = arith(symbol(p:integer) + integer(1))
+  end if
+  assign after_first:string = call MID$(symbol(s:string), symbol(p:integer), arith(arith(call LEN(symbol(s:string)) - symbol(p:integer)) + integer(1)))
+end function
+function trim_spaces(s:string) -> string
+  dim i:integer
+  dim j:integer
+  assign i:integer = integer(1)
+  while compare(symbol(i:integer) <= call LEN(symbol(s:string)))
+    if compare(call ASC(call MID$(symbol(s:string), symbol(i:integer), integer(1))) = integer(32))
+      assign i:integer = arith(symbol(i:integer) + integer(1))
+    else
+      exit_loop
+    end if
+  wend
+  assign j:integer = call LEN(symbol(s:string))
+  while compare(symbol(j:integer) >= symbol(i:integer))
+    if compare(call ASC(call MID$(symbol(s:string), symbol(j:integer), integer(1))) = integer(32))
+      assign j:integer = arith(symbol(j:integer) - integer(1))
+    else
+      exit_loop
+    end if
+  wend
+  if compare(symbol(j:integer) < symbol(i:integer))
+    assign trim_spaces:string = string("")
+  else
+    assign trim_spaces:string = call MID$(symbol(s:string), symbol(i:integer), arith(arith(symbol(j:integer) - symbol(i:integer)) + integer(1)))
+  end if
+end function
+function emit_expr(e:string) -> string
+  dim t:string
+  dim rest:string
+  dim colonPos:integer
+  dim varName:string
+  dim varType:string
+  dim left:string
+  dim r:string
+  dim op:string
+  dim sp:integer
+  dim right:string
+  dim fn:string
+  dim args:string
+  dim parenPos:integer
+  dim br:integer
+  if compare(call LEFT$(symbol(e:string), integer(7)) = string("string("))
+    assign t:string = call MID$(symbol(e:string), integer(9), arith(call LEN(symbol(e:string)) - integer(10)))
+    assign emit_expr:string = arith(arith(arith(arith(string("xb_str(") + call CHR$(integer(34))) + symbol(t:string)) + call CHR$(integer(34))) + string(")"))
+    return symbol(emit_expr:string)
+  end if
+  if compare(call LEFT$(symbol(e:string), integer(8)) = string("integer("))
+    assign t:string = call MID$(symbol(e:string), integer(9), arith(call LEN(symbol(e:string)) - integer(9)))
+    assign emit_expr:string = symbol(t:string)
+    return symbol(emit_expr:string)
+  end if
+  if compare(call LEFT$(symbol(e:string), integer(6)) = string("float("))
+    assign t:string = call MID$(symbol(e:string), integer(7), arith(call LEN(symbol(e:string)) - integer(7)))
+    assign emit_expr:string = symbol(t:string)
+    return symbol(emit_expr:string)
+  end if
+  if compare(call LEFT$(symbol(e:string), integer(7)) = string("symbol("))
+    assign t:string = call MID$(symbol(e:string), integer(8), arith(call LEN(symbol(e:string)) - integer(7)))
+    if compare(call RIGHT$(symbol(t:string), integer(1)) = string(")"))
+      assign t:string = call LEFT$(symbol(t:string), arith(call LEN(symbol(t:string)) - integer(1)))
+    end if
+    assign colonPos:integer = call INSTR(symbol(t:string), string(":"))
+    if compare(symbol(colonPos:integer) > integer(0))
+      assign varName:string = call LEFT$(symbol(t:string), arith(symbol(colonPos:integer) - integer(1)))
+      assign varType:string = call MID$(symbol(t:string), arith(symbol(colonPos:integer) + integer(1)), arith(call LEN(symbol(t:string)) - symbol(colonPos:integer)))
+    else
+      assign varName:string = symbol(t:string)
+      assign varType:string = string("integer")
+    end if
+    assign emit_expr:string = call c_var_name(symbol(varName:string), symbol(varType:string))
+    return symbol(emit_expr:string)
+  end if
+  if compare(call LEFT$(symbol(e:string), integer(8)) = string("compare("))
+    assign rest:string = call MID$(symbol(e:string), integer(9), arith(call LEN(symbol(e:string)) - integer(8)))
+    if compare(call RIGHT$(symbol(rest:string), integer(1)) = string(")"))
+      assign rest:string = call LEFT$(symbol(rest:string), arith(call LEN(symbol(rest:string)) - integer(1)))
+    end if
+    assign left:string = call first_expr(symbol(rest:string))
+    assign r:string = call after_first(symbol(rest:string))
+    assign sp:integer = call INSTR(symbol(r:string), string(" "))
+    if compare(symbol(sp:integer) > integer(0))
+      assign op:string = call LEFT$(symbol(r:string), arith(symbol(sp:integer) - integer(1)))
+      assign right:string = call MID$(symbol(r:string), arith(symbol(sp:integer) + integer(1)), arith(call LEN(symbol(r:string)) - symbol(sp:integer)))
+    else
+      assign op:string = symbol(r:string)
+      assign right:string = string("")
+    end if
+    if or(compare(call expr_type(symbol(left:string)) = string("string")) compare(call expr_type(symbol(right:string)) = string("string")))
+      assign emit_expr:string = arith(arith(arith(arith(arith(arith(string("(strcmp(") + call emit_expr(symbol(left:string))) + string(", ")) + call emit_expr(symbol(right:string))) + string(") ")) + call c_cmp_op(symbol(op:string))) + string(" 0)"))
+    else
+      assign emit_expr:string = arith(arith(arith(arith(arith(arith(string("(") + call emit_expr(symbol(left:string))) + string(" ")) + call c_cmp_op(symbol(op:string))) + string(" ")) + call emit_expr(symbol(right:string))) + string(")"))
+    end if
+    return symbol(emit_expr:string)
+  end if
+  if compare(call LEFT$(symbol(e:string), integer(6)) = string("arith("))
+    assign rest:string = call MID$(symbol(e:string), integer(7), arith(call LEN(symbol(e:string)) - integer(6)))
+    if compare(call RIGHT$(symbol(rest:string), integer(1)) = string(")"))
+      assign rest:string = call LEFT$(symbol(rest:string), arith(call LEN(symbol(rest:string)) - integer(1)))
+    end if
+    assign left:string = call first_expr(symbol(rest:string))
+    assign r:string = call after_first(symbol(rest:string))
+    assign sp:integer = call INSTR(symbol(r:string), string(" "))
+    if compare(symbol(sp:integer) > integer(0))
+      assign op:string = call LEFT$(symbol(r:string), arith(symbol(sp:integer) - integer(1)))
+      assign right:string = call MID$(symbol(r:string), arith(symbol(sp:integer) + integer(1)), arith(call LEN(symbol(r:string)) - symbol(sp:integer)))
+    else
+      assign op:string = symbol(r:string)
+      assign right:string = string("")
+    end if
+    if and(compare(symbol(op:string) = string("+")) or(compare(call expr_type(symbol(left:string)) = string("string")) compare(call expr_type(symbol(right:string)) = string("string"))))
+      assign emit_expr:string = arith(arith(arith(arith(string("xb_concat(") + call emit_expr(symbol(left:string))) + string(", ")) + call emit_expr(symbol(right:string))) + string(")"))
+    else
+      assign emit_expr:string = arith(arith(arith(arith(arith(arith(string("(") + call emit_expr(symbol(left:string))) + string(" ")) + symbol(op:string)) + string(" ")) + call emit_expr(symbol(right:string))) + string(")"))
+    end if
+    return symbol(emit_expr:string)
+  end if
+  if compare(call LEFT$(symbol(e:string), integer(4)) = string("not("))
+    assign t:string = call MID$(symbol(e:string), integer(5), arith(call LEN(symbol(e:string)) - integer(4)))
+    if compare(call RIGHT$(symbol(t:string), integer(1)) = string(")"))
+      assign t:string = call LEFT$(symbol(t:string), arith(call LEN(symbol(t:string)) - integer(1)))
+    end if
+    assign emit_expr:string = arith(arith(string("(~") + call emit_expr(symbol(t:string))) + string(")"))
+    return symbol(emit_expr:string)
+  end if
+  if compare(call LEFT$(symbol(e:string), integer(4)) = string("and("))
+    assign rest:string = call MID$(symbol(e:string), integer(5), arith(call LEN(symbol(e:string)) - integer(4)))
+    if compare(call RIGHT$(symbol(rest:string), integer(1)) = string(")"))
+      assign rest:string = call LEFT$(symbol(rest:string), arith(call LEN(symbol(rest:string)) - integer(1)))
+    end if
+    assign left:string = call first_expr(symbol(rest:string))
+    assign right:string = call after_first(symbol(rest:string))
+    assign emit_expr:string = arith(arith(arith(arith(string("((") + call emit_expr(symbol(left:string))) + string(") & (")) + call emit_expr(symbol(right:string))) + string("))"))
+    return symbol(emit_expr:string)
+  end if
+  if compare(call LEFT$(symbol(e:string), integer(3)) = string("or("))
+    assign rest:string = call MID$(symbol(e:string), integer(4), arith(call LEN(symbol(e:string)) - integer(3)))
+    if compare(call RIGHT$(symbol(rest:string), integer(1)) = string(")"))
+      assign rest:string = call LEFT$(symbol(rest:string), arith(call LEN(symbol(rest:string)) - integer(1)))
+    end if
+    assign left:string = call first_expr(symbol(rest:string))
+    assign right:string = call after_first(symbol(rest:string))
+    assign emit_expr:string = arith(arith(arith(arith(string("((") + call emit_expr(symbol(left:string))) + string(") | (")) + call emit_expr(symbol(right:string))) + string("))"))
+    return symbol(emit_expr:string)
+  end if
+  if compare(call LEFT$(symbol(e:string), integer(5)) = string("call "))
+    assign rest:string = call MID$(symbol(e:string), integer(6), arith(call LEN(symbol(e:string)) - integer(5)))
+    assign parenPos:integer = call INSTR(symbol(rest:string), string("("))
+    if compare(symbol(parenPos:integer) > integer(0))
+      assign fn:string = call LEFT$(symbol(rest:string), arith(symbol(parenPos:integer) - integer(1)))
+      if compare(call LEN(symbol(rest:string)) > symbol(parenPos:integer))
+        assign args:string = call MID$(symbol(rest:string), arith(symbol(parenPos:integer) + integer(1)), arith(arith(call LEN(symbol(rest:string)) - symbol(parenPos:integer)) - integer(1)))
+      else
+        assign args:string = string("")
+      end if
+    else
+      assign fn:string = symbol(rest:string)
+      assign args:string = string("")
+    end if
+    assign emit_expr:string = arith(arith(arith(call c_func_name(symbol(fn:string)) + string("(")) + call emit_args(symbol(args:string))) + string(")"))
+    return symbol(emit_expr:string)
+  end if
+  if compare(call LEFT$(symbol(e:string), integer(13)) = string("array_access("))
+    assign t:string = call MID$(symbol(e:string), integer(14), arith(call LEN(symbol(e:string)) - integer(13)))
+    if compare(call RIGHT$(symbol(t:string), integer(1)) = string(")"))
+      assign t:string = call LEFT$(symbol(t:string), arith(call LEN(symbol(t:string)) - integer(1)))
+    end if
+    assign br:integer = call INSTR(symbol(t:string), string("["))
+    if compare(symbol(br:integer) > integer(0))
+      assign varName:string = call LEFT$(symbol(t:string), arith(symbol(br:integer) - integer(1)))
+      assign colonPos:integer = call INSTR(symbol(varName:string), string(":"))
+      if compare(symbol(colonPos:integer) > integer(0))
+        assign varType:string = call MID$(symbol(varName:string), arith(symbol(colonPos:integer) + integer(1)), arith(call LEN(symbol(varName:string)) - symbol(colonPos:integer)))
+        assign varName:string = call LEFT$(symbol(varName:string), arith(symbol(colonPos:integer) - integer(1)))
+      else
+        assign varType:string = string("integer")
+      end if
+      assign t:string = call MID$(symbol(t:string), arith(symbol(br:integer) + integer(1)), arith(call LEN(symbol(t:string)) - symbol(br:integer)))
+      if compare(call RIGHT$(symbol(t:string), integer(1)) = string("]"))
+        assign t:string = call LEFT$(symbol(t:string), arith(call LEN(symbol(t:string)) - integer(1)))
+      end if
+      assign emit_expr:string = arith(arith(arith(call c_var_name(symbol(varName:string), symbol(varType:string)) + string("[")) + call emit_expr(symbol(t:string))) + string("]"))
+    else
+      assign emit_expr:string = string("0")
+    end if
+    return symbol(emit_expr:string)
+  end if
+  if compare(call LEFT$(symbol(e:string), integer(9)) = string("constant("))
+    assign rest:string = call MID$(symbol(e:string), integer(10), arith(call LEN(symbol(e:string)) - integer(9)))
+    if compare(call RIGHT$(symbol(rest:string), integer(1)) = string(")"))
+      assign rest:string = call LEFT$(symbol(rest:string), arith(call LEN(symbol(rest:string)) - integer(1)))
+    end if
+    assign sp:integer = call INSTR(symbol(rest:string), string(" = "))
+    if compare(symbol(sp:integer) > integer(0))
+      assign emit_expr:string = call emit_expr(call MID$(symbol(rest:string), arith(symbol(sp:integer) + integer(3)), arith(arith(call LEN(symbol(rest:string)) - symbol(sp:integer)) - integer(2))))
+    else
+      assign emit_expr:string = string("0")
+    end if
+    return symbol(emit_expr:string)
+  end if
+  if compare(call LEFT$(symbol(e:string), integer(7)) = string("shared("))
+    assign t:string = call MID$(symbol(e:string), integer(8), arith(call LEN(symbol(e:string)) - integer(7)))
+    if compare(call RIGHT$(symbol(t:string), integer(1)) = string(")"))
+      assign t:string = call LEFT$(symbol(t:string), arith(call LEN(symbol(t:string)) - integer(1)))
+    end if
+    assign sp:integer = call INSTR(symbol(t:string), string("##"))
+    if compare(symbol(sp:integer) > integer(0))
+      assign t:string = call MID$(symbol(t:string), arith(symbol(sp:integer) + integer(2)), arith(arith(call LEN(symbol(t:string)) - symbol(sp:integer)) - integer(1)))
+    end if
+    assign colonPos:integer = call INSTR(symbol(t:string), string(":"))
+    if compare(symbol(colonPos:integer) > integer(0))
+      assign varName:string = call LEFT$(symbol(t:string), arith(symbol(colonPos:integer) - integer(1)))
+    else
+      assign varName:string = symbol(t:string)
+    end if
+    assign emit_expr:string = arith(string("xb_shared_") + symbol(varName:string))
+    return symbol(emit_expr:string)
+  end if
+  assign emit_expr:string = string("0")
+end function
+function emit_args(a:string) -> string
+  dim i:integer
+  dim ch:integer
+  dim depth:integer
+  dim start:integer
+  dim parts:string
+  dim arg:string
+  if compare(call LEN(symbol(a:string)) = integer(0))
+    assign emit_args:string = string("")
+    return symbol(emit_args:string)
+  end if
+  assign parts:string = string("")
+  assign i:integer = integer(1)
+  assign start:integer = integer(1)
+  assign depth:integer = integer(0)
+  while compare(symbol(i:integer) <= call LEN(symbol(a:string)))
+    assign ch:integer = call ASC(call MID$(symbol(a:string), symbol(i:integer), integer(1)))
+    if compare(symbol(ch:integer) = integer(40))
+      assign depth:integer = arith(symbol(depth:integer) + integer(1))
+    else
+      if compare(symbol(ch:integer) = integer(41))
+        assign depth:integer = arith(symbol(depth:integer) - integer(1))
+      else
+        if and(compare(symbol(ch:integer) = integer(44)) compare(symbol(depth:integer) = integer(0)))
+          assign arg:string = call MID$(symbol(a:string), symbol(start:integer), arith(symbol(i:integer) - symbol(start:integer)))
+          assign arg:string = call trim_spaces(symbol(arg:string))
+          if compare(call LEN(symbol(parts:string)) > integer(0))
+            assign parts:string = arith(symbol(parts:string) + string(", "))
+          end if
+          assign parts:string = arith(symbol(parts:string) + call emit_expr(symbol(arg:string)))
+          assign start:integer = arith(symbol(i:integer) + integer(1))
+        end if
+      end if
+    end if
+    assign i:integer = arith(symbol(i:integer) + integer(1))
+  wend
+  if compare(symbol(start:integer) <= call LEN(symbol(a:string)))
+    assign arg:string = call MID$(symbol(a:string), symbol(start:integer), arith(arith(call LEN(symbol(a:string)) - symbol(start:integer)) + integer(1)))
+    assign arg:string = call trim_spaces(symbol(arg:string))
+    if compare(call LEN(symbol(parts:string)) > integer(0))
+      assign parts:string = arith(symbol(parts:string) + string(", "))
+    end if
+    assign parts:string = arith(symbol(parts:string) + call emit_expr(symbol(arg:string)))
+  end if
+  assign emit_args:string = symbol(parts:string)
+end function
+function emit_params(params:string) -> string
+  dim result:string
+  dim rest:string
+  dim commaPos:integer
+  dim param:string
+  dim colonPos:integer
+  dim pName:string
+  dim pType:string
+  assign result:string = string("")
+  assign rest:string = symbol(params:string)
+  while compare(call LEN(symbol(rest:string)) > integer(0))
+    assign commaPos:integer = call INSTR(symbol(rest:string), string(","))
+    if compare(symbol(commaPos:integer) = integer(0))
+      assign param:string = symbol(rest:string)
+      assign rest:string = string("")
+    else
+      assign param:string = call LEFT$(symbol(rest:string), arith(symbol(commaPos:integer) - integer(1)))
+      assign rest:string = call MID$(symbol(rest:string), arith(symbol(commaPos:integer) + integer(1)), arith(call LEN(symbol(rest:string)) - symbol(commaPos:integer)))
+      if and(compare(call LEN(symbol(rest:string)) > integer(0)) compare(call ASC(call MID$(symbol(rest:string), integer(1), integer(1))) = integer(32)))
+        assign rest:string = call MID$(symbol(rest:string), integer(2), arith(call LEN(symbol(rest:string)) - integer(1)))
+      end if
+    end if
+    assign param:string = call trim_spaces(symbol(param:string))
+    if compare(call LEN(symbol(param:string)) > integer(0))
+      assign colonPos:integer = call INSTR(symbol(param:string), string(":"))
+      if compare(symbol(colonPos:integer) > integer(0))
+        assign pName:string = call LEFT$(symbol(param:string), arith(symbol(colonPos:integer) - integer(1)))
+        assign pType:string = call MID$(symbol(param:string), arith(symbol(colonPos:integer) + integer(1)), arith(call LEN(symbol(param:string)) - symbol(colonPos:integer)))
+      else
+        assign pName:string = symbol(param:string)
+        assign pType:string = string("integer")
+      end if
+      if compare(call LEN(symbol(result:string)) > integer(0))
+        assign result:string = arith(symbol(result:string) + string(", "))
+      end if
+      assign result:string = arith(arith(arith(symbol(result:string) + call c_type(symbol(pType:string))) + string(" ")) + call c_var_name(symbol(pName:string), symbol(pType:string)))
+    end if
+  wend
+  assign emit_params:string = symbol(result:string)
+end function
+function emit_stmt(s:string) -> string
+  dim rest:string
+  dim spacePos:integer
+  dim varName:string
+  dim varType:string
+  dim colonPos:integer
+  dim bracketPos:integer
+  dim arrSize:string
+  dim cExpr:string
+  dim c2:string
+  dim etype:string
+  dim tmp:string
+  dim right:string
+  dim start:string
+  dim end:string
+  dim fn:string
+  dim args:string
+  dim parenPos:integer
+  dim pName:string
+  dim pType:string
+  dim hashPos:integer
+  dim eqPos:integer
+  dim expr:string
+  if compare(call LEFT$(symbol(s:string), integer(8)) = string("function"))
+    assign emit_stmt:string = string("")
+    return symbol(emit_stmt:string)
+  end if
+  if compare(symbol(s:string) = string("end function"))
+    assign emit_stmt:string = string("}")
+    return symbol(emit_stmt:string)
+  end if
+  if compare(call LEFT$(symbol(s:string), integer(7)) = string("version"))
+    assign emit_stmt:string = string("")
+    return symbol(emit_stmt:string)
+  end if
+  if compare(call LEFT$(symbol(s:string), integer(5)) = string("const"))
+    assign emit_stmt:string = string("")
+    return symbol(emit_stmt:string)
+  end if
+  if compare(call LEFT$(symbol(s:string), integer(7)) = string("shared "))
+    assign rest:string = call MID$(symbol(s:string), integer(8), arith(call LEN(symbol(s:string)) - integer(7)))
+    assign hashPos:integer = call INSTR(symbol(rest:string), string("#"))
+    if compare(symbol(hashPos:integer) > integer(0))
+      assign rest:string = call MID$(symbol(rest:string), arith(symbol(hashPos:integer) + integer(2)), arith(arith(call LEN(symbol(rest:string)) - symbol(hashPos:integer)) - integer(1)))
+    end if
+    assign colonPos:integer = call INSTR(symbol(rest:string), string(":"))
+    if compare(symbol(colonPos:integer) > integer(0))
+      assign varName:string = call LEFT$(symbol(rest:string), arith(symbol(colonPos:integer) - integer(1)))
+      assign eqPos:integer = call INSTR(symbol(rest:string), string("= "))
+      if compare(symbol(eqPos:integer) > integer(0))
+        assign expr:string = call MID$(symbol(rest:string), arith(symbol(eqPos:integer) + integer(2)), arith(arith(call LEN(symbol(rest:string)) - symbol(eqPos:integer)) - integer(1)))
+        assign emit_stmt:string = arith(arith(arith(arith(string("    xb_shared_") + symbol(varName:string)) + string(" = ")) + call emit_expr(symbol(expr:string))) + string(";"))
+        return symbol(emit_stmt:string)
+      end if
+    end if
+    assign emit_stmt:string = string("")
+    return symbol(emit_stmt:string)
+  end if
+  if compare(call LEFT$(symbol(s:string), integer(3)) = string("dim"))
+    assign rest:string = call MID$(symbol(s:string), integer(5), arith(call LEN(symbol(s:string)) - integer(4)))
+    assign bracketPos:integer = call INSTR(symbol(rest:string), string("["))
+    if compare(symbol(bracketPos:integer) > integer(0))
+      assign varName:string = call LEFT$(symbol(rest:string), arith(symbol(bracketPos:integer) - integer(1)))
+      assign arrSize:string = call MID$(symbol(rest:string), arith(symbol(bracketPos:integer) + integer(1)), arith(arith(call LEN(symbol(rest:string)) - symbol(bracketPos:integer)) - integer(1)))
+      assign colonPos:integer = call INSTR(symbol(varName:string), string(":"))
+      if compare(symbol(colonPos:integer) > integer(0))
+        assign varType:string = call MID$(symbol(varName:string), arith(symbol(colonPos:integer) + integer(1)), arith(call LEN(symbol(varName:string)) - symbol(colonPos:integer)))
+        assign varName:string = call LEFT$(symbol(varName:string), arith(symbol(colonPos:integer) - integer(1)))
+      else
+        assign varType:string = string("integer")
+      end if
+      assign cExpr:string = call emit_expr(symbol(arrSize:string))
+      if compare(symbol(varType:string) = string("string"))
+        assign emit_stmt:string = arith(arith(arith(arith(arith(arith(arith(arith(arith(arith(arith(arith(arith(string("    char* ") + call c_var_name(symbol(varName:string), symbol(varType:string))) + string("[")) + symbol(cExpr:string)) + string("];")) + call CHR$(integer(10))) + string("    for (int _i = 0; _i < ")) + symbol(cExpr:string)) + string("; _i++) ")) + call c_var_name(symbol(varName:string), symbol(varType:string))) + string("[_i] = xb_strdup(")) + call CHR$(integer(34))) + call CHR$(integer(34))) + string(");"))
+      else
+        assign emit_stmt:string = arith(arith(arith(arith(string("    int ") + call c_var_name(symbol(varName:string), symbol(varType:string))) + string("[")) + symbol(cExpr:string)) + string("];"))
+      end if
+    else
+      assign colonPos:integer = call INSTR(symbol(rest:string), string(":"))
+      if compare(symbol(colonPos:integer) > integer(0))
+        assign varName:string = call LEFT$(symbol(rest:string), arith(symbol(colonPos:integer) - integer(1)))
+        assign varType:string = call MID$(symbol(rest:string), arith(symbol(colonPos:integer) + integer(1)), arith(call LEN(symbol(rest:string)) - symbol(colonPos:integer)))
+      else
+        assign varName:string = symbol(rest:string)
+        assign varType:string = string("integer")
+      end if
+      if compare(symbol(varType:string) = string("string"))
+        assign emit_stmt:string = arith(arith(arith(arith(arith(string("    char* ") + call c_var_name(symbol(varName:string), symbol(varType:string))) + string(" = xb_strdup(")) + call CHR$(integer(34))) + call CHR$(integer(34))) + string(");"))
+      else
+        if compare(symbol(varType:string) = string("float"))
+          assign emit_stmt:string = arith(arith(string("    double ") + call c_var_name(symbol(varName:string), symbol(varType:string))) + string(" = 0.0;"))
+        else
+          assign emit_stmt:string = arith(arith(string("    int ") + call c_var_name(symbol(varName:string), symbol(varType:string))) + string(" = 0;"))
+        end if
+      end if
+    end if
+    return symbol(emit_stmt:string)
+  end if
+  if compare(call LEFT$(symbol(s:string), integer(12)) = string("array_assign"))
+    assign rest:string = call MID$(symbol(s:string), integer(14), arith(call LEN(symbol(s:string)) - integer(13)))
+    assign bracketPos:integer = call INSTR(symbol(rest:string), string("["))
+    assign varName:string = call LEFT$(symbol(rest:string), arith(symbol(bracketPos:integer) - integer(1)))
+    assign colonPos:integer = call INSTR(symbol(varName:string), string(":"))
+    if compare(symbol(colonPos:integer) > integer(0))
+      assign varType:string = call MID$(symbol(varName:string), arith(symbol(colonPos:integer) + integer(1)), arith(call LEN(symbol(varName:string)) - symbol(colonPos:integer)))
+      assign varName:string = call LEFT$(symbol(varName:string), arith(symbol(colonPos:integer) - integer(1)))
+    else
+      assign varType:string = string("integer")
+    end if
+    assign tmp:string = call MID$(symbol(rest:string), arith(symbol(bracketPos:integer) + integer(1)), arith(call LEN(symbol(rest:string)) - symbol(bracketPos:integer)))
+    assign bracketPos:integer = call INSTR(symbol(tmp:string), string("]"))
+    assign cExpr:string = call LEFT$(symbol(tmp:string), arith(symbol(bracketPos:integer) - integer(1)))
+    assign spacePos:integer = call INSTR(symbol(tmp:string), string("= "))
+    assign right:string = call MID$(symbol(tmp:string), arith(symbol(spacePos:integer) + integer(2)), arith(arith(call LEN(symbol(tmp:string)) - symbol(spacePos:integer)) - integer(1)))
+    assign c2:string = call emit_expr(symbol(right:string))
+    assign emit_stmt:string = arith(arith(arith(arith(arith(arith(string("    ") + call c_var_name(symbol(varName:string), symbol(varType:string))) + string("[")) + call emit_expr(symbol(cExpr:string))) + string("] = ")) + symbol(c2:string)) + string(";"))
+    return symbol(emit_stmt:string)
+  end if
+  if compare(call LEFT$(symbol(s:string), integer(6)) = string("assign"))
+    assign rest:string = call MID$(symbol(s:string), integer(8), arith(call LEN(symbol(s:string)) - integer(7)))
+    assign spacePos:integer = call INSTR(symbol(rest:string), string(" = "))
+    assign varName:string = call LEFT$(symbol(rest:string), arith(symbol(spacePos:integer) - integer(1)))
+    assign rest:string = call MID$(symbol(rest:string), arith(symbol(spacePos:integer) + integer(3)), arith(arith(call LEN(symbol(rest:string)) - symbol(spacePos:integer)) - integer(2)))
+    assign colonPos:integer = call INSTR(symbol(varName:string), string(":"))
+    if compare(symbol(colonPos:integer) > integer(0))
+      assign varType:string = call MID$(symbol(varName:string), arith(symbol(colonPos:integer) + integer(1)), arith(call LEN(symbol(varName:string)) - symbol(colonPos:integer)))
+      assign varName:string = call LEFT$(symbol(varName:string), arith(symbol(colonPos:integer) - integer(1)))
+    else
+      assign varType:string = string("integer")
+    end if
+    assign cExpr:string = call emit_expr(symbol(rest:string))
+    assign emit_stmt:string = arith(arith(arith(arith(string("    ") + call c_var_name(symbol(varName:string), symbol(varType:string))) + string(" = ")) + symbol(cExpr:string)) + string(";"))
+    return symbol(emit_stmt:string)
+  end if
+  if compare(call LEFT$(symbol(s:string), integer(5)) = string("print"))
+    assign rest:string = call MID$(symbol(s:string), integer(7), arith(call LEN(symbol(s:string)) - integer(6)))
+    assign cExpr:string = call emit_expr(symbol(rest:string))
+    assign etype:string = call expr_type(symbol(rest:string))
+    if compare(symbol(etype:string) = string("string"))
+      assign emit_stmt:string = arith(arith(string("    xb_print_str(") + symbol(cExpr:string)) + string(");"))
+    else
+      if compare(symbol(etype:string) = string("float"))
+        assign emit_stmt:string = arith(arith(string("    xb_print_float(") + symbol(cExpr:string)) + string(");"))
+      else
+        assign emit_stmt:string = arith(arith(string("    xb_print_int(") + symbol(cExpr:string)) + string(");"))
+      end if
+    end if
+    return symbol(emit_stmt:string)
+  end if
+  if compare(call LEFT$(symbol(s:string), integer(3)) = string("if "))
+    assign rest:string = call MID$(symbol(s:string), integer(4), arith(call LEN(symbol(s:string)) - integer(3)))
+    assign cExpr:string = call emit_expr(symbol(rest:string))
+    assign emit_stmt:string = arith(arith(string("    if (") + symbol(cExpr:string)) + string(") {"))
+    return symbol(emit_stmt:string)
+  end if
+  if compare(symbol(s:string) = string("else"))
+    assign emit_stmt:string = string("    } else {")
+    return symbol(emit_stmt:string)
+  end if
+  if compare(symbol(s:string) = string("end if"))
+    assign emit_stmt:string = string("    }")
+    return symbol(emit_stmt:string)
+  end if
+  if compare(call LEFT$(symbol(s:string), integer(6)) = string("while "))
+    assign rest:string = call MID$(symbol(s:string), integer(7), arith(call LEN(symbol(s:string)) - integer(6)))
+    assign cExpr:string = call emit_expr(symbol(rest:string))
+    assign emit_stmt:string = arith(arith(string("    while (") + symbol(cExpr:string)) + string(") {"))
+    return symbol(emit_stmt:string)
+  end if
+  if compare(symbol(s:string) = string("wend"))
+    assign emit_stmt:string = string("    }")
+    return symbol(emit_stmt:string)
+  end if
+  if compare(call LEFT$(symbol(s:string), integer(4)) = string("for "))
+    assign rest:string = call MID$(symbol(s:string), integer(5), arith(call LEN(symbol(s:string)) - integer(4)))
+    assign spacePos:integer = call INSTR(symbol(rest:string), string(" = "))
+    assign varName:string = call LEFT$(symbol(rest:string), arith(symbol(spacePos:integer) - integer(1)))
+    assign colonPos:integer = call INSTR(symbol(varName:string), string(":"))
+    if compare(symbol(colonPos:integer) > integer(0))
+      assign varType:string = call MID$(symbol(varName:string), arith(symbol(colonPos:integer) + integer(1)), arith(call LEN(symbol(varName:string)) - symbol(colonPos:integer)))
+      assign varName:string = call LEFT$(symbol(varName:string), arith(symbol(colonPos:integer) - integer(1)))
+    else
+      assign varType:string = string("integer")
+    end if
+    assign rest:string = call MID$(symbol(rest:string), arith(symbol(spacePos:integer) + integer(3)), arith(arith(call LEN(symbol(rest:string)) - symbol(spacePos:integer)) - integer(2)))
+    assign spacePos:integer = call INSTR(symbol(rest:string), string(" to "))
+    assign start:string = call LEFT$(symbol(rest:string), arith(symbol(spacePos:integer) - integer(1)))
+    assign end:string = call MID$(symbol(rest:string), arith(symbol(spacePos:integer) + integer(4)), arith(arith(call LEN(symbol(rest:string)) - symbol(spacePos:integer)) - integer(3)))
+    assign cExpr:string = call emit_expr(symbol(start:string))
+    assign c2:string = call emit_expr(symbol(end:string))
+    assign emit_stmt:string = arith(arith(arith(arith(arith(arith(arith(arith(arith(arith(string("    for (") + call c_var_name(symbol(varName:string), symbol(varType:string))) + string(" = ")) + symbol(cExpr:string)) + string("; ")) + call c_var_name(symbol(varName:string), symbol(varType:string))) + string(" <= ")) + symbol(c2:string)) + string("; ")) + call c_var_name(symbol(varName:string), symbol(varType:string))) + string("++) {"))
+    return symbol(emit_stmt:string)
+  end if
+  if compare(symbol(s:string) = string("next"))
+    assign emit_stmt:string = string("    }")
+    return symbol(emit_stmt:string)
+  end if
+  if compare(call LEFT$(symbol(s:string), integer(7)) = string("return "))
+    assign rest:string = call MID$(symbol(s:string), integer(8), arith(call LEN(symbol(s:string)) - integer(7)))
+    assign cExpr:string = call emit_expr(symbol(rest:string))
+    assign emit_stmt:string = arith(arith(string("    return ") + symbol(cExpr:string)) + string(";"))
+    return symbol(emit_stmt:string)
+  end if
+  if compare(symbol(s:string) = string("return"))
+    assign emit_stmt:string = string("    return 0;")
+    return symbol(emit_stmt:string)
+  end if
+  if compare(call LEFT$(symbol(s:string), integer(5)) = string("call "))
+    assign rest:string = call MID$(symbol(s:string), integer(6), arith(call LEN(symbol(s:string)) - integer(5)))
+    assign parenPos:integer = call INSTR(symbol(rest:string), string("("))
+    if compare(symbol(parenPos:integer) > integer(0))
+      assign fn:string = call LEFT$(symbol(rest:string), arith(symbol(parenPos:integer) - integer(1)))
+      if compare(call LEN(symbol(rest:string)) > symbol(parenPos:integer))
+        assign args:string = call MID$(symbol(rest:string), arith(symbol(parenPos:integer) + integer(1)), arith(arith(call LEN(symbol(rest:string)) - symbol(parenPos:integer)) - integer(1)))
+      else
+        assign args:string = string("")
+      end if
+    else
+      assign fn:string = symbol(rest:string)
+      assign args:string = string("")
+    end if
+    assign emit_stmt:string = arith(arith(arith(arith(string("    xb_user_") + symbol(fn:string)) + string("(")) + call emit_args(symbol(args:string))) + string(");"))
+    return symbol(emit_stmt:string)
+  end if
+  if compare(symbol(s:string) = string("exit_loop"))
+    assign emit_stmt:string = string("    break;")
+    return symbol(emit_stmt:string)
+  end if
+  assign emit_stmt:string = string("")
+end function

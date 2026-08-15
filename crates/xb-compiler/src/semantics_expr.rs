@@ -146,11 +146,20 @@ impl Analyzer {
         if let Some(rt) = crate::builtin::builtin_return_type(name) {
             return crate::builtin::builtin_call(self, name, args, rt);
         }
-        let Some(sig) = self.functions.get(name) else {
-            return Err(SemanticError::UnknownFunction {
-                name: name.to_owned(),
-            });
+        let (resolved_name, sig) = if let Some(s) = self.functions.get(name) {
+            (name.to_owned(), s)
+        } else {
+            let with_suffix = format!("{name}$");
+            match self.functions.get(&with_suffix) {
+                Some(s) => (with_suffix, s),
+                None => {
+                    return Err(SemanticError::UnknownFunction {
+                        name: name.to_owned(),
+                    });
+                }
+            }
         };
+        let normalized = resolved_name.trim_end_matches('$').to_owned();
         if args.len() != sig.params.len() {
             return Err(SemanticError::FunctionArgCount {
                 name: name.to_owned(),
@@ -173,7 +182,7 @@ impl Analyzer {
         }
         Ok(CheckedExpr::new(
             CheckedExprKind::FunctionCall {
-                name: name.to_owned(),
+                name: normalized,
                 args: checked,
             },
             sig.return_type,
@@ -233,13 +242,17 @@ impl Analyzer {
     }
 
     pub(crate) fn call_stmt(&self, name: &str, args: &[Expression]) -> ItemResult {
-        self.function_call(name, args)?;
+        let checked_call = self.function_call(name, args)?;
+        let resolved = match checked_call.kind {
+            CheckedExprKind::FunctionCall { ref name, .. } => name.clone(),
+            _ => name.to_owned(),
+        };
         let checked_args = args
             .iter()
             .map(|a| self.expr(a))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(CheckedItem::Call {
-            name: name.to_owned(),
+            name: resolved,
             args: checked_args,
         })
     }

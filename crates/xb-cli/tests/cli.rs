@@ -71,3 +71,57 @@ fn cli_prints_stable_ir_for_static_xut_bootstrap_manifest() {
         )
     );
 }
+
+#[test]
+fn cli_emit_c_produces_compilable_c_source() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/bootstrap/hello.x");
+    let output = Command::new(env!("CARGO_BIN_EXE_xb"))
+        .args(["--emit-c", fixture.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let c_source = String::from_utf8(output.stdout).unwrap();
+    assert!(c_source.contains("int main(void)"));
+    assert!(c_source.contains("xb_print_str"));
+    assert!(c_source.contains("#include <stdio.h>"));
+}
+
+#[test]
+fn cli_compile_produces_native_executable() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/bootstrap/hello.x");
+    let tmp = std::env::temp_dir().join("xb_cli_compile_test");
+    let _ = std::fs::create_dir_all(&tmp);
+    let exe = tmp.join("hello_exe");
+    let _ = std::fs::remove_file(&exe);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_xb"))
+        .args([
+            "--compile",
+            fixture.to_str().unwrap(),
+            "-o",
+            exe.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        exe.exists(),
+        "executable was not created at {}",
+        exe.display()
+    );
+
+    // Run the native executable and verify output
+    let run = Command::new(&exe).output().unwrap();
+    assert!(run.status.success());
+    assert_eq!(String::from_utf8(run.stdout).unwrap(), "hello\n");
+
+    let _ = std::fs::remove_file(&exe);
+}

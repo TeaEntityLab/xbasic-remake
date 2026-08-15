@@ -15,4 +15,4 @@ pub use ast::{
 };
 pub use lexer::{lex, LexError, Lexer};
 pub use parser::{parse_program, ParseError, Parser};
-pub use token::{Keyword, SourcePos, Token, TokenKind, TypeSuffix};
+pub use token::{full_name, Keyword, SourcePos, Token, TokenKind, TypeSuffix};

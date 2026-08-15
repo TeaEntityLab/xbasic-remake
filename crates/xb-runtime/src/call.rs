@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
-use xb_compiler::{IrExpr, IrItem, IrParam, IrProgram};
+use xb_compiler::{IrExpr, IrItem, IrParam, IrProgram, ValueType};
+type FuncInfo<'a> = (&'a str, &'a [IrParam], &'a [IrItem], ValueType);
 
 use crate::interpreter::{
     eval, exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue, TypedSlot,
@@ -39,8 +40,13 @@ pub(crate) fn call_function(
         }
         return crate::builtin::eval_builtin(name, &vals);
     }
-    let (params, body) = find_function(program, name)?;
+    let (fname, params, body, return_type) = find_function(program, name)?;
     let mut local = BTreeMap::new();
+    let mut ret_slot = TypedSlot::new(return_type);
+    if return_type == ValueType::String {
+        ret_slot.set(RuntimeValue::String(String::new()));
+    }
+    local.insert(fname.to_string(), ret_slot);
     for (p, arg) in params.iter().zip(args) {
         let v = eval(program, arg, state)?;
         if v.value_type() != p.value_type {
@@ -62,25 +68,31 @@ pub(crate) fn call_function(
     };
     let result = match exec_items(program, body, &mut sub, output)? {
         Flow::Return(Some(v)) => Ok(v),
-        _ => Ok(RuntimeValue::Integer(0)),
+        Flow::Return(None) => {
+            let ret = sub.slots.get(fname).map(|s| s.value.clone());
+            Ok(ret.unwrap_or(RuntimeValue::Integer(0)))
+        }
+        _ => {
+            let ret = sub.slots.get(fname).map(|s| s.value.clone());
+            Ok(ret.unwrap_or(RuntimeValue::Integer(0)))
+        }
     };
     state.input_pos = sub.input_pos;
+    state.shared = sub.shared;
     result
 }
-fn find_function<'a>(
-    program: &'a IrProgram,
-    name: &str,
-) -> Result<(&'a [IrParam], &'a [IrItem]), RuntimeError> {
+
+fn find_function<'a>(program: &'a IrProgram, name: &str) -> Result<FuncInfo<'a>, RuntimeError> {
     for item in &program.items {
         if let IrItem::Function {
             name: fname,
             params,
             body,
-            ..
+            return_type,
         } = item
         {
             if fname == name {
-                return Ok((params, body));
+                return Ok((fname, params, body, *return_type));
             }
         }
     }

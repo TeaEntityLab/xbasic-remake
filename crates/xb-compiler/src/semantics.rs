@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use xb_frontend::{Expression, FunctionDecl, Program, Statement, TypeSuffix};
+use xb_frontend::{full_name, Expression, FunctionDecl, Program, Statement, TypeSuffix};
 
 pub use crate::checked::{
     CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam, CheckedProgram, CheckedSymbol,
@@ -38,6 +38,24 @@ impl Analyzer {
     }
 
     fn program(&mut self, program: &Program) -> Result<CheckedProgram, SemanticError> {
+        // Pre-register all function signatures so call order doesn't matter.
+        for statement in &program.statements {
+            if let Statement::Function(f) = statement {
+                let ret = ValueType::from_suffix(f.suffix);
+                let param_types: Vec<ValueType> = f
+                    .params
+                    .iter()
+                    .map(|p| ValueType::from_suffix(p.suffix))
+                    .collect();
+                let sig = FuncSig {
+                    params: param_types,
+                    return_type: ret,
+                };
+                self.functions.insert(f.name.clone(), sig.clone());
+                self.functions
+                    .insert(full_name(f.name.clone(), f.suffix), sig);
+            }
+        }
         let mut items = Vec::with_capacity(program.statements.len());
         for statement in &program.statements {
             items.push(self.statement(statement, Scope::TopLevel)?);
@@ -190,13 +208,7 @@ impl Analyzer {
             .iter()
             .map(|p| ValueType::from_suffix(p.suffix))
             .collect();
-        self.functions.insert(
-            f.name.clone(),
-            FuncSig {
-                params: param_types.clone(),
-                return_type: ret,
-            },
-        );
+        // Function already pre-registered in program(); just analyze body here.
         let mut scoped = Self {
             symbols: BTreeMap::new(),
             arrays: BTreeMap::new(),
@@ -208,6 +220,8 @@ impl Analyzer {
         for (p, vt) in f.params.iter().zip(param_types) {
             scoped.symbols.insert(p.name.clone(), vt);
         }
+        // Function name serves as the return variable inside the body.
+        scoped.symbols.insert(f.name.clone(), ret);
         let body = scoped.blk(&f.body, Scope::Function)?;
         self.shared = scoped.shared;
         let cps: Vec<CheckedParam> = f.params.iter().map(CheckedParam::from_ast).collect();

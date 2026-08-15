@@ -1,4 +1,7 @@
 mod builtin;
+mod c_emit;
+mod c_emit_expr;
+mod c_runtime;
 pub mod checked;
 mod diagnostic;
 #[cfg(test)]
@@ -17,7 +20,14 @@ mod semantics_stmts;
 mod semantics_tests;
 pub mod text_ir;
 mod text_ir_expr;
+pub mod text_ir_parser;
+mod text_ir_parser_expr;
+mod text_ir_parser_helpers;
+mod text_ir_parser_item;
+#[cfg(test)]
+mod text_ir_parser_tests;
 
+pub use c_emit::CEmitter;
 pub use checked::{
     ArithmeticOp, BooleanOp, CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam,
     CheckedProgram, CheckedSymbol, ComparisonOp, SemanticError, ValueType,
@@ -27,6 +37,7 @@ pub use entry_lookup::EntryLookupError;
 pub use ir::{IrExpr, IrExprKind, IrItem, IrParam, IrProgram, IrSymbol};
 pub use semantics::Analyzer;
 pub use text_ir::TextIrEmitter;
+pub use text_ir_parser::{TextIrParseError, TextIrParser};
 
 use thiserror::Error;
 use xb_frontend::{parse_program, ParseError, Program};

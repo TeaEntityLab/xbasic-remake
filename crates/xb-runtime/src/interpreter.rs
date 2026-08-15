@@ -35,8 +35,10 @@ impl Interpreter {
         input: Vec<String>,
         output: &mut Vec<String>,
     ) -> Result<ExecutionState, RuntimeError> {
-        let mut state = ExecutionState::default();
-        state.input = input;
+        let mut state = ExecutionState {
+            input,
+            ..Default::default()
+        };
         exec_items(program, &program.items, &mut state, output)?;
         exec_items(program, program.entry("Main")?, &mut state, output)?;
         Ok(state)

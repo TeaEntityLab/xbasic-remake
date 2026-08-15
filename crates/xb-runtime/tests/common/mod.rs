@@ -1,3 +1,19 @@
+#![allow(dead_code)]
+
+pub mod cc;
+
+/// On Windows, `cc -o name` produces `name.exe`. This helper returns the
+/// path that `Command::new` should use to invoke the compiled binary.
+pub fn exe_path(base: &Path) -> PathBuf {
+    if cfg!(windows) {
+        let mut p = base.to_path_buf();
+        p.set_extension("exe");
+        p
+    } else {
+        base.to_path_buf()
+    }
+}
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use xb_compiler::{
