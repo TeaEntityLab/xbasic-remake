@@ -79,15 +79,9 @@ fn rejects_function_missing_end_function() {
 }
 
 #[test]
-fn rejects_trailing_tokens_after_dim() {
-    let result = parse_program("DIM name$ extra\n");
-    assert!(matches!(
-        result,
-        Err(ParseError::Expected {
-            expected: "end of line",
-            ..
-        })
-    ));
+fn dim_multi_declaration_succeeds() {
+    let result = parse_program("FUNCTION Main\nDIM a, b, c\nEND FUNCTION\n");
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -136,16 +130,19 @@ fn parses_integer_constant_definitions_and_references() {
         Statement::ConstantDefinition { ref name, ref value }
             if name == "XBSysLinux" && value == "1"
     ));
+    let function = match &program.statements[1] {
+        Statement::Function(f) => f,
+        _ => panic!("expected function"),
+    };
     assert!(matches!(
-        program.statements[1],
-        Statement::Function(ref function)
-            if matches!(
-                function.body.as_slice(),
-                [
-                    Statement::ConstantDefinition { name, value },
-                    Statement::Print(Expression::SystemConstant { name: reference }),
-                ] if name == "Local" && value == "0x2" && reference == "XBSysLinux"
-            )
+        function.body[0],
+        Statement::ConstantDefinition { ref name, ref value }
+            if name == "Local" && value == "0x2"
+    ));
+    assert!(matches!(
+        &function.body[1],
+        Statement::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], Expression::SystemConstant { name: ref reference } if reference == "XBSysLinux")
     ));
 }
 
@@ -196,16 +193,19 @@ fn parses_shared_variable_assignment_and_reference() {
             value: Expression::SystemConstant { name: ref source },
         } if name == "XBSystem" && source == "XBSysLinux"
     ));
+    let function = match &program.statements[1] {
+        Statement::Function(f) => f,
+        _ => panic!("expected function"),
+    };
     assert!(matches!(
-        program.statements[1],
-        Statement::Function(ref function)
-            if matches!(
-                function.body.as_slice(),
-                [
-                    Statement::SharedAssignment { name, value: Expression::IntegerLiteral(value), .. },
-                    Statement::Print(Expression::SystemVariable { name: reference, suffix: None }),
-                ] if name == "XBSystem" && value == "2" && reference == "XBSystem"
-            )
+        function.body[0],
+        Statement::SharedAssignment { ref name, value: Expression::IntegerLiteral(ref value), .. }
+            if name == "XBSystem" && value == "2"
+    ));
+    assert!(matches!(
+        &function.body[1],
+        Statement::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], Expression::SystemVariable { name: ref reference, suffix: None } if reference == "XBSystem")
     ));
 }
 

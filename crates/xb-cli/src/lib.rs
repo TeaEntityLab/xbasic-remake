@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use thiserror::Error;
 use xb_compiler::{CEmitter, CompileError, FrontendUnit, TextIrEmitter};
+use xb_runtime::Interpreter;
 
 #[derive(Debug, Error)]
 pub enum CliError {
@@ -22,6 +23,8 @@ pub enum CliError {
     },
     #[error("cc failed: {stderr}")]
     Link { stderr: String },
+    #[error("runtime error: {0}")]
+    Runtime(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +32,7 @@ enum Mode {
     Summary,
     EmitIr,
     EmitC,
+    Run,
     Compile { output: PathBuf },
 }
 
@@ -36,6 +40,7 @@ enum Mode {
 struct Args {
     source: PathBuf,
     mode: Mode,
+    input_path: Option<PathBuf>,
 }
 
 fn parse_args(args: &[String]) -> Result<Args, CliError> {
@@ -44,11 +49,19 @@ fn parse_args(args: &[String]) -> Result<Args, CliError> {
     }
     let mut source: Option<PathBuf> = None;
     let mut mode = Mode::Summary;
+    let mut input_path: Option<PathBuf> = None;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--emit-ir" => mode = Mode::EmitIr,
             "--emit-c" => mode = Mode::EmitC,
+            "--run" => mode = Mode::Run,
+            "--with-input" => {
+                if i + 1 < args.len() {
+                    input_path = Some(PathBuf::from(&args[i + 1]));
+                    i += 1;
+                }
+            }
             "--compile" => {
                 let output = if i + 2 < args.len() && args[i + 1] == "-o" {
                     i += 2;
@@ -74,14 +87,19 @@ fn parse_args(args: &[String]) -> Result<Args, CliError> {
         i += 1;
     }
     let source = source.ok_or(CliError::Usage)?;
-    Ok(Args { source, mode })
+    Ok(Args {
+        source,
+        mode,
+        input_path,
+    })
 }
 
 pub fn run(args: &[String]) -> Result<String, CliError> {
     let parsed = parse_args(args)?;
     match parsed.mode {
-        Mode::EmitIr => emit_ir_for_path(&parsed.source),
         Mode::Summary => summary_for_path(&parsed.source),
+        Mode::EmitIr => emit_ir_for_path(&parsed.source),
+        Mode::Run => run_path(&parsed.source, parsed.input_path.as_deref()),
         Mode::EmitC => emit_c_for_path(&parsed.source),
         Mode::Compile { output } => compile_to_native(&parsed.source, &output),
     }
@@ -147,6 +165,24 @@ fn compile_to_native(source: &Path, output: &Path) -> Result<String, CliError> {
         source.display(),
         output.display()
     ))
+}
+
+fn run_path(path: &Path, input_path: Option<&Path>) -> Result<String, CliError> {
+    let source = read_source(path)?;
+    let unit = FrontendUnit::parse(&source)?;
+    let program = unit.lower_ir()?;
+    let mut lines = Vec::new();
+    if let Some(inp) = input_path {
+        let input: Vec<String> = read_source(inp)?.lines().map(|l| l.to_string()).collect();
+        Interpreter::new()
+            .execute_main_with_input(&program, input, &mut lines)
+            .map_err(|e| CliError::Runtime(e.to_string()))?;
+    } else {
+        Interpreter::new()
+            .execute_main(&program, &mut lines)
+            .map_err(|e| CliError::Runtime(e.to_string()))?;
+    }
+    Ok(lines.into_iter().map(|l| format!("{l}\n")).collect())
 }
 
 fn read_source(path: &Path) -> Result<String, CliError> {

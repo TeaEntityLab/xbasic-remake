@@ -1,0 +1,6 @@
+VERSION "0.1"
+FUNCTION Main
+PRINT "before"
+STOP
+PRINT "after"
+END FUNCTION

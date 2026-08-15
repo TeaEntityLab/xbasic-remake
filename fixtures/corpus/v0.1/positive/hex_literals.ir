@@ -1,0 +1,14 @@
+version 0.1
+function Main() -> integer
+  dim a:integer
+  dim b:integer
+  dim c:integer
+  assign a:integer = integer(0xFF)
+  assign b:integer = integer(0x10)
+  assign c:integer = integer(0x0A)
+  print symbol(a:integer)
+  print symbol(b:integer)
+  print symbol(c:integer)
+  print arith(symbol(a:integer) + symbol(b:integer))
+  print arith(symbol(a:integer) - symbol(c:integer))
+end function

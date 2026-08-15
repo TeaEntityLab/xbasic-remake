@@ -1,0 +1,11 @@
+PROGRAM "test"
+VERSION "0.1"
+IMPORT "xst"
+DECLARE FUNCTION Entry ()
+FUNCTION Main
+PRINT "hello from program"
+DIM a
+a = 42
+PRINT a
+END FUNCTION
+END PROGRAM

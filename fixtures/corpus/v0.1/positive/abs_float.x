@@ -1,0 +1,10 @@
+VERSION "0.1"
+FUNCTION Main
+DIM x
+x = ABS(0 - 5)
+PRINT x
+x = ABS(3)
+PRINT x
+x = ABS(0 - 7) + ABS(2)
+PRINT x
+END FUNCTION

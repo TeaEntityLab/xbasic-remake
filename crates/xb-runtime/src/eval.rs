@@ -1,6 +1,14 @@
 use crate::helpers::{parse_float, parse_integer, read_slot, require_type};
-use crate::interpreter::{eval, exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue};
+use crate::interpreter::{exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue};
 use xb_compiler::{BooleanOp, IrExpr, IrExprKind, IrItem, IrProgram, ValueType};
+
+pub(crate) fn eval(
+    program: &IrProgram,
+    expr: &IrExpr,
+    state: &mut ExecutionState,
+) -> Result<RuntimeValue, RuntimeError> {
+    eval_expr(program, expr, state)
+}
 
 pub(crate) fn eval_expr(
     program: &IrProgram,
@@ -44,6 +52,7 @@ pub(crate) fn eval_expr(
             RuntimeValue::Integer(match op {
                 BooleanOp::And => a & b,
                 BooleanOp::Or => a | b,
+                BooleanOp::Xor => a ^ b,
             })
         }
         IrExprKind::SharedVariable(s) => read_slot(&state.shared, s)?,

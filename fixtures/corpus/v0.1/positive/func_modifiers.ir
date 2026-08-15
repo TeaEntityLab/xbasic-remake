@@ -1,0 +1,13 @@
+version 0.1
+function Helper() -> integer
+  return integer(42)
+end function
+function Foo() -> integer
+  return call Helper()
+end function
+function Dummy() -> integer
+  return integer(0)
+end function
+function Main() -> integer
+  print call Foo()
+end function

@@ -1,7 +1,5 @@
-use std::collections::BTreeMap;
-use xb_frontend::{Expression, FunctionDecl, Statement, TypeSuffix};
+use xb_frontend::{Expression, Statement, TypeSuffix};
 
-use crate::checked::CheckedParam;
 use crate::semantics::{
     Analyzer, CheckedItem, CheckedSymbol, ExprResult, ItemResult, Scope, SemanticError, ValueType,
 };
@@ -10,7 +8,16 @@ impl Analyzer {
     pub(crate) fn statement(&mut self, statement: &Statement, scope: Scope) -> ItemResult {
         match statement {
             Statement::Version(value) => Ok(CheckedItem::Version(value.clone())),
-            Statement::Print(expr) => Ok(CheckedItem::Print(self.expr(expr)?)),
+            Statement::Print { items, separators } => {
+                let checked_items = items
+                    .iter()
+                    .map(|e| self.expr(e))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(CheckedItem::Print {
+                    items: checked_items,
+                    separators: separators.clone(),
+                })
+            }
             Statement::Dim { name, suffix, size } => self.dim(name, *suffix, size.as_ref()),
             Statement::Assignment { target, value, .. } => self.assignment(target, value),
             Statement::ArrayAssignment {
@@ -62,58 +69,38 @@ impl Analyzer {
             Statement::Return { value } => self.return_stmt(scope, value.as_ref()),
             Statement::Call { name, args } => self.call_stmt(name, args),
             Statement::ExitLoop => Ok(CheckedItem::ExitLoop),
+            Statement::ExitSelect => Ok(CheckedItem::ExitSelect),
+            Statement::Inc { target, suffix } => self.inc_dec(target, *suffix, true),
+            Statement::Dec { target, suffix } => self.inc_dec(target, *suffix, false),
+            Statement::Swap {
+                left,
+                left_suffix,
+                right,
+                right_suffix,
+            } => self.swap_stmt(left, *left_suffix, right, *right_suffix),
             Statement::Function(function) => self.function(function),
+            Statement::Import(_)
+            | Statement::Declare { .. }
+            | Statement::Program(_)
+            | Statement::EndProgram
+            | Statement::Goto(_)
+            | Statement::Data(_) => Ok(CheckedItem::Nop),
+            Statement::Read(vars) => self.read_stmt(vars),
+            Statement::Restore(label) => Ok(CheckedItem::Restore(label.clone())),
+            Statement::Stop => Ok(CheckedItem::Stop),
+            Statement::SelectCase {
+                selector,
+                cases,
+                default,
+            } => self.select_case(selector, cases, default.as_deref(), scope),
+            Statement::Compound(stmts) => {
+                let mut items = Vec::new();
+                for s in stmts {
+                    items.push(self.statement(s, scope)?);
+                }
+                Ok(CheckedItem::Compound(items))
+            }
         }
-    }
-
-    fn check_integer(&mut self, expr: &Expression) -> ExprResult {
-        let cond = self.expr(expr)?;
-        if cond.value_type != ValueType::Integer {
-            return Err(SemanticError::IfConditionNotInteger {
-                actual: cond.value_type,
-            });
-        }
-        Ok(cond)
-    }
-
-    fn if_stmt(
-        &mut self,
-        condition: &Expression,
-        then_body: &[Statement],
-        else_body: Option<&[Statement]>,
-        scope: Scope,
-    ) -> ItemResult {
-        let cond = self.check_integer(condition)?;
-        let then_body = self.blk(then_body, scope)?;
-        let eb = else_body.map(|b| self.blk(b, scope)).transpose()?;
-        Ok(CheckedItem::If {
-            condition: cond,
-            then_body,
-            else_body: eb,
-        })
-    }
-
-    fn do_loop_stmt(
-        &mut self,
-        pre_condition: &Option<(Expression, bool)>,
-        post_condition: &Option<(Expression, bool)>,
-        body: &[Statement],
-        scope: Scope,
-    ) -> ItemResult {
-        let pre = pre_condition
-            .as_ref()
-            .map(|(e, is_while)| self.check_integer(e).map(|c| (c, *is_while)))
-            .transpose()?;
-        let post = post_condition
-            .as_ref()
-            .map(|(e, is_while)| self.check_integer(e).map(|c| (c, *is_while)))
-            .transpose()?;
-        let body = self.blk(body, scope)?;
-        Ok(CheckedItem::DoLoop {
-            pre_condition: pre,
-            post_condition: post,
-            body,
-        })
     }
 
     fn for_stmt(
@@ -194,36 +181,6 @@ impl Analyzer {
                 actual: declared,
             })
         }
-    }
-
-    fn function(&mut self, f: &FunctionDecl) -> ItemResult {
-        let ret = ValueType::from_suffix(f.suffix);
-        let param_types: Vec<ValueType> = f
-            .params
-            .iter()
-            .map(|p| ValueType::from_suffix(p.suffix))
-            .collect();
-        let mut scoped = Self {
-            symbols: BTreeMap::new(),
-            arrays: BTreeMap::new(),
-            constants: self.constants.clone(),
-            shared: self.shared.clone(),
-            functions: self.functions.clone(),
-            return_type: Some(ret),
-        };
-        for (p, vt) in f.params.iter().zip(param_types) {
-            scoped.symbols.insert(p.name.clone(), vt);
-        }
-        scoped.symbols.insert(f.name.clone(), ret);
-        let body = scoped.blk(&f.body, Scope::Function)?;
-        self.shared = scoped.shared;
-        let cps: Vec<CheckedParam> = f.params.iter().map(CheckedParam::from_ast).collect();
-        Ok(CheckedItem::Function {
-            name: f.name.clone(),
-            params: cps,
-            return_type: ret,
-            body,
-        })
     }
 
     fn return_stmt(&mut self, scope: Scope, value: Option<&Expression>) -> ItemResult {

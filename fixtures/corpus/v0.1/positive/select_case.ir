@@ -1,0 +1,27 @@
+version 0.1
+function Main() -> integer
+  dim x:integer
+  dim result:integer
+  assign x:integer = integer(2)
+  select_case symbol(x:integer)
+    case integer(1)
+      assign result:integer = integer(100)
+    case integer(2)
+      assign result:integer = integer(200)
+    case integer(3)
+      assign result:integer = integer(300)
+    case_else
+      assign result:integer = integer(999)
+  end_select
+  print symbol(result:integer)
+  assign x:integer = integer(5)
+  select_case symbol(x:integer)
+    case integer(1)
+      assign result:integer = integer(100)
+    case integer(2), integer(3), integer(4)
+      assign result:integer = integer(200)
+    case_else
+      assign result:integer = integer(999)
+  end_select
+  print symbol(result:integer)
+end function

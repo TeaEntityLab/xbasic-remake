@@ -16,8 +16,8 @@ pub(crate) fn parse_item(
         return Ok(IrItem::Version(v.to_string()));
     }
     if let Some(rest) = content.strip_prefix("print ") {
-        let e = parse_expr(rest).map_err(|e| err(e, l))?;
-        return Ok(IrItem::Print(e));
+        let (items, separators) = crate::text_ir_parser_select::parse_print_items(rest, l)?;
+        return Ok(IrItem::Print { items, separators });
     }
     if let Some(rest) = content.strip_prefix("dim ") {
         if let Some(br) = rest.find('[') {
@@ -221,8 +221,28 @@ pub(crate) fn parse_item(
         let val = parse_expr(rest).map_err(|e| err(e, l))?;
         return Ok(IrItem::Return { value: Some(val) });
     }
-    if content == "exit_loop" {
-        return Ok(IrItem::ExitLoop);
+    match content {
+        "exit_loop" => return Ok(IrItem::ExitLoop),
+        "exit_select" => return Ok(crate::text_ir_parser_data::parse_exit_select()),
+        "stop" => return Ok(crate::text_ir_parser_data::parse_stop()),
+        _ => {}
+    }
+    if let Some(rest) = content.strip_prefix("swap ") {
+        let parts: Vec<&str> = rest.splitn(2, ' ').collect();
+        if parts.len() == 2 {
+            let left = parse_symbol_decl(parts[0]).map_err(|e| err(e, l))?;
+            let right = parse_symbol_decl(parts[1]).map_err(|e| err(e, l))?;
+            return Ok(IrItem::Swap { left, right });
+        }
+    }
+    if let Some(rest) = content.strip_prefix("read ") {
+        return Ok(crate::text_ir_parser_data::parse_read(rest, l)?);
+    }
+    if let Some(rest) = content.strip_prefix("restore") {
+        return Ok(crate::text_ir_parser_data::parse_restore(rest));
+    }
+    if content.starts_with("select_case ") {
+        return crate::text_ir_parser_select::parse_select_case(content, lines, idx, indent, l);
     }
     let expr = parse_expr(content).map_err(|e| err(e, l))?;
     if let IrExprKind::FunctionCall { name, args } = expr.kind {

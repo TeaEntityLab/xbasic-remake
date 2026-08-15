@@ -1,0 +1,17 @@
+version 0.1
+function Main() -> integer
+  dim n:integer
+  assign n:integer = integer(42)
+  print call STRING$(symbol(n:integer))
+  print call STRING(symbol(n:integer))
+  print call SQRT(float(16.0))
+  print call CHR$(integer(65), integer(3))
+  print call INSTR(string("hello world"), string("world"), integer(1))
+  dim a:integer
+  dim b:integer
+  dim c:integer
+  assign a:integer = integer(5)
+  assign b:integer = integer(3)
+  assign c:integer = xor(symbol(a:integer) symbol(b:integer))
+  print symbol(c:integer)
+end function

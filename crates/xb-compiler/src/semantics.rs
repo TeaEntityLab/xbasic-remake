@@ -34,6 +34,12 @@ pub(crate) enum Scope {
 impl Analyzer {
     pub fn analyze(program: &Program) -> Result<CheckedProgram, SemanticError> {
         let mut analyzer = Self::default();
+        analyzer
+            .constants
+            .insert("TRUE".to_owned(), "-1".to_owned());
+        analyzer
+            .constants
+            .insert("FALSE".to_owned(), "0".to_owned());
         analyzer.program(program)
     }
 
@@ -57,9 +63,20 @@ impl Analyzer {
             }
         }
         let mut items = Vec::with_capacity(program.statements.len());
+        let mut data_values = Vec::new();
         for statement in &program.statements {
+            if let Statement::Data(vals) = statement {
+                data_values.extend(vals.iter().cloned());
+            }
+            if let Statement::Function(f) = statement {
+                for s in &f.body {
+                    if let Statement::Data(vals) = s {
+                        data_values.extend(vals.iter().cloned());
+                    }
+                }
+            }
             items.push(self.statement(statement, Scope::TopLevel)?);
         }
-        Ok(CheckedProgram { items })
+        Ok(CheckedProgram { items, data_values })
     }
 }

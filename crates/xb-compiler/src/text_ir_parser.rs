@@ -24,7 +24,19 @@ impl TextIrParser {
         let lines: Vec<&str> = text.lines().collect();
         let mut idx = 0;
         let items = parse_items(&lines, &mut idx, 0)?;
-        Ok(IrProgram { items })
+        let mut data_values = Vec::new();
+        while idx < lines.len() {
+            let line = lines[idx].trim();
+            if let Some(rest) = line.strip_prefix("data ") {
+                for part in rest.split_whitespace() {
+                    if let Some((tag, val)) = part.split_once(':') {
+                        data_values.push((tag.to_string(), val.to_string()));
+                    }
+                }
+            }
+            idx += 1;
+        }
+        Ok(IrProgram { items, data_values })
     }
 }
 
@@ -67,8 +79,9 @@ pub(crate) fn parse_items(
 fn is_closer(s: &str) -> bool {
     matches!(
         s,
-        "end if" | "else" | "wend" | "next" | "end function" | "loop"
-    )
+        "end if" | "else" | "wend" | "next" | "end function" | "loop" | "end_select" | "case_else"
+    ) || s.starts_with("case ")
+        || s.starts_with("data ")
 }
 
 pub(crate) fn parse_loop_condition(

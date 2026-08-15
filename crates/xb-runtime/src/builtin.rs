@@ -27,17 +27,27 @@ pub(crate) fn eval_builtin(
             let RuntimeValue::Integer(n) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::String(
-                char::from_u32(*n as u32)
-                    .map(|c| c.to_string())
-                    .unwrap_or_default(),
-            ))
+            let ch = char::from_u32(*n as u32)
+                .map(|c| c.to_string())
+                .unwrap_or_default();
+            if args.len() == 2 {
+                let RuntimeValue::Integer(count) = &args[1] else {
+                    return Err(type_err(args[1].value_type()));
+                };
+                Ok(RuntimeValue::String(ch.repeat(*count as usize)))
+            } else {
+                Ok(RuntimeValue::String(ch))
+            }
         }
-        "LEFT$" => string_slice(args, |s, n| s.chars().take(n).collect()),
+        "LEFT$" => string_slice(args, |s, n| {
+            let bytes = s.as_bytes();
+            let end = n.min(bytes.len());
+            String::from_utf8_lossy(&bytes[..end]).into_owned()
+        }),
         "RIGHT$" => string_slice(args, |s, n| {
-            let chars: Vec<char> = s.chars().collect();
-            let start = chars.len().saturating_sub(n);
-            chars[start..].iter().collect()
+            let bytes = s.as_bytes();
+            let start = bytes.len().saturating_sub(n);
+            String::from_utf8_lossy(&bytes[start..]).into_owned()
         }),
         "MID$" => {
             let RuntimeValue::String(s) = &args[0] else {
@@ -49,11 +59,11 @@ pub(crate) fn eval_builtin(
             let RuntimeValue::Integer(len) = &args[2] else {
                 return Err(type_err(args[2].value_type()));
             };
-            let chars: Vec<char> = s.chars().collect();
-            let start_idx = (*start as usize).saturating_sub(1).min(chars.len());
-            let end_idx = (start_idx + *len as usize).min(chars.len());
+            let bytes = s.as_bytes();
+            let start_idx = (*start as usize).saturating_sub(1).min(bytes.len());
+            let end_idx = (start_idx + *len as usize).min(bytes.len());
             Ok(RuntimeValue::String(
-                chars[start_idx..end_idx].iter().collect(),
+                String::from_utf8_lossy(&bytes[start_idx..end_idx]).into_owned(),
             ))
         }
         "INSTR" => {
@@ -63,24 +73,57 @@ pub(crate) fn eval_builtin(
             let RuntimeValue::String(needle) = &args[1] else {
                 return Err(type_err(args[1].value_type()));
             };
+            let start = if args.len() == 3 {
+                let RuntimeValue::Integer(s) = &args[2] else {
+                    return Err(type_err(args[2].value_type()));
+                };
+                *s as usize
+            } else {
+                0
+            };
+            let start = start.saturating_sub(1).min(hay.len());
             Ok(RuntimeValue::Integer(
-                hay.find(needle.as_str())
-                    .map(|i| (i + 1) as i32)
+                hay[start..]
+                    .find(needle.as_str())
+                    .map(|i| (start + i + 1) as i32)
                     .unwrap_or(0),
             ))
         }
+        "RINSTR" => crate::builtin_math::eval_rinstr(args),
+        "INSTRI" | "RINSTRI" => crate::builtin_math::eval_instri(name, args),
         "VAL" => {
             let RuntimeValue::String(s) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
             Ok(RuntimeValue::Integer(s.trim().parse().unwrap_or(0)))
         }
-        "STR$" => {
-            let RuntimeValue::Integer(n) = &args[0] else {
-                return Err(type_err(args[0].value_type()));
-            };
-            Ok(RuntimeValue::String(n.to_string()))
-        }
+        "STR$" => match &args[0] {
+            RuntimeValue::Integer(n) => Ok(RuntimeValue::String(n.to_string())),
+            RuntimeValue::Float(n) => Ok(RuntimeValue::String(n.to_string())),
+            _ => Err(type_err(args[0].value_type())),
+        },
+        "STRING$" | "STRING" => int_to_string(args, |n| n.to_string()),
+        "SQRT" => float_fn(args, |v| v.sqrt()),
+        "SIN" => float_fn(args, |v| v.sin()),
+        "COS" => float_fn(args, |v| v.cos()),
+        "TAN" => float_fn(args, |v| v.tan()),
+        "EXP" => float_fn(args, |v| v.exp()),
+        "LOG" => float_fn(args, |v| v.ln()),
+        "ATN" => float_fn(args, |v| v.atan()),
+        "ACOS" => float_fn(args, |v| v.acos()),
+        "ASIN" => float_fn(args, |v| v.asin()),
+        "LOG10" => float_fn(args, |v| v.log10()),
+        "SINH" => float_fn(args, |v| v.sinh()),
+        "COSH" => float_fn(args, |v| v.cosh()),
+        "TANH" => float_fn(args, |v| v.tanh()),
+        "ASINH" => float_fn(args, |v| v.asinh()),
+        "ACOSH" => float_fn(args, |v| v.acosh()),
+        "ATANH" => float_fn(args, |v| v.atanh()),
+        "EXP10" => float_fn(args, |v| (10.0f64).powf(v)),
+        "EXP2" | "COT" | "SEC" | "CSC" | "SECH" | "CSCH" | "COTH" | "ACOT" | "ASEC" | "ACSC"
+        | "ACOTH" | "ASECH" | "ACSCH" => crate::builtin_math::eval_reciprocal(name, args),
+        "ATAN2" => crate::builtin_math::eval_atan2(args),
+        "POWER" => crate::builtin_math::eval_power(args),
         "UCASE$" => {
             let RuntimeValue::String(s) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
@@ -117,12 +160,9 @@ pub(crate) fn eval_builtin(
             };
             Ok(RuntimeValue::String(" ".repeat(*n as usize)))
         }
-        "ABS" => {
-            let RuntimeValue::Integer(n) = &args[0] else {
-                return Err(type_err(args[0].value_type()));
-            };
-            Ok(RuntimeValue::Integer(n.wrapping_abs()))
-        }
+        "ABS" => crate::builtin_math::eval_abs(args),
+        "DOUBLE" | "SINGLE" => crate::builtin_math::eval_to_float(args),
+        "XLONG" => crate::builtin_math::eval_to_int(args),
         "SGN" => {
             let RuntimeValue::Integer(n) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
@@ -130,16 +170,16 @@ pub(crate) fn eval_builtin(
             Ok(RuntimeValue::Integer(n.signum()))
         }
         "INT" => {
-            let RuntimeValue::Integer(n) = &args[0] else {
+            let RuntimeValue::Float(n) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::Integer(*n))
+            Ok(RuntimeValue::Integer(*n as i32))
         }
         "FIX" => {
-            let RuntimeValue::Integer(n) = &args[0] else {
+            let RuntimeValue::Float(n) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::Integer(*n))
+            Ok(RuntimeValue::Integer(*n as i32))
         }
         "MAX" => {
             let RuntimeValue::Integer(a) = &args[0] else {
@@ -159,6 +199,18 @@ pub(crate) fn eval_builtin(
             };
             Ok(RuntimeValue::Integer(*a.min(b)))
         }
+        "HEX$" => int_to_string(args, |n| format!("{n:x}")),
+        "BIN$" => int_to_string(args, |n| format!("{n:b}")),
+        "OCT$" => int_to_string(args, |n| format!("{n:o}")),
+        "HEXX$" => crate::builtin_math::eval_hexx(args),
+        "RJUST$" | "LJUST$" => crate::builtin_math::eval_just(name, args),
+        "RND" => Ok(RuntimeValue::Float(crate::rng::next_rand())),
+        "CEIL" => float_fn(args, |v| v.ceil()),
+        "FLOOR" => float_fn(args, |v| v.floor()),
+        "ROUND" => float_fn(args, |v| v.round()),
+        "TIMER" => Ok(RuntimeValue::Float(crate::time_helpers::timer())),
+        "TIME$" => Ok(RuntimeValue::String(crate::time_helpers::time_str())),
+        "DATE$" => Ok(RuntimeValue::String(crate::time_helpers::date_str())),
         _ => Err(RuntimeError::UnknownFunction {
             name: name.to_owned(),
         }),
@@ -178,7 +230,24 @@ fn string_slice(
     Ok(RuntimeValue::String(f(s, *n as usize)))
 }
 
-fn type_err(actual: xb_compiler::ValueType) -> RuntimeError {
+fn int_to_string(
+    args: &[RuntimeValue],
+    f: impl Fn(i32) -> String,
+) -> Result<RuntimeValue, RuntimeError> {
+    let RuntimeValue::Integer(n) = &args[0] else {
+        return Err(type_err(args[0].value_type()));
+    };
+    Ok(RuntimeValue::String(f(*n)))
+}
+
+fn float_fn(args: &[RuntimeValue], f: impl Fn(f64) -> f64) -> Result<RuntimeValue, RuntimeError> {
+    let RuntimeValue::Float(n) = &args[0] else {
+        return Err(type_err(args[0].value_type()));
+    };
+    Ok(RuntimeValue::Float(f(*n)))
+}
+
+pub(crate) fn type_err(actual: xb_compiler::ValueType) -> RuntimeError {
     RuntimeError::TypeMismatch {
         expected: xb_compiler::ValueType::String,
         actual,

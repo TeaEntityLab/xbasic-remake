@@ -71,6 +71,13 @@ impl Lexer<'_> {
         let mut name = String::new();
         self.take_while(&mut name, is_identifier_part);
         let suffix = self.type_suffix();
+        if suffix.is_none() && name.to_ascii_uppercase() == "REM" {
+            self.skip_comment();
+            if self.lookahead == Some('\n') {
+                self.advance();
+            }
+            return Token::new(TokenKind::Newline, pos);
+        }
         if suffix.is_none() {
             if let Some(keyword) = Keyword::parse(&name) {
                 return Token::new(TokenKind::Keyword(keyword), pos);

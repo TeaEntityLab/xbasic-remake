@@ -1,8 +1,12 @@
 mod builtin;
 mod c_emit;
+mod c_emit_data;
 mod c_emit_expr;
+mod c_emit_helpers;
+mod c_emit_select;
 mod c_emit_stmt;
 mod c_runtime;
+mod c_runtime_math;
 pub mod checked;
 mod diagnostic;
 #[cfg(test)]
@@ -14,7 +18,9 @@ mod ir_lower;
 mod ir_tests;
 pub mod semantics;
 mod semantics_expr;
-#[cfg(test)]
+mod semantics_function;
+mod semantics_if;
+mod semantics_select;
 mod semantics_shared_tests;
 mod semantics_statement;
 mod semantics_stmts;
@@ -22,23 +28,25 @@ mod semantics_stmts;
 mod semantics_tests;
 pub mod text_ir;
 mod text_ir_expr;
+mod text_ir_ops;
 pub mod text_ir_parser;
+mod text_ir_parser_data;
 mod text_ir_parser_expr;
 mod text_ir_parser_helpers;
 mod text_ir_parser_item;
+mod text_ir_parser_select;
 #[cfg(test)]
 mod text_ir_parser_tests;
 #[cfg(test)]
 mod text_ir_tests;
-
 pub use c_emit::CEmitter;
 pub use checked::{
     ArithmeticOp, BooleanOp, CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam,
-    CheckedProgram, CheckedSymbol, ComparisonOp, SemanticError, ValueType,
+    CheckedProgram, CheckedSymbol, ComparisonOp, PrintSep, SemanticError, ValueType,
 };
 pub use diagnostic::{BACKEND_DIAGNOSTIC_CODES, SOURCE_DIAGNOSTIC_CODES};
 pub use entry_lookup::EntryLookupError;
-pub use ir::{IrExpr, IrExprKind, IrItem, IrParam, IrProgram, IrSymbol};
+pub use ir::{IrCaseClause, IrExpr, IrExprKind, IrItem, IrParam, IrProgram, IrSymbol};
 pub use semantics::Analyzer;
 pub use text_ir::TextIrEmitter;
 pub use text_ir_parser::{TextIrParseError, TextIrParser};

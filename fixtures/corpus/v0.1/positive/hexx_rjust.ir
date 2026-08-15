@@ -1,0 +1,11 @@
+version 0.1
+function Main() -> integer
+  print call HEXX$(integer(255))
+  print call HEXX$(integer(255), integer(4))
+  print call HEXX$(integer(10), integer(2))
+  print call HEXX$(integer(4096), integer(8))
+  print call RJUST$(string("hi"), integer(10))
+  print call LJUST$(string("hi"), integer(10))
+  print call RJUST$(string("toolong"), integer(3))
+  print call LJUST$(string("toolong"), integer(3))
+end function

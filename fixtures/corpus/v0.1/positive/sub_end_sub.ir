@@ -1,0 +1,11 @@
+version 0.1
+function Greet(name:string) -> integer
+  print string("Hello ") ; symbol(name:string)
+end function
+function Add(a:integer, b:integer) -> integer
+  print arith(symbol(a:integer) + symbol(b:integer))
+end function
+function Main() -> integer
+  call Greet(string("World"))
+  call Add(integer(3), integer(4))
+end function

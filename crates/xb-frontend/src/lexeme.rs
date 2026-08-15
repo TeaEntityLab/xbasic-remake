@@ -13,6 +13,6 @@ pub(crate) fn is_hex_digit(ch: char) -> bool {
 pub(crate) fn is_symbol(ch: char) -> bool {
     matches!(
         ch,
-        '(' | ')' | '[' | ']' | ',' | '+' | '-' | '*' | '/' | '=' | '@' | '.' | '\\'
+        '(' | ')' | '[' | ']' | ',' | '+' | '-' | '*' | '/' | '=' | '@' | '.' | '\\' | ';'
     )
 }

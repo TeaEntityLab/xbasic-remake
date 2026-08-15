@@ -126,10 +126,14 @@ fn keeps_shared_slot_separate_from_the_dimmed_variable_of_the_same_name() {
 fn rejects_unknown_runtime_slot() {
     // Given
     let program = IrProgram {
-        items: vec![IrItem::Print(expression(
-            IrExprKind::Symbol(symbol("missing", ValueType::Integer)),
-            ValueType::Integer,
-        ))],
+        items: vec![IrItem::Print {
+            items: vec![expression(
+                IrExprKind::Symbol(symbol("missing", ValueType::Integer)),
+                ValueType::Integer,
+            )],
+            separators: vec![],
+        }],
+        data_values: Vec::new(),
     };
     let mut output = Vec::new();
 
@@ -160,6 +164,7 @@ fn rejects_duplicate_runtime_slot() {
                 size: None,
             },
         ],
+        data_values: Vec::new(),
     };
     let mut output = Vec::new();
 
@@ -179,10 +184,14 @@ fn rejects_duplicate_runtime_slot() {
 fn rejects_invalid_integer_literal() {
     // Given
     let program = IrProgram {
-        items: vec![IrItem::Print(expression(
-            IrExprKind::IntegerLiteral("0x".to_string()),
-            ValueType::Integer,
-        ))],
+        items: vec![IrItem::Print {
+            items: vec![expression(
+                IrExprKind::IntegerLiteral("0x".to_string()),
+                ValueType::Integer,
+            )],
+            separators: vec![],
+        }],
+        data_values: Vec::new(),
     };
     let mut output = Vec::new();
 
@@ -216,6 +225,7 @@ fn rejects_runtime_type_mismatch() {
                 ),
             },
         ],
+        data_values: Vec::new(),
     };
     let mut output = Vec::new();
     let result = Interpreter::new().execute(&program, &mut output);

@@ -1,4 +1,4 @@
-use xb_frontend::{Expression, TypeSuffix};
+use xb_frontend::{ArithmeticOp, Expression, TypeSuffix};
 
 use crate::checked::{CheckedItem, CheckedSymbol, SemanticError, ValueType};
 use crate::semantics::{Analyzer, ItemResult};
@@ -77,5 +77,76 @@ impl Analyzer {
             index,
             value,
         })
+    }
+    pub(crate) fn inc_dec(
+        &self,
+        name: &str,
+        suffix: Option<TypeSuffix>,
+        is_inc: bool,
+    ) -> ItemResult {
+        let target = self.checked_symbol(name)?;
+        let one = Expression::IntegerLiteral("1".to_string());
+        let current = Expression::Identifier {
+            name: name.to_owned(),
+            suffix,
+        };
+        let value_expr = Expression::Arithmetic {
+            op: if is_inc {
+                ArithmeticOp::Add
+            } else {
+                ArithmeticOp::Sub
+            },
+            left: Box::new(current),
+            right: Box::new(one),
+        };
+        let value = self.expr(&value_expr)?;
+        if target.value_type != value.value_type {
+            return Err(SemanticError::TypeMismatch {
+                name: name.to_owned(),
+                expected: target.value_type,
+                actual: value.value_type,
+            });
+        }
+        Ok(CheckedItem::Assignment { target, value })
+    }
+
+    pub(crate) fn swap_stmt(
+        &self,
+        left: &str,
+        _left_suffix: Option<TypeSuffix>,
+        right: &str,
+        _right_suffix: Option<TypeSuffix>,
+    ) -> ItemResult {
+        let left_sym = self.checked_symbol(left)?;
+        let right_sym = self.checked_symbol(right)?;
+        if left_sym.value_type != right_sym.value_type {
+            return Err(SemanticError::TypeMismatch {
+                name: left.to_owned(),
+                expected: left_sym.value_type,
+                actual: right_sym.value_type,
+            });
+        }
+        Ok(CheckedItem::Swap {
+            left: left_sym,
+            right: right_sym,
+        })
+    }
+}
+
+impl Analyzer {
+    pub(crate) fn read_stmt(&mut self, vars: &[(String, Option<TypeSuffix>)]) -> ItemResult {
+        let mut symbols = Vec::with_capacity(vars.len());
+        for (name, suffix) in vars {
+            let vt = ValueType::from_suffix(*suffix);
+            let sym = match self.checked_symbol(name) {
+                Ok(s) => s,
+                Err(_) => {
+                    self.symbols.insert(name.clone(), vt);
+                    CheckedSymbol::new(name.clone(), vt)
+                }
+            };
+            symbols.push(sym);
+        }
+        Ok(CheckedItem::Read(symbols))
     }
 }

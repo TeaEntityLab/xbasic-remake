@@ -1,0 +1,7 @@
+version 0.1
+function Main() -> integer
+  print call RINSTR(string("hello world hello"), string("hello"))
+  print call RINSTR(string("abcabcabc"), string("bc"))
+  print call RINSTR(string("hello world"), string("xyz"))
+  print call RINSTR(string("a/b/c/d"), string("/"), integer(5))
+end function

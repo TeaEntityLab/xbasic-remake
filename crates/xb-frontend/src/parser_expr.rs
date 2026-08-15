@@ -9,11 +9,19 @@ impl Parser {
 
     fn or_expr(&mut self) -> Result<Expression, ParseError> {
         let mut left = self.and_expr()?;
-        while matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Or)) {
+        while matches!(
+            self.peek_kind(),
+            TokenKind::Keyword(Keyword::Or) | TokenKind::Keyword(Keyword::Xor)
+        ) {
+            let is_xor = matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Xor));
             self.index += 1;
             let right = self.and_expr()?;
             left = Expression::Boolean {
-                op: BooleanOp::Or,
+                op: if is_xor {
+                    BooleanOp::Xor
+                } else {
+                    BooleanOp::Or
+                },
                 left: Box::new(left),
                 right: Box::new(right),
             };
@@ -152,6 +160,10 @@ impl Parser {
     pub(crate) fn primary(&mut self) -> Result<Expression, ParseError> {
         let kind = self.peek_kind().clone();
         match kind {
+            TokenKind::Symbol('@') => {
+                self.index += 1;
+                self.primary()
+            }
             TokenKind::StringLiteral(v) => {
                 self.index += 1;
                 Ok(Expression::StringLiteral(v))
@@ -192,6 +204,15 @@ impl Parser {
             let args = self.parse_args()?;
             let full = full_name(name, suffix);
             Ok(Expression::FunctionCall { name: full, args })
+        } else if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+            self.index += 1;
+            let index = self.expression()?;
+            self.expect_symbol(']')?;
+            let full = full_name(name, suffix);
+            Ok(Expression::ArrayAccess {
+                name: full,
+                index: Box::new(index),
+            })
         } else {
             Ok(Expression::Identifier { name, suffix })
         }

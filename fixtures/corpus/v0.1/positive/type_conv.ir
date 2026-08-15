@@ -1,0 +1,9 @@
+version 0.1
+function Main() -> integer
+  print call XLONG(float(3.7))
+  print call XLONG(string("42"))
+  print call XLONG(integer(99))
+  print call INT(call DOUBLE(integer(5)))
+  print call INT(call DOUBLE(string("3.14")))
+  print call INT(call SINGLE(integer(7)))
+end function

@@ -10,6 +10,13 @@ pub enum RuntimeValue {
     String(String),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum DataEntry {
+    Integer(i32),
+    Float(f64),
+    String(String),
+}
+
 impl RuntimeValue {
     pub const fn value_type(&self) -> ValueType {
         match self {
@@ -106,8 +113,9 @@ pub struct ExecutionState {
     pub(crate) shared: BTreeMap<String, TypedSlot>,
     pub(crate) input: Vec<String>,
     pub(crate) input_pos: usize,
+    pub(crate) data_segment: Vec<DataEntry>,
+    pub(crate) data_pos: usize,
 }
-
 impl ExecutionState {
     pub const fn metadata(&self) -> &ProgramMetadata {
         &self.metadata

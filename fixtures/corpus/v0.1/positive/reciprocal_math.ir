@@ -1,0 +1,16 @@
+version 0.1
+function Main() -> integer
+  print call INT(call EXP2(float(4.0)))
+  print call INT(call COT(float(0.5)))
+  print call INT(call SEC(float(0.5)))
+  print call INT(call CSC(float(0.5)))
+  print call INT(call SECH(float(0.5)))
+  print call INT(call CSCH(float(0.5)))
+  print call INT(call COTH(float(0.5)))
+  print call INT(call ACOT(float(2.0)))
+  print call INT(call ASEC(float(2.0)))
+  print call INT(call ACSC(float(2.0)))
+  print call INT(call ACOTH(float(2.0)))
+  print call INT(call ASECH(float(0.5)))
+  print call INT(call ACSCH(float(0.5)))
+end function

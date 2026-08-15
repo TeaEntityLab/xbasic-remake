@@ -1,0 +1,9 @@
+VERSION "0.1"
+FUNCTION Main
+DIM x
+x = 5
+IF x > 3 THEN
+EXIT FUNCTION
+END IF
+PRINT "should not print"
+END FUNCTION

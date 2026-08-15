@@ -1,0 +1,6 @@
+version 0.1
+function Main() -> integer
+  print string("before")
+  stop
+  print string("after")
+end function

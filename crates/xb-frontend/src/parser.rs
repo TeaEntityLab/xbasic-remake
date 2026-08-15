@@ -46,79 +46,81 @@ impl Parser {
         if self.starts_shared_assignment() {
             return self.shared_assignment_stmt();
         }
+        if self.starts_label() {
+            return self.label_stmt();
+        }
         match self.peek_keyword() {
             Some(Keyword::Version) => self.version_stmt(),
             Some(Keyword::Print) => self.print_stmt(),
             Some(Keyword::Dim) => self.dim_stmt(),
             Some(Keyword::If) => self.if_stmt(),
+            Some(Keyword::Ifz) => self.ifz_stmt(),
+            Some(Keyword::Ift) => self.ift_stmt(),
+            Some(Keyword::Iff) => self.iff_stmt(),
             Some(Keyword::For) => self.for_stmt(),
             Some(Keyword::While) => self.while_stmt(),
+            Some(Keyword::Function)
+            | Some(Keyword::External)
+            | Some(Keyword::Internal)
+            | Some(Keyword::CFunction) => self.function_stmt(),
             Some(Keyword::Do) => self.do_stmt(),
-            Some(Keyword::Function) => self.function_stmt(),
+            Some(Keyword::Select) => self.select_case_stmt(),
+            Some(Keyword::Export) => self.export_stmt(),
+            Some(Keyword::Sub) => self.sub_stmt(),
             Some(Keyword::Exit) => self.exit_stmt(),
             Some(Keyword::Return) => self.return_stmt(),
+            Some(Keyword::Inc) => self.inc_dec_stmt(true),
+            Some(Keyword::Dec) => self.inc_dec_stmt(false),
+            Some(Keyword::Swap) => self.swap_stmt(),
+            Some(Keyword::Program) => self.program_stmt(),
+            Some(Keyword::Import) => self.import_stmt(),
+            Some(Keyword::Declare) => self.declare_stmt(),
+            Some(Keyword::End) if self.is_end_program() => self.end_program_stmt(),
+            Some(Keyword::Static) | Some(Keyword::Shared) => self.shared_static_stmt(),
+            Some(Keyword::Redim) => self.redim_stmt(),
+            Some(Keyword::Gosub) => self.gosub_stmt(),
+            Some(Keyword::DoEvents) => self.doevents_stmt(),
+            Some(Keyword::Randomize) => self.randomize_stmt(),
+            Some(Keyword::Break) => self.break_stmt(),
+            Some(Keyword::Goto) => self.goto_stmt(),
+            Some(Keyword::Const) => self.const_stmt(),
+            Some(Keyword::Data) => self.data_stmt(),
+            Some(Keyword::Read) => self.read_stmt(),
+            Some(Keyword::Stop) => self.stop_stmt(),
+            Some(Keyword::Restore) => self.restore_stmt(),
+            Some(Keyword::Let) => {
+                self.index += 1;
+                self.assignment_stmt()
+            }
             _ if self.starts_assignment() => self.assignment_stmt(),
             _ if self.starts_call() => self.call_stmt(),
             _ => Err(self.expected("statement")),
         }
     }
 
-    fn constant_definition_stmt(&mut self) -> Result<Statement, ParseError> {
-        let TokenKind::SystemConstant(name) = self.peek_kind().clone() else {
-            return Err(self.expected("system constant"));
-        };
-        self.index += 1;
-        self.expect_symbol('=')?;
-        let TokenKind::IntegerLiteral(value) = self.peek_kind().clone() else {
-            return Err(self.expected("integer literal"));
-        };
-        self.index += 1;
-        self.expect_line_end()?;
-        Ok(Statement::ConstantDefinition { name, value })
-    }
-
-    fn shared_assignment_stmt(&mut self) -> Result<Statement, ParseError> {
-        let TokenKind::SystemVariable { name, suffix } = self.peek_kind().clone() else {
-            return Err(self.expected("system variable"));
-        };
-        self.index += 1;
-        self.expect_symbol('=')?;
-        let value = self.expression()?;
-        self.expect_line_end()?;
-        Ok(Statement::SharedAssignment {
-            name,
-            suffix,
-            value,
-        })
-    }
-
-    fn version_stmt(&mut self) -> Result<Statement, ParseError> {
-        self.expect_keyword(Keyword::Version)?;
-        let version = self.expect_string()?;
-        self.expect_line_end()?;
-        Ok(Statement::Version(version))
-    }
-
     fn print_stmt(&mut self) -> Result<Statement, ParseError> {
-        self.expect_keyword(Keyword::Print)?;
-        let expr = self.expression()?;
-        self.expect_line_end()?;
-        Ok(Statement::Print(expr))
+        crate::parser_select::parse_print(self)
     }
 
     fn dim_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::Dim)?;
-        let (name, suffix) = self.expect_identifier()?;
-        let size = if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
-            self.index += 1;
-            let e = self.expression()?;
-            self.expect_symbol(')')?;
-            Some(e)
-        } else {
-            None
-        };
+        let mut dims = Vec::new();
+        loop {
+            let (name, suffix) = self.expect_identifier()?;
+            let size = self.parse_array_size()?;
+            dims.push(Statement::Dim { name, suffix, size });
+            if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                self.index += 1;
+            } else {
+                break;
+            }
+        }
         self.expect_line_end()?;
-        Ok(Statement::Dim { name, suffix, size })
+        if dims.len() == 1 {
+            Ok(dims.pop().unwrap())
+        } else {
+            Ok(Statement::Compound(dims))
+        }
     }
 
     fn assignment_stmt(&mut self) -> Result<Statement, ParseError> {
@@ -135,7 +137,19 @@ impl Parser {
 
     fn call_stmt(&mut self) -> Result<Statement, ParseError> {
         let (name, suffix) = self.expect_identifier()?;
-        let args = self.parse_args()?;
+        let is_bracket = matches!(self.peek_kind(), TokenKind::Symbol('['));
+        let args = if is_bracket {
+            self.index += 1;
+            let mut args = vec![self.expression()?];
+            self.expect_symbol(']')?;
+            while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                self.index += 1;
+                args.push(self.expression()?);
+            }
+            args
+        } else {
+            self.parse_args()?
+        };
         if matches!(self.peek_kind(), TokenKind::Symbol('=')) && args.len() == 1 {
             self.index += 1;
             let value = self.expression()?;
@@ -152,7 +166,17 @@ impl Parser {
         Ok(Statement::Call { name: full, args })
     }
     fn function_stmt(&mut self) -> Result<Statement, ParseError> {
-        self.expect_keyword(Keyword::Function)?;
+        while matches!(
+            self.peek_keyword(),
+            Some(Keyword::External) | Some(Keyword::Internal)
+        ) {
+            self.index += 1;
+        }
+        if matches!(self.peek_keyword(), Some(Keyword::CFunction)) {
+            self.index += 1;
+        } else {
+            self.expect_keyword(Keyword::Function)?;
+        }
         let (name, suffix) = self.expect_identifier()?;
         let params = if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
             self.parse_params()?
@@ -175,31 +199,45 @@ impl Parser {
     }
     fn if_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::If)?;
-        let stmt = self.parse_if_chain()?;
-        self.expect_keyword(Keyword::End)?;
-        self.expect_keyword(Keyword::If)?;
-        self.expect_line_end()?;
-        Ok(stmt)
-    }
-    fn exit_stmt(&mut self) -> Result<Statement, ParseError> {
-        self.expect_keyword(Keyword::Exit)?;
-        if matches!(self.peek_kind(), TokenKind::Keyword(Keyword::For)) {
-            self.index += 1;
+        let condition = self.expression()?;
+        self.expect_keyword(Keyword::Then)?;
+        if self.at_line_end() {
+            let stmt = self.parse_if_chain_with_cond(condition)?;
+            self.expect_keyword(Keyword::End)?;
+            self.expect_keyword(Keyword::If)?;
+            self.expect_line_end()?;
+            Ok(stmt)
         } else {
-            self.expect_keyword(Keyword::While)?;
+            let then_body = vec![self.statement()?];
+            Ok(Statement::If {
+                condition,
+                then_body,
+                else_body: None,
+            })
         }
-        self.expect_line_end()?;
-        Ok(Statement::ExitLoop)
     }
-    pub(crate) fn return_stmt(&mut self) -> Result<Statement, ParseError> {
-        self.expect_keyword(Keyword::Return)?;
-        let value = if self.at_line_end() {
-            None
-        } else {
-            Some(self.expression()?)
-        };
+    fn inc_dec_stmt(&mut self, is_inc: bool) -> Result<Statement, ParseError> {
+        self.index += 1;
+        let (target, suffix) = self.expect_identifier()?;
         self.expect_line_end()?;
-        Ok(Statement::Return { value })
+        if is_inc {
+            Ok(Statement::Inc { target, suffix })
+        } else {
+            Ok(Statement::Dec { target, suffix })
+        }
+    }
+    fn swap_stmt(&mut self) -> Result<Statement, ParseError> {
+        self.index += 1;
+        let (left, left_suffix) = self.expect_identifier()?;
+        self.expect_symbol(',')?;
+        let (right, right_suffix) = self.expect_identifier()?;
+        self.expect_line_end()?;
+        Ok(Statement::Swap {
+            left,
+            left_suffix,
+            right,
+            right_suffix,
+        })
     }
     pub(crate) fn while_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::While)?;

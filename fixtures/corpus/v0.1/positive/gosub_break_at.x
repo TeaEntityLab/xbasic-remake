@@ -1,0 +1,20 @@
+VERSION "0.1"
+FUNCTION Main
+DIM x
+DIM y
+DIM i
+x = 10
+GOSUB Double
+FOR i = 1 TO 3
+  IF i = 2 THEN
+    BREAK
+  END IF
+  PRINT i
+NEXT i
+y = @x
+PRINT y
+RETURN
+Double:
+x = x * 2
+RETURN
+END FUNCTION

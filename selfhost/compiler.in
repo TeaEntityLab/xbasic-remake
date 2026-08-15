@@ -8,8 +8,8 @@ DIM pos
 DIM ch
 DIM ntok
 DIM done
-DIM tt$(8192)
-DIM tv$(8192)
+DIM tt$(16384)
+DIM tv$(16384)
 DIM tpos
 DIM indent
 DIM i
@@ -57,6 +57,8 @@ DIM exprStop$
 DIM an$
 DIM bn$
 DIM vt$
+DIM cname$
+DIM cval$
 DIM assignTarget$
 DIM assignType$
 DIM forVar$
@@ -85,6 +87,7 @@ DIM constValue$(64)
 DIM nConst
 DIM ci
 DIM isFloat
+DIM subName$
 ##suffixType$ = ""
 nConst = 0
 
@@ -170,9 +173,9 @@ WHILE pos <= LEN(src$)
       tk$ = "keyword"
     ELSEIF tok$ = "FUNCTION" OR tok$ = "DIM" OR tok$ = "FOR" OR tok$ = "TO" OR tok$ = "NEXT" OR tok$ = "STEP" OR tok$ = "DO" THEN
       tk$ = "keyword"
-    ELSEIF tok$ = "WHILE" OR tok$ = "WEND" OR tok$ = "RETURN" OR tok$ = "AND" OR tok$ = "OR" OR tok$ = "UNTIL" OR tok$ = "LOOP" THEN
+    ELSEIF tok$ = "WHILE" OR tok$ = "WEND" OR tok$ = "RETURN" OR tok$ = "AND" OR tok$ = "OR" OR tok$ = "XOR" OR tok$ = "UNTIL" OR tok$ = "LOOP" THEN
       tk$ = "keyword"
-    ELSEIF tok$ = "NOT" OR tok$ = "MOD" OR tok$ = "EXIT" OR tok$ = "ELSEIF" OR tok$ = "VERSION" THEN
+    ELSEIF tok$ = "NOT" OR tok$ = "MOD" OR tok$ = "EXIT" OR tok$ = "ELSEIF" OR tok$ = "VERSION" OR tok$ = "GOSUB" OR tok$ = "BREAK" OR tok$ = "CONST" OR tok$ = "LET" OR tok$ = "GOTO" THEN
       tk$ = "keyword"
     END IF
     ntok = ntok + 1
@@ -548,12 +551,38 @@ WHILE tpos <= ntok
         stmtState = 10
         exprStop$ = "newline"
       END IF
+    ELSEIF t$ = "keyword" AND v$ = "GOSUB" THEN
+      tpos = tpos + 1
+      tpos = tpos + 1
+    ELSEIF t$ = "keyword" AND v$ = "BREAK" THEN
+      tpos = tpos + 1
+      prefix$ = ""
+      i = 1
+      WHILE i <= indent
+        prefix$ = prefix$ + "  "
+        i = i + 1
+      WEND
+    ELSEIF t$ = "keyword" AND v$ = "CONST" THEN
+      tpos = tpos + 1
+      cname$ = tv$(tpos)
+      tpos = tpos + 1
+      tpos = tpos + 1
+      cval$ = tv$(tpos)
+      tpos = tpos + 1
+      PRINT "const $$" + cname$ + ":integer = integer(" + cval$ + ")"
+    ELSEIF t$ = "keyword" AND v$ = "LET" THEN
+      tpos = tpos + 1
+    ELSEIF t$ = "keyword" AND v$ = "GOTO" THEN
+      tpos = tpos + 1
+      tpos = tpos + 1
     ELSEIF t$ = "sysconst" THEN
       assignTarget$ = v$
       assignType$ = "integer"
       tpos = tpos + 2
       stmtState = 13
       exprStop$ = "newline"
+    ELSEIF t$ = "ident" AND tpos + 1 <= ntok AND tt$(tpos + 1) = "symbol" AND tv$(tpos + 1) = ":" THEN
+      tpos = tpos + 2
     ELSEIF t$ = "ident" THEN
       isArr = 0
       j = 1
@@ -736,6 +765,9 @@ WHILE tpos <= ntok
             ELSEIF bop$ = "OR" THEN
               valStack$(spVal) = "or(" + bleft$ + " " + bright$ + ")"
               valType$(spVal) = "integer"
+            ELSEIF bop$ = "XOR" THEN
+              valStack$(spVal) = "xor(" + bleft$ + " " + bright$ + ")"
+              valType$(spVal) = "integer"
             ELSE
               valStack$(spVal) = "compare(" + bleft$ + " " + bop$ + " " + bright$ + ")"
               valType$(spVal) = "integer"
@@ -763,6 +795,11 @@ WHILE tpos <= ntok
           edone = 1
           popPrec = 0
         ELSEIF expectOp = 0 THEN
+          IF t$ = "symbol" AND v$ = "@" THEN
+            tpos = tpos + 1
+            t$ = tt$(tpos)
+            v$ = tv$(tpos)
+          END IF
           IF t$ = "number" THEN
             spVal = spVal + 1
             isFloat = 0
@@ -926,6 +963,12 @@ WHILE tpos <= ntok
             prec = 1
             popPrec = prec
             pendingOp$ = "OR"
+            pendingPrec = prec
+            tpos = tpos + 1
+          ELSEIF t$ = "keyword" AND v$ = "XOR" THEN
+            prec = 1
+            popPrec = prec
+            pendingOp$ = "XOR"
             pendingPrec = prec
             tpos = tpos + 1
           ELSEIF t$ = "symbol" AND v$ = ")" THEN

@@ -1,30 +1,14 @@
 use crate::c_emit_expr::{emit_default, emit_expr, emit_var_name};
+use crate::c_emit_select::emit_body;
 use crate::c_runtime::c_type;
 use crate::ir::IrItem;
 use crate::ValueType;
-
-pub(crate) fn emit_body<'a, I>(items: I, out: &mut String, indent: usize)
-where
-    I: IntoIterator<Item = &'a IrItem>,
-{
-    for item in items {
-        emit_item(item, out, indent);
-    }
-}
-
-fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
+pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
     let ind = "    ".repeat(indent);
     match item {
         IrItem::Version(_) => {}
-        IrItem::Print(expr) => {
-            out.push_str(&ind);
-            match expr.value_type {
-                ValueType::Integer => out.push_str("xb_print_int("),
-                ValueType::Float => out.push_str("xb_print_float("),
-                ValueType::String => out.push_str("xb_print_str("),
-            }
-            emit_expr(expr, out);
-            out.push_str(");\n");
+        IrItem::Print { items, separators } => {
+            crate::c_emit_select::emit_print(items, separators, out, indent);
         }
         IrItem::Dim { symbol, size } => {
             out.push_str(&ind);
@@ -232,6 +216,33 @@ fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         IrItem::ExitLoop => {
             out.push_str(&ind);
             out.push_str("break;\n");
+        }
+        IrItem::ExitSelect => {
+            let id = crate::c_emit_select::current_select_id();
+            out.push_str(&ind);
+            out.push_str(&format!("goto _exit_sel_{id};\n"));
+        }
+        IrItem::Swap { left, right } => {
+            crate::c_emit_select::emit_swap(left, right, out, &ind);
+        }
+        IrItem::Nop => {}
+        IrItem::SelectCase {
+            selector,
+            cases,
+            default,
+        } => {
+            crate::c_emit_select::emit_select_case(selector, cases, default.as_deref(), out, indent)
+        }
+        IrItem::Compound(items) => {
+            for item in items {
+                emit_item(item, out, indent);
+            }
+        }
+        IrItem::Read(symbols) => crate::c_emit_data::emit_read(symbols, out, indent),
+        IrItem::Restore(label) => crate::c_emit_data::emit_restore(label.as_deref(), out, indent),
+        IrItem::Stop => {
+            out.push_str(&ind);
+            out.push_str("exit(0);\n");
         }
     }
 }

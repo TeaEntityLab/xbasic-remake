@@ -12,9 +12,9 @@ fn lowers_version_function_and_print_into_ir() {
     assert_eq!(ir.items.len(), 2);
     assert!(matches!(ir.items[0], IrItem::Version(ref version) if version == "6.5.0"));
     assert!(matches!(
-        ir.items[1],
-        IrItem::Function { ref name, ref body, .. }
-            if name == "Main" && matches!(body.first(), Some(IrItem::Print(IrExpr { value_type: ValueType::String, .. })))
+        &ir.items[1],
+        IrItem::Function { name, body, .. }
+            if name == "Main" && matches!(body.first(), Some(IrItem::Print { items, .. }) if items.len() == 1 && matches!(&items[0], IrExpr { value_type: ValueType::String, .. }))
     ));
 }
 
@@ -36,10 +36,13 @@ fn lowers_constant_definition_and_reference_into_typed_ir() {
     let checked = Analyzer::analyze(&program).unwrap();
     let ir = IrProgram::lower(&checked);
     assert!(matches!(
-        &ir.items[..],
-        [
-            IrItem::ConstantDefinition { name, value, value_type: ValueType::Integer },
-            IrItem::Print(IrExpr { kind: IrExprKind::Constant { name: reference, value: resolved }, value_type: ValueType::Integer })
-        ] if name == "Answer" && value == "42" && reference == "Answer" && resolved == "42"
+        &ir.items[0],
+        IrItem::ConstantDefinition { name, value, value_type: ValueType::Integer }
+            if name == "Answer" && value == "42"
+    ));
+    assert!(matches!(
+        &ir.items[1],
+        IrItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], IrExpr { kind: IrExprKind::Constant { name, value }, value_type: ValueType::Integer } if name == "Answer" && value == "42")
     ));
 }

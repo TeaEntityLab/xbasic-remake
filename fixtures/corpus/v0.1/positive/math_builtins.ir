@@ -1,0 +1,8 @@
+version 0.1
+function Main() -> integer
+  print call INT(call ACOS(float(0.0)))
+  print call INT(call ASIN(float(1.0)))
+  print call INT(call ATAN2(float(0.0), float(1.0)))
+  print call INT(call LOG10(float(100.0)))
+  print call INT(call POWER(float(2.0), float(10.0)))
+end function

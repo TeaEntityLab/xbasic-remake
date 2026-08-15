@@ -7,12 +7,13 @@ mod parser_cursor;
 mod parser_expr;
 mod parser_if;
 mod parser_loops;
-#[cfg(test)]
+mod parser_select;
 mod parser_tests;
 pub mod token;
 
 pub use ast::{
-    ArithmeticOp, BooleanOp, ComparisonOp, Expression, FunctionDecl, Param, Program, Statement,
+    ArithmeticOp, BooleanOp, CaseClause, ComparisonOp, DataValue, Expression, FunctionDecl, Param,
+    PrintSep, Program, Statement,
 };
 pub use lexer::{lex, LexError, Lexer};
 pub use parser::{parse_program, ParseError, Parser};

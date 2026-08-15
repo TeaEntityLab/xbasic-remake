@@ -1,0 +1,10 @@
+version 0.1
+function Main() -> integer
+  print call INT(call SINH(float(0.0)))
+  print call INT(call COSH(float(0.0)))
+  print call INT(call TANH(float(0.0)))
+  print call INT(call ASINH(float(0.0)))
+  print call INT(call ACOSH(float(1.0)))
+  print call INT(call ATANH(float(0.0)))
+  print call INT(call EXP10(float(3.0)))
+end function

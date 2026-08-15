@@ -8,11 +8,8 @@ fn resolves_dimmed_symbol_when_printed() {
     let program = parse_program("DIM name$\nPRINT name$\n").unwrap();
     let checked = Analyzer::analyze(&program).unwrap();
     assert!(matches!(
-        checked.items[1],
-        CheckedItem::Print(CheckedExpr {
-            value_type: ValueType::String,
-            ..
-        })
+        &checked.items[1],
+        CheckedItem::Print { items, .. } if matches!(items.as_slice(), [CheckedExpr { value_type: ValueType::String, .. }])
     ));
 }
 
@@ -89,16 +86,14 @@ fn resolves_constant_reference_in_function_from_prior_definition() {
     let checked = Analyzer::analyze(&program).unwrap();
 
     // Then
+    let body = match &checked.items[1] {
+        CheckedItem::Function { body, .. } => body,
+        _ => panic!("expected function"),
+    };
     assert!(matches!(
-        &checked.items[1],
-        CheckedItem::Function { body, .. }
-            if matches!(
-                &body[..],
-                [CheckedItem::Print(CheckedExpr {
-                    kind: CheckedExprKind::Constant { name, value },
-                    value_type: ValueType::Integer,
-                })] if name == "Answer" && value == "42"
-            )
+        &body[0],
+        CheckedItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::Constant { name, value }, value_type: ValueType::Integer } if name == "Answer" && value == "42")
     ));
 }
 
@@ -112,17 +107,14 @@ fn keeps_variable_and_constant_namespaces_separate() {
 
     // Then
     assert!(matches!(
-        (&checked.items[2], &checked.items[3]),
-        (
-            CheckedItem::Print(CheckedExpr {
-                kind: CheckedExprKind::Constant { .. },
-                ..
-            }),
-            CheckedItem::Print(CheckedExpr {
-                kind: CheckedExprKind::Symbol(_),
-                ..
-            }),
-        )
+        &checked.items[2],
+        CheckedItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::Constant { .. }, .. })
+    ));
+    assert!(matches!(
+        &checked.items[3],
+        CheckedItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::Symbol(_), .. })
     ));
 }
 

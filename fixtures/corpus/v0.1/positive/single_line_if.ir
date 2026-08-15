@@ -1,0 +1,25 @@
+version 0.1
+function Main() -> integer
+  dim x:integer
+  dim y:integer
+  assign x:integer = integer(5)
+  assign y:integer = integer(0)
+  if compare(symbol(x:integer) > integer(3))
+    print string("big")
+  end if
+  if compare(symbol(x:integer) < integer(3))
+    print string("small")
+  end if
+  if compare(symbol(x:integer) > integer(3))
+    assign y:integer = integer(10)
+  end if
+  if compare(symbol(x:integer) < integer(3))
+    assign y:integer = integer(20)
+  end if
+  print symbol(y:integer)
+  if compare(symbol(x:integer) > integer(3))
+    print string("a")
+  end if
+  print string("b")
+  print string("done")
+end function

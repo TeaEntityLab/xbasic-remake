@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Param};
+use crate::ast::{Expression, Param, Statement};
 use crate::parser::{ParseError, Parser};
 use crate::token::{Keyword, SourcePos, TokenKind, TypeSuffix};
 
@@ -45,7 +45,7 @@ impl Parser {
 
     pub(crate) fn expect_line_end(&mut self) -> Result<(), ParseError> {
         match self.peek_kind() {
-            TokenKind::Newline => {
+            TokenKind::Newline | TokenKind::Symbol(':') => {
                 self.index += 1;
                 Ok(())
             }
@@ -55,13 +55,19 @@ impl Parser {
     }
 
     pub(crate) fn skip_newlines(&mut self) {
-        while matches!(self.peek_kind(), TokenKind::Newline) {
+        while matches!(
+            self.peek_kind(),
+            TokenKind::Newline | TokenKind::Symbol(':')
+        ) {
             self.index += 1;
         }
     }
 
     pub(crate) fn at_line_end(&self) -> bool {
-        matches!(self.peek_kind(), TokenKind::Newline | TokenKind::Eof)
+        matches!(
+            self.peek_kind(),
+            TokenKind::Newline | TokenKind::Eof | TokenKind::Symbol(':')
+        )
     }
 
     pub(crate) fn peek_keyword(&self) -> Option<Keyword> {
@@ -85,6 +91,28 @@ impl Parser {
         matches!(self.peek_kind(), TokenKind::Eof)
     }
 
+    pub(crate) fn parse_array_size(&mut self) -> Result<Option<Expression>, ParseError> {
+        if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+            self.index += 1;
+            let e = self.expression()?;
+            self.expect_symbol(')')?;
+            Ok(Some(e))
+        } else if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+            self.index += 1;
+            let e = self.expression()?;
+            self.expect_symbol(']')?;
+            Ok(Some(e))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub(crate) fn skip_to_line_end(&mut self) {
+        while !self.at_line_end() {
+            self.index += 1;
+        }
+    }
+
     pub(crate) fn expected(&self, expected: &'static str) -> ParseError {
         let pos = self.current_pos();
         ParseError::Expected {
@@ -105,6 +133,14 @@ impl Parser {
             && matches!(
                 self.peek_next_kind(),
                 Some(TokenKind::Keyword(Keyword::Function))
+            )
+    }
+
+    pub(crate) fn starts_end_sub(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::End))
+            && matches!(
+                self.peek_next_kind(),
+                Some(TokenKind::Keyword(Keyword::Sub))
             )
     }
     pub(crate) fn starts_end_if(&self) -> bool {
@@ -135,7 +171,12 @@ impl Parser {
     }
     pub(crate) fn starts_call(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Identifier { .. })
-            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('(')))
+            && (matches!(self.peek_next_kind(), Some(TokenKind::Symbol('(')))
+                || matches!(self.peek_next_kind(), Some(TokenKind::Symbol('['))))
+    }
+    pub(crate) fn starts_label(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Identifier { .. })
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol(':')))
     }
     pub(crate) fn starts_constant_definition(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::SystemConstant(_))
@@ -178,5 +219,46 @@ impl Parser {
         }
         self.expect_symbol(')')?;
         Ok(args)
+    }
+
+    pub(crate) fn constant_definition_stmt(&mut self) -> Result<Statement, ParseError> {
+        let TokenKind::SystemConstant(name) = self.peek_kind().clone() else {
+            return Err(self.expected("system constant"));
+        };
+        self.index += 1;
+        self.expect_symbol('=')?;
+        let TokenKind::IntegerLiteral(value) = self.peek_kind().clone() else {
+            return Err(self.expected("integer literal"));
+        };
+        self.index += 1;
+        self.expect_line_end()?;
+        Ok(Statement::ConstantDefinition { name, value })
+    }
+
+    pub(crate) fn const_stmt(&mut self) -> Result<Statement, ParseError> {
+        self.index += 1;
+        let (name, _) = self.expect_identifier()?;
+        self.expect_symbol('=')?;
+        let TokenKind::IntegerLiteral(value) = self.peek_kind().clone() else {
+            return Err(self.expected("integer literal"));
+        };
+        self.index += 1;
+        self.expect_line_end()?;
+        Ok(Statement::ConstantDefinition { name, value })
+    }
+
+    pub(crate) fn shared_assignment_stmt(&mut self) -> Result<Statement, ParseError> {
+        let TokenKind::SystemVariable { name, suffix } = self.peek_kind().clone() else {
+            return Err(self.expected("system variable"));
+        };
+        self.index += 1;
+        self.expect_symbol('=')?;
+        let value = self.expression()?;
+        self.expect_line_end()?;
+        Ok(Statement::SharedAssignment {
+            name,
+            suffix,
+            value,
+        })
     }
 }

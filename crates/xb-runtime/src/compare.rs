@@ -24,5 +24,5 @@ pub fn compare(op: ComparisonOp, l: &RuntimeValue, r: &RuntimeValue) -> Result<i
         ComparisonOp::LessEqual => !ord.is_gt(),
         ComparisonOp::GreaterEqual => !ord.is_lt(),
     };
-    Ok(if result { 1 } else { 0 })
+    Ok(if result { -1 } else { 0 })
 }

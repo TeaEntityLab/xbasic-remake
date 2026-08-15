@@ -1,0 +1,9 @@
+version 0.1
+function Main() -> integer
+  dim arr:integer[integer(3)]
+  array_assign arr:integer[integer(0)] = integer(10)
+  array_assign arr:integer[integer(1)] = integer(20)
+  array_assign arr:integer[integer(2)] = integer(30)
+  print array_access(arr:integer[integer(0)]) ; array_access(arr:integer[integer(1)]) ; array_access(arr:integer[integer(2)])
+  print arith(arith(array_access(arr:integer[integer(0)]) + array_access(arr:integer[integer(1)])) + array_access(arr:integer[integer(2)]))
+end function

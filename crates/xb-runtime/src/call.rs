@@ -2,9 +2,8 @@ use std::collections::BTreeMap;
 use xb_compiler::{IrExpr, IrItem, IrParam, IrProgram, ValueType};
 type FuncInfo<'a> = (&'a str, &'a [IrParam], &'a [IrItem], ValueType);
 
-use crate::interpreter::{
-    eval, exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue, TypedSlot,
-};
+use crate::eval::eval;
+use crate::interpreter::{exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue, TypedSlot};
 
 pub(crate) fn call_function(
     program: &IrProgram,
@@ -15,6 +14,21 @@ pub(crate) fn call_function(
 ) -> Result<RuntimeValue, RuntimeError> {
     match name {
         "READLINE$" => {
+            if state.input_pos < state.input.len() {
+                let line = state.input[state.input_pos].clone();
+                state.input_pos += 1;
+                return Ok(RuntimeValue::String(line));
+            }
+            return Ok(RuntimeValue::String(String::new()));
+        }
+        "INLINE$" => {
+            if let Some(IrExpr {
+                kind: xb_compiler::IrExprKind::StringLiteral(prompt),
+                ..
+            }) = args.first()
+            {
+                output.push(prompt.clone());
+            }
             if state.input_pos < state.input.len() {
                 let line = state.input[state.input_pos].clone();
                 state.input_pos += 1;
@@ -65,6 +79,8 @@ pub(crate) fn call_function(
         shared: state.shared.clone(),
         input: state.input.clone(),
         input_pos: state.input_pos,
+        data_segment: Vec::new(),
+        data_pos: 0,
     };
     let result = match exec_items(program, body, &mut sub, output)? {
         Flow::Return(Some(v)) => Ok(v),
@@ -111,6 +127,9 @@ fn is_builtin(name: &str) -> bool {
             | "RIGHT$"
             | "MID$"
             | "INSTR"
+            | "RINSTR"
+            | "INSTRI"
+            | "RINSTRI"
             | "VAL"
             | "STR$"
             | "UCASE$"
@@ -125,5 +144,57 @@ fn is_builtin(name: &str) -> bool {
             | "FIX"
             | "MAX"
             | "MIN"
+            | "HEX$"
+            | "BIN$"
+            | "OCT$"
+            | "HEXX$"
+            | "RJUST$"
+            | "LJUST$"
+            | "STRING$"
+            | "STRING"
+            | "DOUBLE"
+            | "SINGLE"
+            | "XLONG"
+            | "SQRT"
+            | "SIN"
+            | "COS"
+            | "TAN"
+            | "EXP"
+            | "LOG"
+            | "ATN"
+            | "ACOS"
+            | "ASIN"
+            | "ATAN2"
+            | "LOG10"
+            | "POWER"
+            | "SINH"
+            | "COSH"
+            | "TANH"
+            | "ASINH"
+            | "ACOSH"
+            | "ATANH"
+            | "EXP10"
+            | "EXP2"
+            | "COT"
+            | "SEC"
+            | "CSC"
+            | "COTH"
+            | "SECH"
+            | "CSCH"
+            | "ACOT"
+            | "ASEC"
+            | "ACSC"
+            | "ACOTH"
+            | "ASECH"
+            | "ACSCH"
+            | "RND"
+            | "CEIL"
+            | "FLOOR"
+            | "ROUND"
+            | "TIMER"
+            | "TIME$"
+            | "DATE$"
+            | "INLINE$"
+            | "EOF"
     )
 }

@@ -1,0 +1,9 @@
+version 0.1
+function Main() -> integer
+  print call INSTRI(string("Hello World"), string("world"))
+  print call INSTRI(string("Hello World"), string("world"), integer(8))
+  print call RINSTRI(string("Hello World Hello"), string("hello"))
+  print call RINSTRI(string("abcABCabc"), string("abc"), integer(5))
+  print call INSTRI(string("abcABC"), string("abc"))
+  print call INSTRI(string("abcABC"), string("xyz"))
+end function

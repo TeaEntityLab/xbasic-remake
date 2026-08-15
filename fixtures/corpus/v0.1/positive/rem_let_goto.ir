@@ -1,0 +1,12 @@
+version 0.1
+function Main() -> integer
+  dim x:integer
+  dim y:integer
+  assign x:integer = integer(10)
+  assign y:integer = integer(20)
+  print arith(symbol(x:integer) + symbol(y:integer))
+  if compare(symbol(x:integer) > integer(5))
+    print string("skipped")
+  end if
+  print string("done")
+end function

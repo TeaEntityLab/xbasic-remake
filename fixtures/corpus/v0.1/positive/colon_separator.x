@@ -1,0 +1,19 @@
+VERSION "0.1"
+FUNCTION Main
+DIM a
+DIM b
+DIM c
+DIM x
+DIM y
+a = 1 : b = 2 : c = 3
+PRINT a
+PRINT b
+PRINT c
+INC a : INC b : INC c
+PRINT a
+PRINT b
+PRINT c
+x = 10 : y = 20 : SWAP x, y
+PRINT x
+PRINT y
+END FUNCTION

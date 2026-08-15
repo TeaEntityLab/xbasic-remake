@@ -1,0 +1,11 @@
+version 0.1
+function Main() -> integer
+  dim n:integer
+  assign n:integer = integer(255)
+  print call HEX$(symbol(n:integer))
+  print call BIN$(symbol(n:integer))
+  print call OCT$(symbol(n:integer))
+  assign n:integer = integer(16)
+  print call HEX$(symbol(n:integer))
+  print call OCT$(symbol(n:integer))
+end function

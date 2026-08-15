@@ -1,0 +1,21 @@
+version 0.1
+function Main() -> integer
+  dim a:integer
+  dim b:integer
+  dim s:string
+  dim t:string
+  assign a:integer = integer(10)
+  assign b:integer = integer(20)
+  assign a:integer = arith(symbol(a:integer) + integer(1))
+  print symbol(a:integer)
+  assign b:integer = arith(symbol(b:integer) - integer(1))
+  print symbol(b:integer)
+  swap a:integer b:integer
+  print symbol(a:integer)
+  print symbol(b:integer)
+  assign s:string = string("first")
+  assign t:string = string("second")
+  swap s:string t:string
+  print symbol(s:string)
+  print symbol(t:string)
+end function

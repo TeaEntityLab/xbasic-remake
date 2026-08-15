@@ -1,6 +1,6 @@
 use thiserror::Error;
 use xb_frontend::TypeSuffix;
-pub use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, Param};
+pub use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, Param, PrintSep};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
@@ -74,12 +74,16 @@ pub enum SemanticError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedProgram {
     pub items: Vec<CheckedItem>,
+    pub data_values: Vec<xb_frontend::DataValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedItem {
     Version(String),
-    Print(CheckedExpr),
+    Print {
+        items: Vec<CheckedExpr>,
+        separators: Vec<PrintSep>,
+    },
     Dim {
         symbol: CheckedSymbol,
         size: Option<CheckedExpr>,
@@ -131,12 +135,33 @@ pub enum CheckedItem {
         args: Vec<CheckedExpr>,
     },
     ExitLoop,
+    ExitSelect,
+    Swap {
+        left: CheckedSymbol,
+        right: CheckedSymbol,
+    },
     Function {
         name: String,
         params: Vec<CheckedParam>,
         return_type: ValueType,
         body: Vec<CheckedItem>,
     },
+    Nop,
+    SelectCase {
+        selector: CheckedExpr,
+        cases: Vec<CheckedCaseClause>,
+        default: Option<Vec<CheckedItem>>,
+    },
+    Compound(Vec<CheckedItem>),
+    Read(Vec<CheckedSymbol>),
+    Stop,
+    Restore(Option<String>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedCaseClause {
+    pub conditions: Vec<CheckedExpr>,
+    pub body: Vec<CheckedItem>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

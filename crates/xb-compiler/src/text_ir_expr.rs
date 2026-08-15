@@ -36,6 +36,7 @@ impl TextIrEmitter {
                 let s = match op {
                     BooleanOp::And => "and",
                     BooleanOp::Or => "or",
+                    BooleanOp::Xor => "xor",
                 };
                 format!("{}({} {})", s, self.emit_expr(left), self.emit_expr(right))
             }

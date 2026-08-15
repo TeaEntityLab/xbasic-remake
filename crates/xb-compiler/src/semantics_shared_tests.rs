@@ -11,15 +11,19 @@ fn declares_shared_variable_on_first_assignment_and_resolves_reference() {
     let checked = Analyzer::analyze(&program).unwrap();
 
     // Then
+    let body = match &checked.items[0] {
+        CheckedItem::Function { body, .. } => body,
+        _ => panic!("expected function"),
+    };
     assert!(matches!(
-        &checked.items[0],
-        CheckedItem::Function { body, .. } if matches!(
-            &body[..],
-            [
-                CheckedItem::SharedAssignment { target, value: CheckedExpr { value_type: ValueType::Integer, .. } },
-                CheckedItem::Print(CheckedExpr { kind: CheckedExprKind::SharedVariable(reference), value_type: ValueType::Integer })
-            ] if target.name == "XBSystem" && reference.name == "XBSystem"
-        )
+        &body[0],
+        CheckedItem::SharedAssignment { target, value: CheckedExpr { value_type: ValueType::Integer, .. } }
+            if target.name == "XBSystem"
+    ));
+    assert!(matches!(
+        &body[1],
+        CheckedItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::SharedVariable(reference), value_type: ValueType::Integer } if reference.name == "XBSystem")
     ));
 }
 
@@ -34,21 +38,19 @@ fn keeps_shared_constant_and_variable_namespaces_separate() {
 
     // Then
     assert!(matches!(
-        (&checked.items[3], &checked.items[4], &checked.items[5]),
-        (
-            CheckedItem::Print(CheckedExpr {
-                kind: CheckedExprKind::Constant { .. },
-                ..
-            }),
-            CheckedItem::Print(CheckedExpr {
-                kind: CheckedExprKind::Symbol(_),
-                ..
-            }),
-            CheckedItem::Print(CheckedExpr {
-                kind: CheckedExprKind::SharedVariable(_),
-                ..
-            }),
-        )
+        &checked.items[3],
+        CheckedItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::Constant { .. }, .. })
+    ));
+    assert!(matches!(
+        &checked.items[4],
+        CheckedItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::Symbol(_), .. })
+    ));
+    assert!(matches!(
+        &checked.items[5],
+        CheckedItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::SharedVariable(_), .. })
     ));
 }
 
@@ -114,8 +116,8 @@ fn resolves_shared_variable_assigned_inside_an_earlier_function() {
     // Then
     assert!(matches!(
         &checked.items[1],
-        CheckedItem::Print(CheckedExpr { kind: CheckedExprKind::SharedVariable(reference), .. })
-            if reference.name == "XBSystem"
+        CheckedItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::SharedVariable(reference), .. } if reference.name == "XBSystem")
     ));
 }
 
@@ -173,9 +175,7 @@ fn preserves_string_shared_variable_type_from_suffix() {
     // Then
     assert!(matches!(
         &checked.items[1],
-        CheckedItem::Print(CheckedExpr {
-            kind: CheckedExprKind::SharedVariable(reference),
-            value_type: ValueType::String,
-        }) if reference.name == "XBDir"
+        CheckedItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::SharedVariable(reference), value_type: ValueType::String } if reference.name == "XBDir")
     ));
 }

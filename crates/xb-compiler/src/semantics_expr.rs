@@ -1,6 +1,6 @@
 use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, Expression, TypeSuffix};
 
-use crate::checked::{CheckedExpr, CheckedExprKind, CheckedItem, CheckedSymbol};
+use crate::checked::{CheckedExpr, CheckedExprKind, CheckedItem};
 use crate::semantics::{Analyzer, ExprResult, ItemResult, SemanticError, ValueType};
 
 impl Analyzer {
@@ -20,7 +20,7 @@ impl Analyzer {
             )),
             Expression::SystemConstant { name } => self.constant(name),
             Expression::SystemVariable { name, suffix } => self.shared_variable(name, *suffix),
-            Expression::Identifier { name, .. } => self.symbol(name),
+            Expression::Identifier { name, suffix } => self.symbol(name, *suffix),
             Expression::Comparison { op, left, right } => self.comparison(*op, left, right),
             Expression::Arithmetic { op, left, right } => self.arithmetic(*op, left, right),
             Expression::Not(inner) => self.not_expr(inner),
@@ -145,6 +145,29 @@ impl Analyzer {
                 vt,
             ));
         }
+        if (name == "ABS"
+            || name == "STR$"
+            || name == "DOUBLE"
+            || name == "SINGLE"
+            || name == "XLONG")
+            && !args.is_empty()
+        {
+            let arg = self.expr(&args[0])?;
+            let rt = match name {
+                "ABS" => arg.value_type,
+                "STR$" => ValueType::String,
+                "DOUBLE" | "SINGLE" => ValueType::Float,
+                "XLONG" => ValueType::Integer,
+                _ => unreachable!(),
+            };
+            return Ok(CheckedExpr::new(
+                CheckedExprKind::FunctionCall {
+                    name: name.to_owned(),
+                    args: vec![arg.clone()],
+                },
+                rt,
+            ));
+        }
         if let Some(rt) = crate::builtin::builtin_return_type(name) {
             return crate::builtin::builtin_call(self, name, args, rt);
         }
@@ -191,56 +214,30 @@ impl Analyzer {
         ))
     }
 
-    fn constant(&self, name: &str) -> ExprResult {
-        let Some(value) = self.constants.get(name) else {
-            return Err(SemanticError::UnknownConstant {
-                name: name.to_owned(),
-            });
-        };
-        Ok(CheckedExpr::new(
-            CheckedExprKind::Constant {
-                name: name.to_owned(),
-                value: value.clone(),
-            },
-            ValueType::Integer,
-        ))
-    }
-
-    fn shared_variable(&self, name: &str, s: Option<TypeSuffix>) -> ExprResult {
-        let Some(declared) = self.shared.get(name).copied() else {
-            return Err(SemanticError::UnknownSharedVariable {
-                name: name.to_owned(),
-            });
-        };
-        let requested = ValueType::from_suffix(s);
-        if declared != requested {
-            return Err(SemanticError::TypeMismatch {
-                name: name.to_owned(),
-                expected: requested,
-                actual: declared,
-            });
+    fn symbol(&self, name: &str, suffix: Option<xb_frontend::TypeSuffix>) -> ExprResult {
+        match self.checked_symbol(name) {
+            Ok(s) => Ok(CheckedExpr::new(
+                CheckedExprKind::Symbol(s.clone()),
+                s.value_type,
+            )),
+            Err(e) => {
+                let full = xb_frontend::full_name(name.to_owned(), suffix);
+                if self.constants.contains_key(name) {
+                    self.constant(name)
+                } else if crate::builtin::is_zero_arg_builtin(&full) {
+                    let rt = crate::builtin::builtin_return_type(&full).unwrap();
+                    Ok(CheckedExpr::new(
+                        CheckedExprKind::FunctionCall {
+                            name: full,
+                            args: vec![],
+                        },
+                        rt,
+                    ))
+                } else {
+                    Err(e)
+                }
+            }
         }
-        Ok(CheckedExpr::new(
-            CheckedExprKind::SharedVariable(CheckedSymbol::new(name.to_owned(), declared)),
-            declared,
-        ))
-    }
-
-    fn symbol(&self, name: &str) -> ExprResult {
-        let s = self.checked_symbol(name)?;
-        Ok(CheckedExpr::new(
-            CheckedExprKind::Symbol(s.clone()),
-            s.value_type,
-        ))
-    }
-
-    pub(crate) fn checked_symbol(&self, name: &str) -> Result<CheckedSymbol, SemanticError> {
-        let Some(vt) = self.symbols.get(name).copied() else {
-            return Err(SemanticError::UnknownSymbol {
-                name: name.to_owned(),
-            });
-        };
-        Ok(CheckedSymbol::new(name.to_owned(), vt))
     }
 
     pub(crate) fn call_stmt(&self, name: &str, args: &[Expression]) -> ItemResult {

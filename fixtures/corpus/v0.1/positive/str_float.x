@@ -1,0 +1,9 @@
+VERSION "0.1"
+FUNCTION Main
+PRINT STR$(42)
+PRINT STR$(0 - 7)
+PRINT STR$(0) + " items"
+DIM f#
+f# = 3.0
+PRINT STR$(f#)
+END FUNCTION

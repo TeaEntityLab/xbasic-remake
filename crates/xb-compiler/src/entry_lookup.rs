@@ -19,7 +19,7 @@ impl CheckedProgram {
                     ..
                 } => (candidate == name).then_some(body.as_slice()),
                 CheckedItem::Version(_)
-                | CheckedItem::Print(_)
+                | CheckedItem::Print { .. }
                 | CheckedItem::Dim { .. }
                 | CheckedItem::Assignment { .. }
                 | CheckedItem::ArrayAssignment { .. }
@@ -31,7 +31,15 @@ impl CheckedProgram {
                 | CheckedItem::SharedAssignment { .. }
                 | CheckedItem::Return { .. }
                 | CheckedItem::Call { .. }
-                | CheckedItem::ExitLoop => None,
+                | CheckedItem::ExitLoop
+                | CheckedItem::ExitSelect
+                | CheckedItem::Swap { .. }
+                | CheckedItem::Nop
+                | CheckedItem::SelectCase { .. }
+                | CheckedItem::Compound(_)
+                | CheckedItem::Read(_)
+                | CheckedItem::Stop
+                | CheckedItem::Restore(_) => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),
@@ -50,7 +58,7 @@ impl IrProgram {
                     ..
                 } => (candidate == name).then_some(body.as_slice()),
                 IrItem::Version(_)
-                | IrItem::Print(_)
+                | IrItem::Print { .. }
                 | IrItem::Dim { .. }
                 | IrItem::ConstantDefinition { .. }
                 | IrItem::Assignment { .. }
@@ -62,7 +70,15 @@ impl IrProgram {
                 | IrItem::SharedAssignment { .. }
                 | IrItem::Return { .. }
                 | IrItem::Call { .. }
-                | IrItem::ExitLoop => None,
+                | IrItem::ExitLoop
+                | IrItem::ExitSelect
+                | IrItem::Swap { .. }
+                | IrItem::Nop
+                | IrItem::SelectCase { .. }
+                | IrItem::Compound(_)
+                | IrItem::Read(_)
+                | IrItem::Stop
+                | IrItem::Restore(_) => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),
@@ -94,8 +110,8 @@ mod tests {
         // Then
         assert!(matches!(
             body,
-            [CheckedItem::Print(expr)]
-                if matches!(&expr.kind, CheckedExprKind::StringLiteral(value) if value == "main")
+            [CheckedItem::Print { items, .. }]
+                if matches!(&items[0].kind, CheckedExprKind::StringLiteral(value) if value == "main")
         ));
     }
 
@@ -130,8 +146,8 @@ mod tests {
         // Then
         assert!(matches!(
             body,
-            [IrItem::Print(expr)]
-                if matches!(&expr.kind, IrExprKind::StringLiteral(value) if value == "main")
+            [IrItem::Print { items, .. }]
+                if matches!(&items[0].kind, IrExprKind::StringLiteral(value) if value == "main")
         ));
     }
 
@@ -144,7 +160,7 @@ mod tests {
         let body = checked.entry("Main").unwrap();
 
         // Then
-        assert!(matches!(body, [CheckedItem::Print(_)]));
+        assert!(matches!(body, [CheckedItem::Print { .. }]));
     }
 
     #[test]
@@ -157,6 +173,6 @@ mod tests {
         let body = ir.entry("Main").unwrap();
 
         // Then
-        assert!(matches!(body, [IrItem::Print(_)]));
+        assert!(matches!(body, [IrItem::Print { .. }]));
     }
 }

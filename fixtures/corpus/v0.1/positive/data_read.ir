@@ -1,0 +1,15 @@
+version 0.1
+function Main() -> integer
+  dim x:integer
+  dim y:integer
+  dim z:integer
+  read x:integer, y:integer, z:integer
+  print symbol(x:integer)
+  print symbol(y:integer)
+  print symbol(z:integer)
+  restore
+  dim a:integer
+  read a:integer
+  print symbol(a:integer)
+end function
+data int:10 int:20 int:30

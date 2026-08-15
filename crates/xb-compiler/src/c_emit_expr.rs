@@ -1,4 +1,8 @@
-use crate::checked::{ArithmeticOp, BooleanOp, ComparisonOp};
+use crate::c_emit_helpers::{
+    arith_op, boolean_op, cmp_op, emit_c_function_name, emit_c_string, emit_type_conversion,
+    is_type_conversion,
+};
+use crate::checked::ArithmeticOp;
 use crate::ir::{IrExpr, IrExprKind, IrSymbol};
 use crate::ValueType;
 
@@ -27,15 +31,15 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
         }
         IrExprKind::Comparison { op, left, right } => {
             if left.value_type == ValueType::String || right.value_type == ValueType::String {
-                out.push_str("(strcmp(");
+                out.push_str("(-(strcmp(");
                 emit_expr(left, out);
                 out.push_str(", ");
                 emit_expr(right, out);
                 out.push_str(") ");
                 out.push_str(cmp_op(*op));
-                out.push_str(" 0)");
+                out.push_str(" 0))");
             } else {
-                out.push('(');
+                out.push_str("-(");
                 emit_expr(left, out);
                 out.push(' ');
                 out.push_str(cmp_op(*op));
@@ -92,15 +96,98 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             out.push_str("))");
         }
         IrExprKind::FunctionCall { name, args } => {
-            emit_c_function_name(name, out);
-            out.push('(');
-            for (i, arg) in args.iter().enumerate() {
-                if i > 0 {
-                    out.push_str(", ");
+            if name == "CHR$" {
+                if args.len() == 1 {
+                    out.push_str("xb_chr");
+                    out.push('(');
+                    emit_expr(&args[0], out);
+                    out.push_str(", 1)");
+                } else {
+                    out.push_str("xb_chr");
+                    out.push('(');
+                    for (i, arg) in args.iter().enumerate() {
+                        if i > 0 {
+                            out.push_str(", ");
+                        }
+                        emit_expr(arg, out);
+                    }
+                    out.push(')');
                 }
-                emit_expr(arg, out);
+            } else if name == "INSTR" {
+                if args.len() == 2 {
+                    out.push_str("xb_instr2");
+                } else {
+                    out.push_str("xb_instr3");
+                }
+                out.push('(');
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    emit_expr(arg, out);
+                }
+                out.push(')');
+            } else if name == "RINSTR" {
+                if args.len() == 2 {
+                    out.push_str("xb_rinstr2");
+                } else {
+                    out.push_str("xb_rinstr3");
+                }
+                out.push('(');
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    emit_expr(arg, out);
+                }
+            } else if name == "INSTRI" || name == "RINSTRI" {
+                let base = if name == "INSTRI" {
+                    "xb_instri"
+                } else {
+                    "xb_rinstri"
+                };
+                out.push_str(base);
+                out.push_str(if args.len() == 2 { "2" } else { "3" });
+                out.push('(');
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    emit_expr(arg, out);
+                }
+                out.push(')');
+            } else if name == "ABS" && expr.value_type == ValueType::Float {
+                out.push_str("xb_fabs(");
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    emit_expr(arg, out);
+                }
+            } else if is_type_conversion(name) {
+                emit_type_conversion(name, &args[0], out, emit_expr);
+            } else if name == "HEXX$" {
+                crate::c_emit_helpers::emit_hexx(args, out, emit_expr);
+            } else if name == "STR$" && !args.is_empty() && args[0].value_type == ValueType::Float {
+                out.push_str("xb_str_float(");
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    emit_expr(arg, out);
+                }
+                out.push(')');
+            } else {
+                emit_c_function_name(name, out);
+                out.push('(');
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    emit_expr(arg, out);
+                }
+                out.push(')');
             }
-            out.push(')');
         }
         IrExprKind::ArrayAccess { symbol, index } => {
             emit_symbol_ref(symbol, out);
@@ -113,85 +200,6 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
 
 fn emit_symbol_ref(s: &IrSymbol, out: &mut String) {
     emit_var_name(s, out);
-}
-
-fn emit_c_function_name(name: &str, out: &mut String) {
-    match name {
-        "LEN" => out.push_str("xb_len"),
-        "ASC" => out.push_str("xb_asc"),
-        "CHR$" => out.push_str("xb_chr"),
-        "LEFT$" => out.push_str("xb_left"),
-        "RIGHT$" => out.push_str("xb_right"),
-        "MID$" => out.push_str("xb_mid"),
-        "INSTR" => out.push_str("xb_instr"),
-        "VAL" => out.push_str("xb_val"),
-        "STR$" => out.push_str("xb_str_num"),
-        "UCASE$" => out.push_str("xb_ucase"),
-        "LCASE$" => out.push_str("xb_lcase"),
-        "TRIM$" => out.push_str("xb_trim"),
-        "LTRIM$" => out.push_str("xb_ltrim"),
-        "RTRIM$" => out.push_str("xb_rtrim"),
-        "SPACE$" => out.push_str("xb_space"),
-        "ABS" => out.push_str("xb_abs"),
-        "SGN" => out.push_str("xb_sgn"),
-        "INT" => out.push_str("xb_int"),
-        "FIX" => out.push_str("xb_fix"),
-        "MAX" => out.push_str("xb_max"),
-        "MIN" => out.push_str("xb_min"),
-        "READLINE$" => out.push_str("xb_readline"),
-        "EOF" => out.push_str("xb_eof"),
-        _ => {
-            out.push_str("xb_user_");
-            out.push_str(name);
-        }
-    }
-}
-
-fn cmp_op(op: ComparisonOp) -> &'static str {
-    match op {
-        ComparisonOp::Equal => "==",
-        ComparisonOp::NotEqual => "!=",
-        ComparisonOp::Less => "<",
-        ComparisonOp::Greater => ">",
-        ComparisonOp::LessEqual => "<=",
-        ComparisonOp::GreaterEqual => ">=",
-    }
-}
-
-fn arith_op(op: ArithmeticOp) -> &'static str {
-    match op {
-        ArithmeticOp::Add => "+",
-        ArithmeticOp::Sub => "-",
-        ArithmeticOp::Mul => "*",
-        ArithmeticOp::Div => "/",
-        ArithmeticOp::IntegerDiv => "/",
-        ArithmeticOp::Mod => "%",
-        ArithmeticOp::Pow => "**",
-    }
-}
-
-fn boolean_op(op: BooleanOp) -> &'static str {
-    match op {
-        BooleanOp::And => "&",
-        BooleanOp::Or => "|",
-    }
-}
-
-fn emit_c_string(s: &str, out: &mut String) {
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\t' => out.push_str("\\t"),
-            '\r' => out.push_str("\\r"),
-            '\0' => out.push_str("\\0"),
-            c if (c as u32) < 0x20 => {
-                out.push_str(&format!("\\x{:02x}", c as u32));
-            }
-            c => out.push(c),
-        }
-    }
 }
 
 pub(crate) fn emit_var_name(symbol: &IrSymbol, out: &mut String) {

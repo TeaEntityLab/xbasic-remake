@@ -1,5 +1,5 @@
 use crate::c_emit_expr::emit_var_name;
-use crate::c_emit_stmt::emit_body;
+use crate::c_emit_select::emit_body;
 use crate::c_runtime::{c_type, emit_forward_decls, emit_globals, emit_header};
 use crate::ir::{IrItem, IrProgram, IrSymbol};
 use crate::ValueType;
@@ -18,6 +18,7 @@ impl CEmitter {
     }
 
     pub fn emit_program(&self, program: &IrProgram) -> String {
+        crate::c_emit_select::reset_select_state();
         let mut out = String::new();
         emit_header(&mut out);
         emit_globals(program, &mut out);
@@ -84,6 +85,7 @@ fn emit_main(program: &IrProgram, out: &mut String) {
         .iter()
         .any(|i| matches!(i, IrItem::Function { name, .. } if name == "Main"));
     out.push_str("int main(void) {\n");
+    emit_data_init(program, out);
     emit_body(top, out, 1);
     if has_main {
         out.push_str("    xb_user_Main();\n");
@@ -91,4 +93,14 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     out.push_str("    fflush(stdout);\n");
     out.push_str("    return 0;\n");
     out.push_str("}\n");
+}
+
+fn emit_data_init(program: &IrProgram, out: &mut String) {
+    for (tag, val) in &program.data_values {
+        match tag.as_str() {
+            "int" => out.push_str(&format!("    xb_data_add_int({val});\n")),
+            "float" => out.push_str(&format!("    xb_data_add_float({val});\n")),
+            _ => out.push_str(&format!("    xb_data_add_str(\"{val}\");\n")),
+        }
+    }
 }

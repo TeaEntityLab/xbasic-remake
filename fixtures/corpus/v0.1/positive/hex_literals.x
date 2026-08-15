@@ -1,0 +1,14 @@
+VERSION "0.1"
+FUNCTION Main
+DIM a
+DIM b
+DIM c
+a = 0xFF
+b = 0x10
+c = 0x0A
+PRINT a
+PRINT b
+PRINT c
+PRINT a + b
+PRINT a - c
+END FUNCTION

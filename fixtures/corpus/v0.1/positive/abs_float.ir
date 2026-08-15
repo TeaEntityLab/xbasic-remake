@@ -1,0 +1,10 @@
+version 0.1
+function Main() -> integer
+  dim x:integer
+  assign x:integer = call ABS(arith(integer(0) - integer(5)))
+  print symbol(x:integer)
+  assign x:integer = call ABS(integer(3))
+  print symbol(x:integer)
+  assign x:integer = arith(call ABS(arith(integer(0) - integer(7))) + call ABS(integer(2)))
+  print symbol(x:integer)
+end function

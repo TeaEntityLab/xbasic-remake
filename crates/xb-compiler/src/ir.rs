@@ -1,15 +1,24 @@
-use crate::checked::{ArithmeticOp, BooleanOp, CheckedProgram, ComparisonOp, ValueType};
+use crate::checked::{ArithmeticOp, BooleanOp, CheckedProgram, ComparisonOp, PrintSep, ValueType};
 use crate::text_ir::TextIrEmitter;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IrProgram {
     pub items: Vec<IrItem>,
+    pub data_values: Vec<(String, String)>,
 }
-
 impl IrProgram {
     pub fn lower(program: &CheckedProgram) -> Self {
         Self {
             items: program.items.iter().map(IrItem::lower_item).collect(),
+            data_values: program
+                .data_values
+                .iter()
+                .map(|dv| match dv {
+                    xb_frontend::DataValue::Integer(s) => ("int".to_string(), s.clone()),
+                    xb_frontend::DataValue::Float(s) => ("float".to_string(), s.clone()),
+                    xb_frontend::DataValue::String(s) => ("string".to_string(), s.clone()),
+                })
+                .collect(),
         }
     }
 
@@ -21,7 +30,10 @@ impl IrProgram {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IrItem {
     Version(String),
-    Print(IrExpr),
+    Print {
+        items: Vec<IrExpr>,
+        separators: Vec<PrintSep>,
+    },
     Dim {
         symbol: IrSymbol,
         size: Option<IrExpr>,
@@ -79,6 +91,27 @@ pub enum IrItem {
         args: Vec<IrExpr>,
     },
     ExitLoop,
+    ExitSelect,
+    Swap {
+        left: IrSymbol,
+        right: IrSymbol,
+    },
+    Nop,
+    SelectCase {
+        selector: IrExpr,
+        cases: Vec<IrCaseClause>,
+        default: Option<Vec<IrItem>>,
+    },
+    Compound(Vec<IrItem>),
+    Read(Vec<IrSymbol>),
+    Stop,
+    Restore(Option<String>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IrCaseClause {
+    pub conditions: Vec<IrExpr>,
+    pub body: Vec<IrItem>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,6 +1,5 @@
-use crate::checked::{ArithmeticOp, ComparisonOp};
-use crate::ir::{IrItem, IrProgram, IrSymbol};
-use crate::ValueType;
+use crate::checked::PrintSep;
+use crate::ir::{IrItem, IrProgram};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TextIrEmitter;
@@ -15,6 +14,13 @@ impl TextIrEmitter {
         for item in &program.items {
             self.emit_item(item, &mut out, 0);
         }
+        if !program.data_values.is_empty() {
+            out.push_str("data");
+            for (tag, val) in &program.data_values {
+                out.push_str(&format!(" {tag}:{val}"));
+            }
+            out.push('\n');
+        }
         out
     }
 
@@ -22,8 +28,17 @@ impl TextIrEmitter {
         let prefix = "  ".repeat(indent);
         match item {
             IrItem::Version(value) => out.push_str(&format!("{prefix}version {value}\n")),
-            IrItem::Print(expr) => {
-                out.push_str(&format!("{prefix}print {}\n", self.emit_expr(expr)))
+            IrItem::Print { items, separators } => {
+                let exprs: Vec<String> = items.iter().map(|e| self.emit_expr(e)).collect();
+                let mut line = format!("{prefix}print {}", exprs[0]);
+                for (sep, expr) in separators.iter().zip(exprs.iter().skip(1)) {
+                    line.push_str(match sep {
+                        PrintSep::Semicolon => " ; ",
+                        PrintSep::Comma => " , ",
+                    });
+                    line.push_str(expr);
+                }
+                out.push_str(&format!("{line}\n"));
             }
             IrItem::Dim { symbol, size } => match size {
                 Some(sz) => out.push_str(&format!(
@@ -171,41 +186,59 @@ impl TextIrEmitter {
                 out.push_str(&format!("{prefix}call {}({})\n", name, as_str.join(", ")));
             }
             IrItem::ExitLoop => out.push_str(&format!("{prefix}exit_loop\n")),
-        }
-    }
-
-    pub(crate) fn emit_symbol(self, symbol: &IrSymbol) -> String {
-        format!("{}:{}", symbol.name, self.emit_type(symbol.value_type))
-    }
-
-    pub(crate) fn emit_op(self, op: ComparisonOp) -> &'static str {
-        match op {
-            ComparisonOp::Equal => "=",
-            ComparisonOp::NotEqual => "<>",
-            ComparisonOp::Less => "<",
-            ComparisonOp::Greater => ">",
-            ComparisonOp::LessEqual => "<=",
-            ComparisonOp::GreaterEqual => ">=",
-        }
-    }
-
-    pub(crate) fn emit_arith_op(self, op: ArithmeticOp) -> &'static str {
-        match op {
-            ArithmeticOp::Add => "+",
-            ArithmeticOp::Sub => "-",
-            ArithmeticOp::Mul => "*",
-            ArithmeticOp::Div => "/",
-            ArithmeticOp::IntegerDiv => "\\",
-            ArithmeticOp::Mod => "mod",
-            ArithmeticOp::Pow => "**",
-        }
-    }
-
-    pub(crate) fn emit_type(self, value_type: ValueType) -> &'static str {
-        match value_type {
-            ValueType::Integer => "integer",
-            ValueType::Float => "float",
-            ValueType::String => "string",
+            IrItem::ExitSelect => out.push_str(&format!("{prefix}exit_select\n")),
+            IrItem::Swap { left, right } => {
+                out.push_str(&format!(
+                    "{prefix}swap {} {}\n",
+                    self.emit_symbol(left),
+                    self.emit_symbol(right)
+                ));
+            }
+            IrItem::Nop => {}
+            IrItem::SelectCase {
+                selector,
+                cases,
+                default,
+            } => {
+                out.push_str(&format!(
+                    "{prefix}select_case {}\n",
+                    self.emit_expr(selector)
+                ));
+                for case in cases {
+                    let conds: Vec<String> =
+                        case.conditions.iter().map(|c| self.emit_expr(c)).collect();
+                    out.push_str(&format!("{prefix}  case {}\n", conds.join(", ")));
+                    for item in &case.body {
+                        self.emit_item(item, out, indent + 2);
+                    }
+                }
+                if let Some(def) = default {
+                    out.push_str(&format!("{prefix}  case_else\n"));
+                    for item in def {
+                        self.emit_item(item, out, indent + 2);
+                    }
+                }
+                out.push_str(&format!("{prefix}end_select\n"));
+            }
+            IrItem::Compound(items) => {
+                for item in items {
+                    self.emit_item(item, out, indent);
+                }
+            }
+            IrItem::Read(symbols) => {
+                let names: Vec<String> = symbols.iter().map(|s| self.emit_symbol(s)).collect();
+                out.push_str(&format!("{prefix}read {}\n", names.join(", ")));
+            }
+            IrItem::Restore(label) => {
+                let l = label.as_deref().unwrap_or("");
+                let s = if l.is_empty() {
+                    format!("{prefix}restore\n")
+                } else {
+                    format!("{prefix}restore {l}\n")
+                };
+                out.push_str(&s);
+            }
+            IrItem::Stop => out.push_str(&format!("{prefix}stop\n")),
         }
     }
 }

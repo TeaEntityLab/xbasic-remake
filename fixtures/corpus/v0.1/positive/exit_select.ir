@@ -1,0 +1,16 @@
+version 0.1
+function Main() -> integer
+  select_case integer(2)
+    case integer(1)
+      print string("one")
+      exit_select
+      print string("never")
+    case integer(2)
+      print string("two")
+      exit_select
+      print string("never2")
+    case_else
+      print string("other")
+  end_select
+  print string("done")
+end function

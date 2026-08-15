@@ -1,0 +1,7 @@
+version 0.1
+function Main() -> integer
+  print string("hello from program")
+  dim a:integer
+  assign a:integer = integer(42)
+  print symbol(a:integer)
+end function

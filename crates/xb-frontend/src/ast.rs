@@ -14,7 +14,10 @@ impl Program {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
     Version(String),
-    Print(Expression),
+    Print {
+        items: Vec<Expression>,
+        separators: Vec<PrintSep>,
+    },
     Dim {
         name: String,
         suffix: Option<TypeSuffix>,
@@ -68,7 +71,59 @@ pub enum Statement {
         args: Vec<Expression>,
     },
     ExitLoop,
+    ExitSelect,
+    Inc {
+        target: String,
+        suffix: Option<TypeSuffix>,
+    },
+    Dec {
+        target: String,
+        suffix: Option<TypeSuffix>,
+    },
+    Swap {
+        left: String,
+        left_suffix: Option<TypeSuffix>,
+        right: String,
+        right_suffix: Option<TypeSuffix>,
+    },
     Function(FunctionDecl),
+    Import(String),
+    Declare {
+        name: String,
+        args: Vec<String>,
+    },
+    Program(String),
+    EndProgram,
+    SelectCase {
+        selector: Expression,
+        cases: Vec<CaseClause>,
+        default: Option<Vec<Statement>>,
+    },
+    Goto(String),
+    Data(Vec<DataValue>),
+    Read(Vec<(String, Option<TypeSuffix>)>),
+    Stop,
+    Restore(Option<String>),
+    Compound(Vec<Statement>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaseClause {
+    pub conditions: Vec<Expression>,
+    pub body: Vec<Statement>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DataValue {
+    Integer(String),
+    Float(String),
+    String(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrintSep {
+    Semicolon,
+    Comma,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -126,6 +181,7 @@ pub enum ArithmeticOp {
 pub enum BooleanOp {
     And,
     Or,
+    Xor,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

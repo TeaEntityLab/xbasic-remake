@@ -1,6 +1,9 @@
+use crate::eval::eval;
 use crate::helpers::require_type;
-pub use crate::slot::{ExecutionState, ProgramMetadata, RuntimeError, RuntimeValue, TypedSlot};
-use xb_compiler::{IrExpr, IrItem, IrProgram, ValueType};
+pub use crate::slot::{
+    DataEntry, ExecutionState, ProgramMetadata, RuntimeError, RuntimeValue, TypedSlot,
+};
+use xb_compiler::{IrItem, IrProgram, ValueType};
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Interpreter;
 
@@ -15,6 +18,7 @@ impl Interpreter {
         output: &mut Vec<String>,
     ) -> Result<ExecutionState, RuntimeError> {
         let mut state = ExecutionState::default();
+        crate::data_segment::init_data_segment(program, &mut state);
         exec_items(program, &program.items, &mut state, output)?;
         Ok(state)
     }
@@ -25,6 +29,7 @@ impl Interpreter {
         output: &mut Vec<String>,
     ) -> Result<ExecutionState, RuntimeError> {
         let mut state = ExecutionState::default();
+        crate::data_segment::init_data_segment(program, &mut state);
         exec_items(program, &program.items, &mut state, output)?;
         exec_items(program, program.entry("Main")?, &mut state, output)?;
         Ok(state)
@@ -39,6 +44,7 @@ impl Interpreter {
             input,
             ..Default::default()
         };
+        crate::data_segment::init_data_segment(program, &mut state);
         exec_items(program, &program.items, &mut state, output)?;
         exec_items(program, program.entry("Main")?, &mut state, output)?;
         Ok(state)
@@ -60,7 +66,9 @@ pub(crate) fn exec_items(
     for item in items {
         match item {
             IrItem::Version(v) => state.metadata.version = Some(v.clone()),
-            IrItem::Print(expr) => output.push(eval(program, expr, state)?.render()),
+            IrItem::Print { items, separators } => {
+                crate::interpreter_select::exec_print(items, separators, program, output, state)?
+            }
             IrItem::ConstantDefinition { .. } => {}
             IrItem::Dim { symbol, size } => {
                 if state.slots.contains_key(&symbol.name) {
@@ -132,14 +140,7 @@ pub(crate) fn exec_items(
                 slot.array_set(i, v)?;
             }
             IrItem::SharedAssignment { target, value } => {
-                let v = eval(program, value, state)?;
-                require_type(target.value_type, v.value_type())?;
-                let slot = state
-                    .shared
-                    .entry(target.name.clone())
-                    .or_insert_with(|| TypedSlot::new(target.value_type));
-                require_type(slot.value_type, target.value_type)?;
-                slot.value = v;
+                crate::interpreter_select::exec_shared(target, value, program, state)?;
             }
             IrItem::If {
                 condition,
@@ -209,26 +210,45 @@ pub(crate) fn exec_items(
                 Flow::Continue => {}
             },
             IrItem::ExitLoop => return Ok(Flow::Break),
+            IrItem::ExitSelect => return Ok(Flow::Break),
+            IrItem::Swap { left, right } => {
+                crate::interpreter_select::exec_swap(left, right, state)?
+            }
             IrItem::Function { .. } => {}
-            IrItem::Call { name, args } => {
-                let _ = crate::call::call_function(program, name, args, state, output)?;
+            IrItem::Nop => {}
+            IrItem::SelectCase {
+                selector,
+                cases,
+                default,
+            } => {
+                let flow = crate::interpreter_select::exec_select_case(
+                    program,
+                    selector,
+                    cases,
+                    default.as_deref(),
+                    state,
+                    output,
+                )?;
+                if matches!(flow, Flow::Return(_)) {
+                    return Ok(flow);
+                }
             }
+            IrItem::Call { name, args } => drop(crate::call::call_function(
+                program, name, args, state, output,
+            )?),
             IrItem::Return { value } => {
-                let v = match value {
-                    Some(e) => Some(eval(program, e, state)?),
-                    None => None,
-                };
-                return Ok(Flow::Return(v));
+                return crate::exec_helpers::exec_return(program, value, state)
             }
+            IrItem::Compound(items) => {
+                let flow = exec_items(program, items, state, output)?;
+                if !matches!(flow, Flow::Continue) {
+                    return Ok(flow);
+                }
+            }
+            IrItem::Read(symbols) => crate::data_segment::exec_read(symbols, state)?,
+            IrItem::Restore(_) => crate::data_segment::exec_restore(state),
+            IrItem::Stop => return Ok(Flow::Return(None)),
         }
     }
     Ok(Flow::Continue)
-}
-
-pub(crate) fn eval(
-    program: &IrProgram,
-    expr: &IrExpr,
-    state: &mut ExecutionState,
-) -> Result<RuntimeValue, RuntimeError> {
-    crate::eval::eval_expr(program, expr, state)
 }

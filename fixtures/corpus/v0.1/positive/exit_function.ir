@@ -1,0 +1,9 @@
+version 0.1
+function Main() -> integer
+  dim x:integer
+  assign x:integer = integer(5)
+  if compare(symbol(x:integer) > integer(3))
+    return
+  end if
+  print string("should not print")
+end function

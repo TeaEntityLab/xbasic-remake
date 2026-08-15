@@ -1,0 +1,18 @@
+version 0.1
+function Main() -> integer
+  dim x:integer
+  dim y:integer
+  dim i:integer
+  assign x:integer = integer(10)
+  for i:integer = integer(1) to integer(3)
+    if compare(symbol(i:integer) = integer(2))
+      exit_loop
+    end if
+    print symbol(i:integer)
+  next
+  assign y:integer = symbol(x:integer)
+  print symbol(y:integer)
+  return
+  assign x:integer = arith(symbol(x:integer) * integer(2))
+  return
+end function

@@ -26,8 +26,10 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
         let args = parse_args(content)?;
         let vt = if name.ends_with('$') {
             ValueType::String
+        } else if name == "ABS" && !args.is_empty() {
+            args[0].value_type
         } else {
-            ValueType::Integer
+            crate::builtin::builtin_return_type(name).unwrap_or(ValueType::Integer)
         };
         return Ok((
             IrExpr::new(
@@ -147,6 +149,18 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
             IrExpr::new(
                 IrExprKind::Boolean {
                     op: BooleanOp::Or,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+                ValueType::Integer,
+            )
+        }
+        "xor" => {
+            let (left, al) = parse_sub_expr(content)?;
+            let (right, _) = parse_sub_expr(al.trim_start())?;
+            IrExpr::new(
+                IrExprKind::Boolean {
+                    op: BooleanOp::Xor,
                     left: Box::new(left),
                     right: Box::new(right),
                 },

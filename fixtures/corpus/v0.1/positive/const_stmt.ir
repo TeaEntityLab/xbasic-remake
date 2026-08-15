@@ -1,0 +1,10 @@
+version 0.1
+const $$MAX_VAL:integer = integer(100)
+const $$MIN_VAL:integer = integer(5)
+function Main() -> integer
+  dim x:integer
+  assign x:integer = arith(constant($$MAX_VAL:integer = integer(100)) - constant($$MIN_VAL:integer = integer(5)))
+  print symbol(x:integer)
+  print constant($$MAX_VAL:integer = integer(100))
+  print arith(constant($$MIN_VAL:integer = integer(5)) * integer(2))
+end function

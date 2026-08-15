@@ -1,0 +1,9 @@
+version 0.1
+function Main() -> integer
+  print call STR$(integer(42))
+  print call STR$(arith(integer(0) - integer(7)))
+  print arith(call STR$(integer(0)) + string(" items"))
+  dim f:float
+  assign f:float = float(3.0)
+  print call STR$(symbol(f:float))
+end function

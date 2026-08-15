@@ -1,5 +1,5 @@
 use crate::checked::{CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam, CheckedSymbol};
-use crate::ir::{IrExpr, IrExprKind, IrItem, IrParam, IrSymbol};
+use crate::ir::{IrCaseClause, IrExpr, IrExprKind, IrItem, IrParam, IrSymbol};
 
 impl IrExpr {
     pub(crate) fn lower(expr: &CheckedExpr) -> Self {
@@ -47,7 +47,10 @@ impl IrItem {
     pub(crate) fn lower_item(item: &CheckedItem) -> Self {
         match item {
             CheckedItem::Version(value) => Self::Version(value.clone()),
-            CheckedItem::Print(expr) => Self::Print(IrExpr::lower(expr)),
+            CheckedItem::Print { items, separators } => Self::Print {
+                items: items.iter().map(IrExpr::lower).collect(),
+                separators: separators.clone(),
+            },
             CheckedItem::Dim { symbol, size } => Self::Dim {
                 symbol: IrSymbol::lower(symbol),
                 size: size.as_ref().map(IrExpr::lower),
@@ -138,6 +141,45 @@ impl IrItem {
                 args: args.iter().map(IrExpr::lower).collect(),
             },
             CheckedItem::ExitLoop => Self::ExitLoop,
+            CheckedItem::ExitSelect => Self::ExitSelect,
+            CheckedItem::Swap { left, right } => Self::Swap {
+                left: IrSymbol::lower(left),
+                right: IrSymbol::lower(right),
+            },
+            CheckedItem::Nop => Self::Nop,
+            CheckedItem::SelectCase {
+                selector,
+                cases,
+                default,
+            } => Self::SelectCase {
+                selector: IrExpr::lower(selector),
+                cases: cases
+                    .iter()
+                    .map(|c| IrCaseClause {
+                        conditions: c.conditions.iter().map(IrExpr::lower).collect(),
+                        body: c.body.iter().map(Self::lower_item).collect(),
+                    })
+                    .collect(),
+                default: default
+                    .as_ref()
+                    .map(|d| d.iter().map(Self::lower_item).collect()),
+            },
+            CheckedItem::Compound(items) => {
+                Self::Compound(items.iter().map(Self::lower_item).collect())
+            }
+            CheckedItem::Read(symbols) => {
+                let mut items: Vec<Self> = symbols
+                    .iter()
+                    .map(|s| Self::Dim {
+                        symbol: IrSymbol::lower(s),
+                        size: None,
+                    })
+                    .collect();
+                items.push(Self::Read(symbols.iter().map(IrSymbol::lower).collect()));
+                Self::Compound(items)
+            }
+            CheckedItem::Restore(label) => Self::Restore(label.clone()),
+            CheckedItem::Stop => Self::Stop,
         }
     }
 }
