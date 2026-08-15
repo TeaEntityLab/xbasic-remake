@@ -1,6 +1,6 @@
 use crate::c_emit_helpers::{
-    arith_op, boolean_op, cmp_op, emit_c_function_name, emit_c_string, emit_type_conversion,
-    is_type_conversion,
+    arith_op, boolean_op, cmp_op, emit_c_function_name, emit_c_string, emit_clip,
+    emit_type_conversion, is_type_conversion,
 };
 use crate::checked::ArithmeticOp;
 use crate::ir::{IrExpr, IrExprKind, IrSymbol};
@@ -168,6 +168,14 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 emit_type_conversion(name, &args[0], out, emit_expr);
             } else if name == "HEXX$" {
                 crate::c_emit_helpers::emit_hexx(args, out, emit_expr);
+            } else if name == "HEX$" && args.len() == 2 {
+                crate::c_emit_helpers::emit_hex2(args, out, emit_expr);
+            } else if name == "RCLIP$" || name == "LCLIP$" {
+                crate::c_emit_helpers::emit_clip(name, args, out, emit_expr);
+            } else if name == "MID$" && args.len() == 2 {
+                crate::c_emit_helpers::emit_mid2(args, out, emit_expr);
+            } else if name == "STUFF$" {
+                crate::c_emit_helpers::emit_stuff(args, out, emit_expr);
             } else if name == "STR$" && !args.is_empty() && args[0].value_type == ValueType::Float {
                 out.push_str("xb_str_float(");
                 for (i, arg) in args.iter().enumerate() {
@@ -237,19 +245,5 @@ pub(crate) fn emit_return_var_decl(name: &str, return_type: ValueType, out: &mut
     );
     out.push_str(" = ");
     emit_default(return_type, out);
-    out.push_str(";\n");
-}
-
-/// Emits a fallback `return` of the return variable at the end of a C function body.
-pub(crate) fn emit_fallback_return(name: &str, return_type: ValueType, out: &mut String) {
-    let ret_name = name.trim_end_matches('$');
-    out.push_str("    return ");
-    emit_var_name(
-        &IrSymbol {
-            name: ret_name.to_string(),
-            value_type: return_type,
-        },
-        out,
-    );
     out.push_str(";\n");
 }

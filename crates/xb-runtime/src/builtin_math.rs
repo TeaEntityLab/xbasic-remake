@@ -150,42 +150,18 @@ pub(crate) fn eval_to_int(args: &[RuntimeValue]) -> Result<RuntimeValue, Runtime
     }
 }
 
-pub(crate) fn eval_hexx(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
-    let RuntimeValue::Integer(n) = &args[0] else {
+pub(crate) fn eval_rounding(
+    name: &str,
+    args: &[RuntimeValue],
+) -> Result<RuntimeValue, RuntimeError> {
+    let RuntimeValue::Float(n) = &args[0] else {
         return Err(type_err(args[0].value_type()));
     };
-    let hex = format!("{:X}", *n);
-    if args.len() == 2 {
-        let RuntimeValue::Integer(w) = &args[1] else {
-            return Err(type_err(args[1].value_type()));
-        };
-        let padded = format!("{:0>width$}", hex, width = *w as usize);
-        Ok(RuntimeValue::String(padded))
-    } else {
-        Ok(RuntimeValue::String(hex))
-    }
-}
-
-pub(crate) fn eval_just(name: &str, args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
-    let RuntimeValue::String(s) = &args[0] else {
-        return Err(type_err(args[0].value_type()));
+    let v = match name {
+        "CEIL" => n.ceil(),
+        "FLOOR" => n.floor(),
+        "ROUND" => n.round(),
+        _ => unreachable!(),
     };
-    let RuntimeValue::Integer(w) = &args[1] else {
-        return Err(type_err(args[1].value_type()));
-    };
-    let width = *w as usize;
-    let result = if name == "RJUST$" {
-        if s.len() >= width {
-            s.clone()
-        } else {
-            format!("{:>width$}", s, width = width)
-        }
-    } else {
-        if s.len() >= width {
-            s.clone()
-        } else {
-            format!("{:<width$}", s, width = width)
-        }
-    };
-    Ok(RuntimeValue::String(result))
+    Ok(RuntimeValue::Float(v))
 }

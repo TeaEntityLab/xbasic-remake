@@ -1,0 +1,9 @@
+version 0.1
+function Main() -> integer
+  print call STUFF$(string("This lazy man"), string("flabberghast"), integer(6), integer(4))
+  print call STUFF$(string("This lazy man"), string("flabberghast"), integer(6))
+  print call STUFF$(string("This lazy man"), string("is wolf"), integer(6))
+  print call STUFF$(string("This lazy man"), string("is wolf"), integer(6), integer(5))
+  print call STUFF$(string("hello world"), string("XYZ"), integer(1))
+  print call STUFF$(string("hello world"), string("XYZ"), integer(1), integer(2))
+end function

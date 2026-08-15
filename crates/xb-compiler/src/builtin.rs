@@ -44,6 +44,8 @@ fn sig(name: &str) -> Option<BuiltinSig> {
         "STR$" => (&[ValueType::Integer][..], ValueType::String),
         "STRING$" => (&[ValueType::Integer][..], ValueType::String),
         "STRING" => (&[ValueType::Integer][..], ValueType::String),
+        "SIGNED$" => (&[ValueType::Integer][..], ValueType::String),
+        "NULL$" => (&[ValueType::Integer][..], ValueType::String),
         "SQRT" => (&[ValueType::Float][..], ValueType::Float),
         "SIN" => (&[ValueType::Float][..], ValueType::Float),
         "COS" => (&[ValueType::Float][..], ValueType::Float),
@@ -107,6 +109,20 @@ fn sig(name: &str) -> Option<BuiltinSig> {
             &[ValueType::String, ValueType::Integer][..],
             ValueType::String,
         ),
+        "RCLIP$" => (&[ValueType::String][..], ValueType::String),
+        "LCLIP$" => (&[ValueType::String][..], ValueType::String),
+        "INCHR" => (
+            &[ValueType::String, ValueType::String, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "RINCHR" => (
+            &[ValueType::String, ValueType::String, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "STUFF$" => (
+            &[ValueType::String, ValueType::String, ValueType::Integer][..],
+            ValueType::String,
+        ),
         "READLINE$" => (&[][..], ValueType::String),
         "EOF" => (&[][..], ValueType::Integer),
         "RND" => (&[][..], ValueType::Float),
@@ -116,6 +132,7 @@ fn sig(name: &str) -> Option<BuiltinSig> {
         "TIMER" => (&[][..], ValueType::Float),
         "TIME$" => (&[][..], ValueType::String),
         "DATE$" => (&[][..], ValueType::String),
+        "VERSION$" => (&[ValueType::Integer][..], ValueType::String),
         _ => return None,
     };
     Some(BuiltinSig {
@@ -145,7 +162,12 @@ pub fn builtin_call(
         "RINSTR" if args.len() == 3 => 3,
         "INSTRI" if args.len() == 3 => 3,
         "RINSTRI" if args.len() == 3 => 3,
+        "HEX$" if args.len() == 2 => 2,
         "HEXX$" if args.len() == 2 => 2,
+        "RCLIP$" if args.len() == 2 => 2,
+        "LCLIP$" if args.len() == 2 => 2,
+        "STUFF$" if args.len() == 4 => 4,
+        "MID$" if args.len() == 2 => 2,
         _ => s.params.len(),
     };
     if args.len() != expected_args {
@@ -155,10 +177,13 @@ pub fn builtin_call(
             actual: args.len(),
         });
     }
+    let instr3 = matches!(name, "INSTR" | "RINSTR" | "INSTRI" | "RINSTRI") && args.len() == 3;
     let mut checked = Vec::with_capacity(args.len());
     for (i, arg) in args.iter().enumerate() {
         let v = analyzer.expr(arg)?;
-        let expected = if i < s.params.len() {
+        let expected = if instr3 && i == 2 {
+            ValueType::Integer
+        } else if i < s.params.len() {
             s.params[i]
         } else {
             ValueType::Integer

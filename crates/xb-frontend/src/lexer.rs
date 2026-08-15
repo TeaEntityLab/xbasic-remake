@@ -50,7 +50,8 @@ impl<'a> Lexer<'a> {
                 '$' => tokens.push(self.system_constant()?),
                 c if is_identifier_start(c) => tokens.push(self.identifier()),
                 ':' => tokens.push(self.colon_or_symbol()),
-                '<' | '>' => tokens.push(self.comparison()),
+                '<' | '>' | '=' => tokens.push(self.comparison()),
+                '!' => tokens.push(self.bang_or_symbol()),
                 c if is_symbol(c) => tokens.push(self.symbol(c)),
                 other => return Err(self.unexpected(other)),
             }

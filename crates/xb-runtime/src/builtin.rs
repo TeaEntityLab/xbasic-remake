@@ -49,23 +49,7 @@ pub(crate) fn eval_builtin(
             let start = bytes.len().saturating_sub(n);
             String::from_utf8_lossy(&bytes[start..]).into_owned()
         }),
-        "MID$" => {
-            let RuntimeValue::String(s) = &args[0] else {
-                return Err(type_err(args[0].value_type()));
-            };
-            let RuntimeValue::Integer(start) = &args[1] else {
-                return Err(type_err(args[1].value_type()));
-            };
-            let RuntimeValue::Integer(len) = &args[2] else {
-                return Err(type_err(args[2].value_type()));
-            };
-            let bytes = s.as_bytes();
-            let start_idx = (*start as usize).saturating_sub(1).min(bytes.len());
-            let end_idx = (start_idx + *len as usize).min(bytes.len());
-            Ok(RuntimeValue::String(
-                String::from_utf8_lossy(&bytes[start_idx..end_idx]).into_owned(),
-            ))
-        }
+        "MID$" => crate::builtin_str::eval_mid(args),
         "INSTR" => {
             let RuntimeValue::String(hay) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
@@ -103,6 +87,19 @@ pub(crate) fn eval_builtin(
             _ => Err(type_err(args[0].value_type())),
         },
         "STRING$" | "STRING" => int_to_string(args, |n| n.to_string()),
+        "SIGNED$" => int_to_string(args, |n| {
+            if n >= 0 {
+                format!("+{n}")
+            } else {
+                n.to_string()
+            }
+        }),
+        "NULL$" => {
+            let RuntimeValue::Integer(n) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::String("\0".repeat(*n as usize)))
+        }
         "SQRT" => float_fn(args, |v| v.sqrt()),
         "SIN" => float_fn(args, |v| v.sin()),
         "COS" => float_fn(args, |v| v.cos()),
@@ -199,15 +196,14 @@ pub(crate) fn eval_builtin(
             };
             Ok(RuntimeValue::Integer(*a.min(b)))
         }
-        "HEX$" => int_to_string(args, |n| format!("{n:x}")),
+        "HEX$" | "HEXX$" => crate::builtin_str::eval_hexx(name, args),
         "BIN$" => int_to_string(args, |n| format!("{n:b}")),
         "OCT$" => int_to_string(args, |n| format!("{n:o}")),
-        "HEXX$" => crate::builtin_math::eval_hexx(args),
-        "RJUST$" | "LJUST$" => crate::builtin_math::eval_just(name, args),
+        "RJUST$" | "LJUST$" | "RCLIP$" | "LCLIP$" => crate::builtin_str::eval_str_op(name, args),
+        "INCHR" | "RINCHR" => crate::builtin_str::eval_chr_search(name, args),
+        "STUFF$" => crate::builtin_str::eval_stuff(args),
         "RND" => Ok(RuntimeValue::Float(crate::rng::next_rand())),
-        "CEIL" => float_fn(args, |v| v.ceil()),
-        "FLOOR" => float_fn(args, |v| v.floor()),
-        "ROUND" => float_fn(args, |v| v.round()),
+        "CEIL" | "FLOOR" | "ROUND" => crate::builtin_math::eval_rounding(name, args),
         "TIMER" => Ok(RuntimeValue::Float(crate::time_helpers::timer())),
         "TIME$" => Ok(RuntimeValue::String(crate::time_helpers::time_str())),
         "DATE$" => Ok(RuntimeValue::String(crate::time_helpers::date_str())),

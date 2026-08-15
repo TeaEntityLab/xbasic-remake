@@ -1,6 +1,7 @@
 mod arith;
 mod builtin;
 mod builtin_math;
+mod builtin_str;
 mod call;
 pub mod compare;
 mod data_segment;

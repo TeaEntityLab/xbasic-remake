@@ -329,6 +329,26 @@ WHILE pos <= LEN(src$)
       tv$(ntok) = "*"
       pos = pos + 1
     END IF
+  ELSEIF ch = 61 THEN
+    tok$ = "="
+    pos = pos + 1
+    IF pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) = 61 THEN
+      tok$ = "=="
+      pos = pos + 1
+    END IF
+    ntok = ntok + 1
+    tt$(ntok) = "symbol"
+    tv$(ntok) = tok$
+  ELSEIF ch = 33 THEN
+    tok$ = "!"
+    pos = pos + 1
+    IF pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) = 61 THEN
+      tok$ = "!="
+      pos = pos + 1
+    END IF
+    ntok = ntok + 1
+    tt$(ntok) = "symbol"
+    tv$(ntok) = tok$
   ELSE
     ntok = ntok + 1
     tt$(ntok) = "symbol"
@@ -673,7 +693,7 @@ WHILE tpos <= ntok
                   WEND
                   bn$ = fname$
                   IF RIGHT$(bn$, 1) = "$" THEN
-                    IF bn$ <> "CHR$" AND bn$ <> "LEFT$" AND bn$ <> "RIGHT$" AND bn$ <> "MID$" AND bn$ <> "STR$" AND bn$ <> "READLINE$" AND bn$ <> "UCASE$" AND bn$ <> "LCASE$" AND bn$ <> "TRIM$" AND bn$ <> "LTRIM$" AND bn$ <> "RTRIM$" AND bn$ <> "SPACE$" THEN
+                    IF bn$ <> "CHR$" AND bn$ <> "LEFT$" AND bn$ <> "RIGHT$" AND bn$ <> "MID$" AND bn$ <> "STR$" AND bn$ <> "READLINE$" AND bn$ <> "UCASE$" AND bn$ <> "LCASE$" AND bn$ <> "TRIM$" AND bn$ <> "LTRIM$" AND bn$ <> "RTRIM$" AND bn$ <> "SPACE$" AND bn$ <> "HEX$" AND bn$ <> "BIN$" AND bn$ <> "OCT$" AND bn$ <> "HEXX$" AND bn$ <> "RJUST$" AND bn$ <> "LJUST$" AND bn$ <> "RCLIP$" AND bn$ <> "LCLIP$" AND bn$ <> "STUFF$" AND bn$ <> "VERSION$" AND bn$ <> "SIGNED$" AND bn$ <> "NULL$" THEN
                       bn$ = strip_suffix$(bn$)
                     END IF
                   ELSEIF RIGHT$(bn$, 1) = "%" OR RIGHT$(bn$, 1) = "!" OR RIGHT$(bn$, 1) = "#" THEN
@@ -769,6 +789,12 @@ WHILE tpos <= ntok
               valStack$(spVal) = "xor(" + bleft$ + " " + bright$ + ")"
               valType$(spVal) = "integer"
             ELSE
+              IF bop$ = "==" THEN
+                bop$ = "="
+              END IF
+              IF bop$ = "!=" THEN
+                bop$ = "<>"
+              END IF
               valStack$(spVal) = "compare(" + bleft$ + " " + bop$ + " " + bright$ + ")"
               valType$(spVal) = "integer"
             END IF
@@ -947,7 +973,7 @@ WHILE tpos <= ntok
             pendingOp$ = "**"
             pendingPrec = prec
             tpos = tpos + 1
-          ELSEIF t$ = "symbol" AND (v$ = "=" OR v$ = "<" OR v$ = ">" OR v$ = "<=" OR v$ = ">=" OR v$ = "<>") THEN
+          ELSEIF t$ = "symbol" AND (v$ = "=" OR v$ = "==" OR v$ = "<" OR v$ = ">" OR v$ = "<=" OR v$ = ">=" OR v$ = "<>" OR v$ = "!=") THEN
             prec = 4
             popPrec = prec
             pendingOp$ = v$

@@ -20,6 +20,8 @@ pub(crate) fn arith_op(op: ArithmeticOp) -> &'static str {
         ArithmeticOp::Div => "/",
         ArithmeticOp::IntegerDiv => "/",
         ArithmeticOp::Mod => "%",
+        ArithmeticOp::Shl => "<<",
+        ArithmeticOp::Shr => ">>",
         ArithmeticOp::Pow => "**",
     }
 }
@@ -118,7 +120,13 @@ pub(crate) fn emit_c_function_name(name: &str, out: &mut String) {
         "HEXX$" => out.push_str("xb_hexx"),
         "RJUST$" => out.push_str("xb_rjust"),
         "LJUST$" => out.push_str("xb_ljust"),
+        "INCHR" => out.push_str("xb_inchr"),
+        "RINCHR" => out.push_str("xb_rinchr"),
+        "STUFF$" => out.push_str("xb_stuff"),
         "EOF" => out.push_str("xb_eof"),
+        "VERSION$" => out.push_str("xb_version"),
+        "SIGNED$" => out.push_str("xb_signed"),
+        "NULL$" => out.push_str("xb_null"),
         _ => {
             out.push_str("xb_user_");
             out.push_str(name);
@@ -136,6 +144,75 @@ pub(crate) fn emit_hexx(args: &[IrExpr], out: &mut String, emit_fn: impl Fn(&IrE
     } else {
         out.push('0');
     }
+    out.push(')');
+}
+
+/// Emits C code for 2-arg HEX$(value, width) → xb_hex2(value, width).
+pub(crate) fn emit_hex2(args: &[IrExpr], out: &mut String, emit_fn: impl Fn(&IrExpr, &mut String)) {
+    out.push_str("xb_hex2(");
+    emit_fn(&args[0], out);
+    out.push_str(", ");
+    emit_fn(&args[1], out);
+    out.push(')');
+}
+
+/// Emits C code for STUFF$(into$, from$, start[, length]).
+pub(crate) fn emit_stuff(
+    args: &[IrExpr],
+    out: &mut String,
+    emit_fn: impl Fn(&IrExpr, &mut String),
+) {
+    out.push_str("xb_stuff(");
+    emit_fn(&args[0], out);
+    out.push_str(", ");
+    emit_fn(&args[1], out);
+    out.push_str(", ");
+    emit_fn(&args[2], out);
+    out.push_str(", ");
+    if args.len() == 4 {
+        emit_fn(&args[3], out);
+    } else {
+        out.push_str("-1");
+    }
+    out.push(')');
+}
+
+/// Emits C code for RCLIP$/LCLIP$(s$[, n]). 1-arg → trim, 2-arg → remove N chars.
+pub(crate) fn emit_clip(
+    name: &str,
+    args: &[IrExpr],
+    out: &mut String,
+    emit_fn: impl Fn(&IrExpr, &mut String),
+) {
+    let func = if args.len() == 2 {
+        if name == "RCLIP$" {
+            "xb_rclip2"
+        } else {
+            "xb_lclip2"
+        }
+    } else {
+        if name == "RCLIP$" {
+            "xb_rclip1"
+        } else {
+            "xb_lclip1"
+        }
+    };
+    out.push_str(func);
+    out.push('(');
+    emit_fn(&args[0], out);
+    if args.len() == 2 {
+        out.push_str(", ");
+        emit_fn(&args[1], out);
+    }
+    out.push(')');
+}
+
+/// Emits C code for 2-arg MID$(s$, start) → xb_mid2(s, start).
+pub(crate) fn emit_mid2(args: &[IrExpr], out: &mut String, emit_fn: impl Fn(&IrExpr, &mut String)) {
+    out.push_str("xb_mid2(");
+    emit_fn(&args[0], out);
+    out.push_str(", ");
+    emit_fn(&args[1], out);
     out.push(')');
 }
 
@@ -162,4 +239,17 @@ pub(crate) fn emit_type_conversion(
     out.push_str(prefix);
     emit_fn(arg, out);
     out.push(')');
+}
+
+/// Emits a fallback `return` of the return variable at the end of a C function body.
+pub(crate) fn emit_fallback_return(name: &str, return_type: ValueType, out: &mut String) {
+    let ret_name = name.trim_end_matches('$');
+    out.push_str("    return ");
+    if return_type == ValueType::String {
+        out.push_str("xb_str_");
+    } else {
+        out.push_str("xb_var_");
+    }
+    out.push_str(ret_name);
+    out.push_str(";\n");
 }

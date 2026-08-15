@@ -22,6 +22,8 @@ impl TextIrEmitter {
             ArithmeticOp::Div => "/",
             ArithmeticOp::IntegerDiv => "\\",
             ArithmeticOp::Mod => "mod",
+            ArithmeticOp::Shl => "shl",
+            ArithmeticOp::Shr => "shr",
             ArithmeticOp::Pow => "**",
         }
     }

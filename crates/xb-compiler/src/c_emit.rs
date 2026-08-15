@@ -20,6 +20,7 @@ impl CEmitter {
     pub fn emit_program(&self, program: &IrProgram) -> String {
         crate::c_emit_select::reset_select_state();
         let mut out = String::new();
+        emit_version_global(program, &mut out);
         emit_header(&mut out);
         emit_globals(program, &mut out);
         emit_forward_decls(program, &mut out);
@@ -65,7 +66,7 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             }
             emit_body(body, out, 1);
             if *return_type != ValueType::Integer {
-                crate::c_emit_expr::emit_fallback_return(name, *return_type, out);
+                crate::c_emit_helpers::emit_fallback_return(name, *return_type, out);
             } else {
                 out.push_str("    return 0;\n");
             }
@@ -103,4 +104,19 @@ fn emit_data_init(program: &IrProgram, out: &mut String) {
             _ => out.push_str(&format!("    xb_data_add_str(\"{val}\");\n")),
         }
     }
+}
+
+fn emit_version_global(program: &IrProgram, out: &mut String) {
+    let ver = program
+        .items
+        .iter()
+        .find_map(|i| {
+            if let IrItem::Version(v) = i {
+                Some(v.as_str())
+            } else {
+                None
+            }
+        })
+        .unwrap_or("");
+    out.push_str(&format!("static const char* xb_version_str = \"{ver}\";\n"));
 }

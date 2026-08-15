@@ -40,6 +40,8 @@ pub(crate) fn arith(
                     }
                     a.wrapping_rem(*b)
                 }
+                ArithmeticOp::Shl => a.wrapping_shl(*b as u32),
+                ArithmeticOp::Shr => a.wrapping_shr(*b as u32),
                 ArithmeticOp::Pow => {
                     if *b < 0 {
                         return Err(RuntimeError::TypeMismatch {
@@ -64,6 +66,8 @@ pub(crate) fn arith(
             }
             ArithmeticOp::IntegerDiv => (a / b).trunc(),
             ArithmeticOp::Mod => a % b,
+            ArithmeticOp::Shl => (*a as i32).wrapping_shl(*b as i32 as u32) as f64,
+            ArithmeticOp::Shr => (*a as i32).wrapping_shr(*b as i32 as u32) as f64,
             ArithmeticOp::Pow => a.powf(*b),
         })),
         (RuntimeValue::Float(a), RuntimeValue::Integer(b)) => Ok(RuntimeValue::Float(match op {
@@ -77,6 +81,8 @@ pub(crate) fn arith(
                 a / *b as f64
             }
             ArithmeticOp::IntegerDiv => (a / *b as f64).trunc(),
+            ArithmeticOp::Shl => (*a as i32).wrapping_shl(*b as u32) as f64,
+            ArithmeticOp::Shr => (*a as i32).wrapping_shr(*b as u32) as f64,
             ArithmeticOp::Mod => a % *b as f64,
             ArithmeticOp::Pow => a.powf(*b as f64),
         })),
@@ -92,6 +98,8 @@ pub(crate) fn arith(
             }
             ArithmeticOp::IntegerDiv => (*a as f64 / b).trunc(),
             ArithmeticOp::Mod => *a as f64 % b,
+            ArithmeticOp::Shl => a.wrapping_shl(*b as i32 as u32) as f64,
+            ArithmeticOp::Shr => a.wrapping_shr(*b as i32 as u32) as f64,
             ArithmeticOp::Pow => (*a as f64).powf(*b),
         })),
         _ => Err(RuntimeError::TypeMismatch {

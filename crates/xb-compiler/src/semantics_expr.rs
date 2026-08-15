@@ -81,12 +81,12 @@ impl Analyzer {
         if lv.value_type == ValueType::String || rv.value_type == ValueType::String {
             return Err(SemanticError::ArithmeticStringOperand);
         }
-        let rt = if op == ArithmeticOp::IntegerDiv || op == ArithmeticOp::Mod {
+        let rt = if op.is_integer_op()
+            || (lv.value_type != ValueType::Float && rv.value_type != ValueType::Float)
+        {
             ValueType::Integer
-        } else if lv.value_type == ValueType::Float || rv.value_type == ValueType::Float {
-            ValueType::Float
         } else {
-            ValueType::Integer
+            ValueType::Float
         };
         Ok(CheckedExpr::new(
             CheckedExprKind::Arithmetic {

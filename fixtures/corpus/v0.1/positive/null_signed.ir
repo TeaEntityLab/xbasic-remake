@@ -1,0 +1,11 @@
+function Main() -> integer
+  print call SIGNED$(integer(42))
+  print call SIGNED$(integer(0))
+  dim a:integer
+  assign a:integer = arith(integer(0) - integer(5))
+  print call SIGNED$(symbol(a:integer))
+  dim n:string
+  assign n:string = call NULL$(integer(1))
+  print call ASC(symbol(n:string))
+  print call SIGNED$(integer(100))
+end function

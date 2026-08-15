@@ -1,0 +1,9 @@
+VERSION "1.23"
+FUNCTION Main
+' Test VERSION$ function
+PRINT VERSION$(0)
+DIM v$
+v$ = VERSION$(0)
+PRINT v$
+IF (VERSION$(0) == "1.23") THEN PRINT "match"
+END FUNCTION

@@ -1,0 +1,11 @@
+version 0.1
+function Main() -> integer
+  print arith(integer(256) shr integer(1))
+  print arith(integer(128) shl integer(2))
+  print arith(integer(255) shr integer(4))
+  print arith(integer(15) shl integer(4))
+  print arith(arith(integer(256) shr integer(2)) + integer(10))
+  print arith(arith(integer(256) shr integer(2)) + integer(10))
+  print arith(integer(1) shl integer(8))
+  print arith(integer(1024) shr integer(3))
+end function

@@ -142,10 +142,13 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("static int xb_fix(double v) { return (int)trunc(v); }\n");
     out.push_str("static int xb_max(int a, int b) { return a > b ? a : b; }\n");
     out.push_str("static int xb_min(int a, int b) { return a < b ? a : b; }\n");
-    out.push_str("static char* xb_hex(int v) { char* r = malloc(16); snprintf(r, 16, \"%x\", v); return r; }\n");
+    out.push_str("static char* xb_hex(int v) { char* r = malloc(16); snprintf(r, 16, \"%X\", v); return r; }\n");
+    out.push_str("static char* xb_hex2(int v, int w) { char* r = malloc(32); if (w > 0) snprintf(r, 32, \"%0*X\", w, v); else snprintf(r, 32, \"%X\", v); return r; }\n");
     out.push_str("static char* xb_bin(int v) { char* r = malloc(33); int n = 0; if (v == 0) { r[0] = '0'; r[1] = 0; return r; } int t = v; while (t) { n++; t >>= 1; } r[n] = 0; t = v; while (t) { r[--n] = (t & 1) ? '1' : '0'; t >>= 1; } return r; }\n");
     out.push_str("static char* xb_oct(int v) { char* r = malloc(16); snprintf(r, 16, \"%o\", v); return r; }\n");
     out.push_str("static char* xb_string(int v) { char* r = malloc(16); snprintf(r, 16, \"%d\", v); return r; }\n");
+    out.push_str("static char* xb_signed(int v) { char* r = malloc(16); if (v >= 0) snprintf(r, 16, \"+%d\", v); else snprintf(r, 16, \"%d\", v); return r; }\n");
+    out.push_str("static char* xb_null(int n) { if (n < 0) n = 0; char* r = malloc(n + 1); memset(r, 0, n); r[n] = 0; return r; }\n");
     crate::c_runtime_math::emit_math_functions(out);
     out.push_str("static int xb_data_int[256]; static double xb_data_float[256]; static char* xb_data_str[256]; static int xb_data_tag[256]; static int xb_data_count = 0; static int xb_data_pos = 0;\n");
     out.push_str("static void xb_data_add_int(int v) { xb_data_tag[xb_data_count] = 0; xb_data_int[xb_data_count] = v; xb_data_count++; }\n");

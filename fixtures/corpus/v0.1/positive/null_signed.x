@@ -1,0 +1,13 @@
+FUNCTION Main
+' Test SIGNED$ function
+PRINT SIGNED$(42)
+PRINT SIGNED$(0)
+DIM a
+a = 0 - 5
+PRINT SIGNED$(a)
+' Test NULL$ function
+DIM n$
+n$ = NULL$(1)
+PRINT ASC(n$)
+PRINT SIGNED$(100)
+END FUNCTION

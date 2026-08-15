@@ -1,0 +1,10 @@
+version 1.23
+function Main() -> integer
+  print call VERSION$(integer(0))
+  dim v:string
+  assign v:string = call VERSION$(integer(0))
+  print symbol(v:string)
+  if compare(call VERSION$(integer(0)) = string("1.23"))
+    print string("match")
+  end if
+end function

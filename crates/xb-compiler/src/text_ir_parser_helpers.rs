@@ -93,6 +93,12 @@ pub(crate) fn parse_arith_op(s: &str) -> Result<(ArithmeticOp, &str), String> {
     if let Some(r) = s.strip_prefix("mod ") {
         return Ok((ArithmeticOp::Mod, r));
     }
+    if let Some(r) = s.strip_prefix("shl ") {
+        return Ok((ArithmeticOp::Shl, r));
+    }
+    if let Some(r) = s.strip_prefix("shr ") {
+        return Ok((ArithmeticOp::Shr, r));
+    }
     Err(format!("expected arith op, got: {s}"))
 }
 

@@ -174,7 +174,15 @@ pub enum ArithmeticOp {
     Div,
     IntegerDiv,
     Mod,
+    Shl,
+    Shr,
     Pow,
+}
+
+impl ArithmeticOp {
+    pub fn is_integer_op(self) -> bool {
+        matches!(self, Self::IntegerDiv | Self::Mod | Self::Shl | Self::Shr)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,0 +1,10 @@
+version 0.1
+function Main() -> integer
+  print call MID$(string("hello world"), integer(7))
+  print call MID$(string("hello"), integer(2))
+  print call MID$(string("abc"), integer(1))
+  print call MID$(string("abc"), integer(5))
+  print call MID$(string("hello"), integer(3))
+  print call MID$(string("hello world"), integer(1), integer(5))
+  print call MID$(string("hello"), integer(2), integer(3))
+end function

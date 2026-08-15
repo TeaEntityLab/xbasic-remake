@@ -1,7 +1,7 @@
-FF
-00FF
-0A
-00001000
+0xFF
+0x00FF
+0x0A
+0x00001000
         hi
 hi        
 toolong

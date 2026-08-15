@@ -93,7 +93,7 @@ impl Parser {
     }
 
     fn power_expr(&mut self) -> Result<Expression, ParseError> {
-        let base = self.primary()?;
+        let base = self.shift_expr()?;
         if self.pow_op().is_some() {
             let exp = self.power_expr()?;
             return Ok(Expression::Arithmetic {
@@ -104,12 +104,39 @@ impl Parser {
         }
         Ok(base)
     }
+
+    fn shift_expr(&mut self) -> Result<Expression, ParseError> {
+        let mut left = self.primary()?;
+        while let Some(op) = self.shift_op() {
+            let right = self.primary()?;
+            left = Expression::Arithmetic {
+                op,
+                left: Box::new(left),
+                right: Box::new(right),
+            };
+        }
+        Ok(left)
+    }
+}
+
+impl Parser {
+    fn shift_op(&mut self) -> Option<ArithmeticOp> {
+        let op = match self.peek_kind() {
+            TokenKind::Shl => Some(ArithmeticOp::Shl),
+            TokenKind::Shr => Some(ArithmeticOp::Shr),
+            _ => None,
+        };
+        if op.is_some() {
+            self.index += 1;
+        }
+        op
+    }
 }
 
 impl Parser {
     pub(crate) fn comparison_op(&mut self) -> Option<ComparisonOp> {
         let op = match self.peek_kind() {
-            TokenKind::Symbol('=') => Some(ComparisonOp::Equal),
+            TokenKind::Symbol('=') | TokenKind::Equal => Some(ComparisonOp::Equal),
             TokenKind::NotEqual => Some(ComparisonOp::NotEqual),
             TokenKind::Symbol('<') => Some(ComparisonOp::Less),
             TokenKind::Symbol('>') => Some(ComparisonOp::Greater),

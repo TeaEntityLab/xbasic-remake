@@ -1,0 +1,17 @@
+version 0.1
+function Main() -> integer
+  print compare(integer(1) = integer(1))
+  print compare(integer(1) = integer(2))
+  print compare(integer(1) <> integer(2))
+  print compare(integer(1) <> integer(1))
+  print compare(integer(5) = integer(5))
+  print compare(integer(5) <> integer(3))
+  dim x:integer
+  assign x:integer = integer(42)
+  if compare(symbol(x:integer) = integer(42))
+    print string("match")
+  end if
+  if compare(symbol(x:integer) <> integer(0))
+    print string("nonzero")
+  end if
+end function

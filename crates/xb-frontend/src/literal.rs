@@ -125,6 +125,14 @@ impl Lexer<'_> {
         let first = self.lookahead.unwrap_or('<');
         self.advance();
         let kind = match (first, self.lookahead) {
+            ('<', Some('<')) => {
+                self.advance();
+                TokenKind::Shl
+            }
+            ('>', Some('>')) => {
+                self.advance();
+                TokenKind::Shr
+            }
             ('<', Some('=')) => {
                 self.advance();
                 TokenKind::LessEqual
@@ -137,9 +145,24 @@ impl Lexer<'_> {
                 self.advance();
                 TokenKind::NotEqual
             }
+            ('=', Some('=')) => {
+                self.advance();
+                TokenKind::Equal
+            }
             _ => TokenKind::Symbol(first),
         };
         Token::new(kind, pos)
+    }
+
+    pub(crate) fn bang_or_symbol(&mut self) -> Token {
+        let pos = self.pos();
+        self.advance();
+        if self.lookahead == Some('=') {
+            self.advance();
+            Token::new(TokenKind::NotEqual, pos)
+        } else {
+            Token::new(TokenKind::Symbol('!'), pos)
+        }
     }
 
     fn take_exponent(&mut self, out: &mut String) {

@@ -45,6 +45,11 @@ pub(crate) fn call_function(
                 },
             ));
         }
+        "VERSION$" => {
+            return Ok(RuntimeValue::String(
+                state.metadata.version.clone().unwrap_or_default(),
+            ));
+        }
         _ => {}
     }
     if is_builtin(name) {
@@ -150,8 +155,15 @@ fn is_builtin(name: &str) -> bool {
             | "HEXX$"
             | "RJUST$"
             | "LJUST$"
+            | "RCLIP$"
+            | "LCLIP$"
+            | "STUFF$"
+            | "INCHR"
+            | "RINCHR"
             | "STRING$"
             | "STRING"
+            | "SIGNED$"
+            | "NULL$"
             | "DOUBLE"
             | "SINGLE"
             | "XLONG"

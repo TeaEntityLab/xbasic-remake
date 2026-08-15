@@ -1,0 +1,11 @@
+version 0.1
+function Main() -> integer
+  print call RCLIP$(string("hello"), integer(2))
+  print call RCLIP$(string("  hi  "))
+  print call LCLIP$(string("hello"), integer(2))
+  print call LCLIP$(string("  hi  "))
+  print call INCHR(string("hello world"), string("aeiou"), integer(1))
+  print call RINCHR(string("hello world"), string("aeiou"), integer(11))
+  print call INCHR(string("hello"), string("xyz"), integer(1))
+  print call RINCHR(string("hello"), string("xyz"), integer(5))
+end function
