@@ -33,6 +33,17 @@ pub enum Statement {
         index: Expression,
         value: Expression,
     },
+    MidAssign {
+        target: Expression,
+        start: Expression,
+        length: Option<Expression>,
+        value: Expression,
+    },
+    BuiltinAssign {
+        name: String,
+        args: Vec<Expression>,
+        value: Expression,
+    },
     ConstantDefinition {
         name: String,
         value: String,
@@ -66,6 +77,7 @@ pub enum Statement {
     Return {
         value: Option<Expression>,
     },
+    ExitFunction,
     Call {
         name: String,
         args: Vec<Expression>,
@@ -99,7 +111,9 @@ pub enum Statement {
         cases: Vec<CaseClause>,
         default: Option<Vec<Statement>>,
     },
-    Goto(String),
+    Goto(Expression),
+    Gosub(Expression),
+    Label(String),
     Data(Vec<DataValue>),
     Read(Vec<(String, Option<TypeSuffix>)>),
     Stop,
@@ -186,7 +200,20 @@ impl ArithmeticOp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnaryOp {
+    Neg,
+    Pos,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BooleanOp {
+    And,
+    Or,
+    Xor,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogicalOp {
     And,
     Or,
     Xor,
@@ -208,6 +235,10 @@ pub enum Expression {
         name: String,
         suffix: Option<TypeSuffix>,
     },
+    ByRefIdentifier {
+        name: String,
+        suffix: Option<TypeSuffix>,
+    },
     Comparison {
         op: ComparisonOp,
         left: Box<Expression>,
@@ -219,10 +250,19 @@ pub enum Expression {
         left: Box<Expression>,
         right: Box<Expression>,
     },
+    Logical {
+        op: LogicalOp,
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
     Arithmetic {
         op: ArithmeticOp,
         left: Box<Expression>,
         right: Box<Expression>,
+    },
+    Unary {
+        op: UnaryOp,
+        operand: Box<Expression>,
     },
     FunctionCall {
         name: String,
@@ -231,5 +271,8 @@ pub enum Expression {
     ArrayAccess {
         name: String,
         index: Box<Expression>,
+    },
+    ArrayRef {
+        name: String,
     },
 }

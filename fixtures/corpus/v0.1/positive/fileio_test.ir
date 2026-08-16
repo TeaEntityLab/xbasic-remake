@@ -1,0 +1,17 @@
+program_name fileio_test
+version 0.1
+function Main() -> integer
+  dim fn:integer
+  dim line:string
+  call SHELL(string("echo hello > /tmp/xb_fileio_test.txt"))
+  assign fn:integer = call OPEN(string("/tmp/xb_fileio_test.txt"), integer(0))
+  print symbol(fn:integer)
+  assign line:string = call INFILE$(symbol(fn:integer))
+  print symbol(line:string)
+  print call LOF(symbol(fn:integer))
+  print call POF(symbol(fn:integer))
+  call SEEK(symbol(fn:integer), integer(0))
+  assign line:string = call INFILE$(symbol(fn:integer))
+  print symbol(line:string)
+  call CLOSE(symbol(fn:integer))
+end function

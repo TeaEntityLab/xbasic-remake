@@ -1,0 +1,21 @@
+version 0.1
+function Main() -> integer
+  dim addr:integer
+  dim i:integer
+  for i:integer = integer(1) to integer(2)
+    if compare(symbol(i:integer) = integer(1))
+      assign addr:integer = label_addr(Double)
+    else
+      assign addr:integer = label_addr(Triple)
+    end if
+    gosub_expr symbol(addr:integer)
+  next
+  print string("done")
+  gosub_return
+  label Double
+  print string("doubling")
+  gosub_return
+  label Triple
+  print string("tripling")
+  gosub_return
+end function

@@ -98,6 +98,7 @@ impl TypedSlot {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramMetadata {
     pub(crate) version: Option<String>,
+    pub(crate) program_name: Option<String>,
 }
 
 impl ProgramMetadata {
@@ -106,7 +107,7 @@ impl ProgramMetadata {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Default)]
 pub struct ExecutionState {
     pub(crate) metadata: ProgramMetadata,
     pub(crate) slots: BTreeMap<String, TypedSlot>,
@@ -115,6 +116,10 @@ pub struct ExecutionState {
     pub(crate) input_pos: usize,
     pub(crate) data_segment: Vec<DataEntry>,
     pub(crate) data_pos: usize,
+    pub(crate) error_code: i32,
+    pub(crate) files: Vec<Option<std::fs::File>>,
+    pub(crate) gosub_stack: Vec<usize>,
+    pub(crate) label_addresses: std::collections::HashMap<String, usize>,
 }
 impl ExecutionState {
     pub const fn metadata(&self) -> &ProgramMetadata {
@@ -125,6 +130,18 @@ impl ExecutionState {
     }
     pub fn shared_slot(&self, name: &str) -> Option<&TypedSlot> {
         self.shared.get(name)
+    }
+}
+impl PartialEq for ExecutionState {
+    fn eq(&self, other: &Self) -> bool {
+        self.metadata == other.metadata
+            && self.slots == other.slots
+            && self.shared == other.shared
+            && self.input == other.input
+            && self.input_pos == other.input_pos
+            && self.data_segment == other.data_segment
+            && self.data_pos == other.data_pos
+            && self.error_code == other.error_code
     }
 }
 
@@ -154,4 +171,6 @@ pub enum RuntimeError {
     ArrayIndexOutOfRange { index: i32 },
     #[error("not an array")]
     NotAnArray,
+    #[error("program quit with code {code}")]
+    Quit { code: i32 },
 }

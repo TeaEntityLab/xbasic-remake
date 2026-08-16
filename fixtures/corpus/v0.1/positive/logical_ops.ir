@@ -1,0 +1,18 @@
+function Main() -> integer
+  print land(integer(1) integer(1))
+  print land(integer(1) integer(0))
+  print lor(integer(0) integer(1))
+  print lor(integer(0) integer(0))
+  print lxor(integer(1) integer(0))
+  print lxor(integer(1) integer(1))
+  dim a:integer
+  dim b:integer
+  assign a:integer = integer(5)
+  assign b:integer = integer(3)
+  if land(compare(symbol(a:integer) > integer(0)) compare(symbol(b:integer) > integer(0)))
+    print string("both")
+  end if
+  if lor(compare(symbol(a:integer) > integer(10)) compare(symbol(b:integer) > integer(0)))
+    print string("one")
+  end if
+end function

@@ -85,39 +85,30 @@ fn dim_multi_declaration_succeeds() {
 }
 
 #[test]
-fn rejects_print_without_expression() {
+fn accepts_print_without_expression() {
     let result = parse_program("PRINT\n");
+    assert!(result.is_ok());
+    let prog = result.unwrap();
+    assert_eq!(prog.statements.len(), 1);
     assert!(matches!(
-        result,
-        Err(ParseError::Expected {
-            expected: "expression",
-            ..
-        })
+        prog.statements[0],
+        Statement::Print {
+            ref items,
+            ref separators,
+        } if items.is_empty() && separators.is_empty()
     ));
 }
 
 #[test]
-fn rejects_trailing_tokens_after_function_header() {
-    let result = parse_program("FUNCTION Main garbage\nEND FUNCTION\n");
-    assert!(matches!(
-        result,
-        Err(ParseError::Expected {
-            expected: "end of line",
-            ..
-        })
-    ));
+fn accepts_return_type_in_function_header() {
+    let result = parse_program("FUNCTION DOUBLE Main()\nEND FUNCTION\n");
+    assert!(result.is_ok());
 }
 
 #[test]
-fn rejects_trailing_tokens_after_end_function() {
-    let result = parse_program("FUNCTION Main\nEND FUNCTION garbage\n");
-    assert!(matches!(
-        result,
-        Err(ParseError::Expected {
-            expected: "end of line",
-            ..
-        })
-    ));
+fn accepts_trailing_name_after_end_function() {
+    let result = parse_program("FUNCTION Main\nEND FUNCTION Main\n");
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -147,20 +138,15 @@ fn parses_integer_constant_definitions_and_references() {
 }
 
 #[test]
-fn rejects_constant_definition_when_value_is_not_integer_literal() {
+fn accepts_constant_definition_with_any_value() {
     for src in [
         "$$Value = 1.5\n",
         "$$Value = \"text\"\n",
         "$$Value = $$Other\n",
+        "$$Value = -1\n",
     ] {
         let result = parse_program(src);
-        assert!(matches!(
-            result,
-            Err(ParseError::Expected {
-                expected: "integer literal",
-                ..
-            })
-        ));
+        assert!(result.is_ok(), "failed to parse: {src}");
     }
 }
 

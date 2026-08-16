@@ -4,7 +4,8 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("#include <string.h>\n");
     out.push_str("#include <math.h>\n");
     out.push_str("#include <ctype.h>\n");
-    out.push_str("#include <time.h>\n");
+out.push_str("#include <time.h>\n");
+out.push_str("#include <stdint.h>\n");
     out.push('\n');
     out.push_str("static char* xb_strdup(const char* s) { size_t n = strlen(s) + 1; char* r = (char*)malloc(n); memcpy(r, s, n); return r; }\n");
     out.push_str("static char* xb_str(const char* s) { return xb_strdup(s); }\n");
@@ -142,6 +143,11 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("static int xb_fix(double v) { return (int)trunc(v); }\n");
     out.push_str("static int xb_max(int a, int b) { return a > b ? a : b; }\n");
     out.push_str("static int xb_min(int a, int b) { return a < b ? a : b; }\n");
+    out.push_str("static int xb_rotatel(unsigned int v, unsigned int n) { n %= 32; return (v << n) | (v >> ((32 - n) % 32)); }\n");
+    out.push_str("static int xb_rotater(unsigned int v, unsigned int n) { n %= 32; return (v >> n) | (v << ((32 - n) % 32)); }\n");
+    crate::c_runtime_bit::emit_bit_reinterp_runtime(out);
+    crate::c_runtime_bit::emit_bit_ops_runtime(out);
+    crate::c_runtime_bit::emit_str_misc_runtime(out);
     out.push_str("static char* xb_hex(int v) { char* r = malloc(16); snprintf(r, 16, \"%X\", v); return r; }\n");
     out.push_str("static char* xb_hex2(int v, int w) { char* r = malloc(32); if (w > 0) snprintf(r, 32, \"%0*X\", w, v); else snprintf(r, 32, \"%X\", v); return r; }\n");
     out.push_str("static char* xb_bin(int v) { char* r = malloc(33); int n = 0; if (v == 0) { r[0] = '0'; r[1] = 0; return r; } int t = v; while (t) { n++; t >>= 1; } r[n] = 0; t = v; while (t) { r[--n] = (t & 1) ? '1' : '0'; t >>= 1; } return r; }\n");
@@ -158,18 +164,98 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("static void xb_read_float(double* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 1) *v = xb_data_float[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 0) *v = (double)xb_data_int[xb_data_pos]; else *v = atof(xb_data_str[xb_data_pos]); xb_data_pos++; }\n");
     out.push_str("static char* xb_read_str(void) { if (xb_data_pos >= xb_data_count) return xb_strdup(\"\"); char* r; if (xb_data_tag[xb_data_pos] == 2) r = xb_strdup(xb_data_str[xb_data_pos]); else { r = malloc(32); if (xb_data_tag[xb_data_pos] == 0) snprintf(r, 32, \"%d\", xb_data_int[xb_data_pos]); else snprintf(r, 32, \"%.17g\", xb_data_float[xb_data_pos]); } xb_data_pos++; return r; }\n");
     out.push_str("static void xb_restore(int idx) { xb_data_pos = idx; }\n");
+    out.push_str("static int xb_error_code = 0;\n");
+    out.push_str("static int xb_error(int n) { int old = xb_error_code; if (n != -1) xb_error_code = n; return old; }\n");
+    out.push_str("static char* xb_error_str(int n) { char* r = malloc(32); snprintf(r, 32, \"error %d\", n); return r; }\n");
+    out.push_str("static int xb_csize(const char* s) { const char* p = s; while (*p) p++; return (int)(p - s); }\n");
+    out.push_str("static char* xb_csize_str(const char* s) { const char* p = s; while (*p) p++; size_t n = p - s; char* r = malloc(n + 1); memcpy(r, s, n); r[n] = 0; return r; }\n");
+    out.push_str("static char* xb_program_name(int _) { (void)_; return xb_strdup(xb_program_name_str); }\n");
+    out.push_str("static FILE* xb_files[256]; static int xb_file_count = 3;\n");
+    out.push_str("static int xb_open(const char* name, int mode) {\n");
+    out.push_str("    const char* m = \"rb\";\n");
+    out.push_str("    if (mode == 1) m = \"r+b\";\n");
+    out.push_str("    else if (mode == 3) m = \"wb\";\n");
+    out.push_str("    else if (mode == 4) m = \"w+b\";\n");
+    out.push_str("    FILE* f = fopen(name, m);\n");
+    out.push_str("    if (!f) return -1;\n");
+    out.push_str("    int fn = xb_file_count++;\n");
+    out.push_str("    xb_files[fn] = f;\n");
+    out.push_str("    return fn;\n");
+    out.push_str("}\n");
+    out.push_str("static int xb_close(int fn) {\n");
+    out.push_str("    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return -1;\n");
+    out.push_str("    int r = fclose(xb_files[fn]);\n");
+    out.push_str("    xb_files[fn] = NULL;\n");
+    out.push_str("    return r == 0 ? 0 : -1;\n");
+    out.push_str("}\n");
+    out.push_str("static int xb_lof(int fn) {\n");
+    out.push_str("    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return -1;\n");
+    out.push_str("    FILE* f = xb_files[fn];\n");
+    out.push_str("    long cur = ftell(f);\n");
+    out.push_str("    fseek(f, 0, SEEK_END);\n");
+    out.push_str("    long len = ftell(f);\n");
+    out.push_str("    fseek(f, cur, SEEK_SET);\n");
+    out.push_str("    return (int)len;\n");
+    out.push_str("}\n");
+    out.push_str("static int xb_pof(int fn) {\n");
+    out.push_str("    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return -1;\n");
+    out.push_str("    return (int)ftell(xb_files[fn]);\n");
+    out.push_str("}\n");
+    out.push_str("static int xb_seek(int fn, int pos) {\n");
+    out.push_str("    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return -1;\n");
+    out.push_str("    return fseek(xb_files[fn], pos, SEEK_SET) == 0 ? pos : -1;\n");
+    out.push_str("}\n");
+    out.push_str("static char* xb_infile(int fn) {\n");
+    out.push_str("    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return xb_strdup(\"\");\n");
+    out.push_str("    char buf[65536];\n");
+    out.push_str("    if (!fgets(buf, sizeof(buf), xb_files[fn])) return xb_strdup(\"\");\n");
+    out.push_str("    int len = (int)strlen(buf);\n");
+    out.push_str("    if (len > 0 && buf[len-1] == '\\n') buf[len-1] = 0;\n");
+    out.push_str("    return xb_strdup(buf);\n");
+    out.push_str("}\n");
+out.push_str("static char* xb_tab(int cur, int col) { if (col <= cur) return xb_strdup(\"\"); int n = col - cur; char* r = malloc(n + 1); memset(r, ' ', n); r[n] = 0; return r; }\n");
+out.push_str("static int xb_isdata(const char* s) { return (s && s[0]) ? -1 : 0; }\n");
+out.push_str("static char* xb_inkey(void) {\n");
+out.push_str("    int c = getchar();\n");
+out.push_str("    if (c == EOF) return xb_strdup(\"\");\n");
+out.push_str("    char buf[2]; buf[0] = (char)c; buf[1] = 0;\n");
+out.push_str("    return xb_strdup(buf);\n");
+out.push_str("}\n");
+out.push_str("static int xb_waitkey(void) { int c = getchar(); return (c == EOF) ? 0 : c; }\n");
+out.push_str("static int xb_isnode(const char* s) { return 0; }\n");
+out.push_str("static int xb_goaddr(int x) { return x; }\n");
+out.push_str("static int xb_subaddr(int x) { return x; }\n");
+out.push_str("static int xb_funcaddress(int x) { return x; }\n");
+out.push_str("static char* xb_cstring(intptr_t addr) { return (char*)addr; }\n");
+out.push_str("static int xb_sbyteat(intptr_t addr, intptr_t off) { return (int)(*(signed char*)(addr + off)); }\n");
+out.push_str("static int xb_ubyteat(intptr_t addr, intptr_t off) { return (int)(*(unsigned char*)(addr + off)); }\n");
+out.push_str("static int xb_sshortat(intptr_t addr, intptr_t off) { return (int)(*(signed short*)(addr + off)); }\n");
+out.push_str("static int xb_ushortat(intptr_t addr, intptr_t off) { return (int)(*(unsigned short*)(addr + off)); }\n");
+out.push_str("static int xb_slongat(intptr_t addr, intptr_t off) { return (int)(*(signed int*)(addr + off)); }\n");
+out.push_str("static int xb_ulongat(intptr_t addr, intptr_t off) { return (int)(*(unsigned int*)(addr + off)); }\n");
+out.push_str("static intptr_t xb_xlongat(intptr_t addr, intptr_t off) { return *(intptr_t*)(addr + off); }\n");
+out.push_str("static intptr_t xb_giantat(intptr_t addr, intptr_t off) { return *(intptr_t*)(addr + off); }\n");
+out.push_str("static double xb_singleat(intptr_t addr, intptr_t off) { return (double)(*(float*)(addr + off)); }\n");
+out.push_str("static double xb_doubleat(intptr_t addr, intptr_t off) { return *(double*)(addr + off); }\n");
+out.push_str("static intptr_t xb_subaddrat(intptr_t addr, intptr_t off) { return *(intptr_t*)(addr + off); }\n");
+out.push_str("static intptr_t xb_goaddrat(intptr_t addr, intptr_t off) { return *(intptr_t*)(addr + off); }\n");
+
+out.push_str("static void xb_mid_assign(char* dst, int start, int len, const char* src) {\n");
+out.push_str("    int dlen = (int)strlen(dst);\n");
+out.push_str("    int slen = (int)strlen(src);\n");
+out.push_str("    if (start < 1 || start > dlen) return;\n");
+out.push_str("    int si = start - 1;\n");
+out.push_str("    int copy = (len < 0) ? slen : len;\n");
+out.push_str("    if (copy > slen) copy = slen;\n");
+out.push_str("    if (si + copy > dlen) copy = dlen - si;\n");
+out.push_str("    memcpy(dst + si, src, copy);\n");
+out.push_str("}\n");
+out.push_str("static void* xb_gosub_stack[256]; static int xb_gosub_sp = 0;\n");
 }
 
+use crate::c_emit::c_type;
 use crate::ir::{IrItem, IrProgram};
 use crate::ValueType;
-
-pub(crate) fn c_type(vt: ValueType) -> &'static str {
-    match vt {
-        ValueType::Integer => "int",
-        ValueType::Float => "double",
-        ValueType::String => "char*",
-    }
-}
 
 pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
     for item in &program.items {

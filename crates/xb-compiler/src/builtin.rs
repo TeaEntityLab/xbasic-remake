@@ -52,7 +52,7 @@ fn sig(name: &str) -> Option<BuiltinSig> {
         "TAN" => (&[ValueType::Float][..], ValueType::Float),
         "EXP" => (&[ValueType::Float][..], ValueType::Float),
         "LOG" => (&[ValueType::Float][..], ValueType::Float),
-        "ATN" => (&[ValueType::Float][..], ValueType::Float),
+        "ATN" | "ATAN" => (&[ValueType::Float][..], ValueType::Float),
         "ACOS" => (&[ValueType::Float][..], ValueType::Float),
         "ASIN" => (&[ValueType::Float][..], ValueType::Float),
         "ATAN2" => (&[ValueType::Float, ValueType::Float][..], ValueType::Float),
@@ -97,32 +97,80 @@ fn sig(name: &str) -> Option<BuiltinSig> {
             &[ValueType::Integer, ValueType::Integer][..],
             ValueType::Integer,
         ),
-        "HEX$" => (&[ValueType::Integer][..], ValueType::String),
-        "BIN$" => (&[ValueType::Integer][..], ValueType::String),
-        "OCT$" => (&[ValueType::Integer][..], ValueType::String),
-        "HEXX$" => (&[ValueType::Integer][..], ValueType::String),
-        "RJUST$" => (
-            &[ValueType::String, ValueType::Integer][..],
-            ValueType::String,
-        ),
-        "LJUST$" => (
-            &[ValueType::String, ValueType::Integer][..],
-            ValueType::String,
-        ),
-        "RCLIP$" => (&[ValueType::String][..], ValueType::String),
-        "LCLIP$" => (&[ValueType::String][..], ValueType::String),
-        "INCHR" => (
-            &[ValueType::String, ValueType::String, ValueType::Integer][..],
+        "ROTATEL" => (
+            &[ValueType::Integer, ValueType::Integer][..],
             ValueType::Integer,
         ),
-        "RINCHR" => (
-            &[ValueType::String, ValueType::String, ValueType::Integer][..],
+        "ROTATER" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "DHIGH" => (&[ValueType::Float][..], ValueType::Integer),
+        "DLOW" => (&[ValueType::Float][..], ValueType::Integer),
+        "DMAKE" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Float,
+        ),
+        "GMAKE" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "SMAKE" => (&[ValueType::Integer][..], ValueType::Float),
+        "XMAKE" => (&[ValueType::Float][..], ValueType::Integer),
+        "ERROR" => (&[ValueType::Integer][..], ValueType::Integer),
+        "ERROR$" => (&[ValueType::Integer][..], ValueType::String),
+        "BITFIELD" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "EXTS" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "EXTU" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "CLR" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "SET" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "MAKE" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "HIGH0" => (&[ValueType::Integer][..], ValueType::Integer),
+        "HIGH1" => (&[ValueType::Integer][..], ValueType::Integer),
+        "GHIGH" => (&[ValueType::Integer][..], ValueType::Integer),
+        "GLOW" => (&[ValueType::Integer][..], ValueType::Integer),
+        "SIGN" => (&[ValueType::Float][..], ValueType::Integer),
+        "CJUST$" | "RJUST$" | "LJUST$" => (
+            &[ValueType::String, ValueType::Integer][..],
+            ValueType::String,
+        ),
+        "OCTO$" | "BINB$" | "HEX$" | "BIN$" | "OCT$" | "HEXX$" => {
+            (&[ValueType::Integer][..], ValueType::String)
+        }
+        "QUIT" => (&[ValueType::Integer][..], ValueType::Integer),
+        "INCHR" | "RINCHR" | "INCHRI" | "RINCHRI" => (
+            &[ValueType::String, ValueType::String][..],
             ValueType::Integer,
         ),
         "STUFF$" => (
             &[ValueType::String, ValueType::String, ValueType::Integer][..],
             ValueType::String,
         ),
+        "RCLIP$" | "LCLIP$" => (&[ValueType::String][..], ValueType::String),
+        "FORMAT$" => (
+            &[ValueType::String, ValueType::String][..],
+            ValueType::String,
+        ),
+        "SHELL" => (&[ValueType::String][..], ValueType::Integer),
+        "LIBRARY" => (&[ValueType::Integer][..], ValueType::Integer),
         "READLINE$" => (&[][..], ValueType::String),
         "EOF" => (&[][..], ValueType::Integer),
         "RND" => (&[][..], ValueType::Float),
@@ -133,6 +181,40 @@ fn sig(name: &str) -> Option<BuiltinSig> {
         "TIME$" => (&[][..], ValueType::String),
         "DATE$" => (&[][..], ValueType::String),
         "VERSION$" => (&[ValueType::Integer][..], ValueType::String),
+        "CSIZE" => (&[ValueType::String][..], ValueType::Integer),
+        "CSIZE$" => (&[ValueType::String][..], ValueType::String),
+        "PROGRAM$" => (&[ValueType::Integer][..], ValueType::String),
+        "UBOUND" => (&[ValueType::Integer][..], ValueType::Integer),
+        "OPEN" => (&[ValueType::String, ValueType::Integer][..], ValueType::Integer),
+        "CLOSE" => (&[ValueType::Integer][..], ValueType::Integer),
+        "LOF" => (&[ValueType::Integer][..], ValueType::Integer),
+        "POF" => (&[ValueType::Integer][..], ValueType::Integer),
+        "SEEK" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
+        "INFILE$" => (&[ValueType::Integer][..], ValueType::String),
+        "SIZE" => (&[ValueType::Integer][..], ValueType::Integer),
+        "TAB" => (&[ValueType::Integer][..], ValueType::String),
+        "ISDATA" => (&[ValueType::String][..], ValueType::Integer),
+        "INKEY$" => (&[][..], ValueType::String),
+        "WAITKEY" => (&[][..], ValueType::Integer),
+        "ISNODE" => (&[ValueType::String][..], ValueType::Integer),
+        "SUBADDRESS" => (&[ValueType::Integer][..], ValueType::Integer),
+        "GOADDRESS" => (&[ValueType::Integer][..], ValueType::Integer),
+        "GOADDR" => (&[ValueType::Integer][..], ValueType::Integer),
+        "SUBADDR" => (&[ValueType::Integer][..], ValueType::Integer),
+        "CSTRING$" => (&[ValueType::Integer][..], ValueType::String),
+        "FUNCADDRESS" => (&[ValueType::Integer][..], ValueType::Integer),
+        "SBYTEAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
+        "UBYTEAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
+        "SSHORTAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
+        "USHORTAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
+        "SLONGAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
+        "ULONGAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
+        "XLONGAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
+        "GIANTAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
+        "SINGLEAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Float),
+        "DOUBLEAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Float),
+        "SUBADDRAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
+        "GOADDRAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
         _ => return None,
     };
     Some(BuiltinSig {
@@ -158,16 +240,13 @@ pub fn builtin_call(
     let s = sig(name).unwrap();
     let expected_args: usize = match name {
         "CHR$" if args.len() == 2 => 2,
-        "INSTR" if args.len() == 3 => 3,
-        "RINSTR" if args.len() == 3 => 3,
-        "INSTRI" if args.len() == 3 => 3,
-        "RINSTRI" if args.len() == 3 => 3,
-        "HEX$" if args.len() == 2 => 2,
-        "HEXX$" if args.len() == 2 => 2,
-        "RCLIP$" if args.len() == 2 => 2,
-        "LCLIP$" if args.len() == 2 => 2,
+        "INSTR" | "RINSTR" | "INSTRI" | "RINSTRI" if args.len() == 3 => 3,
+        "INCHR" | "RINCHR" | "INCHRI" | "RINCHRI" if args.len() == 3 => 3,
+        "HEX$" | "HEXX$" | "OCTO$" | "BINB$" | "BIN$" | "OCT$" if args.len() == 2 => 2,
+        "RCLIP$" | "LCLIP$" if args.len() == 2 => 2,
         "STUFF$" if args.len() == 4 => 4,
         "MID$" if args.len() == 2 => 2,
+        "EXTS" | "EXTU" | "CLR" | "SET" | "MAKE" if args.len() == 3 => 3,
         _ => s.params.len(),
     };
     if args.len() != expected_args {
@@ -177,12 +256,14 @@ pub fn builtin_call(
             actual: args.len(),
         });
     }
-    let instr3 = matches!(name, "INSTR" | "RINSTR" | "INSTRI" | "RINSTRI") && args.len() == 3;
+    let instr3 = matches!(name, "INSTR" | "RINSTR" | "INSTRI" | "RINSTRI" | "INCHR" | "RINCHR" | "INCHRI" | "RINCHRI") && args.len() == 3;
     let mut checked = Vec::with_capacity(args.len());
     for (i, arg) in args.iter().enumerate() {
         let v = analyzer.expr(arg)?;
         let expected = if instr3 && i == 2 {
             ValueType::Integer
+        } else if name == "FORMAT$" && i == 1 {
+            v.value_type
         } else if i < s.params.len() {
             s.params[i]
         } else {

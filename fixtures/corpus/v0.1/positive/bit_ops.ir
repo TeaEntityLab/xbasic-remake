@@ -1,0 +1,18 @@
+function Main() -> integer
+  dim bs:integer
+  dim v:integer
+  assign bs:integer = call BITFIELD(integer(8), integer(0))
+  print symbol(bs:integer)
+  print call EXTS(integer(15), integer(4), integer(0))
+  print call EXTU(integer(255), call BITFIELD(integer(4), integer(0)))
+  print call CLR(integer(255), integer(8), integer(0))
+  print call SET(integer(0), integer(4), integer(4))
+  print call MAKE(integer(15), integer(4), integer(8))
+  assign v:integer = integer(2147483647)
+  print call HIGH0(symbol(v:integer))
+  assign v:integer = integer(12588083)
+  print call HIGH1(symbol(v:integer))
+  print call GHIGH(integer(42))
+  print call GLOW(integer(42))
+  print call SIGN(float(3.14))
+end function

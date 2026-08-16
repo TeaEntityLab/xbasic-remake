@@ -4,16 +4,17 @@ use crate::token::{full_name, Keyword, TokenKind, TypeSuffix};
 
 impl Parser {
     pub(crate) fn expression(&mut self) -> Result<Expression, ParseError> {
-        self.or_expr()
+        self.logical_or_expr()
     }
 
-    fn or_expr(&mut self) -> Result<Expression, ParseError> {
+    pub(crate) fn or_expr(&mut self) -> Result<Expression, ParseError> {
         let mut left = self.and_expr()?;
         while matches!(
             self.peek_kind(),
             TokenKind::Keyword(Keyword::Or) | TokenKind::Keyword(Keyword::Xor)
+                | TokenKind::Symbol('|') | TokenKind::Symbol('^')
         ) {
-            let is_xor = matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Xor));
+            let is_xor = matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Xor) | TokenKind::Symbol('^'));
             self.index += 1;
             let right = self.and_expr()?;
             left = Expression::Boolean {
@@ -31,7 +32,7 @@ impl Parser {
 
     fn and_expr(&mut self) -> Result<Expression, ParseError> {
         let mut left = self.not_expr()?;
-        while matches!(self.peek_kind(), TokenKind::Keyword(Keyword::And)) {
+        while matches!(self.peek_kind(), TokenKind::Keyword(Keyword::And) | TokenKind::Symbol('&')) {
             self.index += 1;
             let right = self.not_expr()?;
             left = Expression::Boolean {
@@ -106,9 +107,9 @@ impl Parser {
     }
 
     fn shift_expr(&mut self) -> Result<Expression, ParseError> {
-        let mut left = self.primary()?;
+        let mut left = self.unary_expr()?;
         while let Some(op) = self.shift_op() {
-            let right = self.primary()?;
+            let right = self.unary_expr()?;
             left = Expression::Arithmetic {
                 op,
                 left: Box::new(left),
@@ -116,6 +117,25 @@ impl Parser {
             };
         }
         Ok(left)
+    }
+    fn unary_expr(&mut self) -> Result<Expression, ParseError> {
+        if matches!(self.peek_kind(), TokenKind::Symbol('-')) {
+            self.index += 1;
+            let operand = self.unary_expr()?;
+            return Ok(Expression::Unary {
+                op: crate::ast::UnaryOp::Neg,
+                operand: Box::new(operand),
+            });
+        }
+        if matches!(self.peek_kind(), TokenKind::Symbol('+')) {
+            self.index += 1;
+            let operand = self.unary_expr()?;
+            return Ok(Expression::Unary {
+                op: crate::ast::UnaryOp::Pos,
+                operand: Box::new(operand),
+            });
+        }
+        self.primary()
     }
 }
 
@@ -189,7 +209,34 @@ impl Parser {
         match kind {
             TokenKind::Symbol('@') => {
                 self.index += 1;
-                self.primary()
+                // @ prefix means pass-by-reference; produce ByRefIdentifier
+                match self.peek_kind().clone() {
+                    TokenKind::Identifier { name, suffix } => {
+                        self.index += 1;
+                        // Skip optional array brackets
+                        if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+                            self.index += 1;
+                            if !matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                                let _ = self.expression();
+                            }
+                            self.expect_symbol(']')?;
+                        }
+                        Ok(Expression::ByRefIdentifier { name, suffix })
+                    }
+                    TokenKind::SharedName(name) => {
+                        self.index += 1;
+                        // Skip optional array brackets
+                        if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+                            self.index += 1;
+                            if !matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                                let _ = self.expression();
+                            }
+                            self.expect_symbol(']')?;
+                        }
+                        Ok(Expression::ByRefIdentifier { name, suffix: None })
+                    }
+                    _ => self.primary(),
+                }
             }
             TokenKind::StringLiteral(v) => {
                 self.index += 1;
@@ -211,7 +258,18 @@ impl Parser {
                 self.index += 1;
                 Ok(Expression::SystemVariable { name, suffix })
             }
+            TokenKind::Symbol('&') => {
+                self.index += 1;
+                self.primary()
+            }
+            TokenKind::Symbol('~') => {
+                self.index += 1;
+                let operand = self.primary()?;
+                Ok(Expression::Not(Box::new(operand)))
+            }
+            TokenKind::SharedName(name) => self.identifier_expr(name, None),
             TokenKind::Identifier { name, suffix } => self.identifier_expr(name, suffix),
+            TokenKind::Keyword(kw) if !is_statement_keyword(kw) => self.identifier_expr(format!("{kw:?}"), None),
             TokenKind::Symbol('(') => {
                 self.index += 1;
                 let expr = self.expression()?;
@@ -233,15 +291,103 @@ impl Parser {
             Ok(Expression::FunctionCall { name: full, args })
         } else if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
             self.index += 1;
-            let index = self.expression()?;
-            self.expect_symbol(']')?;
-            let full = full_name(name, suffix);
-            Ok(Expression::ArrayAccess {
-                name: full,
-                index: Box::new(index),
-            })
+            if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                self.index += 1;
+                let full = full_name(name, suffix);
+                Ok(Expression::ArrayRef { name: full })
+            } else {
+                let index = self.expression()?;
+                self.expect_symbol(']')?;
+                let full = full_name(name, suffix);
+                // Handle dot member access after array: arr[i].member
+                if matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+                    self.index += 1;
+                    if let TokenKind::Identifier { name: member, .. } = self.peek_kind().clone() {
+                        self.index += 1;
+                        let combined = format!("{full}.{member}");
+                        return Ok(Expression::Identifier { name: combined, suffix: None });
+                    }
+                }
+                Ok(Expression::ArrayAccess {
+                    name: full,
+                    index: Box::new(index),
+                })
+            }
         } else {
+            // Handle dot member access: identifier.member → treat as "identifier.member"
+            if matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+                self.index += 1;
+                if let TokenKind::Identifier { name: member, suffix: mem_suffix } = self.peek_kind().clone() {
+                    self.index += 1;
+                    let combined = format!("{name}.{member}");
+                    return Ok(Expression::Identifier { name: combined, suffix: mem_suffix });
+                }
+                // If not an identifier after dot, just return the base
+            }
             Ok(Expression::Identifier { name, suffix })
         }
     }
+}
+
+fn is_statement_keyword(kw: Keyword) -> bool {
+    matches!(
+        kw,
+        Keyword::Print
+            | Keyword::Dim
+            | Keyword::If
+            | Keyword::Ifz
+            | Keyword::Ift
+            | Keyword::Iff
+            | Keyword::For
+            | Keyword::While
+            | Keyword::Function
+            | Keyword::External
+            | Keyword::Internal
+            | Keyword::CFunction
+            | Keyword::Do
+            | Keyword::Select
+            | Keyword::Exit
+            | Keyword::Return
+            | Keyword::Select
+            | Keyword::Dec
+            | Keyword::Swap
+            | Keyword::Program
+            | Keyword::Import
+            | Keyword::Declare
+            | Keyword::End
+            | Keyword::Static
+            | Keyword::Shared
+            | Keyword::Redim
+            | Keyword::Gosub
+            | Keyword::DoEvents
+            | Keyword::Randomize
+            | Keyword::Break
+            | Keyword::Goto
+            | Keyword::Const
+            | Keyword::Data
+            | Keyword::Read
+            | Keyword::Stop
+            | Keyword::Restore
+            | Keyword::FuncAddr
+            | Keyword::Type
+            | Keyword::Packed
+            | Keyword::Let
+            | Keyword::Then
+            | Keyword::Else
+            | Keyword::ElseIf
+            | Keyword::Case
+            | Keyword::To
+            | Keyword::Next
+            | Keyword::Step
+            | Keyword::Until
+            | Keyword::Wend
+            | Keyword::Loop
+            | Keyword::Version
+            | Keyword::Export
+            | Keyword::Or
+            | Keyword::And
+            | Keyword::Xor
+            | Keyword::Not
+            | Keyword::Mod
+    )
 }

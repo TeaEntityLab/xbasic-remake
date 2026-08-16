@@ -90,7 +90,7 @@ fn accepts_shared_assignment_inside_function_body() {
 }
 
 #[test]
-fn rejects_top_level_shared_assignment() {
+fn accepts_top_level_shared_assignment() {
     // Given
     let program = parse_program("##XBSystem = 1\n").unwrap();
 
@@ -98,10 +98,7 @@ fn rejects_top_level_shared_assignment() {
     let result = Analyzer::analyze(&program);
 
     // Then
-    assert!(matches!(
-        result,
-        Err(SemanticError::SharedAssignmentNotInFunction { ref name }) if name == "XBSystem"
-    ));
+    assert!(result.is_ok());
 }
 
 #[test]

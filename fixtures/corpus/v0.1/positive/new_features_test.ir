@@ -1,0 +1,26 @@
+version 0.1
+const $$TestConst:integer = integer(42)
+function Helper() -> integer
+  print neg(integer(1))
+  print neg(integer(42))
+  print arith(integer(3) + neg(integer(2)))
+  print neg(neg(integer(5)))
+  print
+end function
+function Main() -> integer
+  dim x:integer
+  assign x:integer = integer(5)
+  if symbol(x:integer)
+    print string("yes")
+  else
+    print string("no")
+  end if
+  assign x:integer = integer(0)
+  if symbol(x:integer)
+    print string("yes")
+  else
+    print string("no")
+  end if
+  print constant($$TestConst:integer = integer(42))
+  call Helper()
+end function

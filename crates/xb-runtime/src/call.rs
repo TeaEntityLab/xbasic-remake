@@ -50,6 +50,186 @@ pub(crate) fn call_function(
                 state.metadata.version.clone().unwrap_or_default(),
             ));
         }
+        "PROGRAM$" => {
+            return Ok(RuntimeValue::String(
+                state.metadata.program_name.clone().unwrap_or_default(),
+            ));
+        }
+        "OPEN" => {
+            let arg0 = eval(program, &args[0], state)?;
+            let arg1 = eval(program, &args[1], state)?;
+            let RuntimeValue::String(name) = arg0 else {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: ValueType::String,
+                    actual: arg0.value_type(),
+                });
+            };
+            let RuntimeValue::Integer(mode) = arg1 else {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: ValueType::Integer,
+                    actual: arg1.value_type(),
+                });
+            };
+            match std::fs::OpenOptions::new()
+                .read(mode == 0 || mode == 1 || mode == 2)
+                .write(mode != 0)
+                .create(mode == 3 || mode == 4)
+                .truncate(mode == 3 || mode == 4)
+                .open(&name)
+            {
+                Ok(f) => {
+                    let fn_num = state.files.len() + 3;
+                    state.files.push(Some(f));
+                    return Ok(RuntimeValue::Integer(fn_num as i32));
+                }
+                Err(_) => return Ok(RuntimeValue::Integer(-1)),
+            }
+        }
+        "CLOSE" => {
+            let arg = eval(program, &args[0], state)?;
+            let RuntimeValue::Integer(fn_num) = arg else {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: ValueType::Integer,
+                    actual: arg.value_type(),
+                });
+            };
+            let idx = (fn_num - 3) as usize;
+            if idx >= state.files.len() || state.files[idx].is_none() {
+                return Ok(RuntimeValue::Integer(-1));
+            }
+            state.files[idx] = None;
+            return Ok(RuntimeValue::Integer(0));
+        }
+        "LOF" => {
+            let arg = eval(program, &args[0], state)?;
+            let RuntimeValue::Integer(fn_num) = arg else {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: ValueType::Integer,
+                    actual: arg.value_type(),
+                });
+            };
+            let idx = (fn_num - 3) as usize;
+            if idx >= state.files.len() || state.files[idx].is_none() {
+                return Ok(RuntimeValue::Integer(-1));
+            }
+            use std::io::{Seek, SeekFrom};
+            let f = state.files[idx].as_mut().unwrap();
+            let cur = f.stream_position().unwrap_or(0);
+            let len = f.seek(SeekFrom::End(0)).unwrap_or(0);
+            let _ = f.seek(SeekFrom::Start(cur));
+            return Ok(RuntimeValue::Integer(len as i32));
+        }
+        "POF" => {
+            let arg = eval(program, &args[0], state)?;
+            let RuntimeValue::Integer(fn_num) = arg else {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: ValueType::Integer,
+                    actual: arg.value_type(),
+                });
+            };
+            let idx = (fn_num - 3) as usize;
+            if idx >= state.files.len() || state.files[idx].is_none() {
+                return Ok(RuntimeValue::Integer(-1));
+            }
+            use std::io::Seek;
+            let pos = state.files[idx].as_ref().unwrap().stream_position().unwrap_or(0);
+            return Ok(RuntimeValue::Integer(pos as i32));
+        }
+        "SEEK" => {
+            let arg0 = eval(program, &args[0], state)?;
+            let arg1 = eval(program, &args[1], state)?;
+            let RuntimeValue::Integer(fn_num) = arg0 else {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: ValueType::Integer,
+                    actual: arg0.value_type(),
+                });
+            };
+            let RuntimeValue::Integer(pos) = arg1 else {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: ValueType::Integer,
+                    actual: arg1.value_type(),
+                });
+            };
+            let idx = (fn_num - 3) as usize;
+            if idx >= state.files.len() || state.files[idx].is_none() {
+                return Ok(RuntimeValue::Integer(-1));
+            }
+            use std::io::Seek;
+            let r = state.files[idx].as_mut().unwrap().seek(std::io::SeekFrom::Start(pos as u64));
+            return Ok(RuntimeValue::Integer(r.map(|p| p as i32).unwrap_or(-1)));
+        }
+        "INFILE$" => {
+            let arg = eval(program, &args[0], state)?;
+            let RuntimeValue::Integer(fn_num) = arg else {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: ValueType::Integer,
+                    actual: arg.value_type(),
+                });
+            };
+            let idx = (fn_num - 3) as usize;
+            if idx >= state.files.len() || state.files[idx].is_none() {
+                return Ok(RuntimeValue::String(String::new()));
+            }
+            use std::io::Read;
+            let mut buf = String::new();
+            let f = state.files[idx].as_mut().unwrap();
+            let mut byte = [0u8; 1];
+            loop {
+                match f.read(&mut byte) {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        if byte[0] == b'\n' { break; }
+                        if byte[0] != b'\r' { buf.push(byte[0] as char); }
+                    }
+                    Err(_) => break,
+                }
+            }
+            return Ok(RuntimeValue::String(buf));
+        }
+        "ERROR" | "ERROR$" => {
+            let arg = eval(program, &args[0], state)?;
+            let RuntimeValue::Integer(n) = arg else {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: ValueType::Integer,
+                    actual: arg.value_type(),
+                });
+            };
+            if name == "ERROR" {
+                let old = state.error_code;
+                if n != -1 {
+                    state.error_code = n;
+                }
+                return Ok(RuntimeValue::Integer(old));
+            }
+            return Ok(RuntimeValue::String(format!("error {n}")));
+        }
+        "QUIT" => {
+            let arg = eval(program, &args[0], state)?;
+            let RuntimeValue::Integer(code) = arg else {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: ValueType::Integer,
+                    actual: arg.value_type(),
+                });
+            };
+            return Err(RuntimeError::Quit { code });
+        }
+        "SHELL" => {
+            let arg = eval(program, &args[0], state)?;
+            let RuntimeValue::String(cmd) = arg else {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: ValueType::String,
+                    actual: arg.value_type(),
+                });
+            };
+            let code = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(&cmd)
+                .status()
+                .map(|s| s.code().unwrap_or(-1))
+                .unwrap_or(-1);
+            return Ok(RuntimeValue::Integer(code));
+        }
+        "LIBRARY" => return Ok(RuntimeValue::Integer(0)),
         _ => {}
     }
     if is_builtin(name) {
@@ -59,7 +239,16 @@ pub(crate) fn call_function(
         }
         return crate::builtin::eval_builtin(name, &vals);
     }
-    let (fname, params, body, return_type) = find_function(program, name)?;
+    let (fname, params, body, return_type) = match find_function(program, name) {
+        Ok(info) => info,
+        Err(_) => {
+            // Stub: unknown functions return 0 or empty string
+            if name.ends_with('$') {
+                return Ok(RuntimeValue::String(String::new()));
+            }
+            return Ok(RuntimeValue::Integer(0));
+        }
+    };
     let mut local = BTreeMap::new();
     let mut ret_slot = TypedSlot::new(return_type);
     if return_type == ValueType::String {
@@ -86,6 +275,10 @@ pub(crate) fn call_function(
         input_pos: state.input_pos,
         data_segment: Vec::new(),
         data_pos: 0,
+        error_code: state.error_code,
+        files: Vec::new(),
+        gosub_stack: Vec::new(),
+        label_addresses: std::collections::HashMap::new(),
     };
     let result = match exec_items(program, body, &mut sub, output)? {
         Flow::Return(Some(v)) => Ok(v),
@@ -100,6 +293,7 @@ pub(crate) fn call_function(
     };
     state.input_pos = sub.input_pos;
     state.shared = sub.shared;
+    state.error_code = sub.error_code;
     result
 }
 
@@ -123,90 +317,5 @@ fn find_function<'a>(program: &'a IrProgram, name: &str) -> Result<FuncInfo<'a>,
 }
 
 fn is_builtin(name: &str) -> bool {
-    matches!(
-        name,
-        "LEN"
-            | "ASC"
-            | "CHR$"
-            | "LEFT$"
-            | "RIGHT$"
-            | "MID$"
-            | "INSTR"
-            | "RINSTR"
-            | "INSTRI"
-            | "RINSTRI"
-            | "VAL"
-            | "STR$"
-            | "UCASE$"
-            | "LCASE$"
-            | "TRIM$"
-            | "LTRIM$"
-            | "RTRIM$"
-            | "SPACE$"
-            | "ABS"
-            | "SGN"
-            | "INT"
-            | "FIX"
-            | "MAX"
-            | "MIN"
-            | "HEX$"
-            | "BIN$"
-            | "OCT$"
-            | "HEXX$"
-            | "RJUST$"
-            | "LJUST$"
-            | "RCLIP$"
-            | "LCLIP$"
-            | "STUFF$"
-            | "INCHR"
-            | "RINCHR"
-            | "STRING$"
-            | "STRING"
-            | "SIGNED$"
-            | "NULL$"
-            | "DOUBLE"
-            | "SINGLE"
-            | "XLONG"
-            | "SQRT"
-            | "SIN"
-            | "COS"
-            | "TAN"
-            | "EXP"
-            | "LOG"
-            | "ATN"
-            | "ACOS"
-            | "ASIN"
-            | "ATAN2"
-            | "LOG10"
-            | "POWER"
-            | "SINH"
-            | "COSH"
-            | "TANH"
-            | "ASINH"
-            | "ACOSH"
-            | "ATANH"
-            | "EXP10"
-            | "EXP2"
-            | "COT"
-            | "SEC"
-            | "CSC"
-            | "COTH"
-            | "SECH"
-            | "CSCH"
-            | "ACOT"
-            | "ASEC"
-            | "ACSC"
-            | "ACOTH"
-            | "ASECH"
-            | "ACSCH"
-            | "RND"
-            | "CEIL"
-            | "FLOOR"
-            | "ROUND"
-            | "TIMER"
-            | "TIME$"
-            | "DATE$"
-            | "INLINE$"
-            | "EOF"
-    )
+    crate::is_builtin::is_builtin(name)
 }

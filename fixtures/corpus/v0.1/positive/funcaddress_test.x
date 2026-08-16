@@ -1,0 +1,7 @@
+VERSION "0.1"
+FUNCTION Main
+DIM f
+f = FUNCADDRESS(0)
+PRINT "funcaddr done"
+PRINT f
+END FUNCTION

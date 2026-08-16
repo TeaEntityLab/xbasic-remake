@@ -6,14 +6,15 @@ pub mod parser;
 mod parser_cursor;
 mod parser_expr;
 mod parser_if;
+mod parser_logical;
 mod parser_loops;
 mod parser_select;
 mod parser_tests;
 pub mod token;
 
 pub use ast::{
-    ArithmeticOp, BooleanOp, CaseClause, ComparisonOp, DataValue, Expression, FunctionDecl, Param,
-    PrintSep, Program, Statement,
+    ArithmeticOp, BooleanOp, CaseClause, ComparisonOp, DataValue, Expression, FunctionDecl,
+    LogicalOp, Param, PrintSep, Program, Statement, UnaryOp,
 };
 pub use lexer::{lex, LexError, Lexer};
 pub use parser::{parse_program, ParseError, Parser};

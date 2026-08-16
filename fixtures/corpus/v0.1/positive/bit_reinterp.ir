@@ -1,0 +1,8 @@
+function Main() -> integer
+  print call DHIGH(float(1.0))
+  print call DLOW(float(1.0))
+  print call DHIGH(float(2.0))
+  print call SMAKE(integer(1065353216))
+  print call XMAKE(float(1.0))
+  print call GMAKE(integer(0), integer(42))
+end function

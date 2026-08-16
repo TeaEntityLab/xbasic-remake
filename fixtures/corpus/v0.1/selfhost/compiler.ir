@@ -367,10 +367,22 @@ function Main() -> integer
                             array_assign tt$:string[symbol(ntok:integer)] = string("symbol")
                             array_assign tv$:string[symbol(ntok:integer)] = symbol(tok:string)
                           else
-                            assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
-                            array_assign tt$:string[symbol(ntok:integer)] = string("symbol")
-                            array_assign tv$:string[symbol(ntok:integer)] = call CHR$(symbol(ch:integer))
-                            assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                            if or(or(compare(symbol(ch:integer) = integer(38)) compare(symbol(ch:integer) = integer(124))) compare(symbol(ch:integer) = integer(94)))
+                              assign tok:string = call CHR$(symbol(ch:integer))
+                              assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                              if and(compare(symbol(pos:integer) <= call LEN(symbol(src:string))) compare(call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1))) = symbol(ch:integer)))
+                                assign tok:string = arith(symbol(tok:string) + call CHR$(symbol(ch:integer)))
+                                assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                              end if
+                              assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
+                              array_assign tt$:string[symbol(ntok:integer)] = string("symbol")
+                              array_assign tv$:string[symbol(ntok:integer)] = symbol(tok:string)
+                            else
+                              assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
+                              array_assign tt$:string[symbol(ntok:integer)] = string("symbol")
+                              array_assign tv$:string[symbol(ntok:integer)] = call CHR$(symbol(ch:integer))
+                              assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                            end if
                           end if
                         end if
                       end if
@@ -781,7 +793,7 @@ function Main() -> integer
                     wend
                     assign bn:string = symbol(fname:string)
                     if compare(call RIGHT$(symbol(bn:string), integer(1)) = string("$"))
-                      if and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(compare(symbol(bn:string) <> string("CHR$")) compare(symbol(bn:string) <> string("LEFT$"))) compare(symbol(bn:string) <> string("RIGHT$"))) compare(symbol(bn:string) <> string("MID$"))) compare(symbol(bn:string) <> string("STR$"))) compare(symbol(bn:string) <> string("READLINE$"))) compare(symbol(bn:string) <> string("UCASE$"))) compare(symbol(bn:string) <> string("LCASE$"))) compare(symbol(bn:string) <> string("TRIM$"))) compare(symbol(bn:string) <> string("LTRIM$"))) compare(symbol(bn:string) <> string("RTRIM$"))) compare(symbol(bn:string) <> string("SPACE$"))) compare(symbol(bn:string) <> string("HEX$"))) compare(symbol(bn:string) <> string("BIN$"))) compare(symbol(bn:string) <> string("OCT$"))) compare(symbol(bn:string) <> string("HEXX$"))) compare(symbol(bn:string) <> string("RJUST$"))) compare(symbol(bn:string) <> string("LJUST$"))) compare(symbol(bn:string) <> string("RCLIP$"))) compare(symbol(bn:string) <> string("LCLIP$"))) compare(symbol(bn:string) <> string("STUFF$"))) compare(symbol(bn:string) <> string("VERSION$"))) compare(symbol(bn:string) <> string("SIGNED$"))) compare(symbol(bn:string) <> string("NULL$")))
+                      if and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(compare(symbol(bn:string) <> string("CHR$")) compare(symbol(bn:string) <> string("LEFT$"))) compare(symbol(bn:string) <> string("RIGHT$"))) compare(symbol(bn:string) <> string("MID$"))) compare(symbol(bn:string) <> string("STR$"))) compare(symbol(bn:string) <> string("READLINE$"))) compare(symbol(bn:string) <> string("UCASE$"))) compare(symbol(bn:string) <> string("LCASE$"))) compare(symbol(bn:string) <> string("TRIM$"))) compare(symbol(bn:string) <> string("LTRIM$"))) compare(symbol(bn:string) <> string("RTRIM$"))) compare(symbol(bn:string) <> string("SPACE$"))) compare(symbol(bn:string) <> string("HEX$"))) compare(symbol(bn:string) <> string("BIN$"))) compare(symbol(bn:string) <> string("OCT$"))) compare(symbol(bn:string) <> string("HEXX$"))) compare(symbol(bn:string) <> string("RJUST$"))) compare(symbol(bn:string) <> string("LJUST$"))) compare(symbol(bn:string) <> string("CJUST$"))) compare(symbol(bn:string) <> string("RCLIP$"))) compare(symbol(bn:string) <> string("LCLIP$"))) compare(symbol(bn:string) <> string("STUFF$"))) compare(symbol(bn:string) <> string("VERSION$"))) compare(symbol(bn:string) <> string("SIGNED$"))) compare(symbol(bn:string) <> string("NULL$"))) compare(symbol(bn:string) <> string("ERROR$"))) compare(symbol(bn:string) <> string("OCTO$"))) compare(symbol(bn:string) <> string("BINB$"))) compare(symbol(bn:string) <> string("FORMAT$")))
                         assign bn:string = call strip_suffix(symbol(bn:string))
                       end if
                     else
@@ -896,14 +908,29 @@ function Main() -> integer
                       array_assign valStack$:string[symbol(spVal:integer)] = arith(arith(arith(arith(string("xor(") + symbol(bleft:string)) + string(" ")) + symbol(bright:string)) + string(")"))
                       array_assign valType$:string[symbol(spVal:integer)] = string("integer")
                     else
-                      if compare(symbol(bop:string) = string("=="))
-                        assign bop:string = string("=")
+                      if compare(symbol(bop:string) = string("&&"))
+                        array_assign valStack$:string[symbol(spVal:integer)] = arith(arith(arith(arith(string("land(") + symbol(bleft:string)) + string(" ")) + symbol(bright:string)) + string(")"))
+                        array_assign valType$:string[symbol(spVal:integer)] = string("integer")
+                      else
+                        if compare(symbol(bop:string) = string("||"))
+                          array_assign valStack$:string[symbol(spVal:integer)] = arith(arith(arith(arith(string("lor(") + symbol(bleft:string)) + string(" ")) + symbol(bright:string)) + string(")"))
+                          array_assign valType$:string[symbol(spVal:integer)] = string("integer")
+                        else
+                          if compare(symbol(bop:string) = string("^^"))
+                            array_assign valStack$:string[symbol(spVal:integer)] = arith(arith(arith(arith(string("lxor(") + symbol(bleft:string)) + string(" ")) + symbol(bright:string)) + string(")"))
+                            array_assign valType$:string[symbol(spVal:integer)] = string("integer")
+                          else
+                            if compare(symbol(bop:string) = string("=="))
+                              assign bop:string = string("=")
+                            end if
+                            if compare(symbol(bop:string) = string("!="))
+                              assign bop:string = string("<>")
+                            end if
+                            array_assign valStack$:string[symbol(spVal:integer)] = arith(arith(arith(arith(arith(arith(string("compare(") + symbol(bleft:string)) + string(" ")) + symbol(bop:string)) + string(" ")) + symbol(bright:string)) + string(")"))
+                            array_assign valType$:string[symbol(spVal:integer)] = string("integer")
+                          end if
+                        end if
                       end if
-                      if compare(symbol(bop:string) = string("!="))
-                        assign bop:string = string("<>")
-                      end if
-                      array_assign valStack$:string[symbol(spVal:integer)] = arith(arith(arith(arith(arith(arith(string("compare(") + symbol(bleft:string)) + string(" ")) + symbol(bop:string)) + string(" ")) + symbol(bright:string)) + string(")"))
-                      array_assign valType$:string[symbol(spVal:integer)] = string("integer")
                     end if
                   end if
                 end if
@@ -1127,32 +1154,56 @@ function Main() -> integer
                             assign pendingPrec:integer = symbol(prec:integer)
                             assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                           else
-                            if and(compare(symbol(t:string) = string("keyword")) compare(symbol(v:string) = string("OR")))
-                              assign prec:integer = integer(1)
+                            if and(compare(symbol(t:string) = string("symbol")) compare(symbol(v:string) = string("&&")))
+                              assign prec:integer = integer(2)
                               assign popPrec:integer = symbol(prec:integer)
-                              assign pendingOp:string = string("OR")
+                              assign pendingOp:string = string("&&")
                               assign pendingPrec:integer = symbol(prec:integer)
                               assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                             else
-                              if and(compare(symbol(t:string) = string("keyword")) compare(symbol(v:string) = string("XOR")))
+                              if and(compare(symbol(t:string) = string("keyword")) compare(symbol(v:string) = string("OR")))
                                 assign prec:integer = integer(1)
                                 assign popPrec:integer = symbol(prec:integer)
-                                assign pendingOp:string = string("XOR")
+                                assign pendingOp:string = string("OR")
                                 assign pendingPrec:integer = symbol(prec:integer)
                                 assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                               else
-                                if and(compare(symbol(t:string) = string("symbol")) compare(symbol(v:string) = string(")")))
-                                  assign popPrec:integer = integer(0)
-                                  assign pendingOp:string = string(")")
+                                if and(compare(symbol(t:string) = string("keyword")) compare(symbol(v:string) = string("XOR")))
+                                  assign prec:integer = integer(1)
+                                  assign popPrec:integer = symbol(prec:integer)
+                                  assign pendingOp:string = string("XOR")
+                                  assign pendingPrec:integer = symbol(prec:integer)
                                   assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                                 else
-                                  if and(compare(symbol(t:string) = string("symbol")) compare(symbol(v:string) = string(",")))
-                                    assign popPrec:integer = integer(0)
-                                    assign pendingOp:string = string(",")
+                                  if and(compare(symbol(t:string) = string("symbol")) compare(symbol(v:string) = string("||")))
+                                    assign prec:integer = integer(1)
+                                    assign popPrec:integer = symbol(prec:integer)
+                                    assign pendingOp:string = string("||")
+                                    assign pendingPrec:integer = symbol(prec:integer)
                                     assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                                   else
-                                    assign edone:integer = integer(1)
-                                    assign popPrec:integer = integer(0)
+                                    if and(compare(symbol(t:string) = string("symbol")) compare(symbol(v:string) = string("^^")))
+                                      assign prec:integer = integer(1)
+                                      assign popPrec:integer = symbol(prec:integer)
+                                      assign pendingOp:string = string("^^")
+                                      assign pendingPrec:integer = symbol(prec:integer)
+                                      assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
+                                    else
+                                      if and(compare(symbol(t:string) = string("symbol")) compare(symbol(v:string) = string(")")))
+                                        assign popPrec:integer = integer(0)
+                                        assign pendingOp:string = string(")")
+                                        assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
+                                      else
+                                        if and(compare(symbol(t:string) = string("symbol")) compare(symbol(v:string) = string(",")))
+                                          assign popPrec:integer = integer(0)
+                                          assign pendingOp:string = string(",")
+                                          assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
+                                        else
+                                          assign edone:integer = integer(1)
+                                          assign popPrec:integer = integer(0)
+                                        end if
+                                      end if
+                                    end if
                                   end if
                                 end if
                               end if

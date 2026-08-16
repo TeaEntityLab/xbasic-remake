@@ -61,11 +61,29 @@ impl Parser {
             }
         };
         self.expect_keyword(Keyword::Then)?;
-        let stmt = self.parse_if_chain_with_cond(condition)?;
-        self.expect_keyword(Keyword::End)?;
-        self.expect_keyword(Keyword::If)?;
-        self.expect_line_end()?;
-        Ok(stmt)
+        if self.at_line_end() {
+            let stmt = self.parse_if_chain_with_cond(condition)?;
+            self.expect_keyword(Keyword::End)?;
+            self.expect_keyword(Keyword::If)?;
+            self.expect_line_end()?;
+            Ok(stmt)
+        } else {
+            // Single-line IFZ/IFT/IFF: THEN <stmt> [ELSE <stmt>]
+            self.in_single_line_if = true;
+            let then_body = vec![self.statement()?];
+            let else_body = if matches!(self.peek_keyword(), Some(Keyword::Else)) {
+                self.index += 1;
+                Some(vec![self.statement()?])
+            } else {
+                None
+            };
+            self.in_single_line_if = false;
+            Ok(Statement::If {
+                condition,
+                then_body,
+                else_body,
+            })
+        }
     }
 
     pub(crate) fn ifz_stmt(&mut self) -> Result<Statement, ParseError> {
@@ -94,9 +112,9 @@ impl Parser {
 impl Parser {
     pub(crate) fn gosub_stmt(&mut self) -> Result<Statement, ParseError> {
         self.index += 1;
-        let _ = self.expect_identifier()?;
+        let expr = self.label_expr()?;
         self.expect_line_end()?;
-        Ok(Statement::Program(String::new()))
+        Ok(Statement::Gosub(expr))
     }
 
     pub(crate) fn break_stmt(&mut self) -> Result<Statement, ParseError> {
@@ -107,9 +125,9 @@ impl Parser {
 
     pub(crate) fn goto_stmt(&mut self) -> Result<Statement, ParseError> {
         self.index += 1;
-        let (name, _) = self.expect_identifier()?;
+        let expr = self.label_expr()?;
         self.expect_line_end()?;
-        Ok(Statement::Goto(name))
+        Ok(Statement::Goto(expr))
     }
 
     pub(crate) fn stop_stmt(&mut self) -> Result<Statement, ParseError> {
@@ -119,8 +137,29 @@ impl Parser {
     }
 
     pub(crate) fn label_stmt(&mut self) -> Result<Statement, ParseError> {
-        self.index += 2;
-        Ok(Statement::Program(String::new()))
+        let (name, _) = self.expect_name_or_keyword()?;
+        self.index += 1; // skip colon
+        self.expect_line_end()?;
+        Ok(Statement::Label(name))
+    }
+}
+
+impl Parser {
+    /// Parse a label expression for GOSUB/GOTO — accepts keywords as label names.
+    fn label_expr(&mut self) -> Result<Expression, ParseError> {
+        let kind = self.peek_kind().clone();
+        match kind {
+            TokenKind::Identifier { name, suffix } => {
+                self.index += 1;
+                Ok(Expression::Identifier { name, suffix })
+            }
+            TokenKind::Keyword(kw) => {
+                self.index += 1;
+                let name = format!("{kw:?}");
+                Ok(Expression::Identifier { name, suffix: None })
+            }
+            _ => self.expression(),
+        }
     }
 }
 
@@ -174,9 +213,33 @@ impl Parser {
     pub(crate) fn read_stmt(&mut self) -> Result<Statement, ParseError> {
         self.index += 1;
         let mut vars = Vec::new();
+        if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+            self.index += 1;
+            // Skip file expression and closing ]
+            while !matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                if matches!(self.peek_kind(), TokenKind::Eof | TokenKind::Newline) {
+                    break;
+                }
+                self.index += 1;
+            }
+            if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                self.index += 1;
+            }
+            // Skip comma after [file]
+            if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                self.index += 1;
+            }
+        }
         loop {
-            let (name, suffix) = self.expect_identifier()?;
-            vars.push((name, suffix));
+            let (name, suffix) = self.expect_name_or_keyword()?;
+            // Skip optional array brackets
+            if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+                self.index += 1;
+                if !matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                    let _ = self.expression();
+                }
+                self.expect_symbol(']')?;
+            }
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
             } else {
@@ -203,6 +266,10 @@ impl Parser {
     pub(crate) fn version_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::Version)?;
         let version = self.expect_string()?;
+        // Skip optional date/comment after version string
+        while !self.at_line_end() && !self.at_eof() {
+            self.index += 1;
+        }
         self.expect_line_end()?;
         Ok(Statement::Version(version))
     }

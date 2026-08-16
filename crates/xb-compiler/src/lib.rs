@@ -1,11 +1,15 @@
 mod builtin;
 mod c_emit;
+mod c_emit_bitops;
 mod c_emit_data;
 mod c_emit_expr;
 mod c_emit_helpers;
+mod c_emit_logical;
 mod c_emit_select;
 mod c_emit_stmt;
+mod c_emit_str2;
 mod c_runtime;
+mod c_runtime_bit;
 mod c_runtime_math;
 pub mod checked;
 mod diagnostic;
@@ -20,12 +24,14 @@ pub mod semantics;
 mod semantics_expr;
 mod semantics_function;
 mod semantics_if;
+mod semantics_logical;
 mod semantics_select;
 mod semantics_shared_tests;
 mod semantics_statement;
 mod semantics_stmts;
 #[cfg(test)]
 mod semantics_tests;
+mod semantics_types;
 pub mod text_ir;
 mod text_ir_expr;
 mod text_ir_ops;
@@ -42,7 +48,8 @@ mod text_ir_tests;
 pub use c_emit::CEmitter;
 pub use checked::{
     ArithmeticOp, BooleanOp, CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam,
-    CheckedProgram, CheckedSymbol, ComparisonOp, PrintSep, SemanticError, ValueType,
+    CheckedProgram, CheckedSymbol, ComparisonOp, LogicalOp, PrintSep, SemanticError, UnaryOp,
+    ValueType,
 };
 pub use diagnostic::{BACKEND_DIAGNOSTIC_CODES, SOURCE_DIAGNOSTIC_CODES};
 pub use entry_lookup::EntryLookupError;
@@ -153,13 +160,11 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unknown_identifier_during_analysis() {
+    fn auto_declares_unknown_identifier_during_analysis() {
         let unit = FrontendUnit::parse("PRINT missing\n").unwrap();
         let result = unit.analyze();
-        assert!(matches!(
-            result,
-            Err(CompileError::Semantic(SemanticError::UnknownSymbol { ref name })) if name == "missing"
-        ));
+        // XBasic auto-declares variables on first use as integers
+        assert!(result.is_ok());
     }
 
     #[test]

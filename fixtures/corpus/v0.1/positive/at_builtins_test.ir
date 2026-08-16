@@ -1,0 +1,6 @@
+version 0.1
+function Main() -> integer
+  dim s:string
+  assign s:string = call CSTRING$(integer(0))
+  print string("done")
+end function

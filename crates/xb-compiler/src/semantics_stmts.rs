@@ -1,6 +1,6 @@
 use xb_frontend::{ArithmeticOp, Expression, TypeSuffix};
 
-use crate::checked::{CheckedItem, CheckedSymbol, SemanticError, ValueType};
+use crate::checked::{CheckedExpr, CheckedItem, CheckedSymbol, SemanticError, ValueType};
 use crate::semantics::{Analyzer, ItemResult};
 
 impl Analyzer {
@@ -21,11 +21,7 @@ impl Analyzer {
         let checked_size = match size {
             Some(e) => {
                 let ce = self.expr(e)?;
-                if ce.value_type != ValueType::Integer {
-                    return Err(SemanticError::IfConditionNotInteger {
-                        actual: ce.value_type,
-                    });
-                }
+                // Allow any type for array size (auto-declared as integer)
                 self.arrays.insert(full_name.clone(), vt);
                 Some(ce)
             }
@@ -43,8 +39,20 @@ impl Analyzer {
         }
     }
 
-    pub(crate) fn assignment(&self, name: &str, value: &Expression) -> ItemResult {
-        let target = self.checked_symbol(name)?;
+    pub(crate) fn assignment(&self, name: &str, suffix: Option<TypeSuffix>, value: &Expression) -> ItemResult {
+        let suffix_vt = ValueType::from_suffix(suffix);
+        let target = if self.symbols.contains_key(name) {
+            let sym = self.checked_symbol(name)?;
+            // If found type matches suffix type, use it; otherwise treat as different variable
+            if sym.value_type == suffix_vt {
+                sym
+            } else {
+                CheckedSymbol::new(name.to_owned(), suffix_vt)
+            }
+        } else {
+            // Auto-declare unknown variables based on type suffix
+            CheckedSymbol::new(name.to_owned(), suffix_vt)
+        };
         let value = self.expr(value)?;
         if target.value_type != value.value_type {
             return Err(SemanticError::TypeMismatch {
@@ -62,7 +70,7 @@ impl Analyzer {
         index: &Expression,
         value: &Expression,
     ) -> ItemResult {
-        let target = self.checked_symbol(name)?;
+        let target = self.auto_symbol(name);
         let index = self.expr(index)?;
         let value = self.expr(value)?;
         if target.value_type != value.value_type {
@@ -78,13 +86,53 @@ impl Analyzer {
             value,
         })
     }
+    pub(crate) fn mid_assign(
+        &self,
+        target: &Expression,
+        start: &Expression,
+        length: Option<&Expression>,
+        value: &Expression,
+    ) -> ItemResult {
+        let target = self.expr(target)?;
+        let start = self.expr(start)?;
+        let length = match length {
+            Some(e) => Some(self.expr(e)?),
+            None => None,
+        };
+        let value = self.expr(value)?;
+        Ok(CheckedItem::MidAssign {
+            target,
+            start,
+            length,
+            value,
+        })
+    }
+    pub(crate) fn builtin_assign(
+        &self,
+        name: &str,
+        args: &[Expression],
+        value: &Expression,
+    ) -> ItemResult {
+        let args: Vec<CheckedExpr> = args.iter().map(|a| self.expr(a)).collect::<Result<_, _>>()?;
+        let value = self.expr(value)?;
+        Ok(CheckedItem::BuiltinAssign {
+            name: name.to_string(),
+            args,
+            value,
+        })
+    }
     pub(crate) fn inc_dec(
         &self,
         name: &str,
         suffix: Option<TypeSuffix>,
         is_inc: bool,
     ) -> ItemResult {
-        let target = self.checked_symbol(name)?;
+        let target = if self.symbols.contains_key(name) {
+            self.checked_symbol(name)?
+        } else {
+            let vt = ValueType::from_suffix(suffix);
+            CheckedSymbol::new(name.to_owned(), vt)
+        };
         let one = Expression::IntegerLiteral("1".to_string());
         let current = Expression::Identifier {
             name: name.to_owned(),
@@ -117,8 +165,8 @@ impl Analyzer {
         right: &str,
         _right_suffix: Option<TypeSuffix>,
     ) -> ItemResult {
-        let left_sym = self.checked_symbol(left)?;
-        let right_sym = self.checked_symbol(right)?;
+        let left_sym = self.auto_symbol(left);
+        let right_sym = self.auto_symbol(right);
         if left_sym.value_type != right_sym.value_type {
             return Err(SemanticError::TypeMismatch {
                 name: left.to_owned(),

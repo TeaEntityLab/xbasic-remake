@@ -6,7 +6,9 @@ function Main() -> integer
   assign y:integer = integer(20)
   print arith(symbol(x:integer) + symbol(y:integer))
   if compare(symbol(x:integer) > integer(5))
+    goto skip
     print string("skipped")
   end if
+  label skip
   print string("done")
 end function

@@ -19,10 +19,13 @@ impl CheckedProgram {
                     ..
                 } => (candidate == name).then_some(body.as_slice()),
                 CheckedItem::Version(_)
+                | CheckedItem::ProgramName(_)
                 | CheckedItem::Print { .. }
                 | CheckedItem::Dim { .. }
                 | CheckedItem::Assignment { .. }
                 | CheckedItem::ArrayAssignment { .. }
+                | CheckedItem::MidAssign { .. }
+                | CheckedItem::BuiltinAssign { .. }
                 | CheckedItem::ConstantDefinition { .. }
                 | CheckedItem::If { .. }
                 | CheckedItem::While { .. }
@@ -39,7 +42,13 @@ impl CheckedProgram {
                 | CheckedItem::Compound(_)
                 | CheckedItem::Read(_)
                 | CheckedItem::Stop
-                | CheckedItem::Restore(_) => None,
+                | CheckedItem::Restore(_)
+                | CheckedItem::Gosub(_)
+                | CheckedItem::Label(_)
+                | CheckedItem::Goto(_)
+                | CheckedItem::GosubReturn
+                | CheckedItem::GosubExpr(_)
+                | CheckedItem::GotoExpr(_) => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),
@@ -58,11 +67,14 @@ impl IrProgram {
                     ..
                 } => (candidate == name).then_some(body.as_slice()),
                 IrItem::Version(_)
+                | IrItem::ProgramName(_)
                 | IrItem::Print { .. }
                 | IrItem::Dim { .. }
                 | IrItem::ConstantDefinition { .. }
                 | IrItem::Assignment { .. }
                 | IrItem::ArrayAssignment { .. }
+                | IrItem::MidAssign { .. }
+                | IrItem::BuiltinAssign { .. }
                 | IrItem::If { .. }
                 | IrItem::While { .. }
                 | IrItem::DoLoop { .. }
@@ -78,7 +90,13 @@ impl IrProgram {
                 | IrItem::Compound(_)
                 | IrItem::Read(_)
                 | IrItem::Stop
-                | IrItem::Restore(_) => None,
+                | IrItem::Restore(_)
+                | IrItem::Gosub(_)
+                | IrItem::Label(_)
+                | IrItem::Goto(_)
+                | IrItem::GosubReturn
+                | IrItem::GosubExpr(_)
+                | IrItem::GotoExpr(_) => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),

@@ -1,0 +1,8 @@
+PROGRAM "ubound_test"
+VERSION "0.1"
+FUNCTION Main
+DIM arr[10]
+DIM s$[5]
+PRINT UBOUND(arr[])
+PRINT UBOUND(s$[])
+END FUNCTION

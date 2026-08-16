@@ -1,0 +1,14 @@
+function Main() -> integer
+  print call CJUST$(string("cat"), integer(7))
+  print call CJUST$(string("cat"), integer(8))
+  print call CJUST$(string("catamaran"), integer(3))
+  print call CJUST$(string("xxx"), integer(9))
+  print call OCTO$(integer(255))
+  print call OCTO$(integer(255), integer(12))
+  print call BINB$(integer(255))
+  print call BINB$(integer(255), integer(12))
+  print call BIN$(integer(255), integer(12))
+  print call OCT$(integer(255), integer(12))
+  print call SIGN(float(3.14))
+  print call SIGN(float(0.0))
+end function

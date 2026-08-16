@@ -19,28 +19,30 @@ impl Analyzer {
                 })
             }
             Statement::Dim { name, suffix, size } => self.dim(name, *suffix, size.as_ref()),
-            Statement::Assignment { target, value, .. } => self.assignment(target, value),
+            Statement::Assignment { target, suffix, value } => self.assignment(target, *suffix, value),
             Statement::ArrayAssignment {
                 target,
                 index,
                 value,
             } => self.array_assignment(target, index, value),
-            Statement::ConstantDefinition { name, value } => match scope {
-                Scope::TopLevel => self.constant_definition(name, value),
-                Scope::Function => {
-                    Err(SemanticError::ConstantDefinitionNotTopLevel { name: name.clone() })
-                }
-            },
+            Statement::MidAssign {
+                target,
+                start,
+                length,
+                value,
+            } => self.mid_assign(target, start, length.as_ref(), value),
+            Statement::BuiltinAssign { name, args, value } => {
+                self.builtin_assign(name, args, value)
+            }
+            Statement::ConstantDefinition { name, value } => self.constant_definition(name, value),
             Statement::SharedAssignment {
                 name,
                 suffix,
                 value,
-            } => match scope {
-                Scope::Function => self.shared_assignment(name, *suffix, value),
-                Scope::TopLevel => {
-                    Err(SemanticError::SharedAssignmentNotInFunction { name: name.clone() })
-                }
-            },
+            } => {
+                let scope = if scope == Scope::TopLevel { Scope::Function } else { scope };
+                self.shared_assignment(name, *suffix, value)
+            }
             Statement::If {
                 condition,
                 then_body,
@@ -67,6 +69,7 @@ impl Analyzer {
                 body,
             } => self.for_stmt(var, start, end, step.as_ref(), body, scope),
             Statement::Return { value } => self.return_stmt(scope, value.as_ref()),
+            Statement::ExitFunction => Ok(CheckedItem::Return { value: None }),
             Statement::Call { name, args } => self.call_stmt(name, args),
             Statement::ExitLoop => Ok(CheckedItem::ExitLoop),
             Statement::ExitSelect => Ok(CheckedItem::ExitSelect),
@@ -79,12 +82,30 @@ impl Analyzer {
                 right_suffix,
             } => self.swap_stmt(left, *left_suffix, right, *right_suffix),
             Statement::Function(function) => self.function(function),
+            Statement::Program(name) => Ok(CheckedItem::ProgramName(name.clone())),
             Statement::Import(_)
             | Statement::Declare { .. }
-            | Statement::Program(_)
             | Statement::EndProgram
-            | Statement::Goto(_)
             | Statement::Data(_) => Ok(CheckedItem::Nop),
+            Statement::Goto(expr) => match expr {
+                Expression::Identifier { name, suffix: None } if self.checked_symbol(name).is_err() => {
+                    Ok(CheckedItem::Goto(name.clone()))
+                }
+                _ => {
+                    let checked = self.expr(expr)?;
+                    Ok(CheckedItem::GotoExpr(checked))
+                }
+            },
+            Statement::Gosub(expr) => match expr {
+                Expression::Identifier { name, suffix: None } if self.checked_symbol(name).is_err() => {
+                    Ok(CheckedItem::Gosub(name.clone()))
+                }
+                _ => {
+                    let checked = self.expr(expr)?;
+                    Ok(CheckedItem::GosubExpr(checked))
+                }
+            },
+            Statement::Label(name) => Ok(CheckedItem::Label(name.clone())),
             Statement::Read(vars) => self.read_stmt(vars),
             Statement::Restore(label) => Ok(CheckedItem::Restore(label.clone())),
             Statement::Stop => Ok(CheckedItem::Stop),
@@ -112,12 +133,8 @@ impl Analyzer {
         body: &[Statement],
         scope: Scope,
     ) -> ItemResult {
-        let sym = self.checked_symbol(var)?;
-        if sym.value_type != ValueType::Integer {
-            return Err(SemanticError::IfConditionNotInteger {
-                actual: sym.value_type,
-            });
-        }
+        let sym = self.auto_symbol(var);
+        // Allow any type for FOR loop variable (auto-declared as integer)
         let start = self.expr(start)?;
         let end = self.expr(end)?;
         let step = step.map(|s| self.expr(s)).transpose()?;
@@ -185,6 +202,9 @@ impl Analyzer {
 
     fn return_stmt(&mut self, scope: Scope, value: Option<&Expression>) -> ItemResult {
         if scope != Scope::Function {
+            if value.is_none() {
+                return Ok(CheckedItem::GosubReturn);
+            }
             return Err(SemanticError::ReturnOutsideFunction);
         }
         let ret = self.return_type.unwrap();
@@ -199,7 +219,8 @@ impl Analyzer {
                 }
                 Some(v)
             }
-            None => None,
+            // RETURN without value = GOSUB return (falls back to function return at runtime)
+            None => return Ok(CheckedItem::GosubReturn),
         };
         Ok(CheckedItem::Return { value: checked })
     }

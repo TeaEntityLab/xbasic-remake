@@ -1,0 +1,14 @@
+version 0.1
+function Main() -> integer
+  dim x:string
+  dim y:string
+  assign x:string = string("This lazy man")
+  assign y:string = string("is wolf")
+  mid_assign symbol(x:string) | integer(6) | integer(5) | symbol(y:string)
+  print symbol(x:string)
+  assign x:string = string("This lazy man")
+  mid_assign symbol(x:string) | integer(6) | symbol(y:string)
+  print symbol(x:string)
+  print call ISDATA(symbol(x:string))
+  print call ISNODE(symbol(x:string))
+end function

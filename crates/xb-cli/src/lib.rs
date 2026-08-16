@@ -174,13 +174,15 @@ fn run_path(path: &Path, input_path: Option<&Path>) -> Result<String, CliError> 
     let mut lines = Vec::new();
     if let Some(inp) = input_path {
         let input: Vec<String> = read_source(inp)?.lines().map(|l| l.to_string()).collect();
-        Interpreter::new()
-            .execute_main_with_input(&program, input, &mut lines)
-            .map_err(|e| CliError::Runtime(e.to_string()))?;
+        match Interpreter::new().execute_main_with_input(&program, input, &mut lines) {
+            Ok(_) | Err(xb_runtime::RuntimeError::Quit { .. }) => {}
+            Err(e) => return Err(CliError::Runtime(e.to_string())),
+        }
     } else {
-        Interpreter::new()
-            .execute_main(&program, &mut lines)
-            .map_err(|e| CliError::Runtime(e.to_string()))?;
+        match Interpreter::new().execute_main(&program, &mut lines) {
+            Ok(_) | Err(xb_runtime::RuntimeError::Quit { .. }) => {}
+            Err(e) => return Err(CliError::Runtime(e.to_string())),
+        }
     }
     Ok(lines.into_iter().map(|l| format!("{l}\n")).collect())
 }

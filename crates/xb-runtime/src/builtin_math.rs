@@ -165,3 +165,94 @@ pub(crate) fn eval_rounding(
     };
     Ok(RuntimeValue::Float(v))
 }
+
+pub(crate) fn eval_rotatel(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
+    let RuntimeValue::Integer(a) = &args[0] else {
+        return Err(type_err(args[0].value_type()));
+    };
+    let RuntimeValue::Integer(b) = &args[1] else {
+        return Err(type_err(args[1].value_type()));
+    };
+    let n = (*b as u32) % 32;
+    Ok(RuntimeValue::Integer((*a as u32).rotate_left(n) as i32))
+}
+
+pub(crate) fn eval_rotater(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
+    let RuntimeValue::Integer(a) = &args[0] else {
+        return Err(type_err(args[0].value_type()));
+    };
+    let RuntimeValue::Integer(b) = &args[1] else {
+        return Err(type_err(args[1].value_type()));
+    };
+    let n = (*b as u32) % 32;
+    Ok(RuntimeValue::Integer((*a as u32).rotate_right(n) as i32))
+}
+
+pub(crate) fn eval_dhigh(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
+    let RuntimeValue::Float(n) = &args[0] else {
+        return Err(type_err(args[0].value_type()));
+    };
+    Ok(RuntimeValue::Integer((n.to_bits() >> 32) as i32))
+}
+
+pub(crate) fn eval_dlow(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
+    let RuntimeValue::Float(n) = &args[0] else {
+        return Err(type_err(args[0].value_type()));
+    };
+    Ok(RuntimeValue::Integer(n.to_bits() as i32))
+}
+
+pub(crate) fn eval_dmake(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
+    let RuntimeValue::Integer(hi) = &args[0] else {
+        return Err(type_err(args[0].value_type()));
+    };
+    let RuntimeValue::Integer(lo) = &args[1] else {
+        return Err(type_err(args[1].value_type()));
+    };
+    let bits = ((*hi as u64) << 32) | (*lo as u64);
+    Ok(RuntimeValue::Float(f64::from_bits(bits)))
+}
+
+pub(crate) fn eval_gmake(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
+    let RuntimeValue::Integer(hi) = &args[0] else {
+        return Err(type_err(args[0].value_type()));
+    };
+    let RuntimeValue::Integer(lo) = &args[1] else {
+        return Err(type_err(args[1].value_type()));
+    };
+    let bits = ((*hi as u64) << 32) | (*lo as u64);
+    Ok(RuntimeValue::Integer(bits as i64 as i32))
+}
+
+pub(crate) fn eval_smake(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
+    let RuntimeValue::Integer(n) = &args[0] else {
+        return Err(type_err(args[0].value_type()));
+    };
+    Ok(RuntimeValue::Float(f32::from_bits(*n as u32) as f64))
+}
+
+pub(crate) fn eval_xmake(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
+    let RuntimeValue::Float(n) = &args[0] else {
+        return Err(type_err(args[0].value_type()));
+    };
+    Ok(RuntimeValue::Integer((*n as f32).to_bits() as i32))
+}
+
+pub(crate) fn eval_bit_reinterp(
+    name: &str,
+    args: &[RuntimeValue],
+) -> Result<RuntimeValue, RuntimeError> {
+    match name {
+        "ROTATEL" => eval_rotatel(args),
+        "ROTATER" => eval_rotater(args),
+        "DHIGH" => eval_dhigh(args),
+        "DLOW" => eval_dlow(args),
+        "DMAKE" => eval_dmake(args),
+        "GMAKE" => eval_gmake(args),
+        "SMAKE" => eval_smake(args),
+        "XMAKE" => eval_xmake(args),
+        "BITFIELD" | "EXTS" | "EXTU" | "CLR" | "SET" | "MAKE" | "HIGH0" | "HIGH1" | "GHIGH"
+        | "GLOW" | "SIGN" => crate::builtin_bitops::eval_bit_op(name, args),
+        _ => unreachable!(),
+    }
+}

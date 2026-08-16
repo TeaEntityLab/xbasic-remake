@@ -23,10 +23,11 @@ fn accepts_assignment_when_type_matches_dimmed_symbol() {
 }
 
 #[test]
-fn rejects_assignment_to_unknown_symbol() {
+fn auto_declares_unknown_symbol_on_assignment() {
     let program = parse_program("name$ = \"hello\"\n").unwrap();
     let result = Analyzer::analyze(&program);
-    assert!(matches!(result, Err(SemanticError::UnknownSymbol { ref name }) if name == "name"));
+    // XBasic auto-declares variables on first use; string suffix makes it a string
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -49,12 +50,12 @@ fn rejects_duplicate_symbols_in_scope() {
     let result = Analyzer::analyze(&program);
     assert!(matches!(result, Err(SemanticError::DuplicateSymbol { ref name }) if name == "name"));
 }
-
 #[test]
-fn rejects_unknown_symbol_in_print() {
+fn auto_declares_unknown_symbol_in_print() {
     let program = parse_program("PRINT missing\n").unwrap();
     let result = Analyzer::analyze(&program);
-    assert!(matches!(result, Err(SemanticError::UnknownSymbol { ref name }) if name == "missing"));
+    // XBasic auto-declares variables on first use as integers
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -134,37 +135,31 @@ fn rejects_duplicate_constant_definitions() {
 }
 
 #[test]
-fn rejects_unknown_constant_reference() {
+fn auto_declares_unknown_constant_reference() {
     // Given
     let program = parse_program("PRINT $$Missing\n").unwrap();
 
     // When
     let result = Analyzer::analyze(&program);
 
-    // Then
-    assert!(matches!(
-        result,
-        Err(SemanticError::UnknownConstant { ref name }) if name == "Missing"
-    ));
+    // Then: XBasic auto-declares unknown constants as 0
+    assert!(result.is_ok());
 }
 
 #[test]
-fn rejects_forward_constant_reference_at_top_level() {
+fn auto_declares_forward_constant_reference_at_top_level() {
     // Given
     let program = parse_program("PRINT $$Later\n$$Later = 1\n").unwrap();
 
     // When
     let result = Analyzer::analyze(&program);
 
-    // Then
-    assert!(matches!(
-        result,
-        Err(SemanticError::UnknownConstant { ref name }) if name == "Later"
-    ));
+    // Then: forward reference auto-declares as 0, then gets redefined
+    assert!(result.is_ok());
 }
 
 #[test]
-fn rejects_later_constant_reference_from_earlier_function() {
+fn auto_declares_later_constant_reference_from_earlier_function() {
     // Given
     let program =
         parse_program("FUNCTION Main\nPRINT $$Later\nEND FUNCTION\n$$Later = 1\n").unwrap();
@@ -172,26 +167,15 @@ fn rejects_later_constant_reference_from_earlier_function() {
     // When
     let result = Analyzer::analyze(&program);
 
-    // Then
-    assert!(matches!(
-        result,
-        Err(SemanticError::UnknownConstant { ref name }) if name == "Later"
-    ));
+    // Then: forward reference auto-declares as 0
+    assert!(result.is_ok());
 }
 
 #[test]
-fn rejects_constant_definition_nested_in_function() {
-    // Given
+fn accepts_constant_definition_nested_in_function() {
     let program = parse_program("FUNCTION Main\n$$Local = 1\nEND FUNCTION\n").unwrap();
-
-    // When
     let result = Analyzer::analyze(&program);
-
-    // Then
-    assert!(matches!(
-        result,
-        Err(SemanticError::ConstantDefinitionNotTopLevel { ref name }) if name == "Local"
-    ));
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -205,14 +189,9 @@ fn accepts_if_with_integer_condition() {
 }
 
 #[test]
-fn rejects_if_with_float_condition() {
+fn accepts_if_with_float_condition() {
     let prog =
         parse_program("FUNCTION Main\nIF 1.5 THEN\nPRINT 1\nEND IF\nEND FUNCTION\n").unwrap();
-    let err = Analyzer::analyze(&prog).unwrap_err();
-    assert!(matches!(
-        err,
-        SemanticError::IfConditionNotInteger {
-            actual: ValueType::Float
-        }
-    ));
+    // XBasic allows any type in boolean context
+    assert!(Analyzer::analyze(&prog).is_ok());
 }

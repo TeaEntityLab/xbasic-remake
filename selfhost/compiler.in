@@ -262,7 +262,27 @@ WHILE pos <= LEN(src$)
         done = 1
       ELSE
         ch = ASC(MID$(src$, pos, 1))
-        IF ch = 34 THEN
+        IF ch = 92 THEN
+          ' Backslash escape: quote, backslash, n, t, r
+          pos = pos + 1
+          IF pos <= LEN(src$) THEN
+            ch = ASC(MID$(src$, pos, 1))
+            IF ch = 34 THEN
+              tok$ = tok$ + CHR$(34)
+            ELSEIF ch = 92 THEN
+              tok$ = tok$ + CHR$(92)
+            ELSEIF ch = 110 THEN
+              tok$ = tok$ + CHR$(10)
+            ELSEIF ch = 116 THEN
+              tok$ = tok$ + CHR$(9)
+            ELSEIF ch = 114 THEN
+              tok$ = tok$ + CHR$(13)
+            ELSE
+              tok$ = tok$ + CHR$(92) + CHR$(ch)
+            END IF
+            pos = pos + 1
+          END IF
+        ELSEIF ch = 34 THEN
           pos = pos + 1
           done = 1
         ELSE
@@ -329,6 +349,36 @@ WHILE pos <= LEN(src$)
       tv$(ntok) = "*"
       pos = pos + 1
     END IF
+  ELSEIF ch = 61 THEN
+    tok$ = "="
+    pos = pos + 1
+    IF pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) = 61 THEN
+      tok$ = "=="
+      pos = pos + 1
+    END IF
+    ntok = ntok + 1
+    tt$(ntok) = "symbol"
+    tv$(ntok) = tok$
+  ELSEIF ch = 33 THEN
+    tok$ = "!"
+    pos = pos + 1
+    IF pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) = 61 THEN
+      tok$ = "!="
+      pos = pos + 1
+    END IF
+    ntok = ntok + 1
+    tt$(ntok) = "symbol"
+    tv$(ntok) = tok$
+  ELSEIF ch = 38 OR ch = 124 OR ch = 94 THEN
+    tok$ = CHR$(ch)
+    pos = pos + 1
+    IF pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) = ch THEN
+      tok$ = tok$ + CHR$(ch)
+      pos = pos + 1
+    END IF
+    ntok = ntok + 1
+    tt$(ntok) = "symbol"
+    tv$(ntok) = tok$
   ELSE
     ntok = ntok + 1
     tt$(ntok) = "symbol"
@@ -673,7 +723,7 @@ WHILE tpos <= ntok
                   WEND
                   bn$ = fname$
                   IF RIGHT$(bn$, 1) = "$" THEN
-                    IF bn$ <> "CHR$" AND bn$ <> "LEFT$" AND bn$ <> "RIGHT$" AND bn$ <> "MID$" AND bn$ <> "STR$" AND bn$ <> "READLINE$" AND bn$ <> "UCASE$" AND bn$ <> "LCASE$" AND bn$ <> "TRIM$" AND bn$ <> "LTRIM$" AND bn$ <> "RTRIM$" AND bn$ <> "SPACE$" THEN
+                    IF bn$ <> "CHR$" AND bn$ <> "LEFT$" AND bn$ <> "RIGHT$" AND bn$ <> "MID$" AND bn$ <> "STR$" AND bn$ <> "READLINE$" AND bn$ <> "UCASE$" AND bn$ <> "LCASE$" AND bn$ <> "TRIM$" AND bn$ <> "LTRIM$" AND bn$ <> "RTRIM$" AND bn$ <> "SPACE$" AND bn$ <> "HEX$" AND bn$ <> "BIN$" AND bn$ <> "OCT$" AND bn$ <> "HEXX$" AND bn$ <> "RJUST$" AND bn$ <> "LJUST$" AND bn$ <> "CJUST$" AND bn$ <> "RCLIP$" AND bn$ <> "LCLIP$" AND bn$ <> "STUFF$" AND bn$ <> "VERSION$" AND bn$ <> "SIGNED$" AND bn$ <> "NULL$" AND bn$ <> "ERROR$" AND bn$ <> "OCTO$" AND bn$ <> "BINB$" AND bn$ <> "FORMAT$" THEN
                       bn$ = strip_suffix$(bn$)
                     END IF
                   ELSEIF RIGHT$(bn$, 1) = "%" OR RIGHT$(bn$, 1) = "!" OR RIGHT$(bn$, 1) = "#" THEN
@@ -747,12 +797,12 @@ WHILE tpos <= ntok
             spVal = spVal - 1
             bleft$ = valStack$(spVal)
             blt$ = valType$(spVal)
-            IF bop$ = "+" OR bop$ = "-" OR bop$ = "*" OR bop$ = "/" OR bop$ = "\" OR bop$ = "MOD" OR bop$ = "**" THEN
+            IF bop$ = "+" OR bop$ = "-" OR bop$ = "*" OR bop$ = "/" OR bop$ = "\\" OR bop$ = "MOD" OR bop$ = "**" THEN
               bres$ = "arith(" + bleft$ + " " + bop$ + " " + bright$ + ")"
               valStack$(spVal) = bres$
               IF bop$ = "+" AND (blt$ = "string" OR brt$ = "string") THEN
                 valType$(spVal) = "string"
-              ELSEIF bop$ = "\" OR bop$ = "MOD" THEN
+              ELSEIF bop$ = "\\" OR bop$ = "MOD" THEN
                 valType$(spVal) = "integer"
               ELSEIF blt$ = "float" OR brt$ = "float" THEN
                 valType$(spVal) = "float"
@@ -768,7 +818,22 @@ WHILE tpos <= ntok
             ELSEIF bop$ = "XOR" THEN
               valStack$(spVal) = "xor(" + bleft$ + " " + bright$ + ")"
               valType$(spVal) = "integer"
+            ELSEIF bop$ = "&&" THEN
+              valStack$(spVal) = "land(" + bleft$ + " " + bright$ + ")"
+              valType$(spVal) = "integer"
+            ELSEIF bop$ = "||" THEN
+              valStack$(spVal) = "lor(" + bleft$ + " " + bright$ + ")"
+              valType$(spVal) = "integer"
+            ELSEIF bop$ = "^^" THEN
+              valStack$(spVal) = "lxor(" + bleft$ + " " + bright$ + ")"
+              valType$(spVal) = "integer"
             ELSE
+              IF bop$ = "==" THEN
+                bop$ = "="
+              END IF
+              IF bop$ = "!=" THEN
+                bop$ = "<>"
+              END IF
               valStack$(spVal) = "compare(" + bleft$ + " " + bop$ + " " + bright$ + ")"
               valType$(spVal) = "integer"
             END IF
@@ -929,7 +994,7 @@ WHILE tpos <= ntok
             pendingOp$ = v$
             pendingPrec = prec
             tpos = tpos + 1
-          ELSEIF t$ = "symbol" AND (v$ = "*" OR v$ = "/" OR v$ = "\") THEN
+          ELSEIF t$ = "symbol" AND (v$ = "*" OR v$ = "/" OR v$ = "\\") THEN
             prec = 6
             popPrec = prec
             pendingOp$ = v$
@@ -947,7 +1012,7 @@ WHILE tpos <= ntok
             pendingOp$ = "**"
             pendingPrec = prec
             tpos = tpos + 1
-          ELSEIF t$ = "symbol" AND (v$ = "=" OR v$ = "<" OR v$ = ">" OR v$ = "<=" OR v$ = ">=" OR v$ = "<>") THEN
+          ELSEIF t$ = "symbol" AND (v$ = "=" OR v$ = "==" OR v$ = "<" OR v$ = ">" OR v$ = "<=" OR v$ = ">=" OR v$ = "<>" OR v$ = "!=") THEN
             prec = 4
             popPrec = prec
             pendingOp$ = v$
@@ -957,6 +1022,12 @@ WHILE tpos <= ntok
             prec = 2
             popPrec = prec
             pendingOp$ = "AND"
+            pendingPrec = prec
+            tpos = tpos + 1
+          ELSEIF t$ = "symbol" AND v$ = "&&" THEN
+            prec = 2
+            popPrec = prec
+            pendingOp$ = "&&"
             pendingPrec = prec
             tpos = tpos + 1
           ELSEIF t$ = "keyword" AND v$ = "OR" THEN
@@ -969,6 +1040,18 @@ WHILE tpos <= ntok
             prec = 1
             popPrec = prec
             pendingOp$ = "XOR"
+            pendingPrec = prec
+            tpos = tpos + 1
+          ELSEIF t$ = "symbol" AND v$ = "||" THEN
+            prec = 1
+            popPrec = prec
+            pendingOp$ = "||"
+            pendingPrec = prec
+            tpos = tpos + 1
+          ELSEIF t$ = "symbol" AND v$ = "^^" THEN
+            prec = 1
+            popPrec = prec
+            pendingOp$ = "^^"
             pendingPrec = prec
             tpos = tpos + 1
           ELSEIF t$ = "symbol" AND v$ = ")" THEN

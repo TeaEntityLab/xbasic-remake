@@ -77,6 +77,7 @@ pub enum Keyword {
     Read,
     Stop,
     Restore,
+    FuncAddr,
 }
 impl Keyword {
     pub fn parse(input: &str) -> Option<Self> {
@@ -138,6 +139,7 @@ impl Keyword {
             "READ" => Some(Self::Read),
             "STOP" => Some(Self::Stop),
             "RESTORE" => Some(Self::Restore),
+            "FUNCADDR" => Some(Self::FuncAddr),
             _ => None,
         }
     }
@@ -179,6 +181,9 @@ pub enum TokenKind {
     Shl,
     Shr,
     Power,
+    LogicalAnd,
+    LogicalOr,
+    LogicalXor,
     Symbol(char),
     Newline,
     Eof,

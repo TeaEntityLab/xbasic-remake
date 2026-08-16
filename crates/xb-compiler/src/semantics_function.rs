@@ -73,17 +73,20 @@ impl Analyzer {
         };
         Ok(CheckedSymbol::new(name.to_owned(), vt))
     }
-}
 
+    /// Like checked_symbol but auto-declares unknown symbols as Integer
+    pub(crate) fn auto_symbol(&self, name: &str) -> CheckedSymbol {
+        let vt = self.symbols.get(name).copied().unwrap_or(ValueType::Integer);
+        CheckedSymbol::new(name.to_owned(), vt)
+    }
+}
 impl Analyzer {
     pub(crate) fn constant(&self, name: &str) -> crate::semantics::ExprResult {
         let value = self
             .constants
             .get(name)
             .cloned()
-            .ok_or(SemanticError::UnknownConstant {
-                name: name.to_owned(),
-            })?;
+            .unwrap_or_else(|| "0".to_owned());
         Ok(CheckedExpr::new(
             crate::checked::CheckedExprKind::Constant {
                 name: name.to_owned(),

@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Param, Statement};
+use crate::ast::{Expression, Param, Statement, UnaryOp};
 use crate::parser::{ParseError, Parser};
 use crate::token::{Keyword, SourcePos, TokenKind, TypeSuffix};
 
@@ -13,6 +13,29 @@ impl Parser {
         }
     }
 
+    /// Like expect_identifier but also accepts keywords as names (XBasic
+    /// allows keywords like Print as SUB/function/label names).
+    pub(crate) fn expect_name_or_keyword(&mut self) -> Result<(String, Option<TypeSuffix>), ParseError> {
+        match self.peek_kind().clone() {
+            TokenKind::Identifier { name, suffix } => {
+                self.index += 1;
+                Ok((name, suffix))
+            }
+            TokenKind::Keyword(kw) => {
+                self.index += 1;
+                Ok((format!("{kw:?}"), None))
+            }
+            TokenKind::SystemVariable { name, suffix } => {
+                self.index += 1;
+                Ok((name, suffix))
+            }
+            TokenKind::SharedName(name) => {
+                self.index += 1;
+                Ok((name, None))
+            }
+            _ => Err(self.expected("identifier")),
+        }
+    }
     pub(crate) fn expect_string(&mut self) -> Result<String, ParseError> {
         match self.peek_kind().clone() {
             TokenKind::StringLiteral(value) => {
@@ -50,6 +73,11 @@ impl Parser {
                 Ok(())
             }
             TokenKind::Eof => Ok(()),
+            TokenKind::Keyword(Keyword::Else) | TokenKind::Keyword(Keyword::ElseIf)
+                if self.in_single_line_if =>
+            {
+                Ok(())
+            }
             _ => Err(self.expected("end of line")),
         }
     }
@@ -64,10 +92,15 @@ impl Parser {
     }
 
     pub(crate) fn at_line_end(&self) -> bool {
-        matches!(
-            self.peek_kind(),
-            TokenKind::Newline | TokenKind::Eof | TokenKind::Symbol(':')
-        )
+        match self.peek_kind() {
+            TokenKind::Newline | TokenKind::Eof | TokenKind::Symbol(':') => true,
+            TokenKind::Keyword(Keyword::Else) | TokenKind::Keyword(Keyword::ElseIf)
+                if self.in_single_line_if =>
+            {
+                true
+            }
+            _ => false,
+        }
     }
 
     pub(crate) fn peek_keyword(&self) -> Option<Keyword> {
@@ -99,7 +132,16 @@ impl Parser {
             Ok(Some(e))
         } else if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
             self.index += 1;
+            if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                self.index += 1;
+                return Ok(None);
+            }
             let e = self.expression()?;
+            // Skip additional dimensions (comma-separated) — use first only
+            while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                self.index += 1;
+                let _ = self.expression();
+            }
             self.expect_symbol(']')?;
             Ok(Some(e))
         } else {
@@ -182,17 +224,65 @@ impl Parser {
         matches!(self.peek_kind(), TokenKind::SystemConstant(_))
             && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
     }
+    pub(crate) fn starts_typed_dim(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Identifier { .. })
+            && (matches!(self.peek_next_kind(), Some(TokenKind::Identifier { .. }))
+                || matches!(self.peek_next_kind(), Some(TokenKind::SystemVariable { .. }))
+                || matches!(self.peek_next_kind(), Some(TokenKind::SharedName(_))))
+    }
+
+    /// Detect shared name assignments: #var = value
+    pub(crate) fn starts_shared_name_assignment(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::SharedName(_))
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
+    }
+
     pub(crate) fn starts_shared_assignment(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::SystemVariable { .. })
             && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
     }
-
     pub(crate) fn parse_params(&mut self) -> Result<Vec<Param>, ParseError> {
         self.expect_symbol('(')?;
         let mut params = Vec::new();
         if !matches!(self.peek_kind(), TokenKind::Symbol(')')) {
             loop {
-                let (name, suffix) = self.expect_identifier()?;
+                // Handle grouped params: (r1, r1$, r1[], r1$[])
+                if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+                    self.index += 1;
+                    while !matches!(self.peek_kind(), TokenKind::Symbol(')')) && !self.at_eof() {
+                        self.index += 1;
+                    }
+                    self.expect_symbol(')')?;
+                    if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                        self.index += 1;
+                    } else {
+                        break;
+                    }
+                    continue;
+                }
+                if matches!(self.peek_kind(), TokenKind::Symbol('@')) {
+                    self.index += 1;
+                }
+                // Skip optional type qualifier (ANY, STRING, INTEGER, etc.)
+                if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
+                    let save = self.index;
+                    self.index += 1;
+                    // If next is another identifier, the first was a type qualifier
+                    if !matches!(self.peek_kind(), TokenKind::Identifier { .. })
+                        && !matches!(self.peek_kind(), TokenKind::Symbol('@'))
+                    {
+                        self.index = save; // Not a type qualifier, restore
+                    }
+                }
+                let (name, suffix) = self.expect_name_or_keyword()?;
+                // Skip optional array brackets
+                if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+                    self.index += 1;
+                    if !matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                        let _ = self.expression();
+                    }
+                    self.expect_symbol(']')?;
+                }
                 params.push(Param { name, suffix });
                 if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                     self.index += 1;
@@ -227,12 +317,26 @@ impl Parser {
         };
         self.index += 1;
         self.expect_symbol('=')?;
-        let TokenKind::IntegerLiteral(value) = self.peek_kind().clone() else {
-            return Err(self.expected("integer literal"));
+        let value = self.expression()?;
+        // Allow next $ constant on same line without separator
+        if !matches!(self.peek_kind(), TokenKind::SystemConstant(_)) {
+            self.expect_line_end()?;
+        }
+        // Extract string representation from the expression for ConstantDefinition
+        let value_str = match &value {
+            Expression::IntegerLiteral(s) => s.clone(),
+            Expression::FloatLiteral(s) => s.clone(),
+            Expression::StringLiteral(s) => s.clone(),
+            Expression::Unary { op: UnaryOp::Neg, operand } => {
+                if let Expression::IntegerLiteral(s) = operand.as_ref() {
+                    format!("-{s}")
+                } else {
+                    "0".to_string()
+                }
+            }
+            _ => "0".to_string(),
         };
-        self.index += 1;
-        self.expect_line_end()?;
-        Ok(Statement::ConstantDefinition { name, value })
+        Ok(Statement::ConstantDefinition { name, value: value_str })
     }
 
     pub(crate) fn const_stmt(&mut self) -> Result<Statement, ParseError> {
@@ -258,6 +362,21 @@ impl Parser {
         Ok(Statement::SharedAssignment {
             name,
             suffix,
+            value,
+        })
+    }
+
+    pub(crate) fn shared_name_assignment_stmt(&mut self) -> Result<Statement, ParseError> {
+        let TokenKind::SharedName(name) = self.peek_kind().clone() else {
+            return Err(self.expected("shared name"));
+        };
+        self.index += 1;
+        self.expect_symbol('=')?;
+        let value = self.expression()?;
+        self.expect_line_end()?;
+        Ok(Statement::SharedAssignment {
+            name,
+            suffix: None,
             value,
         })
     }

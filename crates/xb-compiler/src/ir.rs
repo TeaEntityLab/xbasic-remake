@@ -1,4 +1,6 @@
-use crate::checked::{ArithmeticOp, BooleanOp, CheckedProgram, ComparisonOp, PrintSep, ValueType};
+use crate::checked::{
+    ArithmeticOp, BooleanOp, CheckedProgram, ComparisonOp, LogicalOp, PrintSep, ValueType,
+};
 use crate::text_ir::TextIrEmitter;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,6 +32,7 @@ impl IrProgram {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IrItem {
     Version(String),
+    ProgramName(String),
     Print {
         items: Vec<IrExpr>,
         separators: Vec<PrintSep>,
@@ -45,6 +48,17 @@ pub enum IrItem {
     ArrayAssignment {
         target: IrSymbol,
         index: IrExpr,
+        value: IrExpr,
+    },
+    MidAssign {
+        target: IrExpr,
+        start: IrExpr,
+        length: Option<IrExpr>,
+        value: IrExpr,
+    },
+    BuiltinAssign {
+        name: String,
+        args: Vec<IrExpr>,
         value: IrExpr,
     },
     ConstantDefinition {
@@ -106,6 +120,12 @@ pub enum IrItem {
     Read(Vec<IrSymbol>),
     Stop,
     Restore(Option<String>),
+    Gosub(String),
+    Label(String),
+    Goto(String),
+    GosubReturn,
+    GosubExpr(IrExpr),
+    GotoExpr(IrExpr),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -147,9 +167,18 @@ pub enum IrExprKind {
         left: Box<IrExpr>,
         right: Box<IrExpr>,
     },
+    Unary {
+        op: xb_frontend::UnaryOp,
+        operand: Box<IrExpr>,
+    },
     Not(Box<IrExpr>),
     Boolean {
         op: BooleanOp,
+        left: Box<IrExpr>,
+        right: Box<IrExpr>,
+    },
+    Logical {
+        op: LogicalOp,
         left: Box<IrExpr>,
         right: Box<IrExpr>,
     },
@@ -161,6 +190,16 @@ pub enum IrExprKind {
         symbol: IrSymbol,
         index: Box<IrExpr>,
     },
+    ArrayUBound {
+        symbol: IrSymbol,
+    },
+    SizeOf {
+        symbol: IrSymbol,
+    },
+    SizeOfType {
+        value_type: ValueType,
+    },
+    LabelAddress(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

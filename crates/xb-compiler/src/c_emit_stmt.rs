@@ -1,12 +1,13 @@
+use crate::c_emit_helpers::emit_c_function_name;
+use crate::c_emit::c_type;
 use crate::c_emit_expr::{emit_default, emit_expr, emit_var_name};
 use crate::c_emit_select::emit_body;
-use crate::c_runtime::c_type;
 use crate::ir::IrItem;
 use crate::ValueType;
 pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
     let ind = "    ".repeat(indent);
     match item {
-        IrItem::Version(_) => {}
+        IrItem::Version(_) | IrItem::ProgramName(_) => {}
         IrItem::Print { items, separators } => {
             crate::c_emit_select::emit_print(items, separators, out, indent);
         }
@@ -58,6 +59,59 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             out.push_str("] = ");
             emit_expr(value, out);
             out.push_str(";\n");
+        }
+        IrItem::MidAssign {
+            target,
+            start,
+            length,
+            value,
+        } => {
+            out.push_str(&ind);
+            out.push_str("xb_mid_assign(");
+            emit_expr(target, out);
+            out.push_str(", ");
+            emit_expr(start, out);
+            out.push_str(", ");
+            if let Some(len) = length {
+                emit_expr(len, out);
+            } else {
+                out.push_str("-1");
+            }
+            out.push_str(", ");
+            emit_expr(value, out);
+            out.push_str(");\n");
+        }
+        IrItem::BuiltinAssign { name, args, value } => {
+            out.push_str(&ind);
+            // *AT assignment: e.g. UBYTEAT(addr, off) = val → *(unsigned char*)(addr+off) = val
+            if is_at_write_builtin(name) {
+                let (ctype, is_float) = at_write_ctype(name);
+                out.push_str(&format!("*({ctype}*)("));
+                emit_expr(&args[0], out);
+                if args.len() == 2 {
+                    out.push_str(" + ");
+                    emit_expr(&args[1], out);
+                }
+                out.push_str(") = ");
+                if is_float {
+                    out.push_str("(double)");
+                }
+                emit_expr(value, out);
+                out.push_str(";\n");
+            } else {
+                // Fallback: function call style
+                emit_c_function_name(name, out);
+                out.push_str("(");
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    emit_expr(arg, out);
+                }
+                out.push_str(") = ");
+                emit_expr(value, out);
+                out.push_str(";\n");
+            }
         }
         IrItem::ConstantDefinition { .. } => {}
         IrItem::SharedAssignment { target, value } => {
@@ -202,8 +256,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         }
         IrItem::Call { name, args } => {
             out.push_str(&ind);
-            out.push_str("xb_user_");
-            out.push_str(name);
+            crate::c_emit_helpers::emit_c_function_name(name, out);
             out.push('(');
             for (i, arg) in args.iter().enumerate() {
                 if i > 0 {
@@ -244,5 +297,60 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             out.push_str(&ind);
             out.push_str("exit(0);\n");
         }
+        IrItem::Label(name) => {
+            out.push_str(&format!("xb_label_{}:\n", name));
+        }
+        IrItem::Goto(name) => {
+            out.push_str(&ind);
+            out.push_str(&format!("goto xb_label_{};\n", name));
+        }
+        IrItem::Gosub(name) => {
+            out.push_str(&ind);
+            out.push_str(&format!("xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_{}; goto xb_label_{};\n", name, name));
+            out.push_str(&format!("xb_gosub_ret_{}:\n", name));
+        }
+        IrItem::GosubReturn => {
+            out.push_str(&ind);
+            out.push_str("if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;\n");
+        }
+        IrItem::GosubExpr(expr) => {
+            out.push_str(&ind);
+            out.push_str("xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_expr; goto *(void*)");
+            emit_expr(expr, out);
+            out.push_str("; xb_gosub_ret_expr: (void)0;\n");
+        }
+        IrItem::GotoExpr(expr) => {
+            out.push_str(&ind);
+            out.push_str("goto *(void*)");
+            emit_expr(expr, out);
+            out.push_str(";\n");
+        }
+    }
+}
+
+fn is_at_write_builtin(name: &str) -> bool {
+    matches!(
+        name,
+        "SBYTEAT" | "UBYTEAT" | "SSHORTAT" | "USHORTAT"
+            | "SLONGAT" | "ULONGAT" | "XLONGAT" | "GIANTAT"
+            | "SINGLEAT" | "DOUBLEAT" | "SUBADDRAT" | "GOADDRAT"
+    )
+}
+
+fn at_write_ctype(name: &str) -> (&'static str, bool) {
+    match name {
+        "SBYTEAT" => ("signed char", false),
+        "UBYTEAT" => ("unsigned char", false),
+        "SSHORTAT" => ("signed short", false),
+        "USHORTAT" => ("unsigned short", false),
+        "SLONGAT" => ("signed int", false),
+        "ULONGAT" => ("unsigned int", false),
+        "XLONGAT" => ("intptr_t", false),
+        "GIANTAT" => ("intptr_t", false),
+        "SINGLEAT" => ("float", true),
+        "DOUBLEAT" => ("double", true),
+        "SUBADDRAT" => ("intptr_t", false),
+        "GOADDRAT" => ("intptr_t", false),
+        _ => ("int", false),
     }
 }

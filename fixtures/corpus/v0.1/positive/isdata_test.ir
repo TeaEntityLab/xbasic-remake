@@ -1,0 +1,11 @@
+version 0.1
+function Main() -> integer
+  dim s:string
+  dim t:string
+  assign s:string = string("hello")
+  assign t:string = string("")
+  print call ISDATA(symbol(s:string))
+  print call ISDATA(symbol(t:string))
+  print call ISDATA(string("world"))
+  print call ISDATA(string(""))
+end function

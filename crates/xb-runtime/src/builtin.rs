@@ -106,7 +106,7 @@ pub(crate) fn eval_builtin(
         "TAN" => float_fn(args, |v| v.tan()),
         "EXP" => float_fn(args, |v| v.exp()),
         "LOG" => float_fn(args, |v| v.ln()),
-        "ATN" => float_fn(args, |v| v.atan()),
+        "ATN" | "ATAN" => float_fn(args, |v| v.atan()),
         "ACOS" => float_fn(args, |v| v.acos()),
         "ASIN" => float_fn(args, |v| v.asin()),
         "LOG10" => float_fn(args, |v| v.log10()),
@@ -159,7 +159,9 @@ pub(crate) fn eval_builtin(
         }
         "ABS" => crate::builtin_math::eval_abs(args),
         "DOUBLE" | "SINGLE" => crate::builtin_math::eval_to_float(args),
-        "XLONG" => crate::builtin_math::eval_to_int(args),
+        "XLONG" | "SBYTE" | "UBYTE" | "SSHORT" | "USHORT" | "SLONG" | "ULONG" | "GIANT" => {
+            crate::builtin_math::eval_to_int(args)
+        }
         "SGN" => {
             let RuntimeValue::Integer(n) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
@@ -178,35 +180,89 @@ pub(crate) fn eval_builtin(
             };
             Ok(RuntimeValue::Integer(*n as i32))
         }
-        "MAX" => {
+        "MAX" | "MIN" => {
             let RuntimeValue::Integer(a) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
             let RuntimeValue::Integer(b) = &args[1] else {
                 return Err(type_err(args[1].value_type()));
             };
-            Ok(RuntimeValue::Integer(*a.max(b)))
+            Ok(RuntimeValue::Integer(if name == "MAX" {
+                *a.max(b)
+            } else {
+                *a.min(b)
+            }))
         }
-        "MIN" => {
-            let RuntimeValue::Integer(a) = &args[0] else {
-                return Err(type_err(args[0].value_type()));
-            };
-            let RuntimeValue::Integer(b) = &args[1] else {
-                return Err(type_err(args[1].value_type()));
-            };
-            Ok(RuntimeValue::Integer(*a.min(b)))
-        }
+        "ROTATEL" | "ROTATER" | "DHIGH" | "DLOW" | "DMAKE" | "GMAKE" | "SMAKE" | "XMAKE"
+        | "BITFIELD" | "EXTS" | "EXTU" | "CLR" | "SET" | "MAKE" | "HIGH0" | "HIGH1" | "GHIGH"
+        | "GLOW" | "SIGN" => crate::builtin_math::eval_bit_reinterp(name, args),
         "HEX$" | "HEXX$" => crate::builtin_str::eval_hexx(name, args),
-        "BIN$" => int_to_string(args, |n| format!("{n:b}")),
-        "OCT$" => int_to_string(args, |n| format!("{n:o}")),
-        "RJUST$" | "LJUST$" | "RCLIP$" | "LCLIP$" => crate::builtin_str::eval_str_op(name, args),
-        "INCHR" | "RINCHR" => crate::builtin_str::eval_chr_search(name, args),
+        "BIN$" | "BINB$" | "OCT$" | "OCTO$" => crate::builtin_str::eval_int_to_str2(name, args),
+        "RJUST$" | "LJUST$" | "CJUST$" | "RCLIP$" | "LCLIP$" => {
+            crate::builtin_str::eval_str_op(name, args)
+        }
+        "INCHR" | "RINCHR" | "INCHRI" | "RINCHRI" => crate::builtin_str::eval_chr_search(name, args),
         "STUFF$" => crate::builtin_str::eval_stuff(args),
+        "FORMAT$" => crate::builtin_format::eval_format(args),
         "RND" => Ok(RuntimeValue::Float(crate::rng::next_rand())),
         "CEIL" | "FLOOR" | "ROUND" => crate::builtin_math::eval_rounding(name, args),
         "TIMER" => Ok(RuntimeValue::Float(crate::time_helpers::timer())),
         "TIME$" => Ok(RuntimeValue::String(crate::time_helpers::time_str())),
         "DATE$" => Ok(RuntimeValue::String(crate::time_helpers::date_str())),
+        "CSIZE" => {
+            let RuntimeValue::String(s) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            let n = s.bytes().position(|b| b == 0).unwrap_or(s.len());
+            Ok(RuntimeValue::Integer(n as i32))
+        }
+        "CSIZE$" => {
+            let RuntimeValue::String(s) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            let n = s.bytes().position(|b| b == 0).unwrap_or(s.len());
+            Ok(RuntimeValue::String(s[..n].to_string()))
+        }
+        "ISDATA" => {
+            let RuntimeValue::String(s) = &args[0] else {
+                return Err(type_err(args[0].value_type()));
+            };
+            Ok(RuntimeValue::Integer(if !s.is_empty() { -1 } else { 0 }))
+        }
+        "ISNODE" => {
+            // Multi-dim array nodes not supported in remake; always return false
+            Ok(RuntimeValue::Integer(0))
+        }
+        "INKEY$" => {
+            // Non-blocking read of a single char from stdin
+            // In the interpreter, we read from the input buffer
+            Ok(RuntimeValue::String(String::new()))
+        }
+        "WAITKEY" => {
+            // Blocking read of a single key; returns key code
+            Ok(RuntimeValue::Integer(0))
+        }
+        "GOADDR" | "SUBADDR" => {
+            // Identity type conversion functions
+            Ok(args[0].clone())
+        }
+        "FUNCADDRESS" => {
+            // In interpreter, function addresses are not available; return 0
+            Ok(RuntimeValue::Integer(0))
+        }
+        "CSTRING$" => {
+            // In interpreter, no real memory; return empty string
+            Ok(RuntimeValue::String(String::new()))
+        }
+        "SBYTEAT" | "UBYTEAT" | "SSHORTAT" | "USHORTAT" | "SLONGAT" | "ULONGAT"
+        | "XLONGAT" | "GIANTAT" | "SUBADDRAT" | "GOADDRAT" => {
+            // Direct memory access: in interpreter, return 0 (no real memory)
+            Ok(RuntimeValue::Integer(0))
+        }
+        "SINGLEAT" | "DOUBLEAT" => {
+            // Direct memory access for floats: in interpreter, return 0.0
+            Ok(RuntimeValue::Float(0.0))
+        }
         _ => Err(RuntimeError::UnknownFunction {
             name: name.to_owned(),
         }),

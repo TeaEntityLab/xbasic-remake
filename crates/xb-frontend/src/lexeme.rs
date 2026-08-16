@@ -10,9 +10,14 @@ pub(crate) fn is_hex_digit(ch: char) -> bool {
     ch.is_ascii_hexdigit()
 }
 
+pub(crate) fn is_bin_digit(ch: char) -> bool {
+    ch == '0' || ch == '1'
+}
+
 pub(crate) fn is_symbol(ch: char) -> bool {
     matches!(
         ch,
         '(' | ')' | '[' | ']' | ',' | '+' | '-' | '*' | '/' | '=' | '@' | '.' | '\\' | ';'
+            | '{' | '}'
     )
 }

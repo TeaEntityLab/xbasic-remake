@@ -5,11 +5,11 @@ thread_local! {
     static SELECT_STACK: RefCell<Vec<usize>> = RefCell::new(Vec::new());
 }
 
+use crate::c_emit::c_type;
 use crate::c_emit_expr::emit_expr;
 use crate::c_emit_stmt::emit_item;
-use crate::c_runtime::c_type;
 use crate::checked::PrintSep;
-use crate::ir::{IrCaseClause, IrExpr, IrItem};
+use crate::ir::{IrCaseClause, IrExpr, IrExprKind, IrItem};
 use crate::ValueType;
 
 pub(crate) fn emit_select_case(
@@ -116,7 +116,22 @@ pub(crate) fn emit_print(
     indent: usize,
 ) {
     let ind = "    ".repeat(indent);
+    if items.is_empty() {
+        out.push_str(&ind);
+        out.push_str("printf(\"\\n\");\n");
+        return;
+    }
     if items.len() == 1 {
+        // Check if it's a TAB call
+        if let IrExprKind::FunctionCall { name, args } = &items[0].kind {
+            if name == "TAB" && args.len() == 1 {
+                out.push_str(&ind);
+                out.push_str("{ char* _p = xb_strdup(\"\"); char* _t = xb_tab(strlen(_p), ");
+                emit_expr(&args[0], out);
+                out.push_str("); _p = xb_concat(_p, _t); xb_print_str(_p); }\n");
+                return;
+            }
+        }
         out.push_str(&ind);
         match items[0].value_type {
             ValueType::Integer => out.push_str("xb_print_int("),
@@ -129,11 +144,31 @@ pub(crate) fn emit_print(
     }
     out.push_str(&ind);
     out.push_str("{ char* _p = ");
-    emit_str_expr(&items[0], out);
+    // Check if first item is TAB
+    if let IrExprKind::FunctionCall { name, args } = &items[0].kind {
+        if name == "TAB" && args.len() == 1 {
+            out.push_str("xb_tab(0, ");
+            emit_expr(&args[0], out);
+            out.push(')');
+        } else {
+            emit_str_expr(&items[0], out);
+        }
+    } else {
+        emit_str_expr(&items[0], out);
+    }
     out.push_str(";");
     for (i, expr) in items.iter().enumerate().skip(1) {
         if let PrintSep::Comma = separators[i - 1] {
             out.push_str(" _p = xb_concat(_p, \"\\t\");");
+        }
+        // Check if this item is a TAB call
+        if let IrExprKind::FunctionCall { name, args } = &expr.kind {
+            if name == "TAB" && args.len() == 1 {
+                out.push_str(" { char* _t = xb_tab(strlen(_p), ");
+                emit_expr(&args[0], out);
+                out.push_str("); _p = xb_concat(_p, _t); }");
+                continue;
+            }
         }
         out.push_str(" { char* _t = ");
         emit_str_expr(expr, out);

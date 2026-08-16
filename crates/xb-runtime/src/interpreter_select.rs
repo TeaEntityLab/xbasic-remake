@@ -2,7 +2,8 @@ use crate::eval::eval;
 use crate::helpers::require_type;
 use crate::interpreter::{exec_items, Flow};
 use crate::slot::{ExecutionState, RuntimeError, TypedSlot};
-use xb_compiler::{IrExpr, IrItem, IrProgram, IrSymbol, PrintSep};
+use xb_compiler::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol, PrintSep};
+use crate::slot::RuntimeValue;
 
 pub(crate) fn exec_select_case(
     program: &IrProgram,
@@ -22,6 +23,7 @@ pub(crate) fn exec_select_case(
                 match flow {
                     Flow::Continue | Flow::Break => {}
                     Flow::Return(_) => return Ok(flow),
+                    Flow::Goto(_) | Flow::Gosub(_) | Flow::GosubReturn => return Ok(flow),
                 }
                 matched = true;
                 break;
@@ -37,6 +39,7 @@ pub(crate) fn exec_select_case(
             match flow {
                 Flow::Continue | Flow::Break => {}
                 Flow::Return(_) => return Ok(flow),
+                Flow::Goto(_) | Flow::Gosub(_) | Flow::GosubReturn => return Ok(flow),
             }
         }
     }
@@ -85,6 +88,19 @@ pub(crate) fn exec_print(
                 PrintSep::Semicolon => "",
                 PrintSep::Comma => "\t",
             });
+        }
+        // Handle TAB() specially — pad to column
+        if let IrExprKind::FunctionCall { name, args } = &expr.kind {
+            if name == "TAB" && args.len() == 1 {
+                let col = eval(program, &args[0], state)?;
+                if let RuntimeValue::Integer(c) = col {
+                    let cur = line.chars().count();
+                    if (c as usize) > cur {
+                        line.push_str(&" ".repeat(c as usize - cur));
+                    }
+                }
+                continue;
+            }
         }
         line.push_str(&eval(program, expr, state)?.render());
     }

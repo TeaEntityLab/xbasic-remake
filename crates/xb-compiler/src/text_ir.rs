@@ -28,17 +28,22 @@ impl TextIrEmitter {
         let prefix = "  ".repeat(indent);
         match item {
             IrItem::Version(value) => out.push_str(&format!("{prefix}version {value}\n")),
+            IrItem::ProgramName(value) => out.push_str(&format!("{prefix}program_name {value}\n")),
             IrItem::Print { items, separators } => {
-                let exprs: Vec<String> = items.iter().map(|e| self.emit_expr(e)).collect();
-                let mut line = format!("{prefix}print {}", exprs[0]);
-                for (sep, expr) in separators.iter().zip(exprs.iter().skip(1)) {
-                    line.push_str(match sep {
-                        PrintSep::Semicolon => " ; ",
-                        PrintSep::Comma => " , ",
-                    });
-                    line.push_str(expr);
+                if items.is_empty() {
+                    out.push_str(&format!("{prefix}print\n"));
+                } else {
+                    let exprs: Vec<String> = items.iter().map(|e| self.emit_expr(e)).collect();
+                    let mut line = format!("{prefix}print {}", exprs[0]);
+                    for (sep, expr) in separators.iter().zip(exprs.iter().skip(1)) {
+                        line.push_str(match sep {
+                            PrintSep::Semicolon => " ; ",
+                            PrintSep::Comma => " , ",
+                        });
+                        line.push_str(expr);
+                    }
+                    out.push_str(&format!("{line}\n"));
                 }
-                out.push_str(&format!("{line}\n"));
             }
             IrItem::Dim { symbol, size } => match size {
                 Some(sz) => out.push_str(&format!(
@@ -64,6 +69,38 @@ impl TextIrEmitter {
                     "{prefix}array_assign {}[{}] = {}\n",
                     self.emit_symbol(target),
                     self.emit_expr(index),
+                    self.emit_expr(value)
+                ));
+            }
+            IrItem::MidAssign {
+                target,
+                start,
+                length,
+                value,
+            } => {
+                if let Some(len) = length {
+                    out.push_str(&format!(
+                        "{prefix}mid_assign {} | {} | {} | {}\n",
+                        self.emit_expr(target),
+                        self.emit_expr(start),
+                        self.emit_expr(len),
+                        self.emit_expr(value)
+                    ));
+                } else {
+                    out.push_str(&format!(
+                        "{prefix}mid_assign {} | {} | {}\n",
+                        self.emit_expr(target),
+                        self.emit_expr(start),
+                        self.emit_expr(value)
+                    ));
+                }
+            }
+            IrItem::BuiltinAssign { name, args, value } => {
+                let parts: Vec<String> = args.iter().map(|a| self.emit_expr(a)).collect();
+                out.push_str(&format!(
+                    "{prefix}builtin_assign {} {} = {}\n",
+                    name,
+                    parts.join(" "),
                     self.emit_expr(value)
                 ));
             }
@@ -239,6 +276,12 @@ impl TextIrEmitter {
                 out.push_str(&s);
             }
             IrItem::Stop => out.push_str(&format!("{prefix}stop\n")),
+            IrItem::Gosub(name) => out.push_str(&format!("{prefix}gosub {name}\n")),
+            IrItem::Label(name) => out.push_str(&format!("{prefix}label {name}\n")),
+            IrItem::Goto(name) => out.push_str(&format!("{prefix}goto {name}\n")),
+            IrItem::GosubReturn => out.push_str(&format!("{prefix}gosub_return\n")),
+            IrItem::GosubExpr(expr) => out.push_str(&format!("{prefix}gosub_expr {}\n", self.emit_expr(expr))),
+            IrItem::GotoExpr(expr) => out.push_str(&format!("{prefix}goto_expr {}\n", self.emit_expr(expr))),
         }
     }
 }

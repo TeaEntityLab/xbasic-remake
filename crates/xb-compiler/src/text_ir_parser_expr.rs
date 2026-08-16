@@ -1,4 +1,4 @@
-use crate::checked::BooleanOp;
+use crate::checked::{BooleanOp, LogicalOp};
 use crate::ir::{IrExpr, IrExprKind, IrSymbol};
 use crate::text_ir_parser_helpers::{
     extract_parens, infer_arith_type, parse_arith_op, parse_cmp_op, parse_rust_string,
@@ -131,6 +131,28 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
             let (inner, _) = parse_sub_expr(content)?;
             IrExpr::new(IrExprKind::Not(Box::new(inner)), ValueType::Integer)
         }
+        "neg" => {
+            let (inner, _) = parse_sub_expr(content)?;
+            let vt = inner.value_type;
+            IrExpr::new(
+                IrExprKind::Unary {
+                    op: xb_frontend::UnaryOp::Neg,
+                    operand: Box::new(inner),
+                },
+                vt,
+            )
+        }
+        "pos" => {
+            let (inner, _) = parse_sub_expr(content)?;
+            let vt = inner.value_type;
+            IrExpr::new(
+                IrExprKind::Unary {
+                    op: xb_frontend::UnaryOp::Pos,
+                    operand: Box::new(inner),
+                },
+                vt,
+            )
+        }
         "and" => {
             let (left, al) = parse_sub_expr(content)?;
             let (right, _) = parse_sub_expr(al.trim_start())?;
@@ -167,6 +189,42 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
                 ValueType::Integer,
             )
         }
+        "land" => {
+            let (left, al) = parse_sub_expr(content)?;
+            let (right, _) = parse_sub_expr(al.trim_start())?;
+            IrExpr::new(
+                IrExprKind::Logical {
+                    op: LogicalOp::And,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+                ValueType::Integer,
+            )
+        }
+        "lor" => {
+            let (left, al) = parse_sub_expr(content)?;
+            let (right, _) = parse_sub_expr(al.trim_start())?;
+            IrExpr::new(
+                IrExprKind::Logical {
+                    op: LogicalOp::Or,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+                ValueType::Integer,
+            )
+        }
+        "lxor" => {
+            let (left, al) = parse_sub_expr(content)?;
+            let (right, _) = parse_sub_expr(al.trim_start())?;
+            IrExpr::new(
+                IrExprKind::Logical {
+                    op: LogicalOp::Xor,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+                ValueType::Integer,
+            )
+        }
         "array_access" => {
             let bracket = content.find('[').ok_or("missing [ in array_access")?;
             let (name, vt) = parse_symbol(content[..bracket].trim())?;
@@ -182,6 +240,42 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
                     index: Box::new(index),
                 },
                 vt,
+            )
+        }
+        "array_ubound" => {
+            let (name, vt) = parse_symbol(content.trim())?;
+            IrExpr::new(
+                IrExprKind::ArrayUBound {
+                    symbol: IrSymbol { name, value_type: vt },
+                },
+                ValueType::Integer,
+            )
+        }
+        "size_of" => {
+            let (name, vt) = parse_symbol(content.trim())?;
+            IrExpr::new(
+                IrExprKind::SizeOf {
+                    symbol: IrSymbol { name, value_type: vt },
+                },
+                ValueType::Integer,
+            )
+        }
+        "size_of_type" => {
+            let vt = match content.trim() {
+                "integer" => ValueType::Integer,
+                "float" => ValueType::Float,
+                "string" => ValueType::String,
+                _ => return Err(format!("unknown type in size_of_type: {content}")),
+            };
+            IrExpr::new(
+                IrExprKind::SizeOfType { value_type: vt },
+                ValueType::Integer,
+            )
+        }
+        "label_addr" => {
+            IrExpr::new(
+                IrExprKind::LabelAddress(content.trim().to_string()),
+                ValueType::Integer,
             )
         }
         _ => return Err(format!("unknown expression type: {type_prefix}")),

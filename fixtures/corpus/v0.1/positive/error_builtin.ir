@@ -1,0 +1,11 @@
+function Main() -> integer
+  dim e:integer
+  assign e:integer = call ERROR(integer(0))
+  print symbol(e:integer)
+  assign e:integer = call ERROR(integer(42))
+  print symbol(e:integer)
+  assign e:integer = call ERROR(integer(0))
+  print symbol(e:integer)
+  print call ERROR$(integer(42))
+  print call ERROR$(integer(0))
+end function

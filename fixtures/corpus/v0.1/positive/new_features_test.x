@@ -1,0 +1,25 @@
+VERSION "0.1"
+$TestConst = 42
+
+INTERNAL FUNCTION Helper ()
+INTERNAL FUNCTION Main ()
+
+FUNCTION Helper ()
+  PRINT -1
+  PRINT -42
+  PRINT 3 + -2
+  PRINT -(-5)
+  PRINT
+END FUNCTION
+
+FUNCTION Main ()
+  DIM x
+  x = 5
+  IF x THEN PRINT "yes" ELSE PRINT "no"
+  x = 0
+  IF x THEN PRINT "yes" ELSE PRINT "no"
+  PRINT $TestConst
+  Helper()
+END FUNCTION
+
+END PROGRAM

@@ -21,6 +21,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
 pub struct Lexer<'a> {
     pub(crate) chars: std::str::Chars<'a>,
     pub(crate) lookahead: Option<char>,
+    pub(crate) prev_char: Option<char>,
     line: usize,
     column: usize,
 }
@@ -32,6 +33,7 @@ impl<'a> Lexer<'a> {
         Self {
             chars,
             lookahead,
+            prev_char: None,
             line: 1,
             column: 1,
         }
@@ -41,9 +43,37 @@ impl<'a> Lexer<'a> {
         let mut tokens = Vec::new();
         while let Some(ch) = self.lookahead {
             match ch {
-                ' ' | '\t' | '\r' => self.advance(),
+                ' ' | '\t' | '\r' | '\0' => self.advance(),
                 '\n' => tokens.push(self.newline()),
-                '\'' => self.skip_comment(),
+                '\'' => {
+                    // ' is a comment when preceded by whitespace, newline, or :
+                    // Exception: after "= " it's a string delimiter (e.g., c = 'n')
+                    // Otherwise it's a string delimiter (XBasic single-quote strings)
+                    match self.prev_char {
+                        Some(' ') | Some('\t') | Some('\n') | Some('\r') | Some(':') | None => {
+                            // Check if this is after "=" (assignment context)
+                            if self.prev_char == Some(' ') {
+                                // Look back at the char before the space
+                                // Simplified: if the remaining line has a matching ' and
+                                // starts with a non-space, treat as string
+                                let rest = self.chars.as_str();
+                                let line_rest = rest.split_once('\n').map(|(l, _)| l).unwrap_or(rest);
+                                if line_rest.contains('\'') && !line_rest.starts_with('\'') {
+                                    // Heuristic: if there's content between here and the
+                                    // matching quote that looks like a short string (no spaces),
+                                    // treat as string. Otherwise comment.
+                                    let before_quote = line_rest.split_once('\'').map(|(b, _)| b).unwrap_or("");
+                                    if !before_quote.is_empty() && !before_quote.contains(' ') {
+                                        tokens.push(self.single_quote_string()?);
+                                        continue;
+                                    }
+                                }
+                            }
+                            self.skip_comment()
+                        }
+                        _ => tokens.push(self.single_quote_string()?),
+                    }
+                }
                 '"' => tokens.push(self.string_literal()?),
                 '0'..='9' => tokens.push(self.number()),
                 '#' => tokens.push(self.hash_prefixed()?),
@@ -52,6 +82,7 @@ impl<'a> Lexer<'a> {
                 ':' => tokens.push(self.colon_or_symbol()),
                 '<' | '>' | '=' => tokens.push(self.comparison()),
                 '!' => tokens.push(self.bang_or_symbol()),
+                '&' | '|' | '^' | '~' => tokens.push(self.logical_or_symbol()),
                 c if is_symbol(c) => tokens.push(self.symbol(c)),
                 other => return Err(self.unexpected(other)),
             }
@@ -63,8 +94,8 @@ impl<'a> Lexer<'a> {
     pub(crate) fn pos(&self) -> SourcePos {
         SourcePos::new(self.line, self.column)
     }
-
     pub(crate) fn advance(&mut self) {
+        self.prev_char = self.lookahead;
         if self.lookahead == Some('\n') {
             self.line += 1;
             self.column = 1;
@@ -74,6 +105,15 @@ impl<'a> Lexer<'a> {
         self.lookahead = self.chars.next();
     }
 
+    /// Check if there's a matching single-quote on the current line (for
+    /// distinguishing string delimiters from comments).
+    fn has_matching_quote_on_line(&self) -> bool {
+        self.chars
+            .as_str()
+            .split_once('\n')
+            .map(|(line, _)| line.contains('\''))
+            .unwrap_or_else(|| self.chars.as_str().contains('\''))
+    }
     pub(crate) fn take_while(&mut self, out: &mut String, pred: impl Fn(char) -> bool) {
         while let Some(ch) = self.lookahead {
             if !pred(ch) {
@@ -106,6 +146,12 @@ impl<'a> Lexer<'a> {
             self.advance();
             return Token::new(TokenKind::Power, pos);
         }
+        // XBasic uses {} for array indexing — treat as ()
+        let ch = match ch {
+            '{' => '(',
+            '}' => ')',
+            c => c,
+        };
         Token::new(TokenKind::Symbol(ch), pos)
     }
 }

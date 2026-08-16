@@ -1,0 +1,7 @@
+version 0.1
+function Main() -> integer
+  dim f:integer
+  assign f:integer = call FUNCADDRESS(integer(0))
+  print string("funcaddr done")
+  print symbol(f:integer)
+end function

@@ -76,6 +76,9 @@ pub(crate) fn emit_c_function_name(name: &str, out: &mut String) {
         "MIN" => out.push_str("xb_min"),
         "HEX$" => out.push_str("xb_hex"),
         "BIN$" => out.push_str("xb_bin"),
+        "BINB$" => out.push_str("xb_binb"),
+        "OCT$" => out.push_str("xb_oct"),
+        "OCTO$" => out.push_str("xb_octo"),
         "STRING$" | "STRING" => out.push_str("xb_string"),
         "SQRT" => out.push_str("xb_sqrt"),
         "SIN" => out.push_str("xb_sin"),
@@ -85,6 +88,7 @@ pub(crate) fn emit_c_function_name(name: &str, out: &mut String) {
         "LOG" => out.push_str("xb_log"),
         "ACOS" => out.push_str("xb_acos"),
         "ASIN" => out.push_str("xb_asin"),
+        "ATN" | "ATAN" => out.push_str("xb_atan"),
         "ATAN2" => out.push_str("xb_atan2"),
         "LOG10" => out.push_str("xb_log10"),
         "POWER" => out.push_str("xb_power"),
@@ -117,16 +121,72 @@ pub(crate) fn emit_c_function_name(name: &str, out: &mut String) {
         "DATE$" => out.push_str("xb_date"),
         "INLINE$" => out.push_str("xb_inline"),
         "READLINE$" => out.push_str("xb_readline"),
-        "HEXX$" => out.push_str("xb_hexx"),
-        "RJUST$" => out.push_str("xb_rjust"),
         "LJUST$" => out.push_str("xb_ljust"),
+        "CJUST$" => out.push_str("xb_cjust"),
+        "RJUST$" => out.push_str("xb_rjust"),
         "INCHR" => out.push_str("xb_inchr"),
         "RINCHR" => out.push_str("xb_rinchr"),
+        "INCHRI" => out.push_str("xb_inchri"),
+        "RINCHRI" => out.push_str("xb_rinchri"),
         "STUFF$" => out.push_str("xb_stuff"),
         "EOF" => out.push_str("xb_eof"),
         "VERSION$" => out.push_str("xb_version"),
         "SIGNED$" => out.push_str("xb_signed"),
         "NULL$" => out.push_str("xb_null"),
+        "ROTATEL" => out.push_str("xb_rotatel"),
+        "ROTATER" => out.push_str("xb_rotater"),
+        "DHIGH" => out.push_str("xb_dhigh"),
+        "DLOW" => out.push_str("xb_dlow"),
+        "DMAKE" => out.push_str("xb_dmake"),
+        "GMAKE" => out.push_str("xb_gmake"),
+        "SMAKE" => out.push_str("xb_smake"),
+        "ERROR$" => out.push_str("xb_error_str"),
+        "QUIT" => out.push_str("xb_quit"),
+        "ERROR" => out.push_str("xb_error"),
+        "BITFIELD" => out.push_str("xb_bitfield"),
+        "EXTS" => out.push_str("xb_exts"),
+        "EXTU" => out.push_str("xb_extu"),
+        "CLR" => out.push_str("xb_clr"),
+        "SET" => out.push_str("xb_set"),
+        "MAKE" => out.push_str("xb_make"),
+        "HIGH0" => out.push_str("xb_high0"),
+        "HIGH1" => out.push_str("xb_high1"),
+        "GHIGH" => out.push_str("xb_ghigh"),
+        "GLOW" => out.push_str("xb_glow"),
+        "SIGN" => out.push_str("xb_sign"),
+        "XMAKE" => out.push_str("xb_xmake"),
+        "FORMAT$" => out.push_str("xb_format"),
+        "SHELL" => out.push_str("xb_shell"),
+        "LIBRARY" => out.push_str("xb_library"),
+        "CSIZE" => out.push_str("xb_csize"),
+        "CSIZE$" => out.push_str("xb_csize_str"),
+        "PROGRAM$" => out.push_str("xb_program_name"),
+        "OPEN" => out.push_str("xb_open"),
+        "CLOSE" => out.push_str("xb_close"),
+        "LOF" => out.push_str("xb_lof"),
+        "POF" => out.push_str("xb_pof"),
+        "SEEK" => out.push_str("xb_seek"),
+        "INFILE$" => out.push_str("xb_infile"),
+        "ISDATA" => out.push_str("xb_isdata"),
+        "INKEY$" => out.push_str("xb_inkey"),
+        "WAITKEY" => out.push_str("xb_waitkey"),
+        "ISNODE" => out.push_str("xb_isnode"),
+        "GOADDR" => out.push_str("xb_goaddr"),
+        "SUBADDR" => out.push_str("xb_subaddr"),
+        "CSTRING$" => out.push_str("xb_cstring"),
+        "FUNCADDRESS" => out.push_str("xb_funcaddress"),
+        "SBYTEAT" => out.push_str("xb_sbyteat"),
+        "UBYTEAT" => out.push_str("xb_ubyteat"),
+        "SSHORTAT" => out.push_str("xb_sshortat"),
+        "USHORTAT" => out.push_str("xb_ushortat"),
+        "SLONGAT" => out.push_str("xb_slongat"),
+        "ULONGAT" => out.push_str("xb_ulongat"),
+        "XLONGAT" => out.push_str("xb_xlongat"),
+        "GIANTAT" => out.push_str("xb_giantat"),
+        "SINGLEAT" => out.push_str("xb_singleat"),
+        "DOUBLEAT" => out.push_str("xb_doubleat"),
+        "SUBADDRAT" => out.push_str("xb_subaddrat"),
+        "GOADDRAT" => out.push_str("xb_goaddrat"),
         _ => {
             out.push_str("xb_user_");
             out.push_str(name);
@@ -134,91 +194,21 @@ pub(crate) fn emit_c_function_name(name: &str, out: &mut String) {
     }
 }
 
-/// Emits C code for HEXX$(value[, width]). 1-arg form passes width=0.
-pub(crate) fn emit_hexx(args: &[IrExpr], out: &mut String, emit_fn: impl Fn(&IrExpr, &mut String)) {
-    out.push_str("xb_hexx(");
-    emit_fn(&args[0], out);
-    out.push_str(", ");
-    if args.len() == 2 {
-        emit_fn(&args[1], out);
-    } else {
-        out.push('0');
-    }
-    out.push(')');
-}
-
-/// Emits C code for 2-arg HEX$(value, width) → xb_hex2(value, width).
-pub(crate) fn emit_hex2(args: &[IrExpr], out: &mut String, emit_fn: impl Fn(&IrExpr, &mut String)) {
-    out.push_str("xb_hex2(");
-    emit_fn(&args[0], out);
-    out.push_str(", ");
-    emit_fn(&args[1], out);
-    out.push(')');
-}
-
-/// Emits C code for STUFF$(into$, from$, start[, length]).
-pub(crate) fn emit_stuff(
-    args: &[IrExpr],
-    out: &mut String,
-    emit_fn: impl Fn(&IrExpr, &mut String),
-) {
-    out.push_str("xb_stuff(");
-    emit_fn(&args[0], out);
-    out.push_str(", ");
-    emit_fn(&args[1], out);
-    out.push_str(", ");
-    emit_fn(&args[2], out);
-    out.push_str(", ");
-    if args.len() == 4 {
-        emit_fn(&args[3], out);
-    } else {
-        out.push_str("-1");
-    }
-    out.push(')');
-}
-
-/// Emits C code for RCLIP$/LCLIP$(s$[, n]). 1-arg → trim, 2-arg → remove N chars.
-pub(crate) fn emit_clip(
-    name: &str,
-    args: &[IrExpr],
-    out: &mut String,
-    emit_fn: impl Fn(&IrExpr, &mut String),
-) {
-    let func = if args.len() == 2 {
-        if name == "RCLIP$" {
-            "xb_rclip2"
-        } else {
-            "xb_lclip2"
-        }
-    } else {
-        if name == "RCLIP$" {
-            "xb_rclip1"
-        } else {
-            "xb_lclip1"
-        }
-    };
-    out.push_str(func);
-    out.push('(');
-    emit_fn(&args[0], out);
-    if args.len() == 2 {
-        out.push_str(", ");
-        emit_fn(&args[1], out);
-    }
-    out.push(')');
-}
-
-/// Emits C code for 2-arg MID$(s$, start) → xb_mid2(s, start).
-pub(crate) fn emit_mid2(args: &[IrExpr], out: &mut String, emit_fn: impl Fn(&IrExpr, &mut String)) {
-    out.push_str("xb_mid2(");
-    emit_fn(&args[0], out);
-    out.push_str(", ");
-    emit_fn(&args[1], out);
-    out.push(')');
-}
-
 /// Returns true if `name` is a type-conversion builtin handled by this module.
 pub(crate) fn is_type_conversion(name: &str) -> bool {
-    matches!(name, "DOUBLE" | "SINGLE" | "XLONG")
+    matches!(
+        name,
+        "DOUBLE"
+            | "SINGLE"
+            | "XLONG"
+            | "SBYTE"
+            | "UBYTE"
+            | "SSHORT"
+            | "USHORT"
+            | "SLONG"
+            | "ULONG"
+            | "GIANT"
+    )
 }
 
 /// Emits C code for DOUBLE/SINGLE/XLONG type conversions.
@@ -230,8 +220,14 @@ pub(crate) fn emit_type_conversion(
     emit_fn: impl Fn(&IrExpr, &mut String),
 ) {
     let prefix = match (name, arg.value_type) {
-        ("XLONG", ValueType::String) => "atoi(",
-        ("XLONG", ValueType::Float) => "(int)(",
+        (
+            "XLONG" | "SBYTE" | "UBYTE" | "SSHORT" | "USHORT" | "SLONG" | "ULONG" | "GIANT",
+            ValueType::String,
+        ) => "atoi(",
+        (
+            "XLONG" | "SBYTE" | "UBYTE" | "SSHORT" | "USHORT" | "SLONG" | "ULONG" | "GIANT",
+            ValueType::Float,
+        ) => "(int)(",
         ("DOUBLE" | "SINGLE", ValueType::String) => "atof(",
         ("DOUBLE" | "SINGLE", ValueType::Integer) => "(double)(",
         _ => "(",
@@ -239,17 +235,4 @@ pub(crate) fn emit_type_conversion(
     out.push_str(prefix);
     emit_fn(arg, out);
     out.push(')');
-}
-
-/// Emits a fallback `return` of the return variable at the end of a C function body.
-pub(crate) fn emit_fallback_return(name: &str, return_type: ValueType, out: &mut String) {
-    let ret_name = name.trim_end_matches('$');
-    out.push_str("    return ");
-    if return_type == ValueType::String {
-        out.push_str("xb_str_");
-    } else {
-        out.push_str("xb_var_");
-    }
-    out.push_str(ret_name);
-    out.push_str(";\n");
 }

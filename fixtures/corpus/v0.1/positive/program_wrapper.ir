@@ -1,3 +1,4 @@
+program_name test
 version 0.1
 function Main() -> integer
   print string("hello from program")

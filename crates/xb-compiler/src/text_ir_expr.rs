@@ -1,4 +1,4 @@
-use crate::checked::BooleanOp;
+use crate::checked::{BooleanOp, LogicalOp, ValueType};
 use crate::ir::{IrExpr, IrExprKind};
 
 use crate::text_ir::TextIrEmitter;
@@ -32,11 +32,26 @@ impl TextIrEmitter {
                 )
             }
             IrExprKind::Not(inner) => format!("not({})", self.emit_expr(inner)),
+            IrExprKind::Unary { op, operand } => {
+                let s = match op {
+                    xb_frontend::UnaryOp::Neg => "neg",
+                    xb_frontend::UnaryOp::Pos => "pos",
+                };
+                format!("{}({})", s, self.emit_expr(operand))
+            }
             IrExprKind::Boolean { op, left, right } => {
                 let s = match op {
                     BooleanOp::And => "and",
                     BooleanOp::Or => "or",
                     BooleanOp::Xor => "xor",
+                };
+                format!("{}({} {})", s, self.emit_expr(left), self.emit_expr(right))
+            }
+            IrExprKind::Logical { op, left, right } => {
+                let s = match op {
+                    LogicalOp::And => "land",
+                    LogicalOp::Or => "lor",
+                    LogicalOp::Xor => "lxor",
                 };
                 format!("{}({} {})", s, self.emit_expr(left), self.emit_expr(right))
             }
@@ -50,6 +65,23 @@ impl TextIrEmitter {
                     self.emit_symbol(symbol),
                     self.emit_expr(index)
                 )
+            }
+            IrExprKind::ArrayUBound { symbol } => {
+                format!("array_ubound({})", self.emit_symbol(symbol))
+            }
+            IrExprKind::SizeOf { symbol } => {
+                format!("size_of({})", self.emit_symbol(symbol))
+            }
+            IrExprKind::SizeOfType { value_type } => {
+                let t = match value_type {
+                    ValueType::Integer => "integer",
+                    ValueType::Float => "float",
+                    ValueType::String => "string",
+                };
+                format!("size_of_type({t})")
+            }
+            IrExprKind::LabelAddress(name) => {
+                format!("label_addr({name})")
             }
         }
     }

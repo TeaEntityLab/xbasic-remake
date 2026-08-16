@@ -1,6 +1,6 @@
 use crate::c_emit_helpers::{
-    arith_op, boolean_op, cmp_op, emit_c_function_name, emit_c_string, emit_clip,
-    emit_type_conversion, is_type_conversion,
+    arith_op, boolean_op, cmp_op, emit_c_function_name, emit_c_string, emit_type_conversion,
+    is_type_conversion,
 };
 use crate::checked::ArithmeticOp;
 use crate::ir::{IrExpr, IrExprKind, IrSymbol};
@@ -86,6 +86,15 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             emit_expr(inner, out);
             out.push(')');
         }
+        IrExprKind::Unary { op, operand } => {
+            out.push('(');
+            match op {
+                xb_frontend::UnaryOp::Neg => out.push('-'),
+                xb_frontend::UnaryOp::Pos => out.push('+'),
+            }
+            emit_expr(operand, out);
+            out.push(')');
+        }
         IrExprKind::Boolean { op, left, right } => {
             out.push_str("((");
             emit_expr(left, out);
@@ -95,6 +104,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             emit_expr(right, out);
             out.push_str("))");
         }
+        IrExprKind::Logical { .. } => crate::c_emit_logical::emit_logical(expr, out),
         IrExprKind::FunctionCall { name, args } => {
             if name == "CHR$" {
                 if args.len() == 1 {
@@ -140,6 +150,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                     }
                     emit_expr(arg, out);
                 }
+                out.push(')');
             } else if name == "INSTRI" || name == "RINSTRI" {
                 let base = if name == "INSTRI" {
                     "xb_instri"
@@ -148,6 +159,27 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 };
                 out.push_str(base);
                 out.push_str(if args.len() == 2 { "2" } else { "3" });
+                out.push('(');
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    emit_expr(arg, out);
+                }
+                out.push(')');
+            } else if name == "INCHR" || name == "RINCHR" || name == "INCHRI" || name == "RINCHRI" {
+                let base = match name.as_str() {
+                    "INCHR" => "xb_inchr",
+                    "RINCHR" => "xb_rinchr",
+                    "INCHRI" => "xb_inchri",
+                    _ => "xb_rinchri",
+                };
+                if args.len() == 2 {
+                    out.push_str(base);
+                    out.push_str("2");
+                } else {
+                    out.push_str(base);
+                }
                 out.push('(');
                 for (i, arg) in args.iter().enumerate() {
                     if i > 0 {
@@ -167,15 +199,13 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             } else if is_type_conversion(name) {
                 emit_type_conversion(name, &args[0], out, emit_expr);
             } else if name == "HEXX$" {
-                crate::c_emit_helpers::emit_hexx(args, out, emit_expr);
-            } else if name == "HEX$" && args.len() == 2 {
-                crate::c_emit_helpers::emit_hex2(args, out, emit_expr);
+                crate::c_emit_str2::emit_hexx(args, out, emit_expr);
+            } else if crate::c_emit_str2::try_emit_int2str2(name, args, out, emit_expr) {
+            } else if crate::c_emit_str2::try_emit_format(name, args, out, emit_expr) {
             } else if name == "RCLIP$" || name == "LCLIP$" {
-                crate::c_emit_helpers::emit_clip(name, args, out, emit_expr);
-            } else if name == "MID$" && args.len() == 2 {
-                crate::c_emit_helpers::emit_mid2(args, out, emit_expr);
+                crate::c_emit_str2::emit_clip(name, args, out, emit_expr);
             } else if name == "STUFF$" {
-                crate::c_emit_helpers::emit_stuff(args, out, emit_expr);
+                crate::c_emit_str2::emit_stuff(args, out, emit_expr);
             } else if name == "STR$" && !args.is_empty() && args[0].value_type == ValueType::Float {
                 out.push_str("xb_str_float(");
                 for (i, arg) in args.iter().enumerate() {
@@ -184,7 +214,13 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                     }
                     emit_expr(arg, out);
                 }
-                out.push(')');
+            } else if name == "EXTS"
+                || name == "EXTU"
+                || name == "CLR"
+                || name == "SET"
+                || name == "MAKE"
+            {
+                crate::c_emit_bitops::emit_bit_op_call(name, args, out);
             } else {
                 emit_c_function_name(name, out);
                 out.push('(');
@@ -202,6 +238,31 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             out.push('[');
             emit_expr(index, out);
             out.push(']');
+        }
+        IrExprKind::ArrayUBound { symbol } => {
+            out.push_str("(int)(sizeof(");
+            emit_var_name(symbol, out);
+            out.push_str(")/sizeof(");
+            emit_var_name(symbol, out);
+            out.push_str("[0])-1)");
+        }
+        IrExprKind::SizeOf { symbol } => {
+            out.push_str("(int)sizeof(");
+            emit_var_name(symbol, out);
+            out.push(')');
+        }
+        IrExprKind::SizeOfType { value_type } => {
+            let size = match value_type {
+                ValueType::Integer => 4,
+                ValueType::Float => 8,
+                ValueType::String => 8,
+            };
+            out.push_str(&size.to_string());
+        }
+        IrExprKind::LabelAddress(name) => {
+            out.push_str("((intptr_t)&&xb_label_");
+            out.push_str(name);
+            out.push(')');
         }
     }
 }
@@ -234,7 +295,7 @@ pub(crate) fn emit_default(vt: ValueType, out: &mut String) {
 pub(crate) fn emit_return_var_decl(name: &str, return_type: ValueType, out: &mut String) {
     let ret_name = name.trim_end_matches('$');
     out.push_str("    ");
-    out.push_str(crate::c_runtime::c_type(return_type));
+    out.push_str(crate::c_emit::c_type(return_type));
     out.push(' ');
     emit_var_name(
         &IrSymbol {

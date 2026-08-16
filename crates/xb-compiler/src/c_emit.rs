@@ -1,6 +1,6 @@
 use crate::c_emit_expr::emit_var_name;
 use crate::c_emit_select::emit_body;
-use crate::c_runtime::{c_type, emit_forward_decls, emit_globals, emit_header};
+use crate::c_runtime::{emit_forward_decls, emit_globals, emit_header};
 use crate::ir::{IrItem, IrProgram, IrSymbol};
 use crate::ValueType;
 
@@ -21,6 +21,7 @@ impl CEmitter {
         crate::c_emit_select::reset_select_state();
         let mut out = String::new();
         emit_version_global(program, &mut out);
+        emit_program_name_global(program, &mut out);
         emit_header(&mut out);
         emit_globals(program, &mut out);
         emit_forward_decls(program, &mut out);
@@ -66,7 +67,7 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             }
             emit_body(body, out, 1);
             if *return_type != ValueType::Integer {
-                crate::c_emit_helpers::emit_fallback_return(name, *return_type, out);
+                emit_fallback_return(name, *return_type, out);
             } else {
                 out.push_str("    return 0;\n");
             }
@@ -79,7 +80,7 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     let top: Vec<&IrItem> = program
         .items
         .iter()
-        .filter(|i| !matches!(i, IrItem::Function { .. } | IrItem::Version(_)))
+        .filter(|i| !matches!(i, IrItem::Function { .. } | IrItem::Version(_) | IrItem::ProgramName(_)))
         .collect();
     let has_main = program
         .items
@@ -119,4 +120,39 @@ fn emit_version_global(program: &IrProgram, out: &mut String) {
         })
         .unwrap_or("");
     out.push_str(&format!("static const char* xb_version_str = \"{ver}\";\n"));
+}
+
+fn emit_program_name_global(program: &IrProgram, out: &mut String) {
+    let name = program
+        .items
+        .iter()
+        .find_map(|i| {
+            if let IrItem::ProgramName(v) = i {
+                Some(v.as_str())
+            } else {
+                None
+            }
+        })
+        .unwrap_or("");
+    out.push_str(&format!("static const char* xb_program_name_str = \"{name}\";\n"));
+}
+
+fn emit_fallback_return(name: &str, return_type: ValueType, out: &mut String) {
+    let ret_name = name.trim_end_matches('$');
+    out.push_str("    return ");
+    if return_type == ValueType::String {
+        out.push_str("xb_str_");
+    } else {
+        out.push_str("xb_var_");
+    }
+    out.push_str(ret_name);
+    out.push_str(";\n");
+}
+
+pub(crate) fn c_type(vt: ValueType) -> &'static str {
+    match vt {
+        ValueType::Integer => "intptr_t",
+        ValueType::Float => "double",
+        ValueType::String => "char*",
+    }
 }

@@ -1,6 +1,6 @@
 use thiserror::Error;
 use xb_frontend::TypeSuffix;
-pub use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, Param, PrintSep};
+pub use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, LogicalOp, Param, PrintSep, UnaryOp};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
@@ -80,6 +80,7 @@ pub struct CheckedProgram {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedItem {
     Version(String),
+    ProgramName(String),
     Print {
         items: Vec<CheckedExpr>,
         separators: Vec<PrintSep>,
@@ -95,6 +96,17 @@ pub enum CheckedItem {
     ArrayAssignment {
         target: CheckedSymbol,
         index: CheckedExpr,
+        value: CheckedExpr,
+    },
+    MidAssign {
+        target: CheckedExpr,
+        start: CheckedExpr,
+        length: Option<CheckedExpr>,
+        value: CheckedExpr,
+    },
+    BuiltinAssign {
+        name: String,
+        args: Vec<CheckedExpr>,
         value: CheckedExpr,
     },
     ConstantDefinition {
@@ -156,6 +168,12 @@ pub enum CheckedItem {
     Read(Vec<CheckedSymbol>),
     Stop,
     Restore(Option<String>),
+    Gosub(String),
+    Label(String),
+    Goto(String),
+    GosubReturn,
+    GosubExpr(CheckedExpr),
+    GotoExpr(CheckedExpr),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -197,9 +215,18 @@ pub enum CheckedExprKind {
         left: Box<CheckedExpr>,
         right: Box<CheckedExpr>,
     },
+    Unary {
+        op: xb_frontend::UnaryOp,
+        operand: Box<CheckedExpr>,
+    },
     Not(Box<CheckedExpr>),
     Boolean {
         op: BooleanOp,
+        left: Box<CheckedExpr>,
+        right: Box<CheckedExpr>,
+    },
+    Logical {
+        op: LogicalOp,
         left: Box<CheckedExpr>,
         right: Box<CheckedExpr>,
     },
@@ -211,6 +238,19 @@ pub enum CheckedExprKind {
         symbol: CheckedSymbol,
         index: Box<CheckedExpr>,
     },
+    ArrayRef {
+        symbol: CheckedSymbol,
+    },
+    ArrayUBound {
+        symbol: CheckedSymbol,
+    },
+    SizeOf {
+        symbol: CheckedSymbol,
+    },
+    SizeOfType {
+        value_type: ValueType,
+    },
+    LabelAddress(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

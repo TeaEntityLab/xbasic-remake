@@ -1,0 +1,6 @@
+VERSION "0.1"
+FUNCTION Main
+DIM s$
+s$ = CSTRING$(0)
+PRINT "done"
+END FUNCTION

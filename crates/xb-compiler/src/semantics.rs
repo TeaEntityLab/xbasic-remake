@@ -64,7 +64,7 @@ impl Analyzer {
         }
         let mut items = Vec::with_capacity(program.statements.len());
         let mut data_values = Vec::new();
-        for statement in &program.statements {
+        for (i, statement) in program.statements.iter().enumerate() {
             if let Statement::Data(vals) = statement {
                 data_values.extend(vals.iter().cloned());
             }
@@ -72,6 +72,16 @@ impl Analyzer {
                 for s in &f.body {
                     if let Statement::Data(vals) = s {
                         data_values.extend(vals.iter().cloned());
+                    }
+                }
+                // Skip forward declarations (empty body) if a later
+                // function with the same name exists
+                if f.body.is_empty() {
+                    let has_later = program.statements[i + 1..]
+                        .iter()
+                        .any(|s| matches!(s, Statement::Function(lf) if lf.name == f.name && !lf.body.is_empty()));
+                    if has_later {
+                        continue;
                     }
                 }
             }

@@ -1,0 +1,7 @@
+PROGRAM "csize_test"
+VERSION "0.1"
+FUNCTION Main
+PRINT CSIZE("hello")
+PRINT CSIZE$("hello")
+PRINT PROGRAM$(0)
+END FUNCTION

@@ -1,4 +1,4 @@
-use crate::lexeme::{is_hex_digit, is_identifier_part};
+use crate::lexeme::{is_hex_digit, is_identifier_part, is_identifier_start};
 use crate::lexer::{LexError, Lexer};
 use crate::token::{Keyword, SourcePos, Token, TokenKind, TypeSuffix};
 
@@ -18,8 +18,36 @@ impl Lexer<'_> {
         let mut value = String::new();
         while let Some(ch) = self.lookahead {
             if ch == '"' {
+                // Check for doubled quote ("") — XBasic escape for literal "
                 self.advance();
+                if self.lookahead == Some('"') {
+                    value.push('"');
+                    self.advance();
+                    continue;
+                }
                 return Ok(Token::new(TokenKind::StringLiteral(value), pos));
+            }
+            if ch == '\\' {
+                // C-style escapes: \" → ", \\ → \, \n → newline, \t → tab, \r → CR
+                self.advance();
+                match self.lookahead {
+                    Some('"') => value.push('"'),
+                    Some('\\') => value.push('\\'),
+                    Some('n') => value.push('\n'),
+                    Some('t') => value.push('\t'),
+                    Some('r') => value.push('\r'),
+                    Some(other) => {
+                        // Unknown escape: keep backslash + char literally
+                        value.push('\\');
+                        value.push(other);
+                    }
+                    None => {
+                        value.push('\\');
+                        break;
+                    }
+                }
+                self.advance();
+                continue;
             }
             if ch == '\n' {
                 break;
@@ -46,6 +74,12 @@ impl Lexer<'_> {
                 self.take_while(&mut text, is_hex_digit);
                 return Token::new(TokenKind::IntegerLiteral(text), pos);
             }
+            if let Some(prefix @ ('b' | 'B')) = self.lookahead {
+                text.push(prefix);
+                self.advance();
+                self.take_while(&mut text, crate::lexeme::is_bin_digit);
+                return Token::new(TokenKind::IntegerLiteral(text), pos);
+            }
         }
         self.take_while(&mut text, |ch| ch.is_ascii_digit());
         if self.lookahead == Some('.') {
@@ -55,8 +89,37 @@ impl Lexer<'_> {
             self.take_while(&mut text, |ch| ch.is_ascii_digit());
         }
         if matches!(self.lookahead, Some('e' | 'E')) {
-            is_float = true;
-            self.take_exponent(&mut text);
+            // Only treat as exponent if followed by digit or +/- and digit
+            let next = self.chars.clone().next();
+            let is_exp = match next {
+                Some(c) if c.is_ascii_digit() => true,
+                Some('+' | '-') => {
+                    let mut peek = self.chars.clone();
+                    peek.next(); // skip sign
+                    peek.next().map(|c| c.is_ascii_digit()).unwrap_or(false)
+                }
+                _ => false,
+            };
+            if is_exp {
+                is_float = true;
+                self.take_exponent(&mut text);
+            }
+        }
+        // Handle type suffix: # (Double), ! (Single), % (Integer)
+        match self.lookahead {
+            Some('#') => {
+                self.advance();
+                return Token::new(TokenKind::FloatLiteral(text), pos);
+            }
+            Some('!') => {
+                self.advance();
+                return Token::new(TokenKind::FloatLiteral(text), pos);
+            }
+            Some('%') => {
+                self.advance();
+                return Token::new(TokenKind::IntegerLiteral(text), pos);
+            }
+            _ => {}
         }
         let kind = if is_float {
             TokenKind::FloatLiteral(text)
@@ -70,6 +133,13 @@ impl Lexer<'_> {
         let pos = self.pos();
         let mut name = String::new();
         self.take_while(&mut name, is_identifier_part);
+        // Handle @@ suffix (XBasic absolute/external variable indicator)
+        if self.lookahead == Some('@') {
+            while self.lookahead == Some('@') {
+                name.push('@');
+                self.advance();
+            }
+        }
         let suffix = self.type_suffix();
         if suffix.is_none() && name.to_ascii_uppercase() == "REM" {
             self.skip_comment();
@@ -104,10 +174,23 @@ impl Lexer<'_> {
         self.advance();
         if self.lookahead == Some('$') {
             self.advance();
-            let name = self.name_after_prefix(pos)?;
-            return Ok(Token::new(TokenKind::SystemConstant(name), pos));
         }
-        Ok(Token::new(TokenKind::Symbol('$'), pos))
+        // If no identifier follows, treat as bare $ symbol
+        if self.lookahead.map(|c| !is_identifier_start(c)).unwrap_or(true) {
+            return Ok(Token::new(TokenKind::Symbol('$'), pos));
+        }
+        let name = self.name_after_prefix(pos)?;
+        let suffix = self.type_suffix();
+        if let Some(s) = suffix {
+            return Ok(Token::new(
+                TokenKind::SystemVariable {
+                    name: format!("$${name}"),
+                    suffix: Some(s),
+                },
+                pos,
+            ));
+        }
+        Ok(Token::new(TokenKind::SystemConstant(name), pos))
     }
 
     pub(crate) fn colon_or_symbol(&mut self) -> Token {
@@ -131,6 +214,10 @@ impl Lexer<'_> {
             }
             ('>', Some('>')) => {
                 self.advance();
+                // Check for >>> (unsigned right shift)
+                if self.lookahead == Some('>') {
+                    self.advance();
+                }
                 TokenKind::Shr
             }
             ('<', Some('=')) => {
@@ -162,6 +249,26 @@ impl Lexer<'_> {
             Token::new(TokenKind::NotEqual, pos)
         } else {
             Token::new(TokenKind::Symbol('!'), pos)
+        }
+    }
+
+    pub(crate) fn logical_or_symbol(&mut self) -> Token {
+        let pos = self.pos();
+        let first = self.lookahead.unwrap();
+        self.advance();
+        if self.lookahead == Some(first) {
+            self.advance();
+            Token::new(
+                match first {
+                    '&' => TokenKind::LogicalAnd,
+                    '|' => TokenKind::LogicalOr,
+                    '^' => TokenKind::LogicalXor,
+                    _ => TokenKind::Symbol(first),
+                },
+                pos,
+            )
+        } else {
+            Token::new(TokenKind::Symbol(first), pos)
         }
     }
 
@@ -200,5 +307,37 @@ impl Lexer<'_> {
             });
         }
         Ok(name)
+    }
+
+    pub(crate) fn single_quote_string(&mut self) -> Result<Token, LexError> {
+        let pos = self.pos();
+        self.advance(); // skip opening '
+        let mut value = String::new();
+        while let Some(ch) = self.lookahead {
+            if ch == '\'' {
+                self.advance(); // skip closing '
+                // Single-quoted chars in XBasic are integer literals (ASCII codes)
+                let int_val = if value.chars().count() == 1 {
+                    value.chars().next().unwrap() as i64
+                } else {
+                    // Multi-char: pack like C (implementation-defined, use simple hash)
+                    let mut result: i64 = 0;
+                    for ch in value.chars() {
+                        result = (result << 8) | (ch as i64 & 0xFF);
+                    }
+                    result
+                };
+                return Ok(Token::new(TokenKind::IntegerLiteral(int_val.to_string()), pos));
+            }
+            if ch == '\n' {
+                break;
+            }
+            value.push(ch);
+            self.advance();
+        }
+        Err(LexError::UnterminatedString {
+            line: pos.line,
+            column: pos.column,
+        })
     }
 }

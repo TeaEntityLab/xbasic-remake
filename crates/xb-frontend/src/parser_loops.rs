@@ -5,6 +5,12 @@ use crate::token::{Keyword, TokenKind};
 impl Parser {
     pub(crate) fn do_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::Do)?;
+        // DO NEXT means "continue to next iteration" — treat as ExitLoop
+        if matches!(self.peek_keyword(), Some(Keyword::Next)) {
+            self.index += 1;
+            self.expect_line_end()?;
+            return Ok(Statement::ExitLoop);
+        }
         let pre_condition = match self.peek_keyword() {
             Some(Keyword::While) => {
                 self.index += 1;

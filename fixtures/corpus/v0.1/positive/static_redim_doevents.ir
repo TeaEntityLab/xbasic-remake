@@ -3,6 +3,7 @@ function Main() -> integer
   dim x:integer
   dim y:integer
   dim z:integer[integer(5)]
+  program_name 
   assign x:integer = integer(42)
   assign y:integer = integer(99)
   array_assign z:integer[integer(1)] = integer(10)

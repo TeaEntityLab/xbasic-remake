@@ -1,4 +1,4 @@
-use crate::ast::{CaseClause, FunctionDecl, PrintSep, Statement};
+use crate::ast::{CaseClause, Expression, FunctionDecl, PrintSep, Statement};
 use crate::parser::Parser;
 use crate::token::{Keyword, TokenKind};
 
@@ -6,8 +6,20 @@ impl Parser {
     pub(crate) fn select_case_stmt(&mut self) -> Result<Statement, crate::ParseError> {
         self.expect_keyword(Keyword::Select)?;
         self.expect_keyword(Keyword::Case)?;
-        let selector = self.expression()?;
-        self.expect_line_end()?;
+        // Skip optional ALL keyword (SELECT CASE ALL TRUE)
+        if matches!(self.peek_kind(), TokenKind::Identifier { name, .. } if name.eq_ignore_ascii_case("ALL")) {
+            self.index += 1;
+        }
+        // Skip optional TRUE/FALSE keyword
+        if matches!(self.peek_kind(), TokenKind::Identifier { name, .. } if name.eq_ignore_ascii_case("TRUE") || name.eq_ignore_ascii_case("FALSE")) {
+            self.index += 1;
+        }
+        let selector = if matches!(self.peek_kind(), TokenKind::Newline | TokenKind::Eof | TokenKind::Symbol(':')) {
+            // SELECT CASE ALL TRUE - no selector expression
+            Expression::IntegerLiteral("1".to_string())
+        } else {
+            self.expression()?
+        };
         let mut cases = Vec::new();
         let mut default = None;
         self.skip_newlines();
@@ -88,14 +100,50 @@ impl Parser {
         ) {
             self.index += 1;
         }
-        let (name, _) = self.expect_identifier()?;
+        // Skip optional type qualifier (XLONG, STRING, UBYTE, etc.) before function name
+        if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
+            let save = self.index;
+            self.index += 1;
+            // If next is another identifier or keyword, the first was a type qualifier
+            if matches!(self.peek_kind(), TokenKind::Identifier { .. })
+                || matches!(self.peek_kind(), TokenKind::Keyword(_))
+            {
+                // type qualifier was consumed, continue
+            } else {
+                // The first identifier IS the function name, restore
+                self.index = save;
+            }
+        }
+        let (name, _) = self.expect_name_or_keyword()?;
         let mut args = Vec::new();
         if self.peek_kind() == &TokenKind::Symbol('(') {
             self.index += 1;
             if self.peek_kind() != &TokenKind::Symbol(')') {
                 loop {
-                    let (arg_name, _) = self.expect_identifier()?;
+                    // Allow @ prefix
+                    if matches!(self.peek_kind(), TokenKind::Symbol('@')) {
+                        self.index += 1;
+                    }
+                    // Skip optional type qualifier (XLONG, STRING, etc.)
+                    if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
+                        let save = self.index;
+                        self.index += 1;
+                        if !matches!(self.peek_kind(), TokenKind::Identifier { .. })
+                            && !matches!(self.peek_kind(), TokenKind::Symbol('@'))
+                        {
+                            self.index = save;
+                        }
+                    }
+                    let (arg_name, _) = self.expect_name_or_keyword()?;
                     args.push(arg_name);
+                    // Skip optional array brackets
+                    if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+                        self.index += 1;
+                        if !matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                            let _ = self.expression();
+                        }
+                        self.expect_symbol(']')?;
+                    }
                     if self.peek_kind() == &TokenKind::Symbol(',') {
                         self.index += 1;
                     } else {
@@ -111,7 +159,7 @@ impl Parser {
 
     pub(crate) fn sub_stmt(&mut self) -> Result<Statement, crate::ParseError> {
         self.expect_keyword(Keyword::Sub)?;
-        let (name, suffix) = self.expect_identifier()?;
+        let (name, suffix) = self.expect_name_or_keyword()?;
         let params = if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
             self.parse_params()?
         } else {
@@ -126,6 +174,10 @@ impl Parser {
         }
         self.expect_keyword(Keyword::End)?;
         self.expect_keyword(Keyword::Sub)?;
+        // Skip optional sub name after END SUB
+        if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
+            self.index += 1;
+        }
         self.expect_line_end()?;
         Ok(Statement::Function(FunctionDecl::new(
             name, suffix, params, body,
@@ -139,7 +191,7 @@ impl Parser {
         {
             self.index += 1;
             self.expect_line_end()?;
-            Ok(Statement::Return { value: None })
+            Ok(Statement::ExitFunction)
         } else if matches!(self.peek_kind(), TokenKind::Keyword(Keyword::For))
             || matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Do))
             || matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Loop))
@@ -180,7 +232,7 @@ impl Parser {
             }
             self.expect_line_end()?;
         }
-        Ok(Statement::Program(String::new()))
+        Ok(Statement::EndProgram)
     }
 
     fn starts_end_export(&self) -> bool {
@@ -238,6 +290,13 @@ impl Parser {
 
 pub(crate) fn parse_print(parser: &mut Parser) -> Result<Statement, crate::ParseError> {
     parser.expect_keyword(Keyword::Print)?;
+    if parser.at_line_end() {
+        parser.expect_line_end()?;
+        return Ok(Statement::Print {
+            items: vec![],
+            separators: vec![],
+        });
+    }
     let mut items = vec![parser.expression()?];
     let mut separators = Vec::new();
     while matches!(

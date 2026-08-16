@@ -1,0 +1,15 @@
+function Main() -> integer
+  print call FORMAT$(string(" ###"), integer(23))
+  print call FORMAT$(string("###,###"), integer(23456))
+  print call FORMAT$(string("###.##"), float(23.0))
+  print call FORMAT$(string("######"), integer(54321))
+  print call FORMAT$(string("&&&&&&"), string("scam"))
+  print call FORMAT$(string("<<<<<<"), string("scam"))
+  print call FORMAT$(string(">>>>>>"), string("scam"))
+  print call FORMAT$(string("||||||"), string("scam"))
+  print call FORMAT$(string("###.####"), float(11111.222))
+  print call FORMAT$(string("+###.##"), float(234.56))
+  print call FORMAT$(string("###.##+"), float(234.56))
+  print call FORMAT$(string("###.##-"), float(234.56))
+  print call LIBRARY(integer(0))
+end function

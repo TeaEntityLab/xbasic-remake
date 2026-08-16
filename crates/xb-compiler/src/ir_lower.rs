@@ -26,7 +26,16 @@ impl IrExpr {
                 right: Box::new(IrExpr::lower(right)),
             },
             CheckedExprKind::Not(inner) => IrExprKind::Not(Box::new(IrExpr::lower(inner))),
+            CheckedExprKind::Unary { op, operand } => IrExprKind::Unary {
+                op: *op,
+                operand: Box::new(IrExpr::lower(operand)),
+            },
             CheckedExprKind::Boolean { op, left, right } => IrExprKind::Boolean {
+                op: *op,
+                left: Box::new(IrExpr::lower(left)),
+                right: Box::new(IrExpr::lower(right)),
+            },
+            CheckedExprKind::Logical { op, left, right } => IrExprKind::Logical {
                 op: *op,
                 left: Box::new(IrExpr::lower(left)),
                 right: Box::new(IrExpr::lower(right)),
@@ -35,10 +44,21 @@ impl IrExpr {
                 symbol: IrSymbol::lower(symbol),
                 index: Box::new(IrExpr::lower(index)),
             },
+            CheckedExprKind::ArrayRef { symbol } => IrExprKind::Symbol(IrSymbol::lower(symbol)),
+            CheckedExprKind::ArrayUBound { symbol } => IrExprKind::ArrayUBound {
+                symbol: IrSymbol::lower(symbol),
+            },
+            CheckedExprKind::SizeOf { symbol } => IrExprKind::SizeOf {
+                symbol: IrSymbol::lower(symbol),
+            },
+            CheckedExprKind::SizeOfType { value_type } => IrExprKind::SizeOfType {
+                value_type: *value_type,
+            },
             CheckedExprKind::FunctionCall { name, args } => IrExprKind::FunctionCall {
                 name: name.clone(),
                 args: args.iter().map(IrExpr::lower).collect(),
             },
+            CheckedExprKind::LabelAddress(name) => IrExprKind::LabelAddress(name.clone()),
         };
         Self::new(kind, expr.value_type)
     }
@@ -47,6 +67,7 @@ impl IrItem {
     pub(crate) fn lower_item(item: &CheckedItem) -> Self {
         match item {
             CheckedItem::Version(value) => Self::Version(value.clone()),
+            CheckedItem::ProgramName(value) => Self::ProgramName(value.clone()),
             CheckedItem::Print { items, separators } => Self::Print {
                 items: items.iter().map(IrExpr::lower).collect(),
                 separators: separators.clone(),
@@ -66,6 +87,22 @@ impl IrItem {
             } => Self::ArrayAssignment {
                 target: IrSymbol::lower(target),
                 index: IrExpr::lower(index),
+                value: IrExpr::lower(value),
+            },
+            CheckedItem::MidAssign {
+                target,
+                start,
+                length,
+                value,
+            } => Self::MidAssign {
+                target: IrExpr::lower(target),
+                start: IrExpr::lower(start),
+                length: length.as_ref().map(|e| IrExpr::lower(e)),
+                value: IrExpr::lower(value),
+            },
+            CheckedItem::BuiltinAssign { name, args, value } => Self::BuiltinAssign {
+                name: name.clone(),
+                args: args.iter().map(IrExpr::lower).collect(),
                 value: IrExpr::lower(value),
             },
             CheckedItem::ConstantDefinition {
@@ -180,6 +217,12 @@ impl IrItem {
             }
             CheckedItem::Restore(label) => Self::Restore(label.clone()),
             CheckedItem::Stop => Self::Stop,
+            CheckedItem::Gosub(name) => Self::Gosub(name.clone()),
+            CheckedItem::Label(name) => Self::Label(name.clone()),
+            CheckedItem::Goto(name) => Self::Goto(name.clone()),
+            CheckedItem::GosubReturn => Self::GosubReturn,
+            CheckedItem::GosubExpr(expr) => Self::GosubExpr(IrExpr::lower(expr)),
+            CheckedItem::GotoExpr(expr) => Self::GotoExpr(IrExpr::lower(expr)),
         }
     }
 }

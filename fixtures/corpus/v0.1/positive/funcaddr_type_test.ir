@@ -1,0 +1,8 @@
+version 0.1
+dim func:integer
+function Main() -> integer
+  dim a:integer
+  assign a:integer = integer(42)
+  print symbol(a:integer)
+  print string("done")
+end function

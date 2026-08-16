@@ -1,4 +1,5 @@
 version 0.1
+program_name test
 function Helper() -> integer
   return integer(42)
 end function

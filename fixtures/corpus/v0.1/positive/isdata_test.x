@@ -1,0 +1,11 @@
+VERSION "0.1"
+FUNCTION Main
+DIM s$
+DIM t$
+s$ = "hello"
+t$ = ""
+PRINT ISDATA(s$)
+PRINT ISDATA(t$)
+PRINT ISDATA("world")
+PRINT ISDATA("")
+END FUNCTION

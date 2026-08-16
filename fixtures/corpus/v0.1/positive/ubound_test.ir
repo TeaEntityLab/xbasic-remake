@@ -1,0 +1,8 @@
+program_name ubound_test
+version 0.1
+function Main() -> integer
+  dim arr:integer[integer(10)]
+  dim s$:string[integer(5)]
+  print array_ubound(arr:integer)
+  print array_ubound(s$:string)
+end function

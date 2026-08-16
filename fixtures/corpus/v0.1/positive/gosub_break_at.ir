@@ -4,6 +4,7 @@ function Main() -> integer
   dim y:integer
   dim i:integer
   assign x:integer = integer(10)
+  gosub Double
   for i:integer = integer(1) to integer(3)
     if compare(symbol(i:integer) = integer(2))
       exit_loop
@@ -12,7 +13,8 @@ function Main() -> integer
   next
   assign y:integer = symbol(x:integer)
   print symbol(y:integer)
-  return
+  gosub_return
+  label Double
   assign x:integer = arith(symbol(x:integer) * integer(2))
-  return
+  gosub_return
 end function

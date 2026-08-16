@@ -1,4 +1,4 @@
-use crate::ir::{IrExprKind, IrItem};
+use crate::ir::{IrExpr, IrExprKind, IrItem};
 use crate::text_ir_parser_expr::parse_expr;
 use crate::text_ir_parser_helpers::{parse_params, parse_symbol_decl, parse_type};
 
@@ -12,8 +12,19 @@ pub(crate) fn parse_item(
 ) -> Result<IrItem, TextIrParseError> {
     *idx += 1;
     let l = *idx;
-    if let Some(v) = content.strip_prefix("version ") {
+    if content == "version" || content.starts_with("version ") {
+        let v = content.strip_prefix("version").unwrap_or("").trim();
         return Ok(IrItem::Version(v.to_string()));
+    }
+    if content == "program_name" || content.starts_with("program_name ") {
+        let v = content.strip_prefix("program_name").unwrap_or("").trim();
+        return Ok(IrItem::ProgramName(v.to_string()));
+    }
+    if content == "print" {
+        return Ok(IrItem::Print {
+            items: vec![],
+            separators: vec![],
+        });
     }
     if let Some(rest) = content.strip_prefix("print ") {
         let (items, separators) = crate::text_ir_parser_select::parse_print_items(rest, l)?;
@@ -59,6 +70,51 @@ pub(crate) fn parse_item(
             index: idx_e,
             value: val,
         });
+    }
+    if let Some(rest) = content.strip_prefix("mid_assign ") {
+        let parts: Vec<&str> = rest.split(" | ").collect();
+        if parts.len() == 3 {
+            let target = parse_expr(parts[0]).map_err(|e| err(e, l))?;
+            let start = parse_expr(parts[1]).map_err(|e| err(e, l))?;
+            let value = parse_expr(parts[2]).map_err(|e| err(e, l))?;
+            return Ok(IrItem::MidAssign {
+                target,
+                start,
+                length: None,
+                value,
+            });
+        }
+        if parts.len() == 4 {
+            let target = parse_expr(parts[0]).map_err(|e| err(e, l))?;
+            let start = parse_expr(parts[1]).map_err(|e| err(e, l))?;
+            let length = parse_expr(parts[2]).map_err(|e| err(e, l))?;
+            let value = parse_expr(parts[3]).map_err(|e| err(e, l))?;
+            return Ok(IrItem::MidAssign {
+                target,
+                start,
+                length: Some(length),
+                value,
+            });
+        }
+        return Err(err("mid_assign needs 3 or 4 parts".into(), l));
+    }
+    if let Some(rest) = content.strip_prefix("builtin_assign ") {
+        // Format: builtin_assign NAME arg1 arg2 ... = value
+        let eq_pos = rest.rfind(" = ").ok_or_else(|| err("missing = in builtin_assign".into(), l))?;
+        let before_eq = &rest[..eq_pos];
+        let value_str = &rest[eq_pos + 3..];
+        let sp = before_eq.find(' ').ok_or_else(|| err("missing args in builtin_assign".into(), l))?;
+        let name = before_eq[..sp].to_string();
+        let args_str = &before_eq[sp + 1..];
+        let args: Vec<IrExpr> = if args_str.is_empty() {
+            vec![]
+        } else {
+            args_str.split(' ')
+                .map(|s| parse_expr(s).map_err(|e| err(e, l)))
+                .collect::<Result<_, _>>()?
+        };
+        let value = parse_expr(value_str).map_err(|e| err(e, l))?;
+        return Ok(IrItem::BuiltinAssign { name, args, value });
     }
     if let Some(rest) = content.strip_prefix("const ") {
         let name = rest
@@ -225,6 +281,7 @@ pub(crate) fn parse_item(
         "exit_loop" => return Ok(IrItem::ExitLoop),
         "exit_select" => return Ok(crate::text_ir_parser_data::parse_exit_select()),
         "stop" => return Ok(crate::text_ir_parser_data::parse_stop()),
+        "gosub_return" => return Ok(IrItem::GosubReturn),
         _ => {}
     }
     if let Some(rest) = content.strip_prefix("swap ") {
@@ -240,6 +297,23 @@ pub(crate) fn parse_item(
     }
     if let Some(rest) = content.strip_prefix("restore") {
         return Ok(crate::text_ir_parser_data::parse_restore(rest));
+    }
+    if let Some(rest) = content.strip_prefix("gosub ") {
+        return Ok(IrItem::Gosub(rest.trim().to_string()));
+    }
+    if let Some(rest) = content.strip_prefix("label ") {
+        return Ok(IrItem::Label(rest.trim().to_string()));
+    }
+    if let Some(rest) = content.strip_prefix("goto ") {
+        return Ok(IrItem::Goto(rest.trim().to_string()));
+    }
+    if let Some(rest) = content.strip_prefix("gosub_expr ") {
+        let expr = parse_expr(rest).map_err(|e| err(e, l))?;
+        return Ok(IrItem::GosubExpr(expr));
+    }
+    if let Some(rest) = content.strip_prefix("goto_expr ") {
+        let expr = parse_expr(rest).map_err(|e| err(e, l))?;
+        return Ok(IrItem::GotoExpr(expr));
     }
     if content.starts_with("select_case ") {
         return crate::text_ir_parser_select::parse_select_case(content, lines, idx, indent, l);

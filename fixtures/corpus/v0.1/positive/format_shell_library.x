@@ -1,0 +1,15 @@
+FUNCTION Main
+  PRINT FORMAT$(" ###", 23)
+  PRINT FORMAT$("###,###", 23456)
+  PRINT FORMAT$("###.##", 23.0)
+  PRINT FORMAT$("######", 54321)
+  PRINT FORMAT$("&&&&&&", "scam")
+  PRINT FORMAT$("<<<<<<", "scam")
+  PRINT FORMAT$(">>>>>>", "scam")
+  PRINT FORMAT$("||||||", "scam")
+  PRINT FORMAT$("###.####", 11111.222)
+  PRINT FORMAT$("+###.##", 234.56)
+  PRINT FORMAT$("###.##+", 234.56)
+  PRINT FORMAT$("###.##-", 234.56)
+  PRINT LIBRARY(0)
+END FUNCTION

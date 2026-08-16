@@ -46,7 +46,7 @@ pub(crate) fn eval_hexx(name: &str, args: &[RuntimeValue]) -> Result<RuntimeValu
 
 pub(crate) fn eval_str_op(name: &str, args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
     match name {
-        "RJUST$" | "LJUST$" => eval_just(name, args),
+        "RJUST$" | "LJUST$" | "CJUST$" => eval_just(name, args),
         "RCLIP$" => eval_rclip(args),
         "LCLIP$" => eval_lclip(args),
         _ => unreachable!("eval_str_op: {name}"),
@@ -66,6 +66,15 @@ fn eval_just(name: &str, args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeE
             s.clone()
         } else {
             format!("{:>width$}", s, width = width)
+        }
+    } else if name == "CJUST$" {
+        if s.len() >= width {
+            s[..width].to_string()
+        } else {
+            let total = width - s.len();
+            let left = total / 2;
+            let right = total - left;
+            format!("{}{}{}", " ".repeat(left), s, " ".repeat(right))
         }
     } else {
         if s.len() >= width {
@@ -117,13 +126,30 @@ pub(crate) fn eval_chr_search(
     let RuntimeValue::String(set) = &args[1] else {
         return Err(type_err(args[1].value_type()));
     };
-    let RuntimeValue::Integer(start) = &args[2] else {
-        return Err(type_err(args[2].value_type()));
+    let forward = name.starts_with("INCHR");
+    let start = if args.len() >= 3 {
+        let RuntimeValue::Integer(v) = &args[2] else {
+            return Err(type_err(args[2].value_type()));
+        };
+        *v
+    } else if forward {
+        1
+    } else {
+        s.len() as i32
     };
-    let chars: Vec<char> = s.chars().collect();
-    let set_chars: Vec<char> = set.chars().collect();
-    let start_idx = (*start as usize).saturating_sub(1);
-    if name == "INCHR" {
+    let case_insensitive = name.ends_with('I');
+    let chars: Vec<char> = if case_insensitive {
+        s.to_lowercase().chars().collect()
+    } else {
+        s.chars().collect()
+    };
+    let set_chars: Vec<char> = if case_insensitive {
+        set.to_lowercase().chars().collect()
+    } else {
+        set.chars().collect()
+    };
+    let start_idx = (start as usize).saturating_sub(1);
+    if forward {
         for i in start_idx..chars.len() {
             if set_chars.contains(&chars[i]) {
                 return Ok(RuntimeValue::Integer((i + 1) as i32));
@@ -168,4 +194,36 @@ pub(crate) fn eval_stuff(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeE
     let phase3_start = start_idx + phase2;
     result.extend_from_slice(&into_chars[phase3_start..]);
     Ok(RuntimeValue::String(result.into_iter().collect()))
+}
+
+/// 2-arg BIN$/BINB$/OCT$/OCTO$: format with minimum digit width.
+pub(crate) fn eval_int_to_str2(
+    name: &str,
+    args: &[RuntimeValue],
+) -> Result<RuntimeValue, RuntimeError> {
+    let RuntimeValue::Integer(n) = &args[0] else {
+        return Err(type_err(args[0].value_type()));
+    };
+    let (prefix, radix, digits) = match name {
+        "BINB$" => ("0b", 2, format!("{:b}", *n)),
+        "BIN$" => ("", 2, format!("{:b}", *n)),
+        "OCTO$" => ("0o", 8, format!("{:o}", *n)),
+        "OCT$" => ("", 8, format!("{:o}", *n)),
+        _ => unreachable!(),
+    };
+    let _ = radix;
+    if args.len() == 2 {
+        let RuntimeValue::Integer(w) = &args[1] else {
+            return Err(type_err(args[1].value_type()));
+        };
+        let width = *w as usize;
+        let padded = if digits.len() >= width {
+            digits
+        } else {
+            format!("{}{}", "0".repeat(width - digits.len()), digits)
+        };
+        Ok(RuntimeValue::String(format!("{prefix}{padded}")))
+    } else {
+        Ok(RuntimeValue::String(format!("{prefix}{digits}")))
+    }
 }

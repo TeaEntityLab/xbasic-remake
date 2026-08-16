@@ -74,6 +74,33 @@ IF vPos > 0 THEN
   verStr$ = vLine$
 END IF
 PRINT "static const char* xb_version_str = " + CHR$(34) + verStr$ + CHR$(34) + ";"
+DIM progStr$
+progStr$ = ""
+DIM pPos
+pPos = 0
+IF LEFT$(src$, 13) = "program_name " THEN
+  pPos = 14
+END IF
+IF pPos = 0 THEN
+  pPos = INSTR(src$, CHR$(10) + "program_name ")
+  IF pPos > 0 THEN
+    pPos = pPos + 14
+  END IF
+END IF
+IF pPos > 0 THEN
+  DIM pEnd
+  pEnd = INSTR(src$, CHR$(10), pPos)
+  IF pEnd = 0 THEN
+    pEnd = LEN(src$) + 1
+  END IF
+  DIM pLine$
+  pLine$ = MID$(src$, pPos, pEnd - pPos)
+  IF LEFT$(pLine$, 1) = CHR$(34) AND RIGHT$(pLine$, 1) = CHR$(34) THEN
+    pLine$ = MID$(pLine$, 2, LEN(pLine$) - 2)
+  END IF
+  progStr$ = pLine$
+END IF
+PRINT "static const char* xb_program_name_str = " + CHR$(34) + progStr$ + CHR$(34) + ";"
 
 PRINT "#include <stdio.h>"
 PRINT "#include <stdlib.h>"
@@ -81,6 +108,7 @@ PRINT "#include <string.h>"
 PRINT "#include <ctype.h>"
 PRINT "#include <math.h>"
 PRINT "#include <time.h>"
+PRINT "#include <stdint.h>"
 PRINT ""
 PRINT "static char* xb_strdup(const char* s) { size_t n = strlen(s) + 1; char* r = (char*)malloc(n); memcpy(r, s, n); return r; }"
 PRINT "static char* xb_str(const char* s) { return xb_strdup(s); }"
@@ -197,10 +225,105 @@ PRINT "static char* xb_lclip1(const char* s) { int i = 0; while (s[i] && isspace
 PRINT "static char* xb_lclip2(const char* s, int n) { int len = strlen(s); if (n >= len) return xb_strdup(" + CHR$(34) + CHR$(34) + "); return xb_strdup(s + n); }"
 PRINT "static int xb_inchr(const char* s, const char* set, int start) { int len = strlen(s); int i; for (i = start - 1; i < len; i++) { if (strchr(set, s[i])) return i + 1; } return 0; }"
 PRINT "static int xb_rinchr(const char* s, const char* set, int end) { int len = strlen(s); int begin = end - 1; if (begin >= len) begin = len - 1; int i; for (i = begin; i >= 0; i--) { if (strchr(set, s[i])) return i + 1; } return 0; }"
+PRINT "static int xb_inchr2(const char* s, const char* set) { return xb_inchr(s, set, 1); }"
+PRINT "static int xb_rinchr2(const char* s, const char* set) { return xb_rinchr(s, set, (int)strlen(s)); }"
+PRINT "static int xb_inchri(const char* s, const char* set, int start) { int len = strlen(s); char* lset = xb_strdup(set); char* p; for (p = lset; *p; p++) *p = tolower((unsigned char)*p); int i; for (i = start - 1; i < len; i++) { if (strchr(lset, tolower((unsigned char)s[i]))) { free(lset); return i + 1; } } free(lset); return 0; }"
+PRINT "static int xb_rinchri(const char* s, const char* set, int end) { int len = strlen(s); int begin = end - 1; if (begin >= len) begin = len - 1; char* lset = xb_strdup(set); char* p; for (p = lset; *p; p++) *p = tolower((unsigned char)*p); int i; for (i = begin; i >= 0; i--) { if (strchr(lset, tolower((unsigned char)s[i]))) { free(lset); return i + 1; } } free(lset); return 0; }"
+PRINT "static int xb_inchri2(const char* s, const char* set) { return xb_inchri(s, set, 1); }"
+PRINT "static int xb_rinchri2(const char* s, const char* set) { return xb_rinchri(s, set, (int)strlen(s)); }"
 PRINT "static char* xb_stuff(const char* into, const char* from, int start, int len) { int ilen = strlen(into); int flen = strlen(from); int si = start - 1; if (si < 0) si = 0; if (si > ilen) si = ilen; int avail = ilen - si; int max_from = (len < 0) ? flen : (len < flen ? len : flen); int p2 = max_from < avail ? max_from : avail; char* r = malloc(ilen + 1); memcpy(r, into, si); memcpy(r + si, from, p2); memcpy(r + si + p2, into + si + p2, ilen - si - p2); r[ilen] = 0; return r; }"
 PRINT "static char* xb_string(int v) { char* r = malloc(16); snprintf(r, 16, " + CHR$(34) + "%d" + CHR$(34) + ", v); return r; }"
 PRINT "static char* xb_signed(int v) { char* r = malloc(16); if (v >= 0) snprintf(r, 16, " + CHR$(34) + "+%d" + CHR$(34) + ", v); else snprintf(r, 16, " + CHR$(34) + "%d" + CHR$(34) + ", v); return r; }"
 PRINT "static char* xb_null(int n) { if (n < 0) n = 0; char* r = malloc(n + 1); memset(r, 0, n); r[n] = 0; return r; }"
+PRINT "static int xb_rotatel(unsigned int v, unsigned int n) { n %= 32; return (v << n) | (v >> ((32 - n) % 32)); }"
+PRINT "static int xb_rotater(unsigned int v, unsigned int n) { n %= 32; return (v >> n) | (v << ((32 - n) % 32)); }"
+PRINT "static int xb_dhigh(double v) { uint64_t b; memcpy(&b, &v, 8); return (int)(b >> 32); }"
+PRINT "static int xb_dlow(double v) { uint64_t b; memcpy(&b, &v, 8); return (int)(b & 0xFFFFFFFF); }"
+PRINT "static double xb_dmake(int hi, int lo) { uint64_t b = ((uint64_t)(unsigned)hi << 32) | (unsigned)lo; double v; memcpy(&v, &b, 8); return v; }"
+PRINT "static int xb_gmake(int hi, int lo) { return lo; }"
+PRINT "static double xb_smake(int v) { float f; uint32_t b = (unsigned)v; memcpy(&f, &b, 4); return (double)f; }"
+PRINT "static int xb_xmake(double v) { float f = (float)v; uint32_t b; memcpy(&b, &f, 4); return (int)b; }"
+PRINT "static int xb_error_code = 0;"
+PRINT "static int xb_error(int n) { int old = xb_error_code; if (n != -1) xb_error_code = n; return old; }"
+PRINT "static char* xb_error_str(int n) { char* r = malloc(32); snprintf(r, 32, " + CHR$(34) + "error " + CHR$(37) + "d" + CHR$(34) + ", n); return r; }"
+PRINT "static int xb_bitfield(int w, int o) { return (w << 8) | o; }"
+PRINT "static int xb_exts(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); unsigned bits = ((unsigned)v >> o) & mask; if (w<32 && (bits & (1u<<(w-1)))) bits |= ~mask; return (int)bits; }"
+PRINT "static int xb_extu(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)(((unsigned)v >> o) & mask); }"
+PRINT "static int xb_clr(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)((unsigned)v & ~(mask << o)); }"
+PRINT "static int xb_set(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)((unsigned)v | (mask << o)); }"
+PRINT "static int xb_make(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)(((unsigned)v & mask) << o); }"
+PRINT "static int xb_high0(int v) { unsigned b = ~(unsigned)v; int i; for (i=31; i>=0; i--) if (b & (1u<<i)) return i; return 0; }"
+PRINT "static int xb_high1(int v) { unsigned b = (unsigned)v; int i; for (i=31; i>=0; i--) if (b & (1u<<i)) return i; return 0; }"
+PRINT "static int xb_ghigh(int v) { return v >> 31; }"
+PRINT "static int xb_glow(int v) { return v; }"
+PRINT "static int xb_sign(double v) { return (v < 0.0) ? -1 : 1; }"
+PRINT "static char* xb_binb(int v) { char* r = malloc(35); int n = 0; if (v == 0) { r[0] = '0'; r[1] = 'b'; r[2] = '0'; r[3] = 0; return r; } int t = v; while (t) { n++; t >>= 1; } r[0] = '0'; r[1] = 'b'; r[n + 2] = 0; t = v; while (t) { r[--n + 2] = (t & 1) ? '1' : '0'; t >>= 1; } return r; }"
+PRINT "static char* xb_octo(int v) { char* r = malloc(18); snprintf(r, 18, " + CHR$(34) + "0o" + CHR$(37) + "o" + CHR$(34) + ", v); return r; }"
+PRINT "static char* xb_cjust(const char* s, int w) { int len = strlen(s); if (len >= w) { char* r = malloc(w + 1); memcpy(r, s, w); r[w] = 0; return r; } int total = w - len, left = total / 2, right = total - left; char* r = malloc(w + 1); memset(r, ' ', left); memcpy(r + left, s, len); memset(r + left + len, ' ', right); r[w] = 0; return r; }"
+PRINT "static int xb_quit(int code) { exit(code); return 0; }"
+PRINT "static char* xb_bin2(int v, int d) { char* r = malloc(33); int n = 0; int t = v; while (t) { n++; t >>= 1; } if (n < d) n = d; if (v == 0) { if (d > 0) n = d; else { r[0] = '0'; r[1] = 0; return r; } } r[n] = 0; t = v; int pos = n - 1; while (pos >= 0) { r[pos--] = (t & 1) ? '1' : '0'; t >>= 1; } return r; }"
+PRINT "static char* xb_oct2(int v, int d) { char* r = malloc(18); if (d > 0) snprintf(r, 18, " + CHR$(34) + CHR$(37) + "0*o" + CHR$(34) + ", d, v); else snprintf(r, 18, " + CHR$(34) + CHR$(37) + "o" + CHR$(34) + ", v); return r; }"
+PRINT "static char* xb_binb2(int v, int d) { char* r = malloc(35); int n = 0; int t = v; while (t) { n++; t >>= 1; } if (n < d) n = d; if (v == 0 && d == 0) { r[0] = '0'; r[1] = 'b'; r[2] = '0'; r[3] = 0; return r; } if (v == 0) n = d; r[0] = '0'; r[1] = 'b'; r[n + 2] = 0; t = v; int pos = n + 1; while (pos > 1) { r[pos--] = (t & 1) ? '1' : '0'; t >>= 1; } return r; }"
+PRINT "static char* xb_octo2(int v, int d) { char* r = malloc(20); if (d > 0) snprintf(r, 20, " + CHR$(34) + "0o" + CHR$(37) + "0*o" + CHR$(34) + ", d, v); else snprintf(r, 20, " + CHR$(34) + "0o" + CHR$(37) + "o" + CHR$(34) + ", v); return r; }"
+PRINT "static char* xb_format(const char* fmt, const char* sval, int ival, double fval, int is_float, int is_str) {"
+PRINT "  if (is_str) {"
+PRINT "    int slen = (int)strlen(sval);"
+PRINT "    if (fmt[0] == '&') return xb_strdup(sval);"
+PRINT "    if (fmt[0] == '<' || fmt[0] == '>' || fmt[0] == '|') {"
+PRINT "      int w = 0; for (int i = 0; fmt[i] == fmt[0]; i++) w++;"
+PRINT "      if (slen >= w) { char* r = malloc(w + 1); memcpy(r, sval, w); r[w] = 0; return r; }"
+PRINT "      int total = w - slen, left = total / 2, right = total - left;"
+PRINT "      char* r = malloc(w + 1); int pos = 0;"
+PRINT "      if (fmt[0] == '>') { for (int i = 0; i < total; i++) r[pos++] = ' '; memcpy(r + pos, sval, slen); }"
+PRINT "      else if (fmt[0] == '|') { for (int i = 0; i < left; i++) r[pos++] = ' '; memcpy(r + pos, sval, slen); pos += slen; for (int i = 0; i < right; i++) r[pos++] = ' '; }"
+PRINT "      else { memcpy(r, sval, slen); pos += slen; for (int i = 0; i < total; i++) r[pos++] = ' '; }"
+PRINT "      r[w] = 0; return r;"
+PRINT "    }"
+PRINT "    return xb_strdup(sval);"
+PRINT "  }"
+PRINT "  double val = is_float ? fval : (double)ival;"
+PRINT "  int int_digits = 0, frac_digits = 0, has_decimal = 0, has_commas = 0;"
+PRINT "  int dollar = 0, star_fill = 0, zero_fill = 0, leading_plus = 0, trailing_plus = 0;"
+PRINT "  int trailing_minus = 0, paren_neg = 0;"
+PRINT "  for (int i = 0; fmt[i]; i++) {"
+PRINT "    char c = fmt[i];"
+PRINT "    if (c == '#') { if (has_decimal) frac_digits++; else int_digits++; }"
+PRINT "    else if (c == '.') has_decimal = 1;"
+PRINT "    else if (c == ',') has_commas = 1;"
+PRINT "    else if (c == '$') dollar = 1;"
+PRINT "    else if (c == '*') star_fill = 1;"
+PRINT "    else if (c == '0') zero_fill = 1;"
+PRINT "    else if (c == '+') { if (int_digits > 0) trailing_plus = 1; else leading_plus = 1; }"
+PRINT "    else if (c == '-') { if (int_digits > 0) trailing_minus = 1; }"
+PRINT "    else if (c == '(') paren_neg = 1;"
+PRINT "    else if (c == '_') i++;"
+PRINT "  }"
+PRINT "  if (int_digits == 0 && frac_digits == 0 && !star_fill && !zero_fill) { char* r = malloc(64); snprintf(r, 64, " + CHR$(34) + CHR$(37) + "g" + CHR$(34) + ", val); return r; }"
+PRINT "  int neg = val < 0.0; double abs_val = neg ? -val : val;"
+PRINT "  char* r = malloc(128); r[0] = 0; int pos = 0;"
+PRINT "  if (paren_neg && neg) r[pos++] = '(';"
+PRINT "  else if (leading_plus) r[pos++] = neg ? '-' : '+';"
+PRINT "  else if (neg && !trailing_plus && !trailing_minus) r[pos++] = '-';"
+PRINT "  if (dollar) r[pos++] = '$';"
+PRINT "  char numbuf[64];"
+PRINT "  if (has_decimal && frac_digits > 0) snprintf(numbuf, 64, " + CHR$(34) + CHR$(37) + ".*f" + CHR$(34) + ", frac_digits, abs_val);"
+PRINT "  else snprintf(numbuf, 64, " + CHR$(34) + CHR$(37) + "g" + CHR$(34) + ", abs_val);"
+PRINT "  char* dot = strchr(numbuf, '.');"
+PRINT "  int orig_int_len = dot ? (int)(dot - numbuf) : (int)strlen(numbuf);"
+PRINT "  char fill = star_fill ? '*' : (zero_fill ? '0' : ' ');"
+PRINT "  int commas = has_commas ? (orig_int_len - 1) / 3 : 0;"
+PRINT "  int pad = int_digits > (orig_int_len + commas) ? int_digits - (orig_int_len + commas) : 0;"
+PRINT "  for (int p = 0; p < pad; p++) r[pos++] = fill;"
+PRINT "  if (has_commas) { for (int i = 0; i < orig_int_len; i++) { if (i > 0 && (orig_int_len - i) " + CHR$(37) + " 3 == 0) r[pos++] = ','; r[pos++] = numbuf[i]; } }"
+PRINT "  else { memcpy(r + pos, numbuf, orig_int_len); pos += orig_int_len; }"
+PRINT "  if (dot) { r[pos++] = '.'; int flen = (int)strlen(dot + 1); memcpy(r + pos, dot + 1, flen); pos += flen; }"
+PRINT "  if (paren_neg && neg) r[pos++] = ')';"
+PRINT "  else if (trailing_plus) r[pos++] = neg ? '-' : '+';"
+PRINT "  else if (trailing_minus && neg) r[pos++] = '-';"
+PRINT "  r[pos] = 0; return r;"
+PRINT "}"
+PRINT "static int xb_shell(const char* cmd) { return system(cmd); }"
+PRINT "static int xb_library(int n) { return 0; }"
 PRINT "static double xb_sqrt(double v) { return sqrt(v); }"
 PRINT "static double xb_sin(double v) { return sin(v); }"
 PRINT "static double xb_cos(double v) { return cos(v); }"
@@ -210,6 +333,7 @@ PRINT "static double xb_log(double v) { return log(v); }"
 PRINT "static double xb_acos(double v) { return acos(v); }"
 PRINT "static double xb_asin(double v) { return asin(v); }"
 PRINT "static double xb_atan2(double a, double b) { return atan2(a, b); }"
+PRINT "static double xb_atan(double v) { return atan(v); }"
 PRINT "static double xb_log10(double v) { return log10(v); }"
 PRINT "static double xb_power(double a, double b) { return pow(a, b); }"
 PRINT "static double xb_sinh(double v) { return sinh(v); }"
@@ -241,24 +365,98 @@ PRINT "static double xb_timer(void) { time_t t = time(NULL); struct tm *tm = loc
 PRINT "static char* xb_time(void) { time_t t = time(NULL); struct tm *tm = localtime(&t); char* r = malloc(9); snprintf(r, 9, " + CHR$(34) + "%02d:%02d:%02d" + CHR$(34) + ", tm->tm_hour, tm->tm_min, tm->tm_sec); return r; }"
 PRINT "static char* xb_date(void) { time_t t = time(NULL); struct tm *tm = localtime(&t); char* r = malloc(11); snprintf(r, 11, " + CHR$(34) + "%04d-%02d-%02d" + CHR$(34) + ", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday); return r; }"
 PRINT "static char* xb_version(int _) { (void)_; return xb_strdup(xb_version_str); }"
+PRINT "static int xb_csize(const char* s) { const char* p = s; while (*p) p++; return (int)(p - s); }"
+PRINT "static char* xb_csize_str(const char* s) { const char* p = s; while (*p) p++; size_t n = p - s; char* r = malloc(n + 1); memcpy(r, s, n); r[n] = 0; return r; }"
+PRINT "static char* xb_program_name(int _) { (void)_; return xb_strdup(xb_program_name_str); }"
 PRINT "static int xb_eof(void) {"
 PRINT "    int c = fgetc(stdin);"
 PRINT "    if (c == EOF) return 1;"
 PRINT "    ungetc(c, stdin);"
 PRINT "    return 0;"
 PRINT "}"
+PRINT "static FILE* xb_files[256];"
+PRINT "static int xb_file_count = 3;"
+PRINT "static int xb_open(const char* name, int mode) {"
+PRINT "    const char* opts = (mode == 0) ? " + CHR$(34) + "rb" + CHR$(34) + " : (mode == 1 || mode == 2) ? " + CHR$(34) + "r+b" + CHR$(34) + " : (mode == 3) ? " + CHR$(34) + "wb" + CHR$(34) + " : (mode == 4) ? " + CHR$(34) + "w+b" + CHR$(34) + " : " + CHR$(34) + "rb" + CHR$(34) + ";"
+PRINT "    FILE* f = fopen(name, opts);"
+PRINT "    if (!f) return -1;"
+PRINT "    int fn = xb_file_count++;"
+PRINT "    xb_files[fn] = f;"
+PRINT "    return fn;"
+PRINT "}"
+PRINT "static int xb_close(int fn) {"
+PRINT "    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return -1;"
+PRINT "    int r = fclose(xb_files[fn]);"
+PRINT "    xb_files[fn] = NULL;"
+PRINT "    return r == 0 ? 0 : -1;"
+PRINT "}"
+PRINT "static int xb_lof(int fn) {"
+PRINT "    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return -1;"
+PRINT "    FILE* f = xb_files[fn];"
+PRINT "    long cur = ftell(f);"
+PRINT "    fseek(f, 0, SEEK_END);"
+PRINT "    long len = ftell(f);"
+PRINT "    fseek(f, cur, SEEK_SET);"
+PRINT "    return (int)len;"
+PRINT "}"
+PRINT "static int xb_pof(int fn) {"
+PRINT "    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return -1;"
+PRINT "    return (int)ftell(xb_files[fn]);"
+PRINT "}"
+PRINT "static int xb_seek(int fn, int pos) {"
+PRINT "    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return -1;"
+PRINT "    return fseek(xb_files[fn], pos, SEEK_SET) == 0 ? pos : -1;"
+PRINT "}"
+PRINT "static char* xb_infile(int fn) {"
+PRINT "    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return xb_strdup(" + CHR$(34) + CHR$(34) + ");"
+PRINT "    char buf[65536];"
+PRINT "    if (!fgets(buf, sizeof(buf), xb_files[fn])) return xb_strdup(" + CHR$(34) + CHR$(34) + ");"
+PRINT "    int len = (int)strlen(buf);"
+PRINT "    if (len > 0 && buf[len-1] == " + CHR$(39) + CHR$(92) + "n" + CHR$(39) + ") buf[len-1] = 0;"
+PRINT "    return xb_strdup(buf);"
+PRINT "}"
+PRINT "static char* xb_tab(int cur, int col) { if (col <= cur) return xb_strdup(" + CHR$(34) + CHR$(34) + "); int n = col - cur; char* r = malloc(n + 1); memset(r, ' ', n); r[n] = 0; return r; }"
+PRINT "static char* xb_tab_0(int col) { return xb_tab(0, col); }"
+PRINT "static int xb_isdata(const char* s) { return (s && s[0]) ? -1 : 0; }"
+PRINT "static char* xb_inkey(void) { int c = getchar(); if (c == EOF) return xb_strdup(" + CHR$(34) + CHR$(34) + "); char buf[2]; buf[0] = (char)c; buf[1] = 0; return xb_strdup(buf); }"
+PRINT "static int xb_waitkey(void) { int c = getchar(); return (c == EOF) ? 0 : c; }"
+PRINT "static int xb_isnode(const char* s) { return 0; }"
+PRINT "static void xb_mid_assign(char* dst, int start, int len, const char* src) {"
+PRINT "    int dlen = (int)strlen(dst); int slen = (int)strlen(src);"
+PRINT "    if (start < 1 || start > dlen) return;"
+PRINT "    int si = start - 1; int copy = (len < 0) ? slen : len;"
+PRINT "    if (copy > slen) copy = slen; if (si + copy > dlen) copy = dlen - si;"
+PRINT "    memcpy(dst + si, src, copy);"
+PRINT "}"
+PRINT "static intptr_t xb_goaddr(intptr_t x) { return x; }"
+PRINT "static intptr_t xb_subaddr(intptr_t x) { return x; }"
+PRINT "static intptr_t xb_funcaddress(intptr_t x) { return x; }"
+PRINT "static char* xb_cstring(intptr_t addr) { return (char*)addr; }"
+PRINT "static int xb_sbyteat(intptr_t a, intptr_t o) { return (int)(*(signed char*)(a+o)); }"
+PRINT "static int xb_ubyteat(intptr_t a, intptr_t o) { return (int)(*(unsigned char*)(a+o)); }"
+PRINT "static int xb_sshortat(intptr_t a, intptr_t o) { return (int)(*(signed short*)(a+o)); }"
+PRINT "static int xb_ushortat(intptr_t a, intptr_t o) { return (int)(*(unsigned short*)(a+o)); }"
+PRINT "static int xb_slongat(intptr_t a, intptr_t o) { return (int)(*(signed int*)(a+o)); }"
+PRINT "static int xb_ulongat(intptr_t a, intptr_t o) { return (int)(*(unsigned int*)(a+o)); }"
+PRINT "static intptr_t xb_xlongat(intptr_t a, intptr_t o) { return *(intptr_t*)(a+o); }"
+PRINT "static intptr_t xb_giantat(intptr_t a, intptr_t o) { return *(intptr_t*)(a+o); }"
+PRINT "static double xb_singleat(intptr_t a, intptr_t o) { return (double)(*(float*)(a+o)); }"
+PRINT "static double xb_doubleat(intptr_t a, intptr_t o) { return *(double*)(a+o); }"
+PRINT "static intptr_t xb_subaddrat(intptr_t a, intptr_t o) { return *(intptr_t*)(a+o); }"
+PRINT "static intptr_t xb_goaddrat(intptr_t a, intptr_t o) { return *(intptr_t*)(a+o); }"
+PRINT "static void* xb_gosub_stack[256]; static int xb_gosub_sp = 0;"
 PRINT "static char* xb_readline(void) {"
 PRINT "    char buf[65536];"
 PRINT "    if (!fgets(buf, sizeof(buf), stdin)) return xb_strdup(" + CHR$(34) + CHR$(34) + ");"
 PRINT "    int len = (int)strlen(buf);"
-PRINT "    if (len > 0 && buf[len-1] == '\n') buf[len-1] = 0;"
+PRINT "    if (len > 0 && buf[len-1] == '" + CHR$(92) + "n" + CHR$(39) + ") buf[len-1] = 0;"
 PRINT "    return xb_strdup(buf);"
 PRINT "}"
 PRINT "static char* xb_ucase(const char* s) { char* r = xb_strdup(s); for (char* p = r; *p; p++) *p = toupper((unsigned char)*p); return r; }"
 PRINT "static char* xb_lcase(const char* s) { char* r = xb_strdup(s); for (char* p = r; *p; p++) *p = tolower((unsigned char)*p); return r; }"
-PRINT "static char* xb_trim(const char* s) { const char* start = s; while (*start == ' ' || *start == '\t') start++; const char* end = s + strlen(s) - 1; while (end > start && (*end == ' ' || *end == '\t')) end--; int len = end - start + 1; char* r = malloc(len + 1); memcpy(r, start, len); r[len] = 0; return r; }"
-PRINT "static char* xb_ltrim(const char* s) { const char* start = s; while (*start == ' ' || *start == '\t') start++; return xb_strdup(start); }"
-PRINT "static char* xb_rtrim(const char* s) { int len = (int)strlen(s); while (len > 0 && (s[len-1] == ' ' || s[len-1] == '\t')) len--; char* r = malloc(len + 1); memcpy(r, s, len); r[len] = 0; return r; }"
+PRINT "static char* xb_trim(const char* s) { const char* start = s; while (*start == ' ' || *start == '" + CHR$(92) + "t') start++; const char* end = s + strlen(s) - 1; while (end > start && (*end == ' ' || *end == '" + CHR$(92) + "t')) end--; int len = end - start + 1; char* r = malloc(len + 1); memcpy(r, start, len); r[len] = 0; return r; }"
+PRINT "static char* xb_ltrim(const char* s) { const char* start = s; while (*start == ' ' || *start == '" + CHR$(92) + "t') start++; return xb_strdup(start); }"
+PRINT "static char* xb_rtrim(const char* s) { int len = (int)strlen(s); while (len > 0 && (s[len-1] == ' ' || s[len-1] == '" + CHR$(92) + "t')) len--; char* r = malloc(len + 1); memcpy(r, s, len); r[len] = 0; return r; }"
 PRINT "static char* xb_space(int n) { if (n < 0) n = 0; char* r = malloc(n + 1); memset(r, ' ', n); r[n] = 0; return r; }"
 PRINT "static int xb_abs(int v) { return v < 0 ? -v : v; }"
 PRINT "static int xb_sgn(int v) { return (v > 0) - (v < 0); }"
@@ -267,9 +465,9 @@ PRINT "static int xb_fix(double v) { return (int)trunc(v); }"
 PRINT "static double xb_fabs(double v) { return fabs(v); }"
 PRINT "static int xb_max(int a, int b) { return a > b ? a : b; }"
 PRINT "static int xb_min(int a, int b) { return a < b ? a : b; }"
-PRINT "static void xb_print_int(int v) { printf(" + CHR$(34) + "%d\n" + CHR$(34) + ", v); }"
-PRINT "static void xb_print_str(const char* s) { printf(" + CHR$(34) + "%s\n" + CHR$(34) + ", s); }"
-PRINT "static void xb_print_float(double v) { printf(" + CHR$(34) + "%.17g\n" + CHR$(34) + ", v); }"
+PRINT "static void xb_print_int(int v) { printf(" + CHR$(34) + "%d" + CHR$(92) + "n" + CHR$(34) + ", v); }"
+PRINT "static void xb_print_str(const char* s) { printf(" + CHR$(34) + "%s" + CHR$(92) + "n" + CHR$(34) + ", s); }"
+PRINT "static void xb_print_float(double v) { printf(" + CHR$(34) + "%.17g" + CHR$(92) + "n" + CHR$(34) + ", v); }"
 PRINT "static int xb_data_int[256]; static double xb_data_float[256]; static char* xb_data_str[256]; static int xb_data_tag[256]; static int xb_data_count = 0; static int xb_data_pos = 0;"
 PRINT "static void xb_data_add_int(int v) { xb_data_tag[xb_data_count] = 0; xb_data_int[xb_data_count] = v; xb_data_count++; }"
 PRINT "static void xb_data_add_float(double v) { xb_data_tag[xb_data_count] = 1; xb_data_float[xb_data_count] = v; xb_data_count++; }"
@@ -402,7 +600,7 @@ WHILE pos <= LEN(src$)
           DIM dataVal$
           dataType$ = LEFT$(dataToken$, dataColon - 1)
           dataVal$ = MID$(dataToken$, dataColon + 1, LEN(dataToken$) - dataColon)
-          IF dataType$ = "int" THEN
+          IF dataType$ = "intptr_t" THEN
             mainBody$ = mainBody$ + "    xb_data_add_int(" + dataVal$ + ");" + CHR$(10)
           ELSEIF dataType$ = "float" THEN
             mainBody$ = mainBody$ + "    xb_data_add_float(" + dataVal$ + ");" + CHR$(10)
@@ -462,7 +660,7 @@ FUNCTION c_type$(t$)
   ELSEIF t$ = "float" THEN
     c_type$ = "double"
   ELSE
-    c_type$ = "int"
+    c_type$ = "intptr_t"
   END IF
 END FUNCTION
 
@@ -533,24 +731,88 @@ FUNCTION c_func_name$(n$)
     c_func_name$ = "xb_max"
   ELSEIF n$ = "MIN" THEN
     c_func_name$ = "xb_min"
-  ELSEIF n$ = "HEX$" THEN
-    c_func_name$ = "xb_hex"
-  ELSEIF n$ = "BIN$" THEN
-    c_func_name$ = "xb_bin"
-  ELSEIF n$ = "OCT$" THEN
-    c_func_name$ = "xb_oct"
-  ELSEIF n$ = "HEXX$" THEN
-    c_func_name$ = "xb_hexx"
+  ELSEIF n$ = "ROTATEL" THEN
+    c_func_name$ = "xb_rotatel"
+  ELSEIF n$ = "ROTATER" THEN
+    c_func_name$ = "xb_rotater"
+  ELSEIF n$ = "DHIGH" THEN
+    c_func_name$ = "xb_dhigh"
+  ELSEIF n$ = "DLOW" THEN
+    c_func_name$ = "xb_dlow"
+  ELSEIF n$ = "DMAKE" THEN
+    c_func_name$ = "xb_dmake"
+  ELSEIF n$ = "GMAKE" THEN
+    c_func_name$ = "xb_gmake"
+  ELSEIF n$ = "SMAKE" THEN
+    c_func_name$ = "xb_smake"
+  ELSEIF n$ = "XMAKE" THEN
+    c_func_name$ = "xb_xmake"
+  ELSEIF n$ = "ERROR" THEN
+    c_func_name$ = "xb_error"
+  ELSEIF n$ = "ERROR$" THEN
+    c_func_name$ = "xb_error_str"
+  ELSEIF n$ = "QUIT" THEN
+    c_func_name$ = "xb_quit"
+  ELSEIF n$ = "CJUST$" THEN
+    c_func_name$ = "xb_cjust"
   ELSEIF n$ = "RJUST$" THEN
     c_func_name$ = "xb_rjust"
   ELSEIF n$ = "LJUST$" THEN
     c_func_name$ = "xb_ljust"
+  ELSEIF n$ = "OCTO$" THEN
+    c_func_name$ = "xb_octo"
+  ELSEIF n$ = "BINB$" THEN
+    c_func_name$ = "xb_binb"
+  ELSEIF n$ = "FORMAT$" THEN
+    c_func_name$ = "xb_format"
+  ELSEIF n$ = "SHELL" THEN
+    c_func_name$ = "xb_shell"
+  ELSEIF n$ = "LIBRARY" THEN
+    c_func_name$ = "xb_library"
+  ELSEIF n$ = "BITFIELD" THEN
+    c_func_name$ = "xb_bitfield"
+  ELSEIF n$ = "EXTS" THEN
+    c_func_name$ = "xb_exts"
+  ELSEIF n$ = "EXTU" THEN
+    c_func_name$ = "xb_extu"
+  ELSEIF n$ = "CLR" THEN
+    c_func_name$ = "xb_clr"
+  ELSEIF n$ = "SET" THEN
+    c_func_name$ = "xb_set"
+  ELSEIF n$ = "MAKE" THEN
+    c_func_name$ = "xb_make"
+  ELSEIF n$ = "HIGH0" THEN
+    c_func_name$ = "xb_high0"
+  ELSEIF n$ = "HIGH1" THEN
+    c_func_name$ = "xb_high1"
+  ELSEIF n$ = "GHIGH" THEN
+    c_func_name$ = "xb_ghigh"
+  ELSEIF n$ = "GLOW" THEN
+    c_func_name$ = "xb_glow"
+  ELSEIF n$ = "SIGN" THEN
+    c_func_name$ = "xb_sign"
+  ELSEIF n$ = "HEX$" THEN
+    c_func_name$ = "xb_hex"
+  ELSEIF n$ = "HEXX$" THEN
+    c_func_name$ = "xb_hexx"
+  ELSEIF n$ = "OCT$" THEN
+    c_func_name$ = "xb_oct"
+  ELSEIF n$ = "BIN$" THEN
+    c_func_name$ = "xb_bin"
   ELSEIF n$ = "INCHR" THEN
-    c_func_name$ = "xb_inchr"
+    c_func_name$ = "xb_inchr2"
   ELSEIF n$ = "RINCHR" THEN
-    c_func_name$ = "xb_rinchr"
+    c_func_name$ = "xb_rinchr2"
+  ELSEIF n$ = "INCHRI" THEN
+    c_func_name$ = "xb_inchri2"
+  ELSEIF n$ = "RINCHRI" THEN
+    c_func_name$ = "xb_rinchri2"
   ELSEIF n$ = "STUFF$" THEN
     c_func_name$ = "xb_stuff"
+  ELSEIF n$ = "RCLIP$" THEN
+    c_func_name$ = "xb_rclip"
+  ELSEIF n$ = "LCLIP$" THEN
+    c_func_name$ = "xb_lclip"
   ELSEIF n$ = "STRING$" OR n$ = "STRING" THEN
     c_func_name$ = "xb_string"
   ELSEIF n$ = "SIGNED$" THEN
@@ -621,6 +883,8 @@ FUNCTION c_func_name$(n$)
     c_func_name$ = "xb_log10"
   ELSEIF n$ = "ATN" THEN
     c_func_name$ = "xb_atn"
+  ELSEIF n$ = "ATAN" THEN
+    c_func_name$ = "xb_atan"
   ELSEIF n$ = "CEIL" THEN
     c_func_name$ = "xb_ceil"
   ELSEIF n$ = "FLOOR" THEN
@@ -643,6 +907,66 @@ FUNCTION c_func_name$(n$)
     c_func_name$ = "xb_eof"
   ELSEIF n$ = "VERSION$" THEN
     c_func_name$ = "xb_version"
+  ELSEIF n$ = "CSIZE" THEN
+    c_func_name$ = "xb_csize"
+  ELSEIF n$ = "CSIZE$" THEN
+    c_func_name$ = "xb_csize_str"
+  ELSEIF n$ = "PROGRAM$" THEN
+    c_func_name$ = "xb_program_name"
+  ELSEIF n$ = "OPEN" THEN
+    c_func_name$ = "xb_open"
+  ELSEIF n$ = "CLOSE" THEN
+    c_func_name$ = "xb_close"
+  ELSEIF n$ = "LOF" THEN
+    c_func_name$ = "xb_lof"
+  ELSEIF n$ = "POF" THEN
+    c_func_name$ = "xb_pof"
+  ELSEIF n$ = "SEEK" THEN
+    c_func_name$ = "xb_seek"
+  ELSEIF n$ = "INFILE$" THEN
+    c_func_name$ = "xb_infile"
+  ELSEIF n$ = "TAB" THEN
+    c_func_name$ = "xb_tab_0"
+  ELSEIF n$ = "ISDATA" THEN
+    c_func_name$ = "xb_isdata"
+  ELSEIF n$ = "INKEY$" THEN
+    c_func_name$ = "xb_inkey"
+  ELSEIF n$ = "WAITKEY" THEN
+    c_func_name$ = "xb_waitkey"
+  ELSEIF n$ = "ISNODE" THEN
+    c_func_name$ = "xb_isnode"
+  ELSEIF n$ = "GOADDR" THEN
+    c_func_name$ = "xb_goaddr"
+  ELSEIF n$ = "SUBADDR" THEN
+    c_func_name$ = "xb_subaddr"
+  ELSEIF n$ = "CSTRING$" THEN
+    c_func_name$ = "xb_cstring"
+  ELSEIF n$ = "FUNCADDRESS" THEN
+    c_func_name$ = "xb_funcaddress"
+  ELSEIF n$ = "SBYTEAT" THEN
+    c_func_name$ = "xb_sbyteat"
+  ELSEIF n$ = "UBYTEAT" THEN
+    c_func_name$ = "xb_ubyteat"
+  ELSEIF n$ = "SSHORTAT" THEN
+    c_func_name$ = "xb_sshortat"
+  ELSEIF n$ = "USHORTAT" THEN
+    c_func_name$ = "xb_ushortat"
+  ELSEIF n$ = "SLONGAT" THEN
+    c_func_name$ = "xb_slongat"
+  ELSEIF n$ = "ULONGAT" THEN
+    c_func_name$ = "xb_ulongat"
+  ELSEIF n$ = "XLONGAT" THEN
+    c_func_name$ = "xb_xlongat"
+  ELSEIF n$ = "GIANTAT" THEN
+    c_func_name$ = "xb_giantat"
+  ELSEIF n$ = "SINGLEAT" THEN
+    c_func_name$ = "xb_singleat"
+  ELSEIF n$ = "DOUBLEAT" THEN
+    c_func_name$ = "xb_doubleat"
+  ELSEIF n$ = "SUBADDRAT" THEN
+    c_func_name$ = "xb_subaddrat"
+  ELSEIF n$ = "GOADDRAT" THEN
+    c_func_name$ = "xb_goaddrat"
   ELSE
     c_func_name$ = "xb_user_" + n$
   END IF
@@ -715,13 +1039,13 @@ FUNCTION expr_type$(e$)
         absArgs$ = ""
       END IF
       expr_type$ = expr_type$(absArgs$)
-    ELSEIF fn$ = "XLONG" THEN
+    ELSEIF fn$ = "XLONG" OR fn$ = "SBYTE" OR fn$ = "UBYTE" OR fn$ = "SSHORT" OR fn$ = "USHORT" OR fn$ = "SLONG" OR fn$ = "ULONG" OR fn$ = "GIANT" THEN
       expr_type$ = "integer"
-    ELSEIF fn$ = "LEN" OR fn$ = "ASC" OR fn$ = "INSTR" OR fn$ = "RINSTR" OR fn$ = "INSTRI" OR fn$ = "RINSTRI" OR fn$ = "VAL" OR fn$ = "EOF" OR fn$ = "ABS" OR fn$ = "SGN" OR fn$ = "INT" OR fn$ = "FIX" OR fn$ = "MAX" OR fn$ = "MIN" OR fn$ = "INCHR" OR fn$ = "RINCHR" THEN
+    ELSEIF fn$ = "LEN" OR fn$ = "ASC" OR fn$ = "INSTR" OR fn$ = "RINSTR" OR fn$ = "INSTRI" OR fn$ = "RINSTRI" OR fn$ = "VAL" OR fn$ = "EOF" OR fn$ = "ABS" OR fn$ = "SGN" OR fn$ = "INT" OR fn$ = "FIX" OR fn$ = "MAX" OR fn$ = "MIN" OR fn$ = "INCHR" OR fn$ = "RINCHR" OR fn$ = "INCHRI" OR fn$ = "RINCHRI" OR fn$ = "ROTATEL" OR fn$ = "ROTATER" OR fn$ = "DHIGH" OR fn$ = "DLOW" OR fn$ = "GMAKE" OR fn$ = "XMAKE" OR fn$ = "ERROR" OR fn$ = "BITFIELD" OR fn$ = "EXTS" OR fn$ = "EXTU" OR fn$ = "CLR" OR fn$ = "SET" OR fn$ = "MAKE" OR fn$ = "HIGH0" OR fn$ = "HIGH1" OR fn$ = "GHIGH" OR fn$ = "GLOW" OR fn$ = "SIGN" OR fn$ = "QUIT" OR fn$ = "SHELL" OR fn$ = "LIBRARY" OR fn$ = "CSIZE" OR fn$ = "FUNCADDRESS" OR fn$ = "SUBADDRESS" OR fn$ = "GOADDRESS" OR fn$ = "GOADDR" OR fn$ = "SUBADDR" OR fn$ = "SBYTEAT" OR fn$ = "UBYTEAT" OR fn$ = "SSHORTAT" OR fn$ = "USHORTAT" OR fn$ = "SLONGAT" OR fn$ = "ULONGAT" OR fn$ = "XLONGAT" OR fn$ = "GIANTAT" OR fn$ = "SUBADDRAT" OR fn$ = "GOADDRAT" OR fn$ = "OPEN" OR fn$ = "CLOSE" OR fn$ = "LOF" OR fn$ = "POF" OR fn$ = "SEEK" OR fn$ = "SIZE" OR fn$ = "ISDATA" OR fn$ = "ISNODE" OR fn$ = "WAITKEY" OR fn$ = "GOADDR" OR fn$ = "SUBADDR" THEN
       expr_type$ = "integer"
-    ELSEIF fn$ = "SQRT" OR fn$ = "SIN" OR fn$ = "COS" OR fn$ = "TAN" OR fn$ = "EXP" OR fn$ = "LOG" OR fn$ = "ATN" OR fn$ = "CEIL" OR fn$ = "FLOOR" OR fn$ = "ROUND" OR fn$ = "RND" OR fn$ = "TIMER" OR fn$ = "ACOS" OR fn$ = "ASIN" OR fn$ = "ATAN2" OR fn$ = "LOG10" OR fn$ = "POWER" OR fn$ = "SINH" OR fn$ = "COSH" OR fn$ = "TANH" OR fn$ = "ASINH" OR fn$ = "ACOSH" OR fn$ = "ATANH" OR fn$ = "EXP10" OR fn$ = "EXP2" OR fn$ = "COT" OR fn$ = "SEC" OR fn$ = "CSC" OR fn$ = "COTH" OR fn$ = "SECH" OR fn$ = "CSCH" OR fn$ = "ACOT" OR fn$ = "ASEC" OR fn$ = "ACSC" OR fn$ = "ACOTH" OR fn$ = "ASECH" OR fn$ = "ACSCH" THEN
+    ELSEIF fn$ = "SQRT" OR fn$ = "SIN" OR fn$ = "COS" OR fn$ = "TAN" OR fn$ = "EXP" OR fn$ = "LOG" OR fn$ = "ATN" OR fn$ = "ATAN" OR fn$ = "CEIL" OR fn$ = "FLOOR" OR fn$ = "ROUND" OR fn$ = "RND" OR fn$ = "TIMER" OR fn$ = "ACOS" OR fn$ = "ASIN" OR fn$ = "ATAN2" OR fn$ = "LOG10" OR fn$ = "POWER" OR fn$ = "SINH" OR fn$ = "COSH" OR fn$ = "TANH" OR fn$ = "ASINH" OR fn$ = "ACOSH" OR fn$ = "ATANH" OR fn$ = "EXP10" OR fn$ = "EXP2" OR fn$ = "COT" OR fn$ = "SEC" OR fn$ = "CSC" OR fn$ = "COTH" OR fn$ = "SECH" OR fn$ = "CSCH" OR fn$ = "ACOT" OR fn$ = "ASEC" OR fn$ = "ACSC" OR fn$ = "ACOTH" OR fn$ = "ASECH" OR fn$ = "ACSCH" OR fn$ = "SINGLEAT" OR fn$ = "DOUBLEAT" OR fn$ = "DMAKE" OR fn$ = "SMAKE" THEN
       expr_type$ = "float"
-    ELSEIF fn$ = "CHR$" OR fn$ = "LEFT$" OR fn$ = "RIGHT$" OR fn$ = "MID$" OR fn$ = "STR$" OR fn$ = "READLINE$" OR fn$ = "UCASE$" OR fn$ = "LCASE$" OR fn$ = "TRIM$" OR fn$ = "LTRIM$" OR fn$ = "RTRIM$" OR fn$ = "SPACE$" OR fn$ = "HEX$" OR fn$ = "BIN$" OR fn$ = "OCT$" OR fn$ = "STRING$" OR fn$ = "STRING" OR fn$ = "INLINE$" OR fn$ = "TIME$" OR fn$ = "DATE$" OR fn$ = "HEXX$" OR fn$ = "RJUST$" OR fn$ = "LJUST$" OR fn$ = "RCLIP$" OR fn$ = "LCLIP$" OR fn$ = "STUFF$" OR fn$ = "VERSION$" OR fn$ = "SIGNED$" OR fn$ = "NULL$" THEN
+    ELSEIF fn$ = "CHR$" OR fn$ = "LEFT$" OR fn$ = "RIGHT$" OR fn$ = "MID$" OR fn$ = "STR$" OR fn$ = "READLINE$" OR fn$ = "UCASE$" OR fn$ = "LCASE$" OR fn$ = "TRIM$" OR fn$ = "LTRIM$" OR fn$ = "RTRIM$" OR fn$ = "SPACE$" OR fn$ = "HEX$" OR fn$ = "BIN$" OR fn$ = "OCT$" OR fn$ = "STRING$" OR fn$ = "STRING" OR fn$ = "INLINE$" OR fn$ = "TIME$" OR fn$ = "DATE$" OR fn$ = "HEXX$" OR fn$ = "RJUST$" OR fn$ = "LJUST$" OR fn$ = "CJUST$" OR fn$ = "RCLIP$" OR fn$ = "LCLIP$" OR fn$ = "STUFF$" OR fn$ = "VERSION$" OR fn$ = "SIGNED$" OR fn$ = "NULL$" OR fn$ = "ERROR$" OR fn$ = "OCTO$" OR fn$ = "BINB$" OR fn$ = "FORMAT$" OR fn$ = "CSIZE$" OR fn$ = "PROGRAM$" OR fn$ = "INFILE$" OR fn$ = "TAB" OR fn$ = "INKEY$" OR fn$ = "CSTRING$" THEN
       expr_type$ = "string"
     ELSE
       ftPos = INSTR(##funcTypes$, fn$ + ":")
@@ -762,6 +1086,12 @@ FUNCTION expr_type$(e$)
     expr_type$ = "integer"
   ELSEIF LEFT$(e$, 4) = "not(" THEN
     expr_type$ = "integer"
+  ELSEIF LEFT$(e$, 4) = "neg(" OR LEFT$(e$, 4) = "pos(" THEN
+    rest$ = MID$(e$, 5, LEN(e$) - 4)
+    IF RIGHT$(rest$, 1) = ")" THEN
+      rest$ = LEFT$(rest$, LEN(rest$) - 1)
+    END IF
+    expr_type$ = expr_type$(rest$)
   ELSEIF LEFT$(e$, 4) = "and(" THEN
     expr_type$ = "integer"
   ELSEIF LEFT$(e$, 3) = "or(" THEN
@@ -785,6 +1115,14 @@ FUNCTION expr_type$(e$)
     ELSE
       expr_type$ = "integer"
     END IF
+  ELSEIF LEFT$(e$, 13) = "array_ubound(" THEN
+    expr_type$ = "integer"
+  ELSEIF LEFT$(e$, 8) = "size_of(" THEN
+    expr_type$ = "integer"
+  ELSEIF LEFT$(e$, 13) = "size_of_type(" THEN
+    expr_type$ = "integer"
+  ELSEIF LEFT$(e$, 11) = "label_addr(" THEN
+    expr_type$ = "integer"
   ELSEIF LEFT$(e$, 7) = "shared(" THEN
     rest$ = MID$(e$, 8, LEN(e$) - 7)
     IF RIGHT$(rest$, 1) = ")" THEN
@@ -985,7 +1323,7 @@ FUNCTION emit_expr$(e$)
       emit_expr$ = "(" + emit_expr$(left$) + " << " + emit_expr$(right$) + ")"
     ELSEIF op$ = "shr" THEN
       emit_expr$ = "(" + emit_expr$(left$) + " >> " + emit_expr$(right$) + ")"
-    ELSEIF op$ = "\" THEN
+    ELSEIF op$ = "\\" THEN
       emit_expr$ = "(" + emit_expr$(left$) + " / " + emit_expr$(right$) + ")"
     ELSE
       emit_expr$ = "(" + emit_expr$(left$) + " " + op$ + " " + emit_expr$(right$) + ")"
@@ -999,6 +1337,24 @@ FUNCTION emit_expr$(e$)
       t$ = LEFT$(t$, LEN(t$) - 1)
     END IF
     emit_expr$ = "(~" + emit_expr$(t$) + ")"
+    RETURN emit_expr$
+  END IF
+
+  IF LEFT$(e$, 4) = "neg(" THEN
+    t$ = MID$(e$, 5, LEN(e$) - 4)
+    IF RIGHT$(t$, 1) = ")" THEN
+      t$ = LEFT$(t$, LEN(t$) - 1)
+    END IF
+    emit_expr$ = "(-" + emit_expr$(t$) + ")"
+    RETURN emit_expr$
+  END IF
+
+  IF LEFT$(e$, 4) = "pos(" THEN
+    t$ = MID$(e$, 5, LEN(e$) - 4)
+    IF RIGHT$(t$, 1) = ")" THEN
+      t$ = LEFT$(t$, LEN(t$) - 1)
+    END IF
+    emit_expr$ = "(+" + emit_expr$(t$) + ")"
     RETURN emit_expr$
   END IF
 
@@ -1032,6 +1388,39 @@ FUNCTION emit_expr$(e$)
     left$ = first_expr$(rest$)
     right$ = after_first$(rest$)
     emit_expr$ = "((" + emit_expr$(left$) + ") ^ (" + emit_expr$(right$) + "))"
+    RETURN emit_expr$
+  END IF
+
+  IF LEFT$(e$, 5) = "land(" THEN
+    rest$ = MID$(e$, 6, LEN(e$) - 5)
+    IF RIGHT$(rest$, 1) = ")" THEN
+      rest$ = LEFT$(rest$, LEN(rest$) - 1)
+    END IF
+    left$ = first_expr$(rest$)
+    right$ = after_first$(rest$)
+    emit_expr$ = "(((" + emit_expr$(left$) + ") != 0) && ((" + emit_expr$(right$) + ") != 0)) ? -1 : 0"
+    RETURN emit_expr$
+  END IF
+
+  IF LEFT$(e$, 4) = "lor(" THEN
+    rest$ = MID$(e$, 5, LEN(e$) - 4)
+    IF RIGHT$(rest$, 1) = ")" THEN
+      rest$ = LEFT$(rest$, LEN(rest$) - 1)
+    END IF
+    left$ = first_expr$(rest$)
+    right$ = after_first$(rest$)
+    emit_expr$ = "(((" + emit_expr$(left$) + ") != 0) || ((" + emit_expr$(right$) + ") != 0)) ? -1 : 0"
+    RETURN emit_expr$
+  END IF
+
+  IF LEFT$(e$, 5) = "lxor(" THEN
+    rest$ = MID$(e$, 6, LEN(e$) - 5)
+    IF RIGHT$(rest$, 1) = ")" THEN
+      rest$ = LEFT$(rest$, LEN(rest$) - 1)
+    END IF
+    left$ = first_expr$(rest$)
+    right$ = after_first$(rest$)
+    emit_expr$ = "(((" + emit_expr$(left$) + ") != 0) != ((" + emit_expr$(right$) + ") != 0)) ? -1 : 0"
     RETURN emit_expr$
   END IF
 
@@ -1146,6 +1535,35 @@ FUNCTION emit_expr$(e$)
         funcName$ = "xb_fabs"
       END IF
     END IF
+    IF fn$ = "INCHR" OR fn$ = "RINCHR" OR fn$ = "INCHRI" OR fn$ = "RINCHRI" THEN
+      DIM ichrDepth
+      DIM ichrI
+      DIM ichrCommas
+      DIM ichrCh
+      ichrDepth = 0
+      ichrCommas = 0
+      FOR ichrI = 1 TO LEN(args$)
+        ichrCh = ASC(MID$(args$, ichrI, 1))
+        IF ichrCh = 40 THEN
+          ichrDepth = ichrDepth + 1
+        ELSEIF ichrCh = 41 THEN
+          ichrDepth = ichrDepth - 1
+        ELSEIF ichrCh = 44 AND ichrDepth = 0 THEN
+          ichrCommas = ichrCommas + 1
+        END IF
+      NEXT ichrI
+      IF ichrCommas >= 2 THEN
+        IF fn$ = "INCHR" THEN
+          funcName$ = "xb_inchr"
+        ELSEIF fn$ = "RINCHR" THEN
+          funcName$ = "xb_rinchr"
+        ELSEIF fn$ = "INCHRI" THEN
+          funcName$ = "xb_inchri"
+        ELSE
+          funcName$ = "xb_rinchri"
+        END IF
+      END IF
+    END IF
     IF fn$ = "DOUBLE" OR fn$ = "SINGLE" THEN
       DIM dargType$
       dargType$ = expr_type$(args$)
@@ -1158,7 +1576,7 @@ FUNCTION emit_expr$(e$)
       END IF
       RETURN emit_expr$
     END IF
-    IF fn$ = "XLONG" THEN
+    IF fn$ = "XLONG" OR fn$ = "SBYTE" OR fn$ = "UBYTE" OR fn$ = "SSHORT" OR fn$ = "USHORT" OR fn$ = "SLONG" OR fn$ = "ULONG" OR fn$ = "GIANT" THEN
       DIM xargType$
       xargType$ = expr_type$(args$)
       IF xargType$ = "string" THEN
@@ -1210,6 +1628,35 @@ FUNCTION emit_expr$(e$)
       NEXT hexI
       IF hexCommas = 1 THEN
         funcName$ = "xb_hex2"
+      END IF
+    END IF
+    IF fn$ = "BIN$" OR fn$ = "OCT$" OR fn$ = "BINB$" OR fn$ = "OCTO$" THEN
+      DIM binCommas
+      binCommas = 0
+      DIM binI
+      DIM binDepth
+      binDepth = 0
+      FOR binI = 1 TO LEN(args$)
+        DIM binCh
+        binCh = ASC(MID$(args$, binI, 1))
+        IF binCh = 40 THEN
+          binDepth = binDepth + 1
+        ELSEIF binCh = 41 THEN
+          binDepth = binDepth - 1
+        ELSEIF binCh = 44 AND binDepth = 0 THEN
+          binCommas = binCommas + 1
+        END IF
+      NEXT binI
+      IF binCommas = 1 THEN
+        IF fn$ = "BIN$" THEN
+          funcName$ = "xb_bin2"
+        ELSEIF fn$ = "OCT$" THEN
+          funcName$ = "xb_oct2"
+        ELSEIF fn$ = "BINB$" THEN
+          funcName$ = "xb_binb2"
+        ELSEIF fn$ = "OCTO$" THEN
+          funcName$ = "xb_octo2"
+        END IF
       END IF
     END IF
     IF fn$ = "STUFF$" THEN
@@ -1290,6 +1737,69 @@ FUNCTION emit_expr$(e$)
         funcName$ = "xb_str_float"
       END IF
     END IF
+    IF fn$ = "FORMAT$" THEN
+      DIM fmtSplitPos
+      fmtSplitPos = 0
+      DIM fmtDepth2
+      fmtDepth2 = 0
+      DIM fmtI2
+      FOR fmtI2 = 1 TO LEN(args$)
+        DIM fmtCh2
+        fmtCh2 = ASC(MID$(args$, fmtI2, 1))
+        IF fmtCh2 = 40 THEN
+          fmtDepth2 = fmtDepth2 + 1
+        ELSEIF fmtCh2 = 41 THEN
+          fmtDepth2 = fmtDepth2 - 1
+        ELSEIF fmtCh2 = 44 AND fmtDepth2 = 0 THEN
+          fmtSplitPos = fmtI2
+          EXIT FOR
+        END IF
+      NEXT fmtI2
+      DIM fmtArg1$
+      DIM fmtArg2$
+      IF fmtSplitPos > 0 THEN
+        fmtArg1$ = trim_spaces$(LEFT$(args$, fmtSplitPos - 1))
+        fmtArg2$ = trim_spaces$(MID$(args$, fmtSplitPos + 1, LEN(args$) - fmtSplitPos))
+      ELSE
+        fmtArg1$ = trim_spaces$(args$)
+        fmtArg2$ = ""
+      END IF
+      DIM fmtE1$
+      DIM fmtE2$
+      fmtE1$ = emit_expr$(fmtArg1$)
+      fmtE2$ = emit_expr$(fmtArg2$)
+      DIM fmtArgType$
+      fmtArgType$ = expr_type$(fmtArg2$)
+      IF fmtArgType$ = "string" THEN
+        emit_expr$ = funcName$ + "(" + fmtE1$ + ", " + fmtE2$ + ", 0, 0.0, 0, 1)"
+      ELSEIF fmtArgType$ = "float" THEN
+        emit_expr$ = funcName$ + "(" + fmtE1$ + ", NULL, 0, " + fmtE2$ + ", 1, 0)"
+      ELSE
+        emit_expr$ = funcName$ + "(" + fmtE1$ + ", NULL, " + fmtE2$ + ", 0.0, 0, 0)"
+      END IF
+      RETURN emit_expr$
+    END IF
+    IF fn$ = "EXTS" OR fn$ = "EXTU" OR fn$ = "CLR" OR fn$ = "SET" OR fn$ = "MAKE" THEN
+      DIM bitopCommas
+      bitopCommas = 0
+      DIM bitopI
+      DIM bitopDepth
+      bitopDepth = 0
+      FOR bitopI = 1 TO LEN(args$)
+        DIM bitopCh
+        bitopCh = ASC(MID$(args$, bitopI, 1))
+        IF bitopCh = 40 THEN
+          bitopDepth = bitopDepth + 1
+        ELSEIF bitopCh = 41 THEN
+          bitopDepth = bitopDepth - 1
+        ELSEIF bitopCh = 44 AND bitopDepth = 0 THEN
+          bitopCommas = bitopCommas + 1
+        END IF
+      NEXT bitopI
+      IF bitopCommas = 1 THEN
+        emittedArgs$ = emittedArgs$ + ", -99999"
+      END IF
+    END IF
     emit_expr$ = funcName$ + "(" + emittedArgs$ + ")"
     RETURN emit_expr$
   END IF
@@ -1317,6 +1827,63 @@ FUNCTION emit_expr$(e$)
     ELSE
       emit_expr$ = "0"
     END IF
+    RETURN emit_expr$
+  END IF
+
+  IF LEFT$(e$, 13) = "array_ubound(" THEN
+    t$ = MID$(e$, 14, LEN(e$) - 13)
+    IF RIGHT$(t$, 1) = ")" THEN
+      t$ = LEFT$(t$, LEN(t$) - 1)
+    END IF
+    colonPos = INSTR(t$, ":")
+    IF colonPos > 0 THEN
+      varType$ = MID$(t$, colonPos + 1, LEN(t$) - colonPos)
+      varName$ = LEFT$(t$, colonPos - 1)
+    ELSE
+      varType$ = "integer"
+      varName$ = t$
+    END IF
+    emit_expr$ = "(int)(sizeof(" + c_var_name$(varName$, varType$) + ")/sizeof(" + c_var_name$(varName$, varType$) + "[0])-1)"
+    RETURN emit_expr$
+  END IF
+  IF LEFT$(e$, 8) = "size_of(" THEN
+    t$ = MID$(e$, 9, LEN(e$) - 8)
+    IF RIGHT$(t$, 1) = ")" THEN
+      t$ = LEFT$(t$, LEN(t$) - 1)
+    END IF
+    colonPos = INSTR(t$, ":")
+    IF colonPos > 0 THEN
+      varType$ = MID$(t$, colonPos + 1, LEN(t$) - colonPos)
+      varName$ = LEFT$(t$, colonPos - 1)
+    ELSE
+      varType$ = "integer"
+      varName$ = t$
+    END IF
+    emit_expr$ = "(int)sizeof(" + c_var_name$(varName$, varType$) + ")"
+    RETURN emit_expr$
+  END IF
+
+  IF LEFT$(e$, 13) = "size_of_type(" THEN
+    t$ = MID$(e$, 14, LEN(e$) - 13)
+    IF RIGHT$(t$, 1) = ")" THEN
+      t$ = LEFT$(t$, LEN(t$) - 1)
+    END IF
+    IF t$ = "integer" THEN
+      emit_expr$ = "4"
+    ELSEIF t$ = "float" THEN
+      emit_expr$ = "8"
+    ELSE
+      emit_expr$ = "8"
+    END IF
+    RETURN emit_expr$
+  END IF
+  IF LEFT$(e$, 11) = "label_addr(" THEN
+    DIM labelName$
+    labelName$ = MID$(e$, 12, LEN(e$) - 11)
+    IF RIGHT$(labelName$, 1) = ")" THEN
+      labelName$ = LEFT$(labelName$, LEN(labelName$) - 1)
+    END IF
+    emit_expr$ = "((intptr_t)&&xb_label_" + labelName$ + ")"
     RETURN emit_expr$
   END IF
 
@@ -1473,6 +2040,8 @@ FUNCTION emit_stmt$(s$)
   DIM pType$
   DIM hashPos
   DIM eqPos
+  DIM atIsFloat
+  DIM sp
   DIM expr$
 
   IF LEFT$(s$, 8) = "function" THEN
@@ -1486,6 +2055,10 @@ FUNCTION emit_stmt$(s$)
   END IF
 
   IF LEFT$(s$, 7) = "version" THEN
+    emit_stmt$ = ""
+    RETURN emit_stmt$
+  END IF
+  IF LEFT$(s$, 12) = "program_name" THEN
     emit_stmt$ = ""
     RETURN emit_stmt$
   END IF
@@ -1532,7 +2105,7 @@ FUNCTION emit_stmt$(s$)
       IF varType$ = "string" THEN
         emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + "[" + cExpr$ + "];" + CHR$(10) + "    for (int _i = 0; _i < " + cExpr$ + "; _i++) " + c_var_name$(varName$, varType$) + "[_i] = xb_strdup(" + CHR$(34) + CHR$(34) + ");"
       ELSE
-        emit_stmt$ = "    int " + c_var_name$(varName$, varType$) + "[" + cExpr$ + "];"
+        emit_stmt$ = "    intptr_t " + c_var_name$(varName$, varType$) + "[" + cExpr$ + "];"
       END IF
     ELSE
       colonPos = INSTR(rest$, ":")
@@ -1548,7 +2121,7 @@ FUNCTION emit_stmt$(s$)
       ELSEIF varType$ = "float" THEN
         emit_stmt$ = "    double " + c_var_name$(varName$, varType$) + " = 0.0;"
       ELSE
-        emit_stmt$ = "    int " + c_var_name$(varName$, varType$) + " = 0;"
+        emit_stmt$ = "    intptr_t " + c_var_name$(varName$, varType$) + " = 0;"
       END IF
     END IF
     RETURN emit_stmt$
@@ -1572,6 +2145,92 @@ FUNCTION emit_stmt$(s$)
     right$ = MID$(tmp$, spacePos + 2, LEN(tmp$) - spacePos - 1)
     c2$ = emit_expr$(right$)
     emit_stmt$ = "    " + c_var_name$(varName$, varType$) + "[" + emit_expr$(cExpr$) + "] = " + c2$ + ";"
+    RETURN emit_stmt$
+  END IF
+  IF LEFT$(s$, 10) = "mid_assign" THEN
+    DIM pipe1
+    DIM pipe2
+    DIM pipe3
+    DIM part1$
+    DIM part2$
+    DIM part3$
+    DIM part4$
+    DIM rest2$
+    DIM rest3$
+    rest$ = MID$(s$, 12, LEN(s$) - 11)
+    pipe1 = INSTR(rest$, " | ")
+    part1$ = LEFT$(rest$, pipe1 - 1)
+    rest2$ = MID$(rest$, pipe1 + 3, LEN(rest$) - pipe1 - 2)
+    pipe2 = INSTR(rest2$, " | ")
+    IF pipe2 > 0 THEN
+      part2$ = LEFT$(rest2$, pipe2 - 1)
+      rest3$ = MID$(rest2$, pipe2 + 3, LEN(rest2$) - pipe2 - 2)
+      pipe3 = INSTR(rest3$, " | ")
+      IF pipe3 > 0 THEN
+        part3$ = LEFT$(rest3$, pipe3 - 1)
+        part4$ = MID$(rest3$, pipe3 + 3, LEN(rest3$) - pipe3 - 2)
+        emit_stmt$ = "    xb_mid_assign(" + emit_expr$(part1$) + ", " + emit_expr$(part2$) + ", " + emit_expr$(part3$) + ", " + emit_expr$(part4$) + ");"
+      ELSE
+        emit_stmt$ = "    xb_mid_assign(" + emit_expr$(part1$) + ", " + emit_expr$(part2$) + ", -1, " + emit_expr$(rest3$) + ");"
+      END IF
+    END IF
+    RETURN emit_stmt$
+  END IF
+
+  IF LEFT$(s$, 15) = "builtin_assign" THEN
+    rest$ = MID$(s$, 17, LEN(s$) - 16)
+    eqPos = INSTR(rest$, " = ")
+    right$ = LEFT$(rest$, eqPos - 1)
+    start$ = MID$(rest$, eqPos + 3, LEN(rest$) - eqPos - 2)
+    sp = INSTR(right$, " ")
+    IF sp > 0 THEN
+      varName$ = LEFT$(right$, sp - 1)
+      tmp$ = MID$(right$, sp + 1, LEN(right$) - sp)
+    ELSE
+      varName$ = right$
+      tmp$ = ""
+    END IF
+    fn$ = ""
+    args$ = ""
+    spacePos = INSTR(tmp$, " ")
+    IF spacePos > 0 THEN
+      fn$ = LEFT$(tmp$, spacePos - 1)
+      args$ = MID$(tmp$, spacePos + 1, LEN(tmp$) - spacePos)
+    ELSE
+      fn$ = tmp$
+    END IF
+    varType$ = "int"
+    atIsFloat = 0
+    IF varName$ = "SBYTEAT" THEN
+      varType$ = "signed char"
+    ELSEIF varName$ = "UBYTEAT" THEN
+      varType$ = "unsigned char"
+    ELSEIF varName$ = "SSHORTAT" THEN
+      varType$ = "signed short"
+    ELSEIF varName$ = "USHORTAT" THEN
+      varType$ = "unsigned short"
+    ELSEIF varName$ = "SLONGAT" THEN
+      varType$ = "signed int"
+    ELSEIF varName$ = "ULONGAT" THEN
+      varType$ = "unsigned int"
+    ELSEIF varName$ = "XLONGAT" OR varName$ = "GIANTAT" OR varName$ = "SUBADDRAT" OR varName$ = "GOADDRAT" THEN
+      varType$ = "intptr_t"
+    ELSEIF varName$ = "SINGLEAT" THEN
+      varType$ = "float"
+      atIsFloat = 1
+    ELSEIF varName$ = "DOUBLEAT" THEN
+      varType$ = "double"
+      atIsFloat = 1
+    END IF
+    cExpr$ = emit_expr$(fn$)
+    IF args$ <> "" THEN
+      cExpr$ = cExpr$ + " + " + emit_expr$(args$)
+    END IF
+    tmp$ = emit_expr$(start$)
+    IF atIsFloat = 1 THEN
+      tmp$ = "(double)" + tmp$
+    END IF
+    emit_stmt$ = "    *(" + varType$ + "*)(" + cExpr$ + ") = " + tmp$ + ";"
     RETURN emit_stmt$
   END IF
 
@@ -1606,6 +2265,10 @@ FUNCTION emit_stmt$(s$)
     DIM printLE$
     DIM printLT$
     printParts$ = ""
+    IF LEN(rest$) = 0 THEN
+      emit_stmt$ = "    printf(" + CHR$(34) + CHR$(92) + "n" + CHR$(34) + ");"
+      RETURN emit_stmt$
+    END IF
     printPos = 1
     printStart = 1
     printDepth = 0
@@ -1789,7 +2452,7 @@ FUNCTION emit_stmt$(s$)
       fn$ = rest$
       args$ = ""
     END IF
-    emit_stmt$ = "    xb_user_" + fn$ + "(" + emit_args$(args$) + ");"
+    emit_stmt$ = "    " + c_func_name$(fn$) + "(" + emit_args$(args$) + ");"
     RETURN emit_stmt$
   END IF
 
@@ -1825,7 +2488,7 @@ FUNCTION emit_stmt$(s$)
     ##selectBraces = 0
     ##selectExitCount = ##selectExitCount + 1
     ##selectExitStack$ = ##selectExitStack$ + CHR$(##selectExitCount) + ","
-    emit_stmt$ = "    { int _matched = 0;"
+    emit_stmt$ = "    { intptr_t _matched = 0;"
     RETURN emit_stmt$
   END IF
 
@@ -1906,7 +2569,6 @@ FUNCTION emit_stmt$(s$)
 
   IF LEFT$(s$, 5) = "swap " THEN
     rest$ = MID$(s$, 6, LEN(s$) - 5)
-    DIM sp
     sp = INSTR(rest$, " ")
     IF sp > 0 THEN
       DIM swapLeft$
@@ -1987,6 +2649,45 @@ FUNCTION emit_stmt$(s$)
 
   IF s$ = "stop" THEN
     emit_stmt$ = "    exit(0);"
+    RETURN emit_stmt$
+  END IF
+
+  IF LEFT$(s$, 6) = "gosub " THEN
+    DIM gosubName$
+    gosubName$ = MID$(s$, 7, LEN(s$) - 6)
+    emit_stmt$ = "    xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_" + gosubName$ + "; goto xb_label_" + gosubName$ + ";" + CHR$(10) + "xb_gosub_ret_" + gosubName$ + ":"
+    RETURN emit_stmt$
+  END IF
+
+  IF LEFT$(s$, 6) = "label " THEN
+    DIM labelName$
+    labelName$ = MID$(s$, 7, LEN(s$) - 6)
+    emit_stmt$ = "xb_label_" + labelName$ + ":"
+    RETURN emit_stmt$
+  END IF
+
+  IF LEFT$(s$, 5) = "goto " THEN
+    DIM gotoName$
+    gotoName$ = MID$(s$, 6, LEN(s$) - 5)
+    emit_stmt$ = "    goto xb_label_" + gotoName$ + ";"
+    RETURN emit_stmt$
+  END IF
+
+  IF s$ = "gosub_return" THEN
+    emit_stmt$ = "    if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;"
+    RETURN emit_stmt$
+  END IF
+  IF LEFT$(s$, 11) = "gosub_expr " THEN
+    DIM gosubExpr$
+    gosubExpr$ = MID$(s$, 12, LEN(s$) - 11)
+    emit_stmt$ = "    xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_expr; goto *(void*)" + emit_expr$(gosubExpr$) + "; xb_gosub_ret_expr: (void)0;"
+    RETURN emit_stmt$
+  END IF
+
+  IF LEFT$(s$, 9) = "goto_expr " THEN
+    DIM gotoExpr$
+    gotoExpr$ = MID$(s$, 10, LEN(s$) - 9)
+    emit_stmt$ = "    goto *(void*)" + emit_expr$(gotoExpr$) + ";"
     RETURN emit_stmt$
   END IF
 
