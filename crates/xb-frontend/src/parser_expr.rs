@@ -412,7 +412,20 @@ impl Parser {
                     self.index += 1;
                     if let TokenKind::Identifier { name: member, .. } = self.peek_kind().clone() {
                         self.index += 1;
-                        let combined = format!("{full}.{member}");
+                        let mut combined = format!("{full}.{member}");
+                        // Chained member access: arr[i].a.b.c
+                        while matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+                            self.index += 1;
+                            if let TokenKind::Identifier { name: m2, .. } = self.peek_kind().clone() {
+                                self.index += 1;
+                                combined = format!("{combined}.{m2}");
+                            } else if let TokenKind::Keyword(kw) = self.peek_kind().clone() {
+                                self.index += 1;
+                                combined = format!("{combined}.{kw:?}");
+                            } else {
+                                break;
+                            }
+                        }
                         // Handle call/bitfield after dot: d86[i].flags{$SIZE8} → d86[i].flags($SIZE8)
                         if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
                             let args = self.parse_args()?;

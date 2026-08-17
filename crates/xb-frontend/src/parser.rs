@@ -289,42 +289,51 @@ impl Parser {
         self.expect_line_end()?;
         let mut members = Vec::new();
         let mut depth = 1;
-        // Consume the TYPE body one token at a time, exactly as the original
-        // skip logic did (so parsing of every existing file is unchanged), while
-        // recording members purely by peeking. A member line is `<TYPEKW> .name`.
+        // Consume the TYPE body one token at a time. Track statement-start so
+        // depth is only adjusted by TYPE/PACKED/END TYPE that actually begin a
+        // line — a keyword-named member such as `XLONG .type` must never be
+        // mistaken for a nested composite (that bug swallowed whole files to
+        // EOF). Members are recorded purely by peeking.
+        let mut line_start = true;
         while !self.at_eof() && depth > 0 {
-            if let (Some(kw_tok), Some(dot_tok), Some(name_tok)) = (
-                self.tokens.get(self.index),
-                self.tokens.get(self.index + 1),
-                self.tokens.get(self.index + 2),
-            ) {
-                if let TokenKind::Identifier { name: type_kw, .. } = &kw_tok.kind {
-                    if matches!(dot_tok.kind, TokenKind::Symbol('.')) {
-                        let member_name = match &name_tok.kind {
-                            TokenKind::Identifier { name, .. } => Some(name.clone()),
-                            TokenKind::SharedName(n) => Some(n.clone()),
-                            _ => None,
-                        };
-                        if let Some(member_name) = member_name {
-                            let (byte_size, is_float, is_string) =
-                                Self::member_type_info(type_kw);
-                            members.push(TypeMember {
-                                name: member_name,
-                                byte_size,
-                                is_float,
-                                is_string,
-                            });
+            if line_start {
+                if let (Some(kw_tok), Some(dot_tok), Some(name_tok)) = (
+                    self.tokens.get(self.index),
+                    self.tokens.get(self.index + 1),
+                    self.tokens.get(self.index + 2),
+                ) {
+                    if let TokenKind::Identifier { name: type_kw, .. } = &kw_tok.kind {
+                        if matches!(dot_tok.kind, TokenKind::Symbol('.')) {
+                            let member_name = match &name_tok.kind {
+                                TokenKind::Identifier { name, .. } => Some(name.clone()),
+                                TokenKind::SharedName(n) => Some(n.clone()),
+                                TokenKind::Keyword(kw) => Some(format!("{kw:?}")),
+                                _ => None,
+                            };
+                            if let Some(member_name) = member_name {
+                                let (byte_size, is_float, is_string) =
+                                    Self::member_type_info(type_kw);
+                                members.push(TypeMember {
+                                    name: member_name,
+                                    byte_size,
+                                    is_float,
+                                    is_string,
+                                });
+                            }
                         }
                     }
                 }
             }
-            if matches!(
-                self.peek_keyword(),
-                Some(Keyword::Type) | Some(Keyword::Packed)
-            ) {
+            if line_start
+                && matches!(
+                    self.peek_keyword(),
+                    Some(Keyword::Type) | Some(Keyword::Packed)
+                )
+            {
                 depth += 1;
                 self.index += 1;
-            } else if matches!(self.peek_keyword(), Some(Keyword::End)) {
+                line_start = false;
+            } else if line_start && matches!(self.peek_keyword(), Some(Keyword::End)) {
                 self.index += 1;
                 if matches!(
                     self.peek_keyword(),
@@ -333,8 +342,14 @@ impl Parser {
                     self.index += 1;
                     depth -= 1;
                 }
+                line_start = false;
             } else {
+                let is_break = matches!(
+                    self.peek_kind(),
+                    TokenKind::Newline | TokenKind::Symbol(':')
+                );
                 self.index += 1;
+                line_start = is_break;
             }
         }
         self.expect_line_end()?;
@@ -896,7 +911,7 @@ impl Parser {
     }
     fn swap_stmt(&mut self) -> Result<Statement, ParseError> {
         self.index += 1;
-        let (left, left_suffix) = self.expect_identifier()?;
+        let (left, left_suffix) = self.expect_name_or_keyword()?;
         // Skip optional array brackets (including multi-dim with commas)
         if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
             self.index += 1;
@@ -910,7 +925,7 @@ impl Parser {
             self.expect_symbol(']')?;
         }
         self.expect_symbol(',')?;
-        let (right, right_suffix) = self.expect_identifier()?;
+        let (right, right_suffix) = self.expect_name_or_keyword()?;
         // Skip optional array brackets (including multi-dim with commas)
         if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
             self.index += 1;

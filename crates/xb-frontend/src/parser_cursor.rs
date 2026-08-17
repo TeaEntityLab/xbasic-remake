@@ -284,6 +284,16 @@ impl Parser {
         let mut params = Vec::new();
         if !matches!(self.peek_kind(), TokenKind::Symbol(')')) {
             loop {
+                // Varargs `...` (e.g. `EXTERNAL CFUNCTION printf (addr, ...)`).
+                // Lexed as consecutive `.` symbols; terminal, so stop after it.
+                if matches!(self.peek_kind(), TokenKind::Symbol('.'))
+                    && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('.')))
+                {
+                    while matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+                        self.index += 1;
+                    }
+                    break;
+                }
                 // Handle grouped params: (r1, r1$, r1[], r1$[])
                 if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
                     self.index += 1;
