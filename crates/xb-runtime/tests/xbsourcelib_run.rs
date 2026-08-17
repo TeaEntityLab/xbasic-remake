@@ -51,3 +51,18 @@ fn xbsourcelib_msc_strhex_is_correct() {
         "msc.x must reach the decrypt line (its correctness is pending RT-BYTESTRING)"
     );
 }
+
+/// `geo.x` runs end to end via nested composite parameters passed by reference
+/// (`GeoPerpendicularLine(GEO_BINODE L1, ..., GEO_BINODE @L2)`), float/int
+/// comparison, and multi-variable composite declarations.
+#[test]
+fn xbsourcelib_geo_runs_via_composite_params() {
+    let out = run_lib("XBSourceLib/geo/geo.x");
+    assert_eq!(out.len(), 1, "geo.x should print one line, got {out:?}");
+    // Midpoint of (10,10)-(50,50) is (30,30); the perpendicular starts there.
+    assert!(
+        out[0].starts_with("Perpendicular:") && out[0].contains("30"),
+        "unexpected geo.x output: {:?}",
+        out[0]
+    );
+}

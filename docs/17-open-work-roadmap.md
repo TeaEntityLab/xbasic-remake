@@ -77,28 +77,27 @@ write-back deferred, untested), and text-IR round-trip. Locked by
 `interpreter.rs::by_ref_parameter_writes_back_to_caller`. Foundation for the
 composite by-ref params below.
 
-### RT-NESTED-COMPOSITE — nested composite TYPEs: local vars ✅ done; params pending
+### RT-NESTED-COMPOSITE — nested composite TYPEs + composite params ✅ done
 A TYPE member whose type is itself a composite (e.g. `GEO_BINODE` holds two
-`GEO_BICOORD`s) now flattens **recursively** into leaf struct-of-arrays slots
-(`L1.a.x`) — fixed in `register_type` / `composite_decl` / `dim` (semantics*.rs),
-plus a pre-existing bug where suffix-less non-Integer slots (incl. flat *float*
-composite members) were overridden to Integer: dotted member slots now trust
-their declared type (`symbol` / `assignment`). Locked by
-`interpreter.rs::nested_composite_members_resolve_to_declared_float_type`.
-**Remaining**: composite **parameters**. `XBSourceLib/geo/geo.x` still fails
-(`expected Integer, got String`) because `GeoPerpendicularLine(GEO_BINODE @L2,
-...)` accesses members of a composite *param* (not a local `CompositeDecl`), so
-its member slots are never registered in the callee. The by-ref foundation is now
-in place (RT-BYREF); two steps remain:
-- **Parser/AST**: keep the param's composite type + `@` — today `Param` is
-  `{name, suffix}` and both are discarded in `parse_params`
-  (parser_cursor.rs:323-349).
-- **Analyzer**: flatten composite params ↔ composite call-args into scalar member
-  params/args (a composite can't cross the struct-of-arrays call boundary as one
-  value). `FuncSig` records each param's composite type; `function()` expands a
-  composite param into member `CheckedParam`s + registers their slots; the two
-  callsite arg-analyzers expand composite args to matching member args (by-ref
-  members reuse RT-BYREF). Safe: the self-host uses zero composite params.
+`GEO_BICOORD`s) flattens **recursively** into leaf struct-of-arrays slots
+(`L1.a.x`) — `register_type` / `composite_decl` / `dim` (semantics*.rs), plus a
+pre-existing bug where suffix-less non-Integer slots (incl. flat *float* composite
+members) were overridden to Integer: dotted member slots now trust their declared
+type (`symbol` / `assignment`).
+
+**Composite parameters** (incl. by reference) now work: `Param` carries the
+composite type + `@`; `FuncSig.param_composites` records them; `function()`
+flattens a composite param into member `CheckedParam`s + member slots;
+`flatten_call_args` expands composite call-args (with `@` members via RT-BYREF) to
+match. Fixed en route: (a) **multi-variable composite decl** `T a, b` declared
+only the first var (`composite_decl_stmt` skipped to line-end) — now one decl per
+comma-separated var; (b) **mixed-numeric comparison** `a! = 0` (float vs integer
+literal) errored (`compare` lacked Float/Integer arms) — now promotes int→float.
+
+`XBSourceLib/geo/geo.x` runs end to end. Locked by `interpreter.rs`
+(`composite_by_ref_parameter_writes_members_back`, `compares_float_to_integer_literal`,
+`nested_composite_members_resolve_to_declared_float_type`) and
+`xbsourcelib_run.rs::xbsourcelib_geo_runs_via_composite_params`.
 
 ## 3. Frontend / migration coverage
 
@@ -116,9 +115,9 @@ file collapsing to `<=2` IR lines). Floors pin current counts (≥151 / ≥13 / 
 Beyond parse/lower (MIG-CORPUS-GATE), `crates/xb-runtime/tests/xbsourcelib_run.rs`
 now runs core libs through the interpreter: `ary.x` and
 `utils/mergeTest01`/`mergeTest02` run to a clean exit; `msc.x` runs end to end and
-its `MscStrHex$` (string→hex) output is locked as correct. Not yet covered: the
-`msc.x` decrypt line (RT-BYTESTRING) and `geo.x` (RT-NESTED-COMPOSITE params).
-Expand as those blockers clear.
+its `MscStrHex$` (string→hex) output is locked as correct; **`geo.x` now runs**
+end to end via composite params (RT-NESTED-COMPOSITE). Not yet covered: the
+`msc.x` decrypt line (RT-BYTESTRING). Expand as blockers clear.
 
 ## 4. Demos / GUI
 

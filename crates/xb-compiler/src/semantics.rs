@@ -13,6 +13,9 @@ pub(crate) type ItemResult = Result<CheckedItem, SemanticError>;
 pub(crate) struct FuncSig {
     pub(crate) params: Vec<ValueType>,
     pub(crate) return_type: ValueType,
+    /// Composite TYPE name per parameter (`None` for scalars); drives call-site
+    /// flattening of composite arguments.
+    pub(crate) param_composites: Vec<Option<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -82,9 +85,12 @@ impl Analyzer {
                     .iter()
                     .map(|p| ValueType::from_suffix(p.suffix))
                     .collect();
+                let param_composites: Vec<Option<String>> =
+                    f.params.iter().map(|p| p.type_name.clone()).collect();
                 let sig = FuncSig {
                     params: param_types,
                     return_type: ret,
+                    param_composites,
                 };
                 self.functions.insert(f.name.clone(), sig.clone());
                 self.functions

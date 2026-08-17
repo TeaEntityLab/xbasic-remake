@@ -317,14 +317,23 @@ impl Parser {
                     }
                     continue;
                 }
+                let mut by_ref = false;
                 if matches!(self.peek_kind(), TokenKind::Symbol('@')) {
+                    by_ref = true;
                     self.index += 1;
                 }
-                // Skip optional type qualifier (ANY, STRING, INTEGER, FUNCADDR, etc.)
-                // The param name can be an identifier or keyword (e.g. 'data')
+                // Optional type qualifier (ANY, STRING, INTEGER, FUNCADDR, or a
+                // composite TYPE name). The param name may be an identifier or a
+                // keyword (e.g. 'data').
+                let mut type_name: Option<String> = None;
                 if matches!(self.peek_kind(), TokenKind::Identifier { .. })
                     || matches!(self.peek_kind(), TokenKind::Keyword(Keyword::FuncAddr))
                 {
+                    let candidate = if let TokenKind::Identifier { name, .. } = self.peek_kind() {
+                        Some(name.clone())
+                    } else {
+                        None
+                    };
                     let save = self.index;
                     self.index += 1;
                     if !matches!(self.peek_kind(), TokenKind::Identifier { .. })
@@ -332,9 +341,16 @@ impl Parser {
                         && !matches!(self.peek_kind(), TokenKind::Symbol('@'))
                     {
                         self.index = save; // Not a type qualifier, restore
+                    } else if let Some(c) = candidate {
+                        // Confirmed type qualifier; record composite TYPE names so
+                        // the analyzer can flatten the param into member slots.
+                        if self.composite_types.contains(&c) {
+                            type_name = Some(c);
+                        }
                     }
                 }
                 if matches!(self.peek_kind(), TokenKind::Symbol('@')) {
+                    by_ref = true;
                     self.index += 1;
                 }
                 let (name, suffix) = self.expect_name_or_keyword()?;
@@ -346,7 +362,12 @@ impl Parser {
                     }
                     self.expect_symbol(']')?;
                 }
-                params.push(Param { name, suffix });
+                params.push(Param {
+                    name,
+                    suffix,
+                    type_name,
+                    by_ref,
+                });
                 if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                     self.index += 1;
                 } else {

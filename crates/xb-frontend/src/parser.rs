@@ -446,41 +446,56 @@ impl Parser {
             return Err(self.expected("composite type"));
         };
         self.index += 1;
-        let (var, shared) = match self.peek_kind().clone() {
-            TokenKind::SharedName(n) => {
+        let mut decls: Vec<Statement> = Vec::new();
+        loop {
+            let (var, shared) = match self.peek_kind().clone() {
+                TokenKind::SharedName(n) => {
+                    self.index += 1;
+                    (n, true)
+                }
+                TokenKind::Identifier { name, .. } => {
+                    self.index += 1;
+                    (name, false)
+                }
+                _ => return Err(self.expected("composite variable")),
+            };
+            let mut is_array = false;
+            if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
                 self.index += 1;
-                (n, true)
+                while !matches!(self.peek_kind(), TokenKind::Symbol(']'))
+                    && !self.at_line_end()
+                    && !self.at_eof()
+                {
+                    self.index += 1;
+                }
+                if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                    self.index += 1;
+                }
+                is_array = true;
             }
-            TokenKind::Identifier { name, .. } => {
+            decls.push(Statement::CompositeDecl {
+                type_name: type_name.clone(),
+                var,
+                shared,
+                is_array,
+            });
+            // Additional comma-separated variables share the same TYPE.
+            if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
-                (name, false)
+            } else {
+                break;
             }
-            _ => return Err(self.expected("composite variable")),
-        };
-        let mut is_array = false;
-        if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
-            self.index += 1;
-            while !matches!(self.peek_kind(), TokenKind::Symbol(']'))
-                && !self.at_line_end()
-                && !self.at_eof()
-            {
-                self.index += 1;
-            }
-            if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
-                self.index += 1;
-            }
-            is_array = true;
         }
+        // Consume any trailing tokens to end of line (comments, etc.).
         while !self.at_line_end() && !self.at_eof() {
             self.index += 1;
         }
         self.expect_line_end()?;
-        Ok(Statement::CompositeDecl {
-            type_name,
-            var,
-            shared,
-            is_array,
-        })
+        if decls.len() == 1 {
+            Ok(decls.pop().unwrap())
+        } else {
+            Ok(Statement::Compound(decls))
+        }
     }
     fn assignment_stmt(&mut self) -> Result<Statement, ParseError> {
         let (target, suffix) = self.expect_identifier()?;

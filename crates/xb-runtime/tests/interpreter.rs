@@ -336,3 +336,47 @@ fn by_ref_parameter_writes_back_to_caller() {
         .unwrap();
     assert_eq!(output, ["42"]);
 }
+
+#[test]
+fn composite_by_ref_parameter_writes_members_back() {
+    // A composite passed `@`-by-reference: the callee's member writes propagate
+    // to the caller (flattened struct-of-arrays params + per-member by-ref).
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         TYPE BICOORD\nSINGLE .x\nSINGLE .y\nEND TYPE\n\
+         FUNCTION SetPoint (BICOORD @p, v!)\n\
+         p.x = v!\n\
+         p.y = v! * 2\n\
+         END FUNCTION\n\
+         FUNCTION Main\n\
+         BICOORD q\n\
+         SetPoint(@q, 5.5)\n\
+         PRINT q.x\n\
+         PRINT q.y\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["5.5", "11"]);
+}
+
+#[test]
+fn compares_float_to_integer_literal() {
+    // `a! = 0` compares a float to an integer literal; the runtime must promote
+    // the integer, not raise a type mismatch.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM a!\n\
+         a! = 3\n\
+         IF a! = 0 THEN\nPRINT 1\nELSE\nPRINT 2\nEND IF\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["2"]);
+}

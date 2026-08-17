@@ -377,26 +377,32 @@ impl Analyzer {
                 actual: args.len(),
             });
         }
-        let mut checked = Vec::with_capacity(args.len());
-        for (i, arg) in args.iter().enumerate() {
-            let v = self.call_arg(arg)?;
-            let expected = sig.params.get(i).copied().unwrap_or(ValueType::Integer);
-            if !self.permissive && !types_coercible(v.value_type, expected) {
-                return Err(crate::checked::SemanticError::FunctionArgType {
-                    name: normalized.clone(),
-                    index: i,
-                    expected,
-                    actual: v.value_type,
-                });
+        let checked = if sig.param_composites.iter().any(|c| c.is_some()) {
+            let pc = sig.param_composites.clone();
+            self.flatten_call_args(&pc, args)?
+        } else {
+            let mut checked = Vec::with_capacity(args.len());
+            for (i, arg) in args.iter().enumerate() {
+                let v = self.call_arg(arg)?;
+                let expected = sig.params.get(i).copied().unwrap_or(ValueType::Integer);
+                if !self.permissive && !types_coercible(v.value_type, expected) {
+                    return Err(crate::checked::SemanticError::FunctionArgType {
+                        name: normalized.clone(),
+                        index: i,
+                        expected,
+                        actual: v.value_type,
+                    });
+                }
+                // Coerce compatible mismatches (e.g. Integer -> Float).
+                let v = if v.value_type != expected {
+                    CheckedExpr::new(v.kind.clone(), expected)
+                } else {
+                    v
+                };
+                checked.push(v);
             }
-            // Coerce compatible mismatches (e.g. Integer -> Float) to the parameter type.
-            let v = if v.value_type != expected {
-                CheckedExpr::new(v.kind.clone(), expected)
-            } else {
-                v
-            };
-            checked.push(v);
-        }
+            checked
+        };
         Ok(CheckedExpr::new(
             CheckedExprKind::FunctionCall {
                 name: normalized,
@@ -472,6 +478,47 @@ impl Analyzer {
             Ok(checked)
         }
     }
+    /// Flatten composite call arguments into scalar member arguments, matching the
+    /// callee's flattened composite params. An `@`-composite arg produces ByRef
+    /// members (per-member write-back); scalars pass through `call_arg`.
+    fn flatten_call_args(
+        &self,
+        param_composites: &[Option<String>],
+        args: &[Expression],
+    ) -> Result<Vec<CheckedExpr>, crate::checked::SemanticError> {
+        let mut out = Vec::new();
+        for (i, arg) in args.iter().enumerate() {
+            let composite = param_composites.get(i).and_then(|o| o.as_ref());
+            if let Some(tn) = composite {
+                if let Some(layout) = self.composites.get(tn).cloned() {
+                    let (var, by_ref) = match arg {
+                        Expression::Identifier { name, .. } => (Some(name.clone()), false),
+                        Expression::ByRefIdentifier { name, .. } => (Some(name.clone()), true),
+                        Expression::ArrayRef { name } => (Some(name.clone()), false),
+                        _ => (None, false),
+                    };
+                    if let Some(var) = var {
+                        let mut leaves = Vec::new();
+                        self.flatten_composite(&var, &layout, &mut leaves);
+                        for (mname, mvt) in leaves {
+                            let sym = CheckedExpr::new(
+                                CheckedExprKind::Symbol(CheckedSymbol::new(mname, mvt)),
+                                mvt,
+                            );
+                            out.push(if by_ref {
+                                CheckedExpr::new(CheckedExprKind::ByRef(Box::new(sym)), mvt)
+                            } else {
+                                sym
+                            });
+                        }
+                        continue;
+                    }
+                }
+            }
+            out.push(self.call_arg(arg)?);
+        }
+        Ok(out)
+    }
 
     pub(crate) fn call_stmt(&self, name: &str, args: &[Expression]) -> ItemResult {
         // Composite record I/O: `WRITE/READ [f], compositearr[]` transfers
@@ -496,10 +543,12 @@ impl Analyzer {
             CheckedExprKind::FunctionCall { ref name, .. } => name.clone(),
             _ => name.to_owned(),
         };
-        let checked_args = args
-            .iter()
-            .map(|a| self.call_arg(a))
-            .collect::<Result<Vec<_>, _>>()?;
+        let param_composites = self
+            .functions
+            .get(name)
+            .map(|s| s.param_composites.clone())
+            .unwrap_or_default();
+        let checked_args = self.flatten_call_args(&param_composites, args)?;
         Ok(CheckedItem::Call {
             name: resolved,
             args: checked_args,

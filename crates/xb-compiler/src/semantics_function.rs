@@ -7,11 +7,6 @@ use crate::semantics::{Analyzer, CheckedItem, ItemResult, Scope, SemanticError, 
 impl Analyzer {
     pub(crate) fn function(&mut self, f: &FunctionDecl) -> ItemResult {
         let ret = ValueType::from_suffix(f.suffix);
-        let param_types: Vec<ValueType> = f
-            .params
-            .iter()
-            .map(|p| ValueType::from_suffix(p.suffix))
-            .collect();
         let mut scoped = Self {
             symbols: BTreeMap::new(),
             arrays: BTreeMap::new(),
@@ -23,13 +18,33 @@ impl Analyzer {
             composite_vars: self.composite_vars.clone(),
             permissive: self.permissive,
         };
-        for (p, vt) in f.params.iter().zip(param_types) {
+        // Register params. A composite param flattens into member slots/params
+        // (struct-of-arrays), matching how composite call-args are flattened so
+        // the runtime binds member-for-member.
+        let mut cps: Vec<CheckedParam> = Vec::new();
+        for p in &f.params {
+            if let Some(tn) = &p.type_name {
+                if let Some(layout) = scoped.composites.get(tn).cloned() {
+                    scoped.composite_vars.insert(p.name.clone(), tn.clone());
+                    let mut leaves = Vec::new();
+                    scoped.flatten_composite(&p.name, &layout, &mut leaves);
+                    for (mname, mvt) in leaves {
+                        scoped.symbols.insert(mname.clone(), mvt);
+                        cps.push(CheckedParam {
+                            name: mname,
+                            value_type: mvt,
+                        });
+                    }
+                    continue;
+                }
+            }
+            let vt = ValueType::from_suffix(p.suffix);
             scoped.symbols.insert(p.name.clone(), vt);
+            cps.push(CheckedParam::from_ast(p));
         }
         scoped.symbols.insert(f.name.clone(), ret);
         let body = scoped.blk(&f.body, Scope::Function)?;
         self.shared = scoped.shared;
-        let cps: Vec<CheckedParam> = f.params.iter().map(CheckedParam::from_ast).collect();
         Ok(CheckedItem::Function {
             name: f.name.clone(),
             params: cps,

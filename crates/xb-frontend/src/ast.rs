@@ -166,6 +166,11 @@ pub enum PrintSep {
 pub struct Param {
     pub name: String,
     pub suffix: Option<TypeSuffix>,
+    /// Composite TYPE name when the parameter's type is a composite (e.g.
+    /// `GEO_BINODE`); enables the analyzer to flatten it into member params.
+    pub type_name: Option<String>,
+    /// `@`-prefixed pass-by-reference parameter.
+    pub by_ref: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
