@@ -490,3 +490,24 @@ fn select_case_all_true_runs_every_truthy_branch() {
         .unwrap();
     assert_eq!(output, ["a", "b"]);
 }
+
+#[test]
+fn numeric_then_string_same_base_name_are_distinct_slots() {
+    // A numeric `c` and a string `c$` sharing a base name must be distinct slots:
+    // assigning `c$` must not clobber `c`, and reads of each see their own value.
+    // (VAR-SUFFIX-COLLISION: assignment target now names the slot like reads do.)
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         c = 5\n\
+         c$ = \"F\"\n\
+         PRINT c\n\
+         PRINT c$\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["5", "F"]);
+}

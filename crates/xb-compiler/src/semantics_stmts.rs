@@ -80,7 +80,7 @@ impl Analyzer {
             if sym.value_type == suffix_vt || name.contains('.') {
                 sym
             } else {
-                CheckedSymbol::new(name.to_owned(), suffix_vt)
+                CheckedSymbol::new(xb_frontend::full_name(name.to_owned(), suffix), suffix_vt)
             }
         } else {
             // Auto-declare unknown variables based on type suffix

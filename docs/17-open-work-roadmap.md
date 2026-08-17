@@ -81,17 +81,23 @@ golden-bearing source uses the special forms). Locked by
 `interpreter.rs::{select_case_true_matches_first_truthy_branch,
 select_case_all_true_runs_every_truthy_branch}`; legacy corpus still 204/204.
 
-### VAR-SUFFIX-COLLISION — `x` (numeric) and `x$` (string) share a slot on write `[verified 2026-08-17]`
-When a scope holds both a numeric `x` and a string `x$`, the two disagree on slot
-naming: assignment lowers the `x$ = …` target to slot `x` (suffix stripped, colliding
-with the integer), while every *read* of `x$` resolves to slot `x$` (suffix kept) — so
-writes and reads of `x$` land in different slots. Repro: `c = 5 : c$ = "F" : PRINT c$`
-prints empty; the IR shows `assign c:string` (write) vs `symbol(c$:string)` (read).
-This is the true remaining blocker for msc.x's "Decoded as" line (`MscHexStr$`'s
-`ConvertChar` uses both `c` and `c$`), now that SEL-CASE-TRUE is fixed. Fix: make the
-assignment target and expression read agree on the slot name for suffixed variables —
-keep a disambiguating name (e.g. `c$`) on BOTH sides when a base-name collision exists
-(`semantics`/lowering symbol resolution).
+### VAR-SUFFIX-COLLISION — numeric `x` and string `x$` sharing a base name — partial
+`self.symbols` is keyed by BASE name, so a numeric `x` and a string `x$` in one scope
+fight over slot `x`. **Fixed this pass**: assignment now names its target with the same
+rule as reads — on a type mismatch it uses the full suffixed name
+(`semantics_stmts.rs::assignment`, matching `semantics_expr.rs::symbol`), so a
+numeric-first pattern (`c = 5 : c$ = "F"`) keeps `c` / `c$` in distinct slots instead of
+the assignment clobbering the numeric. Locked by
+`interpreter.rs::numeric_then_string_same_base_name_are_distinct_slots` (suite 160/0).
+**Still open** (the msc.x blocker): when the STRING is used *first* (msc.x's
+`MscHexStr$` FOR loop assigns `c$ = MID$(...)` before the numeric `c` appears), `c$`
+claims base slot `c`, so the later numeric `c` collides — declaration-order-dependent
+because the symbol table is base-name-keyed. Closing it needs a per-function pre-scan
+(two-pass) that detects base-name/type collisions and assigns each variant a
+*consistent, C-identifier-safe* slot name at every read/write/DIM/GOSUB-shared site
+(the read-side `c$` name carries `$`, tolerated by the interpreter but not emittable by
+`cgen.x`, so the C backend for colliding names is a separate CG-BODY-COVER-class
+concern). msc.x's "Decoded as" round-trip stays blocked on this deeper fix.
 
 ### RT-KERNEL32 — kernel32/stdio stubs for `acgibin` `[verified 2026-08-17]`
 `acgibin.x` needs `GetStdHandle`/`ReadFile`/`WriteFile` and the handle constants
