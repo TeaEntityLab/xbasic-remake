@@ -20,7 +20,11 @@ impl Analyzer {
                 })
             }
             Statement::Dim { name, suffix, size } => self.dim(name, *suffix, size.as_ref()),
-            Statement::Assignment { target, suffix, value } => self.assignment(target, *suffix, value),
+            Statement::Assignment {
+                target,
+                suffix,
+                value,
+            } => self.assignment(target, *suffix, value),
             Statement::ArrayAssignment {
                 target,
                 index,
@@ -42,9 +46,7 @@ impl Analyzer {
                 name,
                 suffix,
                 value,
-            } => {
-                self.shared_assignment(name, *suffix, value, scope)
-            }
+            } => self.shared_assignment(name, *suffix, value, scope),
             Statement::If {
                 condition,
                 then_body,
@@ -90,7 +92,9 @@ impl Analyzer {
             | Statement::EndProgram
             | Statement::Data(_) => Ok(CheckedItem::Nop),
             Statement::Goto(expr) => match expr {
-                Expression::Identifier { name, suffix: None } if self.checked_symbol(name).is_err() => {
+                Expression::Identifier { name, suffix: None }
+                    if self.checked_symbol(name).is_err() =>
+                {
                     Ok(CheckedItem::Goto(name.clone()))
                 }
                 _ => {
@@ -99,7 +103,9 @@ impl Analyzer {
                 }
             },
             Statement::Gosub(expr) => match expr {
-                Expression::Identifier { name, suffix: None } if self.checked_symbol(name).is_err() => {
+                Expression::Identifier { name, suffix: None }
+                    if self.checked_symbol(name).is_err() =>
+                {
                     Ok(CheckedItem::Gosub(name.clone()))
                 }
                 _ => {
@@ -195,7 +201,9 @@ impl Analyzer {
         // Relaxed: allow any type (XBasic implicit coercion)
         let value = if vt != value.value_type {
             CheckedExpr::new(value.kind.clone(), vt)
-        } else { value };
+        } else {
+            value
+        };
         Ok(CheckedItem::SharedAssignment {
             target: CheckedSymbol::new(name.to_owned(), vt),
             value,
@@ -233,7 +241,9 @@ impl Analyzer {
                 // Coerce compatible mismatches to the declared return type.
                 let v = if v.value_type != ret {
                     CheckedExpr::new(v.kind.clone(), ret)
-                } else { v };
+                } else {
+                    v
+                };
                 Some(v)
             }
             // RETURN without value = GOSUB return (falls back to function return at runtime)

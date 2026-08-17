@@ -81,17 +81,18 @@ impl Parser {
             let consumed_newline = self.tokens[body_start..self.index]
                 .iter()
                 .any(|t| matches!(t.kind, TokenKind::Newline));
-            let else_body = if !consumed_newline && matches!(self.peek_keyword(), Some(Keyword::Else)) {
-                self.index += 1;
-                let mut body = vec![self.statement()?];
-                while matches!(self.peek_kind(), TokenKind::Symbol(':')) {
+            let else_body =
+                if !consumed_newline && matches!(self.peek_keyword(), Some(Keyword::Else)) {
                     self.index += 1;
-                    body.push(self.statement()?);
-                }
-                Some(body)
-            } else {
-                None
-            };
+                    let mut body = vec![self.statement()?];
+                    while matches!(self.peek_kind(), TokenKind::Symbol(':')) {
+                        self.index += 1;
+                        body.push(self.statement()?);
+                    }
+                    Some(body)
+                } else {
+                    None
+                };
             self.in_single_line_if = false;
             Ok(Statement::If {
                 condition,
@@ -153,8 +154,8 @@ impl Parser {
     pub(crate) fn label_stmt(&mut self) -> Result<Statement, ParseError> {
         let (name, _) = self.expect_name_or_keyword()?;
         self.index += 1; // skip colon
-        // A label may be followed by a statement on the same line: `lbl: stmt`.
-        // Only consume the line end when the label stands alone.
+                         // A label may be followed by a statement on the same line: `lbl: stmt`.
+                         // Only consume the line end when the label stands alone.
         if self.at_line_end() {
             self.expect_line_end()?;
         }

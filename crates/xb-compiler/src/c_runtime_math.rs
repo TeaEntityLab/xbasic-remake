@@ -52,9 +52,13 @@ pub(crate) fn emit_math_functions(out: &mut String) {
     out.push_str("static int xb_rinchr(const char* s, const char* set, int end) { int len = strlen(s); int begin = end - 1; if (begin >= len) begin = len - 1; for (int i = begin; i >= 0; i--) { if (strchr(set, s[i])) return i + 1; } return 0; }\n");
     out.push_str("static int xb_inchri(const char* s, const char* set, int start) { int len = strlen(s); char* lset = xb_strdup(set); for (char* p = lset; *p; p++) *p = tolower((unsigned char)*p); for (int i = start - 1; i < len; i++) { if (strchr(lset, tolower((unsigned char)s[i]))) { free(lset); return i + 1; } } free(lset); return 0; }\n");
     out.push_str("static int xb_rinchri(const char* s, const char* set, int end) { int len = strlen(s); int begin = end - 1; if (begin >= len) begin = len - 1; char* lset = xb_strdup(set); for (char* p = lset; *p; p++) *p = tolower((unsigned char)*p); for (int i = begin; i >= 0; i--) { if (strchr(lset, tolower((unsigned char)s[i]))) { free(lset); return i + 1; } } free(lset); return 0; }\n");
-    out.push_str("static int xb_inchr2(const char* s, const char* set) { return xb_inchr(s, set, 1); }\n");
+    out.push_str(
+        "static int xb_inchr2(const char* s, const char* set) { return xb_inchr(s, set, 1); }\n",
+    );
     out.push_str("static int xb_rinchr2(const char* s, const char* set) { return xb_rinchr(s, set, (int)strlen(s)); }\n");
-    out.push_str("static int xb_inchri2(const char* s, const char* set) { return xb_inchri(s, set, 1); }\n");
+    out.push_str(
+        "static int xb_inchri2(const char* s, const char* set) { return xb_inchri(s, set, 1); }\n",
+    );
     out.push_str("static int xb_rinchri2(const char* s, const char* set) { return xb_rinchri(s, set, (int)strlen(s)); }\n");
     out.push_str("static char* xb_mid2(const char* s, int start) { int slen = strlen(s); if (start < 1) start = 1; int off = start - 1; if (off >= slen) return xb_strdup(\"\"); return xb_strdup(s + off); }\n");
     out.push_str("static char* xb_stuff(const char* into, const char* from, int start, int len) { int ilen = strlen(into); int flen = strlen(from); int si = start - 1; if (si < 0) si = 0; if (si > ilen) si = ilen; int avail = ilen - si; int max_from = (len < 0) ? flen : (len < flen ? len : flen); int p2 = max_from < avail ? max_from : avail; char* r = malloc(ilen + 1); memcpy(r, into, si); memcpy(r + si, from, p2); memcpy(r + si + p2, into + si + p2, ilen - si - p2); r[ilen] = 0; return r; }\n");

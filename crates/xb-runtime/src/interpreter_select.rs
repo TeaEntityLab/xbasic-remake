@@ -1,8 +1,8 @@
 use crate::eval::eval;
 use crate::interpreter::{exec_items, Flow};
+use crate::slot::RuntimeValue;
 use crate::slot::{ExecutionState, RuntimeError, TypedSlot};
 use xb_compiler::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol, PrintSep};
-use crate::slot::RuntimeValue;
 
 pub(crate) fn exec_select_case(
     program: &IrProgram,

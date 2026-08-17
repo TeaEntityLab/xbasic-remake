@@ -18,7 +18,14 @@ impl Interpreter {
     ) -> Result<ExecutionState, RuntimeError> {
         let mut state = ExecutionState::default();
         crate::data_segment::init_data_segment(program, &mut state);
-        exec_items(program, &program.items, &program.items, 0, &mut state, output)?;
+        exec_items(
+            program,
+            &program.items,
+            &program.items,
+            0,
+            &mut state,
+            output,
+        )?;
         Ok(state)
     }
 
@@ -29,7 +36,14 @@ impl Interpreter {
     ) -> Result<ExecutionState, RuntimeError> {
         let mut state = ExecutionState::default();
         crate::data_segment::init_data_segment(program, &mut state);
-        exec_items(program, &program.items, &program.items, 0, &mut state, output)?;
+        exec_items(
+            program,
+            &program.items,
+            &program.items,
+            0,
+            &mut state,
+            output,
+        )?;
         if let Some(main) = program.entry_or_first("Main") {
             exec_items(program, main, main, 0, &mut state, output)?;
         }
@@ -46,7 +60,14 @@ impl Interpreter {
             ..Default::default()
         };
         crate::data_segment::init_data_segment(program, &mut state);
-        exec_items(program, &program.items, &program.items, 0, &mut state, output)?;
+        exec_items(
+            program,
+            &program.items,
+            &program.items,
+            0,
+            &mut state,
+            output,
+        )?;
         if let Some(main) = program.entry_or_first("Main") {
             exec_items(program, main, main, 0, &mut state, output)?;
         }
@@ -134,7 +155,8 @@ pub(crate) fn exec_items(
                 value,
             } => {
                 let idx_val = eval(program, index, state)?;
-                let v = crate::helpers::coerce_value(eval(program, value, state)?, target.value_type);
+                let v =
+                    crate::helpers::coerce_value(eval(program, value, state)?, target.value_type);
                 let i = match idx_val {
                     RuntimeValue::Integer(i) => i as usize,
                     _ => {

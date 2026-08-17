@@ -185,11 +185,17 @@ fn sig(name: &str) -> Option<BuiltinSig> {
         "CSIZE$" => (&[ValueType::String][..], ValueType::String),
         "PROGRAM$" => (&[ValueType::Integer][..], ValueType::String),
         "UBOUND" => (&[ValueType::Integer][..], ValueType::Integer),
-        "OPEN" => (&[ValueType::String, ValueType::Integer][..], ValueType::Integer),
+        "OPEN" => (
+            &[ValueType::String, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
         "CLOSE" => (&[ValueType::Integer][..], ValueType::Integer),
         "LOF" => (&[ValueType::Integer][..], ValueType::Integer),
         "POF" => (&[ValueType::Integer][..], ValueType::Integer),
-        "SEEK" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
+        "SEEK" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
         "INFILE$" => (&[ValueType::Integer][..], ValueType::String),
         "SIZE" => (&[ValueType::Integer][..], ValueType::Integer),
         "TAB" => (&[ValueType::Integer][..], ValueType::String),
@@ -203,18 +209,54 @@ fn sig(name: &str) -> Option<BuiltinSig> {
         "SUBADDR" => (&[ValueType::Integer][..], ValueType::Integer),
         "CSTRING$" => (&[ValueType::Integer][..], ValueType::String),
         "FUNCADDRESS" => (&[ValueType::Integer][..], ValueType::Integer),
-        "SBYTEAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
-        "UBYTEAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
-        "SSHORTAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
-        "USHORTAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
-        "SLONGAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
-        "ULONGAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
-        "XLONGAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
-        "GIANTAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
-        "SINGLEAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Float),
-        "DOUBLEAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Float),
-        "SUBADDRAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
-        "GOADDRAT" => (&[ValueType::Integer, ValueType::Integer][..], ValueType::Integer),
+        "SBYTEAT" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "UBYTEAT" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "SSHORTAT" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "USHORTAT" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "SLONGAT" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "ULONGAT" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "XLONGAT" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "GIANTAT" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "SINGLEAT" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Float,
+        ),
+        "DOUBLEAT" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Float,
+        ),
+        "SUBADDRAT" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
+        "GOADDRAT" => (
+            &[ValueType::Integer, ValueType::Integer][..],
+            ValueType::Integer,
+        ),
         _ => return None,
     };
     Some(BuiltinSig {
@@ -251,7 +293,10 @@ pub fn builtin_call(
     };
     // Relaxed: allow variable arg counts
     let _ = expected_args;
-    let instr3 = matches!(name, "INSTR" | "RINSTR" | "INSTRI" | "RINSTRI" | "INCHR" | "RINCHR" | "INCHRI" | "RINCHRI") && args.len() == 3;
+    let instr3 = matches!(
+        name,
+        "INSTR" | "RINSTR" | "INSTRI" | "RINSTRI" | "INCHR" | "RINCHR" | "INCHRI" | "RINCHRI"
+    ) && args.len() == 3;
     let mut checked = Vec::with_capacity(args.len());
     for (i, arg) in args.iter().enumerate() {
         let v = analyzer.expr(arg)?;

@@ -254,8 +254,7 @@ fn execute_main_runs_top_level_then_main_in_same_state() {
 fn execute_main_falls_back_to_first_function_when_main_absent() {
     // Given: no `Main`, so the first defined function is the entry point
     // (legacy XBasic runs the first function, commonly named `Entry`).
-    let program =
-        lower("PRINT \"top\"\nFUNCTION Entry\nPRINT \"entry-ran\"\nEND FUNCTION\n");
+    let program = lower("PRINT \"top\"\nFUNCTION Entry\nPRINT \"entry-ran\"\nEND FUNCTION\n");
     let mut output = Vec::new();
 
     // When

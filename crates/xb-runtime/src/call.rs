@@ -73,11 +73,8 @@ pub(crate) fn call_function(
             // Mode values from xst.dec: 0=RD,1=WR,2=RW,3=WRNEW,4=RWNEW, plus
             // share bits 0x10/0x20/0x30 and 0x800 nonblock. All modes create a
             // missing file; NEW/WR modes start it fresh.
-            let write = matches!(mode, 1 | 2 | 3 | 4)
-                || matches!(mode & 0x30, 0x20 | 0x30);
-            let read = matches!(mode, 0 | 2 | 4)
-                || matches!(mode & 0x30, 0x10 | 0x30)
-                || !write;
+            let write = matches!(mode, 1 | 2 | 3 | 4) || matches!(mode & 0x30, 0x20 | 0x30);
+            let read = matches!(mode, 0 | 2 | 4) || matches!(mode & 0x30, 0x10 | 0x30) || !write;
             let truncate = matches!(mode, 1 | 3 | 4);
             match std::fs::OpenOptions::new()
                 .read(read)
@@ -173,7 +170,11 @@ pub(crate) fn call_function(
                 return Ok(RuntimeValue::Integer(-1));
             }
             use std::io::Seek;
-            let pos = state.files[idx].as_ref().unwrap().stream_position().unwrap_or(0);
+            let pos = state.files[idx]
+                .as_ref()
+                .unwrap()
+                .stream_position()
+                .unwrap_or(0);
             return Ok(RuntimeValue::Integer(pos as i32));
         }
         "SEEK" => {
@@ -196,7 +197,10 @@ pub(crate) fn call_function(
                 return Ok(RuntimeValue::Integer(-1));
             }
             use std::io::Seek;
-            let r = state.files[idx].as_mut().unwrap().seek(std::io::SeekFrom::Start(pos as u64));
+            let r = state.files[idx]
+                .as_mut()
+                .unwrap()
+                .seek(std::io::SeekFrom::Start(pos as u64));
             return Ok(RuntimeValue::Integer(r.map(|p| p as i32).unwrap_or(-1)));
         }
         "INFILE$" => {
@@ -219,8 +223,12 @@ pub(crate) fn call_function(
                 match f.read(&mut byte) {
                     Ok(0) => break,
                     Ok(_) => {
-                        if byte[0] == b'\n' { break; }
-                        if byte[0] != b'\r' { buf.push(byte[0] as char); }
+                        if byte[0] == b'\n' {
+                            break;
+                        }
+                        if byte[0] != b'\r' {
+                            buf.push(byte[0] as char);
+                        }
                     }
                     Err(_) => break,
                 }

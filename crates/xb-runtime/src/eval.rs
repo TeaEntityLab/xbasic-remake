@@ -49,10 +49,12 @@ pub(crate) fn eval_expr(
                 xb_compiler::UnaryOp::Neg => match v {
                     RuntimeValue::Integer(n) => RuntimeValue::Integer(-n),
                     RuntimeValue::Float(f) => RuntimeValue::Float(-f),
-                    _ => return Err(RuntimeError::TypeMismatch {
-                        expected: ValueType::Integer,
-                        actual: v.value_type(),
-                    }),
+                    _ => {
+                        return Err(RuntimeError::TypeMismatch {
+                            expected: ValueType::Integer,
+                            actual: v.value_type(),
+                        })
+                    }
                 },
                 xb_compiler::UnaryOp::Pos => v,
             }

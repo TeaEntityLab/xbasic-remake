@@ -11,7 +11,8 @@ fn root() -> PathBuf {
 }
 
 fn run_lib(rel: &str) -> Vec<String> {
-    let src = std::fs::read_to_string(root().join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"));
+    let src =
+        std::fs::read_to_string(root().join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"));
     let program = FrontendUnit::parse(&src)
         .unwrap_or_else(|e| panic!("parse {rel}: {e:?}"))
         .lower_ir()

@@ -25,9 +25,7 @@ impl Analyzer {
                 "ABS" => arg.value_type,
                 "STR$" => ValueType::String,
                 "XLONG" | "SBYTE" | "UBYTE" | "SSHORT" | "USHORT" | "SLONG" | "ULONG" | "GIANT"
-                | "GOADDR" | "SUBADDR" => {
-                    ValueType::Integer
-                }
+                | "GOADDR" | "SUBADDR" => ValueType::Integer,
                 "DOUBLE" | "SINGLE" => ValueType::Float,
                 _ => unreachable!(),
             };

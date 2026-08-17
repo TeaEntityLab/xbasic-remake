@@ -48,11 +48,20 @@ pub(crate) fn parse_integer(literal: &str) -> Result<i32, RuntimeError> {
             .or_else(|_| u32::from_str_radix(digits, radix).map(|u| u as i32))
             .or_else(|_| u64::from_str_radix(digits, radix).map(|u| u as i32))
     }
-    let parsed = if let Some(h) = literal.strip_prefix("0x").or_else(|| literal.strip_prefix("0X")) {
+    let parsed = if let Some(h) = literal
+        .strip_prefix("0x")
+        .or_else(|| literal.strip_prefix("0X"))
+    {
         radixed(h, 16)
-    } else if let Some(b) = literal.strip_prefix("0b").or_else(|| literal.strip_prefix("0B")) {
+    } else if let Some(b) = literal
+        .strip_prefix("0b")
+        .or_else(|| literal.strip_prefix("0B"))
+    {
         radixed(b, 2)
-    } else if let Some(o) = literal.strip_prefix("0o").or_else(|| literal.strip_prefix("0O")) {
+    } else if let Some(o) = literal
+        .strip_prefix("0o")
+        .or_else(|| literal.strip_prefix("0O"))
+    {
         radixed(o, 8)
     } else {
         literal

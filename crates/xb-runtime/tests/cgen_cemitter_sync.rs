@@ -167,7 +167,8 @@ fn cemitter_and_cgen_agree_on_positive_corpus() {
         let prog = TextIrParser::parse(&ir)
             .unwrap_or_else(|e| panic!("TextIrParser failed for {stem}: {e:?}"));
         let rust_c = CEmitter::new().emit_program(&prog);
-        let rust_out = compile_and_exec(&tmp, &format!("{stem}_rust"), rust_c.as_bytes(), input_ref);
+        let rust_out =
+            compile_and_exec(&tmp, &format!("{stem}_rust"), rust_c.as_bytes(), input_ref);
 
         // Self-hosted cgen.x path: text IR -> C (native cgen) -> native.
         let self_c = cgen_emit(&cgen_exe, &ir);
@@ -220,8 +221,12 @@ fn cemitter_and_cgen_agree_on_selfhost_tools() {
         let input_lines: Vec<String> = input.lines().map(String::from).collect();
 
         let rust_c = CEmitter::new().emit_program(&prog);
-        let rust_out =
-            compile_and_exec(&tmp, &format!("{tool}_rust"), rust_c.as_bytes(), Some(&input));
+        let rust_out = compile_and_exec(
+            &tmp,
+            &format!("{tool}_rust"),
+            rust_c.as_bytes(),
+            Some(&input),
+        );
 
         let self_c = cgen_emit(&cgen_exe, &ir);
         let self_out = compile_and_exec(&tmp, &format!("{tool}_self"), &self_c, Some(&input));

@@ -1,6 +1,6 @@
-use crate::c_emit_helpers::emit_c_function_name;
 use crate::c_emit::c_type;
 use crate::c_emit_expr::{emit_default, emit_expr, emit_var_name};
+use crate::c_emit_helpers::emit_c_function_name;
 use crate::c_emit_select::emit_body;
 use crate::ir::IrItem;
 use crate::ValueType;
@@ -306,12 +306,17 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         }
         IrItem::Gosub(name) => {
             out.push_str(&ind);
-            out.push_str(&format!("xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_{}; goto xb_label_{};\n", name, name));
+            out.push_str(&format!(
+                "xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_{}; goto xb_label_{};\n",
+                name, name
+            ));
             out.push_str(&format!("xb_gosub_ret_{}:\n", name));
         }
         IrItem::GosubReturn => {
             out.push_str(&ind);
-            out.push_str("if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;\n");
+            out.push_str(
+                "if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;\n",
+            );
         }
         IrItem::GosubExpr(expr) => {
             out.push_str(&ind);
@@ -331,9 +336,18 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
 fn is_at_write_builtin(name: &str) -> bool {
     matches!(
         name,
-        "SBYTEAT" | "UBYTEAT" | "SSHORTAT" | "USHORTAT"
-            | "SLONGAT" | "ULONGAT" | "XLONGAT" | "GIANTAT"
-            | "SINGLEAT" | "DOUBLEAT" | "SUBADDRAT" | "GOADDRAT"
+        "SBYTEAT"
+            | "UBYTEAT"
+            | "SSHORTAT"
+            | "USHORTAT"
+            | "SLONGAT"
+            | "ULONGAT"
+            | "XLONGAT"
+            | "GIANTAT"
+            | "SINGLEAT"
+            | "DOUBLEAT"
+            | "SUBADDRAT"
+            | "GOADDRAT"
     )
 }
 

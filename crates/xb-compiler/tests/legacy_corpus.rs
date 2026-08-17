@@ -22,10 +22,7 @@ fn root() -> PathBuf {
 }
 
 fn rel(p: &Path) -> String {
-    p.strip_prefix(root())
-        .unwrap_or(p)
-        .display()
-        .to_string()
+    p.strip_prefix(root()).unwrap_or(p).display().to_string()
 }
 
 /// Recursively collect files with the given extension under `dir`.
@@ -52,9 +49,16 @@ fn is_source_txt(content: &str) -> bool {
             continue;
         }
         let upper = t.to_ascii_uppercase();
-        return ["DECLARE", "FUNCTION", "PROGRAM", "EXTERNAL", "INTERNAL", "CFUNCTION"]
-            .iter()
-            .any(|kw| upper.starts_with(kw));
+        return [
+            "DECLARE",
+            "FUNCTION",
+            "PROGRAM",
+            "EXTERNAL",
+            "INTERNAL",
+            "CFUNCTION",
+        ]
+        .iter()
+        .any(|kw| upper.starts_with(kw));
     }
     false
 }
@@ -104,7 +108,11 @@ fn legacy_corpus_lowers_to_ir_without_swallow() {
     collect_ext(&root.join("XBSourceLib"), "txt", &mut lib_txt_all);
     let lib_src_txt: Vec<PathBuf> = lib_txt_all
         .into_iter()
-        .filter(|p| fs::read_to_string(p).map(|c| is_source_txt(&c)).unwrap_or(false))
+        .filter(|p| {
+            fs::read_to_string(p)
+                .map(|c| is_source_txt(&c))
+                .unwrap_or(false)
+        })
         .collect();
 
     // Pin current coverage: additions are fine (must still lower); removals fail.

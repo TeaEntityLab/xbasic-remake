@@ -201,7 +201,9 @@ pub(crate) fn eval_builtin(
         "RJUST$" | "LJUST$" | "CJUST$" | "RCLIP$" | "LCLIP$" => {
             crate::builtin_str::eval_str_op(name, args)
         }
-        "INCHR" | "RINCHR" | "INCHRI" | "RINCHRI" => crate::builtin_str::eval_chr_search(name, args),
+        "INCHR" | "RINCHR" | "INCHRI" | "RINCHRI" => {
+            crate::builtin_str::eval_chr_search(name, args)
+        }
         "STUFF$" => crate::builtin_str::eval_stuff(args),
         "FORMAT$" => crate::builtin_format::eval_format(args),
         "RND" => Ok(RuntimeValue::Float(crate::rng::next_rand())),
@@ -254,8 +256,8 @@ pub(crate) fn eval_builtin(
             // In interpreter, no real memory; return empty string
             Ok(RuntimeValue::String(String::new()))
         }
-        "SBYTEAT" | "UBYTEAT" | "SSHORTAT" | "USHORTAT" | "SLONGAT" | "ULONGAT"
-        | "XLONGAT" | "GIANTAT" | "SUBADDRAT" | "GOADDRAT" => {
+        "SBYTEAT" | "UBYTEAT" | "SSHORTAT" | "USHORTAT" | "SLONGAT" | "ULONGAT" | "XLONGAT"
+        | "GIANTAT" | "SUBADDRAT" | "GOADDRAT" => {
             // Direct memory access: in interpreter, return 0 (no real memory)
             Ok(RuntimeValue::Integer(0))
         }

@@ -187,7 +187,10 @@ impl Analyzer {
         args: &[Expression],
         value: &Expression,
     ) -> ItemResult {
-        let args: Vec<CheckedExpr> = args.iter().map(|a| self.expr(a)).collect::<Result<_, _>>()?;
+        let args: Vec<CheckedExpr> = args
+            .iter()
+            .map(|a| self.expr(a))
+            .collect::<Result<_, _>>()?;
         let value = self.expr(value)?;
         Ok(CheckedItem::BuiltinAssign {
             name: name.to_string(),
@@ -225,7 +228,9 @@ impl Analyzer {
         // Relaxed: allow any type (XBasic implicit coercion)
         let value = if target.value_type != value.value_type {
             CheckedExpr::new(value.kind.clone(), target.value_type)
-        } else { value };
+        } else {
+            value
+        };
         Ok(CheckedItem::Assignment { target, value })
     }
 

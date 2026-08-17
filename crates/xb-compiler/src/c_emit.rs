@@ -80,7 +80,12 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     let top: Vec<&IrItem> = program
         .items
         .iter()
-        .filter(|i| !matches!(i, IrItem::Function { .. } | IrItem::Version(_) | IrItem::ProgramName(_)))
+        .filter(|i| {
+            !matches!(
+                i,
+                IrItem::Function { .. } | IrItem::Version(_) | IrItem::ProgramName(_)
+            )
+        })
         .collect();
     let has_main = program
         .items
@@ -134,7 +139,9 @@ fn emit_program_name_global(program: &IrProgram, out: &mut String) {
             }
         })
         .unwrap_or("");
-    out.push_str(&format!("static const char* xb_program_name_str = \"{name}\";\n"));
+    out.push_str(&format!(
+        "static const char* xb_program_name_str = \"{name}\";\n"
+    ));
 }
 
 fn emit_fallback_return(name: &str, return_type: ValueType, out: &mut String) {

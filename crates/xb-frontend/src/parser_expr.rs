@@ -11,10 +11,15 @@ impl Parser {
         let mut left = self.and_expr()?;
         while matches!(
             self.peek_kind(),
-            TokenKind::Keyword(Keyword::Or) | TokenKind::Keyword(Keyword::Xor)
-                | TokenKind::Symbol('|') | TokenKind::Symbol('^')
+            TokenKind::Keyword(Keyword::Or)
+                | TokenKind::Keyword(Keyword::Xor)
+                | TokenKind::Symbol('|')
+                | TokenKind::Symbol('^')
         ) {
-            let is_xor = matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Xor) | TokenKind::Symbol('^'));
+            let is_xor = matches!(
+                self.peek_kind(),
+                TokenKind::Keyword(Keyword::Xor) | TokenKind::Symbol('^')
+            );
             self.index += 1;
             let right = self.and_expr()?;
             left = Expression::Boolean {
@@ -32,7 +37,10 @@ impl Parser {
 
     fn and_expr(&mut self) -> Result<Expression, ParseError> {
         let mut left = self.not_expr()?;
-        while matches!(self.peek_kind(), TokenKind::Keyword(Keyword::And) | TokenKind::Symbol('&')) {
+        while matches!(
+            self.peek_kind(),
+            TokenKind::Keyword(Keyword::And) | TokenKind::Symbol('&')
+        ) {
             self.index += 1;
             let right = self.not_expr()?;
             left = Expression::Boolean {
@@ -45,7 +53,9 @@ impl Parser {
     }
 
     fn not_expr(&mut self) -> Result<Expression, ParseError> {
-        if matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Not)) || matches!(self.peek_kind(), TokenKind::Symbol('!')) {
+        if matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Not))
+            || matches!(self.peek_kind(), TokenKind::Symbol('!'))
+        {
             self.index += 1;
             let inner = self.not_expr()?;
             return Ok(Expression::Not(Box::new(inner)));
@@ -250,7 +260,10 @@ impl Parser {
                             }
                             self.expect_symbol(']')?;
                         }
-                        Ok(Expression::ByRefIdentifier { name: format!("{kw:?}"), suffix: None })
+                        Ok(Expression::ByRefIdentifier {
+                            name: format!("{kw:?}"),
+                            suffix: None,
+                        })
                     }
                     _ => self.primary(),
                 }
@@ -291,7 +304,10 @@ impl Parser {
                     if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
                         let _ = self.parse_args()?;
                     }
-                    return Ok(Expression::ArrayAccess { name: full, index: Box::new(index) });
+                    return Ok(Expression::ArrayAccess {
+                        name: full,
+                        index: Box::new(index),
+                    });
                 }
                 if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
                     let args = self.parse_args()?;
@@ -303,7 +319,10 @@ impl Parser {
             TokenKind::Symbol('&') | TokenKind::LogicalAnd => {
                 self.index += 1;
                 // Support && (double address-of): consume second & if present
-                if matches!(self.peek_kind(), TokenKind::Symbol('&') | TokenKind::LogicalAnd) {
+                if matches!(
+                    self.peek_kind(),
+                    TokenKind::Symbol('&') | TokenKind::LogicalAnd
+                ) {
                     self.index += 1;
                 }
                 self.primary()
@@ -339,7 +358,10 @@ impl Parser {
                     self.expect_token_kind(TokenKind::RBrace2)?;
                     // Wrap: treat as function call on the expression
                     if let Expression::FunctionCall { name, .. } = &expr {
-                        return Ok(Expression::FunctionCall { name: name.clone(), args });
+                        return Ok(Expression::FunctionCall {
+                            name: name.clone(),
+                            args,
+                        });
                     }
                     return Ok(expr);
                 }
@@ -387,7 +409,10 @@ impl Parser {
                     bf_args.push(self.expression()?);
                 }
                 self.expect_token_kind(TokenKind::RBrace2)?;
-                return Ok(Expression::FunctionCall { name: full, args: bf_args });
+                return Ok(Expression::FunctionCall {
+                    name: full,
+                    args: bf_args,
+                });
             }
             // Handle bitfield {8, 0} after function call: ABS(offset){8, 0}
             // { is mapped to ( by lexer, so we see ( after )
@@ -395,10 +420,14 @@ impl Parser {
             if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
                 let prev_pos = self.tokens.get(self.index.saturating_sub(1)).map(|t| t.pos);
                 let curr_pos = self.tokens.get(self.index).map(|t| t.pos);
-                let same_line = matches!((prev_pos, curr_pos), (Some(p), Some(c)) if p.line == c.line);
+                let same_line =
+                    matches!((prev_pos, curr_pos), (Some(p), Some(c)) if p.line == c.line);
                 if same_line {
                     let bf_args = self.parse_args()?;
-                    return Ok(Expression::FunctionCall { name: full, args: bf_args });
+                    return Ok(Expression::FunctionCall {
+                        name: full,
+                        args: bf_args,
+                    });
                 }
             }
             Ok(Expression::FunctionCall { name: full, args })
@@ -426,7 +455,8 @@ impl Parser {
                         // Chained member access: arr[i].a.b.c
                         while matches!(self.peek_kind(), TokenKind::Symbol('.')) {
                             self.index += 1;
-                            if let TokenKind::Identifier { name: m2, .. } = self.peek_kind().clone() {
+                            if let TokenKind::Identifier { name: m2, .. } = self.peek_kind().clone()
+                            {
                                 self.index += 1;
                                 combined = format!("{combined}.{m2}");
                             } else if let TokenKind::Keyword(kw) = self.peek_kind().clone() {
@@ -439,7 +469,10 @@ impl Parser {
                         // Handle call/bitfield after dot: d86[i].flags{$SIZE8} → d86[i].flags($SIZE8)
                         if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
                             let args = self.parse_args()?;
-                            return Ok(Expression::FunctionCall { name: combined, args });
+                            return Ok(Expression::FunctionCall {
+                                name: combined,
+                                args,
+                            });
                         }
                         // Handle array access after dot member: arr[i].member[j]
                         if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
@@ -450,7 +483,10 @@ impl Parser {
                                 let _ = self.expression();
                             }
                             self.expect_symbol(']')?;
-                            return Ok(Expression::ArrayAccess { name: combined, index: Box::new(inner) });
+                            return Ok(Expression::ArrayAccess {
+                                name: combined,
+                                index: Box::new(inner),
+                            });
                         }
                         return Ok(Expression::ArrayAccess {
                             name: combined,
@@ -520,7 +556,10 @@ impl Parser {
                 // Call: a.b(args)
                 if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
                     let args = self.parse_args()?;
-                    return Ok(Expression::FunctionCall { name: combined, args });
+                    return Ok(Expression::FunctionCall {
+                        name: combined,
+                        args,
+                    });
                 }
                 // Array access: a.b[i]  (a.b[] is an array reference)
                 if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
@@ -540,7 +579,10 @@ impl Parser {
                         index: Box::new(index),
                     });
                 }
-                return Ok(Expression::Identifier { name: combined, suffix: mem_suffix });
+                return Ok(Expression::Identifier {
+                    name: combined,
+                    suffix: mem_suffix,
+                });
             }
             Ok(Expression::Identifier { name, suffix })
         }
@@ -548,36 +590,32 @@ impl Parser {
 }
 
 pub(crate) fn is_statement_keyword(kw: Keyword) -> bool {
-    matches!(
-        kw,
-            | Keyword::Dim
-            | Keyword::If
-            | Keyword::Ifz
-            | Keyword::Ift
-            | Keyword::Iff
-            | Keyword::For
-            | Keyword::While
-            | Keyword::Function
-            | Keyword::External
-            | Keyword::Internal
-            | Keyword::CFunction
-            | Keyword::Do
-            | Keyword::Select
-            | Keyword::Program
-            | Keyword::Import
-            | Keyword::Declare
-            | Keyword::End
-            | Keyword::Static
-            | Keyword::Shared
-            | Keyword::Then
-            | Keyword::Else
-            | Keyword::ElseIf
-            | Keyword::Case
-            | Keyword::To
-            | Keyword::Step
-            | Keyword::Until
-            | Keyword::Wend
-            | Keyword::Loop
-            | Keyword::Export
-    )
+    matches!(kw, |Keyword::Dim| Keyword::If
+        | Keyword::Ifz
+        | Keyword::Ift
+        | Keyword::Iff
+        | Keyword::For
+        | Keyword::While
+        | Keyword::Function
+        | Keyword::External
+        | Keyword::Internal
+        | Keyword::CFunction
+        | Keyword::Do
+        | Keyword::Select
+        | Keyword::Program
+        | Keyword::Import
+        | Keyword::Declare
+        | Keyword::End
+        | Keyword::Static
+        | Keyword::Shared
+        | Keyword::Then
+        | Keyword::Else
+        | Keyword::ElseIf
+        | Keyword::Case
+        | Keyword::To
+        | Keyword::Step
+        | Keyword::Until
+        | Keyword::Wend
+        | Keyword::Loop
+        | Keyword::Export)
 }

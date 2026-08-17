@@ -157,9 +157,18 @@ impl Lexer<'_> {
             return Token::new(TokenKind::FloatLiteral(text), pos);
         }
         match self.lookahead {
-            Some('#') => { self.advance(); return Token::new(TokenKind::FloatLiteral(text), pos); }
-            Some('!') => { self.advance(); return Token::new(TokenKind::FloatLiteral(text), pos); }
-            Some('%') => { self.advance(); return Token::new(TokenKind::IntegerLiteral(text), pos); }
+            Some('#') => {
+                self.advance();
+                return Token::new(TokenKind::FloatLiteral(text), pos);
+            }
+            Some('!') => {
+                self.advance();
+                return Token::new(TokenKind::FloatLiteral(text), pos);
+            }
+            Some('%') => {
+                self.advance();
+                return Token::new(TokenKind::IntegerLiteral(text), pos);
+            }
             _ => {}
         }
         let kind = if is_float {
@@ -227,7 +236,11 @@ impl Lexer<'_> {
             self.advance();
         }
         // If no identifier follows, treat as bare $ symbol
-        if self.lookahead.map(|c| !is_identifier_start(c)).unwrap_or(true) {
+        if self
+            .lookahead
+            .map(|c| !is_identifier_start(c))
+            .unwrap_or(true)
+        {
             return Ok(Token::new(TokenKind::Symbol('$'), pos));
         }
         let name = self.name_after_prefix(pos)?;
@@ -348,7 +361,10 @@ impl Lexer<'_> {
                     self.advance();
                 }
                 // Consume any additional suffix chars
-                while matches!(self.lookahead, Some('$') | Some('%') | Some('!') | Some('#') | Some('&')) {
+                while matches!(
+                    self.lookahead,
+                    Some('$') | Some('%') | Some('!') | Some('#') | Some('&')
+                ) {
                     self.advance();
                 }
                 return Some(TypeSuffix::Giant);
@@ -357,7 +373,10 @@ impl Lexer<'_> {
         };
         self.advance();
         // Consume any duplicate suffix characters (e.g. endian$$, 234567$$)
-        while matches!(self.lookahead, Some('$') | Some('%') | Some('!') | Some('#')) {
+        while matches!(
+            self.lookahead,
+            Some('$') | Some('%') | Some('!') | Some('#')
+        ) {
             self.advance();
         }
         Some(suffix)
@@ -383,7 +402,7 @@ impl Lexer<'_> {
         while let Some(ch) = self.lookahead {
             if ch == '\'' {
                 self.advance(); // skip closing '
-                // Single-quoted chars in XBasic are integer literals (ASCII codes)
+                                // Single-quoted chars in XBasic are integer literals (ASCII codes)
                 let int_val = if value.chars().count() == 1 {
                     value.chars().next().unwrap() as i64
                 } else {
@@ -394,7 +413,10 @@ impl Lexer<'_> {
                     }
                     result
                 };
-                return Ok(Token::new(TokenKind::IntegerLiteral(int_val.to_string()), pos));
+                return Ok(Token::new(
+                    TokenKind::IntegerLiteral(int_val.to_string()),
+                    pos,
+                ));
             }
             if ch == '\n' {
                 break;
@@ -402,13 +424,34 @@ impl Lexer<'_> {
             if ch == '\\' {
                 self.advance(); // consume backslash
                 match self.lookahead {
-                    Some('t') => { value.push('\t'); self.advance(); }
-                    Some('n') => { value.push('\n'); self.advance(); }
-                    Some('r') => { value.push('\r'); self.advance(); }
-                    Some('0') => { value.push('\0'); self.advance(); }
-                    Some('\\') => { value.push('\\'); self.advance(); }
-                    Some('\'') => { value.push('\''); self.advance(); }
-                    Some('"') => { value.push('"'); self.advance(); }
+                    Some('t') => {
+                        value.push('\t');
+                        self.advance();
+                    }
+                    Some('n') => {
+                        value.push('\n');
+                        self.advance();
+                    }
+                    Some('r') => {
+                        value.push('\r');
+                        self.advance();
+                    }
+                    Some('0') => {
+                        value.push('\0');
+                        self.advance();
+                    }
+                    Some('\\') => {
+                        value.push('\\');
+                        self.advance();
+                    }
+                    Some('\'') => {
+                        value.push('\'');
+                        self.advance();
+                    }
+                    Some('"') => {
+                        value.push('"');
+                        self.advance();
+                    }
                     Some('x') | Some('X') => {
                         self.advance(); // consume x
                         let mut hex = String::new();
@@ -424,7 +467,10 @@ impl Lexer<'_> {
                         let code = u32::from_str_radix(&hex, 16).unwrap_or(0);
                         value.push(char::from_u32(code).unwrap_or('\0'));
                     }
-                    Some(c) => { value.push(c); self.advance(); }
+                    Some(c) => {
+                        value.push(c);
+                        self.advance();
+                    }
                     None => break,
                 }
                 continue;

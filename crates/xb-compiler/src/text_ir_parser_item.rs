@@ -100,16 +100,21 @@ pub(crate) fn parse_item(
     }
     if let Some(rest) = content.strip_prefix("builtin_assign ") {
         // Format: builtin_assign NAME arg1 arg2 ... = value
-        let eq_pos = rest.rfind(" = ").ok_or_else(|| err("missing = in builtin_assign".into(), l))?;
+        let eq_pos = rest
+            .rfind(" = ")
+            .ok_or_else(|| err("missing = in builtin_assign".into(), l))?;
         let before_eq = &rest[..eq_pos];
         let value_str = &rest[eq_pos + 3..];
-        let sp = before_eq.find(' ').ok_or_else(|| err("missing args in builtin_assign".into(), l))?;
+        let sp = before_eq
+            .find(' ')
+            .ok_or_else(|| err("missing args in builtin_assign".into(), l))?;
         let name = before_eq[..sp].to_string();
         let args_str = &before_eq[sp + 1..];
         let args: Vec<IrExpr> = if args_str.is_empty() {
             vec![]
         } else {
-            args_str.split(' ')
+            args_str
+                .split(' ')
                 .map(|s| parse_expr(s).map_err(|e| err(e, l)))
                 .collect::<Result<_, _>>()?
         };

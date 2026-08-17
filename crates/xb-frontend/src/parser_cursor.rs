@@ -16,7 +16,9 @@ impl Parser {
 
     /// Like expect_identifier but also accepts keywords as names (XBasic
     /// allows keywords like Print as SUB/function/label names).
-    pub(crate) fn expect_name_or_keyword(&mut self) -> Result<(String, Option<TypeSuffix>), ParseError> {
+    pub(crate) fn expect_name_or_keyword(
+        &mut self,
+    ) -> Result<(String, Option<TypeSuffix>), ParseError> {
         match self.peek_kind().clone() {
             TokenKind::Identifier { name, suffix } => {
                 self.index += 1;
@@ -86,9 +88,18 @@ impl Parser {
             }
             // Accept identifier/system var as implicit line separator only when
             // it starts a new statement (followed by =, [, or .)
-            TokenKind::Identifier { .. } | TokenKind::SystemConstant(_) |
-            TokenKind::SystemVariable { .. }
-                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')) | Some(TokenKind::Symbol('[')) | Some(TokenKind::Symbol('.'))) => Ok(()),
+            TokenKind::Identifier { .. }
+            | TokenKind::SystemConstant(_)
+            | TokenKind::SystemVariable { .. }
+                if matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::Symbol('='))
+                        | Some(TokenKind::Symbol('['))
+                        | Some(TokenKind::Symbol('.'))
+                ) =>
+            {
+                Ok(())
+            }
             TokenKind::Eof => Ok(()),
             TokenKind::Symbol(':') if self.in_single_line_if => Ok(()),
             TokenKind::Keyword(Keyword::Else) | TokenKind::Keyword(Keyword::ElseIf)
@@ -207,10 +218,11 @@ impl Parser {
     pub(crate) fn starts_end_if(&self) -> bool {
         (matches!(self.peek_kind(), TokenKind::Keyword(Keyword::End))
             && matches!(self.peek_next_kind(), Some(TokenKind::Keyword(Keyword::If))))
-        || matches!(self.peek_kind(), TokenKind::Identifier { ref name, .. } if name.eq_ignore_ascii_case("ENDIF"))
+            || matches!(self.peek_kind(), TokenKind::Identifier { ref name, .. } if name.eq_ignore_ascii_case("ENDIF"))
     }
     pub(crate) fn expect_end_if(&mut self) -> Result<(), ParseError> {
-        if matches!(self.peek_kind(), TokenKind::Identifier { ref name, .. } if name.eq_ignore_ascii_case("ENDIF")) {
+        if matches!(self.peek_kind(), TokenKind::Identifier { ref name, .. } if name.eq_ignore_ascii_case("ENDIF"))
+        {
             self.index += 1;
         } else {
             self.expect_keyword(Keyword::End)?;
@@ -254,7 +266,8 @@ impl Parser {
         let is_name = matches!(self.peek_kind(), TokenKind::Identifier { .. })
             || matches!(self.peek_kind(), TokenKind::Keyword(kw) if !is_statement_keyword(*kw))
             || matches!(self.peek_kind(), TokenKind::SharedName(_));
-        is_name && (matches!(self.peek_next_kind(), Some(TokenKind::Symbol('(')))
+        is_name
+            && (matches!(self.peek_next_kind(), Some(TokenKind::Symbol('(')))
                 || matches!(self.peek_next_kind(), Some(TokenKind::Symbol('['))))
     }
     pub(crate) fn starts_attach(&self) -> bool {
@@ -272,7 +285,10 @@ impl Parser {
         matches!(self.peek_kind(), TokenKind::Identifier { .. })
             && (matches!(self.peek_next_kind(), Some(TokenKind::Identifier { .. }))
                 || matches!(self.peek_next_kind(), Some(TokenKind::Keyword(_)))
-                || matches!(self.peek_next_kind(), Some(TokenKind::SystemVariable { .. }))
+                || matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::SystemVariable { .. })
+                )
                 || matches!(self.peek_next_kind(), Some(TokenKind::SharedName(_))))
     }
     pub(crate) fn starts_dot_access(&self) -> bool {
@@ -411,7 +427,10 @@ impl Parser {
             Expression::IntegerLiteral(s) => s.clone(),
             Expression::FloatLiteral(s) => s.clone(),
             Expression::StringLiteral(s) => s.clone(),
-            Expression::Unary { op: UnaryOp::Neg, operand } => {
+            Expression::Unary {
+                op: UnaryOp::Neg,
+                operand,
+            } => {
                 if let Expression::IntegerLiteral(s) = operand.as_ref() {
                     format!("-{s}")
                 } else {
@@ -420,7 +439,10 @@ impl Parser {
             }
             _ => "0".to_string(),
         };
-        Ok(Statement::ConstantDefinition { name, value: value_str })
+        Ok(Statement::ConstantDefinition {
+            name,
+            value: value_str,
+        })
     }
 
     pub(crate) fn const_stmt(&mut self) -> Result<Statement, ParseError> {

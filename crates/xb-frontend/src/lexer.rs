@@ -58,10 +58,8 @@ impl<'a> Lexer<'a> {
                             self.advance();
                             self.advance();
                             self.advance();
-                            tokens.push(Token::new(
-                                TokenKind::IntegerLiteral("39".to_string()),
-                                pos,
-                            ));
+                            tokens
+                                .push(Token::new(TokenKind::IntegerLiteral("39".to_string()), pos));
                             continue;
                         }
                     }
@@ -72,7 +70,8 @@ impl<'a> Lexer<'a> {
                         Some(' ') | Some('\t') | Some('\n') | Some('\r') | Some(':') | None => {
                             if self.prev_char == Some(' ') {
                                 let rest = self.chars.as_str();
-                                let line_rest = rest.split_once('\n').map(|(l, _)| l).unwrap_or(rest);
+                                let line_rest =
+                                    rest.split_once('\n').map(|(l, _)| l).unwrap_or(rest);
                                 // ''' is empty string '' + comment ' — parse '' then skip rest as comment
                                 if line_rest.starts_with("''") {
                                     tokens.push(self.single_quote_string()?);
@@ -80,11 +79,16 @@ impl<'a> Lexer<'a> {
                                     continue;
                                 }
                                 if line_rest.contains('\'') && !line_rest.starts_with('\'') {
-                                    let before_quote = line_rest.split_once('\'').map(|(b, _)| b).unwrap_or("");
+                                    let before_quote =
+                                        line_rest.split_once('\'').map(|(b, _)| b).unwrap_or("");
                                     if !before_quote.is_empty()
                                         && !(before_quote.len() > 1
                                             && before_quote.chars().all(|c| c.is_whitespace()))
-                                        && (before_quote.len() <= 3 || (!before_quote.contains(' ') && !before_quote.contains('(') && !before_quote.contains(')'))) {
+                                        && (before_quote.len() <= 3
+                                            || (!before_quote.contains(' ')
+                                                && !before_quote.contains('(')
+                                                && !before_quote.contains(')')))
+                                    {
                                         tokens.push(self.single_quote_string()?);
                                         continue;
                                     }
@@ -96,7 +100,10 @@ impl<'a> Lexer<'a> {
                             // After a closing ', check if this ' starts a comment or string
                             let rest = self.chars.as_str();
                             let line_rest = rest.split_once('\n').map(|(l, _)| l).unwrap_or(rest);
-                            if (!line_rest[1..].contains('\'') && !line_rest.starts_with("')")) || line_rest.starts_with("' ") || line_rest.starts_with("'\t") {
+                            if (!line_rest[1..].contains('\'') && !line_rest.starts_with("')"))
+                                || line_rest.starts_with("' ")
+                                || line_rest.starts_with("'\t")
+                            {
                                 self.skip_comment();
                             } else {
                                 tokens.push(self.single_quote_string()?);
@@ -106,7 +113,13 @@ impl<'a> Lexer<'a> {
                 }
                 '"' => tokens.push(self.string_literal()?),
                 '0'..='9' => tokens.push(self.number()),
-                '.' if self.chars.clone().next().map(|c| c.is_ascii_digit()).unwrap_or(false) => {
+                '.' if self
+                    .chars
+                    .clone()
+                    .next()
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false) =>
+                {
                     tokens.push(self.number())
                 }
                 '#' => tokens.push(self.hash_prefixed()?),

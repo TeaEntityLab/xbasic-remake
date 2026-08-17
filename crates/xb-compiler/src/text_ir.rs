@@ -280,8 +280,12 @@ impl TextIrEmitter {
             IrItem::Label(name) => out.push_str(&format!("{prefix}label {name}\n")),
             IrItem::Goto(name) => out.push_str(&format!("{prefix}goto {name}\n")),
             IrItem::GosubReturn => out.push_str(&format!("{prefix}gosub_return\n")),
-            IrItem::GosubExpr(expr) => out.push_str(&format!("{prefix}gosub_expr {}\n", self.emit_expr(expr))),
-            IrItem::GotoExpr(expr) => out.push_str(&format!("{prefix}goto_expr {}\n", self.emit_expr(expr))),
+            IrItem::GosubExpr(expr) => {
+                out.push_str(&format!("{prefix}gosub_expr {}\n", self.emit_expr(expr)))
+            }
+            IrItem::GotoExpr(expr) => {
+                out.push_str(&format!("{prefix}goto_expr {}\n", self.emit_expr(expr)))
+            }
         }
     }
 }

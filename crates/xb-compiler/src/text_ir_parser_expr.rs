@@ -251,7 +251,10 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
             let (name, vt) = parse_symbol(content.trim())?;
             IrExpr::new(
                 IrExprKind::ArrayUBound {
-                    symbol: IrSymbol { name, value_type: vt },
+                    symbol: IrSymbol {
+                        name,
+                        value_type: vt,
+                    },
                 },
                 ValueType::Integer,
             )
@@ -260,7 +263,10 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
             let (name, vt) = parse_symbol(content.trim())?;
             IrExpr::new(
                 IrExprKind::SizeOf {
-                    symbol: IrSymbol { name, value_type: vt },
+                    symbol: IrSymbol {
+                        name,
+                        value_type: vt,
+                    },
                 },
                 ValueType::Integer,
             )
@@ -277,12 +283,10 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
                 ValueType::Integer,
             )
         }
-        "label_addr" => {
-            IrExpr::new(
-                IrExprKind::LabelAddress(content.trim().to_string()),
-                ValueType::Integer,
-            )
-        }
+        "label_addr" => IrExpr::new(
+            IrExprKind::LabelAddress(content.trim().to_string()),
+            ValueType::Integer,
+        ),
         _ => return Err(format!("unknown expression type: {type_prefix}")),
     };
     Ok((result, rest))

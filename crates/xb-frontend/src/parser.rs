@@ -84,9 +84,17 @@ impl Parser {
             return self.keyword_assignment_stmt();
         }
         match self.peek_keyword() {
-            Some(Keyword::Version) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Version)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::Version) => self.version_stmt(),
-            Some(Keyword::Print) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Print)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::Print) => self.print_stmt(),
             Some(Keyword::Dim) => self.dim_stmt(),
             Some(Keyword::If) => self.if_stmt(),
@@ -95,29 +103,51 @@ impl Parser {
             Some(Keyword::Iff) => self.iff_stmt(),
             Some(Keyword::For) => self.for_stmt(),
             Some(Keyword::While) => self.while_stmt(),
-            Some(Keyword::Function) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Function)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::Function)
             | Some(Keyword::External)
             | Some(Keyword::Internal)
             | Some(Keyword::CFunction) => self.function_stmt(),
-            Some(Keyword::Do) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Do) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::Do) => self.do_stmt(),
-            Some(Keyword::Select) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Select)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::Select) => self.select_case_stmt(),
-            Some(Keyword::Sub) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('['))) => self.call_stmt(),
+            Some(Keyword::Sub) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('['))) => {
+                self.call_stmt()
+            }
             Some(Keyword::Sub) => self.sub_stmt(),
             Some(Keyword::Exit) => self.exit_stmt(),
-            Some(Keyword::Inc) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Inc) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::Inc) => self.inc_dec_stmt(true),
-            Some(Keyword::Dec) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Dec) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::Dec) => self.inc_dec_stmt(false),
-            Some(Keyword::Return) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Return)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::Return) => self.return_stmt(),
             Some(Keyword::Swap) => self.swap_stmt(),
             Some(Keyword::Program) => self.program_stmt(),
             Some(Keyword::Import) => self.import_stmt(),
             Some(Keyword::Declare) => self.declare_stmt(),
-            Some(Keyword::End) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::End) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::End) if self.is_end_program() => self.end_program_stmt(),
             Some(Keyword::End) if self.is_end_export() => self.end_export_stmt(),
             Some(Keyword::End) if self.starts_end_if() => {
@@ -125,63 +155,130 @@ impl Parser {
                 self.index += 2;
                 self.expect_line_end()?;
                 Ok(Statement::Compound(vec![]))
-            },
+            }
             Some(Keyword::Static) | Some(Keyword::Shared) => self.shared_static_stmt(),
             Some(Keyword::Redim) => self.redim_stmt(),
             Some(Keyword::Gosub) => self.gosub_stmt(),
             Some(Keyword::DoEvents) => self.doevents_stmt(),
             Some(Keyword::Randomize) => self.randomize_stmt(),
-            Some(Keyword::Break) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Break)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::Break)
                 if matches!(
                     self.peek_next_kind(),
                     Some(TokenKind::Symbol('(')) | Some(TokenKind::Symbol('['))
-                ) => self.call_stmt(),
+                ) =>
+            {
+                self.call_stmt()
+            }
             Some(Keyword::Break) => self.break_stmt(),
             Some(Keyword::Goto) => self.goto_stmt(),
-            Some(Keyword::Const) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Const)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::Const) => self.const_stmt(),
-            Some(Keyword::Data) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
-            Some(Keyword::Data) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('[')) | Some(TokenKind::Symbol('('))) => self.call_stmt(),
+            Some(Keyword::Data)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
+            Some(Keyword::Data)
+                if matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::Symbol('[')) | Some(TokenKind::Symbol('('))
+                ) =>
+            {
+                self.call_stmt()
+            }
             Some(Keyword::Data) => self.data_stmt(),
-            Some(Keyword::Read) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
-            Some(Keyword::Read) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('['))) => self.call_stmt(),
+            Some(Keyword::Read)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
+            Some(Keyword::Read)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('['))) =>
+            {
+                self.call_stmt()
+            }
             Some(Keyword::Read) => self.read_stmt(),
-            Some(Keyword::Stop) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Stop)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::Stop)
                 if matches!(
                     self.peek_next_kind(),
                     Some(TokenKind::Symbol('[')) | Some(TokenKind::Symbol('.'))
-                ) => self.dot_access_stmt(),
+                ) =>
+            {
+                self.dot_access_stmt()
+            }
             Some(Keyword::Stop) => self.stop_stmt(),
             Some(Keyword::Restore) => self.restore_stmt(),
             Some(Keyword::Export) => self.export_stmt(),
             Some(Keyword::FuncAddr) => self.funcaddr_stmt(),
             Some(Keyword::Type) | Some(Keyword::Packed)
-                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
             Some(Keyword::Type) | Some(Keyword::Packed)
                 if matches!(
                     self.peek_next_kind(),
-                    Some(TokenKind::Symbol('[')) | Some(TokenKind::Symbol('.')) | Some(TokenKind::Symbol('('))
-                ) => self.dot_access_stmt(),
+                    Some(TokenKind::Symbol('['))
+                        | Some(TokenKind::Symbol('.'))
+                        | Some(TokenKind::Symbol('('))
+                ) =>
+            {
+                self.dot_access_stmt()
+            }
             Some(Keyword::Type) | Some(Keyword::Packed) => self.type_stmt(),
-            Some(Keyword::Next) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
-            Some(Keyword::Step) | Some(Keyword::Case) | Some(Keyword::Loop) | Some(Keyword::Until) | Some(Keyword::Wend) | Some(Keyword::To) | Some(Keyword::Then) | Some(Keyword::Else) | Some(Keyword::ElseIf) | Some(Keyword::Mod)
-                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
-            Some(Keyword::Next) if matches!(self.peek_next_kind(), Some(TokenKind::Keyword(Keyword::Case))) => {
+            Some(Keyword::Next)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
+            Some(Keyword::Step)
+            | Some(Keyword::Case)
+            | Some(Keyword::Loop)
+            | Some(Keyword::Until)
+            | Some(Keyword::Wend)
+            | Some(Keyword::To)
+            | Some(Keyword::Then)
+            | Some(Keyword::Else)
+            | Some(Keyword::ElseIf)
+            | Some(Keyword::Mod)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) =>
+            {
+                self.keyword_assignment_stmt()
+            }
+            Some(Keyword::Next)
+                if matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::Keyword(Keyword::Case))
+                ) =>
+            {
                 self.index += 2;
                 self.expect_line_end()?;
                 Ok(Statement::ExitSelect)
-            },
+            }
             Some(Keyword::Let) => {
                 self.index += 1;
                 self.assignment_stmt()
             }
-            _ if matches!(self.peek_kind(), TokenKind::Identifier { ref name, .. } if name.eq_ignore_ascii_case("ENDIF")) => {
+            _ if matches!(self.peek_kind(), TokenKind::Identifier { ref name, .. } if name.eq_ignore_ascii_case("ENDIF")) =>
+            {
                 self.index += 1;
                 self.expect_line_end()?;
                 Ok(Statement::Compound(vec![]))
-            },
+            }
             _ if self.starts_attach() => self.attach_stmt(),
             _ if self.starts_dot_access() => self.dot_access_stmt(),
             _ if self.starts_composite_decl() => self.composite_decl_stmt(),
@@ -222,11 +319,15 @@ impl Parser {
         // Skip all leading identifiers (type qualifiers + storage classes like AUTO, AUTOX)
         // until we reach the variable name. The variable name is the last identifier
         // before [, =, ,, or line end.
-        while (matches!(self.peek_kind(), TokenKind::Identifier { .. }) || matches!(self.peek_kind(), TokenKind::Keyword(_)))
+        while (matches!(self.peek_kind(), TokenKind::Identifier { .. })
+            || matches!(self.peek_kind(), TokenKind::Keyword(_)))
             && (matches!(self.peek_next_kind(), Some(TokenKind::Identifier { .. }))
                 || matches!(self.peek_next_kind(), Some(TokenKind::Keyword(_)))
                 || matches!(self.peek_next_kind(), Some(TokenKind::SharedName(_)))
-                || matches!(self.peek_next_kind(), Some(TokenKind::SystemVariable { .. })))
+                || matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::SystemVariable { .. })
+                ))
         {
             self.index += 1;
         }
@@ -247,9 +348,13 @@ impl Parser {
                     // Peek ahead: if it's Identifier followed by , or ), it's a param list
                     let save = self.index;
                     self.index += 2; // skip ( and first type
-                    if matches!(self.peek_kind(), TokenKind::Symbol(',') | TokenKind::Symbol(')')) {
+                    if matches!(
+                        self.peek_kind(),
+                        TokenKind::Symbol(',') | TokenKind::Symbol(')')
+                    ) {
                         // Parameter list — skip to )
-                        while !matches!(self.peek_kind(), TokenKind::Symbol(')')) && !self.at_eof() {
+                        while !matches!(self.peek_kind(), TokenKind::Symbol(')')) && !self.at_eof()
+                        {
                             self.index += 1;
                         }
                         if matches!(self.peek_kind(), TokenKind::Symbol(')')) {
@@ -316,7 +421,11 @@ impl Parser {
         }
         self.expect_line_end()?;
         // Treat FUNCADDR as an integer DIM (function addresses are intptr_t)
-        Ok(Statement::Dim { name, suffix, size: None })
+        Ok(Statement::Dim {
+            name,
+            suffix,
+            size: None,
+        })
     }
     fn type_stmt(&mut self) -> Result<Statement, ParseError> {
         // TYPE or PACKED — capture the composite type name and its members.
@@ -442,7 +551,10 @@ impl Parser {
     }
 
     fn composite_decl_stmt(&mut self) -> Result<Statement, ParseError> {
-        let TokenKind::Identifier { name: type_name, .. } = self.peek_kind().clone() else {
+        let TokenKind::Identifier {
+            name: type_name, ..
+        } = self.peek_kind().clone()
+        else {
             return Err(self.expected("composite type"));
         };
         self.index += 1;
@@ -512,7 +624,7 @@ impl Parser {
     fn attach_stmt(&mut self) -> Result<Statement, ParseError> {
         // ATTACH var$ TO display$ — skip the whole statement
         self.index += 1; // ATTACH
-        // Skip everything until end of line
+                         // Skip everything until end of line
         self.skip_to_line_end();
         self.expect_line_end()?;
         Ok(Statement::Compound(vec![]))
@@ -533,7 +645,7 @@ impl Parser {
                 full = format!("{full}.{kw:?}");
             } else {
                 break;
-        }
+            }
         }
         let array_index = if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
             self.index += 1;
@@ -594,7 +706,10 @@ impl Parser {
                 self.expect_line_end()?;
                 // Treat as array assignment on the dot-accessed name
                 let full = crate::token::full_name(full, suffix);
-                let index = args.into_iter().next().unwrap_or_else(|| Expression::IntegerLiteral("0".to_string()));
+                let index = args
+                    .into_iter()
+                    .next()
+                    .unwrap_or_else(|| Expression::IntegerLiteral("0".to_string()));
                 return Ok(Statement::ArrayAssignment {
                     target: full,
                     index,
@@ -607,7 +722,10 @@ impl Parser {
         } else {
             self.expect_line_end()?;
             let full = crate::token::full_name(full, suffix);
-            Ok(Statement::Call { name: full, args: vec![] })
+            Ok(Statement::Call {
+                name: full,
+                args: vec![],
+            })
         }
     }
     fn keyword_assignment_stmt(&mut self) -> Result<Statement, ParseError> {
@@ -632,7 +750,9 @@ impl Parser {
             if let TokenKind::Identifier { name: member, .. } = self.peek_kind().clone() {
                 self.index += 1;
                 full = format!("{full}.{member}");
-            } else { break; }
+            } else {
+                break;
+            }
         }
         // Handle array index: @func[wintag]
         if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
@@ -820,8 +940,7 @@ impl Parser {
                     | Some(Keyword::Declare)
                     | Some(Keyword::Program)
                     | Some(Keyword::Export)
-            )
-        ;
+            );
         if is_forward {
             return Ok(Statement::Function(FunctionDecl::new(
                 name, suffix, params, body,
@@ -829,9 +948,10 @@ impl Parser {
         }
         while !self.at_eof() && !self.starts_end_function() {
             // If we encounter a new function declaration, this is a forward declaration
-            if (matches!(self.peek_keyword(), Some(Keyword::Function) | Some(Keyword::Internal) | Some(Keyword::CFunction))
-                && !matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
-            )
+            if (matches!(
+                self.peek_keyword(),
+                Some(Keyword::Function) | Some(Keyword::Internal) | Some(Keyword::CFunction)
+            ) && !matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))))
             {
                 break;
             }
@@ -928,17 +1048,18 @@ impl Parser {
             let consumed_newline = self.tokens[body_start..self.index]
                 .iter()
                 .any(|t| matches!(t.kind, TokenKind::Newline));
-            let else_body = if !consumed_newline && matches!(self.peek_keyword(), Some(Keyword::Else)) {
-                self.index += 1;
-                let mut body = vec![self.statement()?];
-                while matches!(self.peek_kind(), TokenKind::Symbol(':')) {
+            let else_body =
+                if !consumed_newline && matches!(self.peek_keyword(), Some(Keyword::Else)) {
                     self.index += 1;
-                    body.push(self.statement()?);
-                }
-                Some(body)
-            } else {
-                None
-            };
+                    let mut body = vec![self.statement()?];
+                    while matches!(self.peek_kind(), TokenKind::Symbol(':')) {
+                        self.index += 1;
+                        body.push(self.statement()?);
+                    }
+                    Some(body)
+                } else {
+                    None
+                };
             self.in_single_line_if = false;
             Ok(Statement::If {
                 condition,

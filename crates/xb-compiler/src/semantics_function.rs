@@ -96,7 +96,11 @@ impl Analyzer {
 
     /// Like checked_symbol but auto-declares unknown symbols as Integer
     pub(crate) fn auto_symbol(&self, name: &str) -> CheckedSymbol {
-        let vt = self.symbols.get(name).copied().unwrap_or(ValueType::Integer);
+        let vt = self
+            .symbols
+            .get(name)
+            .copied()
+            .unwrap_or(ValueType::Integer);
         CheckedSymbol::new(name.to_owned(), vt)
     }
 }

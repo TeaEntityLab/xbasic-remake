@@ -311,7 +311,11 @@ impl Analyzer {
             }
         }
         if (name == "SUBADDRESS" || name == "GOADDRESS") && args.len() == 1 {
-            if let Expression::Identifier { name: label_name, suffix: None } = &args[0] {
+            if let Expression::Identifier {
+                name: label_name,
+                suffix: None,
+            } = &args[0]
+            {
                 return Ok(CheckedExpr::new(
                     CheckedExprKind::LabelAddress(label_name.clone()),
                     ValueType::Integer,
@@ -473,7 +477,10 @@ impl Analyzer {
         let checked = self.expr(arg)?;
         if matches!(arg, Expression::ByRefIdentifier { .. }) {
             let vt = checked.value_type;
-            Ok(CheckedExpr::new(CheckedExprKind::ByRef(Box::new(checked)), vt))
+            Ok(CheckedExpr::new(
+                CheckedExprKind::ByRef(Box::new(checked)),
+                vt,
+            ))
         } else {
             Ok(checked)
         }

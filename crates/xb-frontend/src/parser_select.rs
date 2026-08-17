@@ -7,14 +7,19 @@ impl Parser {
         self.expect_keyword(Keyword::Select)?;
         self.expect_keyword(Keyword::Case)?;
         // Skip optional ALL keyword (SELECT CASE ALL TRUE)
-        if matches!(self.peek_kind(), TokenKind::Identifier { name, .. } if name.eq_ignore_ascii_case("ALL")) {
+        if matches!(self.peek_kind(), TokenKind::Identifier { name, .. } if name.eq_ignore_ascii_case("ALL"))
+        {
             self.index += 1;
         }
         // Skip optional TRUE/FALSE keyword
-        if matches!(self.peek_kind(), TokenKind::Identifier { name, .. } if name.eq_ignore_ascii_case("TRUE") || name.eq_ignore_ascii_case("FALSE")) {
+        if matches!(self.peek_kind(), TokenKind::Identifier { name, .. } if name.eq_ignore_ascii_case("TRUE") || name.eq_ignore_ascii_case("FALSE"))
+        {
             self.index += 1;
         }
-        let selector = if matches!(self.peek_kind(), TokenKind::Newline | TokenKind::Eof | TokenKind::Symbol(':')) {
+        let selector = if matches!(
+            self.peek_kind(),
+            TokenKind::Newline | TokenKind::Eof | TokenKind::Symbol(':')
+        ) {
             // SELECT CASE ALL TRUE - no selector expression
             Expression::IntegerLiteral("1".to_string())
         } else {
@@ -33,20 +38,20 @@ impl Parser {
         while !self.at_eof() && !self.starts_end_select() {
             self.expect_keyword(Keyword::Case)?;
             if self.peek_keyword() == Some(Keyword::Else) {
-            self.index += 1;
-            let mut body = Vec::new();
-            // CASE ELSE may have statement on same line or on next lines
-            if !self.at_line_end() {
-                body.push(self.statement()?);
-            } else {
-                self.expect_line_end()?;
-                self.skip_newlines();
-                while !self.at_eof() && !self.starts_end_select() {
+                self.index += 1;
+                let mut body = Vec::new();
+                // CASE ELSE may have statement on same line or on next lines
+                if !self.at_line_end() {
                     body.push(self.statement()?);
+                } else {
+                    self.expect_line_end()?;
                     self.skip_newlines();
+                    while !self.at_eof() && !self.starts_end_select() {
+                        body.push(self.statement()?);
+                        self.skip_newlines();
+                    }
                 }
-            }
-            default = Some(body);
+                default = Some(body);
             } else {
                 let mut conditions = Vec::new();
                 loop {
@@ -265,7 +270,10 @@ impl Parser {
             // EXIT(code) — treat as exit function with code
             let args = self.parse_args()?;
             self.expect_line_end()?;
-            Ok(Statement::Call { name: "exit".to_string(), args })
+            Ok(Statement::Call {
+                name: "exit".to_string(),
+                args,
+            })
         } else if self.at_line_end() {
             // Bare EXIT — treat as exit function
             self.expect_line_end()?;
@@ -334,7 +342,7 @@ impl Parser {
 impl Parser {
     pub(crate) fn shared_static_stmt(&mut self) -> Result<Statement, crate::ParseError> {
         self.index += 1; // consume SHARED/STATIC keyword
-        // Skip optional /path/ prefix: SHARED /yyy/ retAddr[999]
+                         // Skip optional /path/ prefix: SHARED /yyy/ retAddr[999]
         if matches!(self.peek_kind(), TokenKind::Symbol('/')) {
             self.index += 1;
             while !self.at_line_end() && !matches!(self.peek_kind(), TokenKind::Symbol('/')) {
@@ -355,8 +363,14 @@ impl Parser {
             }
         }
         let (name, suffix) = match self.peek_kind().clone() {
-            TokenKind::SharedName(n) => { self.index += 1; (n, None) }
-            TokenKind::SystemVariable { name, suffix } => { self.index += 1; (name, suffix) }
+            TokenKind::SharedName(n) => {
+                self.index += 1;
+                (n, None)
+            }
+            TokenKind::SystemVariable { name, suffix } => {
+                self.index += 1;
+                (name, suffix)
+            }
             _ => self.expect_name_or_keyword()?,
         };
         let size = self.parse_array_size()?;
@@ -416,7 +430,9 @@ pub(crate) fn parse_print(parser: &mut Parser) -> Result<Statement, crate::Parse
                 PrintSep::Semicolon
             });
             // Handle consecutive separators (;;) — push empty items
-            if matches!(parser.peek_kind(), TokenKind::Symbol(';')) || matches!(parser.peek_kind(), TokenKind::Symbol(',')) {
+            if matches!(parser.peek_kind(), TokenKind::Symbol(';'))
+                || matches!(parser.peek_kind(), TokenKind::Symbol(','))
+            {
                 items.push(Expression::StringLiteral(String::new()));
                 continue;
             }
@@ -424,7 +440,9 @@ pub(crate) fn parse_print(parser: &mut Parser) -> Result<Statement, crate::Parse
                 break;
             }
             items.push(parse_print_item(parser)?);
-        } else if !parser.at_line_end() && !(parser.in_single_line_if && matches!(parser.peek_kind(), TokenKind::Symbol(':'))) {
+        } else if !parser.at_line_end()
+            && !(parser.in_single_line_if && matches!(parser.peek_kind(), TokenKind::Symbol(':')))
+        {
             // Space-separated item: implicit semicolon
             separators.push(PrintSep::Semicolon);
             items.push(parse_print_item(parser)?);
@@ -460,7 +478,10 @@ fn parse_print_item(parser: &mut Parser) -> Result<Expression, crate::ParseError
         if let Some(ee) = else_expr {
             args.push(ee);
         }
-        return Ok(Expression::FunctionCall { name: "IF".to_string(), args });
+        return Ok(Expression::FunctionCall {
+            name: "IF".to_string(),
+            args,
+        });
     }
     parser.expression()
 }
@@ -477,7 +498,10 @@ fn parse_inline_if_branch(parser: &mut Parser) -> Result<Expression, crate::Pars
                 return Ok(items.into_iter().next().unwrap());
             }
             // Multiple items: wrap in a function call
-            return Ok(Expression::FunctionCall { name: "PRINT".to_string(), args: items });
+            return Ok(Expression::FunctionCall {
+                name: "PRINT".to_string(),
+                args: items,
+            });
         }
         return Ok(Expression::StringLiteral(String::new()));
     }
