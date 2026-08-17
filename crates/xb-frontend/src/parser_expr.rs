@@ -286,6 +286,11 @@ impl Parser {
                         let _ = self.expression();
                     }
                     self.expect_symbol(']')?;
+                    // Trailing brace byte-access: `##ARGV$[i]{off}` (brace lexes as
+                    // parens) — consume `(off)` so the element access parses.
+                    if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+                        let _ = self.parse_args()?;
+                    }
                     return Ok(Expression::ArrayAccess { name: full, index: Box::new(index) });
                 }
                 if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
@@ -308,9 +313,14 @@ impl Parser {
                 let operand = self.primary()?;
                 Ok(Expression::Not(Box::new(operand)))
             }
+            TokenKind::Keyword(Keyword::Not) | TokenKind::Symbol('!') => {
+                self.index += 1;
+                let operand = self.primary()?;
+                Ok(Expression::Not(Box::new(operand)))
+            }
             TokenKind::SharedName(name) => self.identifier_expr(name, None),
             TokenKind::Identifier { name, suffix } => self.identifier_expr(name, suffix),
-            TokenKind::Keyword(kw) if !is_statement_keyword(kw) || matches!(kw, Keyword::Function | Keyword::Next | Keyword::Select | Keyword::Const | Keyword::Break | Keyword::End | Keyword::Case | Keyword::Step | Keyword::To | Keyword::Until | Keyword::Wend | Keyword::Loop | Keyword::Else | Keyword::ElseIf | Keyword::Then | Keyword::Do) => self.identifier_expr(format!("{kw:?}"), None),
+            TokenKind::Keyword(kw) => self.identifier_expr(format!("{kw:?}"), None),
             TokenKind::Symbol('(') => {
                 self.index += 1;
                 let expr = self.expression()?;
@@ -480,60 +490,57 @@ impl Parser {
             // Handle dot member access: identifier.member → treat as "identifier.member"
             if matches!(self.peek_kind(), TokenKind::Symbol('.')) {
                 self.index += 1;
-                if let TokenKind::Identifier { name: member, suffix: mem_suffix } = self.peek_kind().clone() {
-                    self.index += 1;
-                    let combined = format!("{name}.{member}");
-                    // Handle call after dot-access: nnotebook.flags{2,3} → nnotebook.flags(2,3)
-                    if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
-                        let args = self.parse_args()?;
-                        return Ok(Expression::FunctionCall { name: combined, args });
-                    }
-                    // Handle further dot access
-                    if matches!(self.peek_kind(), TokenKind::Symbol('.')) {
-                        let mut full = combined;
-                        while matches!(self.peek_kind(), TokenKind::Symbol('.')) {
-                            self.index += 1;
-                            if let TokenKind::Identifier { name: m2, .. } = self.peek_kind().clone() {
-                                self.index += 1;
-                                full = format!("{full}.{m2}");
-                            } else if let TokenKind::Keyword(kw) = self.peek_kind().clone() {
-                                self.index += 1;
-                                full = format!("{full}.{kw:?}");
-                            } else {
-                                break;
-                            }
-                        }
-                        if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
-                            let args = self.parse_args()?;
-                            return Ok(Expression::FunctionCall { name: full, args });
-                        }
-                        return Ok(Expression::Identifier { name: full, suffix: mem_suffix });
-                    }
-                    // Handle array access after dot: host.alias[0]
-                    if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+                let (member, mem_suffix) = match self.peek_kind().clone() {
+                    TokenKind::Identifier { name: m, suffix: s } => {
                         self.index += 1;
-                        if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
-                            self.index += 1;
-                            return Ok(Expression::ArrayRef { name: combined });
-                        }
-                        let index = self.expression()?;
-                        while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
-                            self.index += 1;
-                            let _ = self.expression();
-                        }
-                        self.expect_symbol(']')?;
-                        return Ok(Expression::ArrayAccess {
-                            name: combined,
-                            index: Box::new(index),
-                        });
+                        (m, s)
                     }
-                    return Ok(Expression::Identifier { name: combined, suffix: mem_suffix });
-                } else if let TokenKind::Keyword(kw) = self.peek_kind().clone() {
-                    // Handle keyword as member name: eevent.type
+                    TokenKind::Keyword(kw) => {
+                        self.index += 1;
+                        (format!("{kw:?}"), None)
+                    }
+                    _ => return Ok(Expression::Identifier { name, suffix }),
+                };
+                let mut combined = format!("{name}.{member}");
+                // Chained members: a.b.c ...
+                while matches!(self.peek_kind(), TokenKind::Symbol('.')) {
                     self.index += 1;
-                    let combined = format!("{name}.{kw:?}");
-                    return Ok(Expression::Identifier { name: combined, suffix: None });
+                    match self.peek_kind().clone() {
+                        TokenKind::Identifier { name: m2, .. } => {
+                            self.index += 1;
+                            combined = format!("{combined}.{m2}");
+                        }
+                        TokenKind::Keyword(kw) => {
+                            self.index += 1;
+                            combined = format!("{combined}.{kw:?}");
+                        }
+                        _ => break,
+                    }
                 }
+                // Call: a.b(args)
+                if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+                    let args = self.parse_args()?;
+                    return Ok(Expression::FunctionCall { name: combined, args });
+                }
+                // Array access: a.b[i]  (a.b[] is an array reference)
+                if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+                    self.index += 1;
+                    if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                        self.index += 1;
+                        return Ok(Expression::ArrayRef { name: combined });
+                    }
+                    let index = self.expression()?;
+                    while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                        self.index += 1;
+                        let _ = self.expression();
+                    }
+                    self.expect_symbol(']')?;
+                    return Ok(Expression::ArrayAccess {
+                        name: combined,
+                        index: Box::new(index),
+                    });
+                }
+                return Ok(Expression::Identifier { name: combined, suffix: mem_suffix });
             }
             Ok(Expression::Identifier { name, suffix })
         }

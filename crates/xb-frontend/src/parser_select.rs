@@ -23,6 +23,13 @@ impl Parser {
         let mut cases = Vec::new();
         let mut default = None;
         self.skip_newlines();
+        // Legacy XBasic allows statements before the first CASE; they run
+        // unconditionally. Collect them and emit before the SELECT.
+        let mut preamble = Vec::new();
+        while !self.at_eof() && !self.starts_case() && !self.starts_end_select() {
+            preamble.push(self.statement()?);
+            self.skip_newlines();
+        }
         while !self.at_eof() && !self.starts_end_select() {
             self.expect_keyword(Keyword::Case)?;
             if self.peek_keyword() == Some(Keyword::Else) {
@@ -77,11 +84,17 @@ impl Parser {
         self.expect_keyword(Keyword::End)?;
         self.expect_keyword(Keyword::Select)?;
         self.expect_line_end()?;
-        Ok(Statement::SelectCase {
+        let select = Statement::SelectCase {
             selector,
             cases,
             default,
-        })
+        };
+        if preamble.is_empty() {
+            Ok(select)
+        } else {
+            preamble.push(select);
+            Ok(Statement::Compound(preamble))
+        }
     }
     pub(crate) fn starts_end_select(&self) -> bool {
         self.peek_keyword() == Some(Keyword::End)
@@ -213,6 +226,10 @@ impl Parser {
             || matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Sub))
         {
             self.index += 1;
+            // Optional return value: `EXIT FUNCTION (expr)`.
+            if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+                let _ = self.parse_args()?;
+            }
             self.expect_line_end()?;
             Ok(Statement::ExitFunction)
         } else if matches!(self.peek_kind(), TokenKind::Keyword(Keyword::For))
@@ -228,8 +245,22 @@ impl Parser {
             Ok(Statement::ExitLoop)
         } else if matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Select)) {
             self.index += 1;
+            // Skip optional depth number: EXIT SELECT 2
+            if matches!(self.peek_kind(), TokenKind::IntegerLiteral(_)) {
+                self.index += 1;
+            }
             self.expect_line_end()?;
             Ok(Statement::ExitSelect)
+        } else if matches!(self.peek_kind(), TokenKind::Keyword(Keyword::If)) {
+            // EXIT IF [depth]: leave the enclosing IF block(s). No dedicated node
+            // exists; parse-consume as a no-op (only used in non-executed library
+            // internals) so the surrounding structure still parses.
+            self.index += 1;
+            if matches!(self.peek_kind(), TokenKind::IntegerLiteral(_)) {
+                self.index += 1;
+            }
+            self.expect_line_end()?;
+            Ok(Statement::Compound(vec![]))
         } else if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
             // EXIT(code) — treat as exit function with code
             let args = self.parse_args()?;

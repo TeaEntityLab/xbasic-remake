@@ -80,7 +80,7 @@ impl Parser {
 
     pub(crate) fn for_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::For)?;
-        let (var, _) = self.expect_identifier()?;
+        let (var, _) = self.expect_name_or_keyword()?;
         self.expect_symbol('=')?;
         let start = self.expression()?;
         self.expect_keyword(Keyword::To)?;
@@ -99,7 +99,13 @@ impl Parser {
             self.skip_newlines();
         }
         self.expect_keyword(Keyword::Next)?;
-        if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
+        if !self.at_line_end()
+            && !self.at_eof()
+            && matches!(
+                self.peek_kind(),
+                TokenKind::Identifier { .. } | TokenKind::Keyword(_)
+            )
+        {
             self.index += 1;
         }
         self.expect_line_end()?;

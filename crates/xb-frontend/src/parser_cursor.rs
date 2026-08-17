@@ -225,7 +225,16 @@ impl Parser {
         matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Loop))
     }
     pub(crate) fn starts_next(&self) -> bool {
+        // `NEXT` ends a FOR body, but `next` is also a legal variable name; when it
+        // is followed by `=`, `[`, `.`, or `(` it is a variable use, not a terminator.
         matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Next))
+            && !matches!(
+                self.peek_next_kind(),
+                Some(TokenKind::Symbol('='))
+                    | Some(TokenKind::Symbol('['))
+                    | Some(TokenKind::Symbol('.'))
+                    | Some(TokenKind::Symbol('('))
+            )
     }
     pub(crate) fn starts_else(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Else))

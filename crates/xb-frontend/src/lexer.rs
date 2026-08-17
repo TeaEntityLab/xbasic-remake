@@ -46,6 +46,25 @@ impl<'a> Lexer<'a> {
                 ' ' | '\t' | '\r' | '\0' => self.advance(),
                 '\n' => tokens.push(self.newline()),
                 '\'' => {
+                    // `'''` (three consecutive quotes) is the XBasic char literal
+                    // for a single-quote character (value 39). Resolve it here, before
+                    // any comment/string disambiguation, so it is never mis-split into
+                    // empty-string + comment (which would eat a following THEN and
+                    // corrupt IF-block structure).
+                    {
+                        let mut rest = self.chars.clone();
+                        if rest.next() == Some('\'') && rest.next() == Some('\'') {
+                            let pos = self.pos();
+                            self.advance();
+                            self.advance();
+                            self.advance();
+                            tokens.push(Token::new(
+                                TokenKind::IntegerLiteral("39".to_string()),
+                                pos,
+                            ));
+                            continue;
+                        }
+                    }
                     // ' is a comment when preceded by whitespace, newline, or :
                     // Exception: after "= " it's a string delimiter (e.g., c = 'n')
                     // Otherwise it's a string delimiter (XBasic single-quote strings)
@@ -62,7 +81,10 @@ impl<'a> Lexer<'a> {
                                 }
                                 if line_rest.contains('\'') && !line_rest.starts_with('\'') {
                                     let before_quote = line_rest.split_once('\'').map(|(b, _)| b).unwrap_or("");
-                                    if !before_quote.is_empty() && (before_quote.len() <= 3 || (!before_quote.contains(' ') && !before_quote.contains('(') && !before_quote.contains(')'))) {
+                                    if !before_quote.is_empty()
+                                        && !(before_quote.len() > 1
+                                            && before_quote.chars().all(|c| c.is_whitespace()))
+                                        && (before_quote.len() <= 3 || (!before_quote.contains(' ') && !before_quote.contains('(') && !before_quote.contains(')'))) {
                                         tokens.push(self.single_quote_string()?);
                                         continue;
                                     }

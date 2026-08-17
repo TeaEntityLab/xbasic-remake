@@ -153,7 +153,11 @@ impl Parser {
     pub(crate) fn label_stmt(&mut self) -> Result<Statement, ParseError> {
         let (name, _) = self.expect_name_or_keyword()?;
         self.index += 1; // skip colon
-        self.expect_line_end()?;
+        // A label may be followed by a statement on the same line: `lbl: stmt`.
+        // Only consume the line end when the label stands alone.
+        if self.at_line_end() {
+            self.expect_line_end()?;
+        }
         Ok(Statement::Label(name))
     }
 }

@@ -58,8 +58,30 @@ impl Parser {
         if self.starts_shared_name_assignment() {
             return self.shared_name_assignment_stmt();
         }
+        // `##NAME[i]=v` / `##NAME.m=v` / `#NAME.m=v` — system-variable or shared-name
+        // member/array lvalue. SharedName + `[` is left to `call_stmt`, which already
+        // handles nested array members like `#token[i].akind[0] = v`.
+        if (matches!(self.peek_kind(), TokenKind::SystemVariable { .. })
+            && matches!(
+                self.peek_next_kind(),
+                Some(TokenKind::Symbol('[')) | Some(TokenKind::Symbol('.'))
+            ))
+            || (matches!(self.peek_kind(), TokenKind::SharedName(_))
+                && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('.'))))
+        {
+            return self.dot_access_stmt();
+        }
         if self.starts_label() {
             return self.label_stmt();
+        }
+        // Legacy XBasic freely uses keywords (IMPORT, EXPORT, STOP, TYPE, DATA, …)
+        // as ordinary variable names. A keyword directly followed by `=` is always
+        // an assignment — no statement keyword's own syntax places `=` immediately
+        // after it — so route it uniformly before keyword-statement dispatch.
+        if matches!(self.peek_kind(), TokenKind::Keyword(_))
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
+        {
+            return self.keyword_assignment_stmt();
         }
         match self.peek_keyword() {
             Some(Keyword::Version) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
@@ -110,6 +132,11 @@ impl Parser {
             Some(Keyword::DoEvents) => self.doevents_stmt(),
             Some(Keyword::Randomize) => self.randomize_stmt(),
             Some(Keyword::Break) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Break)
+                if matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::Symbol('(')) | Some(TokenKind::Symbol('['))
+                ) => self.call_stmt(),
             Some(Keyword::Break) => self.break_stmt(),
             Some(Keyword::Goto) => self.goto_stmt(),
             Some(Keyword::Const) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
@@ -120,10 +147,23 @@ impl Parser {
             Some(Keyword::Read) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
             Some(Keyword::Read) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('['))) => self.call_stmt(),
             Some(Keyword::Read) => self.read_stmt(),
+            Some(Keyword::Stop) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Stop)
+                if matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::Symbol('[')) | Some(TokenKind::Symbol('.'))
+                ) => self.dot_access_stmt(),
             Some(Keyword::Stop) => self.stop_stmt(),
             Some(Keyword::Restore) => self.restore_stmt(),
             Some(Keyword::Export) => self.export_stmt(),
             Some(Keyword::FuncAddr) => self.funcaddr_stmt(),
+            Some(Keyword::Type) | Some(Keyword::Packed)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Type) | Some(Keyword::Packed)
+                if matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::Symbol('[')) | Some(TokenKind::Symbol('.')) | Some(TokenKind::Symbol('('))
+                ) => self.dot_access_stmt(),
             Some(Keyword::Type) | Some(Keyword::Packed) => self.type_stmt(),
             Some(Keyword::Next) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
             Some(Keyword::Step) | Some(Keyword::Case) | Some(Keyword::Loop) | Some(Keyword::Until) | Some(Keyword::Wend) | Some(Keyword::To) | Some(Keyword::Then) | Some(Keyword::Else) | Some(Keyword::ElseIf) | Some(Keyword::Mod)
@@ -242,15 +282,25 @@ impl Parser {
     }
     fn funcaddr_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::FuncAddr)?;
-        // Optional return type keyword (CFUNCTION, SFUNCTION, DOUBLE, XLONG, etc.)
+        // Optional return type: a keyword (DOUBLE/XLONG/…) or an identifier type
+        // name. Only consume an identifier type when a further name follows, so
+        // `FUNCADDR foo` keeps `foo` as the name while `FUNCADDR XLONG foo` treats
+        // `XLONG` as the return type.
         if matches!(self.peek_kind(), TokenKind::Keyword(_)) {
+            self.index += 1;
+        } else if matches!(self.peek_kind(), TokenKind::Identifier { .. })
+            && matches!(
+                self.peek_next_kind(),
+                Some(TokenKind::Identifier { .. }) | Some(TokenKind::Keyword(_))
+            )
+        {
             self.index += 1;
         }
         // Optional dot prefix for member variables
         if matches!(self.peek_kind(), TokenKind::Symbol('.')) {
             self.index += 1;
         }
-        let (name, suffix) = self.expect_identifier()?;
+        let (name, suffix) = self.expect_name_or_keyword()?;
         // Optional array brackets []
         if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
             self.index += 1;
@@ -455,7 +505,7 @@ impl Parser {
     fn dot_access_stmt(&mut self) -> Result<Statement, ParseError> {
         // Parse dot-access: identifier.member.member... = expression
         // or identifier.member(args) as a call
-        let (name, suffix) = self.expect_identifier()?;
+        let (name, suffix) = self.expect_name_or_keyword()?;
         let mut full = name;
         while matches!(self.peek_kind(), TokenKind::Symbol('.')) {
             self.index += 1;
@@ -481,6 +531,22 @@ impl Parser {
         } else {
             None
         };
+        // Member access after an array index: `px3D.shape[k].x = v` lowers to the
+        // struct-of-arrays target `px3D.shape.x` indexed by k.
+        if array_index.is_some() {
+            while matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+                self.index += 1;
+                if let TokenKind::Identifier { name: m2, .. } = self.peek_kind().clone() {
+                    self.index += 1;
+                    full = format!("{full}.{m2}");
+                } else if let TokenKind::Keyword(kw) = self.peek_kind().clone() {
+                    self.index += 1;
+                    full = format!("{full}.{kw:?}");
+                } else {
+                    break;
+                }
+            }
+        }
         if let Some(idx) = array_index {
             if matches!(self.peek_kind(), TokenKind::Symbol('=')) {
                 self.index += 1;
@@ -766,6 +832,10 @@ impl Parser {
             {
                 self.index += 1;
             }
+            // Optional return value: `END FUNCTION (expr)`.
+            if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+                let _ = self.parse_args()?;
+            }
             self.expect_line_end()?;
         } else if self.at_eof() {
             return Err(self.expected("keyword"));
@@ -788,57 +858,47 @@ impl Parser {
             self.expect_line_end()?;
             Ok(stmt)
         } else if !has_then && self.at_line_end() {
-            // IF without THEN at line end — distinguish:
-            // 1. ''' consumed THEN: condition ends with Comparison(..., IntegerLiteral("0"))
-            //    from '' (empty string). Treat as single-line no-op.
-            // 2. Multi-line IF without THEN (IF lineNumFlag): condition is not a comparison
-            //    with 0. Parse body until END IF.
+            // Multi-line IF without THEN: `IF cond` <newline> body [ELSE body] END IF.
+            // A bare `IF cond` at line end always opens a block in XBasic (THEN optional).
             self.expect_line_end()?;
-            let is_triple_quote = matches!(
-                &condition,
-                Expression::Comparison { right, .. }
- if matches!(right.as_ref(), Expression::IntegerLiteral(s) if s == "0")
-            );
-            if is_triple_quote {
-                // Single-line no-op (THEN consumed by ''' comment)
-                Ok(Statement::If {
-                    condition,
-                    then_body: Vec::new(),
-                    else_body: None,
-                })
-            } else {
-                // Multi-line IF without THEN — parse body until END IF or ELSE
+            self.skip_newlines();
+            let mut then_body = Vec::new();
+            while !self.at_eof() && !self.starts_end_if() && !self.starts_else() {
+                then_body.push(self.statement()?);
                 self.skip_newlines();
-                let mut then_body = Vec::new();
-                while !self.at_eof() && !self.starts_end_if() && !self.starts_else() {
-                    then_body.push(self.statement()?);
+            }
+            let else_body = if self.starts_else() {
+                self.expect_keyword(Keyword::Else)?;
+                self.expect_line_end()?;
+                self.skip_newlines();
+                let mut body = Vec::new();
+                while !self.at_eof() && !self.starts_end_if() {
+                    body.push(self.statement()?);
                     self.skip_newlines();
                 }
-                let else_body = if self.starts_else() {
-                    self.expect_keyword(Keyword::Else)?;
-                    self.expect_line_end()?;
-                    self.skip_newlines();
-                    let mut body = Vec::new();
-                    while !self.at_eof() && !self.starts_end_if() {
-                        body.push(self.statement()?);
-                        self.skip_newlines();
-                    }
-                    Some(body)
-                } else {
-                    None
-                };
-                self.expect_end_if()?;
-                self.expect_line_end()?;
-                Ok(Statement::If {
-                    condition,
-                    then_body,
-                    else_body,
-                })
-            }
+                Some(body)
+            } else {
+                None
+            };
+            self.expect_end_if()?;
+            self.expect_line_end()?;
+            Ok(Statement::If {
+                condition,
+                then_body,
+                else_body,
+            })
         } else {
             // Skip extra THEN (legacy: IF x THEN THEN RETURN)
             while matches!(self.peek_keyword(), Some(Keyword::Then)) {
                 self.index += 1;
+            }
+            // Redundant `THEN THEN` (or `THEN` then newline): a block IF, not a
+            // single-line one. Parse the body until END IF.
+            if self.at_line_end() {
+                let stmt = self.parse_if_chain_with_cond(condition)?;
+                self.expect_end_if()?;
+                self.expect_line_end()?;
+                return Ok(stmt);
             }
             self.in_single_line_if = true;
             let body_start = self.index;
