@@ -444,3 +444,49 @@ fn string_builtins_are_byte_accurate() {
         .unwrap();
     assert_eq!(output, ["3", "200", "255", "255"]);
 }
+
+#[test]
+fn select_case_true_matches_first_truthy_branch() {
+    // `SELECT CASE TRUE` matches the first CASE whose condition is truthy
+    // (non-zero), not one equal to a literal 1. (SEL-CASE-TRUE)
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM x\n\
+         x = 5\n\
+         SELECT CASE TRUE\n\
+         CASE x > 100 : PRINT \"big\"\n\
+         CASE x > 3 : PRINT \"mid\"\n\
+         CASE ELSE : PRINT \"small\"\n\
+         END SELECT\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["mid"]);
+}
+
+#[test]
+fn select_case_all_true_runs_every_truthy_branch() {
+    // `SELECT CASE ALL TRUE` runs the body of EVERY truthy CASE, not just the
+    // first. (SEL-CASE-TRUE)
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM x\n\
+         x = 5\n\
+         SELECT CASE ALL TRUE\n\
+         CASE x > 3 : PRINT \"a\"\n\
+         CASE x > 4 : PRINT \"b\"\n\
+         CASE x > 9 : PRINT \"c\"\n\
+         END SELECT\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["a", "b"]);
+}

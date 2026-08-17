@@ -66,21 +66,32 @@ old "msc.x MscEncrypt/MscDecrypt … stray 0x60" repro was mis-attributed to UTF
 mangling; the msc.x "Decoded as" line is actually blocked by SEL-CASE-TRUE below
 (`MscHexStr$`), not by string storage.
 
-### SEL-CASE-TRUE — `SELECT CASE TRUE` never matches boolean `CASE` conditions `[verified 2026-08-17]`
-The idiom `SELECT CASE TRUE` with `CASE <boolexpr>:` branches (used by
-`MscHexStr$`'s `ConvertChar`, and common in the corpus) never matches a true
-branch — control always falls to `CASE ELSE`. Repro: with `c$ = "F"`,
-`SELECT CASE TRUE` / `CASE c$ >= "A" && "F" >= c$:` prints `else` (expected the
-A–F branch), even though the same condition is true inside a plain `IF`. Root
-cause: the `SELECT CASE TRUE` selector and the comparison/`&&` truth value
-disagree — comparisons and `&&` yield `-1` (which `IF` treats as true), but the
-`TRUE` selector does not compare equal to `-1`, so the case-equality test fails.
-Effect: `MscHexStr$` parses hex digits A–F as 0, so `robin@example.com` round-trips
-through hex to stray 0x60 (backtick) bytes (the msc.x "Decoded as" line). Fix:
-`SELECT CASE TRUE` should treat any nonzero `CASE` expression as a match (BASIC
-truthiness), or the `TRUE` literal must equal the `-1` comparison-truth value.
-Small and high-value (unblocks the msc hex/decrypt round-trip and any
-`SELECT CASE TRUE` code).
+### SEL-CASE-TRUE — `SELECT CASE TRUE`/`FALSE`/`ALL` truthiness matching ✅ done
+The idiom `SELECT CASE TRUE` with `CASE <boolexpr>:` branches (pervasive across the
+legacy libs — xcol/xgr/xin/xst/xui/xma/kernel32) never matched a true branch: the
+parser discarded the `TRUE`/`FALSE` keyword and set the selector to
+`IntegerLiteral("1")`, then matched by *equality*, but comparisons/`&&` yield `-1`,
+so control always fell to `CASE ELSE`. Fixed in `parser_select.rs` by desugaring the
+special forms to `IF` (which tests non-zero): `SELECT CASE TRUE` → nested `IF/ELSE`
+over each CASE condition (first truthy wins); `FALSE` → `IF NOT cond`; `ALL TRUE`/
+`ALL FALSE`/`ALL <expr>` → independent `IF`s (every match runs). Plain `SELECT CASE
+<expr>` still lowers to the value/first-match `SelectCase` IR unchanged — the
+text-IR goldens and `cgen.x`'s `select_case ` contract are untouched (no
+golden-bearing source uses the special forms). Locked by
+`interpreter.rs::{select_case_true_matches_first_truthy_branch,
+select_case_all_true_runs_every_truthy_branch}`; legacy corpus still 204/204.
+
+### VAR-SUFFIX-COLLISION — `x` (numeric) and `x$` (string) share a slot on write `[verified 2026-08-17]`
+When a scope holds both a numeric `x` and a string `x$`, the two disagree on slot
+naming: assignment lowers the `x$ = …` target to slot `x` (suffix stripped, colliding
+with the integer), while every *read* of `x$` resolves to slot `x$` (suffix kept) — so
+writes and reads of `x$` land in different slots. Repro: `c = 5 : c$ = "F" : PRINT c$`
+prints empty; the IR shows `assign c:string` (write) vs `symbol(c$:string)` (read).
+This is the true remaining blocker for msc.x's "Decoded as" line (`MscHexStr$`'s
+`ConvertChar` uses both `c` and `c$`), now that SEL-CASE-TRUE is fixed. Fix: make the
+assignment target and expression read agree on the slot name for suffixed variables —
+keep a disambiguating name (e.g. `c$`) on BOTH sides when a base-name collision exists
+(`semantics`/lowering symbol resolution).
 
 ### RT-KERNEL32 — kernel32/stdio stubs for `acgibin` `[verified 2026-08-17]`
 `acgibin.x` needs `GetStdHandle`/`ReadFile`/`WriteFile` and the handle constants

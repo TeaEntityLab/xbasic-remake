@@ -1,4 +1,4 @@
-use crate::ast::{CaseClause, Expression, FunctionDecl, PrintSep, Statement};
+use crate::ast::{BooleanOp, CaseClause, ComparisonOp, Expression, FunctionDecl, PrintSep, Statement};
 use crate::parser::Parser;
 use crate::token::{Keyword, TokenKind};
 
@@ -6,21 +6,27 @@ impl Parser {
     pub(crate) fn select_case_stmt(&mut self) -> Result<Statement, crate::ParseError> {
         self.expect_keyword(Keyword::Select)?;
         self.expect_keyword(Keyword::Case)?;
-        // Skip optional ALL keyword (SELECT CASE ALL TRUE)
-        if matches!(self.peek_kind(), TokenKind::Identifier { name, .. } if name.eq_ignore_ascii_case("ALL"))
-        {
+        // SELECT CASE [ALL] [TRUE | FALSE | <expr>]
+        let all = matches!(self.peek_kind(), TokenKind::Identifier { name, .. } if name.eq_ignore_ascii_case("ALL"));
+        if all {
             self.index += 1;
         }
-        // Skip optional TRUE/FALSE keyword
-        if matches!(self.peek_kind(), TokenKind::Identifier { name, .. } if name.eq_ignore_ascii_case("TRUE") || name.eq_ignore_ascii_case("FALSE"))
-        {
-            self.index += 1;
-        }
-        let selector = if matches!(
-            self.peek_kind(),
-            TokenKind::Newline | TokenKind::Eof | TokenKind::Symbol(':')
-        ) {
-            // SELECT CASE ALL TRUE - no selector expression
+        let truthy: Option<bool> = match self.peek_kind() {
+            TokenKind::Identifier { name, .. } if name.eq_ignore_ascii_case("TRUE") => {
+                self.index += 1;
+                Some(true)
+            }
+            TokenKind::Identifier { name, .. } if name.eq_ignore_ascii_case("FALSE") => {
+                self.index += 1;
+                Some(false)
+            }
+            _ => None,
+        };
+        let selector = if truthy.is_some()
+            || matches!(
+                self.peek_kind(),
+                TokenKind::Newline | TokenKind::Eof | TokenKind::Symbol(':')
+            ) {
             Expression::IntegerLiteral("1".to_string())
         } else {
             self.expression()?
@@ -89,16 +95,89 @@ impl Parser {
         self.expect_keyword(Keyword::End)?;
         self.expect_keyword(Keyword::Select)?;
         self.expect_line_end()?;
-        let select = Statement::SelectCase {
-            selector,
-            cases,
-            default,
+        let stmt = if truthy.is_none() && !all {
+            // Plain `SELECT CASE <expr>`: keep the value/first-match SelectCase —
+            // exactly what the text-IR goldens and cgen.x consume, unchanged.
+            Statement::SelectCase {
+                selector,
+                cases,
+                default,
+            }
+        } else {
+            // `SELECT CASE [ALL] TRUE|FALSE|<expr>` desugars to IF so the runtime
+            // matches by truthiness (TRUE/FALSE) or runs every match (ALL), reusing
+            // IF's non-zero test. No golden-bearing source uses these forms.
+            Self::desugar_select_true(&selector, truthy, all, cases, default)
         };
         if preamble.is_empty() {
-            Ok(select)
+            Ok(stmt)
         } else {
-            preamble.push(select);
+            preamble.push(stmt);
             Ok(Statement::Compound(preamble))
+        }
+    }
+
+    /// Build the boolean test for one CASE's conditions under a desugared
+    /// `SELECT CASE [ALL] TRUE|FALSE|<expr>` (conditions are OR-ed).
+    fn case_test(selector: &Expression, truthy: Option<bool>, conds: &[Expression]) -> Expression {
+        let mut iter = conds.iter().cloned();
+        let first = Self::cond_test(selector, truthy, iter.next().expect("CASE has a condition"));
+        iter.fold(first, |acc, c| Expression::Boolean {
+            op: BooleanOp::Or,
+            left: Box::new(acc),
+            right: Box::new(Self::cond_test(selector, truthy, c)),
+        })
+    }
+
+    fn cond_test(selector: &Expression, truthy: Option<bool>, cond: Expression) -> Expression {
+        match truthy {
+            // TRUE: the case matches when `cond` is truthy (IF tests non-zero).
+            Some(true) => cond,
+            // FALSE: the case matches when `cond` is falsy.
+            Some(false) => Expression::Not(Box::new(cond)),
+            // ALL <expr>: value equality against the selector.
+            None => Expression::Comparison {
+                op: ComparisonOp::Equal,
+                left: Box::new(selector.clone()),
+                right: Box::new(cond),
+            },
+        }
+    }
+
+    fn desugar_select_true(
+        selector: &Expression,
+        truthy: Option<bool>,
+        all: bool,
+        cases: Vec<CaseClause>,
+        default: Option<Vec<Statement>>,
+    ) -> Statement {
+        if all {
+            // Every matching case runs; ALL mode has no CASE ELSE.
+            let mut out: Vec<Statement> = Vec::with_capacity(cases.len());
+            for c in &cases {
+                out.push(Statement::If {
+                    condition: Self::case_test(selector, truthy, &c.conditions),
+                    then_body: c.body.clone(),
+                    else_body: None,
+                });
+            }
+            Statement::Compound(out)
+        } else {
+            // First-match: nested IF/ELSE chain, innermost else = CASE ELSE.
+            let mut else_body: Option<Vec<Statement>> = default;
+            for c in cases.into_iter().rev() {
+                let condition = Self::case_test(selector, truthy, &c.conditions);
+                else_body = Some(vec![Statement::If {
+                    condition,
+                    then_body: c.body,
+                    else_body: else_body.take(),
+                }]);
+            }
+            match else_body {
+                Some(mut v) if v.len() == 1 => v.pop().unwrap(),
+                Some(v) => Statement::Compound(v),
+                None => Statement::Compound(Vec::new()),
+            }
         }
     }
     pub(crate) fn starts_end_select(&self) -> bool {
