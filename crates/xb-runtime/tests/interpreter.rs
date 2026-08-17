@@ -511,3 +511,23 @@ fn numeric_then_string_same_base_name_are_distinct_slots() {
         .unwrap();
     assert_eq!(output, ["5", "F"]);
 }
+
+#[test]
+fn string_then_numeric_same_base_name_are_distinct_slots() {
+    // The string `c$` used BEFORE the numeric `c` must still keep distinct slots:
+    // the per-function collision pre-scan is order-independent. (VAR-SUFFIX-COLLISION)
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         c$ = \"F\"\n\
+         c = 5\n\
+         PRINT c$\n\
+         PRINT c\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["F", "5"]);
+}

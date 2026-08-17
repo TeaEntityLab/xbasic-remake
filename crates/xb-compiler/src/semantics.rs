@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use xb_frontend::{full_name, Program, Statement, TypeMember};
 
 pub use crate::checked::{
@@ -51,6 +51,9 @@ pub struct Analyzer {
     /// When true, apply XBasic legacy leniency (implicit coercion, auto-declared
     /// symbols, stubbed unknown calls). When false, enforce the strict v0.1 spec.
     pub(crate) permissive: bool,
+    /// Base names used with both a string and a non-string type in one scope,
+    /// whose slots must be disambiguated (see `slot_name`, VAR-SUFFIX-COLLISION).
+    pub(crate) collisions: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

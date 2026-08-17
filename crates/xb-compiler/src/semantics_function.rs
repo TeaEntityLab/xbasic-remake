@@ -17,6 +17,7 @@ impl Analyzer {
             composites: self.composites.clone(),
             composite_vars: self.composite_vars.clone(),
             permissive: self.permissive,
+            collisions: Self::scan_body_collisions(&f.body),
         };
         // Register params. A composite param flattens into member slots/params
         // (struct-of-arrays), matching how composite call-args are flattened so

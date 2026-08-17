@@ -419,6 +419,12 @@ impl Analyzer {
     fn symbol(&self, name: &str, suffix: Option<xb_frontend::TypeSuffix>) -> ExprResult {
         let full = xb_frontend::full_name(name.to_owned(), suffix);
         let suffix_vt = ValueType::from_suffix(suffix);
+        if !name.contains('.') && self.collisions.contains(name) {
+            return Ok(CheckedExpr::new(
+                CheckedExprKind::Symbol(CheckedSymbol::new(self.slot_name(name, suffix), suffix_vt)),
+                suffix_vt,
+            ));
+        }
         match self.checked_symbol(name) {
             Ok(s) => {
                 // A composite member slot (dotted name) has an authoritative

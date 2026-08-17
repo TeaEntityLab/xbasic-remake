@@ -81,23 +81,32 @@ golden-bearing source uses the special forms). Locked by
 `interpreter.rs::{select_case_true_matches_first_truthy_branch,
 select_case_all_true_runs_every_truthy_branch}`; legacy corpus still 204/204.
 
-### VAR-SUFFIX-COLLISION — numeric `x` and string `x$` sharing a base name — partial
+### VAR-SUFFIX-COLLISION — numeric `x` and string `x$` sharing a base name ✅ done
 `self.symbols` is keyed by BASE name, so a numeric `x` and a string `x$` in one scope
-fight over slot `x`. **Fixed this pass**: assignment now names its target with the same
-rule as reads — on a type mismatch it uses the full suffixed name
-(`semantics_stmts.rs::assignment`, matching `semantics_expr.rs::symbol`), so a
-numeric-first pattern (`c = 5 : c$ = "F"`) keeps `c` / `c$` in distinct slots instead of
-the assignment clobbering the numeric. Locked by
-`interpreter.rs::numeric_then_string_same_base_name_are_distinct_slots` (suite 160/0).
-**Still open** (the msc.x blocker): when the STRING is used *first* (msc.x's
-`MscHexStr$` FOR loop assigns `c$ = MID$(...)` before the numeric `c` appears), `c$`
-claims base slot `c`, so the later numeric `c` collides — declaration-order-dependent
-because the symbol table is base-name-keyed. Closing it needs a per-function pre-scan
-(two-pass) that detects base-name/type collisions and assigns each variant a
-*consistent, C-identifier-safe* slot name at every read/write/DIM/GOSUB-shared site
-(the read-side `c$` name carries `$`, tolerated by the interpreter but not emittable by
-`cgen.x`, so the C backend for colliding names is a separate CG-BODY-COVER-class
-concern). msc.x's "Decoded as" round-trip stays blocked on this deeper fix.
+would otherwise fight over slot `x` (declaration order deciding the winner). Fixed with
+a per-function pre-scan (`semantics_suffix.rs::scan_body_collisions`, run in
+`function()`): a base referenced with both a string and a non-string type is a
+collision, and `slot_name` then gives the string variant its `$`-suffixed slot and the
+numeric the bare base — applied consistently at reads (`symbol`) and writes
+(`assignment`), so it is **order-independent** (numeric-first `c = 5 : c$ = "F"` and
+string-first `c$ = "F" : c = 5` both keep `c` / `c$` distinct). Non-colliding bases
+still strip the suffix (goldens / `cgen.x` unchanged; only String/numeric collisions —
+absent from every golden source — get the `$`-bearing slot, a C-backend concern of the
+CG-BODY-COVER class). Locked by
+`interpreter.rs::{numeric_then_string_same_base_name_are_distinct_slots,
+string_then_numeric_same_base_name_are_distinct_slots}`.
+
+### GOSUB-SCOPE — `GOSUB` to a local `SUB` runs in a fresh scope `[verified 2026-08-17]`
+A `SUB` declared inside a function (a local subroutine reached by `GOSUB`, classic
+BASIC) is lowered as a *separate* nested `function`, and `gosub` executes it with a
+fresh variable scope instead of the caller's. Repro: `x = 5 : GOSUB Bump` with
+`SUB Bump : x = x + 10 : END SUB` prints `x=5` (expected `15`) — the SUB's mutation is
+lost. This is the **final blocker for msc.x's "Decoded as"** round-trip: `MscHexStr$`
+GOSUBs `ConvertChar`, which must read the caller's `c$` and write `c` back in the shared
+scope. With RT-BYTESTRING + SEL-CASE-TRUE + VAR-SUFFIX-COLLISION fixed, the `c` / `c$`
+naming is now consistent across both sides, so only scope-sharing remains. Fix: run a
+`GOSUB`-target local `SUB` body in the caller's `ExecutionState` (shared slots) — treat
+local SUBs as label-scoped routines, not separate functions.
 
 ### RT-KERNEL32 — kernel32/stdio stubs for `acgibin` `[verified 2026-08-17]`
 `acgibin.x` needs `GetStdHandle`/`ReadFile`/`WriteFile` and the handle constants

@@ -72,7 +72,9 @@ impl Analyzer {
         // XBasic auto-declares locals on assignment; record the type so later
         // references (and brace-notation detection) resolve it.
         self.symbols.entry(name.to_owned()).or_insert(suffix_vt);
-        let target = if self.symbols.contains_key(name) {
+        let target = if !name.contains('.') && self.collisions.contains(name) {
+            CheckedSymbol::new(self.slot_name(name, suffix), suffix_vt)
+        } else if self.symbols.contains_key(name) {
             let sym = self.checked_symbol(name)?;
             // A composite member slot (dotted name) has an authoritative declared
             // type and no suffix; trust it. Otherwise a differing suffix denotes a

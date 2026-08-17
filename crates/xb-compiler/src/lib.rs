@@ -30,6 +30,7 @@ mod semantics_select;
 mod semantics_shared_tests;
 mod semantics_statement;
 mod semantics_stmts;
+mod semantics_suffix;
 #[cfg(test)]
 mod semantics_tests;
 mod semantics_types;
