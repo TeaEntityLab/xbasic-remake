@@ -15,6 +15,7 @@ impl TextIrEmitter {
             ),
             IrExprKind::SharedVariable(symbol) => format!("shared(##{})", self.emit_symbol(symbol)),
             IrExprKind::Symbol(symbol) => format!("symbol({})", self.emit_symbol(symbol)),
+            IrExprKind::ByRef(inner) => format!("byref({})", self.emit_expr(inner)),
             IrExprKind::Comparison { op, left, right } => {
                 format!(
                     "compare({} {} {})",

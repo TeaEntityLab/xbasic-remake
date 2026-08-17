@@ -29,6 +29,10 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
         IrExprKind::Symbol(s) => {
             emit_symbol_ref(s, out);
         }
+        // C by-ref write-back is not modeled; emit the inner value. (No corpus or
+        // self-host program uses `@`, so this arm is exercised only via the
+        // interpreter path today — see docs/17 RT-NESTED-COMPOSITE.)
+        IrExprKind::ByRef(inner) => emit_expr(inner, out),
         IrExprKind::Comparison { op, left, right } => {
             if left.value_type == ValueType::String || right.value_type == ValueType::String {
                 out.push_str("(-(strcmp(");

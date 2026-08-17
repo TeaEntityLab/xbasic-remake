@@ -157,6 +157,8 @@ pub enum IrExprKind {
     },
     SharedVariable(IrSymbol),
     Symbol(IrSymbol),
+    /// `@expr` pass-by-reference argument (see `CheckedExprKind::ByRef`).
+    ByRef(Box<IrExpr>),
     Comparison {
         op: ComparisonOp,
         left: Box<IrExpr>,

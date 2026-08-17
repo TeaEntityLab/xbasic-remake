@@ -20,6 +20,9 @@ pub(crate) fn eval_expr(
         IrExprKind::IntegerLiteral(v) => RuntimeValue::Integer(parse_integer(v)?),
         IrExprKind::FloatLiteral(v) => RuntimeValue::Float(parse_float(v)?),
         IrExprKind::Constant { value, .. } => RuntimeValue::Integer(parse_integer(value)?),
+        // `@x` reads as the current value of the referenced lvalue; the
+        // write-back on return is performed by the call site (call.rs).
+        IrExprKind::ByRef(inner) => eval(program, inner, state)?,
         IrExprKind::Comparison { op, left, right } => {
             let l = eval(program, left, state)?;
             let r = eval(program, right, state)?;

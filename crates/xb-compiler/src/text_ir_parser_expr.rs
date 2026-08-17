@@ -66,6 +66,11 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
                 vt,
             )
         }
+        "byref" => {
+            let inner = parse_expr(content.trim())?;
+            let vt = inner.value_type;
+            IrExpr::new(IrExprKind::ByRef(Box::new(inner)), vt)
+        }
         "shared" => {
             let c = content.trim();
             let name = c.strip_prefix("##").ok_or("missing ## in shared")?;

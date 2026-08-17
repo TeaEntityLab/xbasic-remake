@@ -67,6 +67,16 @@ interpreter runtime.
 as call targets). Parsing/lowering exist; runtime dispatch through a
 function-pointer value does not.
 
+### RT-BYREF — pass-by-reference (`@`) parameter write-back ✅ done
+`@x` call arguments now write the callee's final parameter value back into the
+caller's lvalue. `CheckedExprKind::ByRef` / `IrExprKind::ByRef` wrap by-ref *call
+args only* (rvalue `@x` stays a plain symbol, preserving IR goldens); `call.rs`
+records `(param, target)` pairs and copies them back after the call. Threaded
+through lowering, interpreter eval, C emit (emits inner value; native C
+write-back deferred, untested), and text-IR round-trip. Locked by
+`interpreter.rs::by_ref_parameter_writes_back_to_caller`. Foundation for the
+composite by-ref params below.
+
 ### RT-NESTED-COMPOSITE — nested composite TYPEs: local vars ✅ done; params pending
 A TYPE member whose type is itself a composite (e.g. `GEO_BINODE` holds two
 `GEO_BICOORD`s) now flattens **recursively** into leaf struct-of-arrays slots
@@ -75,11 +85,20 @@ plus a pre-existing bug where suffix-less non-Integer slots (incl. flat *float*
 composite members) were overridden to Integer: dotted member slots now trust
 their declared type (`symbol` / `assignment`). Locked by
 `interpreter.rs::nested_composite_members_resolve_to_declared_float_type`.
-**Remaining**: composite **parameters** by reference. `XBSourceLib/geo/geo.x`
-still fails (`expected Integer, got String`) because `GeoPerpendicularLine
-(GEO_BINODE @L2, ...)` accesses members of a composite *param* (not a local
-`CompositeDecl`), so the member slots are never registered in the callee. Needs
-composite-typed params to register their flattened member slots + by-ref aliasing.
+**Remaining**: composite **parameters**. `XBSourceLib/geo/geo.x` still fails
+(`expected Integer, got String`) because `GeoPerpendicularLine(GEO_BINODE @L2,
+...)` accesses members of a composite *param* (not a local `CompositeDecl`), so
+its member slots are never registered in the callee. The by-ref foundation is now
+in place (RT-BYREF); two steps remain:
+- **Parser/AST**: keep the param's composite type + `@` — today `Param` is
+  `{name, suffix}` and both are discarded in `parse_params`
+  (parser_cursor.rs:323-349).
+- **Analyzer**: flatten composite params ↔ composite call-args into scalar member
+  params/args (a composite can't cross the struct-of-arrays call boundary as one
+  value). `FuncSig` records each param's composite type; `function()` expands a
+  composite param into member `CheckedParam`s + registers their slots; the two
+  callsite arg-analyzers expand composite args to matching member args (by-ref
+  members reuse RT-BYREF). Safe: the self-host uses zero composite params.
 
 ## 3. Frontend / migration coverage
 
@@ -93,12 +112,13 @@ not a min-IR-line threshold), and flags swallow regressions (a `>20`-source-line
 file collapsing to `<=2` IR lines). Floors pin current counts (≥151 / ≥13 / ≥40,
 ≥204 total); additions must still lower, removals fail the gate.
 
-### MIG-SEMANTICS — run-level coverage started `[verified]`
-204/204 is *lowering to IR*, not full analyze/run. First run-level pass over the
-core libs: `msc.x` runs (but corrupts high bytes — RT-BYTESTRING), `ary.x` and
-`utils/mergeTest01`/`mergeTest02` run clean, `geo.x` is blocked on
-RT-NESTED-COMPOSITE params. Next: add golden run fixtures for the clean ones and
-expand as blockers clear.
+### MIG-SEMANTICS — run-level fixtures landed for clean libs `[verified]`
+Beyond parse/lower (MIG-CORPUS-GATE), `crates/xb-runtime/tests/xbsourcelib_run.rs`
+now runs core libs through the interpreter: `ary.x` and
+`utils/mergeTest01`/`mergeTest02` run to a clean exit; `msc.x` runs end to end and
+its `MscStrHex$` (string→hex) output is locked as correct. Not yet covered: the
+`msc.x` decrypt line (RT-BYTESTRING) and `geo.x` (RT-NESTED-COMPOSITE params).
+Expand as those blockers clear.
 
 ## 4. Demos / GUI
 

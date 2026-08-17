@@ -205,6 +205,9 @@ pub enum CheckedExprKind {
     },
     SharedVariable(CheckedSymbol),
     Symbol(CheckedSymbol),
+    /// `@expr` pass-by-reference argument. Evaluates to the inner value for
+    /// reads; at a call site it marks the arg for write-back into the caller.
+    ByRef(Box<CheckedExpr>),
     Comparison {
         op: ComparisonOp,
         left: Box<CheckedExpr>,

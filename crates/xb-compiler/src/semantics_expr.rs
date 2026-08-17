@@ -357,7 +357,7 @@ impl Analyzer {
                     };
                     let checked_args: Vec<CheckedExpr> = args
                         .iter()
-                        .map(|a| self.expr(a))
+                        .map(|a| self.call_arg(a))
                         .collect::<Result<_, _>>()?;
                     return Ok(CheckedExpr::new(
                         CheckedExprKind::FunctionCall {
@@ -379,7 +379,7 @@ impl Analyzer {
         }
         let mut checked = Vec::with_capacity(args.len());
         for (i, arg) in args.iter().enumerate() {
-            let v = self.expr(arg)?;
+            let v = self.call_arg(arg)?;
             let expected = sig.params.get(i).copied().unwrap_or(ValueType::Integer);
             if !self.permissive && !types_coercible(v.value_type, expected) {
                 return Err(crate::checked::SemanticError::FunctionArgType {
@@ -454,13 +454,23 @@ impl Analyzer {
         }
     }
     fn byref_symbol(&self, name: &str, suffix: Option<xb_frontend::TypeSuffix>) -> ExprResult {
-        // @-prefixed identifiers are pass-by-reference; auto-declare based on suffix
+        // Bare `@x` reads as x's value; the ByRef marker is applied only at call
+        // sites (see `call_arg`), where write-back into the caller is meaningful.
         let vt = ValueType::from_suffix(suffix);
         let sym = CheckedSymbol::new(name.to_owned(), vt);
-        Ok(CheckedExpr::new(
-            CheckedExprKind::Symbol(sym),
-            vt,
-        ))
+        Ok(CheckedExpr::new(CheckedExprKind::Symbol(sym), vt))
+    }
+
+    /// Analyze a call argument, wrapping `@x` by-reference args in `ByRef` so the
+    /// runtime writes the callee's final value back into the caller's lvalue.
+    fn call_arg(&self, arg: &Expression) -> ExprResult {
+        let checked = self.expr(arg)?;
+        if matches!(arg, Expression::ByRefIdentifier { .. }) {
+            let vt = checked.value_type;
+            Ok(CheckedExpr::new(CheckedExprKind::ByRef(Box::new(checked)), vt))
+        } else {
+            Ok(checked)
+        }
     }
 
     pub(crate) fn call_stmt(&self, name: &str, args: &[Expression]) -> ItemResult {
@@ -488,7 +498,7 @@ impl Analyzer {
         };
         let checked_args = args
             .iter()
-            .map(|a| self.expr(a))
+            .map(|a| self.call_arg(a))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(CheckedItem::Call {
             name: resolved,

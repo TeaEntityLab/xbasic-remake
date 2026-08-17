@@ -15,6 +15,7 @@ impl IrExpr {
                 IrExprKind::SharedVariable(IrSymbol::lower(symbol))
             }
             CheckedExprKind::Symbol(symbol) => IrExprKind::Symbol(IrSymbol::lower(symbol)),
+            CheckedExprKind::ByRef(inner) => IrExprKind::ByRef(Box::new(IrExpr::lower(inner))),
             CheckedExprKind::Comparison { op, left, right } => IrExprKind::Comparison {
                 op: *op,
                 left: Box::new(IrExpr::lower(left)),

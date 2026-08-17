@@ -313,3 +313,26 @@ fn nested_composite_members_resolve_to_declared_float_type() {
         .unwrap();
     assert_eq!(output, ["10.5", "20.25"]);
 }
+
+#[test]
+fn by_ref_parameter_writes_back_to_caller() {
+    // `@x` passes x by reference; the callee's mutation must propagate back to
+    // the caller's variable after the call returns.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION DoubleIt (@n)\n\
+         n = n * 2\n\
+         END FUNCTION\n\
+         FUNCTION Main\n\
+         DIM x\n\
+         x = 21\n\
+         DoubleIt(@x)\n\
+         PRINT x\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["42"]);
+}

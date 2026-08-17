@@ -296,12 +296,19 @@ pub(crate) fn call_function(
         ret_slot.set(RuntimeValue::String(String::new()));
     }
     local.insert(fname.to_string(), ret_slot);
+    let mut writebacks: Vec<(String, String)> = Vec::new();
     for (p, arg) in params.iter().zip(args) {
         // Coerce each argument to the parameter type (XBasic implicit coercion).
         let v = crate::helpers::coerce_value(eval(program, arg, state)?, p.value_type);
         let mut slot = TypedSlot::new(p.value_type);
         slot.set(v);
         local.insert(p.name.clone(), slot);
+        // `@x` (by-ref): record the caller lvalue to write the param back into.
+        if let xb_compiler::IrExprKind::ByRef(inner) = &arg.kind {
+            if let xb_compiler::IrExprKind::Symbol(s) = &inner.kind {
+                writebacks.push((p.name.clone(), s.name.clone()));
+            }
+        }
     }
     let mut sub = ExecutionState {
         metadata: state.metadata.clone(),
@@ -329,6 +336,23 @@ pub(crate) fn call_function(
     state.input_pos = sub.input_pos;
     state.shared = sub.shared;
     state.error_code = sub.error_code;
+    // Propagate by-ref (`@`) parameter results back into the caller's lvalues.
+    for (pname, target) in &writebacks {
+        if let Some(src) = sub.slots.get(pname) {
+            let val = src.value.clone();
+            let vt = state
+                .slots
+                .get(target)
+                .map(|s| s.value_type())
+                .unwrap_or_else(|| val.value_type());
+            let coerced = crate::helpers::coerce_value(val, vt);
+            state
+                .slots
+                .entry(target.clone())
+                .or_insert_with(|| TypedSlot::new(vt))
+                .set(coerced);
+        }
+    }
     result
 }
 
