@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
-use xb_frontend::FunctionDecl;
+use std::collections::{BTreeMap, BTreeSet};
+use xb_frontend::{Expression, FunctionDecl, Statement};
 
 use crate::checked::{CheckedExpr, CheckedParam, CheckedSymbol};
 use crate::semantics::{Analyzer, CheckedItem, ItemResult, Scope, SemanticError, ValueType};
@@ -7,6 +7,10 @@ use crate::semantics::{Analyzer, CheckedItem, ItemResult, Scope, SemanticError, 
 impl Analyzer {
     pub(crate) fn function(&mut self, f: &FunctionDecl) -> ItemResult {
         let ret = ValueType::from_suffix(f.suffix);
+        // A GOSUB-reached local SUB shares the caller's scope; inline it as a label
+        // routine analyzed in THIS function's scope so its variables share the
+        // caller's symbol table (types) and collision set (GOSUB-SCOPE).
+        let inlined = Self::inline_gosub_subs(&f.body);
         let mut scoped = Self {
             symbols: BTreeMap::new(),
             arrays: BTreeMap::new(),
@@ -17,7 +21,7 @@ impl Analyzer {
             composites: self.composites.clone(),
             composite_vars: self.composite_vars.clone(),
             permissive: self.permissive,
-            collisions: Self::scan_body_collisions(&f.body),
+            collisions: Self::scan_body_collisions(&inlined),
         };
         // Register params. A composite param flattens into member slots/params
         // (struct-of-arrays), matching how composite call-args are flattened so
@@ -44,7 +48,7 @@ impl Analyzer {
             cps.push(CheckedParam::from_ast(p));
         }
         scoped.symbols.insert(f.name.clone(), ret);
-        let body = scoped.blk(&f.body, Scope::Function)?;
+        let body = scoped.blk(&inlined, Scope::Function)?;
         self.shared = scoped.shared;
         Ok(CheckedItem::Function {
             name: f.name.clone(),
@@ -52,6 +56,89 @@ impl Analyzer {
             return_type: ret,
             body,
         })
+    }
+
+    /// Rewrite `SUB name … END SUB` blocks reached by `GOSUB` into inline label
+    /// routines — `Label(name)` + body + bare `RETURN` (which lowers to
+    /// `GosubReturn`) — appended after a `RETURN` guard. Analyzed as ordinary
+    /// statements in the enclosing scope, a `GOSUB` then runs them with the
+    /// caller's shared variables (classic BASIC). Bodies with no gosub-targeted
+    /// SUB are returned unchanged.
+    fn inline_gosub_subs(body: &[Statement]) -> Vec<Statement> {
+        let mut targets: BTreeSet<String> = BTreeSet::new();
+        for s in body {
+            Self::collect_stmt_gosub_targets(s, &mut targets);
+        }
+        if targets.is_empty() {
+            return body.to_vec();
+        }
+        let mut main: Vec<Statement> = Vec::new();
+        let mut subs: Vec<Statement> = Vec::new();
+        for s in body {
+            if let Statement::Function(f) = s {
+                if targets.contains(&f.name) {
+                    subs.push(Statement::Label(f.name.clone()));
+                    subs.extend(f.body.iter().cloned());
+                    subs.push(Statement::Return { value: None });
+                    continue;
+                }
+            }
+            main.push(s.clone());
+        }
+        if subs.is_empty() {
+            return body.to_vec();
+        }
+        main.push(Statement::Return { value: None });
+        main.extend(subs);
+        main
+    }
+
+    fn collect_stmt_gosub_targets(s: &Statement, out: &mut BTreeSet<String>) {
+        match s {
+            Statement::Gosub(Expression::Identifier { name, .. }) => {
+                out.insert(name.clone());
+            }
+            Statement::If { then_body, else_body, .. } => {
+                for i in then_body {
+                    Self::collect_stmt_gosub_targets(i, out);
+                }
+                if let Some(eb) = else_body {
+                    for i in eb {
+                        Self::collect_stmt_gosub_targets(i, out);
+                    }
+                }
+            }
+            Statement::While { body, .. }
+            | Statement::For { body, .. }
+            | Statement::DoLoop { body, .. } => {
+                for i in body {
+                    Self::collect_stmt_gosub_targets(i, out);
+                }
+            }
+            Statement::SelectCase { cases, default, .. } => {
+                for c in cases {
+                    for i in &c.body {
+                        Self::collect_stmt_gosub_targets(i, out);
+                    }
+                }
+                if let Some(d) = default {
+                    for i in d {
+                        Self::collect_stmt_gosub_targets(i, out);
+                    }
+                }
+            }
+            Statement::Function(f) => {
+                for i in &f.body {
+                    Self::collect_stmt_gosub_targets(i, out);
+                }
+            }
+            Statement::Compound(inner) => {
+                for i in inner {
+                    Self::collect_stmt_gosub_targets(i, out);
+                }
+            }
+            _ => {}
+        }
     }
 }
 

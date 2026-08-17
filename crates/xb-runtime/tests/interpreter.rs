@@ -531,3 +531,26 @@ fn string_then_numeric_same_base_name_are_distinct_slots() {
         .unwrap();
     assert_eq!(output, ["F", "5"]);
 }
+
+#[test]
+fn gosub_to_local_sub_shares_caller_scope() {
+    // A local SUB reached by GOSUB runs in the caller's variable scope, so its
+    // mutations are visible after it returns. (GOSUB-SCOPE)
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM x\n\
+         x = 5\n\
+         GOSUB Bump\n\
+         PRINT x\n\
+         SUB Bump\n\
+         x = x + 10\n\
+         END SUB\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["15"]);
+}

@@ -24,20 +24,21 @@ fn run_lib(rel: &str) -> Vec<String> {
     output
 }
 
-/// The assoc-array and merge-utility test programs lower AND run to a clean exit
-/// through the interpreter. Guards run-level regressions (parser/analyzer/runtime)
-/// that the parse-only MIG-CORPUS-GATE cannot catch.
+/// The merge-utility programs lower AND run to a clean exit through the
+/// interpreter. Guards run-level regressions the parse-only MIG-CORPUS-GATE
+/// cannot catch. (ary.x also lowers, but its `Entry` now runs `TestAryPerformance`
+/// end to end via GOSUB-SCOPE, which needs array-of-composite / auto-grow arrays
+/// not yet supported — tracked in docs/17.)
 #[test]
 fn xbsourcelib_smoke_libs_run_clean() {
-    assert_eq!(run_lib("XBSourceLib/ary/ary.x"), Vec::<String>::new());
     assert_eq!(run_lib("XBSourceLib/utils/mergeTest01.x"), [" Got Here"]);
     assert_eq!(run_lib("XBSourceLib/utils/mergeTest02.x"), [" Got Here"]);
 }
 
-/// `msc.x` runs end to end. Its `MscStrHex$` (string -> hex) path is correct
-/// library logic and is locked here. The third line (`MscDecrypt$`) is a known
-/// RT-BYTESTRING corruption (high bytes mangled by UTF-8 `String`, tracked in
-/// docs/17), so only run-to-completion and the correct hex line are asserted.
+/// `msc.x` runs end to end through `TestMscHex`: `MscStrHex$` encodes the string to
+/// hex and `MscHexStr$` decodes it back. The full round-trip is now correct
+/// (RT-BYTESTRING + SEL-CASE-TRUE + VAR-SUFFIX-COLLISION + GOSUB-SCOPE), so all
+/// three lines — including the decoded original — are locked.
 #[test]
 fn xbsourcelib_msc_strhex_is_correct() {
     let out = run_lib("XBSourceLib/msc/msc.x");
@@ -47,9 +48,9 @@ fn xbsourcelib_msc_strhex_is_correct() {
         out[1], "Coded as: 726F62696E406578616D706C652E636F6D",
         "MscStrHex$ string->hex encoding must be correct"
     );
-    assert!(
-        out[2].starts_with("Decoded as: "),
-        "msc.x must reach the decrypt line (its correctness is pending RT-BYTESTRING)"
+    assert_eq!(
+        out[2], "Decoded as: robin@example.com",
+        "MscHexStr$ hex->string round-trip must recover the original"
     );
 }
 

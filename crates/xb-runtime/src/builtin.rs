@@ -16,10 +16,7 @@ pub(crate) fn eval_builtin(
                 return Err(type_err(args[0].value_type()));
             };
             if s.is_empty() {
-                return Err(RuntimeError::InvalidLiteral {
-                    literal: "empty string".into(),
-                    value_type: xb_compiler::ValueType::Integer,
-                });
+                return Ok(RuntimeValue::Integer(0));
             }
             Ok(RuntimeValue::Integer(s[0] as i32))
         }

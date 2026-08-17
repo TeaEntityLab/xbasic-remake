@@ -96,27 +96,31 @@ CG-BODY-COVER class). Locked by
 `interpreter.rs::{numeric_then_string_same_base_name_are_distinct_slots,
 string_then_numeric_same_base_name_are_distinct_slots}`.
 
-### GOSUB-SCOPE — `GOSUB` to a local `SUB` runs in a fresh scope `[verified 2026-08-17]`
-A `SUB` declared inside a function (a local subroutine reached by `GOSUB`, classic
-BASIC) is lowered as a *separate* nested `function`, and `gosub` executes it with a
-fresh variable scope instead of the caller's. Repro: `x = 5 : GOSUB Bump` with
-`SUB Bump : x = x + 10 : END SUB` prints `x=5` (expected `15`) — the SUB's mutation is
-lost. This is the **final blocker for msc.x's "Decoded as"** round-trip: `MscHexStr$`
-GOSUBs `ConvertChar`, which must read the caller's `c$` and write `c` back in the shared
-scope. With RT-BYTESTRING + SEL-CASE-TRUE + VAR-SUFFIX-COLLISION fixed, the `c` / `c$`
-naming is now consistent across both sides, so only scope-sharing remains. **Attempted
-& reverted** (lowering-only inline): rewriting a GOSUB-targeted nested SUB to `Label +
-body + GosubReturn` in `ir_lower` makes `gosub.x` → `15` and `msc.x` → `Decoded as:
-robin@example.com`, but regresses `ary.x` with a `String`/`String` mismatch — the SUB is
-still *name-resolved as a separate function* (its own VAR-SUFFIX collision set + symbol
-scope), so running it in the shared scope diverges its slot names from the caller's;
-seeding the SUB with the caller's collision set did **not** fix `ary.x` (a distinct
-String/String error remains, so there is more than naming to it). Correct fix: analyze a
-GOSUB-target local SUB **inline in the caller's `Analyzer` scope** (shared `symbols` +
-`collisions`) during semantic analysis — emitting `Label` + body + `GosubReturn` —
-instead of a separate `function()`; the interpreter's existing shared-scope
-`Label`/`GosubReturn` path then runs it. Root-cause the residual `ary.x` mismatch first.
-Golden-safe (selfhost uses no SUBs).
+### GOSUB-SCOPE — `GOSUB` to a local `SUB` shares the caller's scope ✅ done
+A `SUB` inside a function (a local subroutine reached by `GOSUB`, classic BASIC) was
+lowered as a *separate* nested `function` and run by `gosub` in a fresh scope, so its
+mutations were lost (`x = 5 : GOSUB Bump` / `SUB Bump : x = x + 10` printed `5`, not
+`15`). Fixed at the **semantic** layer (`semantics_function.rs::inline_gosub_subs`, run
+in `function()`): a SUB whose name is a `GOSUB` target (scanning nested SUB bodies too)
+is rewritten to inline `Label(name)` + body + bare `RETURN` (→ `GosubReturn`, after a
+`RETURN` guard) and analyzed **in the caller's own scope**, so its variables share the
+caller's symbol table + collision set; the interpreter's existing shared-scope
+`Label`/`GosubReturn` path runs it. (A lowering-only inline — the first attempt — left
+the SUB in a separate semantic scope → divergent types/names, i.e. the `ary.x`
+`String`/`String` mismatch; the semantic fix resolves that.) Locked by
+`interpreter.rs::gosub_to_local_sub_shares_caller_scope`; golden-safe (selfhost has no
+SUBs; non-SUB bodies unchanged). Also made `ASC("")` → `0` (legacy) en route.
+
+**msc.x fully closed**: RT-BYTESTRING + SEL-CASE-TRUE + VAR-SUFFIX-COLLISION +
+GOSUB-SCOPE together make `msc.x`'s `TestMscHex` round-trip print `Decoded as:
+robin@example.com`; locked by `xbsourcelib_run.rs::xbsourcelib_msc_strhex_is_correct`.
+
+### MIG-ARY-PERF — `ary.x` Entry now runs `TestAryPerformance`, needs array-of-composite / auto-grow `[verified 2026-08-17]`
+With GOSUB-SCOPE fixed, `ary.x`'s `Entry` executes `TestAryPerformance` end to end (its
+internal GOSUBs were previously no-ops), reaching a genuine array index-out-of-range
+(auto-growing arrays / arrays of composite records) past `ASC`. `ary.x` was moved out of
+`xbsourcelib_smoke_libs_run_clean` (it still parses+lowers via MIG-CORPUS-GATE); closing
+the array gaps is its next MIG-SEMANTICS step.
 
 ### RT-KERNEL32 — kernel32/stdio stubs for `acgibin` `[verified 2026-08-17]`
 `acgibin.x` needs `GetStdHandle`/`ReadFile`/`WriteFile` and the handle constants
