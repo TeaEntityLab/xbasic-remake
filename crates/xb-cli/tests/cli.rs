@@ -125,3 +125,33 @@ fn cli_compile_produces_native_executable() {
 
     let _ = std::fs::remove_file(&exe);
 }
+
+#[test]
+fn cli_run_reads_piped_stdin_as_input() {
+    use std::io::Write;
+    use std::process::Stdio;
+    // `--run` with no `--with-input` must read piped stdin so interactive
+    // programs (READLINE$ / INLINE$) work from a pipe.
+    let prog = std::env::temp_dir().join("xb_cli_stdin_test.x");
+    std::fs::write(
+        &prog,
+        "PROGRAM \"echo\"\nVERSION \"1\"\nFUNCTION Main\nline$ = READLINE$\nPRINT \"got:\"; line$\nEND FUNCTION\nEND PROGRAM\n",
+    )
+    .unwrap();
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_xb"))
+        .args(["--run", prog.to_str().unwrap()])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let mut si = child.stdin.take().unwrap();
+        si.write_all(b"hello\n").unwrap();
+    } // dropped -> stdin EOF
+    let output = child.wait_with_output().unwrap();
+
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8(output.stdout).unwrap(), "got:hello\n");
+    let _ = std::fs::remove_file(&prog);
+}

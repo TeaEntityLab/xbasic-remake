@@ -172,19 +172,32 @@ fn run_path(path: &Path, input_path: Option<&Path>) -> Result<String, CliError> 
     let unit = FrontendUnit::parse(&source)?;
     let program = unit.lower_ir()?;
     let mut lines = Vec::new();
-    if let Some(inp) = input_path {
-        let input: Vec<String> = read_source(inp)?.lines().map(|l| l.to_string()).collect();
-        match Interpreter::new().execute_main_with_input(&program, input, &mut lines) {
-            Ok(_) | Err(xb_runtime::RuntimeError::Quit { .. }) => {}
-            Err(e) => return Err(CliError::Runtime(e.to_string())),
-        }
-    } else {
-        match Interpreter::new().execute_main(&program, &mut lines) {
-            Ok(_) | Err(xb_runtime::RuntimeError::Quit { .. }) => {}
-            Err(e) => return Err(CliError::Runtime(e.to_string())),
-        }
+    let input: Vec<String> = match input_path {
+        Some(inp) => read_source(inp)?.lines().map(|l| l.to_string()).collect(),
+        None => read_stdin_lines(),
+    };
+    match Interpreter::new().execute_main_with_input(&program, input, &mut lines) {
+        Ok(_) | Err(xb_runtime::RuntimeError::Quit { .. }) => {}
+        Err(e) => return Err(CliError::Runtime(e.to_string())),
     }
     Ok(lines.into_iter().map(|l| format!("{l}\n")).collect())
+}
+
+/// Read piped stdin as `--run` input lines when no `--with-input` file is given.
+/// A terminal stdin is skipped (returns empty) so no-input/interactive runs never
+/// block; non-UTF-8 stdin is treated as empty (see RT-BYTESTRING in docs/17).
+fn read_stdin_lines() -> Vec<String> {
+    use std::io::{IsTerminal, Read};
+    let stdin = std::io::stdin();
+    if stdin.is_terminal() {
+        return Vec::new();
+    }
+    let mut buf = String::new();
+    if stdin.lock().read_to_string(&mut buf).is_ok() {
+        buf.lines().map(|l| l.to_string()).collect()
+    } else {
+        Vec::new()
+    }
 }
 
 fn read_source(path: &Path) -> Result<String, CliError> {

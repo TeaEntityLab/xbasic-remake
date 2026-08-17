@@ -70,16 +70,35 @@ CG-BODY-COVER.
 `$$STD_INPUT_HANDLE=-10` / `$$STD_OUTPUT_HANDLE=-11`. Not implemented in the
 interpreter runtime.
 
+### CLI-STDIN — `xb --run` reads piped stdin ✅ done
+`xb --run <file>` previously took input only from `--with-input <file>` and
+ignored piped stdin, so every interactive program (`READLINE$` / `INLINE$`) saw
+empty input. `run_path` now reads stdin (via `read_stdin_lines`) when no
+`--with-input` is given: a terminal stdin is skipped so no-input/interactive runs
+never block, and non-UTF-8 stdin is treated as empty (RT-BYTESTRING).
+`printf 'hi\n' | xb --run echo.x` now feeds the program. Locked by
+`cli.rs::cli_run_reads_piped_stdin_as_input`.
+
 ### RT-FUNCPTR — function-pointer calls (`afuntype`) `[verified 2026-08-17]`
 `afuntype.x` exercises calling through function pointers: `dog.setName =
-&NameDog()` then `@dog.setName (@dog, answer$)` (a `FUNCADDR` composite member as
-call target, with a composite `@`-by-ref arg). Parsing/lowering exist and the
-program runs to `rc == 0` but does not yet dispatch correctly. Since RT-FIXEDSTR
-was fixed the `STRING*32` members are proper String slots, so it now prints
-`You claim  has  hair.` (empty strings, no longer `0`). Two blockers remain: the
-`FUNCADDR` call dispatch itself, and `INLINE$` reading stdin (both prompts return
-empty here, so `.hairColor` — set by a plain assignment from `INLINE$` — is also
-empty). Neither is a `STRING*N` problem any more.
+&NameDog()` then `@dog.setName (@dog, answer$)`. With RT-FIXEDSTR fixed and stdin
+wired (CLI-STDIN), the direct path works — `.hairColor` set from `INLINE$` now
+shows `brown`, so afuntype prints `You claim  has brown hair.`; only `.name` (set
+through the funcptr) stays empty. **One blocker remains: `FUNCADDR` dispatch.**
+The IR shows the exact gap:
+- `assign dog.setName:integer = call NameDog()` — `&NameDog()` **mis-lowers to a
+  direct call** (the `&` address-of is dropped) instead of taking the function's
+  address; `FUNCADDRESS` in the interpreter also returns `0` (`runtime/builtin.rs`).
+- `call dog.setName(byref(symbol(dog:integer)), symbol(answer:string))` — the
+  indirect call has no function-table dispatch, and `dog` is passed as one integer,
+  not flattened to the callee's `(dog.name, dog.hairColor, answer)` signature.
+Full fix (scoped cross-cutting: parser + IR + interpreter + C backend): (1) parse
+`&Ident` to a new `FuncAddr(name)` expr (ast/checked/IR/text-IR + round-trip);
+(2) an interpreter function table maps names→ids so `&Func` yields a stable id and
+`FUNCADDRESS` resolves it; (3) indirect-call dispatch resolves the target slot's id
+to a function and reuses `flatten_call_args` for composite args; (4) C backend emits
+real function pointers (deferrable, like RT-BYREF's native write-back). Only
+`afuntype` exercises this in the corpus.
 
 ### RT-FIXEDSTR — fixed-length string (`STRING*N`) composite members ✅ done
 A composite TYPE member declared `STRING*N .m` was silently **dropped from the
