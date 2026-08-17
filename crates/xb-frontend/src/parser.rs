@@ -1,4 +1,4 @@
-use crate::ast::{Expression, FunctionDecl, Program, Statement};
+use crate::ast::{Expression, FunctionDecl, Program, Statement, TypeMember};
 use crate::lexer::{lex, LexError};
 use crate::token::{full_name, Keyword, Token, TokenKind, TypeSuffix};
 use thiserror::Error;
@@ -23,11 +23,19 @@ pub struct Parser {
     pub(crate) tokens: Vec<Token>,
     pub(crate) index: usize,
     pub(crate) in_single_line_if: bool,
+    /// Names of composite TYPE declarations seen so far, so that
+    /// `TYPE0 var` declarations can be distinguished from primitive typed dims.
+    pub(crate) composite_types: std::collections::HashSet<String>,
 }
 
 impl Parser {
-    pub const fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, index: 0, in_single_line_if: false }
+    pub fn new(tokens: Vec<Token>) -> Self {
+        Self {
+            tokens,
+            index: 0,
+            in_single_line_if: false,
+            composite_types: std::collections::HashSet::new(),
+        }
     }
 
     pub fn parse_program(mut self) -> Result<Program, ParseError> {
@@ -136,6 +144,7 @@ impl Parser {
             },
             _ if self.starts_attach() => self.attach_stmt(),
             _ if self.starts_dot_access() => self.dot_access_stmt(),
+            _ if self.starts_composite_decl() => self.composite_decl_stmt(),
             _ if self.starts_typed_dim() => self.typed_dim_stmt(),
             _ if self.starts_assignment() => self.assignment_stmt(),
             _ if matches!(self.peek_kind(), TokenKind::Symbol('@')) => self.at_call_stmt(),
@@ -260,16 +269,17 @@ impl Parser {
         Ok(Statement::Dim { name, suffix, size: None })
     }
     fn type_stmt(&mut self) -> Result<Statement, ParseError> {
-        // TYPE or PACKED — skip the type name
+        // TYPE or PACKED — capture the composite type name and its members.
         self.index += 1; // TYPE/PACKED keyword
-        // Skip the type name (identifier)
-        if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
+        let type_name = if let TokenKind::Identifier { name, .. } = self.peek_kind().clone() {
             self.index += 1;
-        }
-        // Skip optional = TypeDefinition (type alias)
+            name
+        } else {
+            String::new()
+        };
+        // Type alias (TYPE LINE = BOX): skip the rest of the line, no members.
         if matches!(self.peek_kind(), TokenKind::Symbol('=')) {
             self.index += 1;
-            // Skip rest of line (type alias like TYPE LINE = BOX)
             while !self.at_line_end() && !self.at_eof() {
                 self.index += 1;
             }
@@ -277,20 +287,49 @@ impl Parser {
             return Ok(Statement::Compound(vec![]));
         }
         self.expect_line_end()?;
-        // Skip lines until END TYPE / END PACKED
+        let mut members = Vec::new();
         let mut depth = 1;
+        // Consume the TYPE body one token at a time, exactly as the original
+        // skip logic did (so parsing of every existing file is unchanged), while
+        // recording members purely by peeking. A member line is `<TYPEKW> .name`.
         while !self.at_eof() && depth > 0 {
-            if matches!(self.peek_keyword(), Some(Keyword::Type))
-                || matches!(self.peek_keyword(), Some(Keyword::Packed))
-            {
+            if let (Some(kw_tok), Some(dot_tok), Some(name_tok)) = (
+                self.tokens.get(self.index),
+                self.tokens.get(self.index + 1),
+                self.tokens.get(self.index + 2),
+            ) {
+                if let TokenKind::Identifier { name: type_kw, .. } = &kw_tok.kind {
+                    if matches!(dot_tok.kind, TokenKind::Symbol('.')) {
+                        let member_name = match &name_tok.kind {
+                            TokenKind::Identifier { name, .. } => Some(name.clone()),
+                            TokenKind::SharedName(n) => Some(n.clone()),
+                            _ => None,
+                        };
+                        if let Some(member_name) = member_name {
+                            let (byte_size, is_float, is_string) =
+                                Self::member_type_info(type_kw);
+                            members.push(TypeMember {
+                                name: member_name,
+                                byte_size,
+                                is_float,
+                                is_string,
+                            });
+                        }
+                    }
+                }
+            }
+            if matches!(
+                self.peek_keyword(),
+                Some(Keyword::Type) | Some(Keyword::Packed)
+            ) {
                 depth += 1;
                 self.index += 1;
             } else if matches!(self.peek_keyword(), Some(Keyword::End)) {
-                // Check if next is TYPE or PACKED
                 self.index += 1;
-                if matches!(self.peek_keyword(), Some(Keyword::Type))
-                    || matches!(self.peek_keyword(), Some(Keyword::Packed))
-                {
+                if matches!(
+                    self.peek_keyword(),
+                    Some(Keyword::Type) | Some(Keyword::Packed)
+                ) {
                     self.index += 1;
                     depth -= 1;
                 }
@@ -299,7 +338,83 @@ impl Parser {
             }
         }
         self.expect_line_end()?;
-        Ok(Statement::Compound(vec![]))
+        if !type_name.is_empty() {
+            self.composite_types.insert(type_name.clone());
+        }
+        Ok(Statement::TypeDecl {
+            name: type_name,
+            members,
+        })
+    }
+
+    /// Map a composite member type keyword to (byte_size, is_float, is_string).
+    fn member_type_info(kw: &str) -> (usize, bool, bool) {
+        match kw.to_ascii_uppercase().as_str() {
+            "UBYTE" | "SBYTE" | "BYTE" | "CHAR" => (1, false, false),
+            "USHORT" | "SSHORT" | "SHORT" | "WORD" => (2, false, false),
+            "ULONG" | "SLONG" | "LONG" | "XLONG" | "INTEGER" | "DWORD" => (4, false, false),
+            "GIANT" => (8, false, false),
+            "SINGLE" | "FLOAT" => (4, true, false),
+            "DOUBLE" => (8, true, false),
+            "STRING" => (0, false, true),
+            _ => (4, false, false),
+        }
+    }
+
+    /// A statement starting with a known composite type name followed by a
+    /// variable name is a composite variable declaration (`TYPE0 var`).
+    pub(crate) fn starts_composite_decl(&self) -> bool {
+        if let TokenKind::Identifier { name, .. } = self.peek_kind() {
+            if self.composite_types.contains(name) {
+                return matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::Identifier { .. }) | Some(TokenKind::SharedName(_))
+                );
+            }
+        }
+        false
+    }
+
+    fn composite_decl_stmt(&mut self) -> Result<Statement, ParseError> {
+        let TokenKind::Identifier { name: type_name, .. } = self.peek_kind().clone() else {
+            return Err(self.expected("composite type"));
+        };
+        self.index += 1;
+        let (var, shared) = match self.peek_kind().clone() {
+            TokenKind::SharedName(n) => {
+                self.index += 1;
+                (n, true)
+            }
+            TokenKind::Identifier { name, .. } => {
+                self.index += 1;
+                (name, false)
+            }
+            _ => return Err(self.expected("composite variable")),
+        };
+        let mut is_array = false;
+        if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+            self.index += 1;
+            while !matches!(self.peek_kind(), TokenKind::Symbol(']'))
+                && !self.at_line_end()
+                && !self.at_eof()
+            {
+                self.index += 1;
+            }
+            if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                self.index += 1;
+            }
+            is_array = true;
+        }
+        while !self.at_line_end() && !self.at_eof() {
+            self.index += 1;
+        }
+        self.expect_line_end()?;
+        Ok(Statement::CompositeDecl {
+            type_name,
+            var,
+            shared,
+            is_array,
+        })
     }
     fn assignment_stmt(&mut self) -> Result<Statement, ParseError> {
         let (target, suffix) = self.expect_identifier()?;

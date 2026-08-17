@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use xb_frontend::{full_name, Program, Statement};
+use xb_frontend::{full_name, Program, Statement, TypeMember};
 
 pub use crate::checked::{
     CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam, CheckedProgram, CheckedSymbol,
@@ -15,6 +15,21 @@ pub(crate) struct FuncSig {
     pub(crate) return_type: ValueType,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct CompositeMember {
+    pub(crate) name: String,
+    pub(crate) value_type: ValueType,
+    /// Byte width of this member; used when serializing composite records.
+    #[allow(dead_code)]
+    pub(crate) byte_size: usize,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct CompositeLayout {
+    pub(crate) members: Vec<CompositeMember>,
+    pub(crate) byte_len: usize,
+}
+
 #[derive(Debug, Default)]
 pub struct Analyzer {
     pub(crate) symbols: BTreeMap<String, ValueType>,
@@ -23,6 +38,10 @@ pub struct Analyzer {
     pub(crate) shared: BTreeMap<String, ValueType>,
     pub(crate) functions: BTreeMap<String, FuncSig>,
     pub(crate) return_type: Option<ValueType>,
+    /// Registry of composite TYPE layouts, keyed by type name.
+    pub(crate) composites: BTreeMap<String, CompositeLayout>,
+    /// Map from a composite variable name to its declared type name.
+    pub(crate) composite_vars: BTreeMap<String, String>,
     /// When true, apply XBasic legacy leniency (implicit coercion, auto-declared
     /// symbols, stubbed unknown calls). When false, enforce the strict v0.1 spec.
     pub(crate) permissive: bool,
@@ -68,6 +87,9 @@ impl Analyzer {
                 self.functions
                     .insert(full_name(f.name.clone(), f.suffix), sig);
             }
+            if let Statement::TypeDecl { name, members } = statement {
+                self.register_type(name, members);
+            }
         }
         let mut items = Vec::with_capacity(program.statements.len());
         let mut data_values = Vec::new();
@@ -95,5 +117,33 @@ impl Analyzer {
             items.push(self.statement(statement, Scope::TopLevel)?);
         }
         Ok(CheckedProgram { items, data_values })
+    }
+
+    /// Register a composite TYPE layout (members with types and byte sizes).
+    pub(crate) fn register_type(&mut self, name: &str, members: &[TypeMember]) {
+        let mut layout_members = Vec::with_capacity(members.len());
+        let mut byte_len = 0usize;
+        for m in members {
+            let value_type = if m.is_string {
+                ValueType::String
+            } else if m.is_float {
+                ValueType::Float
+            } else {
+                ValueType::Integer
+            };
+            layout_members.push(CompositeMember {
+                name: m.name.clone(),
+                value_type,
+                byte_size: m.byte_size,
+            });
+            byte_len += m.byte_size;
+        }
+        self.composites.insert(
+            name.to_string(),
+            CompositeLayout {
+                members: layout_members,
+                byte_len,
+            },
+        );
     }
 }

@@ -429,11 +429,17 @@ impl Parser {
                             self.expect_symbol(']')?;
                             return Ok(Expression::ArrayAccess { name: combined, index: Box::new(inner) });
                         }
-                        return Ok(Expression::Identifier { name: combined, suffix: None });
+                        return Ok(Expression::ArrayAccess {
+                            name: combined,
+                            index: Box::new(index),
+                        });
                     } else if let TokenKind::Keyword(kw) = self.peek_kind().clone() {
                         self.index += 1;
                         let combined = format!("{full}.{kw:?}");
-                        return Ok(Expression::Identifier { name: combined, suffix: None });
+                        return Ok(Expression::ArrayAccess {
+                            name: combined,
+                            index: Box::new(index),
+                        });
                     }
                 }
                 if matches!(self.peek_kind(), TokenKind::LBrace2) {
@@ -477,7 +483,12 @@ impl Parser {
                             if let TokenKind::Identifier { name: m2, .. } = self.peek_kind().clone() {
                                 self.index += 1;
                                 full = format!("{full}.{m2}");
-                            } else { break; }
+                            } else if let TokenKind::Keyword(kw) = self.peek_kind().clone() {
+                                self.index += 1;
+                                full = format!("{full}.{kw:?}");
+                            } else {
+                                break;
+                            }
                         }
                         if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
                             let args = self.parse_args()?;

@@ -122,6 +122,16 @@ impl Analyzer {
                 }
                 Ok(CheckedItem::Compound(items))
             }
+            Statement::TypeDecl { name, members } => {
+                self.register_type(name, members);
+                Ok(CheckedItem::Nop)
+            }
+            Statement::CompositeDecl {
+                type_name,
+                var,
+                shared,
+                is_array,
+            } => self.composite_decl(type_name, var, *shared, *is_array),
         }
     }
 
@@ -237,5 +247,41 @@ impl Analyzer {
         sc: Scope,
     ) -> Result<Vec<CheckedItem>, SemanticError> {
         s.iter().map(|st| self.statement(st, sc)).collect()
+    }
+
+    /// Lower a composite variable declaration (`TYPE0 var` / `TYPE0 var[]`).
+    /// Uses a struct-of-arrays model: each member becomes its own slot named
+    /// `var.member`, so member access lowers to ordinary symbol/array access.
+    pub(crate) fn composite_decl(
+        &mut self,
+        type_name: &str,
+        var: &str,
+        _shared: bool,
+        is_array: bool,
+    ) -> ItemResult {
+        self.composite_vars
+            .insert(var.to_string(), type_name.to_string());
+        let Some(layout) = self.composites.get(type_name).cloned() else {
+            return Ok(CheckedItem::Nop);
+        };
+        if is_array {
+            // Array declared without a size yet; member arrays are DIM'd later.
+            for m in &layout.members {
+                self.arrays.insert(format!("{var}.{}", m.name), m.value_type);
+            }
+            Ok(CheckedItem::Nop)
+        } else {
+            // Scalar composite: allocate one slot per member.
+            let mut items = Vec::with_capacity(layout.members.len());
+            for m in &layout.members {
+                let mname = format!("{var}.{}", m.name);
+                self.symbols.insert(mname.clone(), m.value_type);
+                items.push(CheckedItem::Dim {
+                    symbol: CheckedSymbol::new(mname, m.value_type),
+                    size: None,
+                });
+            }
+            Ok(CheckedItem::Compound(items))
+        }
     }
 }

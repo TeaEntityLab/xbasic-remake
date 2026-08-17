@@ -10,6 +10,26 @@ impl Analyzer {
         suffix: Option<TypeSuffix>,
         size: Option<&Expression>,
     ) -> ItemResult {
+        // Composite array DIM: expand into one member-array per struct member.
+        if let Some(type_name) = self.composite_vars.get(name).cloned() {
+            if let Some(layout) = self.composites.get(&type_name).cloned() {
+                let checked_size = match size {
+                    Some(e) => Some(self.expr(e)?),
+                    None => None,
+                };
+                let mut items = Vec::with_capacity(layout.members.len());
+                for m in &layout.members {
+                    let mname = format!("{name}.{}", m.name);
+                    self.arrays.insert(mname.clone(), m.value_type);
+                    self.symbols.insert(mname.clone(), m.value_type);
+                    items.push(CheckedItem::Dim {
+                        symbol: CheckedSymbol::new(mname, m.value_type),
+                        size: checked_size.clone(),
+                    });
+                }
+                return Ok(CheckedItem::Compound(items));
+            }
+        }
         let vt = ValueType::from_suffix(suffix);
         let full_name = match suffix {
             Some(TypeSuffix::String) => format!("{name}$"),

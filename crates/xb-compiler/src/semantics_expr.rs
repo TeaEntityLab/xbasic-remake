@@ -1,7 +1,7 @@
 use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, Expression};
 
 use crate::checked::{CheckedExpr, CheckedExprKind, CheckedItem, CheckedSymbol};
-use crate::semantics::{Analyzer, ExprResult, ItemResult, ValueType};
+use crate::semantics::{Analyzer, CompositeLayout, ExprResult, ItemResult, ValueType};
 
 impl Analyzer {
     pub(crate) fn expr(&self, expr: &Expression) -> ExprResult {
@@ -159,7 +159,74 @@ impl Analyzer {
             ValueType::Integer,
         ))
     }
+    /// Per-element layout if the expression names a composite type or a
+    /// composite variable (scalar or array reference).
+    fn composite_layout_of(&self, expr: &Expression) -> Option<&CompositeLayout> {
+        let name = match expr {
+            Expression::Identifier { name, .. } => name,
+            Expression::ArrayRef { name } => name,
+            _ => return None,
+        };
+        if let Some(layout) = self.composites.get(name) {
+            return Some(layout);
+        }
+        let type_name = self.composite_vars.get(name)?;
+        self.composites.get(type_name)
+    }
+
+    /// SIZE() of a composite type/variable: per-element bytes for a scalar or
+    /// type name, or per-element bytes times the element count for an array.
+    fn composite_size(&self, expr: &Expression) -> Option<CheckedExpr> {
+        let layout = self.composite_layout_of(expr)?;
+        let byte_len = layout.byte_len;
+        let len_lit = |n: usize| {
+            CheckedExpr::new(
+                CheckedExprKind::IntegerLiteral(n.to_string()),
+                ValueType::Integer,
+            )
+        };
+        if let Expression::ArrayRef { name } = expr {
+            let member0 = layout.members.first()?;
+            let member_sym =
+                CheckedSymbol::new(format!("{name}.{}", member0.name), member0.value_type);
+            let count = CheckedExpr::new(
+                CheckedExprKind::Arithmetic {
+                    op: ArithmeticOp::Add,
+                    left: Box::new(CheckedExpr::new(
+                        CheckedExprKind::ArrayUBound { symbol: member_sym },
+                        ValueType::Integer,
+                    )),
+                    right: Box::new(len_lit(1)),
+                },
+                ValueType::Integer,
+            );
+            return Some(CheckedExpr::new(
+                CheckedExprKind::Arithmetic {
+                    op: ArithmeticOp::Mul,
+                    left: Box::new(len_lit(byte_len)),
+                    right: Box::new(count),
+                },
+                ValueType::Integer,
+            ));
+        }
+        Some(len_lit(byte_len))
+    }
+
     pub(crate) fn function_call(&self, name: &str, args: &[Expression]) -> ExprResult {
+        // Composite TYPE builtins resolve from the captured type layout.
+        if name == "LEN" && args.len() == 1 {
+            if let Some(layout) = self.composite_layout_of(&args[0]) {
+                return Ok(CheckedExpr::new(
+                    CheckedExprKind::IntegerLiteral(layout.byte_len.to_string()),
+                    ValueType::Integer,
+                ));
+            }
+        }
+        if name == "SIZE" && args.len() == 1 {
+            if let Some(result) = self.composite_size(&args[0]) {
+                return Ok(result);
+            }
+        }
         if self.arrays.contains_key(name) && args.len() == 1 {
             let sym = self.auto_symbol(name);
             let vt = sym.value_type;
@@ -173,6 +240,23 @@ impl Analyzer {
             ));
         }
         if name == "UBOUND" && args.len() == 1 {
+            // Composite array UBOUND resolves to its first member array.
+            let composite_member0 = match &args[0] {
+                Expression::Identifier { name, .. } | Expression::ArrayRef { name } => self
+                    .composite_vars
+                    .get(name)
+                    .and_then(|tn| self.composites.get(tn))
+                    .and_then(|layout| layout.members.first().map(|m| (name.clone(), m.clone()))),
+                _ => None,
+            };
+            if let Some((var, m0)) = composite_member0 {
+                return Ok(CheckedExpr::new(
+                    CheckedExprKind::ArrayUBound {
+                        symbol: CheckedSymbol::new(format!("{var}.{}", m0.name), m0.value_type),
+                    },
+                    ValueType::Integer,
+                ));
+            }
             if let Expression::ArrayRef { name: arr_name } = &args[0] {
                 let sym = self.auto_symbol(arr_name);
                 return Ok(CheckedExpr::new(
@@ -378,6 +462,23 @@ impl Analyzer {
     }
 
     pub(crate) fn call_stmt(&self, name: &str, args: &[Expression]) -> ItemResult {
+        // Composite record I/O: `WRITE/READ [f], compositearr[]` transfers
+        // SIZE(arr) bytes. SIZE is byte_len*(UBOUND(member0)+1), evaluated at
+        // runtime, so a READ after re-DIM transfers the smaller count.
+        if (name == "WRITE" || name == "READ") && args.len() == 2 {
+            if let Some(size) = self.composite_size(&args[1]) {
+                let file = self.expr(&args[0])?;
+                let record = if name == "WRITE" {
+                    "__WRITE_RECORD"
+                } else {
+                    "__READ_RECORD"
+                };
+                return Ok(CheckedItem::Call {
+                    name: record.to_owned(),
+                    args: vec![file, size],
+                });
+            }
+        }
         let checked_call = self.function_call(name, args)?;
         let resolved = match checked_call.kind {
             CheckedExprKind::FunctionCall { ref name, .. } => name.clone(),

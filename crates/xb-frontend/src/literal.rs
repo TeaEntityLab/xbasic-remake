@@ -99,6 +99,12 @@ impl Lexer<'_> {
                 self.take_while(&mut text, is_hex_digit);
                 return Token::new(TokenKind::IntegerLiteral(text), pos);
             }
+            if let Some(prefix @ ('s' | 'S')) = self.lookahead {
+                text.push(prefix);
+                self.advance();
+                self.take_while(&mut text, is_hex_digit);
+                return Token::new(TokenKind::IntegerLiteral(text), pos);
+            }
             self.take_while(&mut text, |ch| ch.is_ascii_digit());
             if self.lookahead == Some('.') {
                 is_float = true;

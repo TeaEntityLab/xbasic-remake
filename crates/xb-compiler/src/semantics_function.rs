@@ -19,6 +19,8 @@ impl Analyzer {
             shared: self.shared.clone(),
             functions: self.functions.clone(),
             return_type: Some(ret),
+            composites: self.composites.clone(),
+            composite_vars: self.composite_vars.clone(),
             permissive: self.permissive,
         };
         for (p, vt) in f.params.iter().zip(param_types) {
@@ -92,6 +94,12 @@ impl Analyzer {
             match name {
                 "TRUE" => "-1".to_owned(),
                 "FALSE" => "0".to_owned(),
+                // File open-mode constants (values from xst.dec).
+                "RD" => "0".to_owned(),
+                "WR" => "1".to_owned(),
+                "RW" => "2".to_owned(),
+                "WRNEW" => "3".to_owned(),
+                "RWNEW" => "4".to_owned(),
                 _ => {
                     if !self.permissive {
                         return Err(SemanticError::UnknownConstant {

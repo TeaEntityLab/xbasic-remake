@@ -119,6 +119,25 @@ pub enum Statement {
     Stop,
     Restore(Option<String>),
     Compound(Vec<Statement>),
+    TypeDecl {
+        name: String,
+        members: Vec<TypeMember>,
+    },
+    CompositeDecl {
+        type_name: String,
+        var: String,
+        shared: bool,
+        is_array: bool,
+    },
+}
+
+/// One member of a composite TYPE declaration (e.g. `GIANT .a`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TypeMember {
+    pub name: String,
+    pub byte_size: usize,
+    pub is_float: bool,
+    pub is_string: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -70,11 +70,20 @@ pub(crate) fn call_function(
                     actual: arg1.value_type(),
                 });
             };
+            // Mode values from xst.dec: 0=RD,1=WR,2=RW,3=WRNEW,4=RWNEW, plus
+            // share bits 0x10/0x20/0x30 and 0x800 nonblock. All modes create a
+            // missing file; NEW/WR modes start it fresh.
+            let write = matches!(mode, 1 | 2 | 3 | 4)
+                || matches!(mode & 0x30, 0x20 | 0x30);
+            let read = matches!(mode, 0 | 2 | 4)
+                || matches!(mode & 0x30, 0x10 | 0x30)
+                || !write;
+            let truncate = matches!(mode, 1 | 3 | 4);
             match std::fs::OpenOptions::new()
-                .read(mode == 0 || mode == 1 || mode == 2)
-                .write(mode != 0)
-                .create(mode == 3 || mode == 4)
-                .truncate(mode == 3 || mode == 4)
+                .read(read)
+                .write(write)
+                .create(write)
+                .truncate(truncate)
                 .open(&name)
             {
                 Ok(f) => {
@@ -99,6 +108,38 @@ pub(crate) fn call_function(
             }
             state.files[idx] = None;
             return Ok(RuntimeValue::Integer(0));
+        }
+        "__WRITE_RECORD" => {
+            let f = eval(program, &args[0], state)?;
+            let n = eval(program, &args[1], state)?;
+            let (RuntimeValue::Integer(fn_num), RuntimeValue::Integer(count)) = (f, n) else {
+                return Ok(RuntimeValue::Integer(-1));
+            };
+            let idx = (fn_num - 3) as usize;
+            if idx >= state.files.len() || state.files[idx].is_none() || count < 0 {
+                return Ok(RuntimeValue::Integer(-1));
+            }
+            use std::io::Write;
+            let file = state.files[idx].as_mut().unwrap();
+            let buf = vec![0u8; count as usize];
+            let _ = file.write_all(&buf);
+            return Ok(RuntimeValue::Integer(count));
+        }
+        "__READ_RECORD" => {
+            let f = eval(program, &args[0], state)?;
+            let n = eval(program, &args[1], state)?;
+            let (RuntimeValue::Integer(fn_num), RuntimeValue::Integer(count)) = (f, n) else {
+                return Ok(RuntimeValue::Integer(-1));
+            };
+            let idx = (fn_num - 3) as usize;
+            if idx >= state.files.len() || state.files[idx].is_none() || count < 0 {
+                return Ok(RuntimeValue::Integer(-1));
+            }
+            use std::io::Read;
+            let file = state.files[idx].as_mut().unwrap();
+            let mut buf = vec![0u8; count as usize];
+            let got = file.read(&mut buf).unwrap_or(0);
+            return Ok(RuntimeValue::Integer(got as i32));
         }
         "LOF" => {
             let arg = eval(program, &args[0], state)?;

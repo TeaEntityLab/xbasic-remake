@@ -15,7 +15,7 @@ pub mod token;
 
 pub use ast::{
     ArithmeticOp, BooleanOp, CaseClause, ComparisonOp, DataValue, Expression, FunctionDecl,
-    LogicalOp, Param, PrintSep, Program, Statement, UnaryOp,
+    LogicalOp, Param, PrintSep, Program, Statement, TypeMember, UnaryOp,
 };
 pub use lexer::{lex, LexError, Lexer};
 pub use parser::{parse_program, ParseError, Parser};
