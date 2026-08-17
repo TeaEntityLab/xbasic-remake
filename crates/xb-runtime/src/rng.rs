@@ -15,6 +15,7 @@ pub(crate) fn next_rand() -> f64 {
     })
 }
 
+#[allow(dead_code)]
 pub(crate) fn randomize(seed: i32) {
     RAND_STATE.with(|s| s.set(seed as u64 | 1));
 }

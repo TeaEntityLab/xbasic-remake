@@ -43,15 +43,10 @@ fn rejects_malformed_statements() {
 }
 
 #[test]
-fn rejects_trailing_tokens_after_print_expression() {
+fn accepts_space_separated_print_items() {
+    // Legacy compatibility: XBasic allows space-separated PRINT items
     let result = parse_program("PRINT \"hello\" garbage\n");
-    assert!(matches!(
-        result,
-        Err(ParseError::Expected {
-            expected: "end of line",
-            ..
-        })
-    ));
+    assert!(result.is_ok());
 }
 
 #[test]

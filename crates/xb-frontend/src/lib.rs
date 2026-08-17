@@ -9,6 +9,7 @@ mod parser_if;
 mod parser_logical;
 mod parser_loops;
 mod parser_select;
+#[cfg(test)]
 mod parser_tests;
 pub mod token;
 

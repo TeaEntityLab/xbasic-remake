@@ -104,6 +104,21 @@ impl IrProgram {
     }
 }
 
+impl IrProgram {
+    /// Resolve the program entry point: the function named `name` (the v0.1
+    /// `Main` convention), or, when absent, the first defined function — legacy
+    /// XBasic runs the first function (commonly `Entry`) as the entry point.
+    pub fn entry_or_first(&self, name: &str) -> Option<&[IrItem]> {
+        if let Ok(body) = self.entry(name) {
+            return Some(body);
+        }
+        self.items.iter().find_map(|item| match item {
+            IrItem::Function { body, .. } => Some(body.as_slice()),
+            _ => None,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

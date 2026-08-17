@@ -1,7 +1,7 @@
 use xb_frontend::{Expression, LogicalOp};
 
 use crate::checked::{CheckedExpr, CheckedExprKind};
-use crate::semantics::{Analyzer, ExprResult, SemanticError, ValueType};
+use crate::semantics::{Analyzer, ExprResult, ValueType};
 
 impl Analyzer {
     pub(crate) fn logical(&self, op: LogicalOp, l: &Expression, r: &Expression) -> ExprResult {

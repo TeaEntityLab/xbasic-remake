@@ -14,7 +14,7 @@ impl ValueType {
         match suffix {
             Some(TypeSuffix::String) => Self::String,
             Some(TypeSuffix::Single | TypeSuffix::Double) => Self::Float,
-            Some(TypeSuffix::Integer) | None => Self::Integer,
+            Some(TypeSuffix::Integer | TypeSuffix::Giant) | None => Self::Integer,
         }
     }
 }

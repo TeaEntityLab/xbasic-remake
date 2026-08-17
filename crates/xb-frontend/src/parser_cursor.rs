@@ -1,5 +1,6 @@
 use crate::ast::{Expression, Param, Statement, UnaryOp};
 use crate::parser::{ParseError, Parser};
+use crate::parser_expr::is_statement_keyword;
 use crate::token::{Keyword, SourcePos, TokenKind, TypeSuffix};
 
 impl Parser {
@@ -65,14 +66,31 @@ impl Parser {
             _ => Err(self.expected("symbol")),
         }
     }
-
+    pub(crate) fn expect_token_kind(&mut self, kind: TokenKind) -> Result<(), ParseError> {
+        if *self.peek_kind() == kind {
+            self.index += 1;
+            Ok(())
+        } else {
+            Err(self.expected("token"))
+        }
+    }
     pub(crate) fn expect_line_end(&mut self) -> Result<(), ParseError> {
         match self.peek_kind() {
-            TokenKind::Newline | TokenKind::Symbol(':') => {
+            TokenKind::Newline => {
                 self.index += 1;
                 Ok(())
             }
+            TokenKind::Symbol(':') if !self.in_single_line_if => {
+                self.index += 1;
+                Ok(())
+            }
+            // Accept identifier/system var as implicit line separator only when
+            // it starts a new statement (followed by =, [, or .)
+            TokenKind::Identifier { .. } | TokenKind::SystemConstant(_) |
+            TokenKind::SystemVariable { .. }
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')) | Some(TokenKind::Symbol('[')) | Some(TokenKind::Symbol('.'))) => Ok(()),
             TokenKind::Eof => Ok(()),
+            TokenKind::Symbol(':') if self.in_single_line_if => Ok(()),
             TokenKind::Keyword(Keyword::Else) | TokenKind::Keyword(Keyword::ElseIf)
                 if self.in_single_line_if =>
             {
@@ -93,7 +111,8 @@ impl Parser {
 
     pub(crate) fn at_line_end(&self) -> bool {
         match self.peek_kind() {
-            TokenKind::Newline | TokenKind::Eof | TokenKind::Symbol(':') => true,
+            TokenKind::Newline | TokenKind::Eof => true,
+            TokenKind::Symbol(':') if !self.in_single_line_if => true,
             TokenKind::Keyword(Keyword::Else) | TokenKind::Keyword(Keyword::ElseIf)
                 if self.in_single_line_if =>
             {
@@ -186,8 +205,18 @@ impl Parser {
             )
     }
     pub(crate) fn starts_end_if(&self) -> bool {
-        matches!(self.peek_kind(), TokenKind::Keyword(Keyword::End))
-            && matches!(self.peek_next_kind(), Some(TokenKind::Keyword(Keyword::If)))
+        (matches!(self.peek_kind(), TokenKind::Keyword(Keyword::End))
+            && matches!(self.peek_next_kind(), Some(TokenKind::Keyword(Keyword::If))))
+        || matches!(self.peek_kind(), TokenKind::Identifier { ref name, .. } if name.eq_ignore_ascii_case("ENDIF"))
+    }
+    pub(crate) fn expect_end_if(&mut self) -> Result<(), ParseError> {
+        if matches!(self.peek_kind(), TokenKind::Identifier { ref name, .. } if name.eq_ignore_ascii_case("ENDIF")) {
+            self.index += 1;
+        } else {
+            self.expect_keyword(Keyword::End)?;
+            self.expect_keyword(Keyword::If)?;
+        }
+        Ok(())
     }
     pub(crate) fn starts_wend(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Wend))
@@ -208,13 +237,19 @@ impl Parser {
         self.starts_else() || self.starts_elseif() || self.starts_end_if()
     }
     pub(crate) fn starts_assignment(&self) -> bool {
-        matches!(self.peek_kind(), TokenKind::Identifier { .. })
+        (matches!(self.peek_kind(), TokenKind::Identifier { .. })
+            || matches!(self.peek_kind(), TokenKind::SharedName(_)))
             && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
     }
     pub(crate) fn starts_call(&self) -> bool {
-        matches!(self.peek_kind(), TokenKind::Identifier { .. })
-            && (matches!(self.peek_next_kind(), Some(TokenKind::Symbol('(')))
+        let is_name = matches!(self.peek_kind(), TokenKind::Identifier { .. })
+            || matches!(self.peek_kind(), TokenKind::Keyword(kw) if !is_statement_keyword(*kw))
+            || matches!(self.peek_kind(), TokenKind::SharedName(_));
+        is_name && (matches!(self.peek_next_kind(), Some(TokenKind::Symbol('(')))
                 || matches!(self.peek_next_kind(), Some(TokenKind::Symbol('['))))
+    }
+    pub(crate) fn starts_attach(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Identifier { ref name, .. } if name.eq_ignore_ascii_case("ATTACH"))
     }
     pub(crate) fn starts_label(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Identifier { .. })
@@ -227,11 +262,14 @@ impl Parser {
     pub(crate) fn starts_typed_dim(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Identifier { .. })
             && (matches!(self.peek_next_kind(), Some(TokenKind::Identifier { .. }))
+                || matches!(self.peek_next_kind(), Some(TokenKind::Keyword(_)))
                 || matches!(self.peek_next_kind(), Some(TokenKind::SystemVariable { .. }))
                 || matches!(self.peek_next_kind(), Some(TokenKind::SharedName(_))))
     }
-
-    /// Detect shared name assignments: #var = value
+    pub(crate) fn starts_dot_access(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Identifier { .. })
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('.')))
+    }
     pub(crate) fn starts_shared_name_assignment(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::SharedName(_))
             && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
@@ -263,16 +301,22 @@ impl Parser {
                 if matches!(self.peek_kind(), TokenKind::Symbol('@')) {
                     self.index += 1;
                 }
-                // Skip optional type qualifier (ANY, STRING, INTEGER, etc.)
-                if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
+                // Skip optional type qualifier (ANY, STRING, INTEGER, FUNCADDR, etc.)
+                // The param name can be an identifier or keyword (e.g. 'data')
+                if matches!(self.peek_kind(), TokenKind::Identifier { .. })
+                    || matches!(self.peek_kind(), TokenKind::Keyword(Keyword::FuncAddr))
+                {
                     let save = self.index;
                     self.index += 1;
-                    // If next is another identifier, the first was a type qualifier
                     if !matches!(self.peek_kind(), TokenKind::Identifier { .. })
+                        && !matches!(self.peek_kind(), TokenKind::Keyword(_))
                         && !matches!(self.peek_kind(), TokenKind::Symbol('@'))
                     {
                         self.index = save; // Not a type qualifier, restore
                     }
+                }
+                if matches!(self.peek_kind(), TokenKind::Symbol('@')) {
+                    self.index += 1;
                 }
                 let (name, suffix) = self.expect_name_or_keyword()?;
                 // Skip optional array brackets

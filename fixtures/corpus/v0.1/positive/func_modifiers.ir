@@ -1,5 +1,6 @@
 version 0.1
 program_name test
+const $$TRUE:integer = integer(1)
 function Helper() -> integer
   return integer(42)
 end function

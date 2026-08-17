@@ -26,6 +26,7 @@ mod semantics_function;
 mod semantics_if;
 mod semantics_logical;
 mod semantics_select;
+#[cfg(test)]
 mod semantics_shared_tests;
 mod semantics_statement;
 mod semantics_stmts;
@@ -93,6 +94,14 @@ impl FrontendUnit {
 
     pub fn lower_ir(&self) -> Result<IrProgram, CompileError> {
         Ok(IrProgram::lower(&self.analyze()?))
+    }
+
+    pub fn analyze_strict(&self) -> Result<CheckedProgram, CompileError> {
+        Ok(Analyzer::analyze_strict(&self.program)?)
+    }
+
+    pub fn lower_ir_strict(&self) -> Result<IrProgram, CompileError> {
+        Ok(IrProgram::lower(&self.analyze_strict()?))
     }
 }
 

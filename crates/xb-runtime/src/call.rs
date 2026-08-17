@@ -256,13 +256,8 @@ pub(crate) fn call_function(
     }
     local.insert(fname.to_string(), ret_slot);
     for (p, arg) in params.iter().zip(args) {
-        let v = eval(program, arg, state)?;
-        if v.value_type() != p.value_type {
-            return Err(RuntimeError::TypeMismatch {
-                expected: p.value_type,
-                actual: v.value_type(),
-            });
-        }
+        // Coerce each argument to the parameter type (XBasic implicit coercion).
+        let v = crate::helpers::coerce_value(eval(program, arg, state)?, p.value_type);
         let mut slot = TypedSlot::new(p.value_type);
         slot.set(v);
         local.insert(p.name.clone(), slot);
@@ -277,10 +272,9 @@ pub(crate) fn call_function(
         data_pos: 0,
         error_code: state.error_code,
         files: Vec::new(),
-        gosub_stack: Vec::new(),
         label_addresses: std::collections::HashMap::new(),
     };
-    let result = match exec_items(program, body, &mut sub, output)? {
+    let result = match exec_items(program, body, body, 0, &mut sub, output)? {
         Flow::Return(Some(v)) => Ok(v),
         Flow::Return(None) => {
             let ret = sub.slots.get(fname).map(|s| s.value.clone());

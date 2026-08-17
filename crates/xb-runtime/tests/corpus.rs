@@ -1,5 +1,5 @@
 mod common;
-use common::{assert_golden, check_selfhost, compile_and_run};
+use common::{assert_golden, check_selfhost, compile_and_run_strict};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs;
@@ -127,7 +127,7 @@ fn corpus_v0_1_is_valid_and_executable() -> Result<(), String> {
         &["in"],
     )?;
     for stem in positive_cases {
-        let (ir, output, state) = compile_and_run(&stem.with_extension("x"))?;
+        let (ir, output, state) = compile_and_run_strict(&stem.with_extension("x"))?;
         assert_golden(&stem.with_extension("ir"), ir.as_bytes())?;
         assert_golden(&stem.with_extension("out"), output.as_bytes())?;
         if stem.file_name() == Some(OsStr::new("execution_order")) {
@@ -151,7 +151,7 @@ fn corpus_v0_1_is_valid_and_executable() -> Result<(), String> {
             .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
         let error = match FrontendUnit::parse(&source) {
             Err(error) => error,
-            Ok(unit) => match unit.lower_ir() {
+            Ok(unit) => match unit.lower_ir_strict() {
                 Err(error) => error,
                 Ok(_) => return Err(path_error("negative fixture compiled", &source_path)),
             },

@@ -8,8 +8,8 @@ function Main() -> integer
   dim ch:integer
   dim ntok:integer
   dim done:integer
-  dim tt$:string[integer(16384)]
-  dim tv$:string[integer(16384)]
+  dim tt$:string[integer(65536)]
+  dim tv$:string[integer(65536)]
   dim tpos:integer
   dim indent:integer
   dim i:integer
@@ -274,12 +274,41 @@ function Main() -> integer
                       assign done:integer = integer(1)
                     else
                       assign ch:integer = call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1)))
-                      if compare(symbol(ch:integer) = integer(34))
+                      if compare(symbol(ch:integer) = integer(92))
                         assign pos:integer = arith(symbol(pos:integer) + integer(1))
-                        assign done:integer = integer(1)
+                        if compare(symbol(pos:integer) <= call LEN(symbol(src:string)))
+                          assign ch:integer = call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1)))
+                          if compare(symbol(ch:integer) = integer(34))
+                            assign tok:string = arith(symbol(tok:string) + call CHR$(integer(34)))
+                          else
+                            if compare(symbol(ch:integer) = integer(92))
+                              assign tok:string = arith(symbol(tok:string) + call CHR$(integer(92)))
+                            else
+                              if compare(symbol(ch:integer) = integer(110))
+                                assign tok:string = arith(symbol(tok:string) + call CHR$(integer(10)))
+                              else
+                                if compare(symbol(ch:integer) = integer(116))
+                                  assign tok:string = arith(symbol(tok:string) + call CHR$(integer(9)))
+                                else
+                                  if compare(symbol(ch:integer) = integer(114))
+                                    assign tok:string = arith(symbol(tok:string) + call CHR$(integer(13)))
+                                  else
+                                    assign tok:string = arith(arith(symbol(tok:string) + call CHR$(integer(92))) + call CHR$(symbol(ch:integer)))
+                                  end if
+                                end if
+                              end if
+                            end if
+                          end if
+                          assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                        end if
                       else
-                        assign tok:string = arith(symbol(tok:string) + call CHR$(symbol(ch:integer)))
-                        assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                        if compare(symbol(ch:integer) = integer(34))
+                          assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                          assign done:integer = integer(1)
+                        else
+                          assign tok:string = arith(symbol(tok:string) + call CHR$(symbol(ch:integer)))
+                          assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                        end if
                       end if
                     end if
                   wend
@@ -1005,7 +1034,23 @@ function Main() -> integer
                       if compare(call ASC(call MID$(symbol(v:string), symbol(ei:integer), integer(1))) = integer(92))
                         assign esc:string = arith(arith(symbol(esc:string) + call CHR$(integer(92))) + call CHR$(integer(92)))
                       else
-                        assign esc:string = arith(symbol(esc:string) + call MID$(symbol(v:string), symbol(ei:integer), integer(1)))
+                        if compare(call ASC(call MID$(symbol(v:string), symbol(ei:integer), integer(1))) = integer(34))
+                          assign esc:string = arith(arith(symbol(esc:string) + call CHR$(integer(92))) + call CHR$(integer(34)))
+                        else
+                          if compare(call ASC(call MID$(symbol(v:string), symbol(ei:integer), integer(1))) = integer(9))
+                            assign esc:string = arith(arith(symbol(esc:string) + call CHR$(integer(92))) + call CHR$(integer(116)))
+                          else
+                            if compare(call ASC(call MID$(symbol(v:string), symbol(ei:integer), integer(1))) = integer(10))
+                              assign esc:string = arith(arith(symbol(esc:string) + call CHR$(integer(92))) + call CHR$(integer(110)))
+                            else
+                              if compare(call ASC(call MID$(symbol(v:string), symbol(ei:integer), integer(1))) = integer(13))
+                                assign esc:string = arith(arith(symbol(esc:string) + call CHR$(integer(92))) + call CHR$(integer(114)))
+                              else
+                                assign esc:string = arith(symbol(esc:string) + call MID$(symbol(v:string), symbol(ei:integer), integer(1)))
+                              end if
+                            end if
+                          end if
+                        end if
                       end if
                       assign ei:integer = arith(symbol(ei:integer) + integer(1))
                     wend

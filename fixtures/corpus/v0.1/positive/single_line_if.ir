@@ -19,7 +19,7 @@ function Main() -> integer
   print symbol(y:integer)
   if compare(symbol(x:integer) > integer(3))
     print string("a")
+    print string("b")
   end if
-  print string("b")
   print string("done")
 end function

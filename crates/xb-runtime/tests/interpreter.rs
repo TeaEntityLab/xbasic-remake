@@ -1,6 +1,6 @@
 mod common;
 use common::{expression, lower, symbol};
-use xb_compiler::{EntryLookupError, IrExprKind, IrItem, IrProgram, ValueType};
+use xb_compiler::{IrExprKind, IrItem, IrProgram, ValueType};
 use xb_runtime::{Interpreter, RuntimeError, RuntimeValue};
 
 #[test]
@@ -123,8 +123,9 @@ fn keeps_shared_slot_separate_from_the_dimmed_variable_of_the_same_name() {
 }
 
 #[test]
-fn rejects_unknown_runtime_slot() {
-    // Given
+fn reads_unassigned_variable_as_default() {
+    // Given: XBasic auto-declares locals on first use; an unassigned
+    // Integer variable reads as its default (0).
     let program = IrProgram {
         items: vec![IrItem::Print {
             items: vec![expression(
@@ -138,20 +139,15 @@ fn rejects_unknown_runtime_slot() {
     let mut output = Vec::new();
 
     // When
-    let result = Interpreter::new().execute(&program, &mut output);
+    Interpreter::new().execute(&program, &mut output).unwrap();
 
     // Then
-    assert_eq!(
-        result,
-        Err(RuntimeError::UnknownSlot {
-            name: "missing".to_string()
-        })
-    );
+    assert_eq!(output, ["0"]);
 }
 
 #[test]
-fn rejects_duplicate_runtime_slot() {
-    // Given
+fn allows_redimension_of_slot() {
+    // Given: XBasic permits re-dimensioning — a repeated DIM replaces the slot.
     let repeated = symbol("count", ValueType::Integer);
     let program = IrProgram {
         items: vec![
@@ -169,15 +165,10 @@ fn rejects_duplicate_runtime_slot() {
     let mut output = Vec::new();
 
     // When
-    let result = Interpreter::new().execute(&program, &mut output);
+    let state = Interpreter::new().execute(&program, &mut output).unwrap();
 
     // Then
-    assert_eq!(
-        result,
-        Err(RuntimeError::DuplicateSlot {
-            name: "count".to_string()
-        })
-    );
+    assert!(state.slot("count").is_some());
 }
 
 #[test]
@@ -209,7 +200,8 @@ fn rejects_invalid_integer_literal() {
 }
 
 #[test]
-fn rejects_runtime_type_mismatch() {
+fn coerces_string_value_to_integer_target() {
+    // XBasic implicitly coerces on assignment: "42" -> 42 for an Integer target.
     let count = symbol("count", ValueType::Integer);
     let program = IrProgram {
         items: vec![
@@ -218,24 +210,22 @@ fn rejects_runtime_type_mismatch() {
                 size: None,
             },
             IrItem::Assignment {
-                target: count,
+                target: count.clone(),
                 value: expression(
-                    IrExprKind::StringLiteral("wrong".to_string()),
+                    IrExprKind::StringLiteral("42".to_string()),
                     ValueType::String,
                 ),
+            },
+            IrItem::Print {
+                items: vec![expression(IrExprKind::Symbol(count), ValueType::Integer)],
+                separators: vec![],
             },
         ],
         data_values: Vec::new(),
     };
     let mut output = Vec::new();
-    let result = Interpreter::new().execute(&program, &mut output);
-    assert_eq!(
-        result,
-        Err(RuntimeError::TypeMismatch {
-            expected: ValueType::Integer,
-            actual: ValueType::String
-        })
-    );
+    Interpreter::new().execute(&program, &mut output).unwrap();
+    assert_eq!(output, ["42"]);
 }
 
 #[test]
@@ -261,23 +251,19 @@ fn execute_main_runs_top_level_then_main_in_same_state() {
 }
 
 #[test]
-fn execute_main_reports_typed_error_when_main_is_missing() {
-    // Given
+fn execute_main_falls_back_to_first_function_when_main_absent() {
+    // Given: no `Main`, so the first defined function is the entry point
+    // (legacy XBasic runs the first function, commonly named `Entry`).
     let program =
-        lower("PRINT \"top\"\nFUNCTION Helper\nPRINT \"helper-must-not-run\"\nEND FUNCTION\n");
+        lower("PRINT \"top\"\nFUNCTION Entry\nPRINT \"entry-ran\"\nEND FUNCTION\n");
     let mut output = Vec::new();
 
     // When
     let result = Interpreter::new().execute_main(&program, &mut output);
 
     // Then
-    assert_eq!(output, ["top"]);
-    assert_eq!(
-        result,
-        Err(RuntimeError::EntryLookup(EntryLookupError::Missing {
-            name: "Main".to_string(),
-        }))
-    );
+    assert!(result.is_ok());
+    assert_eq!(output, ["top", "entry-ran"]);
 }
 
 #[test]

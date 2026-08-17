@@ -1,7 +1,7 @@
-use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, Expression, TypeSuffix};
+use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, Expression};
 
 use crate::checked::{CheckedExpr, CheckedExprKind, CheckedItem, CheckedSymbol};
-use crate::semantics::{Analyzer, ExprResult, ItemResult, SemanticError, ValueType};
+use crate::semantics::{Analyzer, ExprResult, ItemResult, ValueType};
 
 impl Analyzer {
     pub(crate) fn expr(&self, expr: &Expression) -> ExprResult {
@@ -59,9 +59,8 @@ impl Analyzer {
     fn comparison(&self, op: ComparisonOp, l: &Expression, r: &Expression) -> ExprResult {
         let lv = self.expr(l)?;
         let rv = self.expr(r)?;
-        if lv.value_type != rv.value_type && !(lv.value_type == ValueType::String && rv.value_type == ValueType::Integer)
-            && !(lv.value_type == ValueType::Integer && rv.value_type == ValueType::String) {
-            return Err(SemanticError::ComparisonTypeMismatch {
+        if !self.permissive && lv.value_type != rv.value_type {
+            return Err(crate::checked::SemanticError::ComparisonTypeMismatch {
                 left: lv.value_type,
                 right: rv.value_type,
             });
@@ -79,29 +78,24 @@ impl Analyzer {
     fn arithmetic(&self, op: ArithmeticOp, l: &Expression, r: &Expression) -> ExprResult {
         let lv = self.expr(l)?;
         let rv = self.expr(r)?;
-        if lv.value_type == ValueType::String && rv.value_type == ValueType::String {
-            if op == ArithmeticOp::Add {
-                return Ok(CheckedExpr::new(
-                    CheckedExprKind::Arithmetic {
-                        op,
-                        left: Box::new(lv),
-                        right: Box::new(rv),
-                    },
-                    ValueType::String,
-                ));
-            }
-            // Non-add string-string: allow as integer (treated as 0)
+        let l_str = lv.value_type == ValueType::String;
+        let r_str = rv.value_type == ValueType::String;
+        // String + String is concatenation in both modes.
+        if l_str && r_str && op == ArithmeticOp::Add {
             return Ok(CheckedExpr::new(
                 CheckedExprKind::Arithmetic {
                     op,
                     left: Box::new(lv),
                     right: Box::new(rv),
                 },
-                ValueType::Integer,
+                ValueType::String,
             ));
         }
-        if lv.value_type == ValueType::String || rv.value_type == ValueType::String {
-            // Allow string operands in arithmetic (treated as 0 in numeric context)
+        if l_str || r_str {
+            if !self.permissive {
+                return Err(crate::checked::SemanticError::ArithmeticStringOperand);
+            }
+            // Permissive: string operands are treated as 0 in numeric context.
             return Ok(CheckedExpr::new(
                 CheckedExprKind::Arithmetic {
                     op,
@@ -186,6 +180,14 @@ impl Analyzer {
                     ValueType::Integer,
                 ));
             }
+            if let Expression::Identifier { name: var_name, .. } = &args[0] {
+                // UBOUND(var) for a string or array variable (last valid index).
+                let sym = self.auto_symbol(var_name);
+                return Ok(CheckedExpr::new(
+                    CheckedExprKind::ArrayUBound { symbol: sym },
+                    ValueType::Integer,
+                ));
+            }
         }
         if name == "SIZE" && args.len() == 1 {
             if let Expression::ArrayRef { name: arr_name } = &args[0] {
@@ -238,6 +240,19 @@ impl Analyzer {
         if let Some(rt) = crate::builtin::builtin_return_type(name) {
             return crate::builtin::builtin_call(self, name, args, rt);
         }
+        // Brace-notation byte read: `s${i}` parses as a call `s$(i)`. When `s$`
+        // is a declared scalar string variable, lower it to ASC(MID$(s, i+1, 1))
+        // (the byte offset is 0-based; MID$ is 1-based).
+        {
+            let base = name.trim_end_matches('$');
+            if args.len() == 1
+                && !self.functions.contains_key(name)
+                && !self.arrays.contains_key(name)
+                && self.symbols.get(base) == Some(&ValueType::String)
+            {
+                return self.string_byte_read(base, &args[0]);
+            }
+        }
         let (resolved_name, sig) = if let Some(s) = self.functions.get(name) {
             (name.to_owned(), s)
         } else {
@@ -245,7 +260,12 @@ impl Analyzer {
             match self.functions.get(&with_suffix) {
                 Some(s) => (with_suffix, s),
                 None => {
-                    // Stub unknown functions: return Integer (or String if $ suffix)
+                    if !self.permissive {
+                        return Err(crate::checked::SemanticError::UnknownFunction {
+                            name: name.to_owned(),
+                        });
+                    }
+                    // Permissive: stub unknown functions (String for a $ suffix, else Integer).
                     let rt = if name.ends_with('$') {
                         ValueType::String
                     } else {
@@ -266,9 +286,9 @@ impl Analyzer {
             }
         };
         let normalized = resolved_name.trim_end_matches('$').to_owned();
-        if args.len() != sig.params.len() {
-            return Err(SemanticError::FunctionArgCount {
-                name: name.to_owned(),
+        if !self.permissive && args.len() != sig.params.len() {
+            return Err(crate::checked::SemanticError::FunctionArgCount {
+                name: normalized.clone(),
                 expected: sig.params.len(),
                 actual: args.len(),
             });
@@ -276,14 +296,21 @@ impl Analyzer {
         let mut checked = Vec::with_capacity(args.len());
         for (i, arg) in args.iter().enumerate() {
             let v = self.expr(arg)?;
-            if v.value_type != sig.params[i] {
-                return Err(SemanticError::FunctionArgType {
-                    name: name.to_owned(),
+            let expected = sig.params.get(i).copied().unwrap_or(ValueType::Integer);
+            if !self.permissive && !types_coercible(v.value_type, expected) {
+                return Err(crate::checked::SemanticError::FunctionArgType {
+                    name: normalized.clone(),
                     index: i,
-                    expected: sig.params[i],
+                    expected,
                     actual: v.value_type,
                 });
             }
+            // Coerce compatible mismatches (e.g. Integer -> Float) to the parameter type.
+            let v = if v.value_type != expected {
+                CheckedExpr::new(v.kind.clone(), expected)
+            } else {
+                v
+            };
             checked.push(v);
         }
         Ok(CheckedExpr::new(
@@ -326,6 +353,10 @@ impl Analyzer {
                         },
                         rt,
                     ))
+                } else if !self.permissive {
+                    Err(crate::checked::SemanticError::UnknownSymbol {
+                        name: name.to_owned(),
+                    })
                 } else {
                     // Auto-declare unknown variables based on type suffix
                     Ok(CheckedExpr::new(
@@ -361,4 +392,48 @@ impl Analyzer {
             args: checked_args,
         })
     }
+
+    /// Lower a brace-notation byte read `s${off}` to `ASC(MID$(s, off + 1, 1))`.
+    fn string_byte_read(&self, var: &str, index: &Expression) -> ExprResult {
+        let sym = self.checked_symbol(var)?;
+        let idx = self.expr(index)?;
+        let one = CheckedExpr::new(
+            CheckedExprKind::IntegerLiteral("1".to_owned()),
+            ValueType::Integer,
+        );
+        let pos = CheckedExpr::new(
+            CheckedExprKind::Arithmetic {
+                op: ArithmeticOp::Add,
+                left: Box::new(idx),
+                right: Box::new(one.clone()),
+            },
+            ValueType::Integer,
+        );
+        let s_expr = CheckedExpr::new(CheckedExprKind::Symbol(sym), ValueType::String);
+        let mid = CheckedExpr::new(
+            CheckedExprKind::FunctionCall {
+                name: "MID$".to_owned(),
+                args: vec![s_expr, pos, one],
+            },
+            ValueType::String,
+        );
+        Ok(CheckedExpr::new(
+            CheckedExprKind::FunctionCall {
+                name: "ASC".to_owned(),
+                args: vec![mid],
+            },
+            ValueType::Integer,
+        ))
+    }
+}
+
+/// A value type is numeric when it participates in implicit numeric coercion.
+pub(crate) fn is_numeric_type(t: ValueType) -> bool {
+    matches!(t, ValueType::Integer | ValueType::Float)
+}
+
+/// Types are coercible when identical or both numeric (Integer <-> Float).
+/// String never coerces to a numeric type.
+pub(crate) fn types_coercible(a: ValueType, b: ValueType) -> bool {
+    a == b || (is_numeric_type(a) && is_numeric_type(b))
 }

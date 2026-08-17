@@ -1,6 +1,6 @@
 use xb_frontend::{ArithmeticOp, Expression, TypeSuffix};
 
-use crate::checked::{CheckedExpr, CheckedItem, CheckedSymbol, SemanticError, ValueType};
+use crate::checked::{CheckedExpr, CheckedExprKind, CheckedItem, CheckedSymbol, ValueType};
 use crate::semantics::{Analyzer, ItemResult};
 
 impl Analyzer {
@@ -16,6 +16,7 @@ impl Analyzer {
             Some(TypeSuffix::Single) => format!("{name}!"),
             Some(TypeSuffix::Double) => format!("{name}#"),
             Some(TypeSuffix::Integer) => format!("{name}%"),
+            Some(TypeSuffix::Giant) => format!("{name}&&"),
             None => name.to_owned(),
         };
         let checked_size = match size {
@@ -28,19 +29,28 @@ impl Analyzer {
             None => None,
         };
         let sym_name = if size.is_some() { &full_name } else { name };
-        match self.symbols.insert(sym_name.to_owned(), vt) {
-            Some(_) => Err(SemanticError::DuplicateSymbol {
+        let previous = self.symbols.insert(sym_name.to_owned(), vt);
+        if !self.permissive && previous.is_some() {
+            return Err(crate::checked::SemanticError::DuplicateSymbol {
                 name: sym_name.to_owned(),
-            }),
-            None => Ok(CheckedItem::Dim {
-                symbol: CheckedSymbol::new(sym_name.to_owned(), vt),
-                size: checked_size,
-            }),
+            });
         }
+        Ok(CheckedItem::Dim {
+            symbol: CheckedSymbol::new(sym_name.to_owned(), vt),
+            size: checked_size,
+        })
     }
 
-    pub(crate) fn assignment(&self, name: &str, suffix: Option<TypeSuffix>, value: &Expression) -> ItemResult {
+    pub(crate) fn assignment(
+        &mut self,
+        name: &str,
+        suffix: Option<TypeSuffix>,
+        value: &Expression,
+    ) -> ItemResult {
         let suffix_vt = ValueType::from_suffix(suffix);
+        // XBasic auto-declares locals on assignment; record the type so later
+        // references (and brace-notation detection) resolve it.
+        self.symbols.entry(name.to_owned()).or_insert(suffix_vt);
         let target = if self.symbols.contains_key(name) {
             let sym = self.checked_symbol(name)?;
             // If found type matches suffix type, use it; otherwise treat as different variable
@@ -54,13 +64,21 @@ impl Analyzer {
             CheckedSymbol::new(name.to_owned(), suffix_vt)
         };
         let value = self.expr(value)?;
-        if target.value_type != value.value_type {
-            return Err(SemanticError::TypeMismatch {
+        if !self.permissive
+            && !crate::semantics_expr::types_coercible(value.value_type, target.value_type)
+        {
+            return Err(crate::checked::SemanticError::TypeMismatch {
                 name: name.to_owned(),
                 expected: target.value_type,
                 actual: value.value_type,
             });
         }
+        // Coerce compatible mismatches (e.g. Integer -> Float) to the target type.
+        let value = if target.value_type != value.value_type {
+            CheckedExpr::new(value.kind.clone(), target.value_type)
+        } else {
+            value
+        };
         Ok(CheckedItem::Assignment { target, value })
     }
 
@@ -70,16 +88,49 @@ impl Analyzer {
         index: &Expression,
         value: &Expression,
     ) -> ItemResult {
+        // Brace-notation byte write: `s${off} = v` parses as an array assignment
+        // to `s$`. When `s$` is a declared scalar string, lower it to
+        // MID$(s, off + 1, 1) = CHR$(v) (0-based offset -> 1-based MID$).
+        let base = name.trim_end_matches('$');
+        if !self.arrays.contains_key(name) && self.symbols.get(base) == Some(&ValueType::String) {
+            let sym = self.checked_symbol(base)?;
+            let idx = self.expr(index)?;
+            let one = CheckedExpr::new(
+                CheckedExprKind::IntegerLiteral("1".to_owned()),
+                ValueType::Integer,
+            );
+            let pos = CheckedExpr::new(
+                CheckedExprKind::Arithmetic {
+                    op: ArithmeticOp::Add,
+                    left: Box::new(idx),
+                    right: Box::new(one.clone()),
+                },
+                ValueType::Integer,
+            );
+            let val = self.expr(value)?;
+            let chr = CheckedExpr::new(
+                CheckedExprKind::FunctionCall {
+                    name: "CHR$".to_owned(),
+                    args: vec![val],
+                },
+                ValueType::String,
+            );
+            return Ok(CheckedItem::MidAssign {
+                target: CheckedExpr::new(CheckedExprKind::Symbol(sym), ValueType::String),
+                start: pos,
+                length: Some(one),
+                value: chr,
+            });
+        }
         let target = self.auto_symbol(name);
         let index = self.expr(index)?;
         let value = self.expr(value)?;
-        if target.value_type != value.value_type {
-            return Err(SemanticError::TypeMismatch {
-                name: name.to_owned(),
-                expected: target.value_type,
-                actual: value.value_type,
-            });
-        }
+        // Relaxed: allow any type assignment (XBasic implicit coercion)
+        let value = if target.value_type != value.value_type {
+            CheckedExpr::new(value.kind.clone(), target.value_type)
+        } else {
+            value
+        };
         Ok(CheckedItem::ArrayAssignment {
             target,
             index,
@@ -148,13 +199,10 @@ impl Analyzer {
             right: Box::new(one),
         };
         let value = self.expr(&value_expr)?;
-        if target.value_type != value.value_type {
-            return Err(SemanticError::TypeMismatch {
-                name: name.to_owned(),
-                expected: target.value_type,
-                actual: value.value_type,
-            });
-        }
+        // Relaxed: allow any type (XBasic implicit coercion)
+        let value = if target.value_type != value.value_type {
+            CheckedExpr::new(value.kind.clone(), target.value_type)
+        } else { value };
         Ok(CheckedItem::Assignment { target, value })
     }
 
@@ -167,20 +215,13 @@ impl Analyzer {
     ) -> ItemResult {
         let left_sym = self.auto_symbol(left);
         let right_sym = self.auto_symbol(right);
-        if left_sym.value_type != right_sym.value_type {
-            return Err(SemanticError::TypeMismatch {
-                name: left.to_owned(),
-                expected: left_sym.value_type,
-                actual: right_sym.value_type,
-            });
-        }
+        // Relaxed: allow any type swap (XBasic implicit coercion)
         Ok(CheckedItem::Swap {
             left: left_sym,
             right: right_sym,
         })
     }
 }
-
 impl Analyzer {
     pub(crate) fn read_stmt(&mut self, vars: &[(String, Option<TypeSuffix>)]) -> ItemResult {
         let mut symbols = Vec::with_capacity(vars.len());

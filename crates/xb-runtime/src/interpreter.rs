@@ -1,9 +1,8 @@
 use crate::eval::eval;
-use crate::helpers::require_type;
 pub use crate::slot::{
     DataEntry, ExecutionState, ProgramMetadata, RuntimeError, RuntimeValue, TypedSlot,
 };
-use xb_compiler::{IrExpr, IrExprKind, IrItem, IrProgram, ValueType};
+use xb_compiler::{IrExprKind, IrItem, IrProgram, ValueType};
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Interpreter;
 
@@ -19,7 +18,7 @@ impl Interpreter {
     ) -> Result<ExecutionState, RuntimeError> {
         let mut state = ExecutionState::default();
         crate::data_segment::init_data_segment(program, &mut state);
-        exec_items(program, &program.items, &mut state, output)?;
+        exec_items(program, &program.items, &program.items, 0, &mut state, output)?;
         Ok(state)
     }
 
@@ -30,8 +29,10 @@ impl Interpreter {
     ) -> Result<ExecutionState, RuntimeError> {
         let mut state = ExecutionState::default();
         crate::data_segment::init_data_segment(program, &mut state);
-        exec_items(program, &program.items, &mut state, output)?;
-        exec_items(program, program.entry("Main")?, &mut state, output)?;
+        exec_items(program, &program.items, &program.items, 0, &mut state, output)?;
+        if let Some(main) = program.entry_or_first("Main") {
+            exec_items(program, main, main, 0, &mut state, output)?;
+        }
         Ok(state)
     }
     pub fn execute_main_with_input(
@@ -45,8 +46,10 @@ impl Interpreter {
             ..Default::default()
         };
         crate::data_segment::init_data_segment(program, &mut state);
-        exec_items(program, &program.items, &mut state, output)?;
-        exec_items(program, program.entry("Main")?, &mut state, output)?;
+        exec_items(program, &program.items, &program.items, 0, &mut state, output)?;
+        if let Some(main) = program.entry_or_first("Main") {
+            exec_items(program, main, main, 0, &mut state, output)?;
+        }
         Ok(state)
     }
 }
@@ -56,13 +59,14 @@ pub(crate) enum Flow {
     Break,
     Return(Option<RuntimeValue>),
     Goto(String),
-    Gosub(String),
     GosubReturn,
 }
 
 pub(crate) fn exec_items(
     program: &IrProgram,
     items: &[IrItem],
+    func_body: &[IrItem],
+    start: usize,
     state: &mut ExecutionState,
     output: &mut Vec<String>,
 ) -> Result<Flow, RuntimeError> {
@@ -75,7 +79,7 @@ pub(crate) fn exec_items(
         }
     }
 
-    let mut idx = 0;
+    let mut idx = start;
     while idx < items.len() {
         let item = &items[idx];
         match item {
@@ -86,11 +90,7 @@ pub(crate) fn exec_items(
             }
             IrItem::ConstantDefinition { .. } => {}
             IrItem::Dim { symbol, size } => {
-                if state.slots.contains_key(&symbol.name) {
-                    return Err(RuntimeError::DuplicateSlot {
-                        name: symbol.name.clone(),
-                    });
-                }
+                // XBasic allows re-dimensioning; a repeated DIM replaces the slot.
                 match size {
                     Some(sz) => {
                         let n = eval(program, sz, state)?;
@@ -103,9 +103,10 @@ pub(crate) fn exec_items(
                                 })
                             }
                         };
+                        // XBasic DIM upper bound is inclusive: DIM a[n] -> indices 0..n.
                         state.slots.insert(
                             symbol.name.clone(),
-                            TypedSlot::new_array(symbol.value_type, len),
+                            TypedSlot::new_array(symbol.value_type, len + 1),
                         );
                     }
                     None => {
@@ -117,15 +118,14 @@ pub(crate) fn exec_items(
             }
             IrItem::Assignment { target, value } => {
                 let v = eval(program, value, state)?;
-                require_type(target.value_type, v.value_type())?;
-                let slot =
-                    state
-                        .slots
-                        .get_mut(&target.name)
-                        .ok_or_else(|| RuntimeError::UnknownSlot {
-                            name: target.name.clone(),
-                        })?;
-                require_type(slot.value_type, target.value_type)?;
+                // Coerce to the target type (XBasic implicit coercion).
+                let v = crate::helpers::coerce_value(v, target.value_type);
+                // Auto-declare the variable on first assignment (legacy XBasic
+                // auto-declares locals; DIM is not required before assignment).
+                let slot = state
+                    .slots
+                    .entry(target.name.clone())
+                    .or_insert_with(|| TypedSlot::new(target.value_type));
                 slot.value = v;
             }
             IrItem::ArrayAssignment {
@@ -134,7 +134,7 @@ pub(crate) fn exec_items(
                 value,
             } => {
                 let idx_val = eval(program, index, state)?;
-                let v = eval(program, value, state)?;
+                let v = crate::helpers::coerce_value(eval(program, value, state)?, target.value_type);
                 let i = match idx_val {
                     RuntimeValue::Integer(i) => i as usize,
                     _ => {
@@ -151,7 +151,6 @@ pub(crate) fn exec_items(
                         .ok_or_else(|| RuntimeError::UnknownSlot {
                             name: target.name.clone(),
                         })?;
-                require_type(slot.value_type, target.value_type)?;
                 slot.array_set(i, v)?;
             }
             IrItem::MidAssign {
@@ -202,7 +201,13 @@ pub(crate) fn exec_items(
                 if let RuntimeValue::String(ref mut dst) = slot.value {
                     let si = (start_i as usize).saturating_sub(1);
                     let copy = copy_len.min(src.len()).min(dst.len().saturating_sub(si));
-                    if copy > 0 {
+                    // Guard against non-UTF-8 char boundaries (XBasic byte strings
+                    // can hold multi-byte values); skip rather than panic.
+                    if copy > 0
+                        && dst.is_char_boundary(si)
+                        && dst.is_char_boundary(si + copy)
+                        && src.is_char_boundary(copy)
+                    {
                         dst.replace_range(si..si + copy, &src[..copy]);
                     }
                 }
@@ -225,9 +230,10 @@ pub(crate) fn exec_items(
                 let cond = eval(program, condition, state)?;
                 if let RuntimeValue::Integer(v) = cond {
                     if v != 0 {
-                        match exec_items(program, then_body, state, output)? {
+                        match exec_items(program, then_body, func_body, 0, state, output)? {
                             Flow::Return(r) => return Ok(Flow::Return(r)),
                             Flow::Break => return Ok(Flow::Break),
+                            Flow::GosubReturn => return Ok(Flow::GosubReturn),
                             Flow::Goto(label) => {
                                 if let Some(&pos) = label_map.get(label.as_str()) {
                                     idx = pos;
@@ -235,21 +241,13 @@ pub(crate) fn exec_items(
                                 }
                                 return Ok(Flow::Goto(label));
                             }
-                            Flow::Gosub(label) => {
-                                if let Some(&pos) = label_map.get(label.as_str()) {
-                                    state.gosub_stack.push(idx + 1);
-                                    idx = pos;
-                                    continue;
-                                }
-                                return Ok(Flow::Gosub(label));
-                            }
-                            Flow::GosubReturn => return Ok(Flow::GosubReturn),
                             Flow::Continue => {}
                         }
                     } else if let Some(eb) = else_body {
-                        match exec_items(program, eb, state, output)? {
+                        match exec_items(program, eb, func_body, 0, state, output)? {
                             Flow::Return(r) => return Ok(Flow::Return(r)),
                             Flow::Break => return Ok(Flow::Break),
+                            Flow::GosubReturn => return Ok(Flow::GosubReturn),
                             Flow::Goto(label) => {
                                 if let Some(&pos) = label_map.get(label.as_str()) {
                                     idx = pos;
@@ -257,15 +255,6 @@ pub(crate) fn exec_items(
                                 }
                                 return Ok(Flow::Goto(label));
                             }
-                            Flow::Gosub(label) => {
-                                if let Some(&pos) = label_map.get(label.as_str()) {
-                                    state.gosub_stack.push(idx + 1);
-                                    idx = pos;
-                                    continue;
-                                }
-                                return Ok(Flow::Gosub(label));
-                            }
-                            Flow::GosubReturn => return Ok(Flow::GosubReturn),
                             Flow::Continue => {}
                         }
                     }
@@ -280,9 +269,10 @@ pub(crate) fn exec_items(
                             break;
                         }
                     }
-                    match exec_items(program, body, state, output)? {
+                    match exec_items(program, body, func_body, 0, state, output)? {
                         Flow::Return(r) => return Ok(Flow::Return(r)),
                         Flow::Break => break,
+                        Flow::GosubReturn => return Ok(Flow::GosubReturn),
                         Flow::Goto(label) => {
                             if let Some(&pos) = label_map.get(label.as_str()) {
                                 idx = pos;
@@ -291,16 +281,6 @@ pub(crate) fn exec_items(
                             pending_flow = Some(Flow::Goto(label));
                             break;
                         }
-                        Flow::Gosub(label) => {
-                            if let Some(&pos) = label_map.get(label.as_str()) {
-                                state.gosub_stack.push(idx + 1);
-                                idx = pos;
-                                continue;
-                            }
-                            pending_flow = Some(Flow::Gosub(label));
-                            break;
-                        }
-                        Flow::GosubReturn => return Ok(Flow::GosubReturn),
                         Flow::Continue => {}
                     }
                 }
@@ -323,9 +303,10 @@ pub(crate) fn exec_items(
                             }
                         }
                     }
-                    match exec_items(program, body, state, output)? {
+                    match exec_items(program, body, func_body, 0, state, output)? {
                         Flow::Return(r) => return Ok(Flow::Return(r)),
                         Flow::Break => break,
+                        Flow::GosubReturn => return Ok(Flow::GosubReturn),
                         Flow::Goto(label) => {
                             if let Some(&pos) = label_map.get(label.as_str()) {
                                 idx = pos;
@@ -334,16 +315,6 @@ pub(crate) fn exec_items(
                             pending_flow = Some(Flow::Goto(label));
                             break;
                         }
-                        Flow::Gosub(label) => {
-                            if let Some(&pos) = label_map.get(label.as_str()) {
-                                state.gosub_stack.push(idx + 1);
-                                idx = pos;
-                                continue;
-                            }
-                            pending_flow = Some(Flow::Gosub(label));
-                            break;
-                        }
-                        Flow::GosubReturn => return Ok(Flow::GosubReturn),
                         Flow::Continue => {}
                     }
                     if let Some((cond, is_while)) = post_condition {
@@ -360,9 +331,10 @@ pub(crate) fn exec_items(
                 }
             }
             IrItem::For { .. } => {
-                match crate::eval::exec_for(program, item, state, output)? {
+                match crate::eval::exec_for(program, item, func_body, state, output)? {
                     Flow::Return(r) => return Ok(Flow::Return(r)),
                     Flow::Break => {}
+                    Flow::GosubReturn => return Ok(Flow::GosubReturn),
                     Flow::Goto(label) => {
                         if let Some(&pos) = label_map.get(label.as_str()) {
                             idx = pos;
@@ -370,15 +342,6 @@ pub(crate) fn exec_items(
                         }
                         return Ok(Flow::Goto(label));
                     }
-                    Flow::Gosub(label) => {
-                        if let Some(&pos) = label_map.get(label.as_str()) {
-                            state.gosub_stack.push(idx + 1);
-                            idx = pos;
-                            continue;
-                        }
-                        return Ok(Flow::Gosub(label));
-                    }
-                    Flow::GosubReturn => return Ok(Flow::GosubReturn),
                     Flow::Continue => {}
                 }
             }
@@ -399,17 +362,20 @@ pub(crate) fn exec_items(
                     selector,
                     cases,
                     default.as_deref(),
+                    func_body,
                     state,
                     output,
                 )?;
-                if matches!(flow, Flow::Return(_)) {
-                    return Ok(flow);
-                }
-                if let Flow::Goto(_) = flow {
-                    return Ok(flow);
-                }
-                if let Flow::GosubReturn = flow {
-                    return Ok(flow);
+                match flow {
+                    Flow::Return(_) | Flow::GosubReturn => return Ok(flow),
+                    Flow::Goto(label) => {
+                        if let Some(&pos) = label_map.get(label.as_str()) {
+                            idx = pos;
+                            continue;
+                        }
+                        return Ok(Flow::Goto(label));
+                    }
+                    Flow::Break | Flow::Continue => {}
                 }
             }
             IrItem::Call { name, args } => drop(crate::call::call_function(
@@ -419,7 +385,7 @@ pub(crate) fn exec_items(
                 return crate::exec_helpers::exec_return(program, value, state)
             }
             IrItem::Compound(inner) => {
-                let flow = exec_items(program, inner, state, output)?;
+                let flow = exec_items(program, inner, func_body, 0, state, output)?;
                 if !matches!(flow, Flow::Continue) {
                     return Ok(flow);
                 }
@@ -437,49 +403,92 @@ pub(crate) fn exec_items(
                 return Ok(Flow::Goto(name.clone()));
             }
             IrItem::Gosub(name) => {
-                if let Some(&pos) = label_map.get(name.as_str()) {
-                    state.gosub_stack.push(idx + 1);
-                    idx = pos;
-                    continue;
+                if let Some(target) = find_label_index(func_body, name) {
+                    match exec_items(program, func_body, func_body, target, state, output)? {
+                        Flow::Return(r) => return Ok(Flow::Return(r)),
+                        Flow::Goto(label) => {
+                            if let Some(&pos) = label_map.get(label.as_str()) {
+                                idx = pos;
+                                continue;
+                            }
+                            return Ok(Flow::Goto(label));
+                        }
+                        // GosubReturn / Continue / Break: subroutine finished, resume here.
+                        _ => {}
+                    }
                 }
-                // Label not in this scope; propagate up (outer scope will push return addr)
-                return Ok(Flow::Gosub(name.clone()));
+                // Unknown label: tolerated as a no-op (matches stubbed-call behavior).
             }
             IrItem::GosubReturn => {
-                if let Some(ret_idx) = state.gosub_stack.pop() {
-                    idx = ret_idx;
-                    continue;
-                }
-                // Empty gosub stack: fall back to function return
-                return Ok(Flow::Return(None));
+                // Return from the current subroutine to its caller, or from the
+                // function when reached at the top level (empty call chain).
+                return Ok(Flow::GosubReturn);
             }
             IrItem::GosubExpr(expr) => {
                 let val = eval(program, expr, state)?;
-                if let RuntimeValue::Integer(addr) = val {
-                    // Address is an index into label_map values
-                    // For now, treat as direct label index
-                    state.gosub_stack.push(idx + 1);
-                    idx = addr as usize;
-                    continue;
+                let RuntimeValue::Integer(addr) = val else {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: ValueType::Integer,
+                        actual: val.value_type(),
+                    });
+                };
+                match exec_items(program, func_body, func_body, addr as usize, state, output)? {
+                    Flow::Return(r) => return Ok(Flow::Return(r)),
+                    Flow::Goto(label) => {
+                        if let Some(&pos) = label_map.get(label.as_str()) {
+                            idx = pos;
+                            continue;
+                        }
+                        return Ok(Flow::Goto(label));
+                    }
+                    _ => {}
                 }
-                return Err(RuntimeError::TypeMismatch {
-                    expected: ValueType::Integer,
-                    actual: val.value_type(),
-                });
             }
             IrItem::GotoExpr(expr) => {
                 let val = eval(program, expr, state)?;
-                if let RuntimeValue::Integer(addr) = val {
-                    idx = addr as usize;
+                let RuntimeValue::Integer(addr) = val else {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: ValueType::Integer,
+                        actual: val.value_type(),
+                    });
+                };
+                let target = addr as usize;
+                // Executing the function body directly: jump within it.
+                if std::ptr::eq(items, func_body) {
+                    idx = target;
                     continue;
                 }
+                // Nested body: resolve the target label and unwind to it.
+                if let Some(name) = label_name_at(func_body, target) {
+                    if let Some(&pos) = label_map.get(name) {
+                        idx = pos;
+                        continue;
+                    }
+                    return Ok(Flow::Goto(name.to_owned()));
+                }
+                // Computed target is not a label reachable from a nested body.
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::Integer,
-                    actual: val.value_type(),
+                    actual: ValueType::Integer,
                 });
             }
         }
         idx += 1;
     }
     Ok(Flow::Continue)
+}
+
+/// Position of `label name:` within a function body, or `None` if absent.
+fn find_label_index(func_body: &[IrItem], name: &str) -> Option<usize> {
+    func_body
+        .iter()
+        .position(|it| matches!(it, IrItem::Label(l) if l == name))
+}
+
+/// Name of the label at `idx` in a function body, if that item is a label.
+fn label_name_at(func_body: &[IrItem], idx: usize) -> Option<&str> {
+    match func_body.get(idx) {
+        Some(IrItem::Label(l)) => Some(l.as_str()),
+        _ => None,
+    }
 }

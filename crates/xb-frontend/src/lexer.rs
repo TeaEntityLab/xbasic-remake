@@ -51,19 +51,18 @@ impl<'a> Lexer<'a> {
                     // Otherwise it's a string delimiter (XBasic single-quote strings)
                     match self.prev_char {
                         Some(' ') | Some('\t') | Some('\n') | Some('\r') | Some(':') | None => {
-                            // Check if this is after "=" (assignment context)
                             if self.prev_char == Some(' ') {
-                                // Look back at the char before the space
-                                // Simplified: if the remaining line has a matching ' and
-                                // starts with a non-space, treat as string
                                 let rest = self.chars.as_str();
                                 let line_rest = rest.split_once('\n').map(|(l, _)| l).unwrap_or(rest);
+                                // ''' is empty string '' + comment ' — parse '' then skip rest as comment
+                                if line_rest.starts_with("''") {
+                                    tokens.push(self.single_quote_string()?);
+                                    self.skip_comment();
+                                    continue;
+                                }
                                 if line_rest.contains('\'') && !line_rest.starts_with('\'') {
-                                    // Heuristic: if there's content between here and the
-                                    // matching quote that looks like a short string (no spaces),
-                                    // treat as string. Otherwise comment.
                                     let before_quote = line_rest.split_once('\'').map(|(b, _)| b).unwrap_or("");
-                                    if !before_quote.is_empty() && !before_quote.contains(' ') {
+                                    if !before_quote.is_empty() && (before_quote.len() <= 3 || (!before_quote.contains(' ') && !before_quote.contains('(') && !before_quote.contains(')'))) {
                                         tokens.push(self.single_quote_string()?);
                                         continue;
                                     }
@@ -71,11 +70,23 @@ impl<'a> Lexer<'a> {
                             }
                             self.skip_comment()
                         }
-                        _ => tokens.push(self.single_quote_string()?),
+                        _ => {
+                            // After a closing ', check if this ' starts a comment or string
+                            let rest = self.chars.as_str();
+                            let line_rest = rest.split_once('\n').map(|(l, _)| l).unwrap_or(rest);
+                            if (!line_rest[1..].contains('\'') && !line_rest.starts_with("')")) || line_rest.starts_with("' ") || line_rest.starts_with("'\t") {
+                                self.skip_comment();
+                            } else {
+                                tokens.push(self.single_quote_string()?);
+                            }
+                        }
                     }
                 }
                 '"' => tokens.push(self.string_literal()?),
                 '0'..='9' => tokens.push(self.number()),
+                '.' if self.chars.clone().next().map(|c| c.is_ascii_digit()).unwrap_or(false) => {
+                    tokens.push(self.number())
+                }
                 '#' => tokens.push(self.hash_prefixed()?),
                 '$' => tokens.push(self.system_constant()?),
                 c if is_identifier_start(c) => tokens.push(self.identifier()),
@@ -107,6 +118,7 @@ impl<'a> Lexer<'a> {
 
     /// Check if there's a matching single-quote on the current line (for
     /// distinguishing string delimiters from comments).
+    #[allow(dead_code)]
     fn has_matching_quote_on_line(&self) -> bool {
         self.chars
             .as_str()
@@ -147,6 +159,15 @@ impl<'a> Lexer<'a> {
             return Token::new(TokenKind::Power, pos);
         }
         // XBasic uses {} for array indexing — treat as ()
+        // But {{ }} is a bitfield operator — keep as distinct tokens
+        if ch == '{' && self.lookahead == Some('{') {
+            self.advance();
+            return Token::new(TokenKind::LBrace2, pos);
+        }
+        if ch == '}' && self.lookahead == Some('}') {
+            self.advance();
+            return Token::new(TokenKind::RBrace2, pos);
+        }
         let ch = match ch {
             '{' => '(',
             '}' => ')',

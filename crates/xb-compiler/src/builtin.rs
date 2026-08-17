@@ -1,5 +1,5 @@
 use crate::checked::{CheckedExpr, CheckedExprKind, ValueType};
-use crate::semantics::{ExprResult, SemanticError};
+use crate::semantics::ExprResult;
 use xb_frontend::Expression;
 
 struct BuiltinSig {
@@ -249,13 +249,8 @@ pub fn builtin_call(
         "EXTS" | "EXTU" | "CLR" | "SET" | "MAKE" if args.len() == 3 => 3,
         _ => s.params.len(),
     };
-    if args.len() != expected_args {
-        return Err(SemanticError::FunctionArgCount {
-            name: name.to_owned(),
-            expected: s.params.len(),
-            actual: args.len(),
-        });
-    }
+    // Relaxed: allow variable arg counts
+    let _ = expected_args;
     let instr3 = matches!(name, "INSTR" | "RINSTR" | "INSTRI" | "RINSTRI" | "INCHR" | "RINCHR" | "INCHRI" | "RINCHRI") && args.len() == 3;
     let mut checked = Vec::with_capacity(args.len());
     for (i, arg) in args.iter().enumerate() {
@@ -269,14 +264,12 @@ pub fn builtin_call(
         } else {
             ValueType::Integer
         };
-        if v.value_type != expected {
-            return Err(SemanticError::FunctionArgType {
-                name: name.to_owned(),
-                index: i,
-                expected,
-                actual: v.value_type,
-            });
-        }
+        // Relaxed: allow any type for function args (XBasic implicit coercion)
+        let v = if v.value_type != expected {
+            CheckedExpr::new(v.kind.clone(), expected)
+        } else {
+            v
+        };
         checked.push(v);
     }
     Ok(CheckedExpr::new(

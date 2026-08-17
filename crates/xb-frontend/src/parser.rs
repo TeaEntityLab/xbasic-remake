@@ -1,4 +1,4 @@
-use crate::ast::{FunctionDecl, Program, Statement};
+use crate::ast::{Expression, FunctionDecl, Program, Statement};
 use crate::lexer::{lex, LexError};
 use crate::token::{full_name, Keyword, Token, TokenKind, TypeSuffix};
 use thiserror::Error;
@@ -54,6 +54,7 @@ impl Parser {
             return self.label_stmt();
         }
         match self.peek_keyword() {
+            Some(Keyword::Version) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
             Some(Keyword::Version) => self.version_stmt(),
             Some(Keyword::Print) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
             Some(Keyword::Print) => self.print_stmt(),
@@ -64,48 +65,86 @@ impl Parser {
             Some(Keyword::Iff) => self.iff_stmt(),
             Some(Keyword::For) => self.for_stmt(),
             Some(Keyword::While) => self.while_stmt(),
+            Some(Keyword::Function) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
             Some(Keyword::Function)
             | Some(Keyword::External)
             | Some(Keyword::Internal)
             | Some(Keyword::CFunction) => self.function_stmt(),
+            Some(Keyword::Do) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
             Some(Keyword::Do) => self.do_stmt(),
+            Some(Keyword::Select) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
             Some(Keyword::Select) => self.select_case_stmt(),
+            Some(Keyword::Sub) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('['))) => self.call_stmt(),
             Some(Keyword::Sub) => self.sub_stmt(),
             Some(Keyword::Exit) => self.exit_stmt(),
-            Some(Keyword::Return) => self.return_stmt(),
+            Some(Keyword::Inc) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
             Some(Keyword::Inc) => self.inc_dec_stmt(true),
+            Some(Keyword::Dec) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
             Some(Keyword::Dec) => self.inc_dec_stmt(false),
+            Some(Keyword::Return) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Return) => self.return_stmt(),
             Some(Keyword::Swap) => self.swap_stmt(),
             Some(Keyword::Program) => self.program_stmt(),
             Some(Keyword::Import) => self.import_stmt(),
             Some(Keyword::Declare) => self.declare_stmt(),
+            Some(Keyword::End) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
             Some(Keyword::End) if self.is_end_program() => self.end_program_stmt(),
+            Some(Keyword::End) if self.is_end_export() => self.end_export_stmt(),
+            Some(Keyword::End) if self.starts_end_if() => {
+                // Orphaned END IF (e.g., THEN was consumed by a ''' comment)
+                self.index += 2;
+                self.expect_line_end()?;
+                Ok(Statement::Compound(vec![]))
+            },
             Some(Keyword::Static) | Some(Keyword::Shared) => self.shared_static_stmt(),
             Some(Keyword::Redim) => self.redim_stmt(),
             Some(Keyword::Gosub) => self.gosub_stmt(),
             Some(Keyword::DoEvents) => self.doevents_stmt(),
             Some(Keyword::Randomize) => self.randomize_stmt(),
+            Some(Keyword::Break) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
             Some(Keyword::Break) => self.break_stmt(),
             Some(Keyword::Goto) => self.goto_stmt(),
+            Some(Keyword::Const) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
             Some(Keyword::Const) => self.const_stmt(),
+            Some(Keyword::Data) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Data) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('[')) | Some(TokenKind::Symbol('('))) => self.call_stmt(),
             Some(Keyword::Data) => self.data_stmt(),
+            Some(Keyword::Read) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Read) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('['))) => self.call_stmt(),
             Some(Keyword::Read) => self.read_stmt(),
             Some(Keyword::Stop) => self.stop_stmt(),
             Some(Keyword::Restore) => self.restore_stmt(),
+            Some(Keyword::Export) => self.export_stmt(),
             Some(Keyword::FuncAddr) => self.funcaddr_stmt(),
             Some(Keyword::Type) | Some(Keyword::Packed) => self.type_stmt(),
+            Some(Keyword::Next) if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Step) | Some(Keyword::Case) | Some(Keyword::Loop) | Some(Keyword::Until) | Some(Keyword::Wend) | Some(Keyword::To) | Some(Keyword::Then) | Some(Keyword::Else) | Some(Keyword::ElseIf) | Some(Keyword::Mod)
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))) => self.keyword_assignment_stmt(),
+            Some(Keyword::Next) if matches!(self.peek_next_kind(), Some(TokenKind::Keyword(Keyword::Case))) => {
+                self.index += 2;
+                self.expect_line_end()?;
+                Ok(Statement::ExitSelect)
+            },
             Some(Keyword::Let) => {
                 self.index += 1;
                 self.assignment_stmt()
             }
+            _ if matches!(self.peek_kind(), TokenKind::Identifier { ref name, .. } if name.eq_ignore_ascii_case("ENDIF")) => {
+                self.index += 1;
+                self.expect_line_end()?;
+                Ok(Statement::Compound(vec![]))
+            },
+            _ if self.starts_attach() => self.attach_stmt(),
+            _ if self.starts_dot_access() => self.dot_access_stmt(),
             _ if self.starts_typed_dim() => self.typed_dim_stmt(),
             _ if self.starts_assignment() => self.assignment_stmt(),
+            _ if matches!(self.peek_kind(), TokenKind::Symbol('@')) => self.at_call_stmt(),
             _ if self.starts_call() => self.call_stmt(),
             _ => Err(self.expected("statement")),
         }
     }
 
-    fn print_stmt(&mut self) -> Result<Statement, ParseError> {
+    pub(crate) fn print_stmt(&mut self) -> Result<Statement, ParseError> {
         crate::parser_select::parse_print(self)
     }
 
@@ -113,7 +152,7 @@ impl Parser {
         self.expect_keyword(Keyword::Dim)?;
         let mut dims = Vec::new();
         loop {
-            let (name, suffix) = self.expect_identifier()?;
+            let (name, suffix) = self.expect_name_or_keyword()?;
             let size = self.parse_array_size()?;
             dims.push(Statement::Dim { name, suffix, size });
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
@@ -131,13 +170,54 @@ impl Parser {
     }
 
     fn typed_dim_stmt(&mut self) -> Result<Statement, ParseError> {
-        // Skip the type qualifier (ULONG, UBYTE, STRING, etc.)
-        self.index += 1;
+        // Skip all leading identifiers (type qualifiers + storage classes like AUTO, AUTOX)
+        // until we reach the variable name. The variable name is the last identifier
+        // before [, =, ,, or line end.
+        while (matches!(self.peek_kind(), TokenKind::Identifier { .. }) || matches!(self.peek_kind(), TokenKind::Keyword(_)))
+            && (matches!(self.peek_next_kind(), Some(TokenKind::Identifier { .. }))
+                || matches!(self.peek_next_kind(), Some(TokenKind::Keyword(_)))
+                || matches!(self.peek_next_kind(), Some(TokenKind::SharedName(_)))
+                || matches!(self.peek_next_kind(), Some(TokenKind::SystemVariable { .. })))
+        {
+            self.index += 1;
+        }
         let mut dims = Vec::new();
         loop {
-            let (name, suffix) = self.expect_name_or_keyword()?;
+            let (name, name_suffix) = self.expect_name_or_keyword()?;
+            // Skip parameter type list in parentheses (FUNCADDR declarations)
+            // Check before parse_array_size to avoid consuming ( as array size
+            if matches!(self.peek_kind(), TokenKind::Symbol('('))
+                && (matches!(self.peek_next_kind(), Some(TokenKind::Symbol(')')))
+                    || matches!(self.peek_next_kind(), Some(TokenKind::Identifier { .. }))
+                    || matches!(self.peek_next_kind(), Some(TokenKind::Keyword(_))))
+            {
+                // Handle empty () param list
+                if matches!(self.peek_next_kind(), Some(TokenKind::Symbol(')'))) {
+                    self.index += 2; // skip ( and )
+                } else {
+                    // Peek ahead: if it's Identifier followed by , or ), it's a param list
+                    let save = self.index;
+                    self.index += 2; // skip ( and first type
+                    if matches!(self.peek_kind(), TokenKind::Symbol(',') | TokenKind::Symbol(')')) {
+                        // Parameter list — skip to )
+                        while !matches!(self.peek_kind(), TokenKind::Symbol(')')) && !self.at_eof() {
+                            self.index += 1;
+                        }
+                        if matches!(self.peek_kind(), TokenKind::Symbol(')')) {
+                            self.index += 1;
+                        }
+                    } else {
+                        // Not a param list — restore and let parse_array_size handle it
+                        self.index = save;
+                    }
+                }
+            }
             let size = self.parse_array_size()?;
-            dims.push(Statement::Dim { name, suffix, size });
+            dims.push(Statement::Dim {
+                name,
+                suffix: name_suffix,
+                size,
+            });
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
             } else {
@@ -232,6 +312,92 @@ impl Parser {
             value,
         })
     }
+
+    fn attach_stmt(&mut self) -> Result<Statement, ParseError> {
+        // ATTACH var$ TO display$ — skip the whole statement
+        self.index += 1; // ATTACH
+        // Skip everything until end of line
+        self.skip_to_line_end();
+        self.expect_line_end()?;
+        Ok(Statement::Compound(vec![]))
+    }
+
+    fn dot_access_stmt(&mut self) -> Result<Statement, ParseError> {
+        // Parse dot-access: identifier.member.member... = expression
+        // or identifier.member(args) as a call
+        let (name, suffix) = self.expect_identifier()?;
+        let mut full = name;
+        while matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+            self.index += 1;
+            if let TokenKind::Identifier { name: member, .. } = self.peek_kind().clone() {
+                self.index += 1;
+                full = format!("{full}.{member}");
+            } else if let TokenKind::Keyword(kw) = self.peek_kind().clone() {
+                self.index += 1;
+                full = format!("{full}.{kw:?}");
+            } else {
+                break;
+        }
+        }
+        let array_index = if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+            self.index += 1;
+            let idx = self.expression()?;
+            while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                self.index += 1;
+                let _ = self.expression();
+            }
+            self.expect_symbol(']')?;
+            Some(idx)
+        } else {
+            None
+        };
+        if let Some(idx) = array_index {
+            if matches!(self.peek_kind(), TokenKind::Symbol('=')) {
+                self.index += 1;
+                let value = self.expression()?;
+                self.expect_line_end()?;
+                return Ok(Statement::ArrayAssignment {
+                    target: full,
+                    index: idx,
+                    value,
+                });
+            }
+        }
+        if matches!(self.peek_kind(), TokenKind::Symbol('=')) {
+            self.index += 1;
+            let value = self.expression()?;
+            self.expect_line_end()?;
+            Ok(Statement::Assignment {
+                target: full,
+                suffix,
+                value,
+            })
+        } else if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+            // Function call or bitfield access with dot access
+            let args = self.parse_args()?;
+            // Check for assignment: x.flags{2,3} = 1 (bitfield)
+            if matches!(self.peek_kind(), TokenKind::Symbol('=')) {
+                self.index += 1;
+                let value = self.expression()?;
+                self.expect_line_end()?;
+                // Treat as array assignment on the dot-accessed name
+                let full = crate::token::full_name(full, suffix);
+                let index = args.into_iter().next().unwrap_or_else(|| Expression::IntegerLiteral("0".to_string()));
+                return Ok(Statement::ArrayAssignment {
+                    target: full,
+                    index,
+                    value,
+                });
+            }
+            self.expect_line_end()?;
+            let full = crate::token::full_name(full, suffix);
+            Ok(Statement::Call { name: full, args })
+        } else {
+            self.expect_line_end()?;
+            let full = crate::token::full_name(full, suffix);
+            Ok(Statement::Call { name: full, args: vec![] })
+        }
+    }
     fn keyword_assignment_stmt(&mut self) -> Result<Statement, ParseError> {
         let (target, suffix) = self.expect_name_or_keyword()?;
         self.expect_symbol('=')?;
@@ -243,13 +409,50 @@ impl Parser {
             value,
         })
     }
+    fn at_call_stmt(&mut self) -> Result<Statement, ParseError> {
+        // @name.method(args) or @name[args](args) — call with @ prefix
+        self.expect_symbol('@')?;
+        let (name, suffix) = self.expect_name_or_keyword()?;
+        let mut full = full_name(name, suffix);
+        // Handle dot member access
+        while matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+            self.index += 1;
+            if let TokenKind::Identifier { name: member, .. } = self.peek_kind().clone() {
+                self.index += 1;
+                full = format!("{full}.{member}");
+            } else { break; }
+        }
+        // Handle array index: @func[wintag]
+        if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+            self.index += 1;
+            let _ = self.expression(); // skip index
+            while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                self.index += 1;
+                let _ = self.expression();
+            }
+            self.expect_symbol(']')?;
+        }
+        // Parse call args
+        let args = if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+            self.parse_args()?
+        } else {
+            vec![]
+        };
+        self.expect_line_end()?;
+        Ok(Statement::Call { name: full, args })
+    }
     fn call_stmt(&mut self) -> Result<Statement, ParseError> {
-        let (name, suffix) = self.expect_identifier()?;
+        let (name, suffix) = self.expect_name_or_keyword()?;
         let is_bracket = matches!(self.peek_kind(), TokenKind::Symbol('['));
         let args = if is_bracket {
             self.index += 1;
             let mut args = vec![self.expression()?];
+            while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                self.index += 1;
+                args.push(self.expression()?);
+            }
             self.expect_symbol(']')?;
+            // Handle comma after bracket: WRITE [file], data$
             while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
                 args.push(self.expression()?);
@@ -257,6 +460,37 @@ impl Parser {
             args
         } else {
             self.parse_args()?
+        };
+        let (name, suffix) = if is_bracket && matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+            let mut full = full_name(name, suffix);
+            while matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+                self.index += 1;
+                if let TokenKind::Identifier { name: member, .. } = self.peek_kind().clone() {
+                    self.index += 1;
+                    full = format!("{full}.{member}");
+                } else if let TokenKind::Keyword(kw) = self.peek_kind().clone() {
+                    self.index += 1;
+                    full = format!("{full}.{kw:?}");
+                } else {
+                    break;
+                }
+            }
+            (full, None)
+        } else {
+            (name, suffix)
+        };
+        // Handle array access after dot member: host[i].alias[n] = ...
+        let extra_index = if is_bracket && matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+            self.index += 1;
+            let idx = self.expression()?;
+            while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                self.index += 1;
+                let _ = self.expression();
+            }
+            self.expect_symbol(']')?;
+            Some(idx)
+        } else {
+            None
         };
         let full_at = full_name(name.clone(), suffix);
         let is_at = is_at_builtin(&full_at) && (args.len() == 1 || args.len() == 2);
@@ -270,18 +504,22 @@ impl Parser {
                 value,
             });
         }
-        if matches!(self.peek_kind(), TokenKind::Symbol('=')) && args.len() == 1 {
-            self.index += 1;
-            let value = self.expression()?;
-            self.expect_line_end()?;
-            let full = full_name(name, suffix);
-            return Ok(Statement::ArrayAssignment {
-                target: full,
-                index: args.into_iter().next().unwrap(),
-                value,
-            });
+        if let Some(idx) = extra_index {
+            if matches!(self.peek_kind(), TokenKind::Symbol('=')) {
+                self.index += 1;
+                let value = self.expression()?;
+                self.expect_line_end()?;
+                let full = full_name(name, suffix);
+                return Ok(Statement::ArrayAssignment {
+                    target: full,
+                    index: idx,
+                    value,
+                });
+            }
         }
-        let is_mid = suffix == Some(TypeSuffix::String) && name == "MID" && (args.len() == 2 || args.len() == 3);
+        let is_mid = suffix == Some(TypeSuffix::String)
+            && name == "MID"
+            && (args.len() == 2 || args.len() == 3);
         if matches!(self.peek_kind(), TokenKind::Symbol('=')) && is_mid {
             self.index += 1;
             let value = self.expression()?;
@@ -297,6 +535,18 @@ impl Parser {
                 value,
             });
         }
+        if matches!(self.peek_kind(), TokenKind::Symbol('=')) && !args.is_empty() {
+            self.index += 1;
+            let value = self.expression()?;
+            self.expect_line_end()?;
+            let full = full_name(name, suffix);
+            // For multi-dim arrays, only use the first dimension
+            return Ok(Statement::ArrayAssignment {
+                target: full,
+                index: args.into_iter().next().unwrap(),
+                value,
+            });
+        }
         self.expect_line_end()?;
         let full = full_name(name, suffix);
         Ok(Statement::Call { name: full, args })
@@ -307,6 +557,14 @@ impl Parser {
             Some(Keyword::External) | Some(Keyword::Internal)
         ) {
             self.index += 1;
+        }
+        if matches!(self.peek_kind(), TokenKind::SystemVariable { .. })
+            || matches!(self.peek_kind(), TokenKind::Symbol('/'))
+            || matches!(self.peek_kind(), TokenKind::SharedName(_))
+        {
+            self.skip_to_line_end();
+            self.expect_line_end()?;
+            return Ok(Statement::Compound(vec![]));
         }
         if matches!(self.peek_keyword(), Some(Keyword::CFunction)) {
             self.index += 1;
@@ -330,6 +588,10 @@ impl Parser {
         } else {
             Vec::new()
         };
+        // Skip optional return type after params: FUNCTION Xcm () DOUBLE
+        if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
+            self.index += 1;
+        }
         self.expect_line_end()?;
         let mut body = Vec::new();
         self.skip_newlines();
@@ -337,31 +599,47 @@ impl Parser {
         // function/declare/program/end, this is a declaration only
         let is_forward = self.at_eof()
             || self.is_end_program()
+            || (self.peek_keyword() == Some(Keyword::Function)
+                && !matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))))
             || matches!(
                 self.peek_keyword(),
-                Some(Keyword::Function)
-                    | Some(Keyword::External)
-                    | Some(Keyword::Internal)
+                Some(Keyword::Internal)
                     | Some(Keyword::CFunction)
                     | Some(Keyword::Declare)
                     | Some(Keyword::Program)
-            );
+                    | Some(Keyword::Export)
+            )
+        ;
         if is_forward {
             return Ok(Statement::Function(FunctionDecl::new(
                 name, suffix, params, body,
             )));
         }
         while !self.at_eof() && !self.starts_end_function() {
+            // If we encounter a new function declaration, this is a forward declaration
+            if (matches!(self.peek_keyword(), Some(Keyword::Function) | Some(Keyword::Internal) | Some(Keyword::CFunction))
+                && !matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
+            )
+            {
+                break;
+            }
             body.push(self.statement()?);
             self.skip_newlines();
         }
-        self.expect_keyword(Keyword::End)?;
-        self.expect_keyword(Keyword::Function)?;
-        // Skip optional function name after END FUNCTION
-        if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
-            self.index += 1;
+        if self.starts_end_function() {
+            self.expect_keyword(Keyword::End)?;
+            self.expect_keyword(Keyword::Function)?;
+            // Skip optional function name or $$TRUE/$$FALSE after END FUNCTION
+            if matches!(self.peek_kind(), TokenKind::Identifier { .. })
+                || matches!(self.peek_kind(), TokenKind::SystemVariable { .. })
+                || matches!(self.peek_kind(), TokenKind::SystemConstant(_))
+            {
+                self.index += 1;
+            }
+            self.expect_line_end()?;
+        } else if self.at_eof() {
+            return Err(self.expected("keyword"));
         }
-        self.expect_line_end()?;
         Ok(Statement::Function(FunctionDecl::new(
             name, suffix, params, body,
         )))
@@ -369,19 +647,89 @@ impl Parser {
     fn if_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::If)?;
         let condition = self.expression()?;
-        self.expect_keyword(Keyword::Then)?;
-        if self.at_line_end() {
+        // THEN is optional in single-line IF: IF (cond) statement
+        let has_then = matches!(self.peek_keyword(), Some(Keyword::Then));
+        if has_then {
+            self.index += 1;
+        }
+        if has_then && self.at_line_end() {
             let stmt = self.parse_if_chain_with_cond(condition)?;
-            self.expect_keyword(Keyword::End)?;
-            self.expect_keyword(Keyword::If)?;
+            self.expect_end_if()?;
             self.expect_line_end()?;
             Ok(stmt)
+        } else if !has_then && self.at_line_end() {
+            // IF without THEN at line end — distinguish:
+            // 1. ''' consumed THEN: condition ends with Comparison(..., IntegerLiteral("0"))
+            //    from '' (empty string). Treat as single-line no-op.
+            // 2. Multi-line IF without THEN (IF lineNumFlag): condition is not a comparison
+            //    with 0. Parse body until END IF.
+            self.expect_line_end()?;
+            let is_triple_quote = matches!(
+                &condition,
+                Expression::Comparison { right, .. }
+ if matches!(right.as_ref(), Expression::IntegerLiteral(s) if s == "0")
+            );
+            if is_triple_quote {
+                // Single-line no-op (THEN consumed by ''' comment)
+                Ok(Statement::If {
+                    condition,
+                    then_body: Vec::new(),
+                    else_body: None,
+                })
+            } else {
+                // Multi-line IF without THEN — parse body until END IF or ELSE
+                self.skip_newlines();
+                let mut then_body = Vec::new();
+                while !self.at_eof() && !self.starts_end_if() && !self.starts_else() {
+                    then_body.push(self.statement()?);
+                    self.skip_newlines();
+                }
+                let else_body = if self.starts_else() {
+                    self.expect_keyword(Keyword::Else)?;
+                    self.expect_line_end()?;
+                    self.skip_newlines();
+                    let mut body = Vec::new();
+                    while !self.at_eof() && !self.starts_end_if() {
+                        body.push(self.statement()?);
+                        self.skip_newlines();
+                    }
+                    Some(body)
+                } else {
+                    None
+                };
+                self.expect_end_if()?;
+                self.expect_line_end()?;
+                Ok(Statement::If {
+                    condition,
+                    then_body,
+                    else_body,
+                })
+            }
         } else {
-            self.in_single_line_if = true;
-            let then_body = vec![self.statement()?];
-            let else_body = if matches!(self.peek_keyword(), Some(Keyword::Else)) {
+            // Skip extra THEN (legacy: IF x THEN THEN RETURN)
+            while matches!(self.peek_keyword(), Some(Keyword::Then)) {
                 self.index += 1;
-                Some(vec![self.statement()?])
+            }
+            self.in_single_line_if = true;
+            let body_start = self.index;
+            let mut then_body = vec![self.statement()?];
+            // Parse additional statements separated by : (not consumed as line end
+            // when in_single_line_if is true)
+            while matches!(self.peek_kind(), TokenKind::Symbol(':')) {
+                self.index += 1;
+                then_body.push(self.statement()?);
+            }
+            let consumed_newline = self.tokens[body_start..self.index]
+                .iter()
+                .any(|t| matches!(t.kind, TokenKind::Newline));
+            let else_body = if !consumed_newline && matches!(self.peek_keyword(), Some(Keyword::Else)) {
+                self.index += 1;
+                let mut body = vec![self.statement()?];
+                while matches!(self.peek_kind(), TokenKind::Symbol(':')) {
+                    self.index += 1;
+                    body.push(self.statement()?);
+                }
+                Some(body)
             } else {
                 None
             };
@@ -395,7 +743,35 @@ impl Parser {
     }
     fn inc_dec_stmt(&mut self, is_inc: bool) -> Result<Statement, ParseError> {
         self.index += 1;
-        let (target, suffix) = self.expect_identifier()?;
+        let (target, suffix) = self.expect_name_or_keyword()?;
+        // Skip optional array brackets
+        if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+            self.index += 1;
+            while !matches!(self.peek_kind(), TokenKind::Symbol(']')) && !self.at_eof() {
+                if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                    self.index += 1;
+                } else {
+                    let _ = self.expression();
+                }
+            }
+            self.expect_symbol(']')?;
+        }
+        // Handle dot member access
+        let target = if matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+            let mut full = target;
+            while matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+                self.index += 1;
+                if let TokenKind::Identifier { name: member, .. } = self.peek_kind().clone() {
+                    self.index += 1;
+                    full = format!("{full}.{member}");
+                } else {
+                    break;
+                }
+            }
+            full
+        } else {
+            target
+        };
         self.expect_line_end()?;
         if is_inc {
             Ok(Statement::Inc { target, suffix })
@@ -406,8 +782,32 @@ impl Parser {
     fn swap_stmt(&mut self) -> Result<Statement, ParseError> {
         self.index += 1;
         let (left, left_suffix) = self.expect_identifier()?;
+        // Skip optional array brackets (including multi-dim with commas)
+        if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+            self.index += 1;
+            while !matches!(self.peek_kind(), TokenKind::Symbol(']')) && !self.at_eof() {
+                if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                    self.index += 1;
+                } else {
+                    let _ = self.expression();
+                }
+            }
+            self.expect_symbol(']')?;
+        }
         self.expect_symbol(',')?;
         let (right, right_suffix) = self.expect_identifier()?;
+        // Skip optional array brackets (including multi-dim with commas)
+        if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+            self.index += 1;
+            while !matches!(self.peek_kind(), TokenKind::Symbol(']')) && !self.at_eof() {
+                if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                    self.index += 1;
+                } else {
+                    let _ = self.expression();
+                }
+            }
+            self.expect_symbol(']')?;
+        }
         self.expect_line_end()?;
         Ok(Statement::Swap {
             left,

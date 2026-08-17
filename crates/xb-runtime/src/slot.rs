@@ -118,7 +118,6 @@ pub struct ExecutionState {
     pub(crate) data_pos: usize,
     pub(crate) error_code: i32,
     pub(crate) files: Vec<Option<std::fs::File>>,
-    pub(crate) gosub_stack: Vec<usize>,
     pub(crate) label_addresses: std::collections::HashMap<String, usize>,
 }
 impl ExecutionState {

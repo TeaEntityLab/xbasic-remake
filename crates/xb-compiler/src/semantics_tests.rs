@@ -31,24 +31,19 @@ fn auto_declares_unknown_symbol_on_assignment() {
 }
 
 #[test]
-fn rejects_assignment_type_mismatch() {
+fn accepts_assignment_type_coercion() {
+    // Legacy compatibility: XBasic allows implicit type coercion
     let program = parse_program("DIM name$\nname$ = 42\n").unwrap();
     let result = Analyzer::analyze(&program);
-    assert!(matches!(
-        result,
-        Err(SemanticError::TypeMismatch {
-            ref name,
-            expected: ValueType::String,
-            actual: ValueType::Integer,
-        }) if name == "name"
-    ));
+    assert!(result.is_ok());
 }
 
 #[test]
-fn rejects_duplicate_symbols_in_scope() {
+fn allows_duplicate_symbols_in_scope() {
+    // Legacy compatibility: XBasic allows re-declaration of variables
     let program = parse_program("DIM name$\nDIM name$\n").unwrap();
     let result = Analyzer::analyze(&program);
-    assert!(matches!(result, Err(SemanticError::DuplicateSymbol { ref name }) if name == "name"));
+    assert!(result.is_ok());
 }
 #[test]
 fn auto_declares_unknown_symbol_in_print() {

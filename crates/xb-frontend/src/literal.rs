@@ -36,6 +36,7 @@ impl Lexer<'_> {
                     Some('n') => value.push('\n'),
                     Some('t') => value.push('\t'),
                     Some('r') => value.push('\r'),
+                    Some('0') => value.push('\0'),
                     Some(other) => {
                         // Unknown escape: keep backslash + char literally
                         value.push('\\');
@@ -65,7 +66,13 @@ impl Lexer<'_> {
         let pos = self.pos();
         let mut text = String::new();
         let mut is_float = false;
-        if self.lookahead == Some('0') {
+        // Handle .5 (number starting with dot)
+        if self.lookahead == Some('.') {
+            is_float = true;
+            text.push('.');
+            self.advance();
+            self.take_while(&mut text, |ch| ch.is_ascii_digit());
+        } else if self.lookahead == Some('0') {
             text.push('0');
             self.advance();
             if let Some(prefix @ ('x' | 'X')) = self.lookahead {
@@ -80,45 +87,73 @@ impl Lexer<'_> {
                 self.take_while(&mut text, crate::lexeme::is_bin_digit);
                 return Token::new(TokenKind::IntegerLiteral(text), pos);
             }
-        }
-        self.take_while(&mut text, |ch| ch.is_ascii_digit());
-        if self.lookahead == Some('.') {
-            is_float = true;
-            text.push('.');
-            self.advance();
+            if let Some(prefix @ ('o' | 'O')) = self.lookahead {
+                text.push(prefix);
+                self.advance();
+                self.take_while(&mut text, |ch| ch.is_ascii_digit());
+                return Token::new(TokenKind::IntegerLiteral(text), pos);
+            }
+            if let Some(prefix @ ('d' | 'D')) = self.lookahead {
+                text.push(prefix);
+                self.advance();
+                self.take_while(&mut text, is_hex_digit);
+                return Token::new(TokenKind::IntegerLiteral(text), pos);
+            }
             self.take_while(&mut text, |ch| ch.is_ascii_digit());
+            if self.lookahead == Some('.') {
+                is_float = true;
+                text.push('.');
+                self.advance();
+                self.take_while(&mut text, |ch| ch.is_ascii_digit());
+            }
+        } else {
+            self.take_while(&mut text, |ch| ch.is_ascii_digit());
+            if self.lookahead == Some('.') {
+                is_float = true;
+                text.push('.');
+                self.advance();
+                self.take_while(&mut text, |ch| ch.is_ascii_digit());
+            }
         }
-        if matches!(self.lookahead, Some('e' | 'E')) {
-            // Only treat as exponent if followed by digit or +/- and digit
+        if matches!(self.lookahead, Some('e' | 'E' | 'd' | 'D')) {
             let next = self.chars.clone().next();
             let is_exp = match next {
                 Some(c) if c.is_ascii_digit() => true,
                 Some('+' | '-') => {
                     let mut peek = self.chars.clone();
-                    peek.next(); // skip sign
+                    peek.next();
                     peek.next().map(|c| c.is_ascii_digit()).unwrap_or(false)
                 }
                 _ => false,
             };
             if is_exp {
                 is_float = true;
-                self.take_exponent(&mut text);
+                // For d/D exponent, replace with e in the text
+                if matches!(self.lookahead, Some('d' | 'D')) {
+                    text.push('e');
+                    self.advance();
+                    if matches!(self.lookahead, Some('+') | Some('-')) {
+                        text.push(self.lookahead.unwrap());
+                        self.advance();
+                    }
+                    self.take_while(&mut text, |ch| ch.is_ascii_digit());
+                } else {
+                    self.take_exponent(&mut text);
+                }
             }
         }
-        // Handle type suffix: # (Double), ! (Single), % (Integer)
+        // Handle $$ suffix (XBasic double-dollar suffix, e.g. 234567$$)
+        if self.lookahead == Some('$') {
+            // Consume all trailing $ characters
+            while self.lookahead == Some('$') {
+                self.advance();
+            }
+            return Token::new(TokenKind::FloatLiteral(text), pos);
+        }
         match self.lookahead {
-            Some('#') => {
-                self.advance();
-                return Token::new(TokenKind::FloatLiteral(text), pos);
-            }
-            Some('!') => {
-                self.advance();
-                return Token::new(TokenKind::FloatLiteral(text), pos);
-            }
-            Some('%') => {
-                self.advance();
-                return Token::new(TokenKind::IntegerLiteral(text), pos);
-            }
+            Some('#') => { self.advance(); return Token::new(TokenKind::FloatLiteral(text), pos); }
+            Some('!') => { self.advance(); return Token::new(TokenKind::FloatLiteral(text), pos); }
+            Some('%') => { self.advance(); return Token::new(TokenKind::IntegerLiteral(text), pos); }
             _ => {}
         }
         let kind = if is_float {
@@ -166,7 +201,17 @@ impl Lexer<'_> {
             return Ok(Token::new(TokenKind::SystemVariable { name, suffix }, pos));
         }
         let name = self.name_after_prefix(pos)?;
-        Ok(Token::new(TokenKind::SharedName(name), pos))
+        let suffix = self.type_suffix();
+        // SharedName has no suffix field, so embed suffix char in the name
+        let full_name = match suffix {
+            Some(TypeSuffix::String) => format!("{name}$"),
+            Some(TypeSuffix::Integer) => format!("{name}%"),
+            Some(TypeSuffix::Single) => format!("{name}!"),
+            Some(TypeSuffix::Double) => format!("{name}#"),
+            Some(TypeSuffix::Giant) => format!("{name}&&"),
+            None => name,
+        };
+        Ok(Token::new(TokenKind::SharedName(full_name), pos))
     }
 
     pub(crate) fn system_constant(&mut self) -> Result<Token, LexError> {
@@ -290,9 +335,25 @@ impl Lexer<'_> {
             Some('%') => TypeSuffix::Integer,
             Some('!') => TypeSuffix::Single,
             Some('#') => TypeSuffix::Double,
+            Some('&') => {
+                // && is GIANT type suffix
+                self.advance();
+                if self.lookahead == Some('&') {
+                    self.advance();
+                }
+                // Consume any additional suffix chars
+                while matches!(self.lookahead, Some('$') | Some('%') | Some('!') | Some('#') | Some('&')) {
+                    self.advance();
+                }
+                return Some(TypeSuffix::Giant);
+            }
             _ => return None,
         };
         self.advance();
+        // Consume any duplicate suffix characters (e.g. endian$$, 234567$$)
+        while matches!(self.lookahead, Some('$') | Some('%') | Some('!') | Some('#')) {
+            self.advance();
+        }
         Some(suffix)
     }
 
@@ -331,6 +392,36 @@ impl Lexer<'_> {
             }
             if ch == '\n' {
                 break;
+            }
+            if ch == '\\' {
+                self.advance(); // consume backslash
+                match self.lookahead {
+                    Some('t') => { value.push('\t'); self.advance(); }
+                    Some('n') => { value.push('\n'); self.advance(); }
+                    Some('r') => { value.push('\r'); self.advance(); }
+                    Some('0') => { value.push('\0'); self.advance(); }
+                    Some('\\') => { value.push('\\'); self.advance(); }
+                    Some('\'') => { value.push('\''); self.advance(); }
+                    Some('"') => { value.push('"'); self.advance(); }
+                    Some('x') | Some('X') => {
+                        self.advance(); // consume x
+                        let mut hex = String::new();
+                        while hex.len() < 2 {
+                            match self.lookahead {
+                                Some(h) if h.is_ascii_hexdigit() => {
+                                    hex.push(h);
+                                    self.advance();
+                                }
+                                _ => break,
+                            }
+                        }
+                        let code = u32::from_str_radix(&hex, 16).unwrap_or(0);
+                        value.push(char::from_u32(code).unwrap_or('\0'));
+                    }
+                    Some(c) => { value.push(c); self.advance(); }
+                    None => break,
+                }
+                continue;
             }
             value.push(ch);
             self.advance();

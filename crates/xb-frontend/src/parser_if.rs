@@ -60,20 +60,35 @@ impl Parser {
                 right: Box::new(zero),
             }
         };
-        self.expect_keyword(Keyword::Then)?;
+        // THEN is optional in IFZ/IFT/IFF — skip extra THENs (legacy: IFZ x THEN THEN stmt)
+        while matches!(self.peek_keyword(), Some(Keyword::Then)) {
+            self.index += 1;
+        }
         if self.at_line_end() {
             let stmt = self.parse_if_chain_with_cond(condition)?;
-            self.expect_keyword(Keyword::End)?;
-            self.expect_keyword(Keyword::If)?;
+            self.expect_end_if()?;
             self.expect_line_end()?;
             Ok(stmt)
         } else {
             // Single-line IFZ/IFT/IFF: THEN <stmt> [ELSE <stmt>]
             self.in_single_line_if = true;
-            let then_body = vec![self.statement()?];
-            let else_body = if matches!(self.peek_keyword(), Some(Keyword::Else)) {
+            let body_start = self.index;
+            let mut then_body = vec![self.statement()?];
+            while matches!(self.peek_kind(), TokenKind::Symbol(':')) {
                 self.index += 1;
-                Some(vec![self.statement()?])
+                then_body.push(self.statement()?);
+            }
+            let consumed_newline = self.tokens[body_start..self.index]
+                .iter()
+                .any(|t| matches!(t.kind, TokenKind::Newline));
+            let else_body = if !consumed_newline && matches!(self.peek_keyword(), Some(Keyword::Else)) {
+                self.index += 1;
+                let mut body = vec![self.statement()?];
+                while matches!(self.peek_kind(), TokenKind::Symbol(':')) {
+                    self.index += 1;
+                    body.push(self.statement()?);
+                }
+                Some(body)
             } else {
                 None
             };
@@ -135,7 +150,6 @@ impl Parser {
         self.expect_line_end()?;
         Ok(Statement::Stop)
     }
-
     pub(crate) fn label_stmt(&mut self) -> Result<Statement, ParseError> {
         let (name, _) = self.expect_name_or_keyword()?;
         self.index += 1; // skip colon
@@ -147,6 +161,11 @@ impl Parser {
 impl Parser {
     /// Parse a label expression for GOSUB/GOTO — accepts keywords as label names.
     fn label_expr(&mut self) -> Result<Expression, ParseError> {
+        if matches!(self.peek_kind(), TokenKind::Symbol('@')) {
+            self.index += 1;
+            // @ prefix with complex expression: @d86[i].action
+            return self.expression();
+        }
         let kind = self.peek_kind().clone();
         match kind {
             TokenKind::Identifier { name, suffix } => {
@@ -162,7 +181,6 @@ impl Parser {
         }
     }
 }
-
 impl Parser {
     pub(crate) fn data_stmt(&mut self) -> Result<Statement, ParseError> {
         self.index += 1;
@@ -240,6 +258,7 @@ impl Parser {
                 }
                 self.expect_symbol(']')?;
             }
+            vars.push((name, suffix));
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
             } else {

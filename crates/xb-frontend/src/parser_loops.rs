@@ -8,8 +8,24 @@ impl Parser {
         // DO NEXT means "continue to next iteration" — treat as ExitLoop
         if matches!(self.peek_keyword(), Some(Keyword::Next)) {
             self.index += 1;
+            // DO NEXT <n> — exit n loops, consume the number
+            if matches!(self.peek_kind(), TokenKind::IntegerLiteral(_)) {
+                self.index += 1;
+            }
             self.expect_line_end()?;
             return Ok(Statement::ExitLoop);
+        }
+        // DO FOR means "continue to next iteration of FOR loop" — treat as ExitLoop
+        if matches!(self.peek_keyword(), Some(Keyword::For)) {
+            self.index += 1;
+            self.expect_line_end()?;
+            return Ok(Statement::ExitLoop);
+        }
+        // DO DO means "do nothing" — treat as no-op
+        if matches!(self.peek_keyword(), Some(Keyword::Do)) {
+            self.index += 1;
+            self.expect_line_end()?;
+            return Ok(Statement::Compound(vec![]));
         }
         let pre_condition = match self.peek_keyword() {
             Some(Keyword::While) => {
@@ -24,7 +40,16 @@ impl Parser {
             }
             _ => None,
         };
-        self.expect_line_end()?;
+        // DO LOOP — empty loop with no body
+        if matches!(self.peek_keyword(), Some(Keyword::Loop)) {
+            self.index += 1;
+            self.expect_line_end()?;
+            return Ok(Statement::DoLoop {
+                pre_condition: None,
+                post_condition: None,
+                body: Vec::new(),
+            });
+        }
         let mut body = Vec::new();
         self.skip_newlines();
         while !self.at_eof() && !self.starts_loop() {

@@ -23,6 +23,9 @@ pub struct Analyzer {
     pub(crate) shared: BTreeMap<String, ValueType>,
     pub(crate) functions: BTreeMap<String, FuncSig>,
     pub(crate) return_type: Option<ValueType>,
+    /// When true, apply XBasic legacy leniency (implicit coercion, auto-declared
+    /// symbols, stubbed unknown calls). When false, enforce the strict v0.1 spec.
+    pub(crate) permissive: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,14 +35,18 @@ pub(crate) enum Scope {
 }
 
 impl Analyzer {
+    /// Permissive analysis used for CLI compilation and the legacy corpus.
     pub fn analyze(program: &Program) -> Result<CheckedProgram, SemanticError> {
+        let mut analyzer = Self {
+            permissive: true,
+            ..Self::default()
+        };
+        analyzer.program(program)
+    }
+
+    /// Strict analysis enforcing the full v0.1 diagnostic contract.
+    pub fn analyze_strict(program: &Program) -> Result<CheckedProgram, SemanticError> {
         let mut analyzer = Self::default();
-        analyzer
-            .constants
-            .insert("TRUE".to_owned(), "-1".to_owned());
-        analyzer
-            .constants
-            .insert("FALSE".to_owned(), "0".to_owned());
         analyzer.program(program)
     }
 

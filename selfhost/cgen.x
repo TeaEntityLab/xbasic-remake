@@ -2103,9 +2103,9 @@ FUNCTION emit_stmt$(s$)
       END IF
       cExpr$ = emit_expr$(arrSize$)
       IF varType$ = "string" THEN
-        emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + "[" + cExpr$ + "];" + CHR$(10) + "    for (int _i = 0; _i < " + cExpr$ + "; _i++) " + c_var_name$(varName$, varType$) + "[_i] = xb_strdup(" + CHR$(34) + CHR$(34) + ");"
+        emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + "[(" + cExpr$ + ") + 1];" + CHR$(10) + "    for (int _i = 0; _i < (" + cExpr$ + ") + 1; _i++) " + c_var_name$(varName$, varType$) + "[_i] = xb_strdup(" + CHR$(34) + CHR$(34) + ");"
       ELSE
-        emit_stmt$ = "    intptr_t " + c_var_name$(varName$, varType$) + "[" + cExpr$ + "];"
+        emit_stmt$ = "    intptr_t " + c_var_name$(varName$, varType$) + "[(" + cExpr$ + ") + 1];"
       END IF
     ELSE
       colonPos = INSTR(rest$, ":")

@@ -1,4 +1,4 @@
-use crate::helpers::{parse_float, parse_integer, read_slot, require_type};
+use crate::helpers::{parse_float, parse_integer, read_slot};
 use crate::interpreter::{exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue};
 use xb_compiler::{BooleanOp, IrExpr, IrExprKind, IrItem, IrProgram, LogicalOp, ValueType};
 
@@ -121,24 +121,29 @@ pub(crate) fn eval_expr(
                     })
                 }
             };
-            let slot = state
-                .slots
-                .get(&symbol.name)
-                .ok_or_else(|| RuntimeError::UnknownSlot {
-                    name: symbol.name.clone(),
-                })?;
-            return slot.array_get(i);
+            let value = match state.slots.get(&symbol.name) {
+                Some(slot) => slot.array_get(i)?,
+                // Undeclared array element reads as the type default (auto-declared).
+                None => RuntimeValue::default_for(symbol.value_type),
+            };
+            return Ok(value);
         }
         IrExprKind::ArrayUBound { symbol } => {
             let slot = state
                 .slots
                 .get(&symbol.name)
-                .or_else(|| state.shared.get(&symbol.name))
-                .ok_or_else(|| RuntimeError::UnknownSlot {
-                    name: symbol.name.clone(),
-                })?;
-            let len = slot.array.as_ref().map(|a| a.len()).unwrap_or(0);
-            return Ok(RuntimeValue::Integer(if len > 0 { (len - 1) as i32 } else { 0 }));
+                .or_else(|| state.shared.get(&symbol.name));
+            let upper = match slot {
+                Some(s) if s.array.is_some() => s.array.as_ref().map_or(0, |a| a.len()) as i32 - 1,
+                // UBOUND(string$) is the last byte offset = LEN(string$) - 1.
+                Some(s) => match &s.value {
+                    RuntimeValue::String(st) => st.len() as i32 - 1,
+                    _ => -1,
+                },
+                // Undeclared/empty -> -1 so `FOR i = 0 TO UBOUND(a[])` skips.
+                None => -1,
+            };
+            return Ok(RuntimeValue::Integer(upper));
         }
         IrExprKind::SizeOf { symbol } => {
             let slot = state
@@ -177,13 +182,15 @@ pub(crate) fn eval_expr(
             return Ok(RuntimeValue::Integer(idx as i32));
         }
     };
-    require_type(expr.value_type, value.value_type())?;
-    Ok(value)
+    // Coerce the result to the expression's declared type (XBasic implicit
+    // coercion) rather than erroring on a runtime type difference.
+    Ok(crate::helpers::coerce_value(value, expr.value_type))
 }
 
 pub(crate) fn exec_for(
     program: &IrProgram,
     item: &IrItem,
+    func_body: &[IrItem],
     state: &mut ExecutionState,
     output: &mut Vec<String>,
 ) -> Result<Flow, RuntimeError> {
@@ -221,18 +228,16 @@ pub(crate) fn exec_for(
         });
     }
     while if si > 0 { i <= ei } else { i >= ei } {
+        // Auto-declare the loop variable if it was never DIM'd (legacy XBasic).
         let slot = state
             .slots
-            .get_mut(&var.name)
-            .ok_or_else(|| RuntimeError::UnknownSlot {
-                name: var.name.clone(),
-            })?;
+            .entry(var.name.clone())
+            .or_insert_with(|| crate::slot::TypedSlot::new(var.value_type));
         slot.value = RuntimeValue::Integer(i);
-        match exec_items(program, body, state, output)? {
+        match exec_items(program, body, func_body, 0, state, output)? {
             Flow::Return(r) => return Ok(Flow::Return(r)),
             Flow::Break => break,
             Flow::Goto(label) => return Ok(Flow::Goto(label)),
-            Flow::Gosub(label) => return Ok(Flow::Gosub(label)),
             Flow::GosubReturn => return Ok(Flow::GosubReturn),
             Flow::Continue => {}
         }

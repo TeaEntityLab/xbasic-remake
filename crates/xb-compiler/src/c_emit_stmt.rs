@@ -18,14 +18,14 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     out.push_str(c_type(symbol.value_type));
                     out.push(' ');
                     emit_var_name(symbol, out);
-                    out.push('[');
+                    out.push_str("[(");
                     emit_expr(sz, out);
-                    out.push_str("];\n");
+                    out.push_str(") + 1];\n");
                     if symbol.value_type == ValueType::String {
                         out.push_str(&ind);
-                        out.push_str("for (int _i = 0; _i < ");
+                        out.push_str("for (int _i = 0; _i < (");
                         emit_expr(sz, out);
-                        out.push_str("; _i++) ");
+                        out.push_str(") + 1; _i++) ");
                         emit_var_name(symbol, out);
                         out.push_str("[_i] = xb_strdup(\"\");\n");
                     }

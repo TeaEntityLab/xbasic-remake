@@ -55,18 +55,15 @@ fn keeps_shared_constant_and_variable_namespaces_separate() {
 }
 
 #[test]
-fn rejects_reference_to_unassigned_shared_variable() {
+fn auto_decls_unassigned_shared_variable() {
     // Given
     let program = parse_program("PRINT ##Missing\n").unwrap();
 
-    // When
+    // When — legacy compatibility: auto-declare unknown shared variables
     let result = Analyzer::analyze(&program);
 
-    // Then
-    assert!(matches!(
-        result,
-        Err(SemanticError::UnknownSharedVariable { ref name }) if name == "Missing"
-    ));
+    // Then — should succeed (auto-declared as Integer)
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -119,44 +116,26 @@ fn resolves_shared_variable_assigned_inside_an_earlier_function() {
 }
 
 #[test]
-fn rejects_shared_assignment_that_conflicts_with_the_declared_type() {
-    // Given
+fn accepts_shared_assignment_with_conflicting_type() {
+    // Legacy compatibility: allow implicit type coercion for shared variables
     let program =
         parse_program("FUNCTION Main\n##XBDir$ = \"/usr/xb\"\n##XBDir$ = 1\nEND FUNCTION\n")
             .unwrap();
-
-    // When
     let result = Analyzer::analyze(&program);
-
-    // Then
-    assert!(matches!(
-        result,
-        Err(SemanticError::TypeMismatch {
-            ref name,
-            expected: ValueType::String,
-            actual: ValueType::Integer,
-        }) if name == "XBDir"
-    ));
+    assert!(result.is_ok());
 }
 
 #[test]
-fn rejects_shared_reference_whose_suffix_conflicts_with_the_declared_type() {
-    // Given
+fn accepts_shared_reference_with_conflicting_suffix() {
+    // Legacy compatibility: allow any suffix type for shared variables
     let program =
         parse_program("FUNCTION Init\n##XBSystem = 1\nEND FUNCTION\nPRINT ##XBSystem$\n").unwrap();
 
     // When
     let result = Analyzer::analyze(&program);
 
-    // Then
-    assert!(matches!(
-        result,
-        Err(SemanticError::TypeMismatch {
-            ref name,
-            expected: ValueType::String,
-            actual: ValueType::Integer,
-        }) if name == "XBSystem"
-    ));
+    // Then — should succeed (type coercion)
+    assert!(result.is_ok());
 }
 
 #[test]

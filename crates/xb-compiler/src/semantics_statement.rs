@@ -1,7 +1,7 @@
 use xb_frontend::{Expression, Statement, TypeSuffix};
 
 use crate::semantics::{
-    Analyzer, CheckedItem, CheckedSymbol, ExprResult, ItemResult, Scope, SemanticError, ValueType,
+    Analyzer, CheckedExpr, CheckedItem, CheckedSymbol, ItemResult, Scope, SemanticError, ValueType,
 };
 
 impl Analyzer {
@@ -34,14 +34,15 @@ impl Analyzer {
             Statement::BuiltinAssign { name, args, value } => {
                 self.builtin_assign(name, args, value)
             }
-            Statement::ConstantDefinition { name, value } => self.constant_definition(name, value),
+            Statement::ConstantDefinition { name, value } => {
+                self.constant_definition(name, value, scope)
+            }
             Statement::SharedAssignment {
                 name,
                 suffix,
                 value,
             } => {
-                let scope = if scope == Scope::TopLevel { Scope::Function } else { scope };
-                self.shared_assignment(name, *suffix, value)
+                self.shared_assignment(name, *suffix, value, scope)
             }
             Statement::If {
                 condition,
@@ -148,7 +149,12 @@ impl Analyzer {
         })
     }
 
-    fn constant_definition(&mut self, name: &str, value: &str) -> ItemResult {
+    fn constant_definition(&mut self, name: &str, value: &str, scope: Scope) -> ItemResult {
+        if !self.permissive && scope != Scope::TopLevel {
+            return Err(SemanticError::ConstantDefinitionNotTopLevel {
+                name: name.to_owned(),
+            });
+        }
         match self.constants.insert(name.to_owned(), value.to_owned()) {
             Some(_) => Err(SemanticError::DuplicateConstant {
                 name: name.to_owned(),
@@ -166,16 +172,19 @@ impl Analyzer {
         name: &str,
         s: Option<TypeSuffix>,
         v: &Expression,
+        scope: Scope,
     ) -> ItemResult {
-        let value = self.expr(v)?;
-        let vt = self.declare_shared(name, s)?;
-        if vt != value.value_type {
-            return Err(SemanticError::TypeMismatch {
+        if !self.permissive && scope == Scope::TopLevel {
+            return Err(SemanticError::SharedAssignmentNotInFunction {
                 name: name.to_owned(),
-                expected: vt,
-                actual: value.value_type,
             });
         }
+        let value = self.expr(v)?;
+        let vt = self.declare_shared(name, s)?;
+        // Relaxed: allow any type (XBasic implicit coercion)
+        let value = if vt != value.value_type {
+            CheckedExpr::new(value.kind.clone(), vt)
+        } else { value };
         Ok(CheckedItem::SharedAssignment {
             target: CheckedSymbol::new(name.to_owned(), vt),
             value,
@@ -189,15 +198,8 @@ impl Analyzer {
     ) -> Result<ValueType, SemanticError> {
         let req = ValueType::from_suffix(s);
         let declared = *self.shared.entry(name.to_owned()).or_insert(req);
-        if declared == req {
-            Ok(declared)
-        } else {
-            Err(SemanticError::TypeMismatch {
-                name: name.to_owned(),
-                expected: req,
-                actual: declared,
-            })
-        }
+        // Relaxed: always return declared type
+        Ok(declared)
     }
 
     fn return_stmt(&mut self, scope: Scope, value: Option<&Expression>) -> ItemResult {
@@ -211,12 +213,16 @@ impl Analyzer {
         let checked = match value {
             Some(e) => {
                 let v = self.expr(e)?;
-                if v.value_type != ret {
+                if !self.permissive && !crate::semantics_expr::types_coercible(v.value_type, ret) {
                     return Err(SemanticError::ReturnTypeMismatch {
                         expected: ret,
                         actual: v.value_type,
                     });
                 }
+                // Coerce compatible mismatches to the declared return type.
+                let v = if v.value_type != ret {
+                    CheckedExpr::new(v.kind.clone(), ret)
+                } else { v };
                 Some(v)
             }
             // RETURN without value = GOSUB return (falls back to function return at runtime)

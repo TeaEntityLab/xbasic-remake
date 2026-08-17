@@ -38,13 +38,29 @@ pub fn expression(kind: IrExprKind, value_type: ValueType) -> IrExpr {
 pub fn compile_and_run(
     source_path: &Path,
 ) -> Result<(String, String, xb_runtime::ExecutionState), String> {
+    compile_and_run_mode(source_path, false)
+}
+
+pub fn compile_and_run_strict(
+    source_path: &Path,
+) -> Result<(String, String, xb_runtime::ExecutionState), String> {
+    compile_and_run_mode(source_path, true)
+}
+
+fn compile_and_run_mode(
+    source_path: &Path,
+    strict: bool,
+) -> Result<(String, String, xb_runtime::ExecutionState), String> {
     let source = fs::read_to_string(source_path)
         .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
     let unit = FrontendUnit::parse(&source)
         .map_err(|error| format!("cannot parse {}: {error}", source_path.display()))?;
-    let program = unit
-        .lower_ir()
-        .map_err(|error| format!("cannot lower {}: {error}", source_path.display()))?;
+    let program = if strict {
+        unit.lower_ir_strict()
+    } else {
+        unit.lower_ir()
+    }
+    .map_err(|error| format!("cannot lower {}: {error}", source_path.display()))?;
     let text_ir = TextIrEmitter::new().emit_program(&program);
     let mut lines = Vec::new();
     let input_path = source_path.with_extension("in");
@@ -82,7 +98,7 @@ pub fn check_selfhost(
     name: &str,
     idx: usize,
 ) -> Result<(), String> {
-    let (ir, output, state) = compile_and_run(&root.join(format!("selfhost/{name}.x")))?;
+    let (ir, _output, state) = compile_and_run(&root.join(format!("selfhost/{name}.x")))?;
     assert_golden(&stems[idx].with_extension("ir"), ir.as_bytes())?;
     if name == "xut_bootstrap_manifest" {
         assert_eq!(state.metadata().version(), Some("0.0001"));

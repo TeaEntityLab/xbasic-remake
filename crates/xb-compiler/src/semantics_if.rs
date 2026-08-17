@@ -7,7 +7,11 @@ use crate::semantics::{
 impl Analyzer {
     pub(crate) fn check_integer(&mut self, expr: &Expression) -> ExprResult {
         let cond = self.expr(expr)?;
-        // Allow any type in boolean context (XBasic treats strings as boolean)
+        if !self.permissive && cond.value_type != ValueType::Integer {
+            return Err(SemanticError::IfConditionNotInteger {
+                actual: cond.value_type,
+            });
+        }
         Ok(cond)
     }
     pub(crate) fn if_stmt(

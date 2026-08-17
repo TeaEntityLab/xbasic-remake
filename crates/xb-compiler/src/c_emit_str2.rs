@@ -14,6 +14,7 @@ pub(crate) fn emit_hexx(args: &[IrExpr], out: &mut String, emit_fn: impl Fn(&IrE
 }
 
 /// Emits C code for 2-arg HEX$(value, width) -> xb_hex2(value, width).
+#[allow(dead_code)]
 pub(crate) fn emit_hex2(args: &[IrExpr], out: &mut String, emit_fn: impl Fn(&IrExpr, &mut String)) {
     out.push_str("xb_hex2(");
     emit_fn(&args[0], out);
@@ -72,6 +73,7 @@ pub(crate) fn emit_clip(
 }
 
 /// Emits C code for 2-arg MID$(s$, start) -> xb_mid2(s, start).
+#[allow(dead_code)]
 pub(crate) fn emit_mid2(args: &[IrExpr], out: &mut String, emit_fn: impl Fn(&IrExpr, &mut String)) {
     out.push_str("xb_mid2(");
     emit_fn(&args[0], out);

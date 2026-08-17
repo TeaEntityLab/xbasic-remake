@@ -1,5 +1,4 @@
 use crate::eval::eval;
-use crate::helpers::require_type;
 use crate::interpreter::{exec_items, Flow};
 use crate::slot::{ExecutionState, RuntimeError, TypedSlot};
 use xb_compiler::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol, PrintSep};
@@ -10,6 +9,7 @@ pub(crate) fn exec_select_case(
     selector: &IrExpr,
     cases: &[xb_compiler::IrCaseClause],
     default: Option<&[IrItem]>,
+    func_body: &[IrItem],
     state: &mut ExecutionState,
     output: &mut Vec<String>,
 ) -> Result<Flow, RuntimeError> {
@@ -19,11 +19,11 @@ pub(crate) fn exec_select_case(
         for cond in &case.conditions {
             let cv = eval(program, cond, state)?;
             if sel == cv {
-                let flow = exec_items(program, &case.body, state, output)?;
+                let flow = exec_items(program, &case.body, func_body, 0, state, output)?;
                 match flow {
                     Flow::Continue | Flow::Break => {}
                     Flow::Return(_) => return Ok(flow),
-                    Flow::Goto(_) | Flow::Gosub(_) | Flow::GosubReturn => return Ok(flow),
+                    Flow::Goto(_) | Flow::GosubReturn => return Ok(flow),
                 }
                 matched = true;
                 break;
@@ -35,11 +35,11 @@ pub(crate) fn exec_select_case(
     }
     if !matched {
         if let Some(def) = default {
-            let flow = exec_items(program, def, state, output)?;
+            let flow = exec_items(program, def, func_body, 0, state, output)?;
             match flow {
                 Flow::Continue | Flow::Break => {}
                 Flow::Return(_) => return Ok(flow),
-                Flow::Goto(_) | Flow::Gosub(_) | Flow::GosubReturn => return Ok(flow),
+                Flow::Goto(_) | Flow::GosubReturn => return Ok(flow),
             }
         }
     }
@@ -51,26 +51,18 @@ pub(crate) fn exec_swap(
     right: &xb_compiler::IrSymbol,
     state: &mut ExecutionState,
 ) -> Result<(), RuntimeError> {
-    let lv = state
+    // Swap the entire slots (value + array contents), auto-declaring either
+    // operand if it was never DIM'd (legacy XBasic).
+    let l = state
         .slots
-        .get(&left.name)
-        .map(|s| s.value.clone())
-        .ok_or_else(|| RuntimeError::UnknownSlot {
-            name: left.name.clone(),
-        })?;
-    let rv = state
+        .remove(&left.name)
+        .unwrap_or_else(|| crate::slot::TypedSlot::new(left.value_type));
+    let r = state
         .slots
-        .get(&right.name)
-        .map(|s| s.value.clone())
-        .ok_or_else(|| RuntimeError::UnknownSlot {
-            name: right.name.clone(),
-        })?;
-    if let Some(slot) = state.slots.get_mut(&left.name) {
-        slot.value = rv;
-    }
-    if let Some(slot) = state.slots.get_mut(&right.name) {
-        slot.value = lv;
-    }
+        .remove(&right.name)
+        .unwrap_or_else(|| crate::slot::TypedSlot::new(right.value_type));
+    state.slots.insert(left.name.clone(), r);
+    state.slots.insert(right.name.clone(), l);
     Ok(())
 }
 
@@ -114,13 +106,12 @@ pub(crate) fn exec_shared(
     program: &IrProgram,
     state: &mut ExecutionState,
 ) -> Result<(), RuntimeError> {
-    let v = eval(program, value, state)?;
-    require_type(target.value_type, v.value_type())?;
+    // Coerce to the target type (XBasic implicit coercion).
+    let v = crate::helpers::coerce_value(eval(program, value, state)?, target.value_type);
     let slot = state
         .shared
         .entry(target.name.clone())
         .or_insert_with(|| TypedSlot::new(target.value_type));
-    require_type(slot.value_type, target.value_type)?;
     slot.value = v;
     Ok(())
 }

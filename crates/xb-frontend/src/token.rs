@@ -16,6 +16,7 @@ pub enum TypeSuffix {
     Integer,
     Single,
     Double,
+    Giant,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,6 +185,8 @@ pub enum TokenKind {
     LogicalAnd,
     LogicalOr,
     LogicalXor,
+    LBrace2,
+    RBrace2,
     Symbol(char),
     Newline,
     Eof,
@@ -195,6 +198,7 @@ pub fn full_name(name: String, suffix: Option<TypeSuffix>) -> String {
         Some(TypeSuffix::Single) => format!("{name}!"),
         Some(TypeSuffix::Double) => format!("{name}#"),
         Some(TypeSuffix::Integer) => format!("{name}%"),
+        Some(TypeSuffix::Giant) => format!("{name}&&"),
         None => name,
     }
 }

@@ -4,7 +4,7 @@ use xb_frontend::Expression;
 
 impl Analyzer {
     pub(crate) fn type_conversion(&self, name: &str, args: &[Expression]) -> Option<ExprResult> {
-        if ((name == "ABS"
+        if (name == "ABS"
             || name == "STR$"
             || name == "DOUBLE"
             || name == "SINGLE"
@@ -18,7 +18,7 @@ impl Analyzer {
             || name == "GIANT"
             || name == "GOADDR"
             || name == "SUBADDR")
-            && !args.is_empty())
+            && !args.is_empty()
         {
             let arg = self.expr(&args[0]).ok()?;
             let rt = match name {

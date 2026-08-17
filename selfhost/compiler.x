@@ -8,8 +8,8 @@ DIM pos
 DIM ch
 DIM ntok
 DIM done
-DIM tt$(16384)
-DIM tv$(16384)
+DIM tt$(65536)
+DIM tv$(65536)
 DIM tpos
 DIM indent
 DIM i
@@ -893,6 +893,14 @@ WHILE tpos <= ntok
             WHILE ei <= LEN(v$)
               IF ASC(MID$(v$, ei, 1)) = 92 THEN
                 esc$ = esc$ + CHR$(92) + CHR$(92)
+              ELSEIF ASC(MID$(v$, ei, 1)) = 34 THEN
+                esc$ = esc$ + CHR$(92) + CHR$(34)
+              ELSEIF ASC(MID$(v$, ei, 1)) = 9 THEN
+                esc$ = esc$ + CHR$(92) + CHR$(116)
+              ELSEIF ASC(MID$(v$, ei, 1)) = 10 THEN
+                esc$ = esc$ + CHR$(92) + CHR$(110)
+              ELSEIF ASC(MID$(v$, ei, 1)) = 13 THEN
+                esc$ = esc$ + CHR$(92) + CHR$(114)
               ELSE
                 esc$ = esc$ + MID$(v$, ei, 1)
               END IF
