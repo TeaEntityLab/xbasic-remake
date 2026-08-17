@@ -1,7 +1,8 @@
 use xb_frontend::{Expression, Statement, TypeSuffix};
 
 use crate::semantics::{
-    Analyzer, CheckedExpr, CheckedItem, CheckedSymbol, ItemResult, Scope, SemanticError, ValueType,
+    Analyzer, CheckedExpr, CheckedItem, CheckedSymbol, CompositeLayout, ItemResult, Scope,
+    SemanticError, ValueType,
 };
 
 impl Analyzer {
@@ -264,24 +265,45 @@ impl Analyzer {
         let Some(layout) = self.composites.get(type_name).cloned() else {
             return Ok(CheckedItem::Nop);
         };
+        let mut leaves = Vec::new();
+        self.flatten_composite(var, &layout, &mut leaves);
         if is_array {
             // Array declared without a size yet; member arrays are DIM'd later.
-            for m in &layout.members {
-                self.arrays.insert(format!("{var}.{}", m.name), m.value_type);
+            for (mname, vt) in &leaves {
+                self.arrays.insert(mname.clone(), *vt);
             }
             Ok(CheckedItem::Nop)
         } else {
-            // Scalar composite: allocate one slot per member.
-            let mut items = Vec::with_capacity(layout.members.len());
-            for m in &layout.members {
-                let mname = format!("{var}.{}", m.name);
-                self.symbols.insert(mname.clone(), m.value_type);
+            // Scalar composite: one slot per recursively-flattened leaf member.
+            let mut items = Vec::with_capacity(leaves.len());
+            for (mname, vt) in leaves {
+                self.symbols.insert(mname.clone(), vt);
                 items.push(CheckedItem::Dim {
-                    symbol: CheckedSymbol::new(mname, m.value_type),
+                    symbol: CheckedSymbol::new(mname, vt),
                     size: None,
                 });
             }
             Ok(CheckedItem::Compound(items))
+        }
+    }
+
+    /// Flatten a composite layout into leaf `(dotted_name, value_type)` slots,
+    /// recursing through nested composite members (struct-of-arrays model).
+    pub(crate) fn flatten_composite(
+        &self,
+        prefix: &str,
+        layout: &CompositeLayout,
+        out: &mut Vec<(String, ValueType)>,
+    ) {
+        for m in &layout.members {
+            let mname = format!("{prefix}.{}", m.name);
+            if let Some(ct) = &m.composite_type {
+                if let Some(sub) = self.composites.get(ct) {
+                    self.flatten_composite(&mname, sub, out);
+                    continue;
+                }
+            }
+            out.push((mname, m.value_type));
         }
     }
 }

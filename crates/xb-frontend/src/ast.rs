@@ -138,6 +138,9 @@ pub struct TypeMember {
     pub byte_size: usize,
     pub is_float: bool,
     pub is_string: bool,
+    /// Raw member type keyword (e.g. `SINGLE`, or a composite type name like
+    /// `BICOORD`). Used by the analyzer to recurse into nested composite members.
+    pub type_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

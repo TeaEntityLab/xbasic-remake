@@ -411,8 +411,10 @@ impl Analyzer {
         let suffix_vt = ValueType::from_suffix(suffix);
         match self.checked_symbol(name) {
             Ok(s) => {
-                // If the found type matches the suffix type, use it
-                if s.value_type == suffix_vt {
+                // A composite member slot (dotted name) has an authoritative
+                // declared type and no suffix; trust it. Otherwise a differing
+                // suffix denotes a distinct variable (`v0` vs `v0$`).
+                if s.value_type == suffix_vt || name.contains('.') {
                     Ok(CheckedExpr::new(
                         CheckedExprKind::Symbol(s.clone()),
                         s.value_type,

@@ -1,4 +1,4 @@
-use crate::{Analyzer, CheckedExpr, CheckedExprKind, CheckedItem, SemanticError, ValueType};
+use crate::{Analyzer, CheckedExpr, CheckedExprKind, CheckedItem, ValueType};
 use xb_frontend::parse_program;
 
 #[test]

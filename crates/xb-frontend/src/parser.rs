@@ -368,6 +368,7 @@ impl Parser {
                                     byte_size,
                                     is_float,
                                     is_string,
+                                    type_name: type_kw.clone(),
                                 });
                             }
                         }

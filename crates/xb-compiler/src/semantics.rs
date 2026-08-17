@@ -22,6 +22,9 @@ pub(crate) struct CompositeMember {
     /// Byte width of this member; used when serializing composite records.
     #[allow(dead_code)]
     pub(crate) byte_size: usize,
+    /// If this member is itself a composite TYPE, its type name (for recursive
+    /// struct-of-arrays flattening). `None` for primitive members.
+    pub(crate) composite_type: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -124,6 +127,14 @@ impl Analyzer {
         let mut layout_members = Vec::with_capacity(members.len());
         let mut byte_len = 0usize;
         for m in members {
+            // A member whose type name is an already-registered composite is a
+            // nested composite; carry its type name and use its byte length.
+            let nested = self.composites.get(&m.type_name);
+            let composite_type = nested.map(|_| m.type_name.clone());
+            let byte_size = match nested {
+                Some(layout) => layout.byte_len,
+                None => m.byte_size,
+            };
             let value_type = if m.is_string {
                 ValueType::String
             } else if m.is_float {
@@ -134,9 +145,10 @@ impl Analyzer {
             layout_members.push(CompositeMember {
                 name: m.name.clone(),
                 value_type,
-                byte_size: m.byte_size,
+                byte_size,
+                composite_type,
             });
-            byte_len += m.byte_size;
+            byte_len += byte_size;
         }
         self.composites.insert(
             name.to_string(),

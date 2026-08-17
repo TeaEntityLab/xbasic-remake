@@ -14,8 +14,8 @@
 //!
 //! Sync is asserted on OBSERVABLE BEHAVIOR (native run output), not on the
 //! emitted C text: the two generators' fixed runtime *preludes* are not yet
-//! byte-identical (helper ordering/formatting and a few semantic helper diffs —
-//! tracked in `docs/16-cgen-cemitter-sync-roadmap.md`, item CG-PRELUDE). Output
+//! byte-identical (helper ordering/formatting and parameter names differ —
+//! tracked in `docs/16-cgen-cemitter-sync-roadmap.md`, item CG-BYTES). Output
 //! equivalence is the contract that actually governs a correct bootstrap.
 
 mod common;
@@ -245,5 +245,113 @@ fn cemitter_and_cgen_agree_on_selfhost_tools() {
             "SYNC BREAK: CEmitter and cgen.x disagree on selfhost tool {tool}"
         );
     }
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// Extract the set of runtime-helper signatures from emitted C, canonicalized so
+/// that only the ABI-relevant shape survives: `static <ret> xb_NAME(<param-types>)`
+/// with whitespace collapsed and parameter *names* stripped (names are cosmetic).
+/// Bodies, ordering, and formatting are ignored.
+fn extract_helper_sigs(c: &str) -> std::collections::BTreeSet<String> {
+    let mut set = std::collections::BTreeSet::new();
+    for line in c.lines() {
+        let t = line.trim_start();
+        if !t.starts_with("static ") {
+            continue;
+        }
+        // Find an `xb_<ident>` immediately followed by '(' (a function definition,
+        // not a `static` variable like `xb_files[256]`).
+        let bytes = t.as_bytes();
+        let mut search = 0usize;
+        while let Some(rel) = t[search..].find("xb_") {
+            let name_start = search + rel;
+            let mut j = name_start;
+            while j < t.len() && {
+                let d = bytes[j] as char;
+                d.is_ascii_alphanumeric() || d == '_'
+            } {
+                j += 1;
+            }
+            if j < t.len() && bytes[j] as char == '(' {
+                if let Some(crel) = t[j..].find(')') {
+                    set.insert(canonicalize_sig(&t[..j + crel + 1]));
+                }
+                break;
+            }
+            search = (name_start + 3).max(j);
+        }
+    }
+    set
+}
+
+/// Collapse whitespace and drop identifiers that sit immediately before `,` or `)`
+/// (parameter names / `void`), leaving return type + name + parameter types.
+fn canonicalize_sig(raw: &str) -> String {
+    let collapsed: String = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    let bytes = collapsed.as_bytes();
+    let mut out = String::new();
+    let mut i = 0usize;
+    while i < collapsed.len() {
+        let c = bytes[i] as char;
+        if c.is_ascii_alphabetic() || c == '_' {
+            let start = i;
+            while i < collapsed.len() && {
+                let d = bytes[i] as char;
+                d.is_ascii_alphanumeric() || d == '_'
+            } {
+                i += 1;
+            }
+            let next = collapsed[i..].chars().next().unwrap_or('\0');
+            if next != ',' && next != ')' {
+                out.push_str(&collapsed[start..i]);
+            }
+        } else {
+            out.push(c);
+            i += 1;
+        }
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// CG-COVER guard: the Rust `CEmitter` and self-hosted `cgen.x` must emit the
+/// same set of runtime-helper signatures (return type, name, parameter types).
+/// This is the structural half of sync — it catches drift the behavioral corpus
+/// test can miss because the corpus doesn't exercise every helper: a helper
+/// present in one generator but not the other (e.g. the `xb_ljust` gap), or a
+/// signature change in one only (e.g. address helpers `int` vs `intptr_t`).
+#[test]
+fn cemitter_and_cgen_helper_signatures_match() {
+    let tmp = std::env::temp_dir().join("xb_sync_sigs");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    // The runtime prelude is emitted unconditionally, so any program surfaces it.
+    let src = "VERSION \"0.1\"\nPRINT \"x\"\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse")
+        .lower_ir()
+        .expect("lower");
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    let self_c = String::from_utf8(cgen_emit(&cgen_exe, &ir)).expect("cgen output utf8");
+
+    let rust_sigs = extract_helper_sigs(&rust_c);
+    let self_sigs = extract_helper_sigs(&self_c);
+
+    assert!(
+        rust_sigs.len() > 100,
+        "expected a substantial helper set from CEmitter, got {}",
+        rust_sigs.len()
+    );
+    let only_rust: Vec<&String> = rust_sigs.difference(&self_sigs).collect();
+    let only_self: Vec<&String> = self_sigs.difference(&rust_sigs).collect();
+    assert!(
+        only_rust.is_empty() && only_self.is_empty(),
+        "runtime helper signature drift between generators:\n  only in CEmitter ({}): {:#?}\n  only in cgen.x ({}): {:#?}",
+        only_rust.len(),
+        only_rust,
+        only_self.len(),
+        only_self
+    );
     let _ = fs::remove_dir_all(&tmp);
 }

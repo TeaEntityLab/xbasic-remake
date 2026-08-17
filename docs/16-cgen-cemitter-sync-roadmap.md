@@ -35,7 +35,7 @@ That drift was real and undetected until this roadmap's tests were added — see
   **and** with the Rust interpreter on the tool's own input.
 
 Sync is asserted on **observable behavior** (native run output), not on emitted
-C text, because the emitted C is not yet byte-identical (item **CG-PRELUDE**).
+C text, because the emitted C is not yet byte-identical (item **CG-BYTES**).
 
 Run: `cargo test -p xb-runtime --test cgen_cemitter_sync`
 
@@ -54,40 +54,44 @@ already correct — it is a strict superset of CEmitter's runtime):
    (`xb_str_float(`) branches in `c_emit_expr.rs` opened a call paren but never
    emitted `)`. Only `str_float` had a corpus program; both fixed.
 
-## 4. OPEN items (not done yet)
+## 4. Item status
 
-### CG-ADDR — address helpers truncate to `int` in CEmitter
-`crates/xb-compiler/src/c_runtime.rs:227-229`:
-```c
-static int xb_goaddr(int x) { return x; }
-static int xb_subaddr(int x) { return x; }
-static int xb_funcaddress(int x) { return x; }
-```
-`cgen.x` uses `intptr_t` for all three. On 64-bit, the `CEmitter` versions
-**truncate addresses**, and are internally inconsistent with
-`xb_cstring(intptr_t addr)` on the next line (`:230`). Fix: change the three
-signatures/returns to `intptr_t`. Guard: a sync fixture exercising `GOADDR` /
-`SUBADDRESS` / `FUNCADDR` + `CSTRING` round-trips (none exist today → CG-COVER).
+### CG-ADDR — address helpers now `intptr_t` ✅ done
+`c_runtime.rs:227-229` changed `int` → `intptr_t` for `xb_goaddr` / `xb_subaddr`
+/ `xb_funcaddress`, matching `cgen.x` and consistent with `xb_cstring(intptr_t)`.
+The three emitted definitions are now byte-identical between generators. Guarded
+by CG-SIG.
 
-### CG-OPEN — `xb_open` ignores file mode 2 in CEmitter
-`crates/xb-compiler/src/c_runtime.rs:174-179` maps modes 1→`r+b`, 3→`wb`,
-4→`w+b`, everything else (incl. **2**) → `rb` (read-only). `cgen.x` maps modes
-`1|2 → r+b`. Reconcile the mode table against the interpreter's semantics
-(`$$RD`=0 … `$$RWNEW`=4) and add a mode-2 `OPEN` sync fixture.
+### CG-OPEN — `xb_open` maps file mode 2 ✅ done
+`c_runtime.rs:176` now maps `mode == 1 || mode == 2` → `r+b`, matching `cgen.x`'s
+table (0→rb, 1|2→r+b, 3→wb, 4→w+b, else rb). Behaviorally identical; the residual
+chain-vs-ternary *text* form is cosmetic (CG-BYTES).
 
-### CG-PRELUDE — emitted C is not byte-identical
-The two generators emit the same runtime helpers in **different order and
-formatting**, and differ in `#include` order (`<ctype.h>`/`<math.h>`). Target:
-make the preludes byte-identical so the sync tests can upgrade from behavioral
-equality to `assert_eq!` on the emitted C text (the tightest possible lock).
-Work: pick one canonical helper order + formatting and align both
-`c_runtime*.rs` (Rust `push_str` order) and `selfhost/cgen.x`.
+### CG-SIG — helper signature parity ✅ done
+`cemitter_and_cgen_helper_signatures_match` (in `cgen_cemitter_sync.rs`) asserts
+both generators emit the same set of `static <ret> xb_NAME(<param-types>)`
+signatures (param names, ordering, and bodies ignored). This is the structural
+half of sync — it catches the two drift classes that slip past the behavioral
+corpus: a helper present in one generator only (the `xb_ljust` gap), and a
+signature/type change in one only (the CG-ADDR `int`/`intptr_t` drift). 174
+signatures, identical on both sides.
 
-### CG-COVER — behavioral sync corpus has blind spots
-The locked tests only cover constructs present in the positive corpus + selfhost
-tools. They do **not** exercise address-of builtins (CG-ADDR), file mode 2
-(CG-OPEN), or high-byte strings (see 17: RT-BYTESTRING). Add targeted fixtures
-so those drifts are caught by CI, not by inspection.
+### CG-BYTES — full byte-identical C — deferred (cosmetic)
+Beyond signatures the generators still differ in: helper *ordering*, parameter
+*names* (`addr`/`off` vs `a`/`o` in the 12 `*AT` accessors), `#include` order
+(`<ctype.h>`/`<math.h>`), and body formatting (e.g. `xb_open` chain vs ternary).
+None affect behavior or the signature contract. Full byte-identity would let the
+sync test upgrade to `assert_eq!` on emitted C (the tightest lock) but requires
+reconciling ~170 helpers' order/formatting between a Rust emitter and an XBasic
+one — an ongoing cosmetic burden. **Deferred**: CG-SIG + the behavioral corpus
+cover the high-value drift.
+
+### CG-BODY-COVER — behavioral blind spots remain (low priority)
+The behavioral tests don't exercise address-of builtins, file mode 2, or
+high-byte strings (17: RT-BYTESTRING), so body-logic drift *in those specific
+helpers* isn't caught behaviorally (their signatures still are, via CG-SIG).
+Clean closure needs deterministic fixtures (hard for raw addresses / temp files);
+tracked, low priority given CG-SIG coverage.
 
 ## 5. Verification
 

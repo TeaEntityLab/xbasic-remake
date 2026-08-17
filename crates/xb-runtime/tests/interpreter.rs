@@ -289,3 +289,27 @@ fn executes_comparison_branches() {
     Interpreter::new().execute(&prog, &mut out).unwrap();
     assert_eq!(out, ["0"]);
 }
+
+#[test]
+fn nested_composite_members_resolve_to_declared_float_type() {
+    // A TYPE whose members are themselves composites (BINODE holds two BICOORDs).
+    // Member access must recurse to the leaf float slots (`L1.a.x`), not collapse
+    // the nested member to a scalar integer (which truncated 10.5 -> 10).
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         TYPE BICOORD\nSINGLE .x\nSINGLE .y\nEND TYPE\n\
+         TYPE BINODE\nBICOORD .a\nBICOORD .b\nEND TYPE\n\
+         FUNCTION Main\n\
+         BINODE L1\n\
+         L1.a.x = 10.5\n\
+         L1.b.y = 20.25\n\
+         PRINT L1.a.x\n\
+         PRINT L1.b.y\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["10.5", "20.25"]);
+}

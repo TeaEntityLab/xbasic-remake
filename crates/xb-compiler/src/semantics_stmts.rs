@@ -17,13 +17,14 @@ impl Analyzer {
                     Some(e) => Some(self.expr(e)?),
                     None => None,
                 };
-                let mut items = Vec::with_capacity(layout.members.len());
-                for m in &layout.members {
-                    let mname = format!("{name}.{}", m.name);
-                    self.arrays.insert(mname.clone(), m.value_type);
-                    self.symbols.insert(mname.clone(), m.value_type);
+                let mut leaves = Vec::new();
+                self.flatten_composite(name, &layout, &mut leaves);
+                let mut items = Vec::with_capacity(leaves.len());
+                for (mname, vt) in leaves {
+                    self.arrays.insert(mname.clone(), vt);
+                    self.symbols.insert(mname.clone(), vt);
                     items.push(CheckedItem::Dim {
-                        symbol: CheckedSymbol::new(mname, m.value_type),
+                        symbol: CheckedSymbol::new(mname, vt),
                         size: checked_size.clone(),
                     });
                 }
@@ -73,8 +74,10 @@ impl Analyzer {
         self.symbols.entry(name.to_owned()).or_insert(suffix_vt);
         let target = if self.symbols.contains_key(name) {
             let sym = self.checked_symbol(name)?;
-            // If found type matches suffix type, use it; otherwise treat as different variable
-            if sym.value_type == suffix_vt {
+            // A composite member slot (dotted name) has an authoritative declared
+            // type and no suffix; trust it. Otherwise a differing suffix denotes a
+            // distinct variable (`v0` vs `v0$`).
+            if sym.value_type == suffix_vt || name.contains('.') {
                 sym
             } else {
                 CheckedSymbol::new(name.to_owned(), suffix_vt)
