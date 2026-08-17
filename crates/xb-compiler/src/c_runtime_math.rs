@@ -8,6 +8,7 @@ pub(crate) fn emit_math_functions(out: &mut String) {
     out.push_str("static double xb_acos(double v) { return acos(v); }\n");
     out.push_str("static double xb_asin(double v) { return asin(v); }\n");
     out.push_str("static double xb_atan(double v) { return atan(v); }\n");
+    out.push_str("static double xb_atn(double v) { return atan(v); }\n");
     out.push_str("static double xb_atan2(double a, double b) { return atan2(a, b); }\n");
     out.push_str("static double xb_log10(double v) { return log10(v); }\n");
     out.push_str("static double xb_power(double a, double b) { return pow(a, b); }\n");
@@ -39,8 +40,10 @@ pub(crate) fn emit_math_functions(out: &mut String) {
     out.push_str("static double xb_round(double v) { return round(v); }\n");
     out.push_str("static double xb_timer(void) { time_t t = time(NULL); struct tm *tm = localtime(&t); return tm->tm_hour*3600.0 + tm->tm_min*60.0 + tm->tm_sec; }\n");
     out.push_str("static char* xb_time(void) { time_t t = time(NULL); struct tm *tm = localtime(&t); char* r = malloc(9); snprintf(r, 9, \"%02d:%02d:%02d\", tm->tm_hour, tm->tm_min, tm->tm_sec); return r; }\n");
+    out.push_str("static char* xb_date(void) { time_t t = time(NULL); struct tm *tm = localtime(&t); char* r = malloc(11); snprintf(r, 11, \"%04d-%02d-%02d\", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday); return r; }\n");
     out.push_str("static char* xb_hexx(int v, int w) { char* r = malloc(34); r[0]='0'; r[1]='x'; if (w > 0) snprintf(r+2, 32, \"%0*X\", w, v); else snprintf(r+2, 32, \"%X\", v); return r; }\n");
     out.push_str("static char* xb_rjust(const char* s, int w) { int len = strlen(s); if (len >= w) return xb_strdup(s); char* r = malloc(w + 1); int pad = w - len; for (int i = 0; i < pad; i++) r[i] = ' '; memcpy(r + pad, s, len); r[w] = 0; return r; }\n");
+    out.push_str("static char* xb_ljust(const char* s, int w) { int len = strlen(s); if (len >= w) return xb_strdup(s); char* r = malloc(w + 1); memcpy(r, s, len); for (int i = len; i < w; i++) r[i] = ' '; r[w] = 0; return r; }\n");
     out.push_str("static char* xb_rclip1(const char* s) { int len = strlen(s); while (len > 0 && isspace(s[len-1])) len--; char* r = malloc(len + 1); memcpy(r, s, len); r[len] = 0; return r; }\n");
     out.push_str("static char* xb_rclip2(const char* s, int n) { int len = strlen(s); if (n >= len) return xb_strdup(\"\"); int newlen = len - n; char* r = malloc(newlen + 1); memcpy(r, s, newlen); r[newlen] = 0; return r; }\n");
     out.push_str("static char* xb_lclip1(const char* s) { int i = 0; while (s[i] && isspace(s[i])) i++; return xb_strdup(s + i); }\n");

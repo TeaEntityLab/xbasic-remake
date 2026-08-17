@@ -196,6 +196,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                     }
                     emit_expr(arg, out);
                 }
+                out.push(')');
             } else if is_type_conversion(name) {
                 emit_type_conversion(name, &args[0], out, emit_expr);
             } else if name == "HEXX$" {
@@ -214,6 +215,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                     }
                     emit_expr(arg, out);
                 }
+                out.push(')');
             } else if name == "EXTS"
                 || name == "EXTU"
                 || name == "CLR"
@@ -221,6 +223,8 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 || name == "MAKE"
             {
                 crate::c_emit_bitops::emit_bit_op_call(name, args, out);
+            } else if name == "MID$" && args.len() == 2 {
+                crate::c_emit_str2::emit_mid2(args, out, emit_expr);
             } else {
                 emit_c_function_name(name, out);
                 out.push('(');

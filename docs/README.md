@@ -43,6 +43,15 @@ and how it achieves cross-platform portability.
 | 31 | [Stage-2 Contract v0.17](stage2-contract-v0.17.md) | String functions INSTR, VAL, STR$ for parsing and conversion |
 | 32 | [Stage-2 Contract v0.18](stage2-contract-v0.18.md) | Runtime input: READLINE$() and EOF() for stdin-style input buffer |
 
+## Roadmaps
+
+Living roadmaps of open work (updated as work lands, not fixed chapters):
+
+| Doc | Covers |
+|---|---|
+| [16 — cgen ↔ CEmitter Sync Roadmap](16-cgen-cemitter-sync-roadmap.md) | Keeping the Rust `CEmitter` and self-hosted `cgen.x` in sync: behavioral sync locked by tests, plus open items (address helpers `int`→`intptr_t`, `xb_open` file mode 2, byte-identical prelude) |
+| [17 — Open-Work Roadmap](17-open-work-roadmap.md) | Umbrella "everything not done yet": LLVM object emission + LLVM 22 toolchain/CI, x87 JIT, `Vec<u8>` byte strings, kernel32/function-pointer runtime, legacy corpus test gating, demo/GUI status |
+
 ## The big picture
 
 XBASIC is **self-hosted**: the compiler, IDE, and libraries are all written in XBASIC.

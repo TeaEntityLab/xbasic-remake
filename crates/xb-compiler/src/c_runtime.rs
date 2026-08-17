@@ -214,6 +214,7 @@ out.push_str("#include <stdint.h>\n");
     out.push_str("    return xb_strdup(buf);\n");
     out.push_str("}\n");
 out.push_str("static char* xb_tab(int cur, int col) { if (col <= cur) return xb_strdup(\"\"); int n = col - cur; char* r = malloc(n + 1); memset(r, ' ', n); r[n] = 0; return r; }\n");
+out.push_str("static char* xb_tab_0(int col) { return xb_tab(0, col); }\n");
 out.push_str("static int xb_isdata(const char* s) { return (s && s[0]) ? -1 : 0; }\n");
 out.push_str("static char* xb_inkey(void) {\n");
 out.push_str("    int c = getchar();\n");
