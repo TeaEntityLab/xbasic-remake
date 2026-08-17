@@ -379,3 +379,27 @@ fn compares_float_to_integer_literal() {
         .unwrap();
     assert_eq!(output, ["2"]);
 }
+
+#[test]
+fn fixed_length_string_composite_member_holds_string() {
+    // A `STRING*N` (fixed-length) composite member must be a String slot, not an
+    // Integer that renders as `0`. The parser previously dropped the member
+    // entirely because the `*N` size spec sat between the type keyword and the
+    // `.member` (RT-FIXEDSTR).
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         TYPE R\nSTRING*32 .s\nSTRING .t\nEND TYPE\n\
+         FUNCTION Main\n\
+         R r\n\
+         r.s = \"hi\"\n\
+         r.t = \"yo\"\n\
+         PRINT r.s\n\
+         PRINT r.t\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["hi", "yo"]);
+}

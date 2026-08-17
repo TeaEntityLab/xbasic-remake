@@ -13,8 +13,8 @@
 > its named locking test, and every open item re-confirmed still open (no silent
 > regression *or* silent progress). Two doc corrections landed this pass:
 > DEMO-RUNTIME recount (68/114) and the stale bootstrap fixed-point hash
-> (`f6e21a03…` → `c8d5c7f1…`; docs/13 §Stages, docs/14 §21). One newly isolated
-> gap recorded: RT-FIXEDSTR.
+> (`f6e21a03…` → `c8d5c7f1…`; docs/13 §Stages, docs/14 §21). One gap was found and
+> fixed this pass: RT-FIXEDSTR (`STRING*N` composite members; see §2).
 
 ## 1. Backends
 
@@ -74,23 +74,24 @@ interpreter runtime.
 `afuntype.x` exercises calling through function pointers: `dog.setName =
 &NameDog()` then `@dog.setName (@dog, answer$)` (a `FUNCADDR` composite member as
 call target, with a composite `@`-by-ref arg). Parsing/lowering exist and the
-program now runs to `rc == 0`, but **silently wrong**: with input `Rex`/`brown`
-it prints `You claim 0 has 0 hair.` (expected `You claim Rex has brown hair.`) and
-raises no runtime error. Two gaps stack — the `FUNCADDR` dispatch itself, and
-RT-FIXEDSTR below (the `STRING*32` members render as `0` however they are set) —
-so funcptr correctness cannot even be observed until RT-FIXEDSTR is fixed.
+program runs to `rc == 0` but does not yet dispatch correctly. Since RT-FIXEDSTR
+was fixed the `STRING*32` members are proper String slots, so it now prints
+`You claim  has  hair.` (empty strings, no longer `0`). Two blockers remain: the
+`FUNCADDR` call dispatch itself, and `INLINE$` reading stdin (both prompts return
+empty here, so `.hairColor` — set by a plain assignment from `INLINE$` — is also
+empty). Neither is a `STRING*N` problem any more.
 
-### RT-FIXEDSTR — fixed-length string (`STRING*N`) composite members typed as Integer `[verified 2026-08-17]`
-A composite TYPE member declared `STRING*N .m` (fixed-length string) is not
-resolved as a String slot — it defaults to Integer and renders as `0`. Isolated
-repro: a TYPE with `STRING*32 .s` and plain `STRING .t`, assigned `"hi"` / `"yo"`
-and printed, yields `fixed:0 var:yo` — the plain `STRING` member is correct, the
-`STRING*N` member is `0`. Adjacent to RT-NESTED-COMPOSITE (which fixed
-float/integer and nested-composite member typing) but the fixed-length-string
-member type was never covered. Blocks `afuntype` (RT-FUNCPTR) and migration of any
-record with `STRING*N` fields. Fix: honor the declared `STRING*N` type when
-registering/lowering composite members (`semantics*.rs` `register_type` /
-`composite_decl`), mirroring the float-member fix.
+### RT-FIXEDSTR — fixed-length string (`STRING*N`) composite members ✅ done
+A composite TYPE member declared `STRING*N .m` was silently **dropped from the
+layout entirely**: the TYPE-member parser matched only `TYPEKW . name`, and the
+`*N` size spec between the keyword and the `.member` broke the match, so `.name` /
+`.hairColor` / `STRING*32 .s` never became members and read back as Integer `0`.
+Fixed in `parser.rs` (`type_stmt`): skip an optional `*<int>` before the `.`,
+record the member with the type keyword's `is_string`, and use `N` as its byte
+size. Repro now prints `fixed:hi var:yo` (was `fixed:0 var:yo`). Locked by
+`interpreter.rs::fixed_length_string_composite_member_holds_string`. No
+golden-bearing source (selfhost, positive corpus) uses `STRING*N` members, so the
+bootstrap fixed point is unaffected.
 
 ### RT-BYREF — pass-by-reference (`@`) parameter write-back ✅ done
 `@x` call arguments now write the callee's final parameter value back into the

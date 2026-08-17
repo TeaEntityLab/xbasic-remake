@@ -456,29 +456,48 @@ impl Parser {
         let mut line_start = true;
         while !self.at_eof() && depth > 0 {
             if line_start {
-                if let (Some(kw_tok), Some(dot_tok), Some(name_tok)) = (
-                    self.tokens.get(self.index),
-                    self.tokens.get(self.index + 1),
-                    self.tokens.get(self.index + 2),
-                ) {
+                if let Some(kw_tok) = self.tokens.get(self.index) {
                     if let TokenKind::Identifier { name: type_kw, .. } = &kw_tok.kind {
-                        if matches!(dot_tok.kind, TokenKind::Symbol('.')) {
-                            let member_name = match &name_tok.kind {
-                                TokenKind::Identifier { name, .. } => Some(name.clone()),
-                                TokenKind::SharedName(n) => Some(n.clone()),
-                                TokenKind::Keyword(kw) => Some(format!("{kw:?}")),
+                        // A member may carry a fixed-length/size spec between the
+                        // type keyword and the `.member`, e.g. `STRING*32 .name`.
+                        // Skip an optional `*<int>` so the member is still recorded
+                        // (it was previously dropped from the layout entirely) and
+                        // use the length as the member's byte size.
+                        let (dot_off, fixed_len) = if matches!(
+                            self.tokens.get(self.index + 1).map(|t| &t.kind),
+                            Some(TokenKind::Symbol('*'))
+                        ) {
+                            let len = match self.tokens.get(self.index + 2).map(|t| &t.kind) {
+                                Some(TokenKind::IntegerLiteral(n)) => n.parse::<usize>().ok(),
                                 _ => None,
                             };
-                            if let Some(member_name) = member_name {
-                                let (byte_size, is_float, is_string) =
-                                    Self::member_type_info(type_kw);
-                                members.push(TypeMember {
-                                    name: member_name,
-                                    byte_size,
-                                    is_float,
-                                    is_string,
-                                    type_name: type_kw.clone(),
-                                });
+                            (3, len)
+                        } else {
+                            (1, None)
+                        };
+                        if let (Some(dot_tok), Some(name_tok)) = (
+                            self.tokens.get(self.index + dot_off),
+                            self.tokens.get(self.index + dot_off + 1),
+                        ) {
+                            if matches!(dot_tok.kind, TokenKind::Symbol('.')) {
+                                let member_name = match &name_tok.kind {
+                                    TokenKind::Identifier { name, .. } => Some(name.clone()),
+                                    TokenKind::SharedName(n) => Some(n.clone()),
+                                    TokenKind::Keyword(kw) => Some(format!("{kw:?}")),
+                                    _ => None,
+                                };
+                                if let Some(member_name) = member_name {
+                                    let (byte_size, is_float, is_string) =
+                                        Self::member_type_info(type_kw);
+                                    let byte_size = fixed_len.unwrap_or(byte_size);
+                                    members.push(TypeMember {
+                                        name: member_name,
+                                        byte_size,
+                                        is_float,
+                                        is_string,
+                                        type_name: type_kw.clone(),
+                                    });
+                                }
                             }
                         }
                     }
