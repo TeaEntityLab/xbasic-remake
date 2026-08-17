@@ -104,9 +104,19 @@ fresh variable scope instead of the caller's. Repro: `x = 5 : GOSUB Bump` with
 lost. This is the **final blocker for msc.x's "Decoded as"** round-trip: `MscHexStr$`
 GOSUBs `ConvertChar`, which must read the caller's `c$` and write `c` back in the shared
 scope. With RT-BYTESTRING + SEL-CASE-TRUE + VAR-SUFFIX-COLLISION fixed, the `c` / `c$`
-naming is now consistent across both sides, so only scope-sharing remains. Fix: run a
-`GOSUB`-target local `SUB` body in the caller's `ExecutionState` (shared slots) — treat
-local SUBs as label-scoped routines, not separate functions.
+naming is now consistent across both sides, so only scope-sharing remains. **Attempted
+& reverted** (lowering-only inline): rewriting a GOSUB-targeted nested SUB to `Label +
+body + GosubReturn` in `ir_lower` makes `gosub.x` → `15` and `msc.x` → `Decoded as:
+robin@example.com`, but regresses `ary.x` with a `String`/`String` mismatch — the SUB is
+still *name-resolved as a separate function* (its own VAR-SUFFIX collision set + symbol
+scope), so running it in the shared scope diverges its slot names from the caller's;
+seeding the SUB with the caller's collision set did **not** fix `ary.x` (a distinct
+String/String error remains, so there is more than naming to it). Correct fix: analyze a
+GOSUB-target local SUB **inline in the caller's `Analyzer` scope** (shared `symbols` +
+`collisions`) during semantic analysis — emitting `Label` + body + `GosubReturn` —
+instead of a separate `function()`; the interpreter's existing shared-scope
+`Label`/`GosubReturn` path then runs it. Root-cause the residual `ary.x` mismatch first.
+Golden-safe (selfhost uses no SUBs).
 
 ### RT-KERNEL32 — kernel32/stdio stubs for `acgibin` `[verified 2026-08-17]`
 `acgibin.x` needs `GetStdHandle`/`ReadFile`/`WriteFile` and the handle constants
