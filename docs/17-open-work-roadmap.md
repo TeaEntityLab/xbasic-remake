@@ -8,6 +8,14 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
+> Last full re-verification: **2026-08-17**. `cargo test --workspace --exclude
+> xb-ide` = **154 passed / 0 failed**; every `✅ done` item below re-confirmed via
+> its named locking test, and every open item re-confirmed still open (no silent
+> regression *or* silent progress). Two doc corrections landed this pass:
+> DEMO-RUNTIME recount (68/114) and the stale bootstrap fixed-point hash
+> (`f6e21a03…` → `c8d5c7f1…`; docs/13 §Stages, docs/14 §21). One newly isolated
+> gap recorded: RT-FIXEDSTR.
+
 ## 1. Backends
 
 ### LB-STUB — LLVM backend emits an empty object `[verified]`
@@ -57,15 +65,32 @@ byte-capable channels (else high bytes are lossy at the boundary and the
 interpreter diverges from the byte-faithful C backend). Interacts with
 CG-BODY-COVER.
 
-### RT-KERNEL32 — kernel32/stdio stubs for `acgibin` `[carried]`
+### RT-KERNEL32 — kernel32/stdio stubs for `acgibin` `[verified 2026-08-17]`
 `acgibin.x` needs `GetStdHandle`/`ReadFile`/`WriteFile` and the handle constants
 `$$STD_INPUT_HANDLE=-10` / `$$STD_OUTPUT_HANDLE=-11`. Not implemented in the
 interpreter runtime.
 
-### RT-FUNCPTR — function-pointer calls (`afuntype`) `[carried]`
-`afuntype.x` exercises calling through function pointers (`FUNCADDR` values used
-as call targets). Parsing/lowering exist; runtime dispatch through a
-function-pointer value does not.
+### RT-FUNCPTR — function-pointer calls (`afuntype`) `[verified 2026-08-17]`
+`afuntype.x` exercises calling through function pointers: `dog.setName =
+&NameDog()` then `@dog.setName (@dog, answer$)` (a `FUNCADDR` composite member as
+call target, with a composite `@`-by-ref arg). Parsing/lowering exist and the
+program now runs to `rc == 0`, but **silently wrong**: with input `Rex`/`brown`
+it prints `You claim 0 has 0 hair.` (expected `You claim Rex has brown hair.`) and
+raises no runtime error. Two gaps stack — the `FUNCADDR` dispatch itself, and
+RT-FIXEDSTR below (the `STRING*32` members render as `0` however they are set) —
+so funcptr correctness cannot even be observed until RT-FIXEDSTR is fixed.
+
+### RT-FIXEDSTR — fixed-length string (`STRING*N`) composite members typed as Integer `[verified 2026-08-17]`
+A composite TYPE member declared `STRING*N .m` (fixed-length string) is not
+resolved as a String slot — it defaults to Integer and renders as `0`. Isolated
+repro: a TYPE with `STRING*32 .s` and plain `STRING .t`, assigned `"hi"` / `"yo"`
+and printed, yields `fixed:0 var:yo` — the plain `STRING` member is correct, the
+`STRING*N` member is `0`. Adjacent to RT-NESTED-COMPOSITE (which fixed
+float/integer and nested-composite member typing) but the fixed-length-string
+member type was never covered. Blocks `afuntype` (RT-FUNCPTR) and migration of any
+record with `STRING*N` fields. Fix: honor the declared `STRING*N` type when
+registering/lowering composite members (`semantics*.rs` `register_type` /
+`composite_decl`), mirroring the float-member fix.
 
 ### RT-BYREF — pass-by-reference (`@`) parameter write-back ✅ done
 `@x` call arguments now write the callee's final parameter value back into the
@@ -111,7 +136,7 @@ not a min-IR-line threshold), and flags swallow regressions (a `>20`-source-line
 file collapsing to `<=2` IR lines). Floors pin current counts (≥151 / ≥13 / ≥40,
 ≥204 total); additions must still lower, removals fail the gate.
 
-### MIG-SEMANTICS — run-level fixtures landed for clean libs `[verified]`
+### MIG-SEMANTICS — run-level fixtures landed for clean libs `[verified 2026-08-17]`
 Beyond parse/lower (MIG-CORPUS-GATE), `crates/xb-runtime/tests/xbsourcelib_run.rs`
 now runs core libs through the interpreter: `ary.x` and
 `utils/mergeTest01`/`mergeTest02` run to a clean exit; `msc.x` runs end to end and
@@ -119,15 +144,32 @@ its `MscStrHex$` (string→hex) output is locked as correct; **`geo.x` now runs*
 end to end via composite params (RT-NESTED-COMPOSITE). Not yet covered: the
 `msc.x` decrypt line (RT-BYTESTRING). Expand as blockers clear.
 
+### MIG-RUNTIME-SWEEP — legacy runtime coverage measured end to end `[verified 2026-08-17]`
+Beyond parse/lower (MIG-CORPUS-GATE, 204/204), the runnable *programs* were run
+through the interpreter and classified. Of **130** candidate programs — 114
+`demo/*.x` + 3 `helpsrc/help_program/*.x` + 13 `XBSourceLib/*.x` — **84 run to a
+clean exit**, **46 are platform/library-blocked** (43 GUI = 40 message-loop
+timeouts + 3 GUI-init overflows; 1 Win32 console `acgibin`/RT-KERNEL32; 1 X11/GDI
+graphics `DrawScaled`; 1 unlinked Xst std-lib `qbtoxb`/`XstLoadStringArray`), and
+**0 fail for a genuine interpreter/language reason**. Libraries are not standalone
+programs: `src/shared/*` (6, platform-neutral) and `src/linux/*` (9, the platform
+deps themselves) parse+lower but are linked, not run; `demo/gtk/*` (19) are GTK
+GUI. Conclusion: **all legacy code that does not depend on platform features (GUI,
+Win32/kernel32, X11/GDI, sockets) or on an unlinked standard library is workable**
+through the interpreter.
+
 ## 4. Demos / GUI
 
-### DEMO-RUNTIME — ~69/114 demos run clean `[carried]`
-Last measured (prior session): ~69 of ~114 `xbasic-6.4.5/demo/*.x` reach a clean
-exit; ~38–40 are GUI message-loop timeouts (out of scope until a GUI runtime
-exists); the rest are diverse (network `aclient`/`aserver`; `DrawScaled`
-div-by-zero; `acgibin` → RT-KERNEL32; a few GUI stack overflows). Re-measure
-before trusting these counts. GUI runtime (winit + softbuffer GDI-shim, per
-`docs/12`) is a large separate effort, intentionally deferred.
+### DEMO-RUNTIME — 68/114 demos run clean `[verified 2026-08-17]`
+Re-measured with `xb --run` (6 s timeout, `</dev/null`): **68 / 114**
+`xbasic-6.4.5/demo/*.x` reach a clean exit; **40** are GUI message-loop timeouts,
+**3** are GUI-init stack overflows (`agrids`, `warning`, `xgrids`), and **3** are
+platform/library-blocked — `DrawScaled` (`XgrCreateWindow`; div-by-zero from a 0
+display size), `acgibin` (RT-KERNEL32), and `qbtoxb` (`XstLoadStringArray`, an Xst
+std-lib function not linked into the standalone interpreter). **Zero of the 46
+non-clean demos fail for a non-platform, non-library reason.** GUI runtime (winit +
+softbuffer GDI-shim, per `docs/12`) is a large separate effort, intentionally
+deferred.
 
 ## 5. Cross-references
 

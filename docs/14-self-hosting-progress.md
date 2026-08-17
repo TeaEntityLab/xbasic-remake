@@ -396,4 +396,4 @@ Four lexer/parser extensions to `selfhost/compiler.x` closed the gaps:
 
 4. **`##` shared with string suffix** (`##XBDir$ = "/usr/xb"`): The shared variable handler already stripped type suffixes via `strip_suffix$`, which correctly sets `##suffixType$` to `"string"` for `$` suffix. The `##` lexer already handled `##Name$` as a single token. This was already working; the mismatch was caused by the missing `$$` handler cascading parse errors into the shared statements.
 
-The 3-stage fixed point is maintained with the new golden IR hash `f6e21a03…` (SHA-256 of `fixtures/corpus/v0.1/selfhost/compiler.ir`), matching across Rust host, compA, and compB.
+The 3-stage fixed point is maintained with the golden IR hash `c8d5c7f1ed32b0287c8f16cbaaf3a73d241d59ec90469046c5b6027b6197967f` (SHA-256 of `fixtures/corpus/v0.1/selfhost/compiler.ir`), matching across Rust host, compA, and compB. Re-verified 2026-08-17: `xb --emit-ir selfhost/compiler.x` hashes identically to the committed fixture; the earlier `f6e21a03…` value predates IR growth from composite/by-ref params and is superseded.
