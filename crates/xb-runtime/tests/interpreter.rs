@@ -37,7 +37,7 @@ fn allocates_default_values_for_each_typed_slot() {
     assert_eq!(s.value(), &RuntimeValue::Float(0.0));
     let s = state.slot("name").unwrap();
     assert_eq!(s.value_type(), ValueType::String);
-    assert_eq!(s.value(), &RuntimeValue::String(String::new()));
+    assert_eq!(s.value(), &RuntimeValue::String(Vec::new()));
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn stores_and_prints_each_supported_value_type() {
     );
     assert_eq!(
         state.slot("name").unwrap().value(),
-        &RuntimeValue::String("hello".to_string())
+        &RuntimeValue::String(b"hello".to_vec())
     );
 }
 
@@ -245,9 +245,9 @@ fn execute_main_runs_top_level_then_main_in_same_state() {
     assert_eq!(output, ["top", "main"]);
     assert_eq!(state.metadata().version(), Some("6.5.0"));
     let g = state.slot("global").unwrap();
-    assert_eq!(g.value(), &RuntimeValue::String("global".to_string()));
+    assert_eq!(g.value(), &RuntimeValue::String(b"global".to_vec()));
     let l = state.slot("local").unwrap();
-    assert_eq!(l.value(), &RuntimeValue::String("main".to_string()));
+    assert_eq!(l.value(), &RuntimeValue::String(b"main".to_vec()));
 }
 
 #[test]
@@ -402,4 +402,45 @@ fn fixed_length_string_composite_member_holds_string() {
         .execute_main(&program, &mut output)
         .unwrap();
     assert_eq!(output, ["hi", "yo"]);
+}
+
+#[test]
+fn chr_above_127_is_a_single_byte() {
+    // CHR$(n) for n>127 must be one raw byte, not a multi-byte UTF-8 char;
+    // LEN counts bytes and ASC round-trips it. (RT-BYTESTRING)
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM c$\n\
+         c$ = CHR$(200)\n\
+         PRINT LEN(c$)\n\
+         PRINT ASC(c$)\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["1", "200"]);
+}
+
+#[test]
+fn string_builtins_are_byte_accurate() {
+    // Concat/LEN/MID$/RIGHT$ operate on raw bytes; high bytes survive intact.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM s$\n\
+         s$ = CHR$(200) + CHR$(65) + CHR$(255)\n\
+         PRINT LEN(s$)\n\
+         PRINT ASC(MID$(s$, 1, 1))\n\
+         PRINT ASC(MID$(s$, 3, 1))\n\
+         PRINT ASC(RIGHT$(s$, 1))\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["3", "200", "255", "255"]);
 }

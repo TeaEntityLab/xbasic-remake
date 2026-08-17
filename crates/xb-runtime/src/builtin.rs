@@ -21,33 +21,29 @@ pub(crate) fn eval_builtin(
                     value_type: xb_compiler::ValueType::Integer,
                 });
             }
-            Ok(RuntimeValue::Integer(s.as_bytes()[0] as i32))
+            Ok(RuntimeValue::Integer(s[0] as i32))
         }
         "CHR$" => {
             let RuntimeValue::Integer(n) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            let ch = char::from_u32(*n as u32)
-                .map(|c| c.to_string())
-                .unwrap_or_default();
+            let byte = *n as u8;
             if args.len() == 2 {
                 let RuntimeValue::Integer(count) = &args[1] else {
                     return Err(type_err(args[1].value_type()));
                 };
-                Ok(RuntimeValue::String(ch.repeat(*count as usize)))
+                Ok(RuntimeValue::String(vec![byte; *count as usize]))
             } else {
-                Ok(RuntimeValue::String(ch))
+                Ok(RuntimeValue::String(vec![byte]))
             }
         }
         "LEFT$" => string_slice(args, |s, n| {
-            let bytes = s.as_bytes();
-            let end = n.min(bytes.len());
-            String::from_utf8_lossy(&bytes[..end]).into_owned()
+            let end = n.min(s.len());
+            s[..end].to_vec()
         }),
         "RIGHT$" => string_slice(args, |s, n| {
-            let bytes = s.as_bytes();
-            let start = bytes.len().saturating_sub(n);
-            String::from_utf8_lossy(&bytes[start..]).into_owned()
+            let start = s.len().saturating_sub(n);
+            s[start..].to_vec()
         }),
         "MID$" => crate::builtin_str::eval_mid(args),
         "INSTR" => {
@@ -67,8 +63,7 @@ pub(crate) fn eval_builtin(
             };
             let start = start.saturating_sub(1).min(hay.len());
             Ok(RuntimeValue::Integer(
-                hay[start..]
-                    .find(needle.as_str())
+                byte_find(&hay[start..], needle)
                     .map(|i| (start + i + 1) as i32)
                     .unwrap_or(0),
             ))
@@ -79,11 +74,13 @@ pub(crate) fn eval_builtin(
             let RuntimeValue::String(s) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::Integer(s.trim().parse().unwrap_or(0)))
+            Ok(RuntimeValue::Integer(
+                String::from_utf8_lossy(s).trim().parse().unwrap_or(0),
+            ))
         }
         "STR$" => match &args[0] {
-            RuntimeValue::Integer(n) => Ok(RuntimeValue::String(n.to_string())),
-            RuntimeValue::Float(n) => Ok(RuntimeValue::String(n.to_string())),
+            RuntimeValue::Integer(n) => Ok(RuntimeValue::from_string(n.to_string())),
+            RuntimeValue::Float(n) => Ok(RuntimeValue::from_string(n.to_string())),
             _ => Err(type_err(args[0].value_type())),
         },
         "STRING$" | "STRING" => int_to_string(args, |n| n.to_string()),
@@ -98,7 +95,7 @@ pub(crate) fn eval_builtin(
             let RuntimeValue::Integer(n) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::String("\0".repeat(*n as usize)))
+            Ok(RuntimeValue::String(vec![0u8; *n as usize]))
         }
         "SQRT" => float_fn(args, |v| v.sqrt()),
         "SIN" => float_fn(args, |v| v.sin()),
@@ -125,37 +122,41 @@ pub(crate) fn eval_builtin(
             let RuntimeValue::String(s) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::String(s.to_uppercase()))
+            Ok(RuntimeValue::String(
+                s.iter().map(|b| b.to_ascii_uppercase()).collect(),
+            ))
         }
         "LCASE$" => {
             let RuntimeValue::String(s) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::String(s.to_lowercase()))
+            Ok(RuntimeValue::String(
+                s.iter().map(|b| b.to_ascii_lowercase()).collect(),
+            ))
         }
         "TRIM$" => {
             let RuntimeValue::String(s) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::String(s.trim().to_string()))
+            Ok(RuntimeValue::String(byte_trim(s, true, true).to_vec()))
         }
         "LTRIM$" => {
             let RuntimeValue::String(s) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::String(s.trim_start().to_string()))
+            Ok(RuntimeValue::String(byte_trim(s, true, false).to_vec()))
         }
         "RTRIM$" => {
             let RuntimeValue::String(s) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::String(s.trim_end().to_string()))
+            Ok(RuntimeValue::String(byte_trim(s, false, true).to_vec()))
         }
         "SPACE$" => {
             let RuntimeValue::Integer(n) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::String(" ".repeat(*n as usize)))
+            Ok(RuntimeValue::String(vec![b' '; *n as usize]))
         }
         "ABS" => crate::builtin_math::eval_abs(args),
         "DOUBLE" | "SINGLE" => crate::builtin_math::eval_to_float(args),
@@ -209,21 +210,21 @@ pub(crate) fn eval_builtin(
         "RND" => Ok(RuntimeValue::Float(crate::rng::next_rand())),
         "CEIL" | "FLOOR" | "ROUND" => crate::builtin_math::eval_rounding(name, args),
         "TIMER" => Ok(RuntimeValue::Float(crate::time_helpers::timer())),
-        "TIME$" => Ok(RuntimeValue::String(crate::time_helpers::time_str())),
-        "DATE$" => Ok(RuntimeValue::String(crate::time_helpers::date_str())),
+        "TIME$" => Ok(RuntimeValue::from_string(crate::time_helpers::time_str())),
+        "DATE$" => Ok(RuntimeValue::from_string(crate::time_helpers::date_str())),
         "CSIZE" => {
             let RuntimeValue::String(s) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            let n = s.bytes().position(|b| b == 0).unwrap_or(s.len());
+            let n = s.iter().position(|&b| b == 0).unwrap_or(s.len());
             Ok(RuntimeValue::Integer(n as i32))
         }
         "CSIZE$" => {
             let RuntimeValue::String(s) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            let n = s.bytes().position(|b| b == 0).unwrap_or(s.len());
-            Ok(RuntimeValue::String(s[..n].to_string()))
+            let n = s.iter().position(|&b| b == 0).unwrap_or(s.len());
+            Ok(RuntimeValue::String(s[..n].to_vec()))
         }
         "ISDATA" => {
             let RuntimeValue::String(s) = &args[0] else {
@@ -238,7 +239,7 @@ pub(crate) fn eval_builtin(
         "INKEY$" => {
             // Non-blocking read of a single char from stdin
             // In the interpreter, we read from the input buffer
-            Ok(RuntimeValue::String(String::new()))
+            Ok(RuntimeValue::from_str(""))
         }
         "WAITKEY" => {
             // Blocking read of a single key; returns key code
@@ -254,7 +255,7 @@ pub(crate) fn eval_builtin(
         }
         "CSTRING$" => {
             // In interpreter, no real memory; return empty string
-            Ok(RuntimeValue::String(String::new()))
+            Ok(RuntimeValue::from_str(""))
         }
         "SBYTEAT" | "UBYTEAT" | "SSHORTAT" | "USHORTAT" | "SLONGAT" | "ULONGAT" | "XLONGAT"
         | "GIANTAT" | "SUBADDRAT" | "GOADDRAT" => {
@@ -273,7 +274,7 @@ pub(crate) fn eval_builtin(
 
 fn string_slice(
     args: &[RuntimeValue],
-    f: impl Fn(&str, usize) -> String,
+    f: impl Fn(&[u8], usize) -> Vec<u8>,
 ) -> Result<RuntimeValue, RuntimeError> {
     let RuntimeValue::String(s) = &args[0] else {
         return Err(type_err(args[0].value_type()));
@@ -291,7 +292,7 @@ fn int_to_string(
     let RuntimeValue::Integer(n) = &args[0] else {
         return Err(type_err(args[0].value_type()));
     };
-    Ok(RuntimeValue::String(f(*n)))
+    Ok(RuntimeValue::from_string(f(*n)))
 }
 
 fn float_fn(args: &[RuntimeValue], f: impl Fn(f64) -> f64) -> Result<RuntimeValue, RuntimeError> {
@@ -306,4 +307,40 @@ pub(crate) fn type_err(actual: xb_compiler::ValueType) -> RuntimeError {
         expected: xb_compiler::ValueType::String,
         actual,
     }
+}
+
+/// Find the first byte-offset of `needle` in `hay` (empty needle -> Some(0)).
+pub(crate) fn byte_find(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() {
+        return Some(0);
+    }
+    if needle.len() > hay.len() {
+        return None;
+    }
+    hay.windows(needle.len()).position(|w| w == needle)
+}
+
+/// Find the last byte-offset of `needle` in `hay` (empty needle -> None).
+pub(crate) fn byte_rfind(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || needle.len() > hay.len() {
+        return None;
+    }
+    hay.windows(needle.len()).rposition(|w| w == needle)
+}
+
+/// Trim ASCII whitespace bytes from the start and/or end.
+pub(crate) fn byte_trim(s: &[u8], start: bool, end: bool) -> &[u8] {
+    let mut a = 0;
+    let mut b = s.len();
+    if start {
+        while a < b && s[a].is_ascii_whitespace() {
+            a += 1;
+        }
+    }
+    if end {
+        while b > a && s[b - 1].is_ascii_whitespace() {
+            b -= 1;
+        }
+    }
+    &s[a..b]
 }

@@ -16,7 +16,7 @@ pub(crate) fn eval_expr(
     state: &mut ExecutionState,
 ) -> Result<RuntimeValue, RuntimeError> {
     let value = match &expr.kind {
-        IrExprKind::StringLiteral(v) => RuntimeValue::String(v.clone()),
+        IrExprKind::StringLiteral(v) => RuntimeValue::from_string(v.clone()),
         IrExprKind::IntegerLiteral(v) => RuntimeValue::Integer(parse_integer(v)?),
         IrExprKind::FloatLiteral(v) => RuntimeValue::Float(parse_float(v)?),
         IrExprKind::Constant { value, .. } => RuntimeValue::Integer(parse_integer(value)?),

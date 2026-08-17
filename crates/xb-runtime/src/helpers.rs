@@ -22,18 +22,21 @@ pub(crate) fn read_slot(
 pub(crate) fn coerce_value(value: RuntimeValue, target: ValueType) -> RuntimeValue {
     match (target, value) {
         (ValueType::Integer, RuntimeValue::Float(f)) => RuntimeValue::Integer(f as i32),
-        (ValueType::Integer, RuntimeValue::String(s)) => RuntimeValue::Integer(
-            s.trim()
-                .parse::<i32>()
-                .or_else(|_| s.trim().parse::<f64>().map(|f| f as i32))
-                .unwrap_or(0),
-        ),
-        (ValueType::Float, RuntimeValue::Integer(i)) => RuntimeValue::Float(i as f64),
-        (ValueType::Float, RuntimeValue::String(s)) => {
-            RuntimeValue::Float(s.trim().parse::<f64>().unwrap_or(0.0))
+        (ValueType::Integer, RuntimeValue::String(s)) => {
+            let s = String::from_utf8_lossy(&s);
+            RuntimeValue::Integer(
+                s.trim()
+                    .parse::<i32>()
+                    .or_else(|_| s.trim().parse::<f64>().map(|f| f as i32))
+                    .unwrap_or(0),
+            )
         }
+        (ValueType::Float, RuntimeValue::Integer(i)) => RuntimeValue::Float(i as f64),
+        (ValueType::Float, RuntimeValue::String(s)) => RuntimeValue::Float(
+            String::from_utf8_lossy(&s).trim().parse::<f64>().unwrap_or(0.0),
+        ),
         (ValueType::String, v @ (RuntimeValue::Integer(_) | RuntimeValue::Float(_))) => {
-            RuntimeValue::String(v.render())
+            RuntimeValue::from_string(v.render())
         }
         // Already the target type (Integer/Float/String -> same).
         (_, v) => v,

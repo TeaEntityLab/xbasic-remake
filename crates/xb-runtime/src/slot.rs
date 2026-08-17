@@ -7,7 +7,7 @@ use xb_compiler::{EntryLookupError, ValueType};
 pub enum RuntimeValue {
     Integer(i32),
     Float(f64),
-    String(String),
+    String(Vec<u8>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -30,7 +30,7 @@ impl RuntimeValue {
         match value_type {
             ValueType::Integer => Self::Integer(0),
             ValueType::Float => Self::Float(0.0),
-            ValueType::String => Self::String(String::new()),
+            ValueType::String => Self::String(Vec::new()),
         }
     }
 
@@ -38,8 +38,18 @@ impl RuntimeValue {
         match self {
             Self::Integer(value) => value.to_string(),
             Self::Float(value) => value.to_string(),
-            Self::String(value) => value.clone(),
+            Self::String(value) => String::from_utf8_lossy(value).into_owned(),
         }
+    }
+
+    /// Build a string value from UTF-8 text.
+    pub(crate) fn from_str(s: &str) -> Self {
+        Self::String(s.as_bytes().to_vec())
+    }
+
+    /// Build a string value from an owned `String` without copying bytes.
+    pub(crate) fn from_string(s: String) -> Self {
+        Self::String(s.into_bytes())
     }
 }
 

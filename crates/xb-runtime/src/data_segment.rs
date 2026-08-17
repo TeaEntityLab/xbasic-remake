@@ -29,7 +29,7 @@ pub(crate) fn exec_read(
         let val = match entry {
             DataEntry::Integer(n) => RuntimeValue::Integer(*n),
             DataEntry::Float(f) => RuntimeValue::Float(*f),
-            DataEntry::String(s) => RuntimeValue::String(s.clone()),
+            DataEntry::String(s) => RuntimeValue::from_string(s.clone()),
         };
         if !state.slots.contains_key(&sym.name) {
             state.slots.insert(

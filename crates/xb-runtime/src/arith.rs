@@ -15,7 +15,9 @@ pub(crate) fn arith(
                     actual: ValueType::String,
                 });
             }
-            Ok(RuntimeValue::String(format!("{a}{b}")))
+            let mut v = a.clone();
+            v.extend_from_slice(b);
+            Ok(RuntimeValue::String(v))
         }
         (RuntimeValue::Integer(a), RuntimeValue::Integer(b)) => {
             let v = match op {

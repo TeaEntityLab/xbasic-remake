@@ -17,9 +17,9 @@ pub(crate) fn call_function(
             if state.input_pos < state.input.len() {
                 let line = state.input[state.input_pos].clone();
                 state.input_pos += 1;
-                return Ok(RuntimeValue::String(line));
+                return Ok(RuntimeValue::from_string(line));
             }
-            return Ok(RuntimeValue::String(String::new()));
+            return Ok(RuntimeValue::from_str(""));
         }
         "INLINE$" => {
             if let Some(IrExpr {
@@ -32,9 +32,9 @@ pub(crate) fn call_function(
             if state.input_pos < state.input.len() {
                 let line = state.input[state.input_pos].clone();
                 state.input_pos += 1;
-                return Ok(RuntimeValue::String(line));
+                return Ok(RuntimeValue::from_string(line));
             }
-            return Ok(RuntimeValue::String(String::new()));
+            return Ok(RuntimeValue::from_str(""));
         }
         "EOF" => {
             return Ok(RuntimeValue::Integer(
@@ -46,12 +46,12 @@ pub(crate) fn call_function(
             ));
         }
         "VERSION$" => {
-            return Ok(RuntimeValue::String(
+            return Ok(RuntimeValue::from_string(
                 state.metadata.version.clone().unwrap_or_default(),
             ));
         }
         "PROGRAM$" => {
-            return Ok(RuntimeValue::String(
+            return Ok(RuntimeValue::from_string(
                 state.metadata.program_name.clone().unwrap_or_default(),
             ));
         }
@@ -64,6 +64,7 @@ pub(crate) fn call_function(
                     actual: arg0.value_type(),
                 });
             };
+            let name = String::from_utf8_lossy(&name).into_owned();
             let RuntimeValue::Integer(mode) = arg1 else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::Integer,
@@ -213,10 +214,10 @@ pub(crate) fn call_function(
             };
             let idx = (fn_num - 3) as usize;
             if idx >= state.files.len() || state.files[idx].is_none() {
-                return Ok(RuntimeValue::String(String::new()));
+                return Ok(RuntimeValue::from_str(""));
             }
             use std::io::Read;
-            let mut buf = String::new();
+            let mut buf: Vec<u8> = Vec::new();
             let f = state.files[idx].as_mut().unwrap();
             let mut byte = [0u8; 1];
             loop {
@@ -227,7 +228,7 @@ pub(crate) fn call_function(
                             break;
                         }
                         if byte[0] != b'\r' {
-                            buf.push(byte[0] as char);
+                            buf.push(byte[0]);
                         }
                     }
                     Err(_) => break,
@@ -250,7 +251,7 @@ pub(crate) fn call_function(
                 }
                 return Ok(RuntimeValue::Integer(old));
             }
-            return Ok(RuntimeValue::String(format!("error {n}")));
+            return Ok(RuntimeValue::from_string(format!("error {n}")));
         }
         "QUIT" => {
             let arg = eval(program, &args[0], state)?;
@@ -270,6 +271,7 @@ pub(crate) fn call_function(
                     actual: arg.value_type(),
                 });
             };
+            let cmd = String::from_utf8_lossy(&cmd).into_owned();
             let code = std::process::Command::new("sh")
                 .arg("-c")
                 .arg(&cmd)
@@ -293,7 +295,7 @@ pub(crate) fn call_function(
         Err(_) => {
             // Stub: unknown functions return 0 or empty string
             if name.ends_with('$') {
-                return Ok(RuntimeValue::String(String::new()));
+                return Ok(RuntimeValue::from_str(""));
             }
             return Ok(RuntimeValue::Integer(0));
         }
@@ -301,7 +303,7 @@ pub(crate) fn call_function(
     let mut local = BTreeMap::new();
     let mut ret_slot = TypedSlot::new(return_type);
     if return_type == ValueType::String {
-        ret_slot.set(RuntimeValue::String(String::new()));
+        ret_slot.set(RuntimeValue::from_str(""));
     }
     local.insert(fname.to_string(), ret_slot);
     let mut writebacks: Vec<(String, String)> = Vec::new();

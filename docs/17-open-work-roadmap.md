@@ -50,20 +50,37 @@ uses plain `f64`. Only pursue if exact x87 compat semantics are ever required
 
 ## 2. Runtime semantics
 
-### RT-BYTESTRING — strings are Rust UTF-8, not bytes `[verified repro]`
-`RuntimeValue::String` (slot.rs) is a Rust `String`; `CHR$(>127)`, byte-level
-`MID$`, brace `{}` byte access, and binary record I/O on non-ASCII data are
-imperfect (guarded against panics, not correct). **Live repro**: running
-`XBSourceLib/msc/msc.x`, the MscEncrypt/MscDecrypt round-trip of
-`robin@example.com` decodes to a corrupted string full of stray back-tick
-(0x60) bytes — the XOR/char arithmetic produces bytes UTF-8 `String` mangles.
-Full fix = `Vec<u8>` strings, but scope exceeds the ~85 value sites: the
-interpreter's **I/O channels are also `String`-based** — `execute_main*` take
-`output: &mut Vec<String>` and `input: Vec<String>` (interpreter.rs), used by
-~10 test files + the sync tests — so faithful high-byte PRINT/INPUT also needs
-byte-capable channels (else high bytes are lossy at the boundary and the
-interpreter diverges from the byte-faithful C backend). Interacts with
-CG-BODY-COVER.
+### RT-BYTESTRING — byte-accurate strings: value layer ✅ done; I/O channels deferred
+`RuntimeValue::String` is now `Vec<u8>` (slot.rs), so `CHR$(>127)` yields a single
+byte and `LEN`/`ASC`/`MID$`/`LEFT$`/`RIGHT$`/`INSTR`/`RINSTR`/concat/compare/
+`STUFF$`/justify/clip and `{}` brace access are byte-accurate; textual ops (`VAL`,
+case, `TRIM$`, `FORMAT$`, numeric parse) use a lossy UTF-8 view (ASCII unchanged).
+~85 value sites updated across arith/builtin*/call/data_segment/eval/helpers/
+interpreter; `render()` is the lossy display boundary. Locked by
+`interpreter.rs::{chr_above_127_is_a_single_byte, string_builtins_are_byte_accurate}`
+(full suite 158/0). **Still deferred**: the interpreter's I/O channels remain
+`String`-based (`execute_main*` take `output: &mut Vec<String>` / `input:
+Vec<String>`, used by ~10 test files + the sync tests), so *faithful high-byte
+PRINT/INPUT* needs byte-capable channels — a separate refactor. **Correction**: the
+old "msc.x MscEncrypt/MscDecrypt … stray 0x60" repro was mis-attributed to UTF-8
+mangling; the msc.x "Decoded as" line is actually blocked by SEL-CASE-TRUE below
+(`MscHexStr$`), not by string storage.
+
+### SEL-CASE-TRUE — `SELECT CASE TRUE` never matches boolean `CASE` conditions `[verified 2026-08-17]`
+The idiom `SELECT CASE TRUE` with `CASE <boolexpr>:` branches (used by
+`MscHexStr$`'s `ConvertChar`, and common in the corpus) never matches a true
+branch — control always falls to `CASE ELSE`. Repro: with `c$ = "F"`,
+`SELECT CASE TRUE` / `CASE c$ >= "A" && "F" >= c$:` prints `else` (expected the
+A–F branch), even though the same condition is true inside a plain `IF`. Root
+cause: the `SELECT CASE TRUE` selector and the comparison/`&&` truth value
+disagree — comparisons and `&&` yield `-1` (which `IF` treats as true), but the
+`TRUE` selector does not compare equal to `-1`, so the case-equality test fails.
+Effect: `MscHexStr$` parses hex digits A–F as 0, so `robin@example.com` round-trips
+through hex to stray 0x60 (backtick) bytes (the msc.x "Decoded as" line). Fix:
+`SELECT CASE TRUE` should treat any nonzero `CASE` expression as a match (BASIC
+truthiness), or the `TRUE` literal must equal the `-1` comparison-truth value.
+Small and high-value (unblocks the msc hex/decrypt round-trip and any
+`SELECT CASE TRUE` code).
 
 ### RT-KERNEL32 — kernel32/stdio stubs for `acgibin` `[verified 2026-08-17]`
 `acgibin.x` needs `GetStdHandle`/`ReadFile`/`WriteFile` and the handle constants

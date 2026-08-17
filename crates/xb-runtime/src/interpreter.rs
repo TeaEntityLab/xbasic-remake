@@ -223,14 +223,9 @@ pub(crate) fn exec_items(
                 if let RuntimeValue::String(ref mut dst) = slot.value {
                     let si = (start_i as usize).saturating_sub(1);
                     let copy = copy_len.min(src.len()).min(dst.len().saturating_sub(si));
-                    // Guard against non-UTF-8 char boundaries (XBasic byte strings
-                    // can hold multi-byte values); skip rather than panic.
-                    if copy > 0
-                        && dst.is_char_boundary(si)
-                        && dst.is_char_boundary(si + copy)
-                        && src.is_char_boundary(copy)
-                    {
-                        dst.replace_range(si..si + copy, &src[..copy]);
+                    // Byte copy: XBasic strings are raw bytes (no char boundaries).
+                    if copy > 0 {
+                        dst[si..si + copy].copy_from_slice(&src[..copy]);
                     }
                 }
             }

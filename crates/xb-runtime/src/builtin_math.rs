@@ -40,8 +40,7 @@ pub(crate) fn eval_rinstr(args: &[RuntimeValue]) -> Result<RuntimeValue, Runtime
         return Ok(RuntimeValue::Integer(0));
     }
     Ok(RuntimeValue::Integer(
-        hay[..end]
-            .rfind(needle.as_str())
+        crate::builtin::byte_rfind(&hay[..end], needle)
             .map(|i| (i + 1) as i32)
             .unwrap_or(0),
     ))
@@ -94,19 +93,18 @@ pub(crate) fn eval_instri(name: &str, args: &[RuntimeValue]) -> Result<RuntimeVa
     if needle.is_empty() {
         return Ok(RuntimeValue::Integer(0));
     }
-    let needle_lower = needle.to_lowercase();
+    let needle_lower: Vec<u8> = needle.iter().map(|b| b.to_ascii_lowercase()).collect();
+    let hay_lower: Vec<u8> = hay.iter().map(|b| b.to_ascii_lowercase()).collect();
     let pos = if name == "RINSTRI" {
         let end = if args.len() == 3 {
             let RuntimeValue::Integer(s) = &args[2] else {
                 return Err(type_err(args[2].value_type()));
             };
-            (*s as usize).min(hay.len())
+            (*s as usize).min(hay_lower.len())
         } else {
-            hay.len()
+            hay_lower.len()
         };
-        hay[..end]
-            .to_lowercase()
-            .rfind(needle_lower.as_str())
+        crate::builtin::byte_rfind(&hay_lower[..end], &needle_lower)
             .map(|i| (i + 1) as i32)
             .unwrap_or(0)
     } else {
@@ -118,8 +116,8 @@ pub(crate) fn eval_instri(name: &str, args: &[RuntimeValue]) -> Result<RuntimeVa
         } else {
             0
         };
-        hay.to_lowercase()[start..]
-            .find(needle_lower.as_str())
+        let start = start.min(hay_lower.len());
+        crate::builtin::byte_find(&hay_lower[start..], &needle_lower)
             .map(|i| (i + start + 1) as i32)
             .unwrap_or(0)
     };
@@ -138,7 +136,9 @@ pub(crate) fn eval_to_float(args: &[RuntimeValue]) -> Result<RuntimeValue, Runti
     match &args[0] {
         RuntimeValue::Integer(n) => Ok(RuntimeValue::Float(*n as f64)),
         RuntimeValue::Float(n) => Ok(RuntimeValue::Float(*n)),
-        RuntimeValue::String(s) => Ok(RuntimeValue::Float(s.parse().unwrap_or(0.0))),
+        RuntimeValue::String(s) => Ok(RuntimeValue::Float(
+            String::from_utf8_lossy(s).parse().unwrap_or(0.0),
+        )),
     }
 }
 
@@ -146,7 +146,9 @@ pub(crate) fn eval_to_int(args: &[RuntimeValue]) -> Result<RuntimeValue, Runtime
     match &args[0] {
         RuntimeValue::Integer(n) => Ok(RuntimeValue::Integer(*n)),
         RuntimeValue::Float(n) => Ok(RuntimeValue::Integer(*n as i32)),
-        RuntimeValue::String(s) => Ok(RuntimeValue::Integer(s.parse().unwrap_or(0))),
+        RuntimeValue::String(s) => Ok(RuntimeValue::Integer(
+            String::from_utf8_lossy(s).parse().unwrap_or(0),
+        )),
     }
 }
 

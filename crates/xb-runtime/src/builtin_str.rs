@@ -8,7 +8,7 @@ pub(crate) fn eval_mid(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeErr
     let RuntimeValue::Integer(start) = &args[1] else {
         return Err(type_err(args[1].value_type()));
     };
-    let bytes = s.as_bytes();
+    let bytes: &[u8] = s;
     let start_idx = (*start as usize).saturating_sub(1).min(bytes.len());
     let end_idx = if args.len() == 3 {
         let RuntimeValue::Integer(len) = &args[2] else {
@@ -18,9 +18,7 @@ pub(crate) fn eval_mid(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeErr
     } else {
         bytes.len()
     };
-    Ok(RuntimeValue::String(
-        String::from_utf8_lossy(&bytes[start_idx..end_idx]).into_owned(),
-    ))
+    Ok(RuntimeValue::String(bytes[start_idx..end_idx].to_vec()))
 }
 
 pub(crate) fn eval_hexx(name: &str, args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
@@ -38,9 +36,9 @@ pub(crate) fn eval_hexx(name: &str, args: &[RuntimeValue]) -> Result<RuntimeValu
             format!("{:X}", *n),
             width = *w as usize
         );
-        Ok(RuntimeValue::String(padded))
+        Ok(RuntimeValue::from_string(padded))
     } else {
-        Ok(RuntimeValue::String(hex))
+        Ok(RuntimeValue::from_string(hex))
     }
 }
 
@@ -61,27 +59,26 @@ fn eval_just(name: &str, args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeE
         return Err(type_err(args[1].value_type()));
     };
     let width = *w as usize;
-    let result = if name == "RJUST$" {
-        if s.len() >= width {
-            s.clone()
+    let result: Vec<u8> = if s.len() >= width {
+        if name == "CJUST$" {
+            s[..width].to_vec()
         } else {
-            format!("{:>width$}", s, width = width)
+            s.clone()
         }
+    } else if name == "RJUST$" {
+        let mut v = vec![b' '; width - s.len()];
+        v.extend_from_slice(s);
+        v
     } else if name == "CJUST$" {
-        if s.len() >= width {
-            s[..width].to_string()
-        } else {
-            let total = width - s.len();
-            let left = total / 2;
-            let right = total - left;
-            format!("{}{}{}", " ".repeat(left), s, " ".repeat(right))
-        }
+        let left = (width - s.len()) / 2;
+        let mut v = vec![b' '; left];
+        v.extend_from_slice(s);
+        v.resize(width, b' ');
+        v
     } else {
-        if s.len() >= width {
-            s.clone()
-        } else {
-            format!("{:<width$}", s, width = width)
-        }
+        let mut v = s.clone();
+        v.resize(width, b' ');
+        v
     };
     Ok(RuntimeValue::String(result))
 }
@@ -95,9 +92,11 @@ fn eval_rclip(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
             return Err(type_err(args[1].value_type()));
         };
         let end = s.len().saturating_sub(*n as usize);
-        Ok(RuntimeValue::String(s[..end].to_string()))
+        Ok(RuntimeValue::String(s[..end].to_vec()))
     } else {
-        Ok(RuntimeValue::String(s.trim_end().to_string()))
+        Ok(RuntimeValue::String(
+            crate::builtin::byte_trim(s, false, true).to_vec(),
+        ))
     }
 }
 
@@ -110,9 +109,11 @@ fn eval_lclip(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
             return Err(type_err(args[1].value_type()));
         };
         let start = (*n as usize).min(s.len());
-        Ok(RuntimeValue::String(s[start..].to_string()))
+        Ok(RuntimeValue::String(s[start..].to_vec()))
     } else {
-        Ok(RuntimeValue::String(s.trim_start().to_string()))
+        Ok(RuntimeValue::String(
+            crate::builtin::byte_trim(s, true, false).to_vec(),
+        ))
     }
 }
 
@@ -138,27 +139,26 @@ pub(crate) fn eval_chr_search(
         s.len() as i32
     };
     let case_insensitive = name.ends_with('I');
-    let chars: Vec<char> = if case_insensitive {
-        s.to_lowercase().chars().collect()
-    } else {
-        s.chars().collect()
+    let fold = |b: u8| {
+        if case_insensitive {
+            b.to_ascii_lowercase()
+        } else {
+            b
+        }
     };
-    let set_chars: Vec<char> = if case_insensitive {
-        set.to_lowercase().chars().collect()
-    } else {
-        set.chars().collect()
-    };
+    let chars: Vec<u8> = s.iter().map(|&b| fold(b)).collect();
+    let set_bytes: Vec<u8> = set.iter().map(|&b| fold(b)).collect();
     let start_idx = (start as usize).saturating_sub(1);
     if forward {
         for i in start_idx..chars.len() {
-            if set_chars.contains(&chars[i]) {
+            if set_bytes.contains(&chars[i]) {
                 return Ok(RuntimeValue::Integer((i + 1) as i32));
             }
         }
     } else {
         let begin = start_idx.min(chars.len().saturating_sub(1));
         for i in (0..=begin).rev() {
-            if set_chars.contains(&chars[i]) {
+            if set_bytes.contains(&chars[i]) {
                 return Ok(RuntimeValue::Integer((i + 1) as i32));
             }
         }
@@ -176,24 +176,24 @@ pub(crate) fn eval_stuff(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeE
     let RuntimeValue::Integer(start) = &args[2] else {
         return Err(type_err(args[2].value_type()));
     };
-    let into_chars: Vec<char> = into.chars().collect();
-    let from_chars: Vec<char> = from.chars().collect();
-    let start_idx = (*start as usize).saturating_sub(1).min(into_chars.len());
-    let avail = into_chars.len() - start_idx;
+    let into_bytes: &[u8] = into;
+    let from_bytes: &[u8] = from;
+    let start_idx = (*start as usize).saturating_sub(1).min(into_bytes.len());
+    let avail = into_bytes.len() - start_idx;
     let max_from = if args.len() == 4 {
         let RuntimeValue::Integer(len) = &args[3] else {
             return Err(type_err(args[3].value_type()));
         };
-        (*len as usize).min(from_chars.len())
+        (*len as usize).min(from_bytes.len())
     } else {
-        from_chars.len()
+        from_bytes.len()
     };
     let phase2 = max_from.min(avail);
-    let mut result: Vec<char> = into_chars[..start_idx].to_vec();
-    result.extend_from_slice(&from_chars[..phase2]);
+    let mut result: Vec<u8> = into_bytes[..start_idx].to_vec();
+    result.extend_from_slice(&from_bytes[..phase2]);
     let phase3_start = start_idx + phase2;
-    result.extend_from_slice(&into_chars[phase3_start..]);
-    Ok(RuntimeValue::String(result.into_iter().collect()))
+    result.extend_from_slice(&into_bytes[phase3_start..]);
+    Ok(RuntimeValue::String(result))
 }
 
 /// 2-arg BIN$/BINB$/OCT$/OCTO$: format with minimum digit width.
@@ -222,8 +222,8 @@ pub(crate) fn eval_int_to_str2(
         } else {
             format!("{}{}", "0".repeat(width - digits.len()), digits)
         };
-        Ok(RuntimeValue::String(format!("{prefix}{padded}")))
+        Ok(RuntimeValue::from_string(format!("{prefix}{padded}")))
     } else {
-        Ok(RuntimeValue::String(format!("{prefix}{digits}")))
+        Ok(RuntimeValue::from_string(format!("{prefix}{digits}")))
     }
 }

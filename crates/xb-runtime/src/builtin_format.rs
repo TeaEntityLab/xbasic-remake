@@ -11,10 +11,16 @@ pub(crate) fn eval_format(args: &[RuntimeValue]) -> Result<RuntimeValue, Runtime
     let RuntimeValue::String(fmt) = &args[0] else {
         return Err(type_err(args[0].value_type()));
     };
+    let fmt = String::from_utf8_lossy(fmt);
     match &args[1] {
-        RuntimeValue::String(s) => Ok(RuntimeValue::String(format_string(fmt, s))),
-        RuntimeValue::Integer(n) => Ok(RuntimeValue::String(format_num(fmt, *n as f64, false))),
-        RuntimeValue::Float(f) => Ok(RuntimeValue::String(format_num(fmt, *f, true))),
+        RuntimeValue::String(s) => Ok(RuntimeValue::from_string(format_string(
+            &fmt,
+            &String::from_utf8_lossy(s),
+        ))),
+        RuntimeValue::Integer(n) => {
+            Ok(RuntimeValue::from_string(format_num(&fmt, *n as f64, false)))
+        }
+        RuntimeValue::Float(f) => Ok(RuntimeValue::from_string(format_num(&fmt, *f, true))),
     }
 }
 
