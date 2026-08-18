@@ -404,16 +404,69 @@ pub mod llvm_backend {
         /// Evaluate call arguments; `None` if any argument is untranslatable.
         fn eval_args(
             &self,
+            f: FunctionValue<'ctx>,
             args: &[IrExpr],
         ) -> Result<Option<Vec<BasicMetadataValueEnum<'ctx>>>, CompileError> {
-            let mut argv = Vec::with_capacity(args.len());
-            for a in args {
-                match self.eval_value(a)? {
-                    Some(v) => argv.push(v.into()),
-                    None => return Ok(None),
-                }
+            // Coerce each argument to the callee's declared parameter type and reconcile
+            // arity (pad missing with zeros, drop extras) so the call is valid IR even when
+            // the source passes mismatched types/counts.
+            let ptypes = f.get_type().get_param_types();
+            let mut argv = Vec::with_capacity(ptypes.len());
+            for (i, target) in ptypes.iter().enumerate() {
+                let v = if i < args.len() {
+                    match self.eval_value(&args[i])? {
+                        Some(v) => self.coerce_to(v, *target)?,
+                        None => return Ok(None),
+                    }
+                } else {
+                    self.zero_of(*target)
+                };
+                argv.push(v.into());
             }
             Ok(Some(argv))
+        }
+
+        /// Zero/default value of a parameter type (for padding missing arguments).
+        fn zero_of(&self, target: BasicMetadataTypeEnum<'ctx>) -> BasicValueEnum<'ctx> {
+            match target {
+                BasicMetadataTypeEnum::FloatType(_) => self.f64t.const_zero().into(),
+                BasicMetadataTypeEnum::PointerType(_) => self.ptr.const_null().into(),
+                _ => self.i32t.const_zero().into(),
+            }
+        }
+
+        /// Coerce a value to a parameter type (int↔float promotion; else pass-through or
+        /// zero on an incompatible kind), so calls always match the callee signature.
+        fn coerce_to(
+            &self,
+            v: BasicValueEnum<'ctx>,
+            target: BasicMetadataTypeEnum<'ctx>,
+        ) -> Result<BasicValueEnum<'ctx>, CompileError> {
+            Ok(match target {
+                BasicMetadataTypeEnum::IntType(_) => match v {
+                    BasicValueEnum::IntValue(iv) => iv.into(),
+                    BasicValueEnum::FloatValue(fv) => self
+                        .builder
+                        .build_float_to_signed_int(fv, self.i32t, "f2i")
+                        .map_err(Self::err)?
+                        .into(),
+                    _ => self.i32t.const_zero().into(),
+                },
+                BasicMetadataTypeEnum::FloatType(_) => match v {
+                    BasicValueEnum::FloatValue(fv) => fv.into(),
+                    BasicValueEnum::IntValue(iv) => self
+                        .builder
+                        .build_signed_int_to_float(iv, self.f64t, "i2f")
+                        .map_err(Self::err)?
+                        .into(),
+                    _ => self.f64t.const_zero().into(),
+                },
+                BasicMetadataTypeEnum::PointerType(_) => match v {
+                    BasicValueEnum::PointerValue(pv) => pv.into(),
+                    _ => self.ptr.const_null().into(),
+                },
+                _ => v,
+            })
         }
 
         /// Declare each non-entry user function (the entry is flattened into `main`).
@@ -875,7 +928,7 @@ pub mod llvm_backend {
                 }
                 IrItem::Call { name, args } => {
                     if let Some(&f) = self.funcs.get(name) {
-                        if let Some(argv) = self.eval_args(args)? {
+                        if let Some(argv) = self.eval_args(f, args)? {
                             self.builder.build_call(f, &argv, "call").map_err(Self::err)?;
                         }
                     }
@@ -1226,7 +1279,7 @@ pub mod llvm_backend {
                     let Some(&f) = self.funcs.get(name) else {
                         return Ok(None); // unsupported builtin or unknown function (deferred)
                     };
-                    let Some(argv) = self.eval_args(args)? else {
+                    let Some(argv) = self.eval_args(f, args)? else {
                         return Ok(None);
                     };
                     self.builder
