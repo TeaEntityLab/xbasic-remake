@@ -24,14 +24,15 @@ real host-target object via `TargetMachine::write_to_memory_buffer(Object)` (was
 `ObjectFile::from_bytes(Vec::new())`). A recursive `Emit` translates a growing subset into
 a `main` driving `printf` (top-level items + the entry-function body, mirroring
 `execute_main`): scalar `DIM`/assignment, **integers** (literals, vars, arithmetic
-`+ - * /`, comparisons → XBasic `-1/0`, boolean/logical/`NOT`), **strings** (literals,
+`+ - * /`, comparisons → XBasic `-1/0`, boolean/logical/`NOT`), **doubles** (literals,
+vars, arithmetic, comparison, `%g` print, int→float promotion), **strings** (literals,
 vars, `PRINT`), and **`IF`/`WHILE`/`FOR`** control flow via basic blocks. Still deferred
-(incremental; C backend stays the full AOT path): functions, floats, arrays, string
-comparison. Proven end-to-end (compile → `cc` link → run): `hello`; `2*3+1`→`7`; and
-`FOR` sum 1..3 + `IF`→`6`,`big`. Locked by feature-gated `lib.rs::tests::{
-llvm_backend_emits_runnable_object, llvm_backend_compiles_integer_arithmetic,
-llvm_backend_compiles_control_flow}`. New error leaf `CompileError::Llvm` = `XB-B002`.
-Reference: `docs/12 §3.1`.
+(incremental; C backend stays the full AOT path): functions, arrays, string comparison,
+builtins. Proven end-to-end (compile → `cc` link → run): `hello`; `2*3+1`→`7`;
+`FOR` sum 1..3 + `IF`→`6`,`big`; `10.0/4.0`→`2.5`. Locked by feature-gated
+`lib.rs::tests::{llvm_backend_emits_runnable_object, llvm_backend_compiles_integer_arithmetic,
+llvm_backend_compiles_control_flow, llvm_backend_compiles_float_arithmetic}`. New error
+leaf `CompileError::Llvm` = `XB-B002`. Reference: `docs/12 §3.1`.
 
 ### LB-TOOLCHAIN — LLVM feature builds against local LLVM 22 ✅ done
 `cargo check/build/test -p xb-compiler --features llvm` now succeeds with
