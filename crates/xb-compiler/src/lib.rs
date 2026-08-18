@@ -926,6 +926,31 @@ pub mod llvm_backend {
                     }
                     _ => Ok(None),
                 },
+                ("CHR$", 1) => {
+                    let n = self.eval_int(&args[0])?;
+                    let ch = self
+                        .builder
+                        .build_int_truncate(n, self.ctx.i8_type(), "ch")
+                        .map_err(Self::err)?;
+                    // calloc(2,1) -> [0,0]; store the char at [0], leaving a null terminator.
+                    let buf = self
+                        .builder
+                        .build_call(
+                            self.calloc,
+                            &[
+                                self.i64t.const_int(2, false).into(),
+                                self.i64t.const_int(1, false).into(),
+                            ],
+                            "chrbuf",
+                        )
+                        .map_err(Self::err)?
+                        .try_as_basic_value()
+                        .basic()
+                        .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                        .into_pointer_value();
+                    self.builder.build_store(buf, ch).map_err(Self::err)?;
+                    Ok(Some(buf.into()))
+                }
                 _ => Ok(None),
             }
         }
@@ -1321,6 +1346,39 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "match\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_chr_builtin() {
+        use std::io::Write;
+        use std::process::Command;
+        // CHR$(65) -> "A".
+        let unit = FrontendUnit::parse("VERSION \"1\"\nPRINT CHR$(65)\n").unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_chr.o");
+        let exep = dir.join("xb_llvm_chr.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "A\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
