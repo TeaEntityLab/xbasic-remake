@@ -100,9 +100,20 @@ coercion** (`eval_args` coerces args to the callee's param types + reconciles ar
 fixed 6 signature-mismatch compile-fails), and a **FOR back-edge guard** (a `RETURN`/`GOTO`
 in a loop body no longer appends an unreachable increment past the terminator — cleared
 the last invalid-IR case). Plus `ASC`/`SGN`/`INT`/`FIX`/`MAX`/`MIN`/`HEX$` builtins.
-Remaining gates to higher reach: **nested GOSUB** (linear no-op fallback), **`PRINT TAB()`**
-line-buffered column formatting, and GUI/platform programs — diverse, multi-feature
-blockers, not a single unlock.
+Remaining gates to higher reach — all deferred-large or fundamental, **no incremental
+lever left** (the 27 non-faithful interpreter-clean programs, categorized by root cause):
+
+| Blocker | Count | Nature |
+|---|---|---|
+| GUI (`Xui`/`Xgr`/GTK) | 11 | Needs the winit+softbuffer runtime (docs/12) — large, deferred |
+| File/record I/O (`WRITE`/`READ` fixed-length records) | ~5 | Needs a file runtime — deferred |
+| **Byte-strings** (embedded/high bytes, `CHR$(0)`) | several | LLVM uses C null-terminated strings; the interpreter uses `Vec<u8>` — `CHR$(0)` → empty C-string, so e.g. `aback` diverges. RT-BYTESTRING: a representation overhaul (length-prefixed strings + custom print) |
+| by-ref `@` (copy-in/out) | ~2 | Needs an all-pointer-param ABI (per-call-site ref-ness); risky, and those programs have other blockers too |
+| Diverse formatting / loop counts | rest | Program-specific |
+
+None is a single high-value unlock; each is a documented large effort or a fundamental
+representation change warranting explicit scoping. The incremental, low-risk LLVM roadmap
+is complete at **78/105 faithful, 0 compile-fails**.
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
