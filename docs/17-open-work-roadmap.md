@@ -26,13 +26,15 @@ a `main` driving `printf` (top-level items + the entry-function body, mirroring
 `execute_main`): scalar `DIM`/assignment, **integers** (literals, vars, arithmetic
 `+ - * /`, comparisons → XBasic `-1/0`, boolean/logical/`NOT`), **doubles** (literals,
 vars, arithmetic, comparison, `%g` print, int→float promotion), **strings** (literals,
-vars, `PRINT`), and **`IF`/`WHILE`/`FOR`** control flow via basic blocks. Still deferred
-(incremental; C backend stays the full AOT path): functions, arrays, string comparison,
-builtins. Proven end-to-end (compile → `cc` link → run): `hello`; `2*3+1`→`7`;
-`FOR` sum 1..3 + `IF`→`6`,`big`; `10.0/4.0`→`2.5`. Locked by feature-gated
+vars, `PRINT`), **`IF`/`WHILE`/`FOR`** control flow via basic blocks, and **user-defined
+functions** (definitions, calls, returns, params, per-function scope; two-pass declare +
+emit). Still deferred (incremental; C backend stays the full AOT path): arrays, string
+comparison, builtins. Proven end-to-end (compile → `cc` link → run): `hello`; `2*3+1`→`7`;
+`FOR` sum 1..3 + `IF`→`6`,`big`; `10.0/4.0`→`2.5`; `Square(5)`→`25`. Locked by feature-gated
 `lib.rs::tests::{llvm_backend_emits_runnable_object, llvm_backend_compiles_integer_arithmetic,
-llvm_backend_compiles_control_flow, llvm_backend_compiles_float_arithmetic}`. New error
-leaf `CompileError::Llvm` = `XB-B002`. Reference: `docs/12 §3.1`.
+llvm_backend_compiles_control_flow, llvm_backend_compiles_float_arithmetic,
+llvm_backend_compiles_user_function_call}`. New error leaf `CompileError::Llvm` = `XB-B002`.
+Reference: `docs/12 §3.1`.
 
 ### LB-TOOLCHAIN — LLVM feature builds against local LLVM 22 ✅ done
 `cargo check/build/test -p xb-compiler --features llvm` now succeeds with
