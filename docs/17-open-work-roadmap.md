@@ -247,11 +247,12 @@ file collapsing to `<=2` IR lines). Floors pin current counts (≥151 / ≥13 / 
 
 ### MIG-SEMANTICS — run-level fixtures landed for clean libs `[verified 2026-08-17]`
 Beyond parse/lower (MIG-CORPUS-GATE), `crates/xb-runtime/tests/xbsourcelib_run.rs`
-now runs core libs through the interpreter: `ary.x` and
-`utils/mergeTest01`/`mergeTest02` run to a clean exit; `msc.x` runs end to end and
-its `MscStrHex$` (string→hex) output is locked as correct; **`geo.x` now runs**
-end to end via composite params (RT-NESTED-COMPOSITE). Not yet covered: the
-`msc.x` decrypt line (RT-BYTESTRING). Expand as blockers clear.
+now runs core libs through the interpreter: `utils/mergeTest01`/`mergeTest02` run to a
+clean exit; **`msc.x` round-trips fully** — `MscStrHex$` (string→hex) *and* the
+`MscHexStr$` decode line are locked correct (RT-BYTESTRING + SEL-CASE-TRUE +
+VAR-SUFFIX-COLLISION + GOSUB-SCOPE together closed it); **`geo.x` runs** end to end via
+composite params (RT-NESTED-COMPOSITE). `ary.x` parses+lowers (MIG-CORPUS-GATE) but its
+`TestAryPerformance` needs MIG-ARY-MULTIDIM, so it is out of the clean-run smoke set.
 
 ### MIG-RUNTIME-SWEEP — legacy runtime coverage measured end to end `[verified 2026-08-17]`
 Beyond parse/lower (MIG-CORPUS-GATE, 204/204), the runnable *programs* were run
@@ -266,6 +267,11 @@ deps themselves) parse+lower but are linked, not run; `demo/gtk/*` (19) are GTK
 GUI. Conclusion: **all legacy code that does not depend on platform features (GUI,
 Win32/kernel32, X11/GDI, sockets) or on an unlinked standard library is workable**
 through the interpreter.
+
+Correctness note (2026-08-18): `afuntype` was the one program that exited cleanly but
+printed **wrong** output (empty name — the funcptr call was a silent no-op). RT-FUNCPTR
+fixed it (`You claim Rex has brown hair.`), so the non-GUI/non-platform corpus now has
+**zero genuine failures and zero known silent-wrong-output bugs**.
 
 ## 4. Demos / GUI
 
