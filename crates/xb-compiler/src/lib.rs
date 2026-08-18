@@ -313,7 +313,7 @@ pub mod llvm_backend {
         fn object(self) -> Result<ObjectFile, CompileError> {
             // Reject invalid IR with a readable error instead of crashing LLVM codegen.
             if let Err(msg) = self.module.verify() {
-                return Err(CompileError::Llvm(format!("invalid IR: {}", msg.to_string())));
+                return Err(CompileError::Llvm(format!("invalid IR: {}", msg)));
             }
             let triple = TargetMachine::get_default_triple();
             let target =
@@ -869,17 +869,22 @@ pub mod llvm_backend {
                         .map_err(Self::err)?;
                     self.builder.position_at_end(body_bb);
                     self.emit_items(body)?;
-                    let cur2 = self
-                        .builder
-                        .build_load(self.i32t, slot, "for.cur2")
-                        .map_err(Self::err)?
-                        .into_int_value();
-                    let next = self
-                        .builder
-                        .build_int_add(cur2, step_v, "for.next")
-                        .map_err(Self::err)?;
-                    self.builder.build_store(slot, next).map_err(Self::err)?;
-                    self.branch_to(header)?;
+                    // Emit the increment + back-edge only if the body fell through; a
+                    // RETURN/GOTO in the body terminates the block (the back-edge would be
+                    // unreachable, and appending past a terminator is invalid IR).
+                    if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
+                        let cur2 = self
+                            .builder
+                            .build_load(self.i32t, slot, "for.cur2")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        let next = self
+                            .builder
+                            .build_int_add(cur2, step_v, "for.next")
+                            .map_err(Self::err)?;
+                        self.builder.build_store(slot, next).map_err(Self::err)?;
+                        self.branch_to(header)?;
+                    }
                     self.builder.position_at_end(exit);
                 }
                 IrItem::Compound(items) => self.emit_items(items)?,
