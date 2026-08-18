@@ -307,4 +307,6 @@ pub enum Expression {
     ArrayRef {
         name: String,
     },
+    /// Address-of a function (`&Func()`), an intptr-sized function-pointer value.
+    FuncAddr(String),
 }

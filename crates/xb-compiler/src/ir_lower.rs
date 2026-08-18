@@ -49,6 +49,7 @@ impl IrExpr {
             CheckedExprKind::ArrayUBound { symbol } => IrExprKind::ArrayUBound {
                 symbol: IrSymbol::lower(symbol),
             },
+            CheckedExprKind::FuncAddr(name) => IrExprKind::FuncAddr(name.clone()),
             CheckedExprKind::SizeOf { symbol } => IrExprKind::SizeOf {
                 symbol: IrSymbol::lower(symbol),
             },

@@ -272,6 +272,11 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             out.push_str(name);
             out.push(')');
         }
+        IrExprKind::FuncAddr(name) => {
+            out.push_str("((intptr_t)&");
+            emit_c_function_name(name, out);
+            out.push(')');
+        }
     }
 }
 

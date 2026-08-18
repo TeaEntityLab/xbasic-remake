@@ -256,6 +256,7 @@ pub enum CheckedExprKind {
         value_type: ValueType,
     },
     LabelAddress(String),
+    FuncAddr(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

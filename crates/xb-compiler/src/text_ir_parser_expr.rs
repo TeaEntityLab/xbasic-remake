@@ -259,6 +259,10 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
                 ValueType::Integer,
             )
         }
+        "funcaddr" => IrExpr::new(
+            IrExprKind::FuncAddr(content.trim().to_string()),
+            ValueType::Integer,
+        ),
         "size_of" => {
             let (name, vt) = parse_symbol(content.trim())?;
             IrExpr::new(

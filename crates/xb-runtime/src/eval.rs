@@ -2,6 +2,21 @@ use crate::helpers::{parse_float, parse_integer, read_slot};
 use crate::interpreter::{exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue};
 use xb_compiler::{BooleanOp, IrExpr, IrExprKind, IrItem, IrProgram, LogicalOp, ValueType};
 
+
+/// 1-based index of the top-level `IrItem::Function` named `target` (0 if absent);
+/// the stable runtime value of `&Func` and a `FUNCADDR` slot.
+pub(crate) fn function_id(program: &IrProgram, target: &str) -> i32 {
+    let mut id = 0;
+    for item in &program.items {
+        if let IrItem::Function { name, .. } = item {
+            id += 1;
+            if name == target {
+                return id;
+            }
+        }
+    }
+    0
+}
 pub(crate) fn eval(
     program: &IrProgram,
     expr: &IrExpr,
@@ -150,6 +165,7 @@ pub(crate) fn eval_expr(
             };
             return Ok(RuntimeValue::Integer(upper));
         }
+        IrExprKind::FuncAddr(name) => RuntimeValue::Integer(function_id(program, name)),
         IrExprKind::SizeOf { symbol } => {
             let slot = state
                 .slots

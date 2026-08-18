@@ -608,3 +608,30 @@ fn redim_shrink_truncates_and_preserves_low_indices() {
         .unwrap();
     assert_eq!(output, ["1", "10", "20"]);
 }
+
+#[test]
+fn func_addr_yields_stable_function_id() {
+    // `&Func()` is address-of a function: it lowers to a FUNCADDR value = the
+    // function's 1-based id (NOT a call), and is stable across evaluations.
+    // (RT-FUNCPTR sub-step 1: address-of; indirect dispatch is a follow-on.)
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         a = &Helper()\n\
+         b = &Helper()\n\
+         c = &Other()\n\
+         PRINT a\n\
+         PRINT c\n\
+         IF a = b THEN PRINT \"stable\"\n\
+         END FUNCTION\n\
+         FUNCTION Helper ()\n\
+         END FUNCTION\n\
+         FUNCTION Other ()\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["2", "3", "stable"]);
+}

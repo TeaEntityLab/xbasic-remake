@@ -70,6 +70,7 @@ impl TextIrEmitter {
             IrExprKind::ArrayUBound { symbol } => {
                 format!("array_ubound({})", self.emit_symbol(symbol))
             }
+            IrExprKind::FuncAddr(name) => format!("funcaddr({name})"),
             IrExprKind::SizeOf { symbol } => {
                 format!("size_of({})", self.emit_symbol(symbol))
             }

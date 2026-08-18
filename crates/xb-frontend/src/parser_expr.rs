@@ -325,6 +325,25 @@ impl Parser {
                 ) {
                     self.index += 1;
                 }
+                // `&Func(...)` — address-of a function → a FUNCADDR value. The
+                // parenthesised form (with or without args) distinguishes it from
+                // taking the address of a variable (`&x`, handled by primary()).
+                if let TokenKind::Identifier { name, suffix } = self.peek_kind().clone() {
+                    if matches!(self.peek_next_kind(), Some(TokenKind::Symbol('('))) {
+                        let fname = full_name(name, suffix);
+                        self.index += 2; // identifier + '('
+                        let mut depth = 1;
+                        while depth > 0 && !self.at_eof() {
+                            match self.peek_kind() {
+                                TokenKind::Symbol('(') => depth += 1,
+                                TokenKind::Symbol(')') => depth -= 1,
+                                _ => {}
+                            }
+                            self.index += 1;
+                        }
+                        return Ok(Expression::FuncAddr(fname));
+                    }
+                }
                 self.primary()
             }
             TokenKind::Symbol('~') => {

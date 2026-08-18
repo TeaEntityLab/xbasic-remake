@@ -31,7 +31,16 @@ impl Analyzer {
             Expression::FunctionCall { name, args } => self.function_call(name, args),
             Expression::ArrayAccess { name, index } => self.array_access(name, index),
             Expression::ArrayRef { name } => self.array_ref(name),
+            Expression::FuncAddr(name) => self.func_addr(name),
         }
+    }
+
+    fn func_addr(&self, name: &str) -> ExprResult {
+        // `&Func()` — address of a function; an intptr-sized id resolved at runtime.
+        Ok(CheckedExpr::new(
+            CheckedExprKind::FuncAddr(name.to_owned()),
+            ValueType::Integer,
+        ))
     }
 
     fn array_access(&self, name: &str, index: &Expression) -> ExprResult {
