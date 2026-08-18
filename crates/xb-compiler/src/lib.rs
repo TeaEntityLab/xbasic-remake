@@ -210,8 +210,9 @@ pub mod llvm_backend {
         strcmp: FunctionValue<'ctx>,
         memcpy: FunctionValue<'ctx>,
         snprintf: FunctionValue<'ctx>,
-        /// Array vars: name → (alloca holding the heap buffer ptr, element type). 1D only (v0).
-        arrays: HashMap<String, (PointerValue<'ctx>, ValueType)>,
+        /// Array vars: name → (alloca holding the heap buffer ptr, element type,
+        /// per-dimension count allocas as i64 — row-major shape). 1 dim entry = 1D.
+        arrays: HashMap<String, (PointerValue<'ctx>, ValueType, Vec<PointerValue<'ctx>>)>,
     }
 
     impl<'ctx> Emit<'ctx> {
@@ -305,13 +306,15 @@ pub mod llvm_backend {
             }
         }
 
-        /// GEP to element `name[index]` (1D). `None` if `name` is not a known array.
+        /// GEP to element `name[index, extra_indices...]` via row-major Horner offset
+        /// (mirrors `TypedSlot::array_offset`). `None` if `name` is not a known array.
         fn array_elem_ptr(
             &self,
             name: &str,
             index: &IrExpr,
+            extra_indices: &[IrExpr],
         ) -> Result<Option<(PointerValue<'ctx>, ValueType)>, CompileError> {
-            let Some(&(holder, elem)) = self.arrays.get(name) else {
+            let Some((holder, elem, dims)) = self.arrays.get(name).cloned() else {
                 return Ok(None);
             };
             let bufptr = self
@@ -319,11 +322,29 @@ pub mod llvm_backend {
                 .build_load(self.ptr, holder, "buf")
                 .map_err(Self::err)?
                 .into_pointer_value();
-            let idx = self.eval_int(index)?;
+            // Evaluate every provided subscript (side effects match the interpreter),
+            // sign-extended to i64.
+            let mut idxs: Vec<IntValue<'ctx>> = Vec::new();
+            for e in std::iter::once(index).chain(extra_indices.iter()) {
+                let ik = self.eval_int(e)?;
+                idxs.push(self.builder.build_int_s_extend(ik, self.i64t, "ik").map_err(Self::err)?);
+            }
+            // off = 0; for each recorded dim k: off = off*count_k + idx_k (missing idx -> 0).
+            let mut off = self.i64t.const_zero();
+            for (k, cslot) in dims.iter().enumerate() {
+                let ck = self
+                    .builder
+                    .build_load(self.i64t, *cslot, "ck")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let ik = idxs.get(k).copied().unwrap_or_else(|| self.i64t.const_zero());
+                let m = self.builder.build_int_mul(off, ck, "offm").map_err(Self::err)?;
+                off = self.builder.build_int_add(m, ik, "offa").map_err(Self::err)?;
+            }
             let ety = self.llvm_type(elem);
             let ep = unsafe {
                 self.builder
-                    .build_in_bounds_gep(ety, bufptr, &[idx], "elem")
+                    .build_in_bounds_gep(ety, bufptr, &[off], "elem")
                     .map_err(Self::err)?
             };
             Ok(Some((ep, elem)))
@@ -471,31 +492,49 @@ pub mod llvm_backend {
                     };
                     self.builder.build_store(slot, init).map_err(Self::err)?;
                 }
-                IrItem::Dim { symbol, size, is_array: true, .. } => {
+                IrItem::Dim { symbol, size, extra_dims, is_array: true, .. } => {
                     let elem = symbol.value_type;
                     let esz: u64 = match elem {
                         ValueType::Float | ValueType::String => 8,
                         _ => 4,
                     };
-                    // DIM a[n] → indices 0..=n (n+1 slots); default 1 slot when unsized.
-                    let count = match size {
-                        Some(e) => {
-                            let n = self.eval_int(e)?;
-                            let n64 = self
-                                .builder
-                                .build_int_z_extend(n, self.i64t, "n64")
-                                .map_err(Self::err)?;
-                            self.builder
-                                .build_int_add(n64, self.i64t.const_int(1, false), "cnt")
-                                .map_err(Self::err)?
-                        }
-                        None => self.i64t.const_int(1, false),
+                    // Per-dimension counts n_k = max(0, size_k) + 1 (inclusive upper
+                    // bound), mirroring the interpreter; total = product of counts.
+                    let mut counts: Vec<IntValue<'ctx>> = Vec::new();
+                    for e in size.iter().chain(extra_dims.iter()) {
+                        let raw = self.eval_int(e)?;
+                        let pos = self
+                            .builder
+                            .build_int_compare(IntPredicate::SGT, raw, self.i32t.const_zero(), "pos")
+                            .map_err(Self::err)?;
+                        let nn = self
+                            .builder
+                            .build_select(pos, raw, self.i32t.const_zero(), "max0")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        let nn64 =
+                            self.builder.build_int_s_extend(nn, self.i64t, "nn64").map_err(Self::err)?;
+                        let cnt = self
+                            .builder
+                            .build_int_add(nn64, self.i64t.const_int(1, false), "cnt")
+                            .map_err(Self::err)?;
+                        counts.push(cnt);
+                    }
+                    // Total = product of counts; empty (unsized `DIM a[]`) → 0 elements,
+                    // matching the interpreter (a later REDIM sets the real shape).
+                    let mut total = if counts.is_empty() {
+                        self.i64t.const_zero()
+                    } else {
+                        self.i64t.const_int(1, false)
                     };
+                    for c in &counts {
+                        total = self.builder.build_int_mul(total, *c, "tot").map_err(Self::err)?;
+                    }
                     let buf = self
                         .builder
                         .build_call(
                             self.calloc,
-                            &[count.into(), self.i64t.const_int(esz, false).into()],
+                            &[total.into(), self.i64t.const_int(esz, false).into()],
                             "arr",
                         )
                         .map_err(Self::err)?
@@ -503,18 +542,25 @@ pub mod llvm_backend {
                         .basic()
                         .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
                         .into_pointer_value();
-                    let holder = match self.arrays.get(&symbol.name) {
-                        Some(&(h, _)) => h,
+                    // Persist the shape: one i64 alloca per dim holding the count.
+                    let mut shape: Vec<PointerValue<'ctx>> = Vec::with_capacity(counts.len());
+                    for (k, c) in counts.iter().enumerate() {
+                        let s = self
+                            .builder
+                            .build_alloca(self.i64t, &format!("{}_d{k}", symbol.name))
+                            .map_err(Self::err)?;
+                        self.builder.build_store(s, *c).map_err(Self::err)?;
+                        shape.push(s);
+                    }
+                    let existing = self.arrays.get(&symbol.name).map(|(h, _, _)| *h);
+                    let holder = match existing {
+                        Some(h) => h,
                         None => {
-                            let h = self
-                                .builder
-                                .build_alloca(self.ptr, &symbol.name)
-                                .map_err(Self::err)?;
-                            self.arrays.insert(symbol.name.clone(), (h, elem));
-                            h
+                            self.builder.build_alloca(self.ptr, &symbol.name).map_err(Self::err)?
                         }
                     };
                     self.builder.build_store(holder, buf).map_err(Self::err)?;
+                    self.arrays.insert(symbol.name.clone(), (holder, elem, shape));
                 }
                 IrItem::Assignment { target, value } => {
                     if let Some(v) = self.eval_value(value)? {
@@ -522,10 +568,11 @@ pub mod llvm_backend {
                         self.builder.build_store(slot, v).map_err(Self::err)?;
                     }
                 }
-                IrItem::ArrayAssignment { target, index, value, .. } => {
-                    if let (Some(v), Some((ep, _))) =
-                        (self.eval_value(value)?, self.array_elem_ptr(&target.name, index)?)
-                    {
+                IrItem::ArrayAssignment { target, index, extra_indices, value } => {
+                    if let (Some(v), Some((ep, _))) = (
+                        self.eval_value(value)?,
+                        self.array_elem_ptr(&target.name, index, extra_indices)?,
+                    ) {
                         self.builder.build_store(ep, v).map_err(Self::err)?;
                     }
                 }
@@ -894,14 +941,54 @@ pub mod llvm_backend {
                         .try_as_basic_value()
                         .basic()
                 }
-                IrExprKind::ArrayAccess { symbol, index, .. } => {
-                    match self.array_elem_ptr(&symbol.name, index)? {
+                IrExprKind::ArrayAccess { symbol, index, extra_indices } => {
+                    match self.array_elem_ptr(&symbol.name, index, extra_indices)? {
                         Some((ep, elem)) => Some(
                             self.builder
                                 .build_load(self.llvm_type(elem), ep, "ai")
                                 .map_err(Self::err)?,
                         ),
                         None => None,
+                    }
+                }
+                IrExprKind::ArrayUBound { symbol } => {
+                    // Array: flat length − 1; string var: LEN − 1; else −1 (matches
+                    // eval.rs ArrayUBound so `FOR i = 0 TO UBOUND(a)` iterates identically).
+                    if let Some((_, _, dims)) = self.arrays.get(&symbol.name).cloned() {
+                        let mut total = if dims.is_empty() {
+                            self.i64t.const_zero()
+                        } else {
+                            self.i64t.const_int(1, false)
+                        };
+                        for cslot in &dims {
+                            let c = self
+                                .builder
+                                .build_load(self.i64t, *cslot, "c")
+                                .map_err(Self::err)?
+                                .into_int_value();
+                            total = self.builder.build_int_mul(total, c, "t").map_err(Self::err)?;
+                        }
+                        let m1 = self
+                            .builder
+                            .build_int_sub(total, self.i64t.const_int(1, false), "ub")
+                            .map_err(Self::err)?;
+                        Some(self.builder.build_int_truncate(m1, self.i32t, "ub32").map_err(Self::err)?.into())
+                    } else if let Some((slot, ValueType::String)) =
+                        self.vars.get(&symbol.name).copied()
+                    {
+                        let sptr = self
+                            .builder
+                            .build_load(self.ptr, slot, "s")
+                            .map_err(Self::err)?
+                            .into_pointer_value();
+                        let len = self.str_len(sptr)?;
+                        let m1 = self
+                            .builder
+                            .build_int_sub(len, self.i64t.const_int(1, false), "ub")
+                            .map_err(Self::err)?;
+                        Some(self.builder.build_int_truncate(m1, self.i32t, "ub32").map_err(Self::err)?.into())
+                    } else {
+                        Some(self.i32t.const_int((-1i32) as u64, true).into())
                     }
                 }
                 IrExprKind::Boolean { op, left, right } => {
@@ -1664,6 +1751,91 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "n=42\nabc\n-5\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_multidim_array() {
+        use std::io::Write;
+        use std::process::Command;
+        // Row-major 2D array (DIM m[2,3]) mirrors the interpreter: 5/9/7.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM m[2, 3]\n\
+             m[0, 0] = 5\n\
+             m[1, 2] = 9\n\
+             m[2, 3] = 7\n\
+             PRINT m[0, 0]\n\
+             PRINT m[1, 2]\n\
+             PRINT m[2, 3]\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_nd.o");
+        let exep = dir.join("xb_llvm_nd.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "5\n9\n7\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_ubound() {
+        use std::io::Write;
+        use std::process::Command;
+        // UBOUND(a) = flat length − 1 = 4; loop fills a[i]=i*i so a[4]=16.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM a[4]\n\
+             FOR i = 0 TO UBOUND(a)\n\
+             a[i] = i * i\n\
+             NEXT i\n\
+             PRINT a[UBOUND(a)]\n\
+             PRINT UBOUND(a)\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_ub.o");
+        let exep = dir.join("xb_llvm_ub.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "16\n4\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
