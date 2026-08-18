@@ -82,22 +82,23 @@ The `llvm` path is behind the `xb-cli` `llvm` feature (`--features llvm`, forwar
 cli_backend_llvm_errors_when_feature_disabled (feature off)}`.
 
 **Reach `[verified 2026-08-18]`:** a differential sweep (LLVM-native vs `xb --run`
-over `xbasic-6.4.5/**/*.x`) finds **72 programs** produce **byte-identical** native
-output (up from 61 pre-`GOSUB`), with only **7** invalid-IR compile-fails (gracefully
-rejected by `module.verify()` → C backend). Guarded by
+over `xbasic-6.4.5/**/*.x`) finds **78 programs** produce **byte-identical** native
+output (up from 61 pre-`GOSUB`), with only **1** invalid-IR compile-fail left (`xit.x`,
+an X11 file — gracefully rejected by `module.verify()` → C backend). Guarded by
 `cli.rs::cli_llvm_matches_interpreter_on_corpus_programs` (curated rich-output subset:
 `aarray`/`aloha`/`ahello`); the full 151-file sweep is a manual measurement (too slow
 for the suite; counts vary slightly with the interpreter's timeout cutoff).
 
-The **+11** came from landing `GOSUB`/`RETURN`/`GOTO` (additive `pc`-dispatch state
-machine — see LB-STUB) **plus** two latent-bug fixes that `verify()` exposed:
+The **+17** came from landing `GOSUB`/`RETURN`/`GOTO` (additive `pc`-dispatch state
+machine — see LB-STUB) plus three latent-bug fixes that `verify()` exposed:
 `entry_alloca` (all persistent allocas in the entry block, which dominates the SM's
-switch-reached blocks) and **per-function `arrays` scoping** (array allocas no longer
-leak across functions — this had been silently suppressing many array programs).
-Remaining gates to higher reach: **nested GOSUB** (resumes at the wrong pc, so it falls
-back to linear no-ops rather than the SM), **`PRINT TAB()`** line-buffered column
-formatting, and GUI/platform programs. These are diminishing, multi-feature blockers,
-not a single unlock.
+switch-reached blocks), **per-function `arrays` scoping** (array allocas no longer leak
+across functions — had been silently suppressing many array programs), and **call-arg
+coercion** (`eval_args` coerces args to the callee's declared param types + reconciles
+arity — fixed 6 signature-mismatch compile-fails, +6 faithful). Remaining gates:
+**nested GOSUB** (resumes at the wrong pc → linear no-op fallback), **`PRINT TAB()`**
+line-buffered column formatting, `xit.x`'s "terminator in the middle" control-flow edge
+case, and GUI/platform programs. Diminishing, multi-feature blockers — not a single unlock.
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
