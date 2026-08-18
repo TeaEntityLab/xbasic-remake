@@ -148,10 +148,12 @@ pub mod llvm_backend {
     };
     use inkwell::builder::Builder;
     use inkwell::module::Module;
-    use inkwell::values::{BasicValueEnum, FloatValue, FunctionValue, IntValue, PointerValue};
+    use inkwell::values::{
+        BasicMetadataValueEnum, BasicValueEnum, FloatValue, FunctionValue, IntValue, PointerValue,
+    };
     use inkwell::{AddressSpace, OptimizationLevel};
     use inkwell::basic_block::BasicBlock;
-    use inkwell::types::{BasicTypeEnum, FloatType, IntType, PointerType};
+    use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, FloatType, IntType, PointerType};
     use inkwell::{FloatPredicate, IntPredicate};
     use std::collections::HashMap;
 
@@ -171,11 +173,14 @@ pub mod llvm_backend {
                 .map_err(CompileError::Llvm)?;
             let ctx = Context::create();
             let mut emit = Emit::new(&ctx)?;
+            emit.declare_functions(&program.items);
             emit.emit_items(&program.items)?;
             if let Some(body) = entry_body(&program) {
                 emit.emit_items(body)?;
             }
-            emit.finish()
+            emit.ret_default()?;
+            emit.emit_function_bodies(&program.items)?;
+            emit.object()
         }
     }
 
@@ -188,11 +193,16 @@ pub mod llvm_backend {
         f64t: FloatType<'ctx>,
         ptr: PointerType<'ctx>,
         printf: FunctionValue<'ctx>,
-        main: FunctionValue<'ctx>,
         fmt_s: PointerValue<'ctx>,
         fmt_d: PointerValue<'ctx>,
         nl: PointerValue<'ctx>,
         fmt_g: PointerValue<'ctx>,
+        /// User-defined functions (name → LLVM fn), excluding the flattened entry.
+        funcs: HashMap<String, FunctionValue<'ctx>>,
+        /// Function currently being emitted (for `append_basic_block`).
+        cur_fn: FunctionValue<'ctx>,
+        /// Return type of the function currently being emitted.
+        cur_ret: ValueType,
         vars: HashMap<String, (PointerValue<'ctx>, ValueType)>,
     }
 
@@ -224,20 +234,20 @@ pub mod llvm_backend {
                 i32t,
                 ptr,
                 printf,
-                main,
                 fmt_s,
                 fmt_d,
                 nl,
                 f64t,
                 fmt_g,
                 vars: HashMap::new(),
+                funcs: HashMap::new(),
+                cur_fn: main,
+                cur_ret: ValueType::Integer,
             })
         }
 
-        fn finish(self) -> Result<ObjectFile, CompileError> {
-            self.builder
-                .build_return(Some(&self.i32t.const_int(0, false)))
-                .map_err(Self::err)?;
+        /// Emit the module to a host-target object (assumes returns already built).
+        fn object(self) -> Result<ObjectFile, CompileError> {
             let triple = TargetMachine::get_default_triple();
             let target =
                 Target::from_triple(&triple).map_err(|e| CompileError::Llvm(e.to_string()))?;
@@ -255,6 +265,101 @@ pub mod llvm_backend {
                 .write_to_memory_buffer(&self.module, FileType::Object)
                 .map_err(|e| CompileError::Llvm(e.to_string()))?;
             Ok(ObjectFile::from_bytes(buf.as_slice().to_vec()))
+        }
+        fn llvm_type(&self, vt: ValueType) -> BasicTypeEnum<'ctx> {
+            match vt {
+                ValueType::String => self.ptr.into(),
+                ValueType::Float => self.f64t.into(),
+                _ => self.i32t.into(),
+            }
+        }
+
+        /// Build a return for the current function's type if the block is still open.
+        fn ret_default(&self) -> Result<(), CompileError> {
+            if self
+                .builder
+                .get_insert_block()
+                .and_then(|b| b.get_terminator())
+                .is_some()
+            {
+                return Ok(());
+            }
+            let rv: BasicValueEnum = match self.cur_ret {
+                ValueType::String => self.ptr.const_null().into(),
+                ValueType::Float => self.f64t.const_zero().into(),
+                _ => self.i32t.const_zero().into(),
+            };
+            self.builder.build_return(Some(&rv)).map_err(Self::err)?;
+            Ok(())
+        }
+
+        /// Evaluate call arguments; `None` if any argument is untranslatable.
+        fn eval_args(
+            &self,
+            args: &[IrExpr],
+        ) -> Result<Option<Vec<BasicMetadataValueEnum<'ctx>>>, CompileError> {
+            let mut argv = Vec::with_capacity(args.len());
+            for a in args {
+                match self.eval_value(a)? {
+                    Some(v) => argv.push(v.into()),
+                    None => return Ok(None),
+                }
+            }
+            Ok(Some(argv))
+        }
+
+        /// Declare each non-entry user function (the entry is flattened into `main`).
+        fn declare_functions(&mut self, items: &[IrItem]) {
+            let entry = entry_name(items);
+            for item in items {
+                if let IrItem::Function { name, params, return_type, .. } = item {
+                    if entry.as_deref() == Some(name.as_str()) {
+                        continue;
+                    }
+                    let pts: Vec<BasicMetadataTypeEnum> = params
+                        .iter()
+                        .map(|p| self.llvm_type(p.value_type).into())
+                        .collect();
+                    let fty = match return_type {
+                        ValueType::String => self.ptr.fn_type(&pts, false),
+                        ValueType::Float => self.f64t.fn_type(&pts, false),
+                        _ => self.i32t.fn_type(&pts, false),
+                    };
+                    let f = self.module.add_function(name, fty, None);
+                    self.funcs.insert(name.clone(), f);
+                }
+            }
+        }
+
+        /// Emit each non-entry user function body in its own variable scope.
+        fn emit_function_bodies(&mut self, items: &[IrItem]) -> Result<(), CompileError> {
+            let entry = entry_name(items);
+            for item in items {
+                if let IrItem::Function { name, params, return_type, body } = item {
+                    if entry.as_deref() == Some(name.as_str()) {
+                        continue;
+                    }
+                    let f = self.funcs[name];
+                    let saved_vars = std::mem::take(&mut self.vars);
+                    let (saved_fn, saved_ret) = (self.cur_fn, self.cur_ret);
+                    self.cur_fn = f;
+                    self.cur_ret = *return_type;
+                    let bb = self.ctx.append_basic_block(f, "entry");
+                    self.builder.position_at_end(bb);
+                    for (i, p) in params.iter().enumerate() {
+                        let slot = self.get_or_alloca(&p.name, p.value_type)?;
+                        if let Some(arg) = f.get_nth_param(i as u32) {
+                            self.builder.build_store(slot, arg).map_err(Self::err)?;
+                        }
+                    }
+                    self.emit_items(body)?;
+                    self.ret_default()?;
+                    self.vars = saved_vars;
+                    self.cur_fn = saved_fn;
+                    self.cur_ret = saved_ret;
+                }
+            }
+            Ok(())
         }
 
         fn get_or_alloca(
@@ -344,9 +449,9 @@ pub mod llvm_backend {
                 }
                 IrItem::If { condition, then_body, else_body } => {
                     let cond = self.eval_bool(condition)?;
-                    let then_bb = self.ctx.append_basic_block(self.main, "then");
-                    let else_bb = self.ctx.append_basic_block(self.main, "else");
-                    let merge = self.ctx.append_basic_block(self.main, "endif");
+                    let then_bb = self.ctx.append_basic_block(self.cur_fn, "then");
+                    let else_bb = self.ctx.append_basic_block(self.cur_fn, "else");
+                    let merge = self.ctx.append_basic_block(self.cur_fn, "endif");
                     self.builder
                         .build_conditional_branch(cond, then_bb, else_bb)
                         .map_err(Self::err)?;
@@ -361,9 +466,9 @@ pub mod llvm_backend {
                     self.builder.position_at_end(merge);
                 }
                 IrItem::While { condition, body } => {
-                    let header = self.ctx.append_basic_block(self.main, "while.head");
-                    let body_bb = self.ctx.append_basic_block(self.main, "while.body");
-                    let exit = self.ctx.append_basic_block(self.main, "while.exit");
+                    let header = self.ctx.append_basic_block(self.cur_fn, "while.head");
+                    let body_bb = self.ctx.append_basic_block(self.cur_fn, "while.body");
+                    let exit = self.ctx.append_basic_block(self.cur_fn, "while.exit");
                     self.branch_to(header)?;
                     self.builder.position_at_end(header);
                     let cond = self.eval_bool(condition)?;
@@ -384,9 +489,9 @@ pub mod llvm_backend {
                         Some(s) => self.eval_int(s)?,
                         None => self.i32t.const_int(1, true),
                     };
-                    let header = self.ctx.append_basic_block(self.main, "for.head");
-                    let body_bb = self.ctx.append_basic_block(self.main, "for.body");
-                    let exit = self.ctx.append_basic_block(self.main, "for.exit");
+                    let header = self.ctx.append_basic_block(self.cur_fn, "for.head");
+                    let body_bb = self.ctx.append_basic_block(self.cur_fn, "for.body");
+                    let exit = self.ctx.append_basic_block(self.cur_fn, "for.exit");
                     self.branch_to(header)?;
                     self.builder.position_at_end(header);
                     let cur = self
@@ -431,6 +536,33 @@ pub mod llvm_backend {
                     self.builder.position_at_end(exit);
                 }
                 IrItem::Compound(items) => self.emit_items(items)?,
+                IrItem::Return { value } => {
+                    if self
+                        .builder
+                        .get_insert_block()
+                        .and_then(|b| b.get_terminator())
+                        .is_none()
+                    {
+                        let rv: BasicValueEnum = match (value, self.cur_ret) {
+                            (Some(e), ValueType::String) => self
+                                .eval_value(e)?
+                                .unwrap_or_else(|| self.ptr.const_null().into()),
+                            (Some(e), ValueType::Float) => self.eval_float(e)?.into(),
+                            (Some(e), _) => self.eval_int(e)?.into(),
+                            (None, ValueType::String) => self.ptr.const_null().into(),
+                            (None, ValueType::Float) => self.f64t.const_zero().into(),
+                            (None, _) => self.i32t.const_zero().into(),
+                        };
+                        self.builder.build_return(Some(&rv)).map_err(Self::err)?;
+                    }
+                }
+                IrItem::Call { name, args } => {
+                    if let Some(&f) = self.funcs.get(name) {
+                        if let Some(argv) = self.eval_args(args)? {
+                            self.builder.build_call(f, &argv, "call").map_err(Self::err)?;
+                        }
+                    }
+                }
                 _ => {}
             }
             Ok(())
@@ -571,6 +703,19 @@ pub mod llvm_backend {
                     let v = self.eval_int(inner)?;
                     Some(self.builder.build_not(v, "not").map_err(Self::err)?.into())
                 }
+                IrExprKind::FunctionCall { name, args } => {
+                    let Some(&f) = self.funcs.get(name) else {
+                        return Ok(None); // builtins are not translated (deferred)
+                    };
+                    let Some(argv) = self.eval_args(args)? else {
+                        return Ok(None);
+                    };
+                    self.builder
+                        .build_call(f, &argv, "call")
+                        .map_err(Self::err)?
+                        .try_as_basic_value()
+                        .basic()
+                }
                 IrExprKind::Boolean { op, left, right } => {
                     let a = self.eval_int(left)?;
                     let b = self.eval_int(right)?;
@@ -619,6 +764,22 @@ pub mod llvm_backend {
             }
         }
         entry
+    }
+
+    /// Name of the XBasic entry function (`Main`, else the first function).
+    fn entry_name(items: &[IrItem]) -> Option<String> {
+        let mut first = None;
+        for item in items {
+            if let IrItem::Function { name, .. } = item {
+                if name == "Main" {
+                    return Some("Main".to_string());
+                }
+                if first.is_none() {
+                    first = Some(name.clone());
+                }
+            }
+        }
+        first
     }
 }
 
@@ -810,6 +971,50 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "2.5\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_user_function_call() {
+        use std::io::Write;
+        use std::process::Command;
+        // Main calls Square(5); the user function returns x*x = 25.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             FUNCTION Main\n\
+             DIM n\n\
+             n = Square(5)\n\
+             PRINT n\n\
+             END FUNCTION\n\
+             FUNCTION Square (x)\n\
+             RETURN x * x\n\
+             END FUNCTION\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_fn.o");
+        let exep = dir.join("xb_llvm_fn.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "25\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
