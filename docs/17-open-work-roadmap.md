@@ -26,15 +26,17 @@ a `main` driving `printf` (top-level items + the entry-function body, mirroring
 `execute_main`): scalar `DIM`/assignment, **integers** (literals, vars, arithmetic
 `+ - * /`, comparisons → XBasic `-1/0`, boolean/logical/`NOT`), **doubles** (literals,
 vars, arithmetic, comparison, `%g` print, int→float promotion), **strings** (literals,
-vars, `PRINT`), **`IF`/`WHILE`/`FOR`** control flow via basic blocks, and **user-defined
+vars, `PRINT`), **`IF`/`WHILE`/`FOR`** control flow via basic blocks, **user-defined
 functions** (definitions, calls, returns, params, per-function scope; two-pass declare +
-emit). Still deferred (incremental; C backend stays the full AOT path): arrays, string
-comparison, builtins. Proven end-to-end (compile → `cc` link → run): `hello`; `2*3+1`→`7`;
-`FOR` sum 1..3 + `IF`→`6`,`big`; `10.0/4.0`→`2.5`; `Square(5)`→`25`. Locked by feature-gated
+emit), and **1D arrays** (`DIM a[n]` → `calloc` zeroed heap buffer; `a[i]` read/write via
+`build_in_bounds_gep`). Still deferred (incremental; C backend stays the full AOT path):
+N-dim arrays + `UBOUND`, string comparison, builtins. Proven end-to-end (compile → `cc`
+link → run): `hello`; `2*3+1`→`7`; `FOR` sum 1..3 + `IF`→`6`,`big`; `10.0/4.0`→`2.5`;
+`Square(5)`→`25`; `a[2]=a[0]+a[1]`→`30`. Locked by feature-gated
 `lib.rs::tests::{llvm_backend_emits_runnable_object, llvm_backend_compiles_integer_arithmetic,
 llvm_backend_compiles_control_flow, llvm_backend_compiles_float_arithmetic,
-llvm_backend_compiles_user_function_call}`. New error leaf `CompileError::Llvm` = `XB-B002`.
-Reference: `docs/12 §3.1`.
+llvm_backend_compiles_user_function_call, llvm_backend_compiles_array_indexing}`. New error
+leaf `CompileError::Llvm` = `XB-B002`. Reference: `docs/12 §3.1`.
 
 ### LB-TOOLCHAIN — LLVM feature builds against local LLVM 22 ✅ done
 `cargo check/build/test -p xb-compiler --features llvm` now succeeds with
