@@ -147,6 +147,17 @@ fn emit_c_for_path(path: &Path) -> Result<String, CliError> {
     Ok(CEmitter::new().emit_program(&program))
 }
 
+/// A process-unique temp path under `xb_cli_compile/` for intermediate artifacts,
+/// so concurrent compiles never collide on a shared file name.
+fn unique_tmp(ext: &str) -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir()
+        .join("xb_cli_compile")
+        .join(format!("out_{}_{seq}.{ext}", std::process::id()))
+}
+
 fn compile_to_native(source: &Path, output: &Path, backend: Backend) -> Result<String, CliError> {
     match backend {
         Backend::C => compile_via_c(source, output),
@@ -162,7 +173,7 @@ fn compile_via_c(source: &Path, output: &Path) -> Result<String, CliError> {
         path: tmp.display().to_string(),
         source: e,
     })?;
-    let c_path = tmp.join("output.c");
+    let c_path = unique_tmp("c");
     fs::write(&c_path, &c_source).map_err(|e| CliError::Write {
         path: c_path.display().to_string(),
         source: e,
@@ -206,7 +217,7 @@ fn compile_via_llvm(source: &Path, output: &Path) -> Result<String, CliError> {
         path: tmp.display().to_string(),
         source: e,
     })?;
-    let obj_path = tmp.join("output.o");
+    let obj_path = unique_tmp("o");
     fs::write(&obj_path, obj.as_bytes()).map_err(|e| CliError::Write {
         path: obj_path.display().to_string(),
         source: e,
