@@ -122,6 +122,16 @@ IR text) is runtime-independent → unaffected; only `cgen_cemitter_sync` +
 (~40 helpers each); corpus-neutral today (no interp-clean corpus program uses embedded
 NULs), so it is **latent-correctness**, not a reach unlock.
 
+**Design boundary (harder than the LLVM fix):** unlike the LLVM backend — where every
+string is created by a helper I control — the C backend has strings that arrive as **raw
+`char*` aliasing arbitrary memory**: `xb_cstring(intptr_t addr)` returns `(char*)addr`,
+and the `*AT` peeks / `VARPTR` paths hand back untracked pointers; file `INPUT`/`fgets`
+and `INKEY$` also produce plain C buffers. A uniform prefix representation must therefore
+either copy each such source into a prefixed buffer at the boundary, or keep an
+address-aliased escape hatch (no prefix, `strlen`-length) — a real design decision, not a
+mechanical helper sweep. This is why it is a **multi-day representation overhaul**, not a
+drop-in of the LLVM change.
+
 ## 5. Verification
 
 ```sh
