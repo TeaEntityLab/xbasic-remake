@@ -24,7 +24,7 @@ real host-target object via `TargetMachine::write_to_memory_buffer(Object)` (was
 `ObjectFile::from_bytes(Vec::new())`). A recursive `Emit` translates a growing subset into
 a `main` driving `printf` (top-level items + the entry-function body, mirroring
 `execute_main`): scalar `DIM`/assignment, **integers** (literals, vars, arithmetic
-`+ - * /`, comparisons → XBasic `-1/0`, boolean/logical/`NOT`), **doubles** (literals,
+`+ - * /`, `MOD`/`\`/`<<`/`>>` integer ops, comparisons → XBasic `-1/0`, boolean/logical/`NOT`), **doubles** (literals,
 vars, arithmetic, comparison, `%g` print, int→float promotion), **strings** (literals,
 vars, `PRINT`), **`IF`/`WHILE`/`FOR`** control flow + **`SELECT CASE`** (equality chain
 + `CASE ELSE`) via basic blocks + **`GOSUB`/`RETURN`/`GOTO`** (top-level, via a
@@ -62,7 +62,8 @@ llvm_backend_compiles_string_comparison, llvm_backend_compiles_chr_builtin,
 llvm_backend_compiles_substring_builtins, llvm_backend_compiles_string_build,
 llvm_backend_compiles_string_transform_builtins, llvm_backend_compiles_print_separators,
 llvm_backend_compiles_select_case, llvm_backend_compiles_gosub_goto,
-llvm_backend_nested_gosub_falls_back_to_linear, llvm_backend_compiles_numeric_builtins}`. New error
+llvm_backend_nested_gosub_falls_back_to_linear, llvm_backend_compiles_numeric_builtins,
+llvm_backend_compiles_integer_ops}`. New error
 leaf `CompileError::Llvm` = `XB-B002`. Reference: `docs/12 §3.1`.
 
 ### LB-TOOLCHAIN — LLVM feature builds against local LLVM 22 ✅ done
