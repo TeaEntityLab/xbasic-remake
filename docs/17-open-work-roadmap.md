@@ -19,15 +19,19 @@
 ## 1. Backends
 
 ### LB-STUB — LLVM backend emits a real native object ✅ done
-`llvm_backend::LlvmBackend::compile` (feature `llvm`) now builds an LLVM module and writes
-a real host-target object via `TargetMachine::write_to_memory_buffer(Object)` (was
-`ObjectFile::from_bytes(Vec::new())`). v0 translates the executed string subset — `DIM s$`
-/ `s$ = "…"` / `s$ = other$` / `PRINT "…"|s$` — into a `main` driving `puts` (top-level
-items + the entry-function body, mirroring `execute_main`). Numeric / expression /
-control-flow items are not yet translated (incremental; the C backend stays the full AOT
-path). Proven end-to-end: the bootstrap `hello` pattern compiles → links with `cc` → runs
-→ prints `hello`. Locked by feature-gated `lib.rs::tests::llvm_backend_emits_runnable_object`.
-New error leaf `CompileError::Llvm` = `XB-B002`. Reference: `docs/12 §3.1`.
+`llvm_backend::LlvmBackend::compile` (feature `llvm`) builds an LLVM module and writes a
+real host-target object via `TargetMachine::write_to_memory_buffer(Object)` (was
+`ObjectFile::from_bytes(Vec::new())`). A recursive `Emit` translates a growing subset into
+a `main` driving `printf` (top-level items + the entry-function body, mirroring
+`execute_main`): scalar `DIM`/assignment, **integers** (literals, vars, arithmetic
+`+ - * /`, comparisons → XBasic `-1/0`, boolean/logical/`NOT`), **strings** (literals,
+vars, `PRINT`), and **`IF`/`WHILE`/`FOR`** control flow via basic blocks. Still deferred
+(incremental; C backend stays the full AOT path): functions, floats, arrays, string
+comparison. Proven end-to-end (compile → `cc` link → run): `hello`; `2*3+1`→`7`; and
+`FOR` sum 1..3 + `IF`→`6`,`big`. Locked by feature-gated `lib.rs::tests::{
+llvm_backend_emits_runnable_object, llvm_backend_compiles_integer_arithmetic,
+llvm_backend_compiles_control_flow}`. New error leaf `CompileError::Llvm` = `XB-B002`.
+Reference: `docs/12 §3.1`.
 
 ### LB-TOOLCHAIN — LLVM feature builds against local LLVM 22 ✅ done
 `cargo check/build/test -p xb-compiler --features llvm` now succeeds with
