@@ -209,6 +209,7 @@ pub mod llvm_backend {
         strlen: FunctionValue<'ctx>,
         strcmp: FunctionValue<'ctx>,
         memcpy: FunctionValue<'ctx>,
+        snprintf: FunctionValue<'ctx>,
         /// Array vars: name → (alloca holding the heap buffer ptr, element type). 1D only (v0).
         arrays: HashMap<String, (PointerValue<'ctx>, ValueType)>,
     }
@@ -233,6 +234,11 @@ pub mod llvm_backend {
             let memcpy = module.add_function(
                 "memcpy",
                 ptr.fn_type(&[ptr.into(), ptr.into(), i64t.into()], false),
+                None,
+            );
+            let snprintf = module.add_function(
+                "snprintf",
+                i32t.fn_type(&[ptr.into(), i64t.into(), ptr.into()], true),
                 None,
             );
             let printf = module.add_function("printf", i32t.fn_type(&[ptr.into()], true), None);
@@ -262,6 +268,7 @@ pub mod llvm_backend {
                 strlen,
                 strcmp,
                 memcpy,
+                snprintf,
                 arrays: HashMap::new(),
                 vars: HashMap::new(),
                 funcs: HashMap::new(),
@@ -731,6 +738,50 @@ pub mod llvm_backend {
                     None => None,
                 },
                 IrExprKind::Arithmetic { op, left, right } => {
+                    if matches!(op, ArithmeticOp::Add)
+                        && (expr.value_type == ValueType::String
+                            || left.value_type == ValueType::String
+                            || right.value_type == ValueType::String)
+                    {
+                        let (
+                            Some(BasicValueEnum::PointerValue(a)),
+                            Some(BasicValueEnum::PointerValue(b)),
+                        ) = (self.eval_value(left)?, self.eval_value(right)?)
+                        else {
+                            return Ok(None);
+                        };
+                        let la = self.str_len(a)?;
+                        let lb = self.str_len(b)?;
+                        let total = self.builder.build_int_add(la, lb, "cclen").map_err(Self::err)?;
+                        let cap = self
+                            .builder
+                            .build_int_add(total, self.i64t.const_int(1, false), "cap")
+                            .map_err(Self::err)?;
+                        let buf = self
+                            .builder
+                            .build_call(
+                                self.calloc,
+                                &[cap.into(), self.i64t.const_int(1, false).into()],
+                                "ccbuf",
+                            )
+                            .map_err(Self::err)?
+                            .try_as_basic_value()
+                            .basic()
+                            .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                            .into_pointer_value();
+                        self.builder
+                            .build_call(self.memcpy, &[buf.into(), a.into(), la.into()], "cp1")
+                            .map_err(Self::err)?;
+                        let off = unsafe {
+                            self.builder
+                                .build_in_bounds_gep(self.ctx.i8_type(), buf, &[la], "ccoff")
+                                .map_err(Self::err)?
+                        };
+                        self.builder
+                            .build_call(self.memcpy, &[off.into(), b.into(), lb.into()], "cp2")
+                            .map_err(Self::err)?;
+                        return Ok(Some(buf.into()));
+                    }
                     if expr.value_type == ValueType::Float
                         || left.value_type == ValueType::Float
                         || right.value_type == ValueType::Float
@@ -1071,6 +1122,38 @@ pub mod llvm_backend {
                     let cl = self.builder.build_int_sub(end_idx, start_idx, "cl").map_err(Self::err)?;
                     Ok(Some(self.str_copy(s, start_idx, cl)?.into()))
                 }
+                ("STR$", 1) => match self.eval_value(&args[0])? {
+                    // Integer STR$ = Rust i32::to_string == snprintf("%d"). Float STR$ is
+                    // deferred (Rust float fmt != printf; would be silently wrong).
+                    Some(BasicValueEnum::IntValue(iv)) => {
+                        let buf = self
+                            .builder
+                            .build_call(
+                                self.calloc,
+                                &[self.i64t.const_int(16, false).into(), self.i64t.const_int(1, false).into()],
+                                "strbuf",
+                            )
+                            .map_err(Self::err)?
+                            .try_as_basic_value()
+                            .basic()
+                            .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                            .into_pointer_value();
+                        self.builder
+                            .build_call(
+                                self.snprintf,
+                                &[
+                                    buf.into(),
+                                    self.i64t.const_int(16, false).into(),
+                                    self.fmt_d.into(),
+                                    iv.into(),
+                                ],
+                                "str",
+                            )
+                            .map_err(Self::err)?;
+                        Ok(Some(buf.into()))
+                    }
+                    _ => Ok(None),
+                },
                 _ => Ok(None),
             }
         }
@@ -1540,6 +1623,47 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "hello\nworld\nworld\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_string_build() {
+        use std::io::Write;
+        use std::process::Command;
+        // Concatenation + STR$ mirror the interpreter: "n=42"/"abc"/"-5".
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM s$\n\
+             s$ = \"n=\" + STR$(42)\n\
+             PRINT s$\n\
+             PRINT \"a\" + \"b\" + \"c\"\n\
+             PRINT STR$(0 - 5)\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_sbuild.o");
+        let exep = dir.join("xb_llvm_sbuild.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "n=42\nabc\n-5\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
