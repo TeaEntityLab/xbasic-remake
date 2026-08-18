@@ -204,6 +204,10 @@ pub mod llvm_backend {
         /// Return type of the function currently being emitted.
         cur_ret: ValueType,
         vars: HashMap<String, (PointerValue<'ctx>, ValueType)>,
+        i64t: IntType<'ctx>,
+        calloc: FunctionValue<'ctx>,
+        /// Array vars: name → (alloca holding the heap buffer ptr, element type). 1D only (v0).
+        arrays: HashMap<String, (PointerValue<'ctx>, ValueType)>,
     }
 
     impl<'ctx> Emit<'ctx> {
@@ -217,6 +221,9 @@ pub mod llvm_backend {
             let i32t = ctx.i32_type();
             let f64t = ctx.f64_type();
             let ptr = ctx.ptr_type(AddressSpace::default());
+            let i64t = ctx.i64_type();
+            let calloc =
+                module.add_function("calloc", ptr.fn_type(&[i64t.into(), i64t.into()], false), None);
             let printf = module.add_function("printf", i32t.fn_type(&[ptr.into()], true), None);
             let main = module.add_function("main", i32t.fn_type(&[], false), None);
             builder.position_at_end(ctx.append_basic_block(main, "entry"));
@@ -239,6 +246,9 @@ pub mod llvm_backend {
                 nl,
                 f64t,
                 fmt_g,
+                i64t,
+                calloc,
+                arrays: HashMap::new(),
                 vars: HashMap::new(),
                 funcs: HashMap::new(),
                 cur_fn: main,
@@ -272,6 +282,30 @@ pub mod llvm_backend {
                 ValueType::Float => self.f64t.into(),
                 _ => self.i32t.into(),
             }
+        }
+
+        /// GEP to element `name[index]` (1D). `None` if `name` is not a known array.
+        fn array_elem_ptr(
+            &self,
+            name: &str,
+            index: &IrExpr,
+        ) -> Result<Option<(PointerValue<'ctx>, ValueType)>, CompileError> {
+            let Some(&(holder, elem)) = self.arrays.get(name) else {
+                return Ok(None);
+            };
+            let bufptr = self
+                .builder
+                .build_load(self.ptr, holder, "buf")
+                .map_err(Self::err)?
+                .into_pointer_value();
+            let idx = self.eval_int(index)?;
+            let ety = self.llvm_type(elem);
+            let ep = unsafe {
+                self.builder
+                    .build_in_bounds_gep(ety, bufptr, &[idx], "elem")
+                    .map_err(Self::err)?
+            };
+            Ok(Some((ep, elem)))
         }
 
         /// Build a return for the current function's type if the block is still open.
@@ -416,10 +450,62 @@ pub mod llvm_backend {
                     };
                     self.builder.build_store(slot, init).map_err(Self::err)?;
                 }
+                IrItem::Dim { symbol, size, is_array: true, .. } => {
+                    let elem = symbol.value_type;
+                    let esz: u64 = match elem {
+                        ValueType::Float | ValueType::String => 8,
+                        _ => 4,
+                    };
+                    // DIM a[n] → indices 0..=n (n+1 slots); default 1 slot when unsized.
+                    let count = match size {
+                        Some(e) => {
+                            let n = self.eval_int(e)?;
+                            let n64 = self
+                                .builder
+                                .build_int_z_extend(n, self.i64t, "n64")
+                                .map_err(Self::err)?;
+                            self.builder
+                                .build_int_add(n64, self.i64t.const_int(1, false), "cnt")
+                                .map_err(Self::err)?
+                        }
+                        None => self.i64t.const_int(1, false),
+                    };
+                    let buf = self
+                        .builder
+                        .build_call(
+                            self.calloc,
+                            &[count.into(), self.i64t.const_int(esz, false).into()],
+                            "arr",
+                        )
+                        .map_err(Self::err)?
+                        .try_as_basic_value()
+                        .basic()
+                        .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                        .into_pointer_value();
+                    let holder = match self.arrays.get(&symbol.name) {
+                        Some(&(h, _)) => h,
+                        None => {
+                            let h = self
+                                .builder
+                                .build_alloca(self.ptr, &symbol.name)
+                                .map_err(Self::err)?;
+                            self.arrays.insert(symbol.name.clone(), (h, elem));
+                            h
+                        }
+                    };
+                    self.builder.build_store(holder, buf).map_err(Self::err)?;
+                }
                 IrItem::Assignment { target, value } => {
                     if let Some(v) = self.eval_value(value)? {
                         let slot = self.get_or_alloca(&target.name, target.value_type)?;
                         self.builder.build_store(slot, v).map_err(Self::err)?;
+                    }
+                }
+                IrItem::ArrayAssignment { target, index, value, .. } => {
+                    if let (Some(v), Some((ep, _))) =
+                        (self.eval_value(value)?, self.array_elem_ptr(&target.name, index)?)
+                    {
+                        self.builder.build_store(ep, v).map_err(Self::err)?;
                     }
                 }
                 IrItem::Print { items, .. } => {
@@ -715,6 +801,16 @@ pub mod llvm_backend {
                         .map_err(Self::err)?
                         .try_as_basic_value()
                         .basic()
+                }
+                IrExprKind::ArrayAccess { symbol, index, .. } => {
+                    match self.array_elem_ptr(&symbol.name, index)? {
+                        Some((ep, elem)) => Some(
+                            self.builder
+                                .build_load(self.llvm_type(elem), ep, "ai")
+                                .map_err(Self::err)?,
+                        ),
+                        None => None,
+                    }
                 }
                 IrExprKind::Boolean { op, left, right } => {
                     let a = self.eval_int(left)?;
@@ -1015,6 +1111,47 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "25\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_array_indexing() {
+        use std::io::Write;
+        use std::process::Command;
+        // 1D heap array: a[2] = a[0] + a[1] = 30.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM a[3]\n\
+             a[0] = 10\n\
+             a[1] = 20\n\
+             a[2] = a[0] + a[1]\n\
+             PRINT a[2]\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_arr.o");
+        let exep = dir.join("xb_llvm_arr.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "30\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
