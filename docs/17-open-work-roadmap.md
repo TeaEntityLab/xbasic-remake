@@ -33,17 +33,18 @@ linear), **user-defined
 functions** (definitions, calls, returns, params, per-function scope; two-pass declare +
 emit), **N-dim arrays** (`DIM a[d0,d1,…]` → `calloc`'d row-major heap buffer with a
 per-dimension count shape; `a[i,j,…]` read/write via a Horner offset mirroring
-`TypedSlot::array_offset`) + **`UBOUND`** (flat length − 1 / `LEN` − 1 / −1), **`ABS`/`LEN`
-builtins** (int/float abs via select; `LEN`→ libc `strlen`), **string comparison** (libc
-`strcmp` vs 0), **`CHR$`** (calloc'd 2-byte buffer → string-returning builtin path),
-**`LEFT$`/`RIGHT$`/`MID$`** substring builtins (`calloc`+`memcpy`; sext/unsigned-min/
-saturating-sub mirroring the interpreter's `as usize`/`min`/`saturating_sub`), **string
-concatenation** (`+` → `calloc`+two `memcpy`s), **`STR$`** for integers
-(`snprintf("%d")` = Rust `i32::to_string`), **`TRIM$`/`LTRIM$`/`RTRIM$`/`UCASE$`/
-`LCASE$`/`SPACE$`** (loop-based: `byte_trim` ASCII-whitespace scan, ASCII case fold,
-`memset` spaces), **`ASC`/`SGN`/`INT`/`FIX`/`MAX`/`MIN`/`HEX$`** numeric builtins
-(`HEX$` = `snprintf("%X")` = Rust `{:X}`), and **`PRINT` comma/semicolon separators**
-(comma→tab, semicolon→none; one line per `PRINT`, matching `exec_print`). All
+builtins** (int/float abs via select). **Byte-strings**: a string value is a `ptr` to
+its bytes with the `i64` length in an 8-byte prefix at `ptr-8` (signatures stay `ptr`),
+plus a trailing NUL for C interop. This makes **`CHR$(0)`, embedded, and high bytes**
+byte-accurate — **`LEN`** reads the prefix (not `strlen`), **`PRINT`** writes the exact
+bytes via a `putchar` loop (not `printf("%s")`, which truncates at NUL), **string
+comparison** uses `memcmp` + a length tiebreak (`str_cmp`, matching Rust `Vec<u8>`
+ordering), **`CHR$`** is a 1-byte byte-string, **`LEFT$`/`RIGHT$`/`MID$`/concat** build
+fresh byte-strings via `str_new`+`memcpy`, and **`STR$`/`HEX$`** copy `snprintf` output
+into a byte-string. **`TRIM$`/`LTRIM$`/`RTRIM$`/`UCASE$`/`LCASE$`/`SPACE$`** (loop-based
+ASCII scan/fold/`memset`), **`ASC`/`SGN`/`INT`/`FIX`/`MAX`/`MIN`** numeric builtins, and
+**`PRINT` comma/semicolon separators** (comma→tab, semicolon→none; one line per `PRINT`,
+matching `exec_print`). All
 string/array semantics parity-checked vs
 `xb --run`. Still deferred (incremental; C backend stays the full AOT path):
 content-preserving `REDIM` / array bounds checks, float `STR$` + `VAL` (Rust float-fmt /
@@ -63,7 +64,7 @@ llvm_backend_compiles_substring_builtins, llvm_backend_compiles_string_build,
 llvm_backend_compiles_string_transform_builtins, llvm_backend_compiles_print_separators,
 llvm_backend_compiles_select_case, llvm_backend_compiles_gosub_goto,
 llvm_backend_nested_gosub_falls_back_to_linear, llvm_backend_compiles_numeric_builtins,
-llvm_backend_compiles_integer_ops}`. New error
+llvm_backend_compiles_integer_ops, llvm_backend_compiles_embedded_nul_strings}`. New error
 leaf `CompileError::Llvm` = `XB-B002`. Reference: `docs/12 §3.1`.
 
 ### LB-TOOLCHAIN — LLVM feature builds against local LLVM 22 ✅ done
@@ -85,7 +86,7 @@ The `llvm` path is behind the `xb-cli` `llvm` feature (`--features llvm`, forwar
 cli_backend_llvm_errors_when_feature_disabled (feature off)}`.
 
 **Reach `[verified 2026-08-18]`:** a differential sweep (LLVM-native vs `xb --run`
-over `xbasic-6.4.5/**/*.x`) finds **78 programs** produce **byte-identical** native
+over `xbasic-6.4.5/**/*.x`) finds **79 programs** produce **byte-identical** native
 output (up from 61 pre-`GOSUB`), with **0** invalid-IR compile-fails — every runnable
 corpus program now emits valid IR (`module.verify()` gates it). Guarded by
 `cli.rs::cli_llvm_matches_interpreter_on_corpus_programs` (curated rich-output subset:
@@ -101,20 +102,27 @@ coercion** (`eval_args` coerces args to the callee's param types + reconciles ar
 fixed 6 signature-mismatch compile-fails), and a **FOR back-edge guard** (a `RETURN`/`GOTO`
 in a loop body no longer appends an unreachable increment past the terminator — cleared
 the last invalid-IR case). Plus `ASC`/`SGN`/`INT`/`FIX`/`MAX`/`MIN`/`HEX$` builtins.
+
+The **+1** to **79** came from the **byte-string representation overhaul** (RT-BYTESTRING
+in the LLVM backend): a string value is now a length-prefixed `ptr` (`i64` length at
+`ptr-8`, trailing NUL for C interop), so `CHR$(0)`, embedded, and high bytes are
+byte-accurate through concat / `LEN` / `PRINT` / comparison (`putchar` loop + `memcmp`
+with a length tiebreak), not truncated at the first NUL by `printf("%s")`. Proven
+byte-exact (`AB\0CD`) and locked by `llvm_backend_compiles_embedded_nul_strings`.
 Remaining gates to higher reach — all deferred-large or fundamental, **no incremental
-lever left** (the 27 non-faithful interpreter-clean programs, categorized by root cause):
+lever left** (the 26 non-faithful interpreter-clean programs, categorized by root cause):
 
 | Blocker | Count | Nature |
 |---|---|---|
 | GUI (`Xui`/`Xgr`/GTK) | 11 | Needs the winit+softbuffer runtime (docs/12) — large, deferred |
 | File/record I/O (`WRITE`/`READ` fixed-length records) | ~5 | Needs a file runtime — deferred |
-| **Byte-strings** (embedded/high bytes, `CHR$(0)`) | several | LLVM uses C null-terminated strings; the interpreter uses `Vec<u8>` — `CHR$(0)` → empty C-string, so e.g. `aback` diverges. RT-BYTESTRING: a representation overhaul (length-prefixed strings + custom print) |
+| Platform library (`Xst*` helpers, e.g. `XstBinStringToBackString$`) | several | Interpreter-stubbed library functions with no LLVM body — `aback` diverges here (its output is *longer*, not NUL-truncated). Needs a native `Xst*` runtime — deferred |
 | by-ref `@` (copy-in/out) | ~2 | Needs an all-pointer-param ABI (per-call-site ref-ness); risky, and those programs have other blockers too |
 | Diverse formatting / loop counts | rest | Program-specific |
 
 None is a single high-value unlock; each is a documented large effort or a fundamental
 representation change warranting explicit scoping. The incremental, low-risk LLVM roadmap
-is complete at **78/105 faithful, 0 compile-fails**.
+is complete at **79/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING).
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The

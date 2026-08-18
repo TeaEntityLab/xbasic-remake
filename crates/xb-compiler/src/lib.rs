@@ -208,7 +208,6 @@ pub mod llvm_backend {
         f64t: FloatType<'ctx>,
         ptr: PointerType<'ctx>,
         printf: FunctionValue<'ctx>,
-        fmt_s: PointerValue<'ctx>,
         fmt_d: PointerValue<'ctx>,
         nl: PointerValue<'ctx>,
         tab: PointerValue<'ctx>,
@@ -224,10 +223,11 @@ pub mod llvm_backend {
         i64t: IntType<'ctx>,
         calloc: FunctionValue<'ctx>,
         strlen: FunctionValue<'ctx>,
-        strcmp: FunctionValue<'ctx>,
         memcpy: FunctionValue<'ctx>,
         snprintf: FunctionValue<'ctx>,
         memset: FunctionValue<'ctx>,
+        putchar: FunctionValue<'ctx>,
+        memcmp: FunctionValue<'ctx>,
         /// Array vars: name → (alloca holding the heap buffer ptr, element type,
         /// per-dimension count allocas as i64 — row-major shape). 1 dim entry = 1D.
         arrays: HashMap<String, (PointerValue<'ctx>, ValueType, Vec<PointerValue<'ctx>>)>,
@@ -250,8 +250,6 @@ pub mod llvm_backend {
             let calloc =
                 module.add_function("calloc", ptr.fn_type(&[i64t.into(), i64t.into()], false), None);
             let strlen = module.add_function("strlen", i64t.fn_type(&[ptr.into()], false), None);
-            let strcmp =
-                module.add_function("strcmp", i32t.fn_type(&[ptr.into(), ptr.into()], false), None);
             let memcpy = module.add_function(
                 "memcpy",
                 ptr.fn_type(&[ptr.into(), ptr.into(), i64t.into()], false),
@@ -267,13 +265,18 @@ pub mod llvm_backend {
                 ptr.fn_type(&[ptr.into(), i32t.into(), i64t.into()], false),
                 None,
             );
+            let putchar = module.add_function("putchar", i32t.fn_type(&[i32t.into()], false), None);
+            let memcmp = module.add_function(
+                "memcmp",
+                i32t.fn_type(&[ptr.into(), ptr.into(), i64t.into()], false),
+                None,
+            );
             let printf = module.add_function("printf", i32t.fn_type(&[ptr.into()], true), None);
             let main = module.add_function("main", i32t.fn_type(&[], false), None);
             builder.position_at_end(ctx.append_basic_block(main, "entry"));
             let g = |b: &Builder<'ctx>, s: &str, n: &str| -> Result<PointerValue<'ctx>, CompileError> {
                 Ok(b.build_global_string_ptr(s, n).map_err(Self::err)?.as_pointer_value())
             };
-            let fmt_s = g(&builder, "%s", "fmts")?;
             let fmt_d = g(&builder, "%d", "fmtd")?;
             let nl = g(&builder, "\n", "nl")?;
             let tab = g(&builder, "\t", "tab")?;
@@ -286,7 +289,6 @@ pub mod llvm_backend {
                 i32t,
                 ptr,
                 printf,
-                fmt_s,
                 fmt_d,
                 nl,
                 tab,
@@ -296,10 +298,11 @@ pub mod llvm_backend {
                 i64t,
                 calloc,
                 strlen,
-                strcmp,
                 memcpy,
                 snprintf,
                 memset,
+                putchar,
+                memcmp,
                 arrays: HashMap::new(),
                 sm: None,
                 vars: HashMap::new(),
@@ -669,12 +672,7 @@ pub mod llvm_backend {
                 IrItem::Dim { symbol, is_array: false, .. } => {
                     let slot = self.get_or_alloca(&symbol.name, symbol.value_type)?;
                     let init: BasicValueEnum = match symbol.value_type {
-                        ValueType::String => self
-                            .builder
-                            .build_global_string_ptr("", "e")
-                            .map_err(Self::err)?
-                            .as_pointer_value()
-                            .into(),
+                        ValueType::String => self.str_const(b"")?.into(),
                         ValueType::Float => self.f64t.const_zero().into(),
                         _ => self.i32t.const_zero().into(),
                     };
@@ -777,11 +775,7 @@ pub mod llvm_backend {
                                     .build_call(self.printf, &[self.fmt_d.into(), iv.into()], "")
                                     .map_err(Self::err)?;
                             }
-                            Some(BasicValueEnum::PointerValue(pv)) => {
-                                self.builder
-                                    .build_call(self.printf, &[self.fmt_s.into(), pv.into()], "")
-                                    .map_err(Self::err)?;
-                            }
+                            Some(BasicValueEnum::PointerValue(pv)) => self.str_print(pv)?,
                             Some(BasicValueEnum::FloatValue(fv)) => {
                                 self.builder
                                     .build_call(self.printf, &[self.fmt_g.into(), fv.into()], "")
@@ -922,12 +916,13 @@ pub mod llvm_backend {
                         .is_none()
                     {
                         let rv: BasicValueEnum = match (value, self.cur_ret) {
-                            (Some(e), ValueType::String) => self
-                                .eval_value(e)?
-                                .unwrap_or_else(|| self.ptr.const_null().into()),
+                            (Some(e), ValueType::String) => match self.eval_value(e)? {
+                                Some(v) => v,
+                                None => self.str_const(b"")?.into(),
+                            },
                             (Some(e), ValueType::Float) => self.eval_float(e)?.into(),
                             (Some(e), _) => self.eval_int(e)?.into(),
-                            (None, ValueType::String) => self.ptr.const_null().into(),
+                            (None, ValueType::String) => self.str_const(b"")?.into(),
                             (None, ValueType::Float) => self.f64t.const_zero().into(),
                             (None, _) => self.i32t.const_zero().into(),
                         };
@@ -1054,7 +1049,7 @@ pub mod llvm_backend {
                 .map_err(Self::err)
         }
 
-        /// i1: XBasic equality of two evaluated values (int/float direct, string via strcmp).
+        /// i1: XBasic equality of two evaluated values (int/float direct, string via `str_cmp`).
         fn values_equal(
             &self,
             a: BasicValueEnum<'ctx>,
@@ -1069,14 +1064,7 @@ pub mod llvm_backend {
                     .build_float_compare(FloatPredicate::OEQ, x, y, "sfeq")
                     .map_err(Self::err),
                 (BasicValueEnum::PointerValue(x), BasicValueEnum::PointerValue(y)) => {
-                    let r = self
-                        .builder
-                        .build_call(self.strcmp, &[x.into(), y.into()], "scmp")
-                        .map_err(Self::err)?
-                        .try_as_basic_value()
-                        .basic()
-                        .ok_or_else(|| CompileError::Llvm("strcmp returned void".into()))?
-                        .into_int_value();
+                    let r = self.str_cmp(x, y)?;
                     self.builder
                         .build_int_compare(IntPredicate::EQ, r, self.i32t.const_zero(), "seq0")
                         .map_err(Self::err)
@@ -1109,13 +1097,7 @@ pub mod llvm_backend {
         /// `None` for constructs this v0 does not translate.
         fn eval_value(&self, expr: &IrExpr) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
             Ok(match &expr.kind {
-                IrExprKind::StringLiteral(s) => Some(
-                    self.builder
-                        .build_global_string_ptr(s, "s")
-                        .map_err(Self::err)?
-                        .as_pointer_value()
-                        .into(),
-                ),
+                IrExprKind::StringLiteral(s) => Some(self.str_const(s.as_bytes())?.into()),
                 IrExprKind::IntegerLiteral(v) => {
                     let n = if let Some(h) = v.strip_prefix("0x").or_else(|| v.strip_prefix("0X")) {
                         i64::from_str_radix(h, 16).unwrap_or(0)
@@ -1155,22 +1137,7 @@ pub mod llvm_backend {
                         let la = self.str_len(a)?;
                         let lb = self.str_len(b)?;
                         let total = self.builder.build_int_add(la, lb, "cclen").map_err(Self::err)?;
-                        let cap = self
-                            .builder
-                            .build_int_add(total, self.i64t.const_int(1, false), "cap")
-                            .map_err(Self::err)?;
-                        let buf = self
-                            .builder
-                            .build_call(
-                                self.calloc,
-                                &[cap.into(), self.i64t.const_int(1, false).into()],
-                                "ccbuf",
-                            )
-                            .map_err(Self::err)?
-                            .try_as_basic_value()
-                            .basic()
-                            .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
-                            .into_pointer_value();
+                        let buf = self.str_new(total)?;
                         self.builder
                             .build_call(self.memcpy, &[buf.into(), a.into(), la.into()], "cp1")
                             .map_err(Self::err)?;
@@ -1240,14 +1207,7 @@ pub mod llvm_backend {
                         else {
                             return Ok(None);
                         };
-                        let r = self
-                            .builder
-                            .build_call(self.strcmp, &[a.into(), b.into()], "strcmp")
-                            .map_err(Self::err)?
-                            .try_as_basic_value()
-                            .basic()
-                            .ok_or_else(|| CompileError::Llvm("strcmp returned void".into()))?
-                            .into_int_value();
+                        let r = self.str_cmp(a, b)?;
                         let pred = match op {
                             ComparisonOp::Equal => IntPredicate::EQ,
                             ComparisonOp::NotEqual => IntPredicate::NE,
@@ -1396,16 +1356,157 @@ pub mod llvm_backend {
             })
         }
 
-        /// `strlen(s)` as i64.
+        /// Length of a byte-string, from the i64 prefix at `s - 8`.
         fn str_len(&self, s: PointerValue<'ctx>) -> Result<IntValue<'ctx>, CompileError> {
-            Ok(self
+            let neg1 = self.i64t.const_int((-1i64) as u64, true);
+            let lenp = unsafe {
+                self.builder
+                    .build_in_bounds_gep(self.i64t, s, &[neg1], "lenp")
+                    .map_err(Self::err)?
+            };
+            Ok(self.builder.build_load(self.i64t, lenp, "slen").map_err(Self::err)?.into_int_value())
+        }
+
+        /// `strcmp`-like i32 (<0/0/>0) for byte-strings: unsigned byte-lexicographic with a
+        /// length tiebreak, matching Rust `Vec<u8>`/`str` ordering (shorter prefix is less).
+        fn str_cmp(&self, a: PointerValue<'ctx>, b: PointerValue<'ctx>) -> Result<IntValue<'ctx>, CompileError> {
+            let la = self.str_len(a)?;
+            let lb = self.str_len(b)?;
+            let m = self.umin(la, lb)?;
+            let r = self
                 .builder
-                .build_call(self.strlen, &[s.into()], "len")
+                .build_call(self.memcmp, &[a.into(), b.into(), m.into()], "mcmp")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("memcmp returned void".into()))?
+                .into_int_value();
+            let llt = self.builder.build_int_compare(IntPredicate::ULT, la, lb, "llt").map_err(Self::err)?;
+            let lgt = self.builder.build_int_compare(IntPredicate::UGT, la, lb, "lgt").map_err(Self::err)?;
+            let neg1 = self.i32t.const_int((-1i64) as u64, true);
+            let one = self.i32t.const_int(1, false);
+            let hi = self.builder.build_select(lgt, one, self.i32t.const_zero(), "lhi").map_err(Self::err)?.into_int_value();
+            let dif = self.builder.build_select(llt, neg1, hi, "ldif").map_err(Self::err)?.into_int_value();
+            let rnz = self.builder.build_int_compare(IntPredicate::NE, r, self.i32t.const_zero(), "rnz").map_err(Self::err)?;
+            Ok(self.builder.build_select(rnz, r, dif, "scmpsel").map_err(Self::err)?.into_int_value())
+        }
+
+        /// Allocate a zeroed byte-string of `len` bytes; returns the data pointer, with the
+        /// i64 length in the 8-byte prefix and a trailing NUL (for C interop).
+        fn str_new(&self, len: IntValue<'ctx>) -> Result<PointerValue<'ctx>, CompileError> {
+            let total = self
+                .builder
+                .build_int_add(len, self.i64t.const_int(9, false), "stot")
+                .map_err(Self::err)?;
+            let base = self
+                .builder
+                .build_call(
+                    self.calloc,
+                    &[total.into(), self.i64t.const_int(1, false).into()],
+                    "sbase",
+                )
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                .into_pointer_value();
+            self.builder.build_store(base, len).map_err(Self::err)?;
+            let data = unsafe {
+                self.builder
+                    .build_in_bounds_gep(self.ctx.i8_type(), base, &[self.i64t.const_int(8, false)], "sdata")
+                    .map_err(Self::err)?
+            };
+            Ok(data)
+        }
+
+        /// A global length-prefixed byte-string constant; returns its data pointer.
+        fn str_const(&self, bytes: &[u8]) -> Result<PointerValue<'ctx>, CompileError> {
+            let i8t = self.ctx.i8_type();
+            let mut raw: Vec<u8> = (bytes.len() as u64).to_le_bytes().to_vec();
+            raw.extend_from_slice(bytes);
+            raw.push(0);
+            let vals: Vec<_> = raw.iter().map(|b| i8t.const_int(*b as u64, false)).collect();
+            let arr = i8t.const_array(&vals);
+            let g = self.module.add_global(arr.get_type(), None, "bsc");
+            g.set_initializer(&arr);
+            g.set_constant(true);
+            let data = unsafe {
+                self.builder
+                    .build_in_bounds_gep(i8t, g.as_pointer_value(), &[self.i64t.const_int(8, false)], "scd")
+                    .map_err(Self::err)?
+            };
+            Ok(data)
+        }
+
+        /// Byte-string copy of a NUL-terminated C string (its length via libc `strlen`).
+        /// Safe only for C strings with no embedded NUL (e.g. `snprintf` numeric output).
+        fn str_from_cstr(&self, c: PointerValue<'ctx>) -> Result<PointerValue<'ctx>, CompileError> {
+            let clen = self
+                .builder
+                .build_call(self.strlen, &[c.into()], "clen")
                 .map_err(Self::err)?
                 .try_as_basic_value()
                 .basic()
                 .ok_or_else(|| CompileError::Llvm("strlen returned void".into()))?
-                .into_int_value())
+                .into_int_value();
+            self.str_copy(c, self.i64t.const_zero(), clen)
+        }
+
+        /// `snprintf(fmt, iv)` into a scratch buffer, returned as a byte-string.
+        fn str_from_int(&self, fmt: PointerValue<'ctx>, iv: IntValue<'ctx>) -> Result<PointerValue<'ctx>, CompileError> {
+            let tmp = self
+                .builder
+                .build_call(
+                    self.calloc,
+                    &[self.i64t.const_int(24, false).into(), self.i64t.const_int(1, false).into()],
+                    "numbuf",
+                )
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                .into_pointer_value();
+            self.builder
+                .build_call(
+                    self.snprintf,
+                    &[tmp.into(), self.i64t.const_int(24, false).into(), fmt.into(), iv.into()],
+                    "num",
+                )
+                .map_err(Self::err)?;
+            self.str_from_cstr(tmp)
+        }
+
+        /// Write a byte-string to stdout via a `putchar` loop over its length (handles
+        /// embedded NULs; shares libc's stdout buffer with `printf` so ordering is kept).
+        fn str_print(&self, s: PointerValue<'ctx>) -> Result<(), CompileError> {
+            let len = self.str_len(s)?;
+            let idx = self.builder.build_alloca(self.i64t, "pi").map_err(Self::err)?;
+            self.builder.build_store(idx, self.i64t.const_zero()).map_err(Self::err)?;
+            let head = self.ctx.append_basic_block(self.cur_fn, "sp.head");
+            let body = self.ctx.append_basic_block(self.cur_fn, "sp.body");
+            let exit = self.ctx.append_basic_block(self.cur_fn, "sp.exit");
+            self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+            self.builder.position_at_end(head);
+            let iv = self.builder.build_load(self.i64t, idx, "pv").map_err(Self::err)?.into_int_value();
+            let cont = self
+                .builder
+                .build_int_compare(IntPredicate::ULT, iv, len, "plt")
+                .map_err(Self::err)?;
+            self.builder.build_conditional_branch(cont, body, exit).map_err(Self::err)?;
+            self.builder.position_at_end(body);
+            let ep = unsafe {
+                self.builder
+                    .build_in_bounds_gep(self.ctx.i8_type(), s, &[iv], "pep")
+                    .map_err(Self::err)?
+            };
+            let c = self.builder.build_load(self.ctx.i8_type(), ep, "pc").map_err(Self::err)?.into_int_value();
+            let ci = self.builder.build_int_z_extend(c, self.i32t, "pci").map_err(Self::err)?;
+            self.builder.build_call(self.putchar, &[ci.into()], "pch").map_err(Self::err)?;
+            let next = self.builder.build_int_add(iv, self.i64t.const_int(1, false), "pn").map_err(Self::err)?;
+            self.builder.build_store(idx, next).map_err(Self::err)?;
+            self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+            self.builder.position_at_end(exit);
+            Ok(())
         }
 
         /// Unsigned min (matches `usize::min`).
@@ -1431,29 +1532,14 @@ pub mod llvm_backend {
                 .into_int_value())
         }
 
-        /// Allocate a fresh null-terminated string = `len` bytes copied from `src + off`.
+        /// Allocate a byte-string = `len` bytes copied from `src + off`.
         fn str_copy(
             &self,
             src: PointerValue<'ctx>,
             off: IntValue<'ctx>,
             len: IntValue<'ctx>,
         ) -> Result<PointerValue<'ctx>, CompileError> {
-            let cap = self
-                .builder
-                .build_int_add(len, self.i64t.const_int(1, false), "cap")
-                .map_err(Self::err)?;
-            let buf = self
-                .builder
-                .build_call(
-                    self.calloc,
-                    &[cap.into(), self.i64t.const_int(1, false).into()],
-                    "sbuf",
-                )
-                .map_err(Self::err)?
-                .try_as_basic_value()
-                .basic()
-                .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
-                .into_pointer_value();
+            let buf = self.str_new(len)?;
             let srcoff = unsafe {
                 self.builder
                     .build_in_bounds_gep(self.ctx.i8_type(), src, &[off], "srcoff")
@@ -1465,25 +1551,10 @@ pub mod llvm_backend {
             Ok(buf)
         }
 
-        /// `SPACE$(n)`: `n` spaces (calloc + memset), null-terminated.
+        /// `SPACE$(n)`: a byte-string of `n` spaces.
         fn str_space(&self, n: IntValue<'ctx>) -> Result<PointerValue<'ctx>, CompileError> {
             let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
-            let cap = self
-                .builder
-                .build_int_add(n64, self.i64t.const_int(1, false), "cap")
-                .map_err(Self::err)?;
-            let buf = self
-                .builder
-                .build_call(
-                    self.calloc,
-                    &[cap.into(), self.i64t.const_int(1, false).into()],
-                    "spc",
-                )
-                .map_err(Self::err)?
-                .try_as_basic_value()
-                .basic()
-                .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
-                .into_pointer_value();
+            let buf = self.str_new(n64)?;
             self.builder
                 .build_call(
                     self.memset,
@@ -1644,16 +1715,9 @@ pub mod llvm_backend {
                 },
                 ("LEN", 1) => match self.eval_value(&args[0])? {
                     Some(BasicValueEnum::PointerValue(pv)) => {
-                        let call = self
-                            .builder
-                            .build_call(self.strlen, &[pv.into()], "len")
-                            .map_err(Self::err)?;
-                        let Some(n64) = call.try_as_basic_value().basic() else {
-                            return Ok(None);
-                        };
                         let n32 = self
                             .builder
-                            .build_int_truncate(n64.into_int_value(), self.i32t, "len32")
+                            .build_int_truncate(self.str_len(pv)?, self.i32t, "len32")
                             .map_err(Self::err)?;
                         Ok(Some(n32.into()))
                     }
@@ -1665,22 +1729,8 @@ pub mod llvm_backend {
                         .builder
                         .build_int_truncate(n, self.ctx.i8_type(), "ch")
                         .map_err(Self::err)?;
-                    // calloc(2,1) -> [0,0]; store the char at [0], leaving a null terminator.
-                    let buf = self
-                        .builder
-                        .build_call(
-                            self.calloc,
-                            &[
-                                self.i64t.const_int(2, false).into(),
-                                self.i64t.const_int(1, false).into(),
-                            ],
-                            "chrbuf",
-                        )
-                        .map_err(Self::err)?
-                        .try_as_basic_value()
-                        .basic()
-                        .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
-                        .into_pointer_value();
+                    // A 1-byte byte-string; storing the char keeps CHR$(0) as a real NUL byte.
+                    let buf = self.str_new(self.i64t.const_int(1, false))?;
                     self.builder.build_store(buf, ch).map_err(Self::err)?;
                     Ok(Some(buf.into()))
                 }
@@ -1731,33 +1781,7 @@ pub mod llvm_backend {
                 ("STR$", 1) => match self.eval_value(&args[0])? {
                     // Integer STR$ = Rust i32::to_string == snprintf("%d"). Float STR$ is
                     // deferred (Rust float fmt != printf; would be silently wrong).
-                    Some(BasicValueEnum::IntValue(iv)) => {
-                        let buf = self
-                            .builder
-                            .build_call(
-                                self.calloc,
-                                &[self.i64t.const_int(16, false).into(), self.i64t.const_int(1, false).into()],
-                                "strbuf",
-                            )
-                            .map_err(Self::err)?
-                            .try_as_basic_value()
-                            .basic()
-                            .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
-                            .into_pointer_value();
-                        self.builder
-                            .build_call(
-                                self.snprintf,
-                                &[
-                                    buf.into(),
-                                    self.i64t.const_int(16, false).into(),
-                                    self.fmt_d.into(),
-                                    iv.into(),
-                                ],
-                                "str",
-                            )
-                            .map_err(Self::err)?;
-                        Ok(Some(buf.into()))
-                    }
+                    Some(BasicValueEnum::IntValue(iv)) => Ok(Some(self.str_from_int(self.fmt_d, iv)?.into())),
                     _ => Ok(None),
                 },
                 ("SPACE$", 1) => {
@@ -1808,28 +1832,7 @@ pub mod llvm_backend {
                 }
                 ("HEX$", 1) => match self.eval_value(&args[0])? {
                     // snprintf("%X") == Rust `{:X}` on i32 (both hex of the 32-bit pattern).
-                    Some(BasicValueEnum::IntValue(iv)) => {
-                        let buf = self
-                            .builder
-                            .build_call(
-                                self.calloc,
-                                &[self.i64t.const_int(16, false).into(), self.i64t.const_int(1, false).into()],
-                                "hexbuf",
-                            )
-                            .map_err(Self::err)?
-                            .try_as_basic_value()
-                            .basic()
-                            .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
-                            .into_pointer_value();
-                        self.builder
-                            .build_call(
-                                self.snprintf,
-                                &[buf.into(), self.i64t.const_int(16, false).into(), self.fmt_hex.into(), iv.into()],
-                                "hex",
-                            )
-                            .map_err(Self::err)?;
-                        Ok(Some(buf.into()))
-                    }
+                    Some(BasicValueEnum::IntValue(iv)) => Ok(Some(self.str_from_int(self.fmt_hex, iv)?.into())),
                     _ => Ok(None),
                 },
                 ("UCASE$", 1) => match self.eval_value(&args[0])? {
@@ -2756,6 +2759,36 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "2\n3\n16\n25\n-2\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_embedded_nul_strings() {
+        use std::io::Write;
+        use std::process::Command;
+        // Byte-string representation: CHR$(0)/embedded NULs survive concat, LEN, and PRINT
+        // byte-for-byte (a C null-terminated backend would truncate at the first NUL).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM s$\n\
+             s$ = \"AB\" + CHR$(0) + \"CD\"\n\
+             PRINT LEN(s$)\n\
+             PRINT s$\n\
+             PRINT LEN(CHR$(0))\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_nul.o");
+        let exep = dir.join("xb_llvm_nul.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(run.stdout, b"5\nAB\x00CD\n1\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
