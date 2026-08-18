@@ -206,6 +206,7 @@ pub mod llvm_backend {
         vars: HashMap<String, (PointerValue<'ctx>, ValueType)>,
         i64t: IntType<'ctx>,
         calloc: FunctionValue<'ctx>,
+        strlen: FunctionValue<'ctx>,
         /// Array vars: name → (alloca holding the heap buffer ptr, element type). 1D only (v0).
         arrays: HashMap<String, (PointerValue<'ctx>, ValueType)>,
     }
@@ -224,6 +225,7 @@ pub mod llvm_backend {
             let i64t = ctx.i64_type();
             let calloc =
                 module.add_function("calloc", ptr.fn_type(&[i64t.into(), i64t.into()], false), None);
+            let strlen = module.add_function("strlen", i64t.fn_type(&[ptr.into()], false), None);
             let printf = module.add_function("printf", i32t.fn_type(&[ptr.into()], true), None);
             let main = module.add_function("main", i32t.fn_type(&[], false), None);
             builder.position_at_end(ctx.append_basic_block(main, "entry"));
@@ -248,6 +250,7 @@ pub mod llvm_backend {
                 fmt_g,
                 i64t,
                 calloc,
+                strlen,
                 arrays: HashMap::new(),
                 vars: HashMap::new(),
                 funcs: HashMap::new(),
@@ -790,8 +793,11 @@ pub mod llvm_backend {
                     Some(self.builder.build_not(v, "not").map_err(Self::err)?.into())
                 }
                 IrExprKind::FunctionCall { name, args } => {
+                    if let Some(v) = self.eval_builtin(name, args)? {
+                        return Ok(Some(v));
+                    }
                     let Some(&f) = self.funcs.get(name) else {
-                        return Ok(None); // builtins are not translated (deferred)
+                        return Ok(None); // unsupported builtin or unknown function (deferred)
                     };
                     let Some(argv) = self.eval_args(args)? else {
                         return Ok(None);
@@ -842,6 +848,58 @@ pub mod llvm_backend {
                 }
                 _ => None,
             })
+        }
+
+        /// Translate a supported builtin call; `None` if unsupported (deferred).
+        fn eval_builtin(
+            &self,
+            name: &str,
+            args: &[IrExpr],
+        ) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+            match (name, args.len()) {
+                ("ABS", 1) => match self.eval_value(&args[0])? {
+                    Some(BasicValueEnum::IntValue(iv)) => {
+                        let neg = self.builder.build_int_neg(iv, "neg").map_err(Self::err)?;
+                        let isneg = self
+                            .builder
+                            .build_int_compare(IntPredicate::SLT, iv, self.i32t.const_zero(), "isneg")
+                            .map_err(Self::err)?;
+                        Ok(Some(self.builder.build_select(isneg, neg, iv, "abs").map_err(Self::err)?))
+                    }
+                    Some(BasicValueEnum::FloatValue(fv)) => {
+                        let neg = self.builder.build_float_neg(fv, "fneg").map_err(Self::err)?;
+                        let isneg = self
+                            .builder
+                            .build_float_compare(
+                                FloatPredicate::OLT,
+                                fv,
+                                self.f64t.const_zero(),
+                                "fisneg",
+                            )
+                            .map_err(Self::err)?;
+                        Ok(Some(self.builder.build_select(isneg, neg, fv, "fabs").map_err(Self::err)?))
+                    }
+                    _ => Ok(None),
+                },
+                ("LEN", 1) => match self.eval_value(&args[0])? {
+                    Some(BasicValueEnum::PointerValue(pv)) => {
+                        let call = self
+                            .builder
+                            .build_call(self.strlen, &[pv.into()], "len")
+                            .map_err(Self::err)?;
+                        let Some(n64) = call.try_as_basic_value().basic() else {
+                            return Ok(None);
+                        };
+                        let n32 = self
+                            .builder
+                            .build_int_truncate(n64.into_int_value(), self.i32t, "len32")
+                            .map_err(Self::err)?;
+                        Ok(Some(n32.into()))
+                    }
+                    _ => Ok(None),
+                },
+                _ => Ok(None),
+            }
         }
     }
 
@@ -1152,6 +1210,46 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "30\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_builtins_abs_len() {
+        use std::io::Write;
+        use std::process::Command;
+        // LEN("hello") = 5; ABS(0 - 7) = 7.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM s$\n\
+             s$ = \"hello\"\n\
+             PRINT LEN(s$)\n\
+             PRINT ABS(0 - 7)\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_bi.o");
+        let exep = dir.join("xb_llvm_bi.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "5\n7\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
