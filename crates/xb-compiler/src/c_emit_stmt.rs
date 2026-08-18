@@ -11,7 +11,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         IrItem::Print { items, separators } => {
             crate::c_emit_select::emit_print(items, separators, out, indent);
         }
-        IrItem::Dim { symbol, size } => {
+        IrItem::Dim { symbol, size, .. } => {
             out.push_str(&ind);
             match size {
                 Some(sz) => {

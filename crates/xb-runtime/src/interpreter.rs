@@ -110,31 +110,46 @@ pub(crate) fn exec_items(
                 crate::interpreter_select::exec_print(items, separators, program, output, state)?
             }
             IrItem::ConstantDefinition { .. } => {}
-            IrItem::Dim { symbol, size } => {
-                // XBasic allows re-dimensioning; a repeated DIM replaces the slot.
-                match size {
-                    Some(sz) => {
-                        let n = eval(program, sz, state)?;
-                        let len = match n {
-                            RuntimeValue::Integer(i) => i as usize,
-                            _ => {
-                                return Err(RuntimeError::TypeMismatch {
-                                    expected: ValueType::Integer,
-                                    actual: n.value_type(),
-                                })
-                            }
-                        };
-                        // XBasic DIM upper bound is inclusive: DIM a[n] -> indices 0..n.
-                        state.slots.insert(
-                            symbol.name.clone(),
-                            TypedSlot::new_array(symbol.value_type, len + 1),
-                        );
-                    }
-                    None => {
+            IrItem::Dim {
+                symbol,
+                size,
+                is_array,
+                redim,
+            } => {
+                // Inclusive upper bound: DIM a[n] -> indices 0..=n (len n+1).
+                // An empty array `DIM a[]` (is_array, no size) has len 0.
+                let len = match size {
+                    Some(sz) => match eval(program, sz, state)? {
+                        RuntimeValue::Integer(i) => (i.max(0) as usize).wrapping_add(1),
+                        n => {
+                            return Err(RuntimeError::TypeMismatch {
+                                expected: ValueType::Integer,
+                                actual: n.value_type(),
+                            })
+                        }
+                    },
+                    None => 0,
+                };
+                if *is_array {
+                    if *redim {
+                        // REDIM resizes preserving existing contents (grow:
+                        // default-fill the new tail; shrink: truncate). REDIM of
+                        // an undeclared name creates it (legacy XBasic).
                         state
                             .slots
-                            .insert(symbol.name.clone(), TypedSlot::new(symbol.value_type));
+                            .entry(symbol.name.clone())
+                            .or_insert_with(|| TypedSlot::new_array(symbol.value_type, 0))
+                            .array_resize(len);
+                    } else {
+                        state.slots.insert(
+                            symbol.name.clone(),
+                            TypedSlot::new_array(symbol.value_type, len),
+                        );
                     }
+                } else {
+                    state
+                        .slots
+                        .insert(symbol.name.clone(), TypedSlot::new(symbol.value_type));
                 }
             }
             IrItem::Assignment { target, value } => {

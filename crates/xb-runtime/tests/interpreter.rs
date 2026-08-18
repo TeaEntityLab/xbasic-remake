@@ -154,10 +154,14 @@ fn allows_redimension_of_slot() {
             IrItem::Dim {
                 symbol: repeated.clone(),
                 size: None,
+                is_array: false,
+                redim: false,
             },
             IrItem::Dim {
                 symbol: repeated,
                 size: None,
+                is_array: false,
+                redim: false,
             },
         ],
         data_values: Vec::new(),
@@ -208,6 +212,8 @@ fn coerces_string_value_to_integer_target() {
             IrItem::Dim {
                 symbol: count.clone(),
                 size: None,
+                is_array: false,
+                redim: false,
             },
             IrItem::Assignment {
                 target: count.clone(),
@@ -553,4 +559,52 @@ fn gosub_to_local_sub_shares_caller_scope() {
         .execute_main(&program, &mut output)
         .unwrap();
     assert_eq!(output, ["15"]);
+}
+
+#[test]
+fn redim_grows_preserving_contents_from_empty_dim() {
+    // `DIM a$[]` is an empty (growable) array: UBOUND = -1. `REDIM a$[n]` resizes
+    // preserving existing elements, so values survive successive grows via the
+    // `REDIM a$[UBOUND(a$[]) + N]` idiom pervasive in the legacy corpus. (MIG-ARY-PERF)
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM a$[]\n\
+         PRINT UBOUND(a$[])\n\
+         REDIM a$[UBOUND(a$[]) + 3]\n\
+         a$[0] = \"x\"\n\
+         a$[2] = \"z\"\n\
+         REDIM a$[UBOUND(a$[]) + 2]\n\
+         PRINT UBOUND(a$[])\n\
+         PRINT a$[0]\n\
+         PRINT a$[2]\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["-1", "4", "x", "z"]);
+}
+
+#[test]
+fn redim_shrink_truncates_and_preserves_low_indices() {
+    // REDIM to a smaller inclusive bound truncates; surviving indices keep values.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM a[5]\n\
+         a[0] = 10\n\
+         a[1] = 20\n\
+         REDIM a[1]\n\
+         PRINT UBOUND(a[])\n\
+         PRINT a[0]\n\
+         PRINT a[1]\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["1", "10", "20"]);
 }

@@ -45,7 +45,7 @@ impl TextIrEmitter {
                     out.push_str(&format!("{line}\n"));
                 }
             }
-            IrItem::Dim { symbol, size } => match size {
+            IrItem::Dim { symbol, size, .. } => match size {
                 Some(sz) => out.push_str(&format!(
                     "{prefix}dim {}[{}]\n",
                     self.emit_symbol(symbol),

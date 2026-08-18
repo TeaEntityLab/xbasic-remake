@@ -22,6 +22,11 @@ pub enum Statement {
         name: String,
         suffix: Option<TypeSuffix>,
         size: Option<Expression>,
+        /// `true` when the declaration carried array brackets (`a[]` or `a[n]`),
+        /// distinguishing an empty array `DIM a[]` from a scalar `DIM a`.
+        is_array: bool,
+        /// `true` for `REDIM` (resize preserving existing contents) vs `DIM`.
+        redim: bool,
     },
     Assignment {
         target: String,

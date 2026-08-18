@@ -34,16 +34,25 @@ pub(crate) fn parse_item(
         if let Some(br) = rest.find('[') {
             let sym = parse_symbol_decl(rest[..br].trim()).map_err(|e| err(e, l))?;
             let rb = rest.rfind(']').ok_or_else(|| err("missing ]".into(), l))?;
-            let sz = parse_expr(&rest[br + 1..rb]).map_err(|e| err(e, l))?;
+            let inner = rest[br + 1..rb].trim();
+            let size = if inner.is_empty() {
+                None
+            } else {
+                Some(parse_expr(inner).map_err(|e| err(e, l))?)
+            };
             return Ok(IrItem::Dim {
                 symbol: sym,
-                size: Some(sz),
+                size,
+                is_array: true,
+                redim: false,
             });
         }
         let sym = parse_symbol_decl(rest.trim()).map_err(|e| err(e, l))?;
         return Ok(IrItem::Dim {
             symbol: sym,
             size: None,
+            is_array: false,
+            redim: false,
         });
     }
     if let Some(rest) = content.strip_prefix("assign ") {

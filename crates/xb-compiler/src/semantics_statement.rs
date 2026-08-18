@@ -19,7 +19,13 @@ impl Analyzer {
                     separators: separators.clone(),
                 })
             }
-            Statement::Dim { name, suffix, size } => self.dim(name, *suffix, size.as_ref()),
+            Statement::Dim {
+                name,
+                suffix,
+                size,
+                is_array,
+                redim,
+            } => self.dim(name, *suffix, size.as_ref(), *is_array, *redim),
             Statement::Assignment {
                 target,
                 suffix,
@@ -291,6 +297,8 @@ impl Analyzer {
                 items.push(CheckedItem::Dim {
                     symbol: CheckedSymbol::new(mname, vt),
                     size: None,
+                    is_array: false,
+                    redim: false,
                 });
             }
             Ok(CheckedItem::Compound(items))

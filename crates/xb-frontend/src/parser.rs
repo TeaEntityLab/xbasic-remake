@@ -299,8 +299,8 @@ impl Parser {
         let mut dims = Vec::new();
         loop {
             let (name, suffix) = self.expect_name_or_keyword()?;
-            let size = self.parse_array_size()?;
-            dims.push(Statement::Dim { name, suffix, size });
+            let (size, is_array) = self.parse_array_size()?;
+            dims.push(Statement::Dim { name, suffix, size, is_array, redim: false });
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
             } else {
@@ -366,11 +366,13 @@ impl Parser {
                     }
                 }
             }
-            let size = self.parse_array_size()?;
+            let (size, is_array) = self.parse_array_size()?;
             dims.push(Statement::Dim {
                 name,
                 suffix: name_suffix,
                 size,
+                is_array,
+                redim: false,
             });
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
@@ -425,6 +427,8 @@ impl Parser {
             name,
             suffix,
             size: None,
+            is_array: false,
+            redim: false,
         })
     }
     fn type_stmt(&mut self) -> Result<Statement, ParseError> {

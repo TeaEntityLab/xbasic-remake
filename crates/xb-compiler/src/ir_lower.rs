@@ -73,9 +73,16 @@ impl IrItem {
                 items: items.iter().map(IrExpr::lower).collect(),
                 separators: separators.clone(),
             },
-            CheckedItem::Dim { symbol, size } => Self::Dim {
+            CheckedItem::Dim {
+                symbol,
+                size,
+                is_array,
+                redim,
+            } => Self::Dim {
                 symbol: IrSymbol::lower(symbol),
                 size: size.as_ref().map(IrExpr::lower),
+                is_array: *is_array,
+                redim: *redim,
             },
             CheckedItem::Assignment { target, value } => Self::Assignment {
                 target: IrSymbol::lower(target),
@@ -211,6 +218,8 @@ impl IrItem {
                     .map(|s| Self::Dim {
                         symbol: IrSymbol::lower(s),
                         size: None,
+                        is_array: false,
+                        redim: false,
                     })
                     .collect();
                 items.push(Self::Read(symbols.iter().map(IrSymbol::lower).collect()));

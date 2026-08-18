@@ -115,12 +115,34 @@ SUBs; non-SUB bodies unchanged). Also made `ASC("")` → `0` (legacy) en route.
 GOSUB-SCOPE together make `msc.x`'s `TestMscHex` round-trip print `Decoded as:
 robin@example.com`; locked by `xbsourcelib_run.rs::xbsourcelib_msc_strhex_is_correct`.
 
-### MIG-ARY-PERF — `ary.x` Entry now runs `TestAryPerformance`, needs array-of-composite / auto-grow `[verified 2026-08-17]`
-With GOSUB-SCOPE fixed, `ary.x`'s `Entry` executes `TestAryPerformance` end to end (its
-internal GOSUBs were previously no-ops), reaching a genuine array index-out-of-range
-(auto-growing arrays / arrays of composite records) past `ASC`. `ary.x` was moved out of
-`xbsourcelib_smoke_libs_run_clean` (it still parses+lowers via MIG-CORPUS-GATE); closing
-the array gaps is its next MIG-SEMANTICS step.
+### MIG-ARY-REDIM — growable `DIM a[]` + `REDIM` preserving contents ✅ done
+XBasic arrays do **not** auto-grow on assignment (an earlier note mis-stated this); they
+use `DIM`/`REDIM`, where **`REDIM` resizes preserving existing contents** (grow
+default-fills the new tail; shrink truncates), and `DIM a[]` is an *empty growable* array
+(`UBOUND` = −1). Both were broken: `REDIM` lowered to a plain `DIM` that replaced the
+slot (contents lost), and `DIM a[]` was indistinguishable from a scalar `DIM a`
+(→ "not an array"). Fix: carry `is_array` + `redim` on `Statement::Dim`/`CheckedItem::Dim`/
+`IrItem::Dim` (parser distinguishes `[]` from scalar; `REDIM` sets `redim`); the
+interpreter honors them via `TypedSlot::array_resize` (`Vec::resize`, preserve semantics).
+This unblocks the pervasive `REDIM a$[UBOUND(a$[]) + N]` idiom (ary/fgr/xui/msc/XBMerge +
+demos adata/aprofile/agrids/CursorEdit). Locked by
+`interpreter.rs::{redim_grows_preserving_contents_from_empty_dim,
+redim_shrink_truncates_and_preserves_low_indices}`. **Golden-safe**: text-IR emission is
+unchanged (`is_array`/`redim` are in-memory flags honored on the `--run` path, which
+interprets IR directly; `static_redim_doevents.ir` stays byte-identical), and selfhost
+uses no arrays, so the bootstrap fixed point is untouched. Note: the text-IR/C backends
+treat `REDIM` as `DIM` (no dynamic resize — C emits fixed stack arrays); the interpreter
+is the faithful runtime.
+
+### MIG-ARY-MULTIDIM — 2D arrays + `ATTACH` (blocks `ary.x` `TestAryPerformance`) `[verified 2026-08-17]`
+With MIG-ARY-REDIM done, `ary.x`'s `TestAryPerformance` still errors (`array index out of
+range: 0`) because it uses genuine **2-D arrays** (`bufferIndex[charCode, count]`,
+`Ary_codeBufferIndex[c, i]`) and **`ATTACH`** sub-array aliasing (`ATTACH
+bufferIndex[charCode,] TO a[]`). The parser currently collapses multi-dim subscripts to
+the first index (`parse_array_size` / `ArrayAccess` drop trailing dims), so 2-D accesses
+mis-index. Real support = row-major multi-dim layout + indexing + `ATTACH` binding — a
+distinct, larger feature. `ary.x` still parses+lowers (MIG-CORPUS-GATE) and is out of the
+`xbsourcelib_smoke_libs_run_clean` clean-run set.
 
 ### RT-KERNEL32 — kernel32/stdio stubs for `acgibin` `[verified 2026-08-17]`
 `acgibin.x` needs `GetStdHandle`/`ReadFile`/`WriteFile` and the handle constants

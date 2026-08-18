@@ -154,17 +154,21 @@ impl Parser {
         matches!(self.peek_kind(), TokenKind::Eof)
     }
 
-    pub(crate) fn parse_array_size(&mut self) -> Result<Option<Expression>, ParseError> {
+    /// Parse an optional array dimension. Returns `(size, is_array)` where
+    /// `is_array` is `true` whenever brackets/parens were present — including the
+    /// empty form `a[]` (which yields `(None, true)`), distinct from a bare scalar
+    /// `a` which yields `(None, false)`.
+    pub(crate) fn parse_array_size(&mut self) -> Result<(Option<Expression>, bool), ParseError> {
         if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
             self.index += 1;
             let e = self.expression()?;
             self.expect_symbol(')')?;
-            Ok(Some(e))
+            Ok((Some(e), true))
         } else if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
             self.index += 1;
             if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
                 self.index += 1;
-                return Ok(None);
+                return Ok((None, true));
             }
             let e = self.expression()?;
             // Skip additional dimensions (comma-separated) — use first only
@@ -173,9 +177,9 @@ impl Parser {
                 let _ = self.expression();
             }
             self.expect_symbol(']')?;
-            Ok(Some(e))
+            Ok((Some(e), true))
         } else {
-            Ok(None)
+            Ok((None, false))
         }
     }
 

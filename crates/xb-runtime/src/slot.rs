@@ -103,6 +103,16 @@ impl TypedSlot {
         *slot = v;
         Ok(())
     }
+    /// Resize the array in place, preserving existing elements (REDIM semantics).
+    /// Growing default-fills the new tail; shrinking truncates. A slot without an
+    /// array (scalar or fresh) becomes an array of `new_len` defaults.
+    pub(crate) fn array_resize(&mut self, new_len: usize) {
+        let fill = RuntimeValue::default_for(self.value_type);
+        match &mut self.array {
+            Some(arr) => arr.resize(new_len, fill),
+            None => self.array = Some(vec![fill; new_len]),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

@@ -61,8 +61,8 @@ impl Analyzer {
                     Self::scan_expr(e, kinds);
                 }
             }
-            Statement::Dim { name, suffix, size } => {
-                if size.is_none() {
+            Statement::Dim { name, suffix, size, is_array, .. } => {
+                if size.is_none() && !*is_array {
                     Self::note_var(name, *suffix, kinds);
                 }
                 if let Some(e) = size {

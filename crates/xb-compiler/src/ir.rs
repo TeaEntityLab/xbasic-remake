@@ -40,6 +40,8 @@ pub enum IrItem {
     Dim {
         symbol: IrSymbol,
         size: Option<IrExpr>,
+        is_array: bool,
+        redim: bool,
     },
     Assignment {
         target: IrSymbol,

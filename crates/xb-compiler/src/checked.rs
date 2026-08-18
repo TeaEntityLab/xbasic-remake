@@ -88,6 +88,8 @@ pub enum CheckedItem {
     Dim {
         symbol: CheckedSymbol,
         size: Option<CheckedExpr>,
+        is_array: bool,
+        redim: bool,
     },
     Assignment {
         target: CheckedSymbol,

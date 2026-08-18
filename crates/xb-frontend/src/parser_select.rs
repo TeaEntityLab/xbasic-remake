@@ -452,17 +452,17 @@ impl Parser {
             }
             _ => self.expect_name_or_keyword()?,
         };
-        let size = self.parse_array_size()?;
+        let (size, is_array) = self.parse_array_size()?;
         self.skip_to_line_end();
-        Ok(Statement::Dim { name, suffix, size })
+        Ok(Statement::Dim { name, suffix, size, is_array, redim: false })
     }
 
     pub(crate) fn redim_stmt(&mut self) -> Result<Statement, crate::ParseError> {
         self.index += 1;
         let (name, suffix) = self.expect_name_or_keyword()?;
-        let size = self.parse_array_size()?;
+        let (size, is_array) = self.parse_array_size()?;
         self.expect_line_end()?;
-        Ok(Statement::Dim { name, suffix, size })
+        Ok(Statement::Dim { name, suffix, size, is_array, redim: true })
     }
 }
 

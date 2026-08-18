@@ -9,6 +9,8 @@ impl Analyzer {
         name: &str,
         suffix: Option<TypeSuffix>,
         size: Option<&Expression>,
+        is_array: bool,
+        redim: bool,
     ) -> ItemResult {
         // Composite array DIM: expand into one member-array per struct member.
         if let Some(type_name) = self.composite_vars.get(name).cloned() {
@@ -26,6 +28,8 @@ impl Analyzer {
                     items.push(CheckedItem::Dim {
                         symbol: CheckedSymbol::new(mname, vt),
                         size: checked_size.clone(),
+                        is_array: true,
+                        redim,
                     });
                 }
                 return Ok(CheckedItem::Compound(items));
@@ -40,18 +44,24 @@ impl Analyzer {
             Some(TypeSuffix::Giant) => format!("{name}&&"),
             None => name.to_owned(),
         };
+        // Any bracketed declaration — sized `a[n]` or empty `a[]` — is an array.
         let checked_size = match size {
             Some(e) => {
                 let ce = self.expr(e)?;
-                // Allow any type for array size (auto-declared as integer)
                 self.arrays.insert(full_name.clone(), vt);
                 Some(ce)
             }
-            None => None,
+            None => {
+                if is_array {
+                    self.arrays.insert(full_name.clone(), vt);
+                }
+                None
+            }
         };
-        let sym_name = if size.is_some() { &full_name } else { name };
+        let sym_name = if is_array { &full_name } else { name };
         let previous = self.symbols.insert(sym_name.to_owned(), vt);
-        if !self.permissive && previous.is_some() {
+        // REDIM legitimately re-declares an existing array; only DIM flags a dup.
+        if !self.permissive && previous.is_some() && !redim {
             return Err(crate::checked::SemanticError::DuplicateSymbol {
                 name: sym_name.to_owned(),
             });
@@ -59,6 +69,8 @@ impl Analyzer {
         Ok(CheckedItem::Dim {
             symbol: CheckedSymbol::new(sym_name.to_owned(), vt),
             size: checked_size,
+            is_array,
+            redim,
         })
     }
 
