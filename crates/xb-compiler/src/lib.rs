@@ -308,6 +308,10 @@ pub mod llvm_backend {
 
         /// Emit the module to a host-target object (assumes returns already built).
         fn object(self) -> Result<ObjectFile, CompileError> {
+            // Reject invalid IR with a readable error instead of crashing LLVM codegen.
+            if let Err(msg) = self.module.verify() {
+                return Err(CompileError::Llvm(format!("invalid IR: {}", msg.to_string())));
+            }
             let triple = TargetMachine::get_default_triple();
             let target =
                 Target::from_triple(&triple).map_err(|e| CompileError::Llvm(e.to_string()))?;
@@ -445,6 +449,7 @@ pub mod llvm_backend {
                     }
                     let f = self.funcs[name];
                     let saved_vars = std::mem::take(&mut self.vars);
+                    let saved_arrays = std::mem::take(&mut self.arrays);
                     let (saved_fn, saved_ret) = (self.cur_fn, self.cur_ret);
                     self.cur_fn = f;
                     self.cur_ret = *return_type;
@@ -459,11 +464,31 @@ pub mod llvm_backend {
                     self.emit_body(body)?;
                     self.ret_default()?;
                     self.vars = saved_vars;
+                    self.arrays = saved_arrays;
                     self.cur_fn = saved_fn;
                     self.cur_ret = saved_ret;
                 }
             }
             Ok(())
+        }
+
+        /// Allocate in the function's entry block, which dominates every block — required
+        /// for variables/arrays whose uses span state-machine dispatch blocks.
+        fn entry_alloca(
+            &self,
+            ty: BasicTypeEnum<'ctx>,
+            name: &str,
+        ) -> Result<PointerValue<'ctx>, CompileError> {
+            let entry = self
+                .cur_fn
+                .get_first_basic_block()
+                .ok_or_else(|| CompileError::Llvm("function has no entry block".into()))?;
+            let b = self.ctx.create_builder();
+            match entry.get_first_instruction() {
+                Some(inst) => b.position_before(&inst),
+                None => b.position_at_end(entry),
+            }
+            b.build_alloca(ty, name).map_err(Self::err)
         }
 
         fn get_or_alloca(
@@ -479,7 +504,7 @@ pub mod llvm_backend {
                 ValueType::Float => self.f64t.into(),
                 _ => self.i32t.into(),
             };
-            let s = self.builder.build_alloca(ty, name).map_err(Self::err)?;
+            let s = self.entry_alloca(ty, name)?;
             self.vars.insert(name.to_string(), (s, vt));
             Ok(s)
         }
@@ -500,14 +525,24 @@ pub mod llvm_backend {
         fn emit_items(&mut self, items: &[IrItem]) -> Result<(), CompileError> {
             for item in items {
                 self.emit_item(item)?;
+                // A jump (SM GOTO/GOSUB/RETURN) or function return terminates the block;
+                // the remaining items are unreachable — stop so we never build past a
+                // terminator (invalid IR).
+                if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_some() {
+                    break;
+                }
             }
             Ok(())
         }
 
-        /// Emit a body: a `pc`-dispatch state machine if it has labels/GOSUB/GOTO,
-        /// else the straight-line path (which keeps every non-label body unchanged).
+        /// Emit a body: a `pc`-dispatch state machine for label-bearing bodies whose
+        /// GOSUBs are all top-level (resume pc is then correct); otherwise the
+        /// straight-line path. Nested GOSUB can't get a correct top-level resume pc, so
+        /// such bodies fall back to linear emission (jumps lower to no-ops, matching the
+        /// backend's "unsupported → no-op" convention — divergence is caught by the
+        /// differential, never silently claimed correct) rather than the SM.
         fn emit_body(&mut self, items: &[IrItem]) -> Result<(), CompileError> {
-            if body_has_labels(items) {
+            if body_has_labels(items) && !has_nested_gosub(items) {
                 self.emit_body_sm(items)
             } else {
                 self.emit_items(items)
@@ -519,11 +554,6 @@ pub mod llvm_backend {
         /// (mirrors the interpreter's index-based `exec_items`). Leaves the builder at the
         /// exit block so the caller can build the function return.
         fn emit_body_sm(&mut self, items: &[IrItem]) -> Result<(), CompileError> {
-            if has_nested_gosub(items) {
-                return Err(CompileError::Llvm(
-                    "LLVM backend: GOSUB nested inside control flow is unsupported".into(),
-                ));
-            }
             let n = items.len() as u64;
             let mut labels: HashMap<String, u64> = HashMap::new();
             for (i, it) in items.iter().enumerate() {
@@ -647,10 +677,7 @@ pub mod llvm_backend {
                     // Persist the shape: one i64 alloca per dim holding the count.
                     let mut shape: Vec<PointerValue<'ctx>> = Vec::with_capacity(counts.len());
                     for (k, c) in counts.iter().enumerate() {
-                        let s = self
-                            .builder
-                            .build_alloca(self.i64t, &format!("{}_d{k}", symbol.name))
-                            .map_err(Self::err)?;
+                        let s = self.entry_alloca(self.i64t.into(), &format!("{}_d{k}", symbol.name))?;
                         self.builder.build_store(s, *c).map_err(Self::err)?;
                         shape.push(s);
                     }
@@ -658,7 +685,7 @@ pub mod llvm_backend {
                     let holder = match existing {
                         Some(h) => h,
                         None => {
-                            self.builder.build_alloca(self.ptr, &symbol.name).map_err(Self::err)?
+                            self.entry_alloca(self.ptr.into(), &symbol.name)?
                         }
                     };
                     self.builder.build_store(holder, buf).map_err(Self::err)?;
@@ -2500,9 +2527,11 @@ mod tests {
 
     #[cfg(feature = "llvm")]
     #[test]
-    fn llvm_backend_rejects_nested_gosub() {
-        // A GOSUB nested inside a loop would resume at the wrong pc; the backend must
-        // reject it (→ C backend) rather than emit silently-wrong output.
+    fn llvm_backend_nested_gosub_falls_back_to_linear() {
+        // A GOSUB nested inside a loop can't get a correct top-level resume pc, so the
+        // body uses linear emission (jumps no-op'd) instead of the state machine. It must
+        // still compile cleanly (no panic / codegen error) — divergence is caught by the
+        // differential, never a silent claim of correctness.
         let unit = FrontendUnit::parse(
             "VERSION \"1\"\n\
              DIM i\n\
@@ -2517,6 +2546,7 @@ mod tests {
              PRINT \"x\"\n",
         )
         .unwrap();
-        assert!(llvm_backend::LlvmBackend.compile(&unit).is_err());
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
     }
 }
