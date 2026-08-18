@@ -139,13 +139,16 @@ impl Codegen for DisabledLlvmBackend {
 #[cfg(feature = "llvm")]
 pub mod llvm_backend {
     use super::{Codegen, CompileError, FrontendUnit, ObjectFile};
-    use crate::ir::{IrExprKind, IrItem, IrProgram};
+    use crate::checked::ArithmeticOp;
+    use crate::ir::{IrExpr, IrExprKind, IrItem, IrProgram};
     use crate::ValueType;
     use inkwell::context::Context;
     use inkwell::targets::{
         CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine,
     };
-    use inkwell::values::PointerValue;
+    use inkwell::builder::Builder;
+    use inkwell::module::Module;
+    use inkwell::values::{BasicValueEnum, PointerValue};
     use inkwell::{AddressSpace, OptimizationLevel};
     use std::collections::HashMap;
 
@@ -167,40 +170,52 @@ pub mod llvm_backend {
             let err = |e: inkwell::builder::BuilderError| CompileError::Llvm(e.to_string());
             let i32t = ctx.i32_type();
             let ptr = ctx.ptr_type(AddressSpace::default());
-            let puts = module.add_function("puts", i32t.fn_type(&[ptr.into()], false), None);
+            let printf = module.add_function("printf", i32t.fn_type(&[ptr.into()], true), None);
             let main = module.add_function("main", i32t.fn_type(&[], false), None);
             builder.position_at_end(ctx.append_basic_block(main, "entry"));
-            let mut vars: HashMap<String, PointerValue> = HashMap::new();
+            let fmt_s = builder
+                .build_global_string_ptr("%s", "fmts")
+                .map_err(err)?
+                .as_pointer_value();
+            let fmt_d = builder
+                .build_global_string_ptr("%d", "fmtd")
+                .map_err(err)?
+                .as_pointer_value();
+            let nl = builder
+                .build_global_string_ptr("\n", "nl")
+                .map_err(err)?
+                .as_pointer_value();
+            let mut vars: HashMap<String, (PointerValue, ValueType)> = HashMap::new();
             for item in executable_items(&program) {
                 match item {
-                    IrItem::Dim { symbol, .. } if symbol.value_type == ValueType::String => {
-                        let slot = builder.build_alloca(ptr, &symbol.name).map_err(err)?;
-                        let empty = builder.build_global_string_ptr("", "e").map_err(err)?;
-                        builder.build_store(slot, empty.as_pointer_value()).map_err(err)?;
-                        vars.insert(symbol.name.clone(), slot);
+                    IrItem::Dim { symbol, is_array: false, .. } => {
+                        let (slot, init): (PointerValue, BasicValueEnum) =
+                            if symbol.value_type == ValueType::String {
+                                let s = builder.build_alloca(ptr, &symbol.name).map_err(err)?;
+                                let e = builder.build_global_string_ptr("", "e").map_err(err)?;
+                                (s, e.as_pointer_value().into())
+                            } else {
+                                let s = builder.build_alloca(i32t, &symbol.name).map_err(err)?;
+                                (s, i32t.const_zero().into())
+                            };
+                        builder.build_store(slot, init).map_err(err)?;
+                        vars.insert(symbol.name.clone(), (slot, symbol.value_type));
                     }
-                    IrItem::Assignment { target, value }
-                        if target.value_type == ValueType::String =>
-                    {
-                        let v = match &value.kind {
-                            IrExprKind::StringLiteral(s) => builder
-                                .build_global_string_ptr(s, "s")
-                                .map_err(err)?
-                                .as_pointer_value(),
-                            IrExprKind::Symbol(sym) => match vars.get(&sym.name) {
-                                Some(slot) => builder
-                                    .build_load(ptr, *slot, "ld")
-                                    .map_err(err)?
-                                    .into_pointer_value(),
-                                None => continue,
-                            },
-                            _ => continue,
+                    IrItem::Assignment { target, value } => {
+                        let Some(v) = eval_value(&ctx, &builder, &module, &vars, value)? else {
+                            continue;
                         };
                         let slot = match vars.get(&target.name) {
-                            Some(s) => *s,
+                            Some((s, _)) => *s,
                             None => {
-                                let s = builder.build_alloca(ptr, &target.name).map_err(err)?;
-                                vars.insert(target.name.clone(), s);
+                                let ty: inkwell::types::BasicTypeEnum =
+                                    if target.value_type == ValueType::String {
+                                        ptr.into()
+                                    } else {
+                                        i32t.into()
+                                    };
+                                let s = builder.build_alloca(ty, &target.name).map_err(err)?;
+                                vars.insert(target.name.clone(), (s, target.value_type));
                                 s
                             }
                         };
@@ -208,28 +223,21 @@ pub mod llvm_backend {
                     }
                     IrItem::Print { items, .. } => {
                         for e in items {
-                            let p: Option<PointerValue> = match &e.kind {
-                                IrExprKind::StringLiteral(s) => Some(
+                            match eval_value(&ctx, &builder, &module, &vars, e)? {
+                                Some(BasicValueEnum::IntValue(iv)) => {
                                     builder
-                                        .build_global_string_ptr(s, "s")
-                                        .map_err(err)?
-                                        .as_pointer_value(),
-                                ),
-                                IrExprKind::Symbol(sym) => match vars.get(&sym.name) {
-                                    Some(slot) => Some(
-                                        builder
-                                            .build_load(ptr, *slot, "ld")
-                                            .map_err(err)?
-                                            .into_pointer_value(),
-                                    ),
-                                    None => None,
-                                },
-                                _ => None,
-                            };
-                            if let Some(p) = p {
-                                builder.build_call(puts, &[p.into()], "").map_err(err)?;
+                                        .build_call(printf, &[fmt_d.into(), iv.into()], "")
+                                        .map_err(err)?;
+                                }
+                                Some(BasicValueEnum::PointerValue(pv)) => {
+                                    builder
+                                        .build_call(printf, &[fmt_s.into(), pv.into()], "")
+                                        .map_err(err)?;
+                                }
+                                _ => {}
                             }
                         }
+                        builder.build_call(printf, &[nl.into()], "").map_err(err)?;
                     }
                     _ => {}
                 }
@@ -256,6 +264,64 @@ pub mod llvm_backend {
                 .map_err(|e| CompileError::Llvm(e.to_string()))?;
             Ok(ObjectFile::from_bytes(buf.as_slice().to_vec()))
         }
+    }
+
+    /// Evaluate an IR expression to an LLVM value: `ptr` (char*) for strings,
+    /// `i32` for integers. Returns `None` for constructs v0 does not translate.
+    fn eval_value<'ctx>(
+        ctx: &'ctx Context,
+        builder: &Builder<'ctx>,
+        _module: &Module<'ctx>,
+        vars: &HashMap<String, (PointerValue<'ctx>, ValueType)>,
+        expr: &IrExpr,
+    ) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+        let err = |e: inkwell::builder::BuilderError| CompileError::Llvm(e.to_string());
+        let i32t = ctx.i32_type();
+        let ptr = ctx.ptr_type(AddressSpace::default());
+        Ok(match &expr.kind {
+            IrExprKind::StringLiteral(s) => Some(
+                builder
+                    .build_global_string_ptr(s, "s")
+                    .map_err(err)?
+                    .as_pointer_value()
+                    .into(),
+            ),
+            IrExprKind::IntegerLiteral(v) => {
+                let n = if let Some(h) = v.strip_prefix("0x").or_else(|| v.strip_prefix("0X")) {
+                    i64::from_str_radix(h, 16).unwrap_or(0)
+                } else {
+                    v.parse::<i64>().unwrap_or(0)
+                };
+                Some(i32t.const_int(n as u64, true).into())
+            }
+            IrExprKind::Symbol(sym) => match vars.get(&sym.name) {
+                Some((slot, ValueType::String)) => {
+                    Some(builder.build_load(ptr, *slot, "ld").map_err(err)?)
+                }
+                Some((slot, _)) => Some(builder.build_load(i32t, *slot, "ld").map_err(err)?),
+                None => None,
+            },
+            IrExprKind::Arithmetic { op, left, right } => {
+                let l = eval_value(ctx, builder, _module, vars, left)?;
+                let r = eval_value(ctx, builder, _module, vars, right)?;
+                match (l, r) {
+                    (Some(BasicValueEnum::IntValue(a)), Some(BasicValueEnum::IntValue(b))) => {
+                        let v = match op {
+                            ArithmeticOp::Add => builder.build_int_add(a, b, "add").map_err(err)?,
+                            ArithmeticOp::Sub => builder.build_int_sub(a, b, "sub").map_err(err)?,
+                            ArithmeticOp::Mul => builder.build_int_mul(a, b, "mul").map_err(err)?,
+                            ArithmeticOp::Div => {
+                                builder.build_int_signed_div(a, b, "div").map_err(err)?
+                            }
+                            _ => return Ok(None),
+                        };
+                        Some(v.into())
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
     }
 
     /// The items `execute_main` would run: top-level items, then the entry
@@ -353,6 +419,42 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "hello\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_integer_arithmetic() {
+        use std::io::Write;
+        use std::process::Command;
+        // Integer var + arithmetic + PRINT: 2*3 + 1 = 7.
+        let unit = FrontendUnit::parse(
+            "VERSION \"6.5.0\"\nDIM n\nn = 2 * 3 + 1\nPRINT n\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_int.o");
+        let exep = dir.join("xb_llvm_int.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "7\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
