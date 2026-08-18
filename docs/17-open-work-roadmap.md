@@ -27,7 +27,9 @@ a `main` driving `printf` (top-level items + the entry-function body, mirroring
 `+ - * /`, comparisons → XBasic `-1/0`, boolean/logical/`NOT`), **doubles** (literals,
 vars, arithmetic, comparison, `%g` print, int→float promotion), **strings** (literals,
 vars, `PRINT`), **`IF`/`WHILE`/`FOR`** control flow + **`SELECT CASE`** (equality chain
-+ `CASE ELSE`, matching `exec_select_case`) via basic blocks, **user-defined
++ `CASE ELSE`) via basic blocks + **`GOSUB`/`RETURN`/`GOTO`** (top-level, via a
+`pc`-dispatch state machine with a return-index stack; nested GOSUB falls back to
+linear), **user-defined
 functions** (definitions, calls, returns, params, per-function scope; two-pass declare +
 emit), **N-dim arrays** (`DIM a[d0,d1,…]` → `calloc`'d row-major heap buffer with a
 per-dimension count shape; `a[i,j,…]` read/write via a Horner offset mirroring
@@ -57,7 +59,8 @@ llvm_backend_compiles_ubound, llvm_backend_compiles_builtins_abs_len,
 llvm_backend_compiles_string_comparison, llvm_backend_compiles_chr_builtin,
 llvm_backend_compiles_substring_builtins, llvm_backend_compiles_string_build,
 llvm_backend_compiles_string_transform_builtins, llvm_backend_compiles_print_separators,
-llvm_backend_compiles_select_case}`. New error
+llvm_backend_compiles_select_case, llvm_backend_compiles_gosub_goto,
+llvm_backend_nested_gosub_falls_back_to_linear}`. New error
 leaf `CompileError::Llvm` = `XB-B002`. Reference: `docs/12 §3.1`.
 
 ### LB-TOOLCHAIN — LLVM feature builds against local LLVM 22 ✅ done
@@ -79,25 +82,22 @@ The `llvm` path is behind the `xb-cli` `llvm` feature (`--features llvm`, forwar
 cli_backend_llvm_errors_when_feature_disabled (feature off)}`.
 
 **Reach `[verified 2026-08-18]`:** a differential sweep (LLVM-native vs `xb --run`
-over `xbasic-6.4.5/**/*.x`) found **61 of 151** programs produce **byte-identical**
-native output (83 both interpreter-clean and LLVM-compiled; the 22 gap compile but
-use an unsupported construct → divergent output, since unsupported exprs/items lower
-to no-ops rather than errors). Guarded by
+over `xbasic-6.4.5/**/*.x`) finds **72 programs** produce **byte-identical** native
+output (up from 61 pre-`GOSUB`), with only **7** invalid-IR compile-fails (gracefully
+rejected by `module.verify()` → C backend). Guarded by
 `cli.rs::cli_llvm_matches_interpreter_on_corpus_programs` (curated rich-output subset:
 `aarray`/`aloha`/`ahello`); the full 151-file sweep is a manual measurement (too slow
-for the suite). **The reach ceiling is structural, not incremental:** two follow-up
-correctness fixes each left the count at **61/151** — the `TRIM$`/case/`SPACE$` builtins,
-then `PRINT` comma/semicolon separators. The GOSUB/SELECT-free non-faithful demos need
-`PRINT TAB()` column padding + other multi-feature formatting (`atrim`, `aformat`,
-`acolumns` each have several blockers), and the bulk of the corpus co-uses `GOSUB` (88
-files) + `SELECT CASE` (83). **`SELECT CASE` is now implemented** (reach still 61/151,
-as expected — the SELECT programs co-use `GOSUB`). The one remaining structural unlock is
-**`GOSUB`/`RETURN`/`GOTO`**, which needs a PC-dispatch **state-machine** rewrite of
-function-body emission (a `pc` var + `switch` over label/resume blocks + a return-index
-stack) — a wholesale change to the emit pipeline that would risk the 16 working
-capabilities, i.e. docs/13's deferred "LLVM as full primary backend" project. That plus
-`PRINT TAB()` line-buffered formatting is the gate to materially higher reach; it warrants
-explicit scoping rather than an incremental commit.
+for the suite; counts vary slightly with the interpreter's timeout cutoff).
+
+The **+11** came from landing `GOSUB`/`RETURN`/`GOTO` (additive `pc`-dispatch state
+machine — see LB-STUB) **plus** two latent-bug fixes that `verify()` exposed:
+`entry_alloca` (all persistent allocas in the entry block, which dominates the SM's
+switch-reached blocks) and **per-function `arrays` scoping** (array allocas no longer
+leak across functions — this had been silently suppressing many array programs).
+Remaining gates to higher reach: **nested GOSUB** (resumes at the wrong pc, so it falls
+back to linear no-ops rather than the SM), **`PRINT TAB()`** line-buffered column
+formatting, and GUI/platform programs. These are diminishing, multi-feature blockers,
+not a single unlock.
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
