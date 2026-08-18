@@ -207,6 +207,7 @@ pub mod llvm_backend {
         i64t: IntType<'ctx>,
         calloc: FunctionValue<'ctx>,
         strlen: FunctionValue<'ctx>,
+        strcmp: FunctionValue<'ctx>,
         /// Array vars: name → (alloca holding the heap buffer ptr, element type). 1D only (v0).
         arrays: HashMap<String, (PointerValue<'ctx>, ValueType)>,
     }
@@ -226,6 +227,8 @@ pub mod llvm_backend {
             let calloc =
                 module.add_function("calloc", ptr.fn_type(&[i64t.into(), i64t.into()], false), None);
             let strlen = module.add_function("strlen", i64t.fn_type(&[ptr.into()], false), None);
+            let strcmp =
+                module.add_function("strcmp", i32t.fn_type(&[ptr.into(), ptr.into()], false), None);
             let printf = module.add_function("printf", i32t.fn_type(&[ptr.into()], true), None);
             let main = module.add_function("main", i32t.fn_type(&[], false), None);
             builder.position_at_end(ctx.append_basic_block(main, "entry"));
@@ -251,6 +254,7 @@ pub mod llvm_backend {
                 i64t,
                 calloc,
                 strlen,
+                strcmp,
                 arrays: HashMap::new(),
                 vars: HashMap::new(),
                 funcs: HashMap::new(),
@@ -748,12 +752,36 @@ pub mod llvm_backend {
                     }
                 }
                 IrExprKind::Comparison { op, left, right } => {
-                    if left.value_type == ValueType::String
+                    let c = if left.value_type == ValueType::String
                         || right.value_type == ValueType::String
                     {
-                        return Ok(None); // string comparison deferred
-                    }
-                    let c = if left.value_type == ValueType::Float
+                        let (
+                            Some(BasicValueEnum::PointerValue(a)),
+                            Some(BasicValueEnum::PointerValue(b)),
+                        ) = (self.eval_value(left)?, self.eval_value(right)?)
+                        else {
+                            return Ok(None);
+                        };
+                        let r = self
+                            .builder
+                            .build_call(self.strcmp, &[a.into(), b.into()], "strcmp")
+                            .map_err(Self::err)?
+                            .try_as_basic_value()
+                            .basic()
+                            .ok_or_else(|| CompileError::Llvm("strcmp returned void".into()))?
+                            .into_int_value();
+                        let pred = match op {
+                            ComparisonOp::Equal => IntPredicate::EQ,
+                            ComparisonOp::NotEqual => IntPredicate::NE,
+                            ComparisonOp::Less => IntPredicate::SLT,
+                            ComparisonOp::Greater => IntPredicate::SGT,
+                            ComparisonOp::LessEqual => IntPredicate::SLE,
+                            ComparisonOp::GreaterEqual => IntPredicate::SGE,
+                        };
+                        self.builder
+                            .build_int_compare(pred, r, self.i32t.const_zero(), "scmp")
+                            .map_err(Self::err)?
+                    } else if left.value_type == ValueType::Float
                         || right.value_type == ValueType::Float
                     {
                         let a = self.eval_float(left)?;
@@ -1250,6 +1278,49 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "5\n7\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_string_comparison() {
+        use std::io::Write;
+        use std::process::Command;
+        // strcmp-backed IF on strings: n$ = "yes" -> "match".
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM n$\n\
+             n$ = \"yes\"\n\
+             IF n$ = \"yes\" THEN\n\
+             PRINT \"match\"\n\
+             ELSE\n\
+             PRINT \"no\"\n\
+             END IF\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_scmp.o");
+        let exep = dir.join("xb_llvm_scmp.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "match\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
