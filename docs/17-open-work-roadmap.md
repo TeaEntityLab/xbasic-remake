@@ -41,8 +41,10 @@ saturating-sub mirroring the interpreter's `as usize`/`min`/`saturating_sub`), *
 concatenation** (`+` → `calloc`+two `memcpy`s), **`STR$`** for integers
 (`snprintf("%d")` = Rust `i32::to_string`), **`TRIM$`/`LTRIM$`/`RTRIM$`/`UCASE$`/
 `LCASE$`/`SPACE$`** (loop-based: `byte_trim` ASCII-whitespace scan, ASCII case fold,
-`memset` spaces), and **`PRINT` comma/semicolon separators** (comma→tab, semicolon→none;
-one line per `PRINT`, matching `exec_print`). All string/array semantics parity-checked vs
+`memset` spaces), **`ASC`/`SGN`/`INT`/`FIX`/`MAX`/`MIN`/`HEX$`** numeric builtins
+(`HEX$` = `snprintf("%X")` = Rust `{:X}`), and **`PRINT` comma/semicolon separators**
+(comma→tab, semicolon→none; one line per `PRINT`, matching `exec_print`). All
+string/array semantics parity-checked vs
 `xb --run`. Still deferred (incremental; C backend stays the full AOT path):
 content-preserving `REDIM` / array bounds checks, float `STR$` + `VAL` (Rust float-fmt /
 strict `i32::parse` ≠ `printf`/`strtol`), `PRINT TAB()` column padding (needs a line
@@ -60,7 +62,7 @@ llvm_backend_compiles_string_comparison, llvm_backend_compiles_chr_builtin,
 llvm_backend_compiles_substring_builtins, llvm_backend_compiles_string_build,
 llvm_backend_compiles_string_transform_builtins, llvm_backend_compiles_print_separators,
 llvm_backend_compiles_select_case, llvm_backend_compiles_gosub_goto,
-llvm_backend_nested_gosub_falls_back_to_linear}`. New error
+llvm_backend_nested_gosub_falls_back_to_linear, llvm_backend_compiles_numeric_builtins}`. New error
 leaf `CompileError::Llvm` = `XB-B002`. Reference: `docs/12 §3.1`.
 
 ### LB-TOOLCHAIN — LLVM feature builds against local LLVM 22 ✅ done
@@ -83,8 +85,8 @@ cli_backend_llvm_errors_when_feature_disabled (feature off)}`.
 
 **Reach `[verified 2026-08-18]`:** a differential sweep (LLVM-native vs `xb --run`
 over `xbasic-6.4.5/**/*.x`) finds **78 programs** produce **byte-identical** native
-output (up from 61 pre-`GOSUB`), with only **1** invalid-IR compile-fail left (`xit.x`,
-an X11 file — gracefully rejected by `module.verify()` → C backend). Guarded by
+output (up from 61 pre-`GOSUB`), with **0** invalid-IR compile-fails — every runnable
+corpus program now emits valid IR (`module.verify()` gates it). Guarded by
 `cli.rs::cli_llvm_matches_interpreter_on_corpus_programs` (curated rich-output subset:
 `aarray`/`aloha`/`ahello`); the full 151-file sweep is a manual measurement (too slow
 for the suite; counts vary slightly with the interpreter's timeout cutoff).
@@ -93,12 +95,14 @@ The **+17** came from landing `GOSUB`/`RETURN`/`GOTO` (additive `pc`-dispatch st
 machine — see LB-STUB) plus three latent-bug fixes that `verify()` exposed:
 `entry_alloca` (all persistent allocas in the entry block, which dominates the SM's
 switch-reached blocks), **per-function `arrays` scoping** (array allocas no longer leak
-across functions — had been silently suppressing many array programs), and **call-arg
-coercion** (`eval_args` coerces args to the callee's declared param types + reconciles
-arity — fixed 6 signature-mismatch compile-fails, +6 faithful). Remaining gates:
-**nested GOSUB** (resumes at the wrong pc → linear no-op fallback), **`PRINT TAB()`**
-line-buffered column formatting, `xit.x`'s "terminator in the middle" control-flow edge
-case, and GUI/platform programs. Diminishing, multi-feature blockers — not a single unlock.
+across functions — had been silently suppressing many array programs), **call-arg
+coercion** (`eval_args` coerces args to the callee's param types + reconciles arity —
+fixed 6 signature-mismatch compile-fails), and a **FOR back-edge guard** (a `RETURN`/`GOTO`
+in a loop body no longer appends an unreachable increment past the terminator — cleared
+the last invalid-IR case). Plus `ASC`/`SGN`/`INT`/`FIX`/`MAX`/`MIN`/`HEX$` builtins.
+Remaining gates to higher reach: **nested GOSUB** (linear no-op fallback), **`PRINT TAB()`**
+line-buffered column formatting, and GUI/platform programs — diverse, multi-feature
+blockers, not a single unlock.
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
