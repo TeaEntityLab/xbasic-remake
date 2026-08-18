@@ -148,11 +148,11 @@ pub mod llvm_backend {
     };
     use inkwell::builder::Builder;
     use inkwell::module::Module;
-    use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
+    use inkwell::values::{BasicValueEnum, FloatValue, FunctionValue, IntValue, PointerValue};
     use inkwell::{AddressSpace, OptimizationLevel};
     use inkwell::basic_block::BasicBlock;
-    use inkwell::types::{BasicTypeEnum, IntType, PointerType};
-    use inkwell::IntPredicate;
+    use inkwell::types::{BasicTypeEnum, FloatType, IntType, PointerType};
+    use inkwell::{FloatPredicate, IntPredicate};
     use std::collections::HashMap;
 
     #[derive(Debug, Clone, Copy, Default)]
@@ -185,12 +185,14 @@ pub mod llvm_backend {
         module: Module<'ctx>,
         builder: Builder<'ctx>,
         i32t: IntType<'ctx>,
+        f64t: FloatType<'ctx>,
         ptr: PointerType<'ctx>,
         printf: FunctionValue<'ctx>,
         main: FunctionValue<'ctx>,
         fmt_s: PointerValue<'ctx>,
         fmt_d: PointerValue<'ctx>,
         nl: PointerValue<'ctx>,
+        fmt_g: PointerValue<'ctx>,
         vars: HashMap<String, (PointerValue<'ctx>, ValueType)>,
     }
 
@@ -203,6 +205,7 @@ pub mod llvm_backend {
             let module = ctx.create_module("xb");
             let builder = ctx.create_builder();
             let i32t = ctx.i32_type();
+            let f64t = ctx.f64_type();
             let ptr = ctx.ptr_type(AddressSpace::default());
             let printf = module.add_function("printf", i32t.fn_type(&[ptr.into()], true), None);
             let main = module.add_function("main", i32t.fn_type(&[], false), None);
@@ -213,6 +216,7 @@ pub mod llvm_backend {
             let fmt_s = g(&builder, "%s", "fmts")?;
             let fmt_d = g(&builder, "%d", "fmtd")?;
             let nl = g(&builder, "\n", "nl")?;
+            let fmt_g = g(&builder, "%g", "fmtg")?;
             Ok(Self {
                 ctx,
                 module,
@@ -224,6 +228,8 @@ pub mod llvm_backend {
                 fmt_s,
                 fmt_d,
                 nl,
+                f64t,
+                fmt_g,
                 vars: HashMap::new(),
             })
         }
@@ -259,10 +265,10 @@ pub mod llvm_backend {
             if let Some((s, _)) = self.vars.get(name) {
                 return Ok(*s);
             }
-            let ty: BasicTypeEnum = if vt == ValueType::String {
-                self.ptr.into()
-            } else {
-                self.i32t.into()
+            let ty: BasicTypeEnum = match vt {
+                ValueType::String => self.ptr.into(),
+                ValueType::Float => self.f64t.into(),
+                _ => self.i32t.into(),
             };
             let s = self.builder.build_alloca(ty, name).map_err(Self::err)?;
             self.vars.insert(name.to_string(), (s, vt));
@@ -293,14 +299,15 @@ pub mod llvm_backend {
             match item {
                 IrItem::Dim { symbol, is_array: false, .. } => {
                     let slot = self.get_or_alloca(&symbol.name, symbol.value_type)?;
-                    let init: BasicValueEnum = if symbol.value_type == ValueType::String {
-                        self.builder
+                    let init: BasicValueEnum = match symbol.value_type {
+                        ValueType::String => self
+                            .builder
                             .build_global_string_ptr("", "e")
                             .map_err(Self::err)?
                             .as_pointer_value()
-                            .into()
-                    } else {
-                        self.i32t.const_zero().into()
+                            .into(),
+                        ValueType::Float => self.f64t.const_zero().into(),
+                        _ => self.i32t.const_zero().into(),
                     };
                     self.builder.build_store(slot, init).map_err(Self::err)?;
                 }
@@ -321,6 +328,11 @@ pub mod llvm_backend {
                             Some(BasicValueEnum::PointerValue(pv)) => {
                                 self.builder
                                     .build_call(self.printf, &[self.fmt_s.into(), pv.into()], "")
+                                    .map_err(Self::err)?;
+                            }
+                            Some(BasicValueEnum::FloatValue(fv)) => {
+                                self.builder
+                                    .build_call(self.printf, &[self.fmt_g.into(), fv.into()], "")
                                     .map_err(Self::err)?;
                             }
                             _ => {}
@@ -440,6 +452,18 @@ pub mod llvm_backend {
             })
         }
 
+        /// Evaluate an expression to `f64`, promoting integers (0.0 otherwise).
+        fn eval_float(&self, expr: &IrExpr) -> Result<FloatValue<'ctx>, CompileError> {
+            Ok(match self.eval_value(expr)? {
+                Some(BasicValueEnum::FloatValue(f)) => f,
+                Some(BasicValueEnum::IntValue(i)) => self
+                    .builder
+                    .build_signed_int_to_float(i, self.f64t, "i2f")
+                    .map_err(Self::err)?,
+                _ => self.f64t.const_zero(),
+            })
+        }
+
         /// Evaluate to an LLVM value: `ptr` (char*) for strings, `i32` for integers.
         /// `None` for constructs this v0 does not translate.
         fn eval_value(&self, expr: &IrExpr) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
@@ -459,9 +483,15 @@ pub mod llvm_backend {
                     };
                     Some(self.i32t.const_int(n as u64, true).into())
                 }
+                IrExprKind::FloatLiteral(v) => {
+                    Some(self.f64t.const_float(v.parse::<f64>().unwrap_or(0.0)).into())
+                }
                 IrExprKind::Symbol(sym) => match self.vars.get(&sym.name) {
                     Some((slot, ValueType::String)) => {
                         Some(self.builder.build_load(self.ptr, *slot, "ld").map_err(Self::err)?)
+                    }
+                    Some((slot, ValueType::Float)) => {
+                        Some(self.builder.build_load(self.f64t, *slot, "ld").map_err(Self::err)?)
                     }
                     Some((slot, _)) => {
                         Some(self.builder.build_load(self.i32t, *slot, "ld").map_err(Self::err)?)
@@ -469,32 +499,66 @@ pub mod llvm_backend {
                     None => None,
                 },
                 IrExprKind::Arithmetic { op, left, right } => {
-                    let a = self.eval_int(left)?;
-                    let b = self.eval_int(right)?;
-                    let v = match op {
-                        ArithmeticOp::Add => self.builder.build_int_add(a, b, "add"),
-                        ArithmeticOp::Sub => self.builder.build_int_sub(a, b, "sub"),
-                        ArithmeticOp::Mul => self.builder.build_int_mul(a, b, "mul"),
-                        ArithmeticOp::Div => self.builder.build_int_signed_div(a, b, "div"),
-                        _ => return Ok(None),
-                    };
-                    Some(v.map_err(Self::err)?.into())
+                    if expr.value_type == ValueType::Float
+                        || left.value_type == ValueType::Float
+                        || right.value_type == ValueType::Float
+                    {
+                        let a = self.eval_float(left)?;
+                        let b = self.eval_float(right)?;
+                        let v = match op {
+                            ArithmeticOp::Add => self.builder.build_float_add(a, b, "fadd"),
+                            ArithmeticOp::Sub => self.builder.build_float_sub(a, b, "fsub"),
+                            ArithmeticOp::Mul => self.builder.build_float_mul(a, b, "fmul"),
+                            ArithmeticOp::Div => self.builder.build_float_div(a, b, "fdiv"),
+                            _ => return Ok(None),
+                        };
+                        Some(v.map_err(Self::err)?.into())
+                    } else {
+                        let a = self.eval_int(left)?;
+                        let b = self.eval_int(right)?;
+                        let v = match op {
+                            ArithmeticOp::Add => self.builder.build_int_add(a, b, "add"),
+                            ArithmeticOp::Sub => self.builder.build_int_sub(a, b, "sub"),
+                            ArithmeticOp::Mul => self.builder.build_int_mul(a, b, "mul"),
+                            ArithmeticOp::Div => self.builder.build_int_signed_div(a, b, "div"),
+                            _ => return Ok(None),
+                        };
+                        Some(v.map_err(Self::err)?.into())
+                    }
                 }
                 IrExprKind::Comparison { op, left, right } => {
-                    let (Some(BasicValueEnum::IntValue(a)), Some(BasicValueEnum::IntValue(b))) =
-                        (self.eval_value(left)?, self.eval_value(right)?)
-                    else {
-                        return Ok(None);
+                    if left.value_type == ValueType::String
+                        || right.value_type == ValueType::String
+                    {
+                        return Ok(None); // string comparison deferred
+                    }
+                    let c = if left.value_type == ValueType::Float
+                        || right.value_type == ValueType::Float
+                    {
+                        let a = self.eval_float(left)?;
+                        let b = self.eval_float(right)?;
+                        let pred = match op {
+                            ComparisonOp::Equal => FloatPredicate::OEQ,
+                            ComparisonOp::NotEqual => FloatPredicate::ONE,
+                            ComparisonOp::Less => FloatPredicate::OLT,
+                            ComparisonOp::Greater => FloatPredicate::OGT,
+                            ComparisonOp::LessEqual => FloatPredicate::OLE,
+                            ComparisonOp::GreaterEqual => FloatPredicate::OGE,
+                        };
+                        self.builder.build_float_compare(pred, a, b, "fcmp").map_err(Self::err)?
+                    } else {
+                        let a = self.eval_int(left)?;
+                        let b = self.eval_int(right)?;
+                        let pred = match op {
+                            ComparisonOp::Equal => IntPredicate::EQ,
+                            ComparisonOp::NotEqual => IntPredicate::NE,
+                            ComparisonOp::Less => IntPredicate::SLT,
+                            ComparisonOp::Greater => IntPredicate::SGT,
+                            ComparisonOp::LessEqual => IntPredicate::SLE,
+                            ComparisonOp::GreaterEqual => IntPredicate::SGE,
+                        };
+                        self.builder.build_int_compare(pred, a, b, "cmp").map_err(Self::err)?
                     };
-                    let pred = match op {
-                        ComparisonOp::Equal => IntPredicate::EQ,
-                        ComparisonOp::NotEqual => IntPredicate::NE,
-                        ComparisonOp::Less => IntPredicate::SLT,
-                        ComparisonOp::Greater => IntPredicate::SGT,
-                        ComparisonOp::LessEqual => IntPredicate::SLE,
-                        ComparisonOp::GreaterEqual => IntPredicate::SGE,
-                    };
-                    let c = self.builder.build_int_compare(pred, a, b, "cmp").map_err(Self::err)?;
                     // XBasic truth is -1: sign-extend i1 (1 -> -1, 0 -> 0).
                     Some(
                         self.builder
@@ -710,6 +774,42 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "6\nbig\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_float_arithmetic() {
+        use std::io::Write;
+        use std::process::Command;
+        // Double var + float division: 10.0 / 4.0 = 2.5 (printed via %g).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\nDIM x#\nx# = 10.0 / 4.0\nPRINT x#\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_flt.o");
+        let exep = dir.join("xb_llvm_flt.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "2.5\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
