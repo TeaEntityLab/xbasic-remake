@@ -1206,6 +1206,24 @@ pub mod llvm_backend {
                             ArithmeticOp::Sub => self.builder.build_int_sub(a, b, "sub"),
                             ArithmeticOp::Mul => self.builder.build_int_mul(a, b, "mul"),
                             ArithmeticOp::Div => self.builder.build_int_signed_div(a, b, "div"),
+                            ArithmeticOp::IntegerDiv => {
+                                self.builder.build_int_signed_div(a, b, "idiv")
+                            }
+                            ArithmeticOp::Mod => self.builder.build_int_signed_rem(a, b, "mod"),
+                            ArithmeticOp::Shl => {
+                                let m = self
+                                    .builder
+                                    .build_and(b, self.i32t.const_int(31, false), "shlm")
+                                    .map_err(Self::err)?;
+                                self.builder.build_left_shift(a, m, "shl")
+                            }
+                            ArithmeticOp::Shr => {
+                                let m = self
+                                    .builder
+                                    .build_and(b, self.i32t.const_int(31, false), "shrm")
+                                    .map_err(Self::err)?;
+                                self.builder.build_right_shift(a, m, true, "shr")
+                            }
                             _ => return Ok(None),
                         };
                         Some(v.map_err(Self::err)?.into())
@@ -2709,6 +2727,35 @@ mod tests {
             String::from_utf8_lossy(&run.stdout),
             "65\n-1\n3\n9\n4\nFF\nFFFFFFFF\n"
         );
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_integer_ops() {
+        use std::io::Write;
+        use std::process::Command;
+        // MOD (signed rem), \\ (IntegerDiv), << (Shl), >> (Shr) mirror the interpreter.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             PRINT 17 MOD 5\n\
+             PRINT 17 \\ 5\n\
+             PRINT 1 << 4\n\
+             PRINT 100 >> 2\n\
+             PRINT 0 - 17 MOD 5\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_iop.o");
+        let exep = dir.join("xb_llvm_iop.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "2\n3\n16\n25\n-2\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
