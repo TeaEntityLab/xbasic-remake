@@ -51,6 +51,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             target,
             index,
             value,
+            ..
         } => {
             out.push_str(&ind);
             emit_var_name(target, out);

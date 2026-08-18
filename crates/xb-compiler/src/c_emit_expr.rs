@@ -241,7 +241,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push(')');
             }
         }
-        IrExprKind::ArrayAccess { symbol, index } => {
+        IrExprKind::ArrayAccess { symbol, index, .. } => {
             emit_symbol_ref(symbol, out);
             out.push('[');
             emit_expr(index, out);

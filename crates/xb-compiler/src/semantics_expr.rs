@@ -29,7 +29,9 @@ impl Analyzer {
             Expression::Boolean { op, left, right } => self.boolean(*op, left, right),
             Expression::Logical { op, left, right } => self.logical(*op, left, right),
             Expression::FunctionCall { name, args } => self.function_call(name, args),
-            Expression::ArrayAccess { name, index } => self.array_access(name, index),
+            Expression::ArrayAccess { name, index, extra_indices } => {
+                self.array_access(name, index, extra_indices)
+            }
             Expression::ArrayRef { name } => self.array_ref(name),
             Expression::FuncAddr(name) => self.func_addr(name),
         }
@@ -43,14 +45,19 @@ impl Analyzer {
         ))
     }
 
-    fn array_access(&self, name: &str, index: &Expression) -> ExprResult {
+    fn array_access(&self, name: &str, index: &Expression, extra: &[Expression]) -> ExprResult {
         let sym = self.auto_symbol(name);
         let vt = sym.value_type;
         let idx = self.expr(index)?;
+        let extra_indices = extra
+            .iter()
+            .map(|e| self.expr(e))
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(CheckedExpr::new(
             CheckedExprKind::ArrayAccess {
                 symbol: sym,
                 index: Box::new(idx),
+                extra_indices,
             },
             vt,
         ))
@@ -244,6 +251,7 @@ impl Analyzer {
                 CheckedExprKind::ArrayAccess {
                     symbol: sym,
                     index: Box::new(index),
+                    extra_indices: Vec::new(),
                 },
                 vt,
             ));

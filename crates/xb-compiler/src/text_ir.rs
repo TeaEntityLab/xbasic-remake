@@ -64,6 +64,7 @@ impl TextIrEmitter {
                 target,
                 index,
                 value,
+                ..
             } => {
                 out.push_str(&format!(
                     "{prefix}array_assign {}[{}] = {}\n",

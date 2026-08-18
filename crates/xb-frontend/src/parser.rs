@@ -299,8 +299,8 @@ impl Parser {
         let mut dims = Vec::new();
         loop {
             let (name, suffix) = self.expect_name_or_keyword()?;
-            let (size, is_array) = self.parse_array_size()?;
-            dims.push(Statement::Dim { name, suffix, size, is_array, redim: false });
+            let (size, is_array, extra_dims) = self.parse_array_size()?;
+            dims.push(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: false });
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
             } else {
@@ -366,11 +366,12 @@ impl Parser {
                     }
                 }
             }
-            let (size, is_array) = self.parse_array_size()?;
+            let (size, is_array, extra_dims) = self.parse_array_size()?;
             dims.push(Statement::Dim {
                 name,
                 suffix: name_suffix,
                 size,
+                extra_dims,
                 is_array,
                 redim: false,
             });
@@ -427,6 +428,7 @@ impl Parser {
             name,
             suffix,
             size: None,
+            extra_dims: Vec::new(),
             is_array: false,
             redim: false,
         })
@@ -701,13 +703,11 @@ impl Parser {
                 break;
             }
         }
+        let mut array_extra: Vec<Expression> = Vec::new();
         let array_index = if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
             self.index += 1;
             let idx = self.expression()?;
-            while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
-                self.index += 1;
-                let _ = self.expression();
-            }
+            array_extra = self.collect_extra_indices()?;
             self.expect_symbol(']')?;
             Some(idx)
         } else {
@@ -737,6 +737,7 @@ impl Parser {
                 return Ok(Statement::ArrayAssignment {
                     target: full,
                     index: idx,
+                    extra_indices: array_extra,
                     value,
                 });
             }
@@ -760,13 +761,15 @@ impl Parser {
                 self.expect_line_end()?;
                 // Treat as array assignment on the dot-accessed name
                 let full = crate::token::full_name(full, suffix);
-                let index = args
-                    .into_iter()
+                let mut it = args.into_iter();
+                let index = it
                     .next()
                     .unwrap_or_else(|| Expression::IntegerLiteral("0".to_string()));
+                let extra_indices: Vec<Expression> = it.collect();
                 return Ok(Statement::ArrayAssignment {
                     target: full,
                     index,
+                    extra_indices,
                     value,
                 });
             }
@@ -866,13 +869,11 @@ impl Parser {
             (name, suffix)
         };
         // Handle array access after dot member: host[i].alias[n] = ...
+        let mut extra_index_rest: Vec<Expression> = Vec::new();
         let extra_index = if is_bracket && matches!(self.peek_kind(), TokenKind::Symbol('[')) {
             self.index += 1;
             let idx = self.expression()?;
-            while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
-                self.index += 1;
-                let _ = self.expression();
-            }
+            extra_index_rest = self.collect_extra_indices()?;
             self.expect_symbol(']')?;
             Some(idx)
         } else {
@@ -899,6 +900,7 @@ impl Parser {
                 return Ok(Statement::ArrayAssignment {
                     target: full,
                     index: idx,
+                    extra_indices: extra_index_rest,
                     value,
                 });
             }
@@ -927,9 +929,13 @@ impl Parser {
             self.expect_line_end()?;
             let full = full_name(name, suffix);
             // For multi-dim arrays, only use the first dimension
+            let mut it = args.into_iter();
+            let index = it.next().unwrap();
+            let extra_indices: Vec<Expression> = it.collect();
             return Ok(Statement::ArrayAssignment {
                 target: full,
-                index: args.into_iter().next().unwrap(),
+                index,
+                extra_indices,
                 value,
             });
         }

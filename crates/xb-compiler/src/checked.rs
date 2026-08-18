@@ -88,6 +88,7 @@ pub enum CheckedItem {
     Dim {
         symbol: CheckedSymbol,
         size: Option<CheckedExpr>,
+        extra_dims: Vec<CheckedExpr>,
         is_array: bool,
         redim: bool,
     },
@@ -98,6 +99,7 @@ pub enum CheckedItem {
     ArrayAssignment {
         target: CheckedSymbol,
         index: CheckedExpr,
+        extra_indices: Vec<CheckedExpr>,
         value: CheckedExpr,
     },
     MidAssign {
@@ -242,6 +244,7 @@ pub enum CheckedExprKind {
     ArrayAccess {
         symbol: CheckedSymbol,
         index: Box<CheckedExpr>,
+        extra_indices: Vec<CheckedExpr>,
     },
     ArrayRef {
         symbol: CheckedSymbol,

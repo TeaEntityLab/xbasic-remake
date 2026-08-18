@@ -22,6 +22,9 @@ pub enum Statement {
         name: String,
         suffix: Option<TypeSuffix>,
         size: Option<Expression>,
+        /// Extra subscripts for a multi-dimensional array (`a[d0, d1, …]`); dim0
+        /// stays in `size`. Empty for scalars and 1-D arrays.
+        extra_dims: Vec<Expression>,
         /// `true` when the declaration carried array brackets (`a[]` or `a[n]`),
         /// distinguishing an empty array `DIM a[]` from a scalar `DIM a`.
         is_array: bool,
@@ -36,6 +39,8 @@ pub enum Statement {
     ArrayAssignment {
         target: String,
         index: Expression,
+        /// Extra subscripts for a multi-dimensional write (`a[i0, i1, …] = v`).
+        extra_indices: Vec<Expression>,
         value: Expression,
     },
     MidAssign {
@@ -306,6 +311,8 @@ pub enum Expression {
     ArrayAccess {
         name: String,
         index: Box<Expression>,
+        /// Extra subscripts for a multi-dimensional read (`a[i0, i1, …]`).
+        extra_indices: Vec<Expression>,
     },
     ArrayRef {
         name: String,

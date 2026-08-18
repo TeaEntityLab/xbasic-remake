@@ -9,9 +9,14 @@ impl Analyzer {
         name: &str,
         suffix: Option<TypeSuffix>,
         size: Option<&Expression>,
+        extra_dims: &[Expression],
         is_array: bool,
         redim: bool,
     ) -> ItemResult {
+        let checked_extra_dims = extra_dims
+            .iter()
+            .map(|e| self.expr(e))
+            .collect::<Result<Vec<_>, _>>()?;
         // Composite array DIM: expand into one member-array per struct member.
         if let Some(type_name) = self.composite_vars.get(name).cloned() {
             if let Some(layout) = self.composites.get(&type_name).cloned() {
@@ -28,6 +33,7 @@ impl Analyzer {
                     items.push(CheckedItem::Dim {
                         symbol: CheckedSymbol::new(mname, vt),
                         size: checked_size.clone(),
+                        extra_dims: checked_extra_dims.clone(),
                         is_array: true,
                         redim,
                     });
@@ -69,6 +75,7 @@ impl Analyzer {
         Ok(CheckedItem::Dim {
             symbol: CheckedSymbol::new(sym_name.to_owned(), vt),
             size: checked_size,
+            extra_dims: checked_extra_dims,
             is_array,
             redim,
         })
@@ -123,6 +130,7 @@ impl Analyzer {
         &self,
         name: &str,
         index: &Expression,
+        extra: &[Expression],
         value: &Expression,
     ) -> ItemResult {
         // Brace-notation byte write: `s${off} = v` parses as an array assignment
@@ -168,9 +176,14 @@ impl Analyzer {
         } else {
             value
         };
+        let extra_indices = extra
+            .iter()
+            .map(|e| self.expr(e))
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(CheckedItem::ArrayAssignment {
             target,
             index,
+            extra_indices,
             value,
         })
     }

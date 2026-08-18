@@ -58,6 +58,9 @@ pub struct TypedSlot {
     pub(crate) value_type: ValueType,
     pub(crate) value: RuntimeValue,
     pub(crate) array: Option<Vec<RuntimeValue>>,
+    /// Row-major per-dimension lengths (the shape). `[len]` for 1-D; empty only
+    /// for scalars / not-yet-shaped arrays.
+    pub(crate) dims: Vec<usize>,
 }
 
 impl TypedSlot {
@@ -66,6 +69,7 @@ impl TypedSlot {
             value_type,
             value: RuntimeValue::default_for(value_type),
             array: None,
+            dims: Vec::new(),
         }
     }
     pub(crate) fn set(&mut self, v: RuntimeValue) {
@@ -77,11 +81,13 @@ impl TypedSlot {
     pub const fn value(&self) -> &RuntimeValue {
         &self.value
     }
-    pub(crate) fn new_array(value_type: ValueType, size: usize) -> Self {
+    pub(crate) fn new_array_nd(value_type: ValueType, dims: Vec<usize>) -> Self {
+        let flat = if dims.is_empty() { 0 } else { dims.iter().product() };
         Self {
             value_type,
             value: RuntimeValue::default_for(value_type),
-            array: Some(vec![RuntimeValue::default_for(value_type); size]),
+            array: Some(vec![RuntimeValue::default_for(value_type); flat]),
+            dims,
         }
     }
     pub(crate) fn array_get(&self, index: usize) -> Result<RuntimeValue, RuntimeError> {
@@ -103,15 +109,34 @@ impl TypedSlot {
         *slot = v;
         Ok(())
     }
-    /// Resize the array in place, preserving existing elements (REDIM semantics).
-    /// Growing default-fills the new tail; shrinking truncates. A slot without an
-    /// array (scalar or fresh) becomes an array of `new_len` defaults.
-    pub(crate) fn array_resize(&mut self, new_len: usize) {
+    /// Reshape to `dims` (row-major), resizing the flat store to the product of the
+    /// dimensions (preserving the common prefix).
+    pub(crate) fn array_reshape(&mut self, dims: Vec<usize>) {
+        let flat = if dims.is_empty() { 0 } else { dims.iter().product() };
         let fill = RuntimeValue::default_for(self.value_type);
         match &mut self.array {
-            Some(arr) => arr.resize(new_len, fill),
-            None => self.array = Some(vec![fill; new_len]),
+            Some(arr) => arr.resize(flat, fill),
+            None => self.array = Some(vec![fill; flat]),
         }
+        self.dims = dims;
+    }
+    /// Row-major flat offset for `indices` given this slot's shape. Falls back to
+    /// the first index when no shape is recorded (1-D). `None` if any subscript is
+    /// out of its dimension or the flat offset exceeds the backing store.
+    pub(crate) fn array_offset(&self, indices: &[usize]) -> Option<usize> {
+        let arr = self.array.as_ref()?;
+        if self.dims.is_empty() {
+            return indices.first().copied().filter(|&i| i < arr.len());
+        }
+        let mut off = 0usize;
+        for (k, &d) in self.dims.iter().enumerate() {
+            let i = indices.get(k).copied().unwrap_or(0);
+            if i >= d {
+                return None;
+            }
+            off = off * d + i;
+        }
+        (off < arr.len()).then_some(off)
     }
 }
 

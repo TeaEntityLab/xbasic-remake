@@ -41,9 +41,14 @@ impl IrExpr {
                 left: Box::new(IrExpr::lower(left)),
                 right: Box::new(IrExpr::lower(right)),
             },
-            CheckedExprKind::ArrayAccess { symbol, index } => IrExprKind::ArrayAccess {
+            CheckedExprKind::ArrayAccess {
+                symbol,
+                index,
+                extra_indices,
+            } => IrExprKind::ArrayAccess {
                 symbol: IrSymbol::lower(symbol),
                 index: Box::new(IrExpr::lower(index)),
+                extra_indices: extra_indices.iter().map(IrExpr::lower).collect(),
             },
             CheckedExprKind::ArrayRef { symbol } => IrExprKind::Symbol(IrSymbol::lower(symbol)),
             CheckedExprKind::ArrayUBound { symbol } => IrExprKind::ArrayUBound {
@@ -77,11 +82,13 @@ impl IrItem {
             CheckedItem::Dim {
                 symbol,
                 size,
+                extra_dims,
                 is_array,
                 redim,
             } => Self::Dim {
                 symbol: IrSymbol::lower(symbol),
                 size: size.as_ref().map(IrExpr::lower),
+                extra_dims: extra_dims.iter().map(IrExpr::lower).collect(),
                 is_array: *is_array,
                 redim: *redim,
             },
@@ -92,10 +99,12 @@ impl IrItem {
             CheckedItem::ArrayAssignment {
                 target,
                 index,
+                extra_indices,
                 value,
             } => Self::ArrayAssignment {
                 target: IrSymbol::lower(target),
                 index: IrExpr::lower(index),
+                extra_indices: extra_indices.iter().map(IrExpr::lower).collect(),
                 value: IrExpr::lower(value),
             },
             CheckedItem::MidAssign {
@@ -219,6 +228,7 @@ impl IrItem {
                     .map(|s| Self::Dim {
                         symbol: IrSymbol::lower(s),
                         size: None,
+                        extra_dims: Vec::new(),
                         is_array: false,
                         redim: false,
                     })

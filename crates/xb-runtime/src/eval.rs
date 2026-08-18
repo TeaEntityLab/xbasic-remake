@@ -130,19 +130,32 @@ pub(crate) fn eval_expr(
             let mut out = Vec::new();
             return crate::call::call_function(program, name, args, state, &mut out);
         }
-        IrExprKind::ArrayAccess { symbol, index } => {
-            let idx = eval(program, index, state)?;
-            let i = match idx {
-                RuntimeValue::Integer(n) => n as usize,
-                _ => {
-                    return Err(RuntimeError::TypeMismatch {
-                        expected: ValueType::Integer,
-                        actual: idx.value_type(),
-                    })
+        IrExprKind::ArrayAccess {
+            symbol,
+            index,
+            extra_indices,
+        } => {
+            let mut idxs: Vec<usize> = Vec::with_capacity(1 + extra_indices.len());
+            for e in std::iter::once(index.as_ref()).chain(extra_indices.iter()) {
+                match eval(program, e, state)? {
+                    RuntimeValue::Integer(n) => idxs.push(n as usize),
+                    other => {
+                        return Err(RuntimeError::TypeMismatch {
+                            expected: ValueType::Integer,
+                            actual: other.value_type(),
+                        })
+                    }
                 }
-            };
+            }
             let value = match state.slots.get(&symbol.name) {
-                Some(slot) => slot.array_get(i)?,
+                Some(slot) => {
+                    let off = slot.array_offset(&idxs).ok_or_else(|| {
+                        RuntimeError::ArrayIndexOutOfRange {
+                            index: idxs.first().copied().unwrap_or(0) as i32,
+                        }
+                    })?;
+                    slot.array_get(off)?
+                }
                 // Undeclared array element reads as the type default (auto-declared).
                 None => RuntimeValue::default_for(symbol.value_type),
             };

@@ -23,9 +23,10 @@ impl Analyzer {
                 name,
                 suffix,
                 size,
+                extra_dims,
                 is_array,
                 redim,
-            } => self.dim(name, *suffix, size.as_ref(), *is_array, *redim),
+            } => self.dim(name, *suffix, size.as_ref(), extra_dims, *is_array, *redim),
             Statement::Assignment {
                 target,
                 suffix,
@@ -34,8 +35,9 @@ impl Analyzer {
             Statement::ArrayAssignment {
                 target,
                 index,
+                extra_indices,
                 value,
-            } => self.array_assignment(target, index, value),
+            } => self.array_assignment(target, index, extra_indices, value),
             Statement::MidAssign {
                 target,
                 start,
@@ -297,6 +299,7 @@ impl Analyzer {
                 items.push(CheckedItem::Dim {
                     symbol: CheckedSymbol::new(mname, vt),
                     size: None,
+                    extra_dims: Vec::new(),
                     is_array: false,
                     redim: false,
                 });

@@ -43,6 +43,7 @@ pub(crate) fn parse_item(
             return Ok(IrItem::Dim {
                 symbol: sym,
                 size,
+                extra_dims: Vec::new(),
                 is_array: true,
                 redim: false,
             });
@@ -51,6 +52,7 @@ pub(crate) fn parse_item(
         return Ok(IrItem::Dim {
             symbol: sym,
             size: None,
+            extra_dims: Vec::new(),
             is_array: false,
             redim: false,
         });
@@ -77,6 +79,7 @@ pub(crate) fn parse_item(
         return Ok(IrItem::ArrayAssignment {
             target: tgt,
             index: idx_e,
+            extra_indices: Vec::new(),
             value: val,
         });
     }

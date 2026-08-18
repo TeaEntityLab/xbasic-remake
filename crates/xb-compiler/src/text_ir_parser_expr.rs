@@ -243,6 +243,7 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
                         value_type: vt,
                     },
                     index: Box::new(index),
+                    extra_indices: Vec::new(),
                 },
                 vt,
             )

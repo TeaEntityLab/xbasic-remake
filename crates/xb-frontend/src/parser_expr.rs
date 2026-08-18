@@ -294,10 +294,7 @@ impl Parser {
                         return Ok(Expression::ArrayRef { name: full });
                     }
                     let index = self.expression()?;
-                    while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
-                        self.index += 1;
-                        let _ = self.expression();
-                    }
+                    let sv_extra = self.collect_extra_indices()?;
                     self.expect_symbol(']')?;
                     // Trailing brace byte-access: `##ARGV$[i]{off}` (brace lexes as
                     // parens) — consume `(off)` so the element access parses.
@@ -307,6 +304,7 @@ impl Parser {
                     return Ok(Expression::ArrayAccess {
                         name: full,
                         index: Box::new(index),
+                        extra_indices: sv_extra,
                     });
                 }
                 if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
@@ -459,10 +457,7 @@ impl Parser {
             } else {
                 let index = self.expression()?;
                 // Skip additional comma-separated dimensions (multi-dim arrays)
-                while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
-                    self.index += 1;
-                    let _ = self.expression();
-                }
+                let index_extra = self.collect_extra_indices()?;
                 self.expect_symbol(']')?;
                 let full = full_name(name, suffix);
                 // Handle dot member access after array: arr[i].member
@@ -497,19 +492,18 @@ impl Parser {
                         if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
                             self.index += 1;
                             let inner = self.expression()?;
-                            while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
-                                self.index += 1;
-                                let _ = self.expression();
-                            }
+                            let inner_extra = self.collect_extra_indices()?;
                             self.expect_symbol(']')?;
                             return Ok(Expression::ArrayAccess {
                                 name: combined,
                                 index: Box::new(inner),
+                                extra_indices: inner_extra,
                             });
                         }
                         return Ok(Expression::ArrayAccess {
                             name: combined,
                             index: Box::new(index),
+                            extra_indices: index_extra.clone(),
                         });
                     } else if let TokenKind::Keyword(kw) = self.peek_kind().clone() {
                         self.index += 1;
@@ -517,6 +511,7 @@ impl Parser {
                         return Ok(Expression::ArrayAccess {
                             name: combined,
                             index: Box::new(index),
+                            extra_indices: index_extra.clone(),
                         });
                     }
                 }
@@ -539,6 +534,7 @@ impl Parser {
                 Ok(Expression::ArrayAccess {
                     name: full,
                     index: Box::new(index),
+                    extra_indices: index_extra,
                 })
             }
         } else {
@@ -588,14 +584,12 @@ impl Parser {
                         return Ok(Expression::ArrayRef { name: combined });
                     }
                     let index = self.expression()?;
-                    while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
-                        self.index += 1;
-                        let _ = self.expression();
-                    }
+                    let dm_extra = self.collect_extra_indices()?;
                     self.expect_symbol(']')?;
                     return Ok(Expression::ArrayAccess {
                         name: combined,
                         index: Box::new(index),
+                        extra_indices: dm_extra,
                     });
                 }
                 return Ok(Expression::Identifier {

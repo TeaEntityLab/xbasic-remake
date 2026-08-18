@@ -40,6 +40,7 @@ pub enum IrItem {
     Dim {
         symbol: IrSymbol,
         size: Option<IrExpr>,
+        extra_dims: Vec<IrExpr>,
         is_array: bool,
         redim: bool,
     },
@@ -50,6 +51,7 @@ pub enum IrItem {
     ArrayAssignment {
         target: IrSymbol,
         index: IrExpr,
+        extra_indices: Vec<IrExpr>,
         value: IrExpr,
     },
     MidAssign {
@@ -193,6 +195,7 @@ pub enum IrExprKind {
     ArrayAccess {
         symbol: IrSymbol,
         index: Box<IrExpr>,
+        extra_indices: Vec<IrExpr>,
     },
     ArrayUBound {
         symbol: IrSymbol,

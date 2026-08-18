@@ -154,33 +154,46 @@ impl Parser {
         matches!(self.peek_kind(), TokenKind::Eof)
     }
 
-    /// Parse an optional array dimension. Returns `(size, is_array)` where
-    /// `is_array` is `true` whenever brackets/parens were present — including the
-    /// empty form `a[]` (which yields `(None, true)`), distinct from a bare scalar
-    /// `a` which yields `(None, false)`.
-    pub(crate) fn parse_array_size(&mut self) -> Result<(Option<Expression>, bool), ParseError> {
+    /// Parse an optional array dimension. Returns `(size, is_array, extra_dims)`:
+    /// `size` is dim0, `extra_dims` are dims 1..N (`a[d0, d1, …]`), and `is_array`
+    /// is `true` whenever brackets/parens were present — including empty `a[]`
+    /// (`(None, true, [])`), distinct from a bare scalar `a` (`(None, false, [])`).
+    pub(crate) fn parse_array_size(
+        &mut self,
+    ) -> Result<(Option<Expression>, bool, Vec<Expression>), ParseError> {
         if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
             self.index += 1;
             let e = self.expression()?;
             self.expect_symbol(')')?;
-            Ok((Some(e), true))
+            Ok((Some(e), true, Vec::new()))
         } else if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
             self.index += 1;
             if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
                 self.index += 1;
-                return Ok((None, true));
+                return Ok((None, true, Vec::new()));
             }
             let e = self.expression()?;
-            // Skip additional dimensions (comma-separated) — use first only
-            while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
-                self.index += 1;
-                let _ = self.expression();
-            }
+            let extra = self.collect_extra_indices()?;
             self.expect_symbol(']')?;
-            Ok((Some(e), true))
+            Ok((Some(e), true, extra))
         } else {
-            Ok((None, false))
+            Ok((None, false, Vec::new()))
         }
+    }
+
+    /// Consume the trailing `, expr` subscripts of a multi-dimensional
+    /// `[…]` access/declaration (after the first). A trailing comma (`a[i,]`,
+    /// an XBasic "node" dimension) contributes no extra index.
+    pub(crate) fn collect_extra_indices(&mut self) -> Result<Vec<Expression>, ParseError> {
+        let mut extra = Vec::new();
+        while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+            self.index += 1;
+            if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                break;
+            }
+            extra.push(self.expression()?);
+        }
+        Ok(extra)
     }
 
     pub(crate) fn skip_to_line_end(&mut self) {

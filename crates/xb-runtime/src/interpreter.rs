@@ -113,37 +113,41 @@ pub(crate) fn exec_items(
             IrItem::Dim {
                 symbol,
                 size,
+                extra_dims,
                 is_array,
                 redim,
             } => {
-                // Inclusive upper bound: DIM a[n] -> indices 0..=n (len n+1).
-                // An empty array `DIM a[]` (is_array, no size) has len 0.
-                let len = match size {
-                    Some(sz) => match eval(program, sz, state)? {
-                        RuntimeValue::Integer(i) => (i.max(0) as usize).wrapping_add(1),
-                        n => {
-                            return Err(RuntimeError::TypeMismatch {
-                                expected: ValueType::Integer,
-                                actual: n.value_type(),
-                            })
-                        }
-                    },
-                    None => 0,
-                };
                 if *is_array {
+                    // Inclusive upper bounds: DIM a[d0, d1, …] -> shape
+                    // [d0+1, d1+1, …]; empty `DIM a[]` -> empty shape (len 0).
+                    let mut dims: Vec<usize> = Vec::new();
+                    for e in size.iter().chain(extra_dims.iter()) {
+                        match eval(program, e, state)? {
+                            RuntimeValue::Integer(i) => {
+                                dims.push((i.max(0) as usize).wrapping_add(1))
+                            }
+                            n => {
+                                return Err(RuntimeError::TypeMismatch {
+                                    expected: ValueType::Integer,
+                                    actual: n.value_type(),
+                                })
+                            }
+                        }
+                    }
                     if *redim {
-                        // REDIM resizes preserving existing contents (grow:
-                        // default-fill the new tail; shrink: truncate). REDIM of
-                        // an undeclared name creates it (legacy XBasic).
+                        // REDIM reshapes preserving the common prefix; REDIM of an
+                        // undeclared name creates it (legacy XBasic).
                         state
                             .slots
                             .entry(symbol.name.clone())
-                            .or_insert_with(|| TypedSlot::new_array(symbol.value_type, 0))
-                            .array_resize(len);
+                            .or_insert_with(|| {
+                                TypedSlot::new_array_nd(symbol.value_type, Vec::new())
+                            })
+                            .array_reshape(dims);
                     } else {
                         state.slots.insert(
                             symbol.name.clone(),
-                            TypedSlot::new_array(symbol.value_type, len),
+                            TypedSlot::new_array_nd(symbol.value_type, dims),
                         );
                     }
                 } else {
@@ -167,28 +171,35 @@ pub(crate) fn exec_items(
             IrItem::ArrayAssignment {
                 target,
                 index,
+                extra_indices,
                 value,
             } => {
-                let idx_val = eval(program, index, state)?;
+                let mut idxs: Vec<usize> = Vec::with_capacity(1 + extra_indices.len());
+                for e in std::iter::once(index).chain(extra_indices.iter()) {
+                    match eval(program, e, state)? {
+                        RuntimeValue::Integer(i) => idxs.push(i as usize),
+                        n => {
+                            return Err(RuntimeError::TypeMismatch {
+                                expected: ValueType::Integer,
+                                actual: n.value_type(),
+                            })
+                        }
+                    }
+                }
                 let v =
                     crate::helpers::coerce_value(eval(program, value, state)?, target.value_type);
-                let i = match idx_val {
-                    RuntimeValue::Integer(i) => i as usize,
-                    _ => {
-                        return Err(RuntimeError::TypeMismatch {
-                            expected: ValueType::Integer,
-                            actual: idx_val.value_type(),
-                        })
+                let slot = state
+                    .slots
+                    .get_mut(&target.name)
+                    .ok_or_else(|| RuntimeError::UnknownSlot {
+                        name: target.name.clone(),
+                    })?;
+                let off = slot.array_offset(&idxs).ok_or_else(|| {
+                    RuntimeError::ArrayIndexOutOfRange {
+                        index: idxs.first().copied().unwrap_or(0) as i32,
                     }
-                };
-                let slot =
-                    state
-                        .slots
-                        .get_mut(&target.name)
-                        .ok_or_else(|| RuntimeError::UnknownSlot {
-                            name: target.name.clone(),
-                        })?;
-                slot.array_set(i, v)?;
+                })?;
+                slot.array_set(off, v)?;
             }
             IrItem::MidAssign {
                 target,

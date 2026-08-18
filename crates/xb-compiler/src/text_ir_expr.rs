@@ -60,7 +60,7 @@ impl TextIrEmitter {
                 let as_str: Vec<String> = args.iter().map(|a| self.emit_expr(a)).collect();
                 format!("call {}({})", name, as_str.join(", "))
             }
-            IrExprKind::ArrayAccess { symbol, index } => {
+            IrExprKind::ArrayAccess { symbol, index, .. } => {
                 format!(
                     "array_access({}[{}])",
                     self.emit_symbol(symbol),

@@ -154,12 +154,14 @@ fn allows_redimension_of_slot() {
             IrItem::Dim {
                 symbol: repeated.clone(),
                 size: None,
+                extra_dims: Vec::new(),
                 is_array: false,
                 redim: false,
             },
             IrItem::Dim {
                 symbol: repeated,
                 size: None,
+                extra_dims: Vec::new(),
                 is_array: false,
                 redim: false,
             },
@@ -212,6 +214,7 @@ fn coerces_string_value_to_integer_target() {
             IrItem::Dim {
                 symbol: count.clone(),
                 size: None,
+                extra_dims: Vec::new(),
                 is_array: false,
                 redim: false,
             },
@@ -662,4 +665,26 @@ fn funcaddr_member_indirect_call_dispatches_and_writes_back() {
         .execute_main(&program, &mut output)
         .unwrap();
     assert_eq!(output, ["Rex"]);
+}
+
+#[test]
+fn two_dim_array_cells_are_distinct() {
+    // 2-D arrays index distinct cells row-major: `a[1,0]` and `a[1,1]` are
+    // separate (the extra subscript was previously dropped, aliasing them to
+    // `a[1]`). (MIG-ARY-MULTIDIM)
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM a[2,2]\n\
+         a[1,0] = 7\n\
+         a[1,1] = 9\n\
+         PRINT a[1,0]\n\
+         PRINT a[1,1]\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["7", "9"]);
 }
