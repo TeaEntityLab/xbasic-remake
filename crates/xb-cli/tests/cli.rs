@@ -160,6 +160,56 @@ fn cli_compile_llvm_backend_produces_native_executable() {
     let _ = std::fs::remove_file(&exe);
 }
 
+/// Differential reach check: for real corpus programs, the LLVM-compiled native
+/// binary must produce byte-identical output to the interpreter. Guards against
+/// LLVM codegen regressions on arrays/loops/strings (the 61/151 faithful set,
+/// docs/17 LB-STUB). Curated to rich-output programs; the full sweep is a manual
+/// measurement (too slow for the suite).
+#[cfg(feature = "llvm")]
+#[test]
+fn cli_llvm_matches_interpreter_on_corpus_programs() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let tmp = std::env::temp_dir().join("xb_cli_llvm_diff");
+    let _ = std::fs::create_dir_all(&tmp);
+    for name in ["demo/aarray.x", "demo/aloha.x", "demo/ahello.x"] {
+        let src = root.join("xbasic-6.4.5").join(name);
+        let refr = Command::new(env!("CARGO_BIN_EXE_xb"))
+            .args(["--run", src.to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(refr.status.success(), "interpreter failed on {name}");
+        let reference = String::from_utf8_lossy(&refr.stdout).to_string();
+        assert!(!reference.is_empty(), "no reference output for {name}");
+
+        let exe = tmp.join(format!("{}.bin", name.replace('/', "_")));
+        let _ = std::fs::remove_file(&exe);
+        let comp = Command::new(env!("CARGO_BIN_EXE_xb"))
+            .args([
+                "--compile",
+                src.to_str().unwrap(),
+                "-o",
+                exe.to_str().unwrap(),
+                "--backend",
+                "llvm",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            comp.status.success(),
+            "llvm compile failed on {name}: {}",
+            String::from_utf8_lossy(&comp.stderr)
+        );
+        let run = Command::new(&exe).output().unwrap();
+        assert!(run.status.success(), "native run failed on {name}");
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            reference,
+            "LLVM output diverged from interpreter on {name}"
+        );
+        let _ = std::fs::remove_file(&exe);
+    }
+}
+
 #[cfg(not(feature = "llvm"))]
 #[test]
 fn cli_backend_llvm_errors_when_feature_disabled() {

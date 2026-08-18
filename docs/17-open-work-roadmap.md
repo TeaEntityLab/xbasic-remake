@@ -71,6 +71,16 @@ The `llvm` path is behind the `xb-cli` `llvm` feature (`--features llvm`, forwar
 `xb-cli/tests/cli.rs::{cli_compile_llvm_backend_produces_native_executable (feature on),
 cli_backend_llvm_errors_when_feature_disabled (feature off)}`.
 
+**Reach `[verified 2026-08-18]`:** a differential sweep (LLVM-native vs `xb --run`
+over `xbasic-6.4.5/**/*.x`) found **61 of 151** programs produce **byte-identical**
+native output (83 both interpreter-clean and LLVM-compiled; the 22 gap compile but
+use an unsupported construct → divergent output, since unsupported exprs/items lower
+to no-ops rather than errors). Guarded by
+`cli.rs::cli_llvm_matches_interpreter_on_corpus_programs` (curated rich-output subset:
+`aarray`/`aloha`/`ahello`); the full 151-file sweep is a manual measurement (too slow
+for the suite). Remaining divergence is dominated by unsupported statements (`GOSUB`,
+`SELECT CASE`, `DATA`/`READ`, `GOTO`) and non-`ABS`/`LEN`/`STR$`/substring builtins.
+
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
 x87 FPU-intrinsic JIT (old `xlib.s` FSIN/FCOS/FPREM/…) is deferred; runtime math
