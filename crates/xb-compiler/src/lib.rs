@@ -174,14 +174,29 @@ pub mod llvm_backend {
             let ctx = Context::create();
             let mut emit = Emit::new(&ctx)?;
             emit.declare_functions(&program.items);
-            emit.emit_items(&program.items)?;
+            emit.emit_body(&program.items)?;
             if let Some(body) = entry_body(&program) {
-                emit.emit_items(body)?;
+                emit.emit_body(body)?;
             }
             emit.ret_default()?;
             emit.emit_function_bodies(&program.items)?;
             emit.object()
         }
+    }
+
+    /// State-machine context for a body containing labels/`GOSUB`/`GOTO`: a `pc`-dispatch
+    /// loop (`switch` over one block per top-level item) plus a `GOSUB` return-index stack.
+    /// `pc` = top-level item index (so computed `GOSUB`/`GOTO` by index work directly).
+    struct SmCtx<'ctx> {
+        dispatch: BasicBlock<'ctx>,
+        pc: PointerValue<'ctx>,
+        retstack: PointerValue<'ctx>,
+        retsp: PointerValue<'ctx>,
+        labels: HashMap<String, u64>,
+        /// Resume pc pushed by a `GOSUB` in the current top-level item (= item index + 1).
+        resume: u64,
+        /// Number of top-level items (out-of-range pc → dispatch default → exit).
+        count: u64,
     }
 
     /// LLVM code generator emitting a single `main`.
@@ -215,6 +230,8 @@ pub mod llvm_backend {
         /// Array vars: name → (alloca holding the heap buffer ptr, element type,
         /// per-dimension count allocas as i64 — row-major shape). 1 dim entry = 1D.
         arrays: HashMap<String, (PointerValue<'ctx>, ValueType, Vec<PointerValue<'ctx>>)>,
+        /// Set while emitting a label-bearing body; routes jumps to the dispatch block.
+        sm: Option<SmCtx<'ctx>>,
     }
 
     impl<'ctx> Emit<'ctx> {
@@ -281,6 +298,7 @@ pub mod llvm_backend {
                 snprintf,
                 memset,
                 arrays: HashMap::new(),
+                sm: None,
                 vars: HashMap::new(),
                 funcs: HashMap::new(),
                 cur_fn: main,
@@ -438,7 +456,7 @@ pub mod llvm_backend {
                             self.builder.build_store(slot, arg).map_err(Self::err)?;
                         }
                     }
-                    self.emit_items(body)?;
+                    self.emit_body(body)?;
                     self.ret_default()?;
                     self.vars = saved_vars;
                     self.cur_fn = saved_fn;
@@ -483,6 +501,80 @@ pub mod llvm_backend {
             for item in items {
                 self.emit_item(item)?;
             }
+            Ok(())
+        }
+
+        /// Emit a body: a `pc`-dispatch state machine if it has labels/GOSUB/GOTO,
+        /// else the straight-line path (which keeps every non-label body unchanged).
+        fn emit_body(&mut self, items: &[IrItem]) -> Result<(), CompileError> {
+            if body_has_labels(items) {
+                self.emit_body_sm(items)
+            } else {
+                self.emit_items(items)
+            }
+        }
+
+        /// State-machine emission for a label-bearing body: one block per top-level item,
+        /// dispatched by a `pc` switch; GOSUB/GOTO/RETURN set `pc` and re-dispatch
+        /// (mirrors the interpreter's index-based `exec_items`). Leaves the builder at the
+        /// exit block so the caller can build the function return.
+        fn emit_body_sm(&mut self, items: &[IrItem]) -> Result<(), CompileError> {
+            if has_nested_gosub(items) {
+                return Err(CompileError::Llvm(
+                    "LLVM backend: GOSUB nested inside control flow is unsupported".into(),
+                ));
+            }
+            let n = items.len() as u64;
+            let mut labels: HashMap<String, u64> = HashMap::new();
+            for (i, it) in items.iter().enumerate() {
+                if let IrItem::Label(name) = it {
+                    labels.insert(name.clone(), i as u64);
+                }
+            }
+            let pc = self.builder.build_alloca(self.i32t, "pc").map_err(Self::err)?;
+            self.builder.build_store(pc, self.i32t.const_zero()).map_err(Self::err)?;
+            let retstack = self
+                .builder
+                .build_array_alloca(self.i32t, self.i32t.const_int(256, false), "retstack")
+                .map_err(Self::err)?;
+            let retsp = self.builder.build_alloca(self.i32t, "retsp").map_err(Self::err)?;
+            self.builder.build_store(retsp, self.i32t.const_zero()).map_err(Self::err)?;
+            let dispatch = self.ctx.append_basic_block(self.cur_fn, "sm.dispatch");
+            let exit = self.ctx.append_basic_block(self.cur_fn, "sm.exit");
+            let blocks: Vec<BasicBlock<'ctx>> = (0..items.len())
+                .map(|i| self.ctx.append_basic_block(self.cur_fn, &format!("sm.pc{i}")))
+                .collect();
+            let saved = self.sm.take();
+            self.sm = Some(SmCtx { dispatch, pc, retstack, retsp, labels, resume: 0, count: n });
+            self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+            self.builder.position_at_end(dispatch);
+            let pcv = self.builder.build_load(self.i32t, pc, "pcv").map_err(Self::err)?.into_int_value();
+            let cases: Vec<(IntValue<'ctx>, BasicBlock<'ctx>)> = blocks
+                .iter()
+                .enumerate()
+                .map(|(i, b)| (self.i32t.const_int(i as u64, false), *b))
+                .collect();
+            self.builder.build_switch(pcv, exit, &cases).map_err(Self::err)?;
+            for (i, it) in items.iter().enumerate() {
+                self.builder.position_at_end(blocks[i]);
+                if let Some(ctx) = self.sm.as_mut() {
+                    ctx.resume = i as u64 + 1;
+                }
+                self.emit_item(it)?;
+                let open = self
+                    .builder
+                    .get_insert_block()
+                    .and_then(|b| b.get_terminator())
+                    .is_none();
+                if open {
+                    self.builder
+                        .build_store(pc, self.i32t.const_int(i as u64 + 1, false))
+                        .map_err(Self::err)?;
+                    self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+                }
+            }
+            self.builder.position_at_end(exit);
+            self.sm = saved;
             Ok(())
         }
 
@@ -761,8 +853,108 @@ pub mod llvm_backend {
                         }
                     }
                 }
+                // Label/GOSUB/GOTO items: no-ops unless emitting a state-machine body,
+                // where they manipulate `pc` and branch to the dispatch block.
+                IrItem::Label(_) => {}
+                IrItem::Goto(name) => {
+                    if let Some(ctx) = &self.sm {
+                        let (dispatch, pc, count) = (ctx.dispatch, ctx.pc, ctx.count);
+                        let target = ctx.labels.get(name).copied().unwrap_or(count);
+                        self.builder
+                            .build_store(pc, self.i32t.const_int(target, false))
+                            .map_err(Self::err)?;
+                        self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+                    }
+                }
+                IrItem::GotoExpr(expr) => {
+                    if let Some(ctx) = &self.sm {
+                        let (dispatch, pc) = (ctx.dispatch, ctx.pc);
+                        let target = self.eval_int(expr)?;
+                        self.builder.build_store(pc, target).map_err(Self::err)?;
+                        self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+                    }
+                }
+                IrItem::Gosub(name) => {
+                    if let Some(ctx) = &self.sm {
+                        let (dispatch, pc, retstack, retsp, resume, count) =
+                            (ctx.dispatch, ctx.pc, ctx.retstack, ctx.retsp, ctx.resume, ctx.count);
+                        let target = ctx.labels.get(name).copied().unwrap_or(count);
+                        self.sm_push(retstack, retsp, resume)?;
+                        self.builder
+                            .build_store(pc, self.i32t.const_int(target, false))
+                            .map_err(Self::err)?;
+                        self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+                    }
+                }
+                IrItem::GosubExpr(expr) => {
+                    if let Some(ctx) = &self.sm {
+                        let (dispatch, pc, retstack, retsp, resume) =
+                            (ctx.dispatch, ctx.pc, ctx.retstack, ctx.retsp, ctx.resume);
+                        let target = self.eval_int(expr)?;
+                        self.sm_push(retstack, retsp, resume)?;
+                        self.builder.build_store(pc, target).map_err(Self::err)?;
+                        self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+                    }
+                }
+                IrItem::GosubReturn => {
+                    if let Some(ctx) = &self.sm {
+                        let (dispatch, pc, retstack, retsp, count) =
+                            (ctx.dispatch, ctx.pc, ctx.retstack, ctx.retsp, ctx.count);
+                        // Pop the return-index stack (branchless): empty → exit (pc = count).
+                        let sp = self
+                            .builder
+                            .build_load(self.i32t, retsp, "sp")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        let ne = self
+                            .builder
+                            .build_int_compare(IntPredicate::UGT, sp, self.i32t.const_zero(), "ne")
+                            .map_err(Self::err)?;
+                        let spm1 = self
+                            .builder
+                            .build_int_sub(sp, self.i32t.const_int(1, false), "spm1")
+                            .map_err(Self::err)?;
+                        let newsp =
+                            self.builder.build_select(ne, spm1, sp, "nsp").map_err(Self::err)?.into_int_value();
+                        self.builder.build_store(retsp, newsp).map_err(Self::err)?;
+                        let slot = unsafe {
+                            self.builder
+                                .build_in_bounds_gep(self.i32t, retstack, &[newsp], "rslot")
+                                .map_err(Self::err)?
+                        };
+                        let idx = self.builder.build_load(self.i32t, slot, "ridx").map_err(Self::err)?.into_int_value();
+                        let target = self
+                            .builder
+                            .build_select(ne, idx, self.i32t.const_int(count, false), "rpc")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        self.builder.build_store(pc, target).map_err(Self::err)?;
+                        self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+                    }
+                }
                 _ => {}
             }
+            Ok(())
+        }
+
+        /// Push a return index onto the state-machine GOSUB stack.
+        fn sm_push(
+            &self,
+            retstack: PointerValue<'ctx>,
+            retsp: PointerValue<'ctx>,
+            v: u64,
+        ) -> Result<(), CompileError> {
+            let sp = self.builder.build_load(self.i32t, retsp, "psp").map_err(Self::err)?.into_int_value();
+            let slot = unsafe {
+                self.builder
+                    .build_in_bounds_gep(self.i32t, retstack, &[sp], "pslot")
+                    .map_err(Self::err)?
+            };
+            self.builder
+                .build_store(slot, self.i32t.const_int(v, false))
+                .map_err(Self::err)?;
+            let sp1 = self.builder.build_int_add(sp, self.i32t.const_int(1, false), "psp1").map_err(Self::err)?;
+            self.builder.build_store(retsp, sp1).map_err(Self::err)?;
             Ok(())
         }
 
@@ -1488,6 +1680,52 @@ pub mod llvm_backend {
                 },
                 _ => Ok(None),
             }
+        }
+    }
+
+    /// True if a body has top-level labels/GOSUB/GOTO (needs state-machine emission).
+    fn body_has_labels(items: &[IrItem]) -> bool {
+        items.iter().any(|it| {
+            matches!(
+                it,
+                IrItem::Label(_)
+                    | IrItem::Goto(_)
+                    | IrItem::Gosub(_)
+                    | IrItem::GosubReturn
+                    | IrItem::GosubExpr(_)
+                    | IrItem::GotoExpr(_)
+            )
+        })
+    }
+
+    /// True if a `GOSUB`/computed-`GOSUB` appears *nested* inside a control-flow block.
+    /// The state machine resumes at the next top-level pc, which is only correct for a
+    /// top-level GOSUB — a nested one (e.g. inside a loop) would resume wrong, so such
+    /// bodies are rejected (→ the C backend) rather than emitted with wrong output.
+    fn has_nested_gosub(items: &[IrItem]) -> bool {
+        items.iter().any(item_nested_gosub)
+    }
+
+    fn body_contains_gosub(items: &[IrItem]) -> bool {
+        items
+            .iter()
+            .any(|it| matches!(it, IrItem::Gosub(_) | IrItem::GosubExpr(_)) || item_nested_gosub(it))
+    }
+
+    /// True if `it` is a control-flow construct whose body contains a GOSUB.
+    fn item_nested_gosub(it: &IrItem) -> bool {
+        match it {
+            IrItem::If { then_body, else_body, .. } => {
+                body_contains_gosub(then_body)
+                    || else_body.as_ref().is_some_and(|b| body_contains_gosub(b))
+            }
+            IrItem::While { body, .. } | IrItem::For { body, .. } => body_contains_gosub(body),
+            IrItem::SelectCase { cases, default, .. } => {
+                cases.iter().any(|c| body_contains_gosub(&c.body))
+                    || default.as_ref().is_some_and(|b| body_contains_gosub(b))
+            }
+            IrItem::Compound(items) => body_contains_gosub(items),
+            _ => false,
         }
     }
 
@@ -2224,5 +2462,61 @@ mod tests {
         assert_eq!(String::from_utf8_lossy(&run.stdout), "two-or-three\n1\n2\n3\nfour\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_gosub_goto() {
+        use std::io::Write;
+        use std::process::Command;
+        // Top-level GOSUB/RETURN (called twice) + GOTO over the subroutine.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM x\n\
+             x = 0\n\
+             GOSUB addone\n\
+             GOSUB addone\n\
+             PRINT x\n\
+             GOTO done\n\
+             addone:\n\
+             x = x + 10\n\
+             RETURN\n\
+             done:\n\
+             PRINT \"end\"\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_gs.o");
+        let exep = dir.join("xb_llvm_gs.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "20\nend\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_rejects_nested_gosub() {
+        // A GOSUB nested inside a loop would resume at the wrong pc; the backend must
+        // reject it (→ C backend) rather than emit silently-wrong output.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM i\n\
+             FOR i = 1 TO 3\n\
+             IF i = 2 THEN GOSUB s\n\
+             NEXT i\n\
+             GOTO fin\n\
+             s:\n\
+             PRINT i\n\
+             RETURN\n\
+             fin:\n\
+             PRINT \"x\"\n",
+        )
+        .unwrap();
+        assert!(llvm_backend::LlvmBackend.compile(&unit).is_err());
     }
 }
