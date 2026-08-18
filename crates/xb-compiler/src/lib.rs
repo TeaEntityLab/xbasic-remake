@@ -139,7 +139,7 @@ impl Codegen for DisabledLlvmBackend {
 #[cfg(feature = "llvm")]
 pub mod llvm_backend {
     use super::{Codegen, CompileError, FrontendUnit, ObjectFile};
-    use crate::checked::{ArithmeticOp, BooleanOp, ComparisonOp, LogicalOp};
+    use crate::checked::{ArithmeticOp, BooleanOp, ComparisonOp, LogicalOp, PrintSep};
     use crate::ir::{IrExpr, IrExprKind, IrItem, IrProgram};
     use crate::ValueType;
     use inkwell::context::Context;
@@ -196,6 +196,7 @@ pub mod llvm_backend {
         fmt_s: PointerValue<'ctx>,
         fmt_d: PointerValue<'ctx>,
         nl: PointerValue<'ctx>,
+        tab: PointerValue<'ctx>,
         fmt_g: PointerValue<'ctx>,
         /// User-defined functions (name → LLVM fn), excluding the flattened entry.
         funcs: HashMap<String, FunctionValue<'ctx>>,
@@ -257,6 +258,7 @@ pub mod llvm_backend {
             let fmt_s = g(&builder, "%s", "fmts")?;
             let fmt_d = g(&builder, "%d", "fmtd")?;
             let nl = g(&builder, "\n", "nl")?;
+            let tab = g(&builder, "\t", "tab")?;
             let fmt_g = g(&builder, "%g", "fmtg")?;
             Ok(Self {
                 ctx,
@@ -268,6 +270,7 @@ pub mod llvm_backend {
                 fmt_s,
                 fmt_d,
                 nl,
+                tab,
                 f64t,
                 fmt_g,
                 i64t,
@@ -583,8 +586,16 @@ pub mod llvm_backend {
                         self.builder.build_store(ep, v).map_err(Self::err)?;
                     }
                 }
-                IrItem::Print { items, .. } => {
-                    for e in items {
+                IrItem::Print { items, separators } => {
+                    for (i, e) in items.iter().enumerate() {
+                        // Comma separator = a tab (matches exec_print); semicolon = nothing.
+                        if i > 0 {
+                            if let Some(PrintSep::Comma) = separators.get(i - 1) {
+                                self.builder
+                                    .build_call(self.printf, &[self.tab.into()], "")
+                                    .map_err(Self::err)?;
+                            }
+                        }
                         match self.eval_value(e)? {
                             Some(BasicValueEnum::IntValue(iv)) => {
                                 self.builder
@@ -2061,6 +2072,45 @@ mod tests {
             String::from_utf8_lossy(&run.stdout),
             "[Hi There]\n[Hi There  ]\n[  Hi There]\nHELLO\nworld\n[   ]\n"
         );
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_print_separators() {
+        use std::io::Write;
+        use std::process::Command;
+        // Comma separator = tab, semicolon = nothing (matches exec_print).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             PRINT \"a\", \"b\", \"c\"\n\
+             PRINT 1, 2\n\
+             PRINT \"x\"; \"y\"\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_psep.o");
+        let exep = dir.join("xb_llvm_psep.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "a\tb\tc\n1\t2\nxy\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
