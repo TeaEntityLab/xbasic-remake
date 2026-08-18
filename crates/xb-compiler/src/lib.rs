@@ -213,6 +213,7 @@ pub mod llvm_backend {
         nl: PointerValue<'ctx>,
         tab: PointerValue<'ctx>,
         fmt_g: PointerValue<'ctx>,
+        fmt_hex: PointerValue<'ctx>,
         /// User-defined functions (name → LLVM fn), excluding the flattened entry.
         funcs: HashMap<String, FunctionValue<'ctx>>,
         /// Function currently being emitted (for `append_basic_block`).
@@ -277,6 +278,7 @@ pub mod llvm_backend {
             let nl = g(&builder, "\n", "nl")?;
             let tab = g(&builder, "\t", "tab")?;
             let fmt_g = g(&builder, "%g", "fmtg")?;
+            let fmt_hex = g(&builder, "%X", "fmthex")?;
             Ok(Self {
                 ctx,
                 module,
@@ -290,6 +292,7 @@ pub mod llvm_backend {
                 tab,
                 f64t,
                 fmt_g,
+                fmt_hex,
                 i64t,
                 calloc,
                 strlen,
@@ -1738,6 +1741,74 @@ pub mod llvm_backend {
                     let n = self.eval_int(&args[0])?;
                     Ok(Some(self.str_space(n)?.into()))
                 }
+                ("ASC", 1) => match self.eval_value(&args[0])? {
+                    // First byte as int; empty string's null terminator reads as 0.
+                    Some(BasicValueEnum::PointerValue(s)) => {
+                        let byte = self
+                            .builder
+                            .build_load(self.ctx.i8_type(), s, "ascb")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        Ok(Some(
+                            self.builder.build_int_z_extend(byte, self.i32t, "asc").map_err(Self::err)?.into(),
+                        ))
+                    }
+                    _ => Ok(None),
+                },
+                ("SGN", 1) => match self.eval_value(&args[0])? {
+                    Some(BasicValueEnum::IntValue(n)) => {
+                        let z = self.i32t.const_zero();
+                        let pos = self.builder.build_int_compare(IntPredicate::SGT, n, z, "sgp").map_err(Self::err)?;
+                        let neg = self.builder.build_int_compare(IntPredicate::SLT, n, z, "sgn").map_err(Self::err)?;
+                        let pi = self.builder.build_int_z_extend(pos, self.i32t, "sgpi").map_err(Self::err)?;
+                        let ni = self.builder.build_int_z_extend(neg, self.i32t, "sgni").map_err(Self::err)?;
+                        Ok(Some(self.builder.build_int_sub(pi, ni, "sgn").map_err(Self::err)?.into()))
+                    }
+                    _ => Ok(None),
+                },
+                ("INT", 1) | ("FIX", 1) => match self.eval_value(&args[0])? {
+                    // Float → i32 truncation toward zero (matches `*n as i32`).
+                    Some(BasicValueEnum::FloatValue(f)) => Ok(Some(
+                        self.builder.build_float_to_signed_int(f, self.i32t, "int").map_err(Self::err)?.into(),
+                    )),
+                    _ => Ok(None),
+                },
+                ("MAX", 2) | ("MIN", 2) => {
+                    match (self.eval_value(&args[0])?, self.eval_value(&args[1])?) {
+                        (Some(BasicValueEnum::IntValue(a)), Some(BasicValueEnum::IntValue(b))) => {
+                            let pred = if name == "MAX" { IntPredicate::SGT } else { IntPredicate::SLT };
+                            let c = self.builder.build_int_compare(pred, a, b, "mmc").map_err(Self::err)?;
+                            Ok(Some(self.builder.build_select(c, a, b, "mm").map_err(Self::err)?))
+                        }
+                        _ => Ok(None),
+                    }
+                }
+                ("HEX$", 1) => match self.eval_value(&args[0])? {
+                    // snprintf("%X") == Rust `{:X}` on i32 (both hex of the 32-bit pattern).
+                    Some(BasicValueEnum::IntValue(iv)) => {
+                        let buf = self
+                            .builder
+                            .build_call(
+                                self.calloc,
+                                &[self.i64t.const_int(16, false).into(), self.i64t.const_int(1, false).into()],
+                                "hexbuf",
+                            )
+                            .map_err(Self::err)?
+                            .try_as_basic_value()
+                            .basic()
+                            .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                            .into_pointer_value();
+                        self.builder
+                            .build_call(
+                                self.snprintf,
+                                &[buf.into(), self.i64t.const_int(16, false).into(), self.fmt_hex.into(), iv.into()],
+                                "hex",
+                            )
+                            .map_err(Self::err)?;
+                        Ok(Some(buf.into()))
+                    }
+                    _ => Ok(None),
+                },
                 ("UCASE$", 1) => match self.eval_value(&args[0])? {
                     Some(BasicValueEnum::PointerValue(s)) => Ok(Some(self.str_case(s, true)?.into())),
                     _ => Ok(None),
@@ -2601,5 +2672,39 @@ mod tests {
         .unwrap();
         let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
         assert!(!obj.as_bytes().is_empty());
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_numeric_builtins() {
+        use std::io::Write;
+        use std::process::Command;
+        // ASC/SGN/INT/MAX/MIN/HEX$ mirror the interpreter.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             PRINT ASC(\"A\")\n\
+             PRINT SGN(0 - 5)\n\
+             PRINT INT(3.7)\n\
+             PRINT MAX(4, 9)\n\
+             PRINT MIN(4, 9)\n\
+             PRINT HEX$(255)\n\
+             PRINT HEX$(0 - 1)\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_nb.o");
+        let exep = dir.join("xb_llvm_nb.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "65\n-1\n3\n9\n4\nFF\nFFFFFFFF\n"
+        );
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
     }
 }
