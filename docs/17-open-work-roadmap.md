@@ -26,7 +26,8 @@ a `main` driving `printf` (top-level items + the entry-function body, mirroring
 `execute_main`): scalar `DIM`/assignment, **integers** (literals, vars, arithmetic
 `+ - * /`, comparisons → XBasic `-1/0`, boolean/logical/`NOT`), **doubles** (literals,
 vars, arithmetic, comparison, `%g` print, int→float promotion), **strings** (literals,
-vars, `PRINT`), **`IF`/`WHILE`/`FOR`** control flow via basic blocks, **user-defined
+vars, `PRINT`), **`IF`/`WHILE`/`FOR`** control flow + **`SELECT CASE`** (equality chain
++ `CASE ELSE`, matching `exec_select_case`) via basic blocks, **user-defined
 functions** (definitions, calls, returns, params, per-function scope; two-pass declare +
 emit), **N-dim arrays** (`DIM a[d0,d1,…]` → `calloc`'d row-major heap buffer with a
 per-dimension count shape; `a[i,j,…]` read/write via a Horner offset mirroring
@@ -55,7 +56,8 @@ llvm_backend_compiles_array_indexing, llvm_backend_compiles_multidim_array,
 llvm_backend_compiles_ubound, llvm_backend_compiles_builtins_abs_len,
 llvm_backend_compiles_string_comparison, llvm_backend_compiles_chr_builtin,
 llvm_backend_compiles_substring_builtins, llvm_backend_compiles_string_build,
-llvm_backend_compiles_string_transform_builtins, llvm_backend_compiles_print_separators}`. New error
+llvm_backend_compiles_string_transform_builtins, llvm_backend_compiles_print_separators,
+llvm_backend_compiles_select_case}`. New error
 leaf `CompileError::Llvm` = `XB-B002`. Reference: `docs/12 §3.1`.
 
 ### LB-TOOLCHAIN — LLVM feature builds against local LLVM 22 ✅ done
@@ -88,10 +90,14 @@ correctness fixes each left the count at **61/151** — the `TRIM$`/case/`SPACE$
 then `PRINT` comma/semicolon separators. The GOSUB/SELECT-free non-faithful demos need
 `PRINT TAB()` column padding + other multi-feature formatting (`atrim`, `aformat`,
 `acolumns` each have several blockers), and the bulk of the corpus co-uses `GOSUB` (88
-files) + `SELECT CASE` (83). Growing reach materially now requires that large structural
-work (`PRINT TAB()` line-buffered formatting, `GOSUB`/`RETURN` return-stack, `SELECT
-CASE`) — i.e. docs/13's deferred "LLVM as full primary backend" project — not more
-individual builtins/fixes.
+files) + `SELECT CASE` (83). **`SELECT CASE` is now implemented** (reach still 61/151,
+as expected — the SELECT programs co-use `GOSUB`). The one remaining structural unlock is
+**`GOSUB`/`RETURN`/`GOTO`**, which needs a PC-dispatch **state-machine** rewrite of
+function-body emission (a `pc` var + `switch` over label/resume blocks + a return-index
+stack) — a wholesale change to the emit pipeline that would risk the 16 working
+capabilities, i.e. docs/13's deferred "LLVM as full primary backend" project. That plus
+`PRINT TAB()` line-buffered formatting is the gate to materially higher reach; it warrants
+explicit scoping rather than an incremental commit.
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
