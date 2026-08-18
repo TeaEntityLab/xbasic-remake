@@ -208,6 +208,7 @@ pub mod llvm_backend {
         calloc: FunctionValue<'ctx>,
         strlen: FunctionValue<'ctx>,
         strcmp: FunctionValue<'ctx>,
+        memcpy: FunctionValue<'ctx>,
         /// Array vars: name → (alloca holding the heap buffer ptr, element type). 1D only (v0).
         arrays: HashMap<String, (PointerValue<'ctx>, ValueType)>,
     }
@@ -229,6 +230,11 @@ pub mod llvm_backend {
             let strlen = module.add_function("strlen", i64t.fn_type(&[ptr.into()], false), None);
             let strcmp =
                 module.add_function("strcmp", i32t.fn_type(&[ptr.into(), ptr.into()], false), None);
+            let memcpy = module.add_function(
+                "memcpy",
+                ptr.fn_type(&[ptr.into(), ptr.into(), i64t.into()], false),
+                None,
+            );
             let printf = module.add_function("printf", i32t.fn_type(&[ptr.into()], true), None);
             let main = module.add_function("main", i32t.fn_type(&[], false), None);
             builder.position_at_end(ctx.append_basic_block(main, "entry"));
@@ -255,6 +261,7 @@ pub mod llvm_backend {
                 calloc,
                 strlen,
                 strcmp,
+                memcpy,
                 arrays: HashMap::new(),
                 vars: HashMap::new(),
                 funcs: HashMap::new(),
@@ -878,6 +885,75 @@ pub mod llvm_backend {
             })
         }
 
+        /// `strlen(s)` as i64.
+        fn str_len(&self, s: PointerValue<'ctx>) -> Result<IntValue<'ctx>, CompileError> {
+            Ok(self
+                .builder
+                .build_call(self.strlen, &[s.into()], "len")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("strlen returned void".into()))?
+                .into_int_value())
+        }
+
+        /// Unsigned min (matches `usize::min`).
+        fn umin(&self, a: IntValue<'ctx>, b: IntValue<'ctx>) -> Result<IntValue<'ctx>, CompileError> {
+            let lt = self
+                .builder
+                .build_int_compare(IntPredicate::ULT, a, b, "ult")
+                .map_err(Self::err)?;
+            Ok(self.builder.build_select(lt, a, b, "umin").map_err(Self::err)?.into_int_value())
+        }
+
+        /// Unsigned saturating subtract (matches `usize::saturating_sub`).
+        fn usub_sat(&self, x: IntValue<'ctx>, y: IntValue<'ctx>) -> Result<IntValue<'ctx>, CompileError> {
+            let ge = self
+                .builder
+                .build_int_compare(IntPredicate::UGE, x, y, "uge")
+                .map_err(Self::err)?;
+            let d = self.builder.build_int_sub(x, y, "sub").map_err(Self::err)?;
+            Ok(self
+                .builder
+                .build_select(ge, d, self.i64t.const_zero(), "usub")
+                .map_err(Self::err)?
+                .into_int_value())
+        }
+
+        /// Allocate a fresh null-terminated string = `len` bytes copied from `src + off`.
+        fn str_copy(
+            &self,
+            src: PointerValue<'ctx>,
+            off: IntValue<'ctx>,
+            len: IntValue<'ctx>,
+        ) -> Result<PointerValue<'ctx>, CompileError> {
+            let cap = self
+                .builder
+                .build_int_add(len, self.i64t.const_int(1, false), "cap")
+                .map_err(Self::err)?;
+            let buf = self
+                .builder
+                .build_call(
+                    self.calloc,
+                    &[cap.into(), self.i64t.const_int(1, false).into()],
+                    "sbuf",
+                )
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                .into_pointer_value();
+            let srcoff = unsafe {
+                self.builder
+                    .build_in_bounds_gep(self.ctx.i8_type(), src, &[off], "srcoff")
+                    .map_err(Self::err)?
+            };
+            self.builder
+                .build_call(self.memcpy, &[buf.into(), srcoff.into(), len.into()], "cp")
+                .map_err(Self::err)?;
+            Ok(buf)
+        }
+
         /// Translate a supported builtin call; `None` if unsupported (deferred).
         fn eval_builtin(
             &self,
@@ -950,6 +1026,50 @@ pub mod llvm_backend {
                         .into_pointer_value();
                     self.builder.build_store(buf, ch).map_err(Self::err)?;
                     Ok(Some(buf.into()))
+                }
+                ("LEFT$", 2) => {
+                    let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(&args[0])? else {
+                        return Ok(None);
+                    };
+                    let n = self.eval_int(&args[1])?;
+                    let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
+                    let len = self.str_len(s)?;
+                    let cl = self.umin(n64, len)?;
+                    Ok(Some(self.str_copy(s, self.i64t.const_zero(), cl)?.into()))
+                }
+                ("RIGHT$", 2) => {
+                    let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(&args[0])? else {
+                        return Ok(None);
+                    };
+                    let n = self.eval_int(&args[1])?;
+                    let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
+                    let len = self.str_len(s)?;
+                    let start = self.usub_sat(len, n64)?;
+                    let cl = self.builder.build_int_sub(len, start, "cl").map_err(Self::err)?;
+                    Ok(Some(self.str_copy(s, start, cl)?.into()))
+                }
+                ("MID$", 2) | ("MID$", 3) => {
+                    let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(&args[0])? else {
+                        return Ok(None);
+                    };
+                    let start = self.eval_int(&args[1])?;
+                    let s64 =
+                        self.builder.build_int_s_extend(start, self.i64t, "s64").map_err(Self::err)?;
+                    let len = self.str_len(s)?;
+                    let a = self.usub_sat(s64, self.i64t.const_int(1, false))?;
+                    let start_idx = self.umin(a, len)?;
+                    let end_idx = if args.len() == 3 {
+                        let l = self.eval_int(&args[2])?;
+                        let l64 =
+                            self.builder.build_int_s_extend(l, self.i64t, "l64").map_err(Self::err)?;
+                        let sum =
+                            self.builder.build_int_add(start_idx, l64, "sum").map_err(Self::err)?;
+                        self.umin(sum, len)?
+                    } else {
+                        len
+                    };
+                    let cl = self.builder.build_int_sub(end_idx, start_idx, "cl").map_err(Self::err)?;
+                    Ok(Some(self.str_copy(s, start_idx, cl)?.into()))
                 }
                 _ => Ok(None),
             }
@@ -1379,6 +1499,47 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "A\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_substring_builtins() {
+        use std::io::Write;
+        use std::process::Command;
+        // LEFT$/RIGHT$/MID$ mirror the interpreter: "hello"/"world"/"world".
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM s$\n\
+             s$ = \"hello world\"\n\
+             PRINT LEFT$(s$, 5)\n\
+             PRINT RIGHT$(s$, 5)\n\
+             PRINT MID$(s$, 7, 5)\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_substr.o");
+        let exep = dir.join("xb_llvm_substr.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "hello\nworld\nworld\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
