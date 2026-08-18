@@ -146,6 +146,9 @@ pub struct TypeMember {
     /// Raw member type keyword (e.g. `SINGLE`, or a composite type name like
     /// `BICOORD`). Used by the analyzer to recurse into nested composite members.
     pub type_name: String,
+    /// For a `FUNCADDR` member, the declared param type names (e.g.
+    /// `["DOG", "STRING"]`); empty for non-function-pointer members.
+    pub funcaddr_params: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

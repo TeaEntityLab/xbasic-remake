@@ -566,15 +566,33 @@ impl Analyzer {
             _ => name.to_owned(),
         };
         let param_composites = self
-            .functions
-            .get(name)
-            .map(|s| s.param_composites.clone())
+            .funcaddr_member_param_composites(name)
+            .or_else(|| self.functions.get(name).map(|s| s.param_composites.clone()))
             .unwrap_or_default();
         let checked_args = self.flatten_call_args(&param_composites, args)?;
         Ok(CheckedItem::Call {
             name: resolved,
             args: checked_args,
         })
+    }
+
+    /// If `name` is a `FUNCADDR` composite member (`dog.setName`), return the
+    /// param-composite signature declared on the member's type so an indirect
+    /// call flattens composite args the way the target function's params are.
+    fn funcaddr_member_param_composites(&self, name: &str) -> Option<Vec<Option<String>>> {
+        let (var, member) = name.rsplit_once('.')?;
+        let type_name = self.composite_vars.get(var)?;
+        let layout = self.composites.get(type_name)?;
+        let m = layout.members.iter().find(|m| m.name == member)?;
+        if m.funcaddr_params.is_empty() {
+            return None;
+        }
+        Some(
+            m.funcaddr_params
+                .iter()
+                .map(|t| self.composites.contains_key(t).then(|| t.clone()))
+                .collect(),
+        )
     }
 
     /// Lower a brace-notation byte read `s${off}` to `ASC(MID$(s, off + 1, 1))`.

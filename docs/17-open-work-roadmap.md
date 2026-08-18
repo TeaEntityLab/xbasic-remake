@@ -163,37 +163,31 @@ never block, and non-UTF-8 stdin is treated as empty (RT-BYTESTRING).
 `printf 'hi\n' | xb --run echo.x` now feeds the program. Locked by
 `cli.rs::cli_run_reads_piped_stdin_as_input`.
 
-### RT-FUNCPTR — function-pointer calls (`afuntype`) `[verified 2026-08-17]`
-`afuntype.x` exercises calling through function pointers: `dog.setName =
-&NameDog()` then `@dog.setName (@dog, answer$)`. With RT-FIXEDSTR fixed and stdin
-wired (CLI-STDIN), the direct path works — `.hairColor` set from `INLINE$` now
-shows `brown`, so afuntype prints `You claim  has brown hair.`; only `.name` (set
-through the funcptr) stays empty. **One blocker remains: `FUNCADDR` dispatch.**
-The IR shows the exact gap:
-- `assign dog.setName:integer = call NameDog()` — `&NameDog()` **mis-lowers to a
-  direct call** (the `&` address-of is dropped) instead of taking the function's
-  address; `FUNCADDRESS` in the interpreter also returns `0` (`runtime/builtin.rs`).
-- `call dog.setName(byref(symbol(dog:integer)), symbol(answer:string))` — the
-  indirect call has no function-table dispatch, and `dog` is passed as one integer,
-  not flattened to the callee's `(dog.name, dog.hairColor, answer)` signature.
-Full fix (scoped cross-cutting: parser + IR + interpreter + C backend): (1) parse
-`&Ident` to a new `FuncAddr(name)` expr (ast/checked/IR/text-IR + round-trip);
-(2) an interpreter function table maps names→ids so `&Func` yields a stable id and
-`FUNCADDRESS` resolves it; (3) indirect-call dispatch resolves the target slot's id
-to a function and reuses `flatten_call_args` for composite args; (4) C backend emits
-real function pointers (deferrable, like RT-BYREF's native write-back). Only
-`afuntype` exercises this in the corpus.
+### RT-FUNCPTR — function-pointer calls (`afuntype`) ✅ done
+`afuntype.x` calls through a `FUNCADDR` composite member: `dog.setName = &NameDog()`
+then `@dog.setName (@dog, answer$)`. Two bugs made it silently wrong (printed `You claim
+ has brown hair.` — empty name): `&NameDog()` **mis-lowered to a direct `call NameDog()`**
+(the `&` dropped), and the indirect call had no dispatch + passed `@dog` as one unflattened
+integer. Fixed in two sub-steps:
+- **Sub-step 1 (`882cb70`)** — `&Func(...)` parses to a new `Expression::FuncAddr(name)`
+  threaded through checked/IR/text-IR; the interpreter resolves it to the function's stable
+  1-based id (`eval::function_id` walks top-level `IrItem::Function`, since `IrProgram` has
+  no `functions` list); the C backend emits a real `((intptr_t)&func)` pointer.
+- **Sub-step 2** — `parser.rs::type_stmt` now records `FUNCADDR` members (it only handled
+  `Identifier` type-keywords; `FUNCADDR` is a `Keyword`, so `setName` was dropped from the
+  DOG layout) and captures the member's `(DOG, STRING)` param signature on
+  `TypeMember`/`CompositeMember`. `semantics_expr::call_stmt` derives `param_composites` from
+  that signature so `flatten_call_args` flattens `@dog` → `(dog.name, dog.hairColor,
+  dog.setName)` byref; and `call.rs` dispatches an unknown callee that is a slot holding a
+  positive func-id to `function_name_by_id` → the real function (reusing the direct-call
+  frame + byref write-back).
 
-Re-verified 2026-08-18 (same IR). Two structural notes sharpen the fix: (a) `IrProgram`
-has **no** `functions` field — functions are nested `IrItem::Function` in `items`, so the
-name→id table walks top-level items; (b) `dog.setName` is a plain Integer member because
-`parser.rs::type_stmt` records only `TypeMember{name,byte_size,is_float,is_string,
-type_name}` and drops the FUNCADDR `(DOG, STRING)` signature, so that signature must be
-added to `TypeMember` + the composite layout before `flatten_call_args` can flatten `@dog`
-→ `(dog.name, dog.hairColor)`. Green sub-steps: (1) `FuncAddr` expr + id-table + eval
-(address-of works; no output change yet), (2) signature capture + indirect dispatch
-(completes `afuntype`). All-or-nothing for observable output; deferred to avoid a rushed
-half-built cross-cutting change.
+`afuntype` now prints **`You claim Rex has brown hair.`** Locked by
+`interpreter.rs::{func_addr_yields_stable_function_id,
+funcaddr_member_indirect_call_dispatches_and_writes_back}`. **Golden-safe**: selfhost uses
+no `&Func()`/`FUNCADDR`, so text-IR for existing goldens and the bootstrap fixed point are
+unchanged. `FUNCADDRESS` (the builtin) still returns `0` — no corpus program uses it; only
+`&Func` + member dispatch (the `afuntype` path) is exercised.
 
 ### RT-FIXEDSTR — fixed-length string (`STRING*N`) composite members ✅ done
 A composite TYPE member declared `STRING*N .m` was silently **dropped from the

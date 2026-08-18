@@ -5,6 +5,29 @@ type FuncInfo<'a> = (&'a str, &'a [IrParam], &'a [IrItem], ValueType);
 use crate::eval::eval;
 use crate::interpreter::{exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue, TypedSlot};
 
+/// The function id stored in slot `name`, if it holds a positive `&Func` id.
+fn funcptr_slot_id(state: &ExecutionState, name: &str) -> Option<i32> {
+    let slot = state.slots.get(name).or_else(|| state.shared.get(name))?;
+    match slot.value() {
+        RuntimeValue::Integer(id) if *id > 0 => Some(*id),
+        _ => None,
+    }
+}
+
+/// Name of the `id`-th top-level function (1-based), inverse of `eval::function_id`.
+fn function_name_by_id(program: &IrProgram, id: i32) -> Option<String> {
+    let mut cur = 0;
+    for item in &program.items {
+        if let IrItem::Function { name, .. } = item {
+            cur += 1;
+            if cur == id {
+                return Some(name.clone());
+            }
+        }
+    }
+    None
+}
+
 pub(crate) fn call_function(
     program: &IrProgram,
     name: &str,
@@ -293,6 +316,13 @@ pub(crate) fn call_function(
     let (fname, params, body, return_type) = match find_function(program, name) {
         Ok(info) => info,
         Err(_) => {
+            // Indirect call through a FUNCADDR value: the callee name is a slot
+            // holding a function id (from `&Func`); resolve it to the real target.
+            if let Some(id) = funcptr_slot_id(state, name) {
+                if let Some(target) = function_name_by_id(program, id) {
+                    return call_function(program, &target, args, state, output);
+                }
+            }
             // Stub: unknown functions return 0 or empty string
             if name.ends_with('$') {
                 return Ok(RuntimeValue::from_str(""));

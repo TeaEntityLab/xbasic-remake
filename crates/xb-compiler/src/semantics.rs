@@ -28,6 +28,9 @@ pub(crate) struct CompositeMember {
     /// If this member is itself a composite TYPE, its type name (for recursive
     /// struct-of-arrays flattening). `None` for primitive members.
     pub(crate) composite_type: Option<String>,
+    /// For a `FUNCADDR` member, the declared param type names — used to flatten
+    /// composite args of an indirect call through this member. Empty otherwise.
+    pub(crate) funcaddr_params: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -156,6 +159,7 @@ impl Analyzer {
                 value_type,
                 byte_size,
                 composite_type,
+                funcaddr_params: m.funcaddr_params.clone(),
             });
             byte_len += byte_size;
         }

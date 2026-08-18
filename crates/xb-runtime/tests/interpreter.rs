@@ -635,3 +635,31 @@ fn func_addr_yields_stable_function_id() {
         .unwrap();
     assert_eq!(output, ["2", "3", "stable"]);
 }
+
+#[test]
+fn funcaddr_member_indirect_call_dispatches_and_writes_back() {
+    // `&Func` stored in a FUNCADDR composite member, then called through it
+    // (`@dog.setName(@dog, ...)`), dispatches to the target and writes the
+    // composite-by-ref members back into the caller. (RT-FUNCPTR sub-step 2)
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         TYPE DOG\n\
+         STRING*32 .name\n\
+         FUNCADDR .setName (DOG, STRING)\n\
+         END TYPE\n\
+         FUNCTION Main\n\
+         DOG dog\n\
+         dog.setName = &NameDog()\n\
+         @dog.setName (@dog, \"Rex\")\n\
+         PRINT dog.name\n\
+         END FUNCTION\n\
+         FUNCTION NameDog (DOG dog, answer$)\n\
+         dog.name = answer$\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["Rex"]);
+}

@@ -461,7 +461,12 @@ impl Parser {
         while !self.at_eof() && depth > 0 {
             if line_start {
                 if let Some(kw_tok) = self.tokens.get(self.index) {
-                    if let TokenKind::Identifier { name: type_kw, .. } = &kw_tok.kind {
+                    let type_kw: Option<&str> = match &kw_tok.kind {
+                        TokenKind::Identifier { name, .. } => Some(name.as_str()),
+                        TokenKind::Keyword(Keyword::FuncAddr) => Some("FUNCADDR"),
+                        _ => None,
+                    };
+                    if let Some(type_kw) = type_kw {
                         // A member may carry a fixed-length/size spec between the
                         // type keyword and the `.member`, e.g. `STRING*32 .name`.
                         // Skip an optional `*<int>` so the member is still recorded
@@ -494,12 +499,38 @@ impl Parser {
                                     let (byte_size, is_float, is_string) =
                                         Self::member_type_info(type_kw);
                                     let byte_size = fixed_len.unwrap_or(byte_size);
+                                    // A `FUNCADDR` member carries a param signature,
+                                    // e.g. `.setName (DOG, STRING)`. Capture the param
+                                    // type names so an indirect call through the member
+                                    // flattens composite args like the target function.
+                                    let mut funcaddr_params = Vec::new();
+                                    let mut j = self.index + dot_off + 2;
+                                    if matches!(
+                                        self.tokens.get(j).map(|t| &t.kind),
+                                        Some(TokenKind::Symbol('('))
+                                    ) {
+                                        j += 1;
+                                        while let Some(tok) = self.tokens.get(j) {
+                                            match &tok.kind {
+                                                TokenKind::Symbol(')') => break,
+                                                TokenKind::Identifier { name, .. } => {
+                                                    funcaddr_params.push(name.clone())
+                                                }
+                                                TokenKind::Keyword(kw) => {
+                                                    funcaddr_params.push(format!("{kw:?}"))
+                                                }
+                                                _ => {}
+                                            }
+                                            j += 1;
+                                        }
+                                    }
                                     members.push(TypeMember {
                                         name: member_name,
                                         byte_size,
                                         is_float,
                                         is_string,
-                                        type_name: type_kw.clone(),
+                                        type_name: type_kw.to_owned(),
+                                        funcaddr_params,
                                     });
                                 }
                             }
