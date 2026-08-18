@@ -15,3 +15,6 @@ path = "src/main.rs"
 thiserror.workspace = true
 xb-runtime.workspace = true
 xb-compiler.workspace = true
+
+[features]
+llvm = ["xb-compiler/llvm"]

@@ -126,6 +126,68 @@ fn cli_compile_produces_native_executable() {
     let _ = std::fs::remove_file(&exe);
 }
 
+#[cfg(feature = "llvm")]
+#[test]
+fn cli_compile_llvm_backend_produces_native_executable() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/bootstrap/hello.x");
+    let tmp = std::env::temp_dir().join("xb_cli_llvm_test");
+    let _ = std::fs::create_dir_all(&tmp);
+    let exe = tmp.join("hello_llvm_exe");
+    let _ = std::fs::remove_file(&exe);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_xb"))
+        .args([
+            "--compile",
+            fixture.to_str().unwrap(),
+            "-o",
+            exe.to_str().unwrap(),
+            "--backend",
+            "llvm",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(exe.exists(), "executable was not created at {}", exe.display());
+
+    let run = Command::new(&exe).output().unwrap();
+    assert!(run.status.success());
+    assert_eq!(String::from_utf8(run.stdout).unwrap(), "hello\n");
+
+    let _ = std::fs::remove_file(&exe);
+}
+
+#[cfg(not(feature = "llvm"))]
+#[test]
+fn cli_backend_llvm_errors_when_feature_disabled() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/bootstrap/hello.x");
+    let tmp = std::env::temp_dir().join("xb_cli_llvm_off_test");
+    let _ = std::fs::create_dir_all(&tmp);
+    let exe = tmp.join("nope");
+    let _ = std::fs::remove_file(&exe);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_xb"))
+        .args([
+            "--compile",
+            fixture.to_str().unwrap(),
+            "-o",
+            exe.to_str().unwrap(),
+            "--backend",
+            "llvm",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("disabled"),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
 fn cli_run_reads_piped_stdin_as_input() {
     use std::io::Write;

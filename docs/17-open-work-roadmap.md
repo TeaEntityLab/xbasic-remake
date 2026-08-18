@@ -62,6 +62,15 @@ failure was solely the missing `LLVM_SYS_221_PREFIX`. The `llvm` feature stays o
 default (`DisabledLlvmBackend` → `XB-B001`); the C generator remains the default AOT
 backend (docs/13 §Stage 3). To build/test the LLVM path, set that env var.
 
+### LB-CLI — LLVM backend reachable from the CLI ✅ done
+`xb --compile <src.x> -o <out> --backend llvm` compiles via the LLVM backend
+(native object → `cc` link); `--backend c` (default) uses the reference C generator.
+The `llvm` path is behind the `xb-cli` `llvm` feature (`--features llvm`, forwarding
+`xb-compiler/llvm`, needs `LLVM_SYS_221_PREFIX`); a default build reports
+`XB-B001` (LlvmDisabled) for `--backend llvm`. Locked by
+`xb-cli/tests/cli.rs::{cli_compile_llvm_backend_produces_native_executable (feature on),
+cli_backend_llvm_errors_when_feature_disabled (feature off)}`.
+
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
 x87 FPU-intrinsic JIT (old `xlib.s` FSIN/FCOS/FPREM/…) is deferred; runtime math

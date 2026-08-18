@@ -7,7 +7,7 @@ use xb_runtime::Interpreter;
 
 #[derive(Debug, Error)]
 pub enum CliError {
-    #[error("usage: xb [--emit-ir|--emit-c|--compile] <source.x> [-o <output>]")]
+    #[error("usage: xb [--emit-ir|--emit-c|--run|--compile] <source.x> [-o <output>] [--backend c|llvm]")]
     Usage,
     #[error("failed to read {path}: {source}")]
     Read {
@@ -36,11 +36,18 @@ enum Mode {
     Compile { output: PathBuf },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Backend {
+    C,
+    Llvm,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Args {
     source: PathBuf,
     mode: Mode,
     input_path: Option<PathBuf>,
+    backend: Backend,
 }
 
 fn parse_args(args: &[String]) -> Result<Args, CliError> {
@@ -50,6 +57,7 @@ fn parse_args(args: &[String]) -> Result<Args, CliError> {
     let mut source: Option<PathBuf> = None;
     let mut mode = Mode::Summary;
     let mut input_path: Option<PathBuf> = None;
+    let mut backend = Backend::C;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -81,6 +89,15 @@ fn parse_args(args: &[String]) -> Result<Args, CliError> {
                     }
                 }
             }
+            "--backend" => {
+                if i + 1 < args.len() {
+                    backend = match args[i + 1].as_str() {
+                        "llvm" => Backend::Llvm,
+                        _ => Backend::C,
+                    };
+                    i += 1;
+                }
+            }
             s if !s.starts_with('-') => source = Some(PathBuf::from(s)),
             _ => {}
         }
@@ -91,6 +108,7 @@ fn parse_args(args: &[String]) -> Result<Args, CliError> {
         source,
         mode,
         input_path,
+        backend,
     })
 }
 
@@ -101,7 +119,7 @@ pub fn run(args: &[String]) -> Result<String, CliError> {
         Mode::EmitIr => emit_ir_for_path(&parsed.source),
         Mode::Run => run_path(&parsed.source, parsed.input_path.as_deref()),
         Mode::EmitC => emit_c_for_path(&parsed.source),
-        Mode::Compile { output } => compile_to_native(&parsed.source, &output),
+        Mode::Compile { output } => compile_to_native(&parsed.source, &output, parsed.backend),
     }
 }
 
@@ -129,7 +147,15 @@ fn emit_c_for_path(path: &Path) -> Result<String, CliError> {
     Ok(CEmitter::new().emit_program(&program))
 }
 
-fn compile_to_native(source: &Path, output: &Path) -> Result<String, CliError> {
+fn compile_to_native(source: &Path, output: &Path, backend: Backend) -> Result<String, CliError> {
+    match backend {
+        Backend::C => compile_via_c(source, output),
+        Backend::Llvm => compile_via_llvm(source, output),
+    }
+}
+
+/// AOT via the reference C generator (`emit-c` → `cc`). The default backend.
+fn compile_via_c(source: &Path, output: &Path) -> Result<String, CliError> {
     let c_source = emit_c_for_path(source)?;
     let tmp = std::env::temp_dir().join("xb_cli_compile");
     fs::create_dir_all(&tmp).map_err(|e| CliError::Write {
@@ -165,6 +191,50 @@ fn compile_to_native(source: &Path, output: &Path) -> Result<String, CliError> {
         source.display(),
         output.display()
     ))
+}
+
+/// AOT via the LLVM backend (native object → `cc` link). Requires the `llvm`
+/// feature; otherwise reports `XB-B001` (LlvmDisabled).
+#[cfg(feature = "llvm")]
+fn compile_via_llvm(source: &Path, output: &Path) -> Result<String, CliError> {
+    use xb_compiler::Codegen;
+    let src = read_source(source)?;
+    let unit = FrontendUnit::parse(&src)?;
+    let obj = xb_compiler::llvm_backend::LlvmBackend.compile(&unit)?;
+    let tmp = std::env::temp_dir().join("xb_cli_compile");
+    fs::create_dir_all(&tmp).map_err(|e| CliError::Write {
+        path: tmp.display().to_string(),
+        source: e,
+    })?;
+    let obj_path = tmp.join("output.o");
+    fs::write(&obj_path, obj.as_bytes()).map_err(|e| CliError::Write {
+        path: obj_path.display().to_string(),
+        source: e,
+    })?;
+    let cc = std::env::var("CC").unwrap_or_else(|_| "cc".to_string());
+    let result = Command::new(&cc)
+        .args(["-o", output.to_str().unwrap(), obj_path.to_str().unwrap()])
+        .output()
+        .map_err(|e| CliError::Write {
+            path: cc.clone(),
+            source: e,
+        })?;
+    if !result.status.success() {
+        return Err(CliError::Link {
+            stderr: String::from_utf8_lossy(&result.stderr).to_string(),
+        });
+    }
+    let _ = fs::remove_file(&obj_path);
+    Ok(format!(
+        "Compiled {} → {} (LLVM)\n",
+        source.display(),
+        output.display()
+    ))
+}
+
+#[cfg(not(feature = "llvm"))]
+fn compile_via_llvm(_source: &Path, _output: &Path) -> Result<String, CliError> {
+    Err(CliError::Compile(CompileError::LlvmDisabled))
 }
 
 fn run_path(path: &Path, input_path: Option<&Path>) -> Result<String, CliError> {
