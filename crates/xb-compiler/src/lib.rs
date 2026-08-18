@@ -708,6 +708,32 @@ pub mod llvm_backend {
                     self.builder.position_at_end(exit);
                 }
                 IrItem::Compound(items) => self.emit_items(items)?,
+                IrItem::SelectCase { selector, cases, default } => {
+                    // Equality chain matching exec_select_case (first matching CASE wins).
+                    if let Some(sel) = self.eval_value(selector)? {
+                        let done = self.ctx.append_basic_block(self.cur_fn, "select.done");
+                        for case in cases {
+                            for cond in &case.conditions {
+                                let Some(cv) = self.eval_value(cond)? else { continue };
+                                let eq = self.values_equal(sel, cv)?;
+                                let body_bb = self.ctx.append_basic_block(self.cur_fn, "case.body");
+                                let next_bb = self.ctx.append_basic_block(self.cur_fn, "case.next");
+                                self.builder
+                                    .build_conditional_branch(eq, body_bb, next_bb)
+                                    .map_err(Self::err)?;
+                                self.builder.position_at_end(body_bb);
+                                self.emit_items(&case.body)?;
+                                self.branch_to(done)?;
+                                self.builder.position_at_end(next_bb);
+                            }
+                        }
+                        if let Some(def) = default {
+                            self.emit_items(def)?;
+                        }
+                        self.branch_to(done)?;
+                        self.builder.position_at_end(done);
+                    }
+                }
                 IrItem::Return { value } => {
                     if self
                         .builder
@@ -746,6 +772,37 @@ pub mod llvm_backend {
             self.builder
                 .build_int_compare(IntPredicate::NE, v, self.i32t.const_zero(), "cond")
                 .map_err(Self::err)
+        }
+
+        /// i1: XBasic equality of two evaluated values (int/float direct, string via strcmp).
+        fn values_equal(
+            &self,
+            a: BasicValueEnum<'ctx>,
+            b: BasicValueEnum<'ctx>,
+        ) -> Result<IntValue<'ctx>, CompileError> {
+            match (a, b) {
+                (BasicValueEnum::IntValue(x), BasicValueEnum::IntValue(y)) => {
+                    self.builder.build_int_compare(IntPredicate::EQ, x, y, "seq").map_err(Self::err)
+                }
+                (BasicValueEnum::FloatValue(x), BasicValueEnum::FloatValue(y)) => self
+                    .builder
+                    .build_float_compare(FloatPredicate::OEQ, x, y, "sfeq")
+                    .map_err(Self::err),
+                (BasicValueEnum::PointerValue(x), BasicValueEnum::PointerValue(y)) => {
+                    let r = self
+                        .builder
+                        .build_call(self.strcmp, &[x.into(), y.into()], "scmp")
+                        .map_err(Self::err)?
+                        .try_as_basic_value()
+                        .basic()
+                        .ok_or_else(|| CompileError::Llvm("strcmp returned void".into()))?
+                        .into_int_value();
+                    self.builder
+                        .build_int_compare(IntPredicate::EQ, r, self.i32t.const_zero(), "seq0")
+                        .map_err(Self::err)
+                }
+                _ => Ok(self.ctx.bool_type().const_zero()),
+            }
         }
 
         /// Evaluate an expression to `i32` (0 when not an integer value).
@@ -2111,6 +2168,60 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "a\tb\tc\n1\t2\nxy\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_select_case() {
+        use std::io::Write;
+        use std::process::Command;
+        // Multi-condition CASE + CASE ELSE, nested inside a FOR loop.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM x\n\
+             x = 2\n\
+             SELECT CASE x\n\
+             CASE 1\n\
+             PRINT \"one\"\n\
+             CASE 2, 3\n\
+             PRINT \"two-or-three\"\n\
+             CASE ELSE\n\
+             PRINT \"other\"\n\
+             END SELECT\n\
+             FOR i = 1 TO 4\n\
+             SELECT CASE i\n\
+             CASE 4\n\
+             PRINT \"four\"\n\
+             CASE ELSE\n\
+             PRINT i\n\
+             END SELECT\n\
+             NEXT i\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_sel.o");
+        let exep = dir.join("xb_llvm_sel.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "two-or-three\n1\n2\n3\nfour\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
