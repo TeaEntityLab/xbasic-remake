@@ -134,6 +134,11 @@ uses no arrays, so the bootstrap fixed point is untouched. Note: the text-IR/C b
 treat `REDIM` as `DIM` (no dynamic resize — C emits fixed stack arrays); the interpreter
 is the faithful runtime.
 
+Confirmed spec-correct against `lang.txt:389-392` ("when an array is redimensioned, the
+existing contents not in the new (smaller) size are lost, contents in both old and new
+size are unchanged, and contents in the new (larger) size only are zeroed") — exactly
+`Vec::resize`'s truncate / preserve / default-fill behavior.
+
 ### MIG-ARY-MULTIDIM — 2D arrays + `ATTACH` (blocks `ary.x` `TestAryPerformance`) `[verified 2026-08-17]`
 With MIG-ARY-REDIM done, `ary.x`'s `TestAryPerformance` still errors (`array index out of
 range: 0`) because it uses genuine **2-D arrays** (`bufferIndex[charCode, count]`,
@@ -178,6 +183,17 @@ Full fix (scoped cross-cutting: parser + IR + interpreter + C backend): (1) pars
 to a function and reuses `flatten_call_args` for composite args; (4) C backend emits
 real function pointers (deferrable, like RT-BYREF's native write-back). Only
 `afuntype` exercises this in the corpus.
+
+Re-verified 2026-08-18 (same IR). Two structural notes sharpen the fix: (a) `IrProgram`
+has **no** `functions` field — functions are nested `IrItem::Function` in `items`, so the
+name→id table walks top-level items; (b) `dog.setName` is a plain Integer member because
+`parser.rs::type_stmt` records only `TypeMember{name,byte_size,is_float,is_string,
+type_name}` and drops the FUNCADDR `(DOG, STRING)` signature, so that signature must be
+added to `TypeMember` + the composite layout before `flatten_call_args` can flatten `@dog`
+→ `(dog.name, dog.hairColor)`. Green sub-steps: (1) `FuncAddr` expr + id-table + eval
+(address-of works; no output change yet), (2) signature capture + indirect dispatch
+(completes `afuntype`). All-or-nothing for observable output; deferred to avoid a rushed
+half-built cross-cutting change.
 
 ### RT-FIXEDSTR — fixed-length string (`STRING*N`) composite members ✅ done
 A composite TYPE member declared `STRING*N .m` was silently **dropped from the
@@ -269,6 +285,15 @@ std-lib function not linked into the standalone interpreter). **Zero of the 46
 non-clean demos fail for a non-platform, non-library reason.** GUI runtime (winit +
 softbuffer GDI-shim, per `docs/12`) is a large separate effort, intentionally
 deferred.
+
+Re-measured 2026-08-18 (after the msc-saga + MIG-ARY-REDIM fixes): demo-only is still
+**68/114** — the session's runtime gains landed in the *libraries* (`msc`/`geo`/`mergeTest`
+now run; the `ary` `REDIM a[UBOUND(a[])+N]` idiom works), not the GUI-heavy demos. The 6
+non-timeout errors are all GUI/platform/library: `qbtoxb`/`DrawScaled`/`acgibin`, and
+`agrids`/`warning`/`xgrids` now surface as `unknown runtime slot func` (the GUI builtin
+`XuiGetDefaultMessageFuncArray(@func[])` never allocates the by-ref array) rather than the
+earlier stack overflow. `ary`×2 need MIG-ARY-MULTIDIM. **Still 0 genuine interpreter
+failures.**
 
 ## 5. Cross-references
 
