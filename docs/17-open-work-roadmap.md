@@ -35,8 +35,10 @@ builtins** (int/float abs via select; `LEN`→ libc `strlen`), **string comparis
 `strcmp` vs 0), **`CHR$`** (calloc'd 2-byte buffer → string-returning builtin path),
 **`LEFT$`/`RIGHT$`/`MID$`** substring builtins (`calloc`+`memcpy`; sext/unsigned-min/
 saturating-sub mirroring the interpreter's `as usize`/`min`/`saturating_sub`), **string
-concatenation** (`+` → `calloc`+two `memcpy`s), and **`STR$`** for integers
-(`snprintf("%d")` = Rust `i32::to_string`). All string/array semantics parity-checked vs
+concatenation** (`+` → `calloc`+two `memcpy`s), **`STR$`** for integers
+(`snprintf("%d")` = Rust `i32::to_string`), and **`TRIM$`/`LTRIM$`/`RTRIM$`/`UCASE$`/
+`LCASE$`/`SPACE$`** (loop-based: `byte_trim` ASCII-whitespace scan, ASCII case fold,
+`memset` spaces). All string/array semantics parity-checked vs
 `xb --run`. Still deferred (incremental; C backend stays the full AOT path):
 content-preserving `REDIM` / array bounds checks, float `STR$` + `VAL` (Rust float-fmt /
 strict `i32::parse` ≠ `printf`/`strtol`). Proven end-to-end (compile → `cc` link →
@@ -50,7 +52,8 @@ llvm_backend_compiles_float_arithmetic, llvm_backend_compiles_user_function_call
 llvm_backend_compiles_array_indexing, llvm_backend_compiles_multidim_array,
 llvm_backend_compiles_ubound, llvm_backend_compiles_builtins_abs_len,
 llvm_backend_compiles_string_comparison, llvm_backend_compiles_chr_builtin,
-llvm_backend_compiles_substring_builtins, llvm_backend_compiles_string_build}`. New error
+llvm_backend_compiles_substring_builtins, llvm_backend_compiles_string_build,
+llvm_backend_compiles_string_transform_builtins}`. New error
 leaf `CompileError::Llvm` = `XB-B002`. Reference: `docs/12 §3.1`.
 
 ### LB-TOOLCHAIN — LLVM feature builds against local LLVM 22 ✅ done
@@ -78,8 +81,13 @@ use an unsupported construct → divergent output, since unsupported exprs/items
 to no-ops rather than errors). Guarded by
 `cli.rs::cli_llvm_matches_interpreter_on_corpus_programs` (curated rich-output subset:
 `aarray`/`aloha`/`ahello`); the full 151-file sweep is a manual measurement (too slow
-for the suite). Remaining divergence is dominated by unsupported statements (`GOSUB`,
-`SELECT CASE`, `DATA`/`READ`, `GOTO`) and non-`ABS`/`LEN`/`STR$`/substring builtins.
+for the suite). **The reach ceiling is structural, not builtin-shaped:** adding the
+`TRIM$`/case/`SPACE$` builtins left the count at 61/151 unchanged, because the
+GOSUB/SELECT-free non-faithful demos are blocked by **`PRINT` column/TAB formatting**
+(e.g. `atrim`), and the bulk of the corpus co-uses `GOSUB` (88 files) + `SELECT CASE`
+(83). Growing reach materially now requires that large structural work (`PRINT`
+formatting, `GOSUB`/`RETURN` return-stack, `SELECT CASE`) — i.e. docs/13's deferred
+"LLVM as full primary backend" project — not more individual builtins.
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
