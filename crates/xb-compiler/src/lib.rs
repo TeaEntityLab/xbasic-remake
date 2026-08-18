@@ -210,6 +210,7 @@ pub mod llvm_backend {
         strcmp: FunctionValue<'ctx>,
         memcpy: FunctionValue<'ctx>,
         snprintf: FunctionValue<'ctx>,
+        memset: FunctionValue<'ctx>,
         /// Array vars: name → (alloca holding the heap buffer ptr, element type,
         /// per-dimension count allocas as i64 — row-major shape). 1 dim entry = 1D.
         arrays: HashMap<String, (PointerValue<'ctx>, ValueType, Vec<PointerValue<'ctx>>)>,
@@ -242,6 +243,11 @@ pub mod llvm_backend {
                 i32t.fn_type(&[ptr.into(), i64t.into(), ptr.into()], true),
                 None,
             );
+            let memset = module.add_function(
+                "memset",
+                ptr.fn_type(&[ptr.into(), i32t.into(), i64t.into()], false),
+                None,
+            );
             let printf = module.add_function("printf", i32t.fn_type(&[ptr.into()], true), None);
             let main = module.add_function("main", i32t.fn_type(&[], false), None);
             builder.position_at_end(ctx.append_basic_block(main, "entry"));
@@ -270,6 +276,7 @@ pub mod llvm_backend {
                 strcmp,
                 memcpy,
                 snprintf,
+                memset,
                 arrays: HashMap::new(),
                 vars: HashMap::new(),
                 funcs: HashMap::new(),
@@ -1092,6 +1099,152 @@ pub mod llvm_backend {
             Ok(buf)
         }
 
+        /// `SPACE$(n)`: `n` spaces (calloc + memset), null-terminated.
+        fn str_space(&self, n: IntValue<'ctx>) -> Result<PointerValue<'ctx>, CompileError> {
+            let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
+            let cap = self
+                .builder
+                .build_int_add(n64, self.i64t.const_int(1, false), "cap")
+                .map_err(Self::err)?;
+            let buf = self
+                .builder
+                .build_call(
+                    self.calloc,
+                    &[cap.into(), self.i64t.const_int(1, false).into()],
+                    "spc",
+                )
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                .into_pointer_value();
+            self.builder
+                .build_call(
+                    self.memset,
+                    &[buf.into(), self.i32t.const_int(b' ' as u64, false).into(), n64.into()],
+                    "ms",
+                )
+                .map_err(Self::err)?;
+            Ok(buf)
+        }
+
+        /// i1: is `c` (i8) ASCII whitespace — space/tab/LF/CR/FF (matches `is_ascii_whitespace`).
+        fn is_ws(&self, c: IntValue<'ctx>) -> Result<IntValue<'ctx>, CompileError> {
+            let i8t = self.ctx.i8_type();
+            let mut acc: Option<IntValue<'ctx>> = None;
+            for w in [32u64, 9, 10, 13, 12] {
+                let eq = self
+                    .builder
+                    .build_int_compare(IntPredicate::EQ, c, i8t.const_int(w, false), "weq")
+                    .map_err(Self::err)?;
+                acc = Some(match acc {
+                    None => eq,
+                    Some(a) => self.builder.build_or(a, eq, "wor").map_err(Self::err)?,
+                });
+            }
+            Ok(acc.unwrap())
+        }
+
+        /// `UCASE$`/`LCASE$`: ASCII case fold each byte in a fresh copy.
+        fn str_case(&self, s: PointerValue<'ctx>, upper: bool) -> Result<PointerValue<'ctx>, CompileError> {
+            let len = self.str_len(s)?;
+            let buf = self.str_copy(s, self.i64t.const_zero(), len)?;
+            let i8t = self.ctx.i8_type();
+            let idx = self.builder.build_alloca(self.i64t, "ci").map_err(Self::err)?;
+            self.builder.build_store(idx, self.i64t.const_zero()).map_err(Self::err)?;
+            let head = self.ctx.append_basic_block(self.cur_fn, "case.head");
+            let body = self.ctx.append_basic_block(self.cur_fn, "case.body");
+            let exit = self.ctx.append_basic_block(self.cur_fn, "case.exit");
+            self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+            self.builder.position_at_end(head);
+            let iv = self.builder.build_load(self.i64t, idx, "i").map_err(Self::err)?.into_int_value();
+            let cont = self.builder.build_int_compare(IntPredicate::ULT, iv, len, "lt").map_err(Self::err)?;
+            self.builder.build_conditional_branch(cont, body, exit).map_err(Self::err)?;
+            self.builder.position_at_end(body);
+            let ep = unsafe {
+                self.builder.build_in_bounds_gep(i8t, buf, &[iv], "cp").map_err(Self::err)?
+            };
+            let c = self.builder.build_load(i8t, ep, "c").map_err(Self::err)?.into_int_value();
+            let (lo, hi, delta) = if upper { (b'a', b'z', -32i64) } else { (b'A', b'Z', 32i64) };
+            let ge = self
+                .builder
+                .build_int_compare(IntPredicate::UGE, c, i8t.const_int(lo as u64, false), "ge")
+                .map_err(Self::err)?;
+            let le = self
+                .builder
+                .build_int_compare(IntPredicate::ULE, c, i8t.const_int(hi as u64, false), "le")
+                .map_err(Self::err)?;
+            let inr = self.builder.build_and(ge, le, "inr").map_err(Self::err)?;
+            let sh = self
+                .builder
+                .build_int_add(c, i8t.const_int(delta as u64, true), "sh")
+                .map_err(Self::err)?;
+            let nc = self.builder.build_select(inr, sh, c, "nc").map_err(Self::err)?.into_int_value();
+            self.builder.build_store(ep, nc).map_err(Self::err)?;
+            let next = self.builder.build_int_add(iv, self.i64t.const_int(1, false), "inc").map_err(Self::err)?;
+            self.builder.build_store(idx, next).map_err(Self::err)?;
+            self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+            self.builder.position_at_end(exit);
+            Ok(buf)
+        }
+
+        /// `TRIM$`/`LTRIM$`/`RTRIM$`: strip ASCII whitespace (matches `byte_trim`).
+        fn str_trim(&self, s: PointerValue<'ctx>, left: bool, right: bool) -> Result<PointerValue<'ctx>, CompileError> {
+            let len = self.str_len(s)?;
+            let i8t = self.ctx.i8_type();
+            let a = self.builder.build_alloca(self.i64t, "ta").map_err(Self::err)?;
+            self.builder.build_store(a, self.i64t.const_zero()).map_err(Self::err)?;
+            let b = self.builder.build_alloca(self.i64t, "tb").map_err(Self::err)?;
+            self.builder.build_store(b, len).map_err(Self::err)?;
+            if left {
+                let head = self.ctx.append_basic_block(self.cur_fn, "lt.head");
+                let chk = self.ctx.append_basic_block(self.cur_fn, "lt.chk");
+                let adv = self.ctx.append_basic_block(self.cur_fn, "lt.adv");
+                let done = self.ctx.append_basic_block(self.cur_fn, "lt.done");
+                self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+                self.builder.position_at_end(head);
+                let av = self.builder.build_load(self.i64t, a, "av").map_err(Self::err)?.into_int_value();
+                let c1 = self.builder.build_int_compare(IntPredicate::ULT, av, len, "c1").map_err(Self::err)?;
+                self.builder.build_conditional_branch(c1, chk, done).map_err(Self::err)?;
+                self.builder.position_at_end(chk);
+                let ea = unsafe { self.builder.build_in_bounds_gep(i8t, s, &[av], "ea").map_err(Self::err)? };
+                let ca = self.builder.build_load(i8t, ea, "ca").map_err(Self::err)?.into_int_value();
+                let w = self.is_ws(ca)?;
+                self.builder.build_conditional_branch(w, adv, done).map_err(Self::err)?;
+                self.builder.position_at_end(adv);
+                let ap1 = self.builder.build_int_add(av, self.i64t.const_int(1, false), "ap1").map_err(Self::err)?;
+                self.builder.build_store(a, ap1).map_err(Self::err)?;
+                self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+                self.builder.position_at_end(done);
+            }
+            if right {
+                let head = self.ctx.append_basic_block(self.cur_fn, "rt.head");
+                let chk = self.ctx.append_basic_block(self.cur_fn, "rt.chk");
+                let adv = self.ctx.append_basic_block(self.cur_fn, "rt.adv");
+                let done = self.ctx.append_basic_block(self.cur_fn, "rt.done");
+                self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+                self.builder.position_at_end(head);
+                let bv = self.builder.build_load(self.i64t, b, "bv").map_err(Self::err)?.into_int_value();
+                let av = self.builder.build_load(self.i64t, a, "av2").map_err(Self::err)?.into_int_value();
+                let c2 = self.builder.build_int_compare(IntPredicate::UGT, bv, av, "c2").map_err(Self::err)?;
+                self.builder.build_conditional_branch(c2, chk, done).map_err(Self::err)?;
+                self.builder.position_at_end(chk);
+                let bm1 = self.builder.build_int_sub(bv, self.i64t.const_int(1, false), "bm1").map_err(Self::err)?;
+                let eb = unsafe { self.builder.build_in_bounds_gep(i8t, s, &[bm1], "eb").map_err(Self::err)? };
+                let cb = self.builder.build_load(i8t, eb, "cb").map_err(Self::err)?.into_int_value();
+                let w = self.is_ws(cb)?;
+                self.builder.build_conditional_branch(w, adv, done).map_err(Self::err)?;
+                self.builder.position_at_end(adv);
+                self.builder.build_store(b, bm1).map_err(Self::err)?;
+                self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+                self.builder.position_at_end(done);
+            }
+            let av = self.builder.build_load(self.i64t, a, "fa").map_err(Self::err)?.into_int_value();
+            let bv = self.builder.build_load(self.i64t, b, "fb").map_err(Self::err)?.into_int_value();
+            let cl = self.builder.build_int_sub(bv, av, "cl").map_err(Self::err)?;
+            self.str_copy(s, av, cl)
+        }
+
         /// Translate a supported builtin call; `None` if unsupported (deferred).
         fn eval_builtin(
             &self,
@@ -1239,6 +1392,30 @@ pub mod llvm_backend {
                             .map_err(Self::err)?;
                         Ok(Some(buf.into()))
                     }
+                    _ => Ok(None),
+                },
+                ("SPACE$", 1) => {
+                    let n = self.eval_int(&args[0])?;
+                    Ok(Some(self.str_space(n)?.into()))
+                }
+                ("UCASE$", 1) => match self.eval_value(&args[0])? {
+                    Some(BasicValueEnum::PointerValue(s)) => Ok(Some(self.str_case(s, true)?.into())),
+                    _ => Ok(None),
+                },
+                ("LCASE$", 1) => match self.eval_value(&args[0])? {
+                    Some(BasicValueEnum::PointerValue(s)) => Ok(Some(self.str_case(s, false)?.into())),
+                    _ => Ok(None),
+                },
+                ("TRIM$", 1) => match self.eval_value(&args[0])? {
+                    Some(BasicValueEnum::PointerValue(s)) => Ok(Some(self.str_trim(s, true, true)?.into())),
+                    _ => Ok(None),
+                },
+                ("LTRIM$", 1) => match self.eval_value(&args[0])? {
+                    Some(BasicValueEnum::PointerValue(s)) => Ok(Some(self.str_trim(s, true, false)?.into())),
+                    _ => Ok(None),
+                },
+                ("RTRIM$", 1) => match self.eval_value(&args[0])? {
+                    Some(BasicValueEnum::PointerValue(s)) => Ok(Some(self.str_trim(s, false, true)?.into())),
                     _ => Ok(None),
                 },
                 _ => Ok(None),
@@ -1836,6 +2013,54 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "16\n4\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_string_transform_builtins() {
+        use std::io::Write;
+        use std::process::Command;
+        // TRIM$/LTRIM$/RTRIM$/UCASE$/LCASE$/SPACE$ mirror the interpreter (byte_trim =
+        // ASCII whitespace; ASCII case fold; n spaces).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM s$\n\
+             s$ = \"  Hi There  \"\n\
+             PRINT \"[\" + TRIM$(s$) + \"]\"\n\
+             PRINT \"[\" + LTRIM$(s$) + \"]\"\n\
+             PRINT \"[\" + RTRIM$(s$) + \"]\"\n\
+             PRINT UCASE$(\"hello\")\n\
+             PRINT LCASE$(\"WORLD\")\n\
+             PRINT \"[\" + SPACE$(3) + \"]\"\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_sx.o");
+        let exep = dir.join("xb_llvm_sx.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "[Hi There]\n[Hi There  ]\n[  Hi There]\nHELLO\nworld\n[   ]\n"
+        );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
