@@ -31,21 +31,23 @@ functions** (definitions, calls, returns, params, per-function scope; two-pass d
 emit), **1D arrays** (`DIM a[n]` → `calloc` zeroed heap buffer; `a[i]` read/write via
 `build_in_bounds_gep`), **`ABS`/`LEN` builtins** (int/float abs via select; `LEN`→
 libc `strlen`), **string comparison** (libc `strcmp` vs 0), **`CHR$`** (calloc'd
-2-byte buffer → string-returning builtin path), and **`LEFT$`/`RIGHT$`/`MID$`** substring
+2-byte buffer → string-returning builtin path), **`LEFT$`/`RIGHT$`/`MID$`** substring
 builtins (`calloc`+`memcpy`; sext/unsigned-min/saturating-sub mirroring the interpreter's
-`as usize`/`min`/`saturating_sub`, parity-checked vs `xb --run`). Still deferred
-(incremental; C backend stays the full AOT path): N-dim arrays + `UBOUND`, numeric-format
-string builtins (`STR$`/`VAL`). Proven end-to-end (compile → `cc` link →
+`as usize`/`min`/`saturating_sub`, parity-checked vs `xb --run`), **string concatenation**
+(`+` → `calloc`+two `memcpy`s), and **`STR$`** for integers (`snprintf("%d")` = Rust
+`i32::to_string`). Still deferred (incremental; C backend stays the full AOT path): N-dim
+arrays + `UBOUND`, float `STR$` + `VAL` (Rust float-fmt / strict `i32::parse` ≠
+`printf`/`strtol`). Proven end-to-end (compile → `cc` link →
 run): `hello`; `2*3+1`→`7`; `FOR` sum 1..3 + `IF`→`6`,`big`; `10.0/4.0`→`2.5`;
 `Square(5)`→`25`; `a[2]=a[0]+a[1]`→`30`; `LEN("hello")`→`5`, `ABS(0-7)`→`7`;
-`IF n$="yes"`→`match`; `CHR$(65)`→`A`; `LEFT$/RIGHT$/MID$("hello world")`. Locked by
-feature-gated `lib.rs::tests::{llvm_backend_emits_runnable_object,
+`IF n$="yes"`→`match`; `CHR$(65)`→`A`; `LEFT$/RIGHT$/MID$("hello world")`;
+`"n="+STR$(42)`→`n=42`. Locked by feature-gated `lib.rs::tests::{llvm_backend_emits_runnable_object,
 llvm_backend_compiles_integer_arithmetic, llvm_backend_compiles_control_flow,
 llvm_backend_compiles_float_arithmetic, llvm_backend_compiles_user_function_call,
 llvm_backend_compiles_array_indexing, llvm_backend_compiles_builtins_abs_len,
 llvm_backend_compiles_string_comparison, llvm_backend_compiles_chr_builtin,
-llvm_backend_compiles_substring_builtins}`. New error leaf `CompileError::Llvm` = `XB-B002`.
-Reference: `docs/12 §3.1`.
+llvm_backend_compiles_substring_builtins, llvm_backend_compiles_string_build}`. New error
+leaf `CompileError::Llvm` = `XB-B002`. Reference: `docs/12 §3.1`.
 
 ### LB-TOOLCHAIN — LLVM feature builds against local LLVM 22 ✅ done
 `cargo check/build/test -p xb-compiler --features llvm` now succeeds with
