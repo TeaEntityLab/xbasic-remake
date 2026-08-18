@@ -15,7 +15,7 @@ pub const SOURCE_DIAGNOSTIC_CODES: &[&str] = &[
 ];
 
 /// Stable codes for errors originating in the backend (codegen).
-pub const BACKEND_DIAGNOSTIC_CODES: &[&str] = &["XB-B001"];
+pub const BACKEND_DIAGNOSTIC_CODES: &[&str] = &["XB-B001", "XB-B002"];
 
 impl CompileError {
     /// Returns the stable diagnostic code for this error leaf.
@@ -47,6 +47,7 @@ impl CompileError {
                 SemanticError::ArithmeticStringOperand => "XB-S016",
             },
             CompileError::LlvmDisabled => "XB-B001",
+            CompileError::Llvm(_) => "XB-B002",
         }
     }
 }

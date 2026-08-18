@@ -148,6 +148,7 @@ fn simple_codes_map_correctly() {
     assert_eq!(return_type_mismatch().diagnostic_code(), "XB-S015");
     assert_eq!(arithmetic_string_operand().diagnostic_code(), "XB-S016");
     assert_eq!(CompileError::LlvmDisabled.diagnostic_code(), "XB-B001");
+    assert_eq!(CompileError::Llvm(String::new()).diagnostic_code(), "XB-B002");
 }
 
 #[test]
@@ -179,10 +180,11 @@ fn all_diagnostic_codes_are_unique() {
         return_type_mismatch().diagnostic_code(),
         arithmetic_string_operand().diagnostic_code(),
         CompileError::LlvmDisabled.diagnostic_code(),
+        CompileError::Llvm(String::new()).diagnostic_code(),
     ];
     codes.sort_unstable();
     codes.dedup();
-    assert_eq!(codes.len(), 20);
+    assert_eq!(codes.len(), 21);
 }
 
 #[test]
@@ -227,7 +229,11 @@ fn every_leaf_code_is_member_of_source_list() {
 
 #[test]
 fn backend_code_is_member_of_backend_list_only() {
-    let code = CompileError::LlvmDisabled.diagnostic_code();
-    assert!(crate::BACKEND_DIAGNOSTIC_CODES.contains(&code));
-    assert!(!crate::SOURCE_DIAGNOSTIC_CODES.contains(&code));
+    for code in [
+        CompileError::LlvmDisabled.diagnostic_code(),
+        CompileError::Llvm(String::new()).diagnostic_code(),
+    ] {
+        assert!(crate::BACKEND_DIAGNOSTIC_CODES.contains(&code));
+        assert!(!crate::SOURCE_DIAGNOSTIC_CODES.contains(&code));
+    }
 }

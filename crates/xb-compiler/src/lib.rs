@@ -71,6 +71,8 @@ pub enum CompileError {
     Semantic(#[from] SemanticError),
     #[error("LLVM backend is disabled; rebuild xb-compiler with the `llvm` feature")]
     LlvmDisabled,
+    #[error("LLVM codegen error: {0}")]
+    Llvm(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,15 +139,149 @@ impl Codegen for DisabledLlvmBackend {
 #[cfg(feature = "llvm")]
 pub mod llvm_backend {
     use super::{Codegen, CompileError, FrontendUnit, ObjectFile};
+    use crate::ir::{IrExprKind, IrItem, IrProgram};
+    use crate::ValueType;
+    use inkwell::context::Context;
+    use inkwell::targets::{
+        CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine,
+    };
+    use inkwell::values::PointerValue;
+    use inkwell::{AddressSpace, OptimizationLevel};
+    use std::collections::HashMap;
 
     #[derive(Debug, Clone, Copy, Default)]
     pub struct LlvmBackend;
 
     impl Codegen for LlvmBackend {
+        /// Emit a real native object. v0 translates the executed string subset
+        /// (`DIM s$` / `s$ = "…"` / `s$ = other$` / `PRINT "…"|s$`) into a `main`
+        /// that drives `puts`, then writes a host-target object via `TargetMachine`.
+        /// Non-string / control-flow items are not yet translated (tracked in docs/17).
         fn compile(&self, unit: &FrontendUnit) -> Result<ObjectFile, CompileError> {
-            let _item_count = unit.lower_ir()?.items.len();
-            Ok(ObjectFile::from_bytes(Vec::new()))
+            let program = unit.lower_ir()?;
+            Target::initialize_native(&InitializationConfig::default())
+                .map_err(CompileError::Llvm)?;
+            let ctx = Context::create();
+            let module = ctx.create_module("xb");
+            let builder = ctx.create_builder();
+            let err = |e: inkwell::builder::BuilderError| CompileError::Llvm(e.to_string());
+            let i32t = ctx.i32_type();
+            let ptr = ctx.ptr_type(AddressSpace::default());
+            let puts = module.add_function("puts", i32t.fn_type(&[ptr.into()], false), None);
+            let main = module.add_function("main", i32t.fn_type(&[], false), None);
+            builder.position_at_end(ctx.append_basic_block(main, "entry"));
+            let mut vars: HashMap<String, PointerValue> = HashMap::new();
+            for item in executable_items(&program) {
+                match item {
+                    IrItem::Dim { symbol, .. } if symbol.value_type == ValueType::String => {
+                        let slot = builder.build_alloca(ptr, &symbol.name).map_err(err)?;
+                        let empty = builder.build_global_string_ptr("", "e").map_err(err)?;
+                        builder.build_store(slot, empty.as_pointer_value()).map_err(err)?;
+                        vars.insert(symbol.name.clone(), slot);
+                    }
+                    IrItem::Assignment { target, value }
+                        if target.value_type == ValueType::String =>
+                    {
+                        let v = match &value.kind {
+                            IrExprKind::StringLiteral(s) => builder
+                                .build_global_string_ptr(s, "s")
+                                .map_err(err)?
+                                .as_pointer_value(),
+                            IrExprKind::Symbol(sym) => match vars.get(&sym.name) {
+                                Some(slot) => builder
+                                    .build_load(ptr, *slot, "ld")
+                                    .map_err(err)?
+                                    .into_pointer_value(),
+                                None => continue,
+                            },
+                            _ => continue,
+                        };
+                        let slot = match vars.get(&target.name) {
+                            Some(s) => *s,
+                            None => {
+                                let s = builder.build_alloca(ptr, &target.name).map_err(err)?;
+                                vars.insert(target.name.clone(), s);
+                                s
+                            }
+                        };
+                        builder.build_store(slot, v).map_err(err)?;
+                    }
+                    IrItem::Print { items, .. } => {
+                        for e in items {
+                            let p: Option<PointerValue> = match &e.kind {
+                                IrExprKind::StringLiteral(s) => Some(
+                                    builder
+                                        .build_global_string_ptr(s, "s")
+                                        .map_err(err)?
+                                        .as_pointer_value(),
+                                ),
+                                IrExprKind::Symbol(sym) => match vars.get(&sym.name) {
+                                    Some(slot) => Some(
+                                        builder
+                                            .build_load(ptr, *slot, "ld")
+                                            .map_err(err)?
+                                            .into_pointer_value(),
+                                    ),
+                                    None => None,
+                                },
+                                _ => None,
+                            };
+                            if let Some(p) = p {
+                                builder.build_call(puts, &[p.into()], "").map_err(err)?;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            builder
+                .build_return(Some(&i32t.const_int(0, false)))
+                .map_err(err)?;
+
+            let triple = TargetMachine::get_default_triple();
+            let target =
+                Target::from_triple(&triple).map_err(|e| CompileError::Llvm(e.to_string()))?;
+            let tm = target
+                .create_target_machine(
+                    &triple,
+                    &TargetMachine::get_host_cpu_name().to_string(),
+                    &TargetMachine::get_host_cpu_features().to_string(),
+                    OptimizationLevel::Default,
+                    RelocMode::PIC,
+                    CodeModel::Default,
+                )
+                .ok_or_else(|| CompileError::Llvm("could not create target machine".into()))?;
+            let buf = tm
+                .write_to_memory_buffer(&module, FileType::Object)
+                .map_err(|e| CompileError::Llvm(e.to_string()))?;
+            Ok(ObjectFile::from_bytes(buf.as_slice().to_vec()))
         }
+    }
+
+    /// The items `execute_main` would run: top-level items, then the entry
+    /// function (`Main`, else the first function) body.
+    fn executable_items(program: &IrProgram) -> Vec<&IrItem> {
+        let mut out: Vec<&IrItem> = program
+            .items
+            .iter()
+            .filter(|i| !matches!(i, IrItem::Function { .. }))
+            .collect();
+        let mut entry: Option<&Vec<IrItem>> = None;
+        for item in &program.items {
+            if let IrItem::Function { name, body, .. } = item {
+                if name == "Main" {
+                    entry = Some(body);
+                    break;
+                }
+                if entry.is_none() {
+                    entry = Some(body);
+                }
+            }
+        }
+        if let Some(body) = entry {
+            out.extend(body.iter());
+        }
+        out
     }
 }
 
@@ -182,5 +318,42 @@ mod tests {
         let unit = FrontendUnit::parse("PRINT \"hello\"\n").unwrap();
         let result = DisabledLlvmBackend.compile(&unit);
         assert!(matches!(result, Err(CompileError::LlvmDisabled)));
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_emits_runnable_object() {
+        use std::io::Write;
+        use std::process::Command;
+        // Bootstrap hello fixture pattern: DIM / assign / PRINT a string variable.
+        let unit = FrontendUnit::parse(
+            "VERSION \"6.5.0\"\nDIM name$\nname$ = \"hello\"\nPRINT name$\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty(), "object file must not be empty");
+        // Real-emission proof: link the object with cc and run the executable.
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_hello.o");
+        let exep = dir.join("xb_llvm_hello.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "hello\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
     }
 }

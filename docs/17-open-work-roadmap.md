@@ -18,29 +18,25 @@
 
 ## 1. Backends
 
-### LB-STUB — LLVM backend emits an empty object `[verified]`
-`crates/xb-compiler/src/lib.rs` `llvm_backend::LlvmBackend::compile` lowers the
-IR then returns `ObjectFile::from_bytes(Vec::new())` — no real object emission.
-Default backend is `DisabledLlvmBackend` → `CompileError::LlvmDisabled`
-(`XB-B001`). Work: implement inkwell IR → `TargetMachine::write_to_file`
-(ELF/COFF/Mach-O). Reference: `docs/12-rust-llvm-rewrite-survey.md §3.1`.
+### LB-STUB — LLVM backend emits a real native object ✅ done
+`llvm_backend::LlvmBackend::compile` (feature `llvm`) now builds an LLVM module and writes
+a real host-target object via `TargetMachine::write_to_memory_buffer(Object)` (was
+`ObjectFile::from_bytes(Vec::new())`). v0 translates the executed string subset — `DIM s$`
+/ `s$ = "…"` / `s$ = other$` / `PRINT "…"|s$` — into a `main` driving `puts` (top-level
+items + the entry-function body, mirroring `execute_main`). Numeric / expression /
+control-flow items are not yet translated (incremental; the C backend stays the full AOT
+path). Proven end-to-end: the bootstrap `hello` pattern compiles → links with `cc` → runs
+→ prints `hello`. Locked by feature-gated `lib.rs::tests::llvm_backend_emits_runnable_object`.
+New error leaf `CompileError::Llvm` = `XB-B002`. Reference: `docs/12 §3.1`.
 
-### LB-TOOLCHAIN — LLVM feature builds nowhere; concrete unblock path `[verified]`
-`cargo check -p xb-compiler --features llvm` fails: *"No suitable version of LLVM
-… LLVM_SYS_221_PREFIX"*. The workspace pins `inkwell` to `llvm22-1`, but only
-Homebrew `llvm@21` (21.1.8, working `llvm-config` at `/opt/homebrew/opt/llvm@21`)
-is installed — so the `llvm` feature compiles nowhere and is untested.
-
-Two unblock paths (a **decision** — it sets the supported LLVM version):
-- **Retarget to 21** — change the workspace `inkwell` feature `llvm22-1` →
-  `llvm21-1` (inkwell 0.10 supports `llvm12-0`…`llvm22-1`, verified) and export
-  `LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`. Backend builds + is locally
-  verifiable **today**, but reverses the documented LLVM-22 target (docs/13, 14).
-- **Install 22** — `brew install llvm@22` (or set `LLVM_SYS_221_PREFIX`) and add
-  a CI job carrying LLVM 22; keeps the documented target.
-
-Until one is chosen, LLVM stays deferred and the C code generator remains the
-working AOT backend (the deliberate decision in docs/13 §Stage 3).
+### LB-TOOLCHAIN — LLVM feature builds against local LLVM 22 ✅ done
+`cargo check/build/test -p xb-compiler --features llvm` now succeeds with
+`LLVM_SYS_221_PREFIX=/opt/homebrew/opt/llvm` — the default Homebrew `llvm` is **22.1.8**
+(and `llvm@22` is a keg), matching the documented `inkwell` `llvm22-1` pin, so **no version
+reversal was needed** (the earlier "only llvm@21 installed" note was stale). The prior
+failure was solely the missing `LLVM_SYS_221_PREFIX`. The `llvm` feature stays off by
+default (`DisabledLlvmBackend` → `XB-B001`); the C generator remains the default AOT
+backend (docs/13 §Stage 3). To build/test the LLVM path, set that env var.
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
