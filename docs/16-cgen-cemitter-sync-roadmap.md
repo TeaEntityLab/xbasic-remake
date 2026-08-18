@@ -93,10 +93,34 @@ cover the high-value drift.
 
 ### CG-BODY-COVER — behavioral blind spots remain (low priority)
 The behavioral tests don't exercise address-of builtins, file mode 2, or
-high-byte strings (17: RT-BYTESTRING), so body-logic drift *in those specific
+high-byte strings (now a **confirmed** defect — see CG-BYTESTRING), so body-logic drift *in those specific
 helpers* isn't caught behaviorally (their signatures still are, via CG-SIG).
 Clean closure needs deterministic fixtures (hard for raw addresses / temp files);
 tracked, low priority given CG-SIG coverage.
+
+### CG-BYTESTRING — C backend drops embedded NULs / high bytes `[confirmed 2026-08-18]`
+Both C generators represent strings as C `char*` null-terminated (`xb_len` = `strlen`,
+`xb_concat`/`xb_left`/… `strlen`-based, `xb_chr` NUL-terminates), so `CHR$(0)`, embedded,
+and high bytes are silently lost — the **same defect the LLVM backend had before its
+RT-BYTESTRING fix (docs/17)**. Evidence — `"AB" + CHR$(0) + "CD"` prints `ABCD` with
+`LEN` 4 (should be `AB\0CD`, `LEN` 5) and `LEN(CHR$(0))` 0 (should be 1):
+
+```
+xb --run    : 35 0a 41 42 00 43 44 0a 41 00 42 0a 31 0a   (LEN 5; AB\0CD; A\0B; 1)
+xb --emit-c : 34 0a 41 42    43 44 0a 41    42 0a 30 0a   (LEN 4; ABCD;  AB;  0)
+```
+
+A correctness bug in the **primary AOT path** (the secondary LLVM backend is now correct).
+CG-BODY-COVER named this a blind spot; it is now a confirmed, evidence-backed defect.
+**Fix path**: length-prefixed strings mirroring the LLVM fix — keep the C type `char*`
+but store a `size_t` length in a header before the data (`xb_len` reads the prefix,
+`PRINT` writes exact bytes via `fwrite`, compare via `memcmp`+length, string literals
+wrapped `xb_lit("…", N)`), applied **identically** to `c_runtime.rs` / `c_emit_*.rs`
+**and** `cgen.x` so the sync tests stay green. The bootstrap fixed point (`compiler.ir`,
+IR text) is runtime-independent → unaffected; only `cgen_cemitter_sync` +
+`cgen_positive_corpus` (behavioral) gate it. Scoped as a large two-generator change
+(~40 helpers each); corpus-neutral today (no interp-clean corpus program uses embedded
+NULs), so it is **latent-correctness**, not a reach unlock.
 
 ## 5. Verification
 
