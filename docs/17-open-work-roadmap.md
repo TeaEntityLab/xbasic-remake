@@ -135,15 +135,22 @@ existing contents not in the new (smaller) size are lost, contents in both old a
 size are unchanged, and contents in the new (larger) size only are zeroed") — exactly
 `Vec::resize`'s truncate / preserve / default-fill behavior.
 
-### MIG-ARY-MULTIDIM — 2D arrays + `ATTACH` (blocks `ary.x` `TestAryPerformance`) `[verified 2026-08-17]`
-With MIG-ARY-REDIM done, `ary.x`'s `TestAryPerformance` still errors (`array index out of
-range: 0`) because it uses genuine **2-D arrays** (`bufferIndex[charCode, count]`,
-`Ary_codeBufferIndex[c, i]`) and **`ATTACH`** sub-array aliasing (`ATTACH
-bufferIndex[charCode,] TO a[]`). The parser currently collapses multi-dim subscripts to
-the first index (`parse_array_size` / `ArrayAccess` drop trailing dims), so 2-D accesses
-mis-index. Real support = row-major multi-dim layout + indexing + `ATTACH` binding — a
-distinct, larger feature. `ary.x` still parses+lowers (MIG-CORPUS-GATE) and is out of the
-`xbsourcelib_smoke_libs_run_clean` clean-run set.
+### MIG-ARY-MULTIDIM — N-dim indexing ✅ done; `ATTACH` aliasing deferred
+**N-dimensional row-major indexing done.** `a[i,j]` previously dropped all but the first
+subscript, silently aliasing 2-D cells (`a[1,0]` and `a[1,1]` both hit `a[1]` → printed
+`9,9` for distinct writes). Fixed by carrying extra subscripts as `Vec` fields alongside
+the first (`Statement::Dim.extra_dims`, `Expression::ArrayAccess.extra_indices`,
+`Statement::ArrayAssignment.extra_indices`, mirrored on Checked/IR) and a `TypedSlot`
+shape (`dims`) with a Horner row-major `array_offset`; `DIM a[d0,d1,…]` allocates the flat
+product and records the shape. **1-D byte-identical** (extras ignored in text-IR/C via
+`..`; goldens + bootstrap fixed point unchanged; selfhost uses no arrays). Locked by
+`interpreter.rs::two_dim_array_cells_are_distinct` (prints `7,9`).
+
+**Still deferred: `ATTACH`** sub-array aliasing (`ATTACH bufferIndex[charCode,] TO a[]`),
+the remaining blocker for `ary.x`'s `TestAryPerformance` (which also needs the 2-D buffer
+index + is a 50k-iteration perf test). Real `ATTACH` = a view/alias binding between array
+slots — a distinct feature. `ary.x` still parses+lowers (MIG-CORPUS-GATE) and stays out of
+the `xbsourcelib_smoke_libs_run_clean` clean-run set.
 
 ### RT-KERNEL32 — kernel32/stdio stubs for `acgibin` `[verified 2026-08-17]`
 `acgibin.x` needs `GetStdHandle`/`ReadFile`/`WriteFile` and the handle constants
