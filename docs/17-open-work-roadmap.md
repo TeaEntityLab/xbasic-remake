@@ -170,6 +170,28 @@ shared pointer param, and **read-only 1-D `@array[]` by-ref** (a `{data, dims}` 
 unblocked `aarray_ISNODE`). **Every interpreter-clean program is now byte-faithful (106/106);
 no residual blockers remain.**
 
+### XBSourceLib library reach `[2026-08-19]`
+
+Beyond the 151-program `xbasic-6.4.5` demo corpus, the separate `XBSourceLib/` library
+(13 runnable `.x` programs) was re-measured for runtime + LLVM parity: **9/13 byte-faithful**;
+the other 4 are blocked by three genuine (non-platform) *features*, not bounded bugs:
+
+- **Float formatting** (`geo.x`): the interpreter prints floats via Rust's `f64::Display`
+  (shortest round-trip, decimal — `39.99990409954015`); the LLVM backend uses
+  `snprintf("%g")` (6 sig figs — `39.9999`). Byte-exact parity needs a shortest-round-trip
+  decimal formatter (Ryū/Grisu-class) in the C runtime; a naïve `%g` retry breaks simple
+  values (`30` → `3e+01`). The demo corpus never prints such computed floats, so it is
+  unaffected (all 106 already match).
+- **Composite-array members** (`ary.x`, `ary1.0001.x`): `DIM pathMember[N]` of a `TYPE` with
+  members (`STRING*16 .code`), then `pathMember[0].code` — the interpreter does not allocate
+  the per-member flattened arrays, so the member-array reads out of range at index 0. Needs
+  composite-array member storage in the interpreter (+ matching backend lowering).
+- **Command-line arguments** (`XBMerge.x`): reads `XstGetCommandLineArguments`; with no args
+  the interpreter and backend take different usage-vs-empty paths (borderline platform).
+
+Bootstrap-safe: the self-host toolchain uses none of these (no printed floats, zero composite
+params, no `XstGetCommandLineArguments`).
+
 ### `@array` effort — verified scoping notes `[2026-08-19]`
 Precise root causes established this session, so the large effort can be scoped without
 re-deriving them:
