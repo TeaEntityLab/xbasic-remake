@@ -261,6 +261,8 @@ pub mod llvm_backend {
         fwrite: FunctionValue<'ctx>,
         fread: FunctionValue<'ctx>,
         fflush: FunctionValue<'ctx>,
+        /// Runtime helper `xb_file_eof(handle) -> i32` (EOF or invalid/closed handle → 1).
+        file_eof: FunctionValue<'ctx>,
         /// Global `[FILE_SLOTS x ptr]` of open `FILE*` (index = handle − 3).
         file_table: PointerValue<'ctx>,
         /// Global `i32` next-handle counter (monotonic, matches `files.len()`).
@@ -325,6 +327,7 @@ pub mod llvm_backend {
                 None,
             );
             let fflush = module.add_function("fflush", i32t.fn_type(&[ptr.into()], false), None);
+            let feof = module.add_function("feof", i32t.fn_type(&[ptr.into()], false), None);
             let file_arr_ty = ptr.array_type(256);
             let file_table_g = module.add_global(file_arr_ty, None, "xb_files");
             file_table_g.set_initializer(&file_arr_ty.const_zero());
@@ -333,7 +336,8 @@ pub mod llvm_backend {
             file_count_g.set_initializer(&i32t.const_zero());
             let file_count = file_count_g.as_pointer_value();
             let main = module.add_function("main", i32t.fn_type(&[], false), None);
-            builder.position_at_end(ctx.append_basic_block(main, "entry"));
+            let main_entry = ctx.append_basic_block(main, "entry");
+            builder.position_at_end(main_entry);
             let g = |b: &Builder<'ctx>, s: &str, n: &str| -> Result<PointerValue<'ctx>, CompileError> {
                 Ok(b.build_global_string_ptr(s, n).map_err(Self::err)?.as_pointer_value())
             };
@@ -342,6 +346,51 @@ pub mod llvm_backend {
             let tab = g(&builder, "\t", "tab")?;
             let fmt_g = g(&builder, "%g", "fmtg")?;
             let fmt_hex = g(&builder, "%X", "fmthex")?;
+            // Runtime helper `xb_file_eof(handle) -> i32`: 1 when the file is at EOF or the
+            // handle is invalid/closed, else 0. A dedicated function so its null/range-guard
+            // branches never split an expression (EOF is used in `DO…LOOP UNTIL` conditions).
+            let file_eof =
+                module.add_function("xb_file_eof", i32t.fn_type(&[i32t.into()], false), None);
+            {
+                let entry = ctx.append_basic_block(file_eof, "entry");
+                let chk = ctx.append_basic_block(file_eof, "chk");
+                let call_feof = ctx.append_basic_block(file_eof, "do");
+                let iseof = ctx.append_basic_block(file_eof, "iseof");
+                builder.position_at_end(entry);
+                let h = file_eof.get_nth_param(0).unwrap().into_int_value();
+                let idx = builder.build_int_sub(h, i32t.const_int(3, false), "eidx").map_err(Self::err)?;
+                let cnt = builder.build_load(i32t, file_count, "ecnt").map_err(Self::err)?.into_int_value();
+                let ge0 = builder.build_int_compare(IntPredicate::SGE, idx, i32t.const_zero(), "ege0").map_err(Self::err)?;
+                let ltc = builder.build_int_compare(IntPredicate::SLT, idx, cnt, "eltc").map_err(Self::err)?;
+                let valid = builder.build_and(ge0, ltc, "evalid").map_err(Self::err)?;
+                builder.build_conditional_branch(valid, chk, iseof).map_err(Self::err)?;
+                builder.position_at_end(chk);
+                let slot = unsafe {
+                    builder
+                        .build_in_bounds_gep(file_arr_ty, file_table, &[i32t.const_zero(), idx], "eslot")
+                        .map_err(Self::err)?
+                };
+                let fp = builder.build_load(ptr, slot, "efp").map_err(Self::err)?.into_pointer_value();
+                let isnull = builder.build_is_null(fp, "enull").map_err(Self::err)?;
+                builder.build_conditional_branch(isnull, iseof, call_feof).map_err(Self::err)?;
+                builder.position_at_end(call_feof);
+                let e = builder
+                    .build_call(feof, &[fp.into()], "feof")
+                    .map_err(Self::err)?
+                    .try_as_basic_value()
+                    .basic()
+                    .ok_or_else(|| CompileError::Llvm("feof returned void".into()))?
+                    .into_int_value();
+                let ne = builder.build_int_compare(IntPredicate::NE, e, i32t.const_zero(), "ene").map_err(Self::err)?;
+                let r = builder
+                    .build_select(ne, i32t.const_int(1, false), i32t.const_zero(), "eres")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                builder.build_return(Some(&r)).map_err(Self::err)?;
+                builder.position_at_end(iseof);
+                builder.build_return(Some(&i32t.const_int(1, false))).map_err(Self::err)?;
+            }
+            builder.position_at_end(main_entry);
             Ok(Self {
                 ctx,
                 module,
@@ -374,6 +423,7 @@ pub mod llvm_backend {
                 fwrite,
                 fread,
                 fflush,
+                file_eof,
                 file_table,
                 file_count,
                 vars: HashMap::new(),
@@ -2757,6 +2807,17 @@ pub mod llvm_backend {
                 ("LOF", 1) => self.file_lof(args),
                 ("__WRITE_RECORD", 2) => self.file_write(args),
                 ("__READ_RECORD", 2) => self.file_read(args),
+                ("EOF", 1) => {
+                    let h = self.eval_int(&args[0])?;
+                    Ok(Some(
+                        self.builder
+                            .build_call(self.file_eof, &[h.into()], "eof")
+                            .map_err(Self::err)?
+                            .try_as_basic_value()
+                            .basic()
+                            .ok_or_else(|| CompileError::Llvm("xb_file_eof returned void".into()))?,
+                    ))
+                }
                 ("ABS", 1) => match self.eval_value(&args[0])? {
                     Some(BasicValueEnum::IntValue(iv)) => {
                         let neg = self.builder.build_int_neg(iv, "neg").map_err(Self::err)?;
@@ -4961,6 +5022,42 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "3\n8\n2\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_eof_on_invalid_handle_terminates_loop() {
+        use std::io::Write;
+        use std::process::Command;
+        // EOF must return 1 (true) for an invalid/closed handle so `DO … LOOP UNTIL EOF`
+        // terminates instead of spinning forever (OPEN of a missing file → -1; the loop body
+        // runs once, then EOF(-1)=1 exits). Prints "1". Regression guard for `acrc32` (which
+        // OPENs a stdin-supplied filename that is empty when no input is piped).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             f = OPEN (\"xb_eof_nonexist.dat\", $$RD)\n\
+             n = 0\n\
+             DO\n\
+             INC n\n\
+             LOOP UNTIL EOF(f)\n\
+             PRINT n\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_eof.o");
+        let exep = dir.join("xb_llvm_eof.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).current_dir(&dir).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "1\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
