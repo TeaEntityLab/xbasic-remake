@@ -176,6 +176,17 @@ pub mod llvm_backend {
             let mut emit = Emit::new(&ctx)?;
             emit.byref_params = collect_byref_params(&program.items);
             emit.byref_array_params = collect_byref_array_params(&program.items);
+            emit.func_ids = {
+                let mut m = HashMap::new();
+                let mut id = 0;
+                for item in &program.items {
+                    if let IrItem::Function { name, .. } = item {
+                        id += 1;
+                        m.entry(name.clone()).or_insert(id);
+                    }
+                }
+                m
+            };
             emit.declare_functions(&program.items);
             emit.emit_body(&program.items)?;
             if let Some(body) = entry_body(&program) {
@@ -224,6 +235,9 @@ pub mod llvm_backend {
         fmt_hex: PointerValue<'ctx>,
         /// User-defined functions (name → LLVM fn), excluding the flattened entry.
         funcs: HashMap<String, FunctionValue<'ctx>>,
+        /// Function name → 1-based program-order index, for `&func()` (`FuncAddr`). Mirrors the
+        /// interpreter's `function_id`; unknown names resolve to 0.
+        func_ids: HashMap<String, i32>,
         /// Function currently being emitted (for `append_basic_block`).
         cur_fn: FunctionValue<'ctx>,
         /// Return type of the function currently being emitted.
@@ -428,6 +442,7 @@ pub mod llvm_backend {
                 file_count,
                 vars: HashMap::new(),
                 funcs: HashMap::new(),
+                func_ids: HashMap::new(),
                 cur_fn: main,
                 cur_ret: ValueType::Integer,
             })
@@ -1462,6 +1477,13 @@ pub mod llvm_backend {
                 },
                 IrExprKind::FloatLiteral(v) => {
                     Some(self.f64t.const_float(v.parse::<f64>().unwrap_or(0.0)).into())
+                }
+                IrExprKind::FuncAddr(name) => {
+                    // `&func()`: the interpreter uses a synthetic id (the function's 1-based
+                    // program-order index), not a real address; mirror it so `&f` compares and
+                    // prints identically (unknown → 0).
+                    let id = self.func_ids.get(name).copied().unwrap_or(0);
+                    Some(self.i32t.const_int(id as u64, true).into())
                 }
                 IrExprKind::Symbol(sym) => match self.vars.get(&sym.name) {
                     Some((slot, ValueType::String)) => {
@@ -5058,6 +5080,42 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).current_dir(&dir).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "1\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_funcaddr_is_program_order_id() {
+        use std::io::Write;
+        use std::process::Command;
+        // &func() yields the interpreter's synthetic id — the function's 1-based program-order
+        // index — not a real address, so `&f` compares/prints identically across backends.
+        // Entry=1, Foo=2, Bar=3 → prints "2 3". Regression guard for `atimer` (`&Timer()`).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             DECLARE FUNCTION Foo ()\n\
+             DECLARE FUNCTION Bar ()\n\
+             FUNCTION Entry ()\n\
+             PRINT &Foo(); \" \"; &Bar()\n\
+             END FUNCTION\n\
+             FUNCTION Foo ()\n\
+             END FUNCTION\n\
+             FUNCTION Bar ()\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_funcaddr.o");
+        let exep = dir.join("xb_llvm_funcaddr.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "2 3\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
