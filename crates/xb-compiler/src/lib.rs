@@ -1941,6 +1941,35 @@ pub mod llvm_backend {
                 ("LJUST$", 2) => self.str_justify(&args[0], &args[1], 0),
                 ("RJUST$", 2) => self.str_justify(&args[0], &args[1], 1),
                 ("CJUST$", 2) => self.str_justify(&args[0], &args[1], 2),
+                ("HEXX$", 1) => {
+                    let iv = self.eval_int(&args[0])?;
+                    Ok(Some(self.str_from_int(self.fmt_g("0x%X")?, iv)?.into()))
+                }
+                ("OCTO$", 1) => {
+                    let iv = self.eval_int(&args[0])?;
+                    Ok(Some(self.str_from_int(self.fmt_g("0o%o")?, iv)?.into()))
+                }
+                ("ROTATEL", 2) | ("ROTATER", 2) => {
+                    // n %= 32; ROTATEL = (v<<n)|(v>>((32-n)%32)); ROTATER swaps the shifts.
+                    let v = self.eval_int(&args[0])?;
+                    let n = self.eval_int(&args[1])?;
+                    let c32 = self.i32t.const_int(32, false);
+                    let n = self.builder.build_int_unsigned_rem(n, c32, "rn").map_err(Self::err)?;
+                    let comp = self.builder.build_int_sub(c32, n, "rcomp").map_err(Self::err)?;
+                    let comp = self.builder.build_int_unsigned_rem(comp, c32, "rcompm").map_err(Self::err)?;
+                    let shl = self.builder.build_left_shift(v, n, "rshl").map_err(Self::err)?;
+                    let shr = self.builder.build_right_shift(v, comp, false, "rshr").map_err(Self::err)?;
+                    let (a, b) = if name == "ROTATEL" {
+                        // (v<<n) | (v>>(32-n))
+                        (shl, shr)
+                    } else {
+                        // (v>>n) | (v<<(32-n))
+                        let shr2 = self.builder.build_right_shift(v, n, false, "rshr2").map_err(Self::err)?;
+                        let shl2 = self.builder.build_left_shift(v, comp, "rshl2").map_err(Self::err)?;
+                        (shr2, shl2)
+                    };
+                    Ok(Some(self.builder.build_or(a, b, "rot").map_err(Self::err)?.into()))
+                }
                 ("LEN", 1) => match self.eval_value(&args[0])? {
                     Some(BasicValueEnum::PointerValue(pv)) => {
                         let n32 = self
