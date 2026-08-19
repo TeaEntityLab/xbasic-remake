@@ -1099,10 +1099,26 @@ pub mod llvm_backend {
             Ok(match &expr.kind {
                 IrExprKind::StringLiteral(s) => Some(self.str_const(s.as_bytes())?.into()),
                 IrExprKind::IntegerLiteral(v) => {
-                    let n = if let Some(h) = v.strip_prefix("0x").or_else(|| v.strip_prefix("0X")) {
-                        i64::from_str_radix(h, 16).unwrap_or(0)
+                    // Mirror the interpreter's `parse_integer`: 0x/0b/0o + decimal, reinterpreting
+                    // unsigned 32/64-bit bit patterns as i32 (e.g. 0xEDB88320, 0b100…001).
+                    let radixed = |d: &str, r: u32| -> i32 {
+                        i32::from_str_radix(d, r)
+                            .or_else(|_| u32::from_str_radix(d, r).map(|u| u as i32))
+                            .or_else(|_| u64::from_str_radix(d, r).map(|u| u as i32))
+                            .unwrap_or(0)
+                    };
+                    let n: i32 = if let Some(h) = v.strip_prefix("0x").or_else(|| v.strip_prefix("0X")) {
+                        radixed(h, 16)
+                    } else if let Some(b) = v.strip_prefix("0b").or_else(|| v.strip_prefix("0B")) {
+                        radixed(b, 2)
+                    } else if let Some(o) = v.strip_prefix("0o").or_else(|| v.strip_prefix("0O")) {
+                        radixed(o, 8)
                     } else {
-                        v.parse::<i64>().unwrap_or(0)
+                        v.parse::<i32>()
+                            .or_else(|_| v.parse::<u32>().map(|u| u as i32))
+                            .or_else(|_| v.parse::<u64>().map(|u| u as i32))
+                            .or_else(|_| v.parse::<i64>().map(|i| i as i32))
+                            .unwrap_or(0)
                     };
                     Some(self.i32t.const_int(n as u64, true).into())
                 }
@@ -2269,6 +2285,67 @@ pub mod llvm_backend {
                 ("OCT$", 1) => {
                     let iv = self.eval_int(&args[0])?;
                     Ok(Some(self.str_from_int(self.fmt_g("%o")?, iv)?.into()))
+                }
+                ("BIN$", 1) | ("BIN$", 2) | ("BINB$", 1) | ("BINB$", 2) => {
+                    // Minimal binary of the u32 bit pattern (matches Rust `{:b}`: negatives -> 32
+                    // bits, 0 -> "0"), optionally zero-padded to a width, `0b` prefix for BINB$.
+                    let n = self.eval_int(&args[0])?;
+                    let ctlz = self.module.get_function("llvm.ctlz.i32").unwrap_or_else(|| {
+                        self.module.add_function("llvm.ctlz.i32", self.i32t.fn_type(&[self.i32t.into(), self.ctx.bool_type().into()], false), None)
+                    });
+                    let clz = self.builder.build_call(ctlz, &[n.into(), self.ctx.bool_type().const_zero().into()], "clz").map_err(Self::err)?.try_as_basic_value().basic().ok_or_else(|| CompileError::Llvm("ctlz void".into()))?.into_int_value();
+                    let nb = self.builder.build_int_sub(self.i32t.const_int(32, false), clz, "nb").map_err(Self::err)?;
+                    let iszero = self.builder.build_int_compare(IntPredicate::EQ, n, self.i32t.const_zero(), "binz").map_err(Self::err)?;
+                    let nbits = self.builder.build_select(iszero, self.i32t.const_int(1, false), nb, "nbits").map_err(Self::err)?.into_int_value();
+                    let zeropad = if args.len() == 2 {
+                        let w = self.eval_int(&args[1])?;
+                        let padgt = self.builder.build_int_compare(IntPredicate::SGT, w, nbits, "binpadgt").map_err(Self::err)?;
+                        let diff = self.builder.build_int_sub(w, nbits, "bindiff").map_err(Self::err)?;
+                        self.builder.build_select(padgt, diff, self.i32t.const_zero(), "binzp").map_err(Self::err)?.into_int_value()
+                    } else {
+                        self.i32t.const_zero()
+                    };
+                    let is_binb = name == "BINB$";
+                    let prefix = if is_binb { 2u64 } else { 0 };
+                    let i8t = self.ctx.i8_type();
+                    let nbits64 = self.builder.build_int_z_extend(nbits, self.i64t, "nbits64").map_err(Self::err)?;
+                    let zp64 = self.builder.build_int_z_extend(zeropad, self.i64t, "zp64").map_err(Self::err)?;
+                    let digits = self.builder.build_int_add(nbits64, zp64, "bindig").map_err(Self::err)?;
+                    let total = self.builder.build_int_add(digits, self.i64t.const_int(prefix, false), "bintot").map_err(Self::err)?;
+                    let r = self.str_new(total)?;
+                    if is_binb {
+                        self.builder.build_store(r, i8t.const_int(b'0' as u64, false)).map_err(Self::err)?;
+                        let r1 = unsafe { self.builder.build_in_bounds_gep(i8t, r, &[self.i64t.const_int(1, false)], "br1").map_err(Self::err)? };
+                        self.builder.build_store(r1, i8t.const_int(b'b' as u64, false)).map_err(Self::err)?;
+                    }
+                    let zpstart = unsafe { self.builder.build_in_bounds_gep(i8t, r, &[self.i64t.const_int(prefix, false)], "zps").map_err(Self::err)? };
+                    self.builder.build_call(self.memset, &[zpstart.into(), self.i32t.const_int(b'0' as u64, false).into(), zp64.into()], "binms").map_err(Self::err)?;
+                    let base = self.builder.build_int_add(self.i64t.const_int(prefix, false), zp64, "binbase").map_err(Self::err)?;
+                    let bidx = self.builder.build_alloca(self.i64t, "bidx").map_err(Self::err)?;
+                    self.builder.build_store(bidx, self.i64t.const_zero()).map_err(Self::err)?;
+                    let bh = self.ctx.append_basic_block(self.cur_fn, "bin.h");
+                    let bb = self.ctx.append_basic_block(self.cur_fn, "bin.b");
+                    let be = self.ctx.append_basic_block(self.cur_fn, "bin.e");
+                    self.builder.build_unconditional_branch(bh).map_err(Self::err)?;
+                    self.builder.position_at_end(bh);
+                    let bi = self.builder.build_load(self.i64t, bidx, "bi").map_err(Self::err)?.into_int_value();
+                    let bcont = self.builder.build_int_compare(IntPredicate::ULT, bi, nbits64, "bcont").map_err(Self::err)?;
+                    self.builder.build_conditional_branch(bcont, bb, be).map_err(Self::err)?;
+                    self.builder.position_at_end(bb);
+                    let bi32 = self.builder.build_int_truncate(bi, self.i32t, "bi32").map_err(Self::err)?;
+                    let nbm1 = self.builder.build_int_sub(nbits, self.i32t.const_int(1, false), "nbm1").map_err(Self::err)?;
+                    let sh = self.builder.build_int_sub(nbm1, bi32, "binsh").map_err(Self::err)?;
+                    let shifted = self.builder.build_right_shift(n, sh, false, "binshf").map_err(Self::err)?;
+                    let bit = self.builder.build_and(shifted, self.i32t.const_int(1, false), "binbit").map_err(Self::err)?;
+                    let bc32 = self.builder.build_int_add(bit, self.i32t.const_int(b'0' as u64, false), "binbc").map_err(Self::err)?;
+                    let bc = self.builder.build_int_truncate(bc32, i8t, "binbc8").map_err(Self::err)?;
+                    let bpos = self.builder.build_int_add(base, bi, "binpos").map_err(Self::err)?;
+                    let bep = unsafe { self.builder.build_in_bounds_gep(i8t, r, &[bpos], "binep").map_err(Self::err)? };
+                    self.builder.build_store(bep, bc).map_err(Self::err)?;
+                    self.builder.build_store(bidx, self.builder.build_int_add(bi, self.i64t.const_int(1, false), "binn").map_err(Self::err)?).map_err(Self::err)?;
+                    self.builder.build_unconditional_branch(bh).map_err(Self::err)?;
+                    self.builder.position_at_end(be);
+                    Ok(Some(r.into()))
                 }
                 ("SIGNED$", 1) => {
                     let iv = self.eval_int(&args[0])?;
@@ -3556,6 +3633,40 @@ mod tests {
         assert_eq!(
             String::from_utf8_lossy(&run.stdout),
             "<hi    >\n<    hi>\n<  hi  >\n<ring>\n  1234.50\n$1,234,567.89\n***42\n-    5\namp\n"
+        );
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_bin_and_radix_literals() {
+        use std::io::Write;
+        use std::process::Command;
+        // BIN$/BINB$ (minimal binary of the u32 pattern, negatives -> 32 bits, width pad) and
+        // 0x/0b/0o integer literals (unsigned pattern reinterpreted as i32) mirror the interpreter.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             PRINT BIN$(5)\n\
+             PRINT BIN$(0 - 1)\n\
+             PRINT BIN$(5, 8)\n\
+             PRINT BINB$(6, 4)\n\
+             PRINT 0xFF\n\
+             PRINT 0b101\n\
+             PRINT 0o17\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_bin.o");
+        let exep = dir.join("xb_llvm_bin.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "101\n11111111111111111111111111111111\n00000101\n0b0110\n255\n5\n15\n"
         );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
