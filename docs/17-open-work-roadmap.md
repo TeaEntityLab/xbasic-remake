@@ -46,7 +46,9 @@ ASCII scan/fold/`memset`), **`ASC`/`SGN`/`INT`/`FIX`/`MAX`/`MIN`** numeric built
 **libc math** (`SQRT`/`SIN`/`COS`/`TAN`/`EXP`/`LOG`/`LOG10`/`ATN`/`ATAN`/`ASIN`/`ACOS`/
 `ATAN2`/`SINH`/`COSH`/`TANH`/`CEIL`/`FLOOR`/`ROUND`/`POWER`/`EXP10`/`EXP2` + reciprocal/
 inverse `COT`/`SEC`/`CSC`/`ACOT`/`ASEC`/… via get-or-declare `double f(double)`),
-**`INSTR`** (2-arg, `strstr`), **`STRING$`**, **`CSIZE`**, and
+**`INSTR`** (2-arg, `strstr`), **`STRING$`**, **`CSIZE`**, **`OCT$`/`OCTO$`/`HEXX$`/
+`SIGNED$`/`NULL$`** (radix / signed / NUL-fill), **`LJUST$`/`RJUST$`/`CJUST$`** (branchless
+space pad, no truncation), **`ROTATEL`/`ROTATER`** (32-bit rotate), and
 **`PRINT` comma/semicolon separators** (comma→tab, semicolon→none; one line per `PRINT`,
 matching `exec_print`). All
 string/array semantics parity-checked vs

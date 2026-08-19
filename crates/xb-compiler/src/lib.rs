@@ -1970,6 +1970,42 @@ pub mod llvm_backend {
                     };
                     Ok(Some(self.builder.build_or(a, b, "rot").map_err(Self::err)?.into()))
                 }
+                ("DHIGH", 1) => {
+                    let d = self.eval_float(&args[0])?;
+                    let bits = self.builder.build_bit_cast(d, self.i64t, "dbits").map_err(Self::err)?.into_int_value();
+                    let hi = self.builder.build_right_shift(bits, self.i64t.const_int(32, false), false, "dhi").map_err(Self::err)?;
+                    Ok(Some(self.builder.build_int_truncate(hi, self.i32t, "dhi32").map_err(Self::err)?.into()))
+                }
+                ("DLOW", 1) => {
+                    let d = self.eval_float(&args[0])?;
+                    let bits = self.builder.build_bit_cast(d, self.i64t, "dbits").map_err(Self::err)?.into_int_value();
+                    Ok(Some(self.builder.build_int_truncate(bits, self.i32t, "dlo").map_err(Self::err)?.into()))
+                }
+                ("DMAKE", 2) => {
+                    let hi = self.eval_int(&args[0])?;
+                    let lo = self.eval_int(&args[1])?;
+                    let hi64 = self.builder.build_int_z_extend(hi, self.i64t, "hi64").map_err(Self::err)?;
+                    let lo64 = self.builder.build_int_z_extend(lo, self.i64t, "lo64").map_err(Self::err)?;
+                    let hishift = self.builder.build_left_shift(hi64, self.i64t.const_int(32, false), "hishift").map_err(Self::err)?;
+                    let bits = self.builder.build_or(hishift, lo64, "dmbits").map_err(Self::err)?;
+                    Ok(Some(self.builder.build_bit_cast(bits, self.f64t, "dmake").map_err(Self::err)?))
+                }
+                ("SMAKE", 1) => {
+                    let n = self.eval_int(&args[0])?;
+                    let f = self.builder.build_bit_cast(n, self.ctx.f32_type(), "smf").map_err(Self::err)?.into_float_value();
+                    Ok(Some(self.builder.build_float_ext(f, self.f64t, "smake").map_err(Self::err)?.into()))
+                }
+                ("XMAKE", 1) => {
+                    let d = self.eval_float(&args[0])?;
+                    let f = self.builder.build_float_trunc(d, self.ctx.f32_type(), "xmf").map_err(Self::err)?;
+                    Ok(Some(self.builder.build_bit_cast(f, self.i32t, "xmake").map_err(Self::err)?))
+                }
+                ("GMAKE", 2) => Ok(Some(self.eval_int(&args[1])?.into())),
+                ("GHIGH", 1) => {
+                    let v = self.eval_int(&args[0])?;
+                    Ok(Some(self.builder.build_right_shift(v, self.i32t.const_int(31, false), true, "ghigh").map_err(Self::err)?.into()))
+                }
+                ("GLOW", 1) => Ok(Some(self.eval_int(&args[0])?.into())),
                 ("LEN", 1) => match self.eval_value(&args[0])? {
                     Some(BasicValueEnum::PointerValue(pv)) => {
                         let n32 = self
