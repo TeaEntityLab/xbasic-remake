@@ -1424,9 +1424,10 @@ pub mod llvm_backend {
             Ok(self.builder.build_global_string_ptr(s, "fmt").map_err(Self::err)?.as_pointer_value())
         }
 
-        /// `LJUST$`/`RJUST$`/`CJUST$`: copy `s` into a width-`w` byte-string padded with
-        /// spaces (mode 0=left, 1=right, 2=center). Branchless: out length is `max(len,w)`,
-        /// so an over-long `s` degenerates to a plain copy (zero-byte memsets are no-ops).
+        /// `LJUST$`/`RJUST$`/`CJUST$`: place `s` in a space-padded field (mode 0=left, 1=right,
+        /// 2=center). Left/right keep an over-long `s` whole (out length `max(len,w)`); center
+        /// produces exactly `w`, truncating an over-long `s` to its first `w` bytes. Branchless
+        /// (zero-length memsets are no-ops); `memcpy` preserves embedded NULs.
         fn str_justify(&self, s_arg: &IrExpr, w_arg: &IrExpr, mode: u8) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
             let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(s_arg)? else {
                 return Ok(None);
@@ -1434,10 +1435,17 @@ pub mod llvm_backend {
             let w = self.eval_int(w_arg)?;
             let w64 = self.builder.build_int_s_extend(w, self.i64t, "w64").map_err(Self::err)?;
             let slen = self.str_len(s)?;
+            // Center (mode 2) produces exactly width `w`, truncating an over-long `s` to its
+            // first `w` bytes (matches the interpreter's `s[..width]`); left/right keep the full
+            // string when it is already >= `w` (no truncation), so out length is `max(len, w)`.
             let sgtw = self.builder.build_int_compare(IntPredicate::SGT, slen, w64, "sgtw").map_err(Self::err)?;
-            let outlen = self.builder.build_select(sgtw, slen, w64, "outlen").map_err(Self::err)?.into_int_value();
+            let (copylen, outlen) = if mode == 2 {
+                (self.umin(slen, w64)?, w64)
+            } else {
+                (slen, self.builder.build_select(sgtw, slen, w64, "outlen").map_err(Self::err)?.into_int_value())
+            };
             let r = self.str_new(outlen)?;
-            let pad = self.builder.build_int_sub(outlen, slen, "pad").map_err(Self::err)?;
+            let pad = self.builder.build_int_sub(outlen, copylen, "pad").map_err(Self::err)?;
             let leftpad = match mode {
                 1 => pad,
                 2 => self.builder.build_int_signed_div(pad, self.i64t.const_int(2, false), "lp").map_err(Self::err)?,
@@ -1448,8 +1456,8 @@ pub mod llvm_backend {
             let dst = unsafe {
                 self.builder.build_in_bounds_gep(self.ctx.i8_type(), r, &[leftpad], "jdst").map_err(Self::err)?
             };
-            self.builder.build_call(self.memcpy, &[dst.into(), s.into(), slen.into()], "jmc").map_err(Self::err)?;
-            let ls = self.builder.build_int_add(leftpad, slen, "ls").map_err(Self::err)?;
+            self.builder.build_call(self.memcpy, &[dst.into(), s.into(), copylen.into()], "jmc").map_err(Self::err)?;
+            let ls = self.builder.build_int_add(leftpad, copylen, "ls").map_err(Self::err)?;
             let rightpad = self.builder.build_int_sub(outlen, ls, "rp").map_err(Self::err)?;
             let rstart = unsafe {
                 self.builder.build_in_bounds_gep(self.ctx.i8_type(), r, &[ls], "jrs").map_err(Self::err)?
@@ -1941,6 +1949,29 @@ pub mod llvm_backend {
                 ("LJUST$", 2) => self.str_justify(&args[0], &args[1], 0),
                 ("RJUST$", 2) => self.str_justify(&args[0], &args[1], 1),
                 ("CJUST$", 2) => self.str_justify(&args[0], &args[1], 2),
+                ("LCLIP$", 2) => {
+                    // drop the first `n` bytes
+                    let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(&args[0])? else {
+                        return Ok(None);
+                    };
+                    let n = self.eval_int(&args[1])?;
+                    let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
+                    let slen = self.str_len(s)?;
+                    let off = self.umin(n64, slen)?;
+                    let outlen = self.builder.build_int_sub(slen, off, "lcl").map_err(Self::err)?;
+                    Ok(Some(self.str_copy(s, off, outlen)?.into()))
+                }
+                ("RCLIP$", 2) => {
+                    // drop the last `n` bytes
+                    let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(&args[0])? else {
+                        return Ok(None);
+                    };
+                    let n = self.eval_int(&args[1])?;
+                    let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
+                    let slen = self.str_len(s)?;
+                    let keep = self.usub_sat(slen, n64)?;
+                    Ok(Some(self.str_copy(s, self.i64t.const_zero(), keep)?.into()))
+                }
                 ("HEXX$", 1) => {
                     let iv = self.eval_int(&args[0])?;
                     Ok(Some(self.str_from_int(self.fmt_g("0x%X")?, iv)?.into()))
@@ -3122,14 +3153,17 @@ mod tests {
     fn llvm_backend_compiles_justify_and_radix_builtins() {
         use std::io::Write;
         use std::process::Command;
-        // LJUST$/RJUST$/CJUST$ (branchless pad, no truncation) + OCT$/SIGNED$/NULL$ mirror
-        // the interpreter, including embedded spaces and the over-long passthrough case.
+        // LJUST$/RJUST$ keep over-long input; CJUST$ truncates to width; LCLIP$/RCLIP$ drop
+        // n bytes; OCT$/SIGNED$/NULL$ — all byte-exact vs the interpreter.
         let unit = FrontendUnit::parse(
             "VERSION \"1\"\n\
              PRINT LJUST$(\"hi\", 6)\n\
              PRINT RJUST$(\"hi\", 6)\n\
              PRINT CJUST$(\"hi\", 6)\n\
              PRINT LJUST$(\"toolong\", 4)\n\
+             PRINT CJUST$(\"toolongstring\", 4)\n\
+             PRINT LCLIP$(\"hello\", 2)\n\
+             PRINT RCLIP$(\"hello\", 2)\n\
              PRINT OCT$(64)\n\
              PRINT SIGNED$(5)\n\
              PRINT LEN(NULL$(3))\n",
@@ -3143,7 +3177,7 @@ mod tests {
         let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
-        assert_eq!(String::from_utf8_lossy(&run.stdout), "hi    \n    hi\n  hi  \ntoolong\n100\n+5\n3\n");
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "hi    \n    hi\n  hi  \ntoolong\ntool\nllo\nhel\n100\n+5\n3\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
