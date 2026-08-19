@@ -125,7 +125,7 @@ lever left**. The 10 interpreter-clean programs that still diverge, by root caus
 | Blocker | Programs | Nature |
 |---|---|---|
 | File / record I/O | `acrc32`, `astring`, `arecord` | Real `OPEN`/`GET`/`PUT`/`LOF` on files; the LLVM backend has no file runtime (`LOF`=0, reads empty). Deferred |
-| by-ref `@` array/scalar | `aarray_ISNODE`, `asortie` | Passing `@array$[]` / `@scalar` to a SUB with copy-out (whole-array sharing for the sort); needs a call-site-determined by-ref ABI — large |
+| by-ref `@` **array** | `aarray_ISNODE`, `asortie` | Scalar `@` is done (pointer params sharing the caller's slot — see `llvm_backend_compiles_scalar_byref_params`). These need `@array$[]`, which requires the **array-descriptor ABI**: callees like `StringsToStringArray` `REDIM` the passed array, so arrays must become heap descriptors `{ptr, dims}` passed by pointer. Large; also gated on `ISNODE` / `XstQuickSort` |
 | Task / FUNCADDR system | `atask` | `SUBADDRESS`/`&func()`/timer scheduling — no runtime task system |
 | Real `Xst*` body | `aback` | `XstBinStringToBackString$` etc. have real bodies in `src/linux/xst.x`; needs native linking of that library |
 | Nondeterministic | `atimer` | `TIMER` — not differential-testable |
@@ -140,8 +140,10 @@ representation change warranting explicit scoping. The incremental LLVM roadmap 
 flow** — a GOSUB nested in an `IF`/`FOR`/… now resumes correctly via a per-site *landing
 block* through the `pc`-dispatch, with FOR bound/step hoisted to entry allocas so landing
 re-entry does not break SSA dominance; unblocked `gif`/`gifview`/`aviewbmp`/`MakeDist`/
-`MakeDistLinux`, and 2-arg radix unblocked `asystem`/`amodal`). The residual 10 are the
-large/fundamental efforts tabled above.
+`MakeDistLinux`, 2-arg radix unblocked `asystem`/`amodal`, and **scalar `@` by-ref** now
+lowers as a shared pointer param — corpus-neutral so far since corpus `@scalar` targets are
+interpreter-stubbed Xst functions, but it closes the scalar half of the by-ref gap). The
+residual 10 are the large/fundamental efforts tabled above.
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The

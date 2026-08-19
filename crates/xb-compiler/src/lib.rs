@@ -174,6 +174,7 @@ pub mod llvm_backend {
                 .map_err(CompileError::Llvm)?;
             let ctx = Context::create();
             let mut emit = Emit::new(&ctx)?;
+            emit.byref_params = collect_byref_params(&program.items);
             emit.declare_functions(&program.items);
             emit.emit_body(&program.items)?;
             if let Some(body) = entry_body(&program) {
@@ -240,6 +241,10 @@ pub mod llvm_backend {
         arrays: HashMap<String, (PointerValue<'ctx>, ValueType, Vec<PointerValue<'ctx>>)>,
         /// Set while emitting a label-bearing body; routes jumps to the dispatch block.
         sm: Option<SmCtx<'ctx>>,
+        /// Per-function parameter positions passed by-ref as `@scalar` at every call site
+        /// (never by-value): lowered as pointer params sharing the caller's slot. Array `@`
+        /// (which needs the array-descriptor ABI) is excluded.
+        byref_params: HashMap<String, std::collections::HashSet<usize>>,
     }
 
     impl<'ctx> Emit<'ctx> {
@@ -312,6 +317,7 @@ pub mod llvm_backend {
                 memcmp,
                 arrays: HashMap::new(),
                 sm: None,
+                byref_params: HashMap::new(),
                 vars: HashMap::new(),
                 funcs: HashMap::new(),
                 cur_fn: main,
@@ -490,9 +496,17 @@ pub mod llvm_backend {
                     if entry.as_deref() == Some(name.as_str()) {
                         continue;
                     }
+                    let refset = self.byref_params.get(name);
                     let pts: Vec<BasicMetadataTypeEnum> = params
                         .iter()
-                        .map(|p| self.llvm_type(p.value_type).into())
+                        .enumerate()
+                        .map(|(i, p)| {
+                            if refset.is_some_and(|r| r.contains(&i)) {
+                                self.ptr.into()
+                            } else {
+                                self.llvm_type(p.value_type).into()
+                            }
+                        })
                         .collect();
                     let fty = match return_type {
                         ValueType::String => self.ptr.fn_type(&pts, false),
@@ -521,10 +535,20 @@ pub mod llvm_backend {
                     self.cur_ret = *return_type;
                     let bb = self.ctx.append_basic_block(f, "entry");
                     self.builder.position_at_end(bb);
+                    let refset = self.byref_params.get(name).cloned();
                     for (i, p) in params.iter().enumerate() {
-                        let slot = self.get_or_alloca(&p.name, p.value_type)?;
-                        if let Some(arg) = f.get_nth_param(i as u32) {
-                            self.builder.build_store(slot, arg).map_err(Self::err)?;
+                        let arg = f.get_nth_param(i as u32);
+                        if refset.as_ref().is_some_and(|r| r.contains(&i)) {
+                            // By-ref param: the LLVM arg is a pointer to the caller's slot;
+                            // use it directly as this variable's slot so reads/writes share it.
+                            if let Some(a) = arg {
+                                self.vars.insert(p.name.clone(), (a.into_pointer_value(), p.value_type));
+                            }
+                        } else {
+                            let slot = self.get_or_alloca(&p.name, p.value_type)?;
+                            if let Some(a) = arg {
+                                self.builder.build_store(slot, a).map_err(Self::err)?;
+                            }
                         }
                     }
                     self.emit_body(body)?;
@@ -1159,6 +1183,16 @@ pub mod llvm_backend {
         fn eval_value(&self, expr: &IrExpr) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
             Ok(match &expr.kind {
                 IrExprKind::StringLiteral(s) => Some(self.str_const(s.as_bytes())?.into()),
+                IrExprKind::ByRef(inner) => {
+                    // `@scalar`: pass a pointer to the caller's variable slot, shared with a
+                    // by-ref pointer param. Array `@` (name not in `vars`) → None (call
+                    // skipped, as before) until the array-descriptor ABI lands.
+                    if let IrExprKind::Symbol(sym) = &inner.kind {
+                        self.vars.get(&sym.name).map(|(slot, _)| (*slot).into())
+                    } else {
+                        None
+                    }
+                }
                 IrExprKind::IntegerLiteral(v) => {
                     // Mirror the interpreter's `parse_integer`: 0x/0b/0o + decimal, reinterpreting
                     // unsigned 32/64-bit bit patterns as i32 (e.g. 0xEDB88320, 0b100…001).
@@ -2734,6 +2768,179 @@ pub mod llvm_backend {
         }
     }
 
+    /// Names DIM'd as arrays anywhere in the program — used to tell an `@array` pass (which
+    /// needs the deferred array-descriptor ABI) from an `@scalar` pass.
+    fn collect_array_names(items: &[IrItem], out: &mut std::collections::HashSet<String>) {
+        for it in items {
+            match it {
+                IrItem::Dim { symbol, is_array: true, .. } => {
+                    out.insert(symbol.name.clone());
+                }
+                IrItem::Function { body, .. }
+                | IrItem::While { body, .. }
+                | IrItem::For { body, .. }
+                | IrItem::DoLoop { body, .. } => collect_array_names(body, out),
+                IrItem::If { then_body, else_body, .. } => {
+                    collect_array_names(then_body, out);
+                    if let Some(b) = else_body {
+                        collect_array_names(b, out);
+                    }
+                }
+                IrItem::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        collect_array_names(&c.body, out);
+                    }
+                    if let Some(b) = default {
+                        collect_array_names(b, out);
+                    }
+                }
+                IrItem::Compound(items) => collect_array_names(items, out),
+                _ => {}
+            }
+        }
+    }
+
+    /// Visit every call (`Call` item and `FunctionCall` expr) with its callee name and args.
+    fn walk_calls(items: &[IrItem], cb: &mut dyn FnMut(&str, &[IrExpr])) {
+        for it in items {
+            match it {
+                IrItem::Call { name, args } => {
+                    cb(name, args);
+                    for a in args {
+                        walk_expr_calls(a, cb);
+                    }
+                }
+                IrItem::Assignment { value, .. } => walk_expr_calls(value, cb),
+                IrItem::ArrayAssignment { index, extra_indices, value, .. } => {
+                    walk_expr_calls(index, cb);
+                    for e in extra_indices {
+                        walk_expr_calls(e, cb);
+                    }
+                    walk_expr_calls(value, cb);
+                }
+                IrItem::Print { items, .. } => {
+                    for e in items {
+                        walk_expr_calls(e, cb);
+                    }
+                }
+                IrItem::If { condition, then_body, else_body } => {
+                    walk_expr_calls(condition, cb);
+                    walk_calls(then_body, cb);
+                    if let Some(b) = else_body {
+                        walk_calls(b, cb);
+                    }
+                }
+                IrItem::While { condition, body } => {
+                    walk_expr_calls(condition, cb);
+                    walk_calls(body, cb);
+                }
+                IrItem::DoLoop { pre_condition, post_condition, body } => {
+                    if let Some((c, _)) = pre_condition {
+                        walk_expr_calls(c, cb);
+                    }
+                    if let Some((c, _)) = post_condition {
+                        walk_expr_calls(c, cb);
+                    }
+                    walk_calls(body, cb);
+                }
+                IrItem::For { start, end, step, body, .. } => {
+                    walk_expr_calls(start, cb);
+                    walk_expr_calls(end, cb);
+                    if let Some(s) = step {
+                        walk_expr_calls(s, cb);
+                    }
+                    walk_calls(body, cb);
+                }
+                IrItem::SelectCase { selector, cases, default } => {
+                    walk_expr_calls(selector, cb);
+                    for c in cases {
+                        for cond in &c.conditions {
+                            walk_expr_calls(cond, cb);
+                        }
+                        walk_calls(&c.body, cb);
+                    }
+                    if let Some(b) = default {
+                        walk_calls(b, cb);
+                    }
+                }
+                IrItem::Function { body, .. } => walk_calls(body, cb),
+                IrItem::Compound(inner) => walk_calls(inner, cb),
+                IrItem::Return { value: Some(v) } => walk_expr_calls(v, cb),
+                IrItem::GosubExpr(e) | IrItem::GotoExpr(e) => walk_expr_calls(e, cb),
+                _ => {}
+            }
+        }
+    }
+
+    fn walk_expr_calls(e: &IrExpr, cb: &mut dyn FnMut(&str, &[IrExpr])) {
+        match &e.kind {
+            IrExprKind::FunctionCall { name, args } => {
+                cb(name, args);
+                for a in args {
+                    walk_expr_calls(a, cb);
+                }
+            }
+            IrExprKind::ByRef(inner)
+            | IrExprKind::Not(inner)
+            | IrExprKind::Unary { operand: inner, .. } => walk_expr_calls(inner, cb),
+            IrExprKind::Comparison { left, right, .. }
+            | IrExprKind::Arithmetic { left, right, .. }
+            | IrExprKind::Boolean { left, right, .. }
+            | IrExprKind::Logical { left, right, .. } => {
+                walk_expr_calls(left, cb);
+                walk_expr_calls(right, cb);
+            }
+            IrExprKind::ArrayAccess { index, extra_indices, .. } => {
+                walk_expr_calls(index, cb);
+                for e in extra_indices {
+                    walk_expr_calls(e, cb);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// `@scalar` by-ref parameter positions per function: a position passed `ByRef` of a
+    /// non-array symbol at ≥1 call site and never any other way (so lowering it as a shared
+    /// pointer is always safe). Array `@` is excluded — it needs the array-descriptor ABI.
+    fn collect_byref_params(items: &[IrItem]) -> HashMap<String, std::collections::HashSet<usize>> {
+        use std::collections::HashSet;
+        let mut arrays: HashSet<String> = HashSet::new();
+        collect_array_names(items, &mut arrays);
+        let mut byref: HashMap<String, HashSet<usize>> = HashMap::new();
+        let mut other: HashMap<String, HashSet<usize>> = HashMap::new();
+        {
+            let mut on_call = |name: &str, args: &[IrExpr]| {
+                for (i, a) in args.iter().enumerate() {
+                    let scalar_ref = match &a.kind {
+                        IrExprKind::ByRef(inner) => {
+                            matches!(&inner.kind, IrExprKind::Symbol(s) if !arrays.contains(&s.name))
+                        }
+                        _ => false,
+                    };
+                    if scalar_ref {
+                        byref.entry(name.to_string()).or_default().insert(i);
+                    } else {
+                        other.entry(name.to_string()).or_default().insert(i);
+                    }
+                }
+            };
+            walk_calls(items, &mut on_call);
+        }
+        let mut result: HashMap<String, HashSet<usize>> = HashMap::new();
+        for (name, positions) in byref {
+            let excluded = other.get(&name);
+            let refset: HashSet<usize> = positions
+                .into_iter()
+                .filter(|p| excluded.is_none_or(|e| !e.contains(p)))
+                .collect();
+            if !refset.is_empty() {
+                result.insert(name, refset);
+            }
+        }
+        result
+    }
+
     /// True if a body has top-level labels/GOSUB/GOTO (needs state-machine emission).
     fn body_has_labels(items: &[IrItem]) -> bool {
         items.iter().any(|it| {
@@ -3810,6 +4017,48 @@ mod tests {
             String::from_utf8_lossy(&run.stdout),
             "0x0000000000000000\n0x00FF\n00FF\n0o0010\n0010\n0xFFFFFFFF\n"
         );
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_scalar_byref_params() {
+        use std::io::Write;
+        use std::process::Command;
+        // An `@scalar` argument shares the caller's variable slot with a pointer param, so
+        // the callee's writes are visible on return (matches the interpreter's copy-out).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             DECLARE FUNCTION Bump (@n)\n\
+             DECLARE FUNCTION SetHi (@s$)\n\
+             FUNCTION Entry ()\n\
+             x = 5\n\
+             Bump (@x)\n\
+             PRINT x\n\
+             a$ = \"lo\"\n\
+             SetHi (@a$)\n\
+             PRINT \"[\"; a$; \"]\"\n\
+             END FUNCTION\n\
+             FUNCTION Bump (@n)\n\
+             n = n + 1\n\
+             END FUNCTION\n\
+             FUNCTION SetHi (@s$)\n\
+             s$ = \"hi\"\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_br.o");
+        let exep = dir.join("xb_llvm_br.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "6\n[hi]\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
