@@ -1644,9 +1644,9 @@ pub mod llvm_backend {
                     }
                 }
                 IrExprKind::Comparison { op, left, right } => {
-                    let c = if left.value_type == ValueType::String
-                        || right.value_type == ValueType::String
-                    {
+                    let ls = left.value_type == ValueType::String;
+                    let rs = right.value_type == ValueType::String;
+                    let c = if ls && rs {
                         let (
                             Some(BasicValueEnum::PointerValue(a)),
                             Some(BasicValueEnum::PointerValue(b)),
@@ -1666,6 +1666,29 @@ pub mod llvm_backend {
                         self.builder
                             .build_int_compare(pred, r, self.i32t.const_zero(), "scmp")
                             .map_err(Self::err)?
+                    } else if ls || rs {
+                        // string vs number: compare the string's byte length to the number, so
+                        // `s$ == 0` (`IFZ s$`) tests emptiness — mirrors the interpreter.
+                        let (sexpr, nexpr, str_left) =
+                            if ls { (left, right, true) } else { (right, left, false) };
+                        let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(sexpr)? else {
+                            return Ok(None);
+                        };
+                        let slen = self
+                            .builder
+                            .build_int_truncate(self.str_len(s)?, self.i32t, "slen32")
+                            .map_err(Self::err)?;
+                        let n = self.eval_int(nexpr)?;
+                        let (a, b) = if str_left { (slen, n) } else { (n, slen) };
+                        let pred = match op {
+                            ComparisonOp::Equal => IntPredicate::EQ,
+                            ComparisonOp::NotEqual => IntPredicate::NE,
+                            ComparisonOp::Less => IntPredicate::SLT,
+                            ComparisonOp::Greater => IntPredicate::SGT,
+                            ComparisonOp::LessEqual => IntPredicate::SLE,
+                            ComparisonOp::GreaterEqual => IntPredicate::SGE,
+                        };
+                        self.builder.build_int_compare(pred, a, b, "slcmp").map_err(Self::err)?
                     } else if left.value_type == ValueType::Float
                         || right.value_type == ValueType::Float
                     {
@@ -5341,6 +5364,41 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "before\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_string_vs_number_comparison() {
+        use std::io::Write;
+        use std::process::Command;
+        // A string compared to a number uses its length, so `IFZ s$` (lowered to `s$ == 0`)
+        // tests emptiness — matching the interpreter. Empty string → prints "s-empty";
+        // non-empty "hello" → the second IFZ is false. Prints "s-empty\ndone". Regression
+        // guard for `qbtoxb` (`IFZ qfile$`).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             s$ = \"\"\n\
+             IFZ s$ THEN PRINT \"s-empty\"\n\
+             t$ = \"hello\"\n\
+             IFZ t$ THEN PRINT \"t-empty\"\n\
+             PRINT \"done\"\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_ifzs.o");
+        let exep = dir.join("xb_llvm_ifzs.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "s-empty\ndone\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }

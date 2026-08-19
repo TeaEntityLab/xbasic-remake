@@ -118,22 +118,31 @@ in the LLVM backend): a string value is now a length-prefixed `ptr` (`i64` lengt
 byte-accurate through concat / `LEN` / `PRINT` / comparison (`putchar` loop + `memcmp`
 with a length tiebreak), not truncated at the first NUL by `printf("%s")`. Proven
 byte-exact (`AB\0CD`) and locked by `llvm_backend_compiles_embedded_nul_strings`.
-All **105/105 interpreter-clean programs now compile to byte-faithful native binaries**
+All **106/106 interpreter-clean programs now compile to byte-faithful native binaries**
 (`diverge=0`, `compile-fails=0`, re-measured this session). There are **no remaining
-blockers** for interpreter-clean programs. This session cleared the last of them — including
-`atask`, whose earlier "task-runtime" classification was wrong: it never reaches its message
-loop, exiting first via `IFZ assigned THEN RETURN` (a bare `RETURN`, which lowers to
-GosubReturn). That needed the **GosubReturn-halt** fix (a bare `RETURN` with no GOSUB in
-flight halts the function, matching the interpreter's empty-stack semantics) plus the
-**unary-negation** fix (`count = -1` → `Unary{Neg}`, previously unhandled → the assignment
-was silently dropped).
+blockers** for interpreter-clean programs — every non-platform-dependent legacy program is
+workable *and* AOT-faithful. This session cleared the last of them:
+- `atask`, whose earlier "task-runtime" classification was wrong — it never reaches its
+  message loop, exiting first via `IFZ assigned THEN RETURN` (a bare `RETURN` → GosubReturn).
+  Needed the **GosubReturn-halt** fix (bare `RETURN` with no GOSUB in flight halts the
+  function) + the **unary-negation** fix (`count = -1` → `Unary{Neg}`, previously dropped).
+- `qbtoxb` (a QuickBASIC→XBasic translator) — the interpreter *itself* errored on it, an
+  input-independent bug: `IFZ qfile$` lowers to `qfile$ == 0` (String vs Integer), which
+  had no comparison rule. A **string compared to a number now uses its byte length** (so
+  `IFZ s$` tests emptiness), fixed in both the interpreter (`compare.rs`) and the LLVM
+  backend. It grew the interpreter-clean set from 105 to 106.
+
+The remaining 45 corpus programs (40 interpreter message-loop timeouts + 5 errors —
+`DrawScaled`, `acgibin`, `agrids`, `warning`, `xgrids`) are **all platform-dependent**
+(GUI/graphics/`Xgr`/`Xui`, CGI), out of the "except platform dependencies" scope; they need
+the GUI runtime (`docs/12`), not compiler work.
 
 | Blocker | Programs | Nature |
 |---|---|---|
-| _(none)_ | — | All 105 interpreter-clean programs are byte-faithful. |
+| _(none, non-platform)_ | — | All 106 interpreter-clean programs are byte-faithful. |
 
 The incremental LLVM roadmap is at
-**105/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; byte-faithful
+**106/106 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; byte-faithful
 PRINT output — high bytes/NULs raw, unblocked `aback`/`acharmap`; `MID$`/`s${n}=v` byte-
 assignment (copy-on-write) + auto-vivified-scalar prealloc, unblocked `acharmap`; `$$`
 constant evaluation + the `OPEN`/`CLOSE`/`LOF`/`WRITE`/`READ` file runtime, unblocked
@@ -148,7 +157,9 @@ was wrong — `XstQuickSort` is stubbed in both, so the *unsorted* arrays alread
 **unary negation** (`-1` → `Unary{Neg}`, previously dropped) + **bare-`RETURN` halt**
 (GosubReturn with no GOSUB in flight returns from the function), unblocked `atask` (which
 `IFZ assigned THEN RETURN`s before its message loop — never the task/GUI runtime it was
-mis-classified as needing); `FORMAT$` +
+mis-classified as needing); **string-vs-number comparison by byte length** (`IFZ s$` →
+`s$ == 0` tests emptiness), fixed in interpreter + backend, unblocked `qbtoxb` (an
+input-independent interpreter error, not just a backend gap); `FORMAT$` +
 `CHR$(c,count)`, `BIN$`/`BINB$`, `0b`/`0o` literals, width-padded `HEXX$`/`HEX$`/`OCTO$`/
 `OCT$` (2-arg); unknown-call + undefined-variable zero-defaults; and **nested-GOSUB control
 flow** — a GOSUB nested in an `IF`/`FOR`/… now resumes correctly via a per-site *landing
@@ -156,7 +167,7 @@ block* through the `pc`-dispatch, with FOR bound/step hoisted to entry allocas s
 re-entry does not break SSA dominance; unblocked `gif`/`gifview`/`aviewbmp`/`MakeDist`/
 `MakeDistLinux`, 2-arg radix unblocked `asystem`/`amodal`, **scalar `@` by-ref** lowers as a
 shared pointer param, and **read-only 1-D `@array[]` by-ref** (a `{data, dims}` descriptor)
-unblocked `aarray_ISNODE`). **Every interpreter-clean program is now byte-faithful (105/105);
+unblocked `aarray_ISNODE`). **Every interpreter-clean program is now byte-faithful (106/106);
 no residual blockers remain.**
 
 ### `@array` effort — verified scoping notes `[2026-08-19]`

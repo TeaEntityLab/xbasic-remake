@@ -702,3 +702,18 @@ fn print_output_is_byte_faithful_for_high_bytes() {
         .unwrap();
     assert_eq!(output, ["\u{c8}\u{ff}"]);
 }
+
+#[test]
+fn ifz_on_string_tests_emptiness() {
+    // `IFZ s$` lowers to `s$ == 0`; a string compared against a number uses its length, so an
+    // empty string is "zero" (IFZ true) and a non-empty one is not. Regression guard for the
+    // String-vs-number comparison that unblocked `qbtoxb` (`IFZ qfile$`).
+    let program = lower(
+        "VERSION \"1\"\nFUNCTION Main\ns$ = \"\"\nIFZ s$ THEN PRINT \"empty\"\nt$ = \"x\"\nIFZ t$ THEN PRINT \"t\"\nPRINT \"done\"\nEND FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["empty", "done"]);
+}
