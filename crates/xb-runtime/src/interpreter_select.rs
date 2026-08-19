@@ -94,7 +94,7 @@ pub(crate) fn exec_print(
                 continue;
             }
         }
-        line.push_str(&eval(program, expr, state)?.render());
+        line.push_str(&eval(program, expr, state)?.render_faithful());
     }
     output.push(line);
     Ok(())

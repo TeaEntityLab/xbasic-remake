@@ -688,3 +688,17 @@ fn two_dim_array_cells_are_distinct() {
         .unwrap();
     assert_eq!(output, ["7", "9"]);
 }
+
+#[test]
+fn print_output_is_byte_faithful_for_high_bytes() {
+    // High bytes (0x80–0xFF) must survive PRINT byte-for-byte — one `char` (0–255) per
+    // source byte — instead of a UTF-8-lossy decode that maps them to U+FFFD. The CLI
+    // writes each such char back as a raw byte, so `--run` output matches the compiled
+    // backends. Regression guard for RT-BYTESTRING (fixes `aback`/`acharmap` output).
+    let program = lower("VERSION \"1\"\nFUNCTION Main\nPRINT CHR$(200) + CHR$(255)\nEND FUNCTION\n");
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["\u{c8}\u{ff}"]);
+}

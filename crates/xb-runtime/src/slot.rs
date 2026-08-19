@@ -42,6 +42,16 @@ impl RuntimeValue {
         }
     }
 
+    /// Like `render`, but a byte-string is mapped byte-for-byte to chars (each byte → one
+    /// `char` 0–255) instead of a UTF-8-lossy decode, so PRINT output preserves high bytes
+    /// (0x80–0xFF) and embedded NULs. The CLI writes each char back as a raw byte.
+    pub(crate) fn render_faithful(&self) -> String {
+        match self {
+            Self::String(value) => value.iter().map(|&b| b as char).collect(),
+            other => other.render(),
+        }
+    }
+
     /// Build a string value from UTF-8 text.
     pub(crate) fn from_str(s: &str) -> Self {
         Self::String(s.as_bytes().to_vec())
