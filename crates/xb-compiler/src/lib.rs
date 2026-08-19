@@ -1619,6 +1619,36 @@ pub mod llvm_backend {
             self.str_from_cstr(tmp)
         }
 
+        /// `snprintf(fmt, width, iv)` into a `width + 16` scratch buffer, returned as a
+        /// byte-string. For width-padded radix formats (`0x%0*X`, `%0*o`, …) where `*`
+        /// consumes the runtime width — mirrors the interpreter's 2-arg HEXX$/HEX$/OCT$.
+        fn str_from_int_width(
+            &self,
+            fmt: PointerValue<'ctx>,
+            width: IntValue<'ctx>,
+            iv: IntValue<'ctx>,
+        ) -> Result<PointerValue<'ctx>, CompileError> {
+            let w64 = self.builder.build_int_s_extend(width, self.i64t, "w64").map_err(Self::err)?;
+            let size =
+                self.builder.build_int_add(w64, self.i64t.const_int(16, false), "hxsz").map_err(Self::err)?;
+            let tmp = self
+                .builder
+                .build_call(self.calloc, &[size.into(), self.i64t.const_int(1, false).into()], "hxbuf")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                .into_pointer_value();
+            self.builder
+                .build_call(
+                    self.snprintf,
+                    &[tmp.into(), size.into(), fmt.into(), width.into(), iv.into()],
+                    "hxnum",
+                )
+                .map_err(Self::err)?;
+            self.str_from_cstr(tmp)
+        }
+
         /// Write a byte-string to stdout via a `putchar` loop over its length (handles
         /// embedded NULs; shares libc's stdout buffer with `printf` so ordering is kept).
         fn str_print(&self, s: PointerValue<'ctx>) -> Result<(), CompileError> {
@@ -2471,6 +2501,26 @@ pub mod llvm_backend {
                 ("OCTO$", 1) => {
                     let iv = self.eval_int(&args[0])?;
                     Ok(Some(self.str_from_int(self.fmt_g("0o%o")?, iv)?.into()))
+                }
+                ("HEXX$", 2) => {
+                    let iv = self.eval_int(&args[0])?;
+                    let w = self.eval_int(&args[1])?;
+                    Ok(Some(self.str_from_int_width(self.fmt_g("0x%0*X")?, w, iv)?.into()))
+                }
+                ("HEX$", 2) => {
+                    let iv = self.eval_int(&args[0])?;
+                    let w = self.eval_int(&args[1])?;
+                    Ok(Some(self.str_from_int_width(self.fmt_g("%0*X")?, w, iv)?.into()))
+                }
+                ("OCTO$", 2) => {
+                    let iv = self.eval_int(&args[0])?;
+                    let w = self.eval_int(&args[1])?;
+                    Ok(Some(self.str_from_int_width(self.fmt_g("0o%0*o")?, w, iv)?.into()))
+                }
+                ("OCT$", 2) => {
+                    let iv = self.eval_int(&args[0])?;
+                    let w = self.eval_int(&args[1])?;
+                    Ok(Some(self.str_from_int_width(self.fmt_g("%0*o")?, w, iv)?.into()))
                 }
                 ("ROTATEL", 2) | ("ROTATER", 2) => {
                     // n %= 32; ROTATEL = (v<<n)|(v>>((32-n)%32)); ROTATER swaps the shifts.
@@ -3726,6 +3776,39 @@ mod tests {
         assert_eq!(
             String::from_utf8_lossy(&run.stdout),
             "101\n11111111111111111111111111111111\n00000101\n0b0110\n255\n5\n15\n"
+        );
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_width_radix_builtins() {
+        use std::io::Write;
+        use std::process::Command;
+        // 2-arg HEXX$/HEX$/OCTO$/OCT$ zero-pad the digits to the given width (prefix kept),
+        // mirroring the interpreter — regression guard for asystem.x's HEXX$(endian$$, 16).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             PRINT HEXX$(0, 16)\n\
+             PRINT HEXX$(255, 4)\n\
+             PRINT HEX$(255, 4)\n\
+             PRINT OCTO$(8, 4)\n\
+             PRINT OCT$(8, 4)\n\
+             PRINT HEXX$(0 - 1, 8)\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_wr.o");
+        let exep = dir.join("xb_llvm_wr.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "0x0000000000000000\n0x00FF\n00FF\n0o0010\n0010\n0xFFFFFFFF\n"
         );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);

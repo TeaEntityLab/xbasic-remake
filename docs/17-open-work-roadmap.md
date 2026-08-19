@@ -95,7 +95,7 @@ The `llvm` path is behind the `xb-cli` `llvm` feature (`--features llvm`, forwar
 cli_backend_llvm_errors_when_feature_disabled (feature off)}`.
 
 **Reach `[verified 2026-08-18]`:** a differential sweep (LLVM-native vs `xb --run`
-over `xbasic-6.4.5/**/*.x`) finds **93 programs** produce **byte-identical** native
+over `xbasic-6.4.5/**/*.x`) finds **95 programs** produce **byte-identical** native
 output (up from 61 pre-`GOSUB`, 79 pre-FORMAT$, 84 pre-arotate), with **0** invalid-IR compile-fails — every runnable
 corpus program now emits valid IR (`module.verify()` gates it). Guarded by
 `cli.rs::cli_llvm_matches_interpreter_on_corpus_programs` (curated rich-output subset:
@@ -119,29 +119,29 @@ byte-accurate through concat / `LEN` / `PRINT` / comparison (`putchar` loop + `m
 with a length tiebreak), not truncated at the first NUL by `printf("%s")`. Proven
 byte-exact (`AB\0CD`) and locked by `llvm_backend_compiles_embedded_nul_strings`.
 Remaining gates to higher reach — all deferred-large or fundamental, **no bounded
-lever left**. The 12 interpreter-clean programs that still diverge, by root cause
-(nested-GOSUB control flow was resolved this session; see the summary below):
+lever left**. The 10 interpreter-clean programs that still diverge, by root cause
+(nested-GOSUB and width-radix builtins were resolved this session; see the summary):
 
 | Blocker | Programs | Nature |
 |---|---|---|
 | File / record I/O | `acrc32`, `astring`, `arecord` | Real `OPEN`/`GET`/`PUT`/`LOF` on files; the LLVM backend has no file runtime (`LOF`=0, reads empty). Deferred |
-| by-ref `@` array/scalar | `aarray_ISNODE`, `asystem` | Passing `@array$[]` / `@scalar` to a SUB with copy-out; needs a call-site-determined by-ref ABI — large |
+| by-ref `@` array/scalar | `aarray_ISNODE`, `asortie` | Passing `@array$[]` / `@scalar` to a SUB with copy-out (whole-array sharing for the sort); needs a call-site-determined by-ref ABI — large |
 | Task / FUNCADDR system | `atask` | `SUBADDRESS`/`&func()`/timer scheduling — no runtime task system |
 | Real `Xst*` body | `aback` | `XstBinStringToBackString$` etc. have real bodies in `src/linux/xst.x`; needs native linking of that library |
-| GUI | `amodal` | `Xui` message loop — winit+softbuffer runtime (docs/12) |
 | Nondeterministic | `atimer` | `TIMER` — not differential-testable |
 | Environment-dependent | `aprofile` | Interpreter reads a missing profile file and exits empty; the backend's differing early-exit path emits a stub line — low-value parity |
-| Mixed | `acharmap`, `asortie` | Combinations of the above |
+| Interpreter encoding | `acharmap` | The interpreter renders high bytes (128–255) as UTF-8 replacement chars (lossy `String::from_utf8_lossy`); the backend emits raw bytes (the *correct* XBasic behavior). A reference-semantics mismatch, not a backend bug |
 
 None is a single high-value unlock; each is a documented large effort or a fundamental
 representation change warranting explicit scoping. The incremental LLVM roadmap is at
-**93/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; `FORMAT$` +
-`CHR$(c,count)`, `BIN$`/`BINB$`, `0b`/`0o` literals; unknown-call + undefined-variable
-zero-defaults; and **nested-GOSUB control flow** — a GOSUB nested in an `IF`/`FOR`/… now
-resumes correctly via a per-site *landing block* through the `pc`-dispatch, with FOR loop
-bound/step hoisted to entry allocas so the landing re-entry does not break SSA dominance;
-unblocked `gif`, `gifview`, `aviewbmp`, `MakeDist`, `MakeDistLinux`). The residual 12 are
-the large/fundamental efforts tabled above.
+**95/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; `FORMAT$` +
+`CHR$(c,count)`, `BIN$`/`BINB$`, `0b`/`0o` literals, width-padded `HEXX$`/`HEX$`/`OCTO$`/
+`OCT$` (2-arg); unknown-call + undefined-variable zero-defaults; and **nested-GOSUB control
+flow** — a GOSUB nested in an `IF`/`FOR`/… now resumes correctly via a per-site *landing
+block* through the `pc`-dispatch, with FOR bound/step hoisted to entry allocas so landing
+re-entry does not break SSA dominance; unblocked `gif`/`gifview`/`aviewbmp`/`MakeDist`/
+`MakeDistLinux`, and 2-arg radix unblocked `asystem`/`amodal`). The residual 10 are the
+large/fundamental efforts tabled above.
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
