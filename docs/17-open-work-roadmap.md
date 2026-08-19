@@ -95,7 +95,7 @@ The `llvm` path is behind the `xb-cli` `llvm` feature (`--features llvm`, forwar
 cli_backend_llvm_errors_when_feature_disabled (feature off)}`.
 
 **Reach `[verified 2026-08-18]`:** a differential sweep (LLVM-native vs `xb --run`
-over `xbasic-6.4.5/**/*.x`) finds **85 programs** produce **byte-identical** native
+over `xbasic-6.4.5/**/*.x`) finds **87 programs** produce **byte-identical** native
 output (up from 61 pre-`GOSUB`, 79 pre-FORMAT$, 84 pre-arotate), with **0** invalid-IR compile-fails — every runnable
 corpus program now emits valid IR (`module.verify()` gates it). Guarded by
 `cli.rs::cli_llvm_matches_interpreter_on_corpus_programs` (curated rich-output subset:
@@ -131,11 +131,15 @@ lever left** (the 26 non-faithful interpreter-clean programs, categorized by roo
 
 None is a single high-value unlock; each is a documented large effort or a fundamental
 representation change warranting explicit scoping. The incremental, low-risk LLVM roadmap
-is at **85/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; `FORMAT$` +
+is at **87/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; `FORMAT$` +
 `CHR$(c,count)`, `BIN$`/`BINB$`, and `0b`/`0o` literals added — string align + numeric
-`#`/`.`/`,`/`$`/`*`/sign patterns, byte-exact). The remaining 20 non-faithful are **18 `Xst*`**
-(platform library: needs native linking of `src/linux/xst.x` + a call-site by-ref `@` ABI),
-**1 file-record I/O**, and **1 GUI** (`amodal`, `Xui`) — all large efforts, not bounded builtins.
+`#`/`.`/`,`/`$`/`*`/sign patterns, byte-exact; unknown non-builtin calls now stub to the
+interpreter's zero-default, unblocking `adatadim` + 1 more). The remaining 18 non-faithful are
+**not** a single `Xst*` cluster — those `Xst*` references are interpreter-stubbed no-ops in both
+backends now; the real divergences are diverse: **file-record I/O** (`astring`), **environment-
+dependent** output (`aprofile` — interpreter itself empty), **`Xst*` platform helpers with real
+bodies** (native `src/linux/xst.x` linking + call-site by-ref `@` ABI), and **1 GUI** (`amodal`,
+`Xui`) — all large efforts, not bounded builtins.
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The

@@ -16,6 +16,7 @@ mod diagnostic;
 #[cfg(test)]
 mod diagnostic_tests;
 mod entry_lookup;
+pub mod is_builtin;
 pub mod ir;
 mod ir_lower;
 #[cfg(test)]
@@ -748,14 +749,16 @@ pub mod llvm_backend {
                 IrItem::Assignment { target, value } => {
                     if let Some(v) = self.eval_value(value)? {
                         let slot = self.get_or_alloca(&target.name, target.value_type)?;
+                        let v = self.coerce_to(v, self.llvm_type(target.value_type).into())?;
                         self.builder.build_store(slot, v).map_err(Self::err)?;
                     }
                 }
                 IrItem::ArrayAssignment { target, index, extra_indices, value } => {
-                    if let (Some(v), Some((ep, _))) = (
+                    if let (Some(v), Some((ep, elem))) = (
                         self.eval_value(value)?,
                         self.array_elem_ptr(&target.name, index, extra_indices)?,
                     ) {
+                        let v = self.coerce_to(v, self.llvm_type(elem).into())?;
                         self.builder.build_store(ep, v).map_err(Self::err)?;
                     }
                 }
@@ -1279,7 +1282,19 @@ pub mod llvm_backend {
                         return Ok(Some(v));
                     }
                     let Some(&f) = self.funcs.get(name) else {
-                        return Ok(None); // unsupported builtin or unknown function (deferred)
+                        // Unknown callee. Mirror the interpreter's `call_function`
+                        // stub (call.rs): a non-builtin, non-user function yields the
+                        // zero-default (`""` for a `$`-suffixed name, else `0`), while a
+                        // *deferred* builtin (interp-implemented, not yet in the backend)
+                        // is skipped so we never emit a wrong constant for it.
+                        if crate::is_builtin::is_builtin(name) {
+                            return Ok(None); // deferred builtin
+                        }
+                        return Ok(Some(if name.ends_with('$') {
+                            self.str_const(b"")?.into()
+                        } else {
+                            self.i32t.const_zero().into()
+                        }));
                     };
                     let Some(argv) = self.eval_args(f, args)? else {
                         return Ok(None);
@@ -3668,6 +3683,44 @@ mod tests {
             String::from_utf8_lossy(&run.stdout),
             "101\n11111111111111111111111111111111\n00000101\n0b0110\n255\n5\n15\n"
         );
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_stubs_unknown_calls_like_interpreter() {
+        use std::io::Write;
+        use std::process::Command;
+        // A call to a non-builtin, non-user function is a stub: the interpreter
+        // (call.rs) returns 0 / "" by `$`-suffix, coerced to the target type. The
+        // backend must match (previously it left the target unchanged).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             x = 9\n\
+             x = UndefinedFunc (5)\n\
+             PRINT x\n\
+             s$ = \"keep\"\n\
+             s$ = UndefinedStr$ (2)\n\
+             PRINT \"[\"; s$; \"]\"\n\
+             DIM f#\n\
+             f# = UndefFloat (1)\n\
+             PRINT f#\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_stub.o");
+        let exep = dir.join("xb_llvm_stub.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "0\n[]\n0\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
