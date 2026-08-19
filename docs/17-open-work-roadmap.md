@@ -47,8 +47,11 @@ ASCII scan/fold/`memset`), **`ASC`/`SGN`/`INT`/`FIX`/`MAX`/`MIN`** numeric built
 `ATAN2`/`SINH`/`COSH`/`TANH`/`CEIL`/`FLOOR`/`ROUND`/`POWER`/`EXP10`/`EXP2` + reciprocal/
 inverse `COT`/`SEC`/`CSC`/`ACOT`/`ASEC`/… via get-or-declare `double f(double)`),
 **`INSTR`** (2-arg, `strstr`), **`STRING$`**, **`CSIZE`**, **`OCT$`/`OCTO$`/`HEXX$`/
-`SIGNED$`/`NULL$`** (radix / signed / NUL-fill), **`LJUST$`/`RJUST$`/`CJUST$`** (branchless
-space pad, no truncation), **`ROTATEL`/`ROTATER`** (32-bit rotate), and
+`SIGNED$`/`NULL$`** (radix / signed / NUL-fill), **`LJUST$`/`RJUST$`** (pad, keep over-long)
+/ **`CJUST$`** (center, truncates to width) / **`LCLIP$`/`RCLIP$`** (drop n bytes),
+**`ROTATEL`/`ROTATER`** (rotate), **`DHIGH`/`DLOW`/`DMAKE`/`SMAKE`/`XMAKE`/`GMAKE`** (float
+bit-reinterpret), **`FORMAT$`** (string align `<`/`>`/`|`/`&` + numeric `#`/`.`/`,`/`$`/`*`/
+sign patterns, byte-exact) with **`CHR$(c,count)`**, and
 **`PRINT` comma/semicolon separators** (comma→tab, semicolon→none; one line per `PRINT`,
 matching `exec_print`). All
 string/array semantics parity-checked vs
@@ -92,8 +95,8 @@ The `llvm` path is behind the `xb-cli` `llvm` feature (`--features llvm`, forwar
 cli_backend_llvm_errors_when_feature_disabled (feature off)}`.
 
 **Reach `[verified 2026-08-18]`:** a differential sweep (LLVM-native vs `xb --run`
-over `xbasic-6.4.5/**/*.x`) finds **79 programs** produce **byte-identical** native
-output (up from 61 pre-`GOSUB`), with **0** invalid-IR compile-fails — every runnable
+over `xbasic-6.4.5/**/*.x`) finds **84 programs** produce **byte-identical** native
+output (up from 61 pre-`GOSUB`, 79 pre-`FORMAT$`), with **0** invalid-IR compile-fails — every runnable
 corpus program now emits valid IR (`module.verify()` gates it). Guarded by
 `cli.rs::cli_llvm_matches_interpreter_on_corpus_programs` (curated rich-output subset:
 `aarray`/`aloha`/`ahello`); the full 151-file sweep is a manual measurement (too slow
@@ -128,7 +131,8 @@ lever left** (the 26 non-faithful interpreter-clean programs, categorized by roo
 
 None is a single high-value unlock; each is a documented large effort or a fundamental
 representation change warranting explicit scoping. The incremental, low-risk LLVM roadmap
-is complete at **79/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING).
+is at **84/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; `FORMAT$` +
+`CHR$(c,count)` added — string align + numeric `#`/`.`/`,`/`$`/`*`/sign patterns, byte-exact).
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
