@@ -257,6 +257,10 @@ pub mod llvm_backend {
         fclose: FunctionValue<'ctx>,
         fseek: FunctionValue<'ctx>,
         ftell: FunctionValue<'ctx>,
+        /// Record data path: `fwrite`/`fread` (`__WRITE_RECORD`/`__READ_RECORD`) + `fflush`.
+        fwrite: FunctionValue<'ctx>,
+        fread: FunctionValue<'ctx>,
+        fflush: FunctionValue<'ctx>,
         /// Global `[FILE_SLOTS x ptr]` of open `FILE*` (index = handle − 3).
         file_table: PointerValue<'ctx>,
         /// Global `i32` next-handle counter (monotonic, matches `files.len()`).
@@ -310,6 +314,17 @@ pub mod llvm_backend {
                 None,
             );
             let ftell = module.add_function("ftell", i64t.fn_type(&[ptr.into()], false), None);
+            let fwrite = module.add_function(
+                "fwrite",
+                i64t.fn_type(&[ptr.into(), i64t.into(), i64t.into(), ptr.into()], false),
+                None,
+            );
+            let fread = module.add_function(
+                "fread",
+                i64t.fn_type(&[ptr.into(), i64t.into(), i64t.into(), ptr.into()], false),
+                None,
+            );
+            let fflush = module.add_function("fflush", i32t.fn_type(&[ptr.into()], false), None);
             let file_arr_ty = ptr.array_type(256);
             let file_table_g = module.add_global(file_arr_ty, None, "xb_files");
             file_table_g.set_initializer(&file_arr_ty.const_zero());
@@ -356,6 +371,9 @@ pub mod llvm_backend {
                 fclose,
                 fseek,
                 ftell,
+                fwrite,
+                fread,
+                fflush,
                 file_table,
                 file_count,
                 vars: HashMap::new(),
@@ -1094,6 +1112,12 @@ pub mod llvm_backend {
                         if let Some(argv) = self.eval_args(f, args)? {
                             self.builder.build_call(f, &argv, "call").map_err(Self::err)?;
                         }
+                    } else if matches!(name.as_str(), "__WRITE_RECORD" | "__READ_RECORD") {
+                        // Side-effecting file builtins used as statements (`WRITE`/`READ [n], arr[]`
+                        // lower to these). Other statement builtins are pure or unimplemented, so
+                        // are correctly ignored here; CLOSE is intentionally a no-op (the file
+                        // runtime flushes on write, matching the interpreter's no-op `CLOSE(-1)`).
+                        let _ = self.eval_builtin(name, args)?;
                     }
                 }
                 // Label/GOSUB/GOTO items: no-ops outside a state-machine body; inside one
@@ -2604,6 +2628,70 @@ pub mod llvm_backend {
             Ok(Some(size32.into()))
         }
 
+        /// `__WRITE_RECORD(handle, count)` (lowered `WRITE [n], arr[]`): append `count` zero
+        /// bytes to the file and `fflush` so a later re-`OPEN` for reading sees them. Mirrors
+        /// the interpreter, which writes `count` zeros (only the byte count is significant —
+        /// the record data itself is not serialized). Returns `count`. Assumes a valid handle
+        /// (the corpus guards `handle > 2`).
+        fn file_write(&self, args: &[IrExpr]) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+            let h = self.eval_int(&args[0])?;
+            let count = self.eval_int(&args[1])?;
+            let slot = self.file_slot(h)?;
+            let fp = self.builder.build_load(self.ptr, slot, "wfp").map_err(Self::err)?.into_pointer_value();
+            let count64 = self.builder.build_int_s_extend(count, self.i64t, "wcnt").map_err(Self::err)?;
+            let buf = self
+                .builder
+                .build_call(self.calloc, &[count64.into(), self.i64t.const_int(1, false).into()], "wbuf")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                .into_pointer_value();
+            self.builder
+                .build_call(
+                    self.fwrite,
+                    &[buf.into(), self.i64t.const_int(1, false).into(), count64.into(), fp.into()],
+                    "fwrite",
+                )
+                .map_err(Self::err)?;
+            self.builder.build_call(self.fflush, &[fp.into()], "fflush").map_err(Self::err)?;
+            Ok(Some(count.into()))
+        }
+
+        /// `__READ_RECORD(handle, count)` (lowered `READ [n], arr[]`): read up to `count` bytes
+        /// into a scratch buffer (the record data is discarded, matching the interpreter — only
+        /// the file position advances) and return the number of bytes read. Assumes a valid
+        /// handle.
+        fn file_read(&self, args: &[IrExpr]) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+            let h = self.eval_int(&args[0])?;
+            let count = self.eval_int(&args[1])?;
+            let slot = self.file_slot(h)?;
+            let fp = self.builder.build_load(self.ptr, slot, "rfp").map_err(Self::err)?.into_pointer_value();
+            let count64 = self.builder.build_int_s_extend(count, self.i64t, "rcnt").map_err(Self::err)?;
+            let buf = self
+                .builder
+                .build_call(self.calloc, &[count64.into(), self.i64t.const_int(1, false).into()], "rbuf")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                .into_pointer_value();
+            let got = self
+                .builder
+                .build_call(
+                    self.fread,
+                    &[buf.into(), self.i64t.const_int(1, false).into(), count64.into(), fp.into()],
+                    "fread",
+                )
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("fread returned void".into()))?
+                .into_int_value();
+            let got32 = self.builder.build_int_truncate(got, self.i32t, "rgot").map_err(Self::err)?;
+            Ok(Some(got32.into()))
+        }
+
         /// Translate a supported builtin call; `None` if unsupported (deferred).
         fn eval_builtin(
             &self,
@@ -2615,6 +2703,8 @@ pub mod llvm_backend {
                 ("OPEN", 2) => self.file_open(args),
                 ("CLOSE", 1) => self.file_close(args),
                 ("LOF", 1) => self.file_lof(args),
+                ("__WRITE_RECORD", 2) => self.file_write(args),
+                ("__READ_RECORD", 2) => self.file_read(args),
                 ("ABS", 1) => match self.eval_value(&args[0])? {
                     Some(BasicValueEnum::IntValue(iv)) => {
                         let neg = self.builder.build_int_neg(iv, "neg").map_err(Self::err)?;
@@ -4734,5 +4824,48 @@ mod tests {
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
         let _ = std::fs::remove_file(dir.join("xb_lock_ftest.dat"));
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_record_write_sets_file_size() {
+        use std::io::Write;
+        use std::process::Command;
+        // WRITE [n], arr[] (a composite array) lowers to __WRITE_RECORD(n, byte_count); the
+        // backend writes byte_count bytes and fflushes, so a later re-OPEN reads that size via
+        // LOF. Mirrors the interpreter, which writes zeros (only the byte count is
+        // significant). REC = one 4-byte INT; r[3] = 4 elements = 16 bytes. Guard for `arecord`.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             TYPE REC\n\
+             INT .x\n\
+             END TYPE\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             REC r[]\n\
+             DIM r[3]\n\
+             f = OPEN (\"xb_rec_lock.dat\", $$WR)\n\
+             IF (f > 2) THEN WRITE [f], r[]\n\
+             CLOSE (f)\n\
+             g = OPEN (\"xb_rec_lock.dat\", $$RD)\n\
+             IF (g > 2) THEN n = LOF (g)\n\
+             CLOSE (g)\n\
+             PRINT n\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_rec.o");
+        let exep = dir.join("xb_llvm_rec.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).current_dir(&dir).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "16\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+        let _ = std::fs::remove_file(dir.join("xb_rec_lock.dat"));
     }
 }
