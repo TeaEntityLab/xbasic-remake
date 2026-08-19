@@ -118,28 +118,29 @@ in the LLVM backend): a string value is now a length-prefixed `ptr` (`i64` lengt
 byte-accurate through concat / `LEN` / `PRINT` / comparison (`putchar` loop + `memcmp`
 with a length tiebreak), not truncated at the first NUL by `printf("%s")`. Proven
 byte-exact (`AB\0CD`) and locked by `llvm_backend_compiles_embedded_nul_strings`.
-Remaining gates to higher reach — all deferred-large or fundamental, **no incremental
-lever left** (the 26 non-faithful interpreter-clean programs, categorized by root cause):
+Remaining gates to higher reach — all deferred-large or fundamental, **no bounded
+lever left**. The 18 interpreter-clean programs that still diverge, categorized by
+*re-diagnosed* root cause (2026-08-19; the earlier "18 `Xst*` cluster" framing was a
+grep artifact — those `Xst*` calls are interpreter-stubbed no-ops in both backends):
 
-| Blocker | Count | Nature |
+| Blocker | Programs | Nature |
 |---|---|---|
-| GUI (`Xui`/`Xgr`/GTK) | 11 | Needs the winit+softbuffer runtime (docs/12) — large, deferred |
-| File/record I/O (`WRITE`/`READ` fixed-length records) | ~5 | Needs a file runtime — deferred |
-| Platform library (`Xst*` helpers, e.g. `XstBinStringToBackString$`) | several | Interpreter-stubbed library functions with no LLVM body — `aback` diverges here (its output is *longer*, not NUL-truncated). Needs a native `Xst*` runtime — deferred |
-| by-ref `@` (copy-in/out) | ~2 | Needs an all-pointer-param ABI (per-call-site ref-ness); risky, and those programs have other blockers too |
-| Diverse formatting / loop counts | rest | Program-specific |
+| Nested-gosub control flow | `gif`, `gifview` | A function with labels **and** a gosub nested inside an `IF`/`FOR` fails `body_has_labels && !has_nested_gosub`, so it falls back to linear emission where GOSUB/GOTO/label/`RETURN` are all no-ops — the early `RETURN` (e.g. gif.x:150 "disable tests") is ignored and execution runs past it. Needs the state machine to flatten nested blocks — large |
+| File / record I/O | `acrc32`, `astring`, `arecord`, `aviewbmp` | Real `OPEN`/`GET`/`PUT`/`LOF` on files; the LLVM backend has no file runtime (`LOF`=0, reads empty). Deferred |
+| by-ref `@` array/scalar | `aarray_ISNODE`, `asystem` | Passing `@array$[]` / `@scalar` to a SUB with copy-out; needs a call-site-determined by-ref ABI — large |
+| Task / FUNCADDR system | `atask` | `SUBADDRESS`/`&func()`/timer scheduling — no runtime task system |
+| Real `Xst*` body | `aback` | `XstBinStringToBackString$` etc. have real bodies in `src/linux/xst.x`; needs native linking of that library |
+| GUI | `amodal` | `Xui` message loop — winit+softbuffer runtime (docs/12) |
+| Nondeterministic | `atimer` | `TIMER` — not differential-testable |
+| Environment-dependent | `aprofile`, `CreateHelp`, `MakeDist`, `MakeDistLinux` | Interpreter reads missing profile/help/dist files and exits empty; the backend's differing early-exit path emits a stub line. The interpreter's own output is empty/degenerate, so "parity" here is low-value |
+| Mixed | `acharmap`, `asortie` | Combinations of the above |
 
 None is a single high-value unlock; each is a documented large effort or a fundamental
 representation change warranting explicit scoping. The incremental, low-risk LLVM roadmap
 is at **87/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; `FORMAT$` +
-`CHR$(c,count)`, `BIN$`/`BINB$`, and `0b`/`0o` literals added — string align + numeric
-`#`/`.`/`,`/`$`/`*`/sign patterns, byte-exact; unknown non-builtin calls now stub to the
-interpreter's zero-default, unblocking `adatadim` + 1 more). The remaining 18 non-faithful are
-**not** a single `Xst*` cluster — those `Xst*` references are interpreter-stubbed no-ops in both
-backends now; the real divergences are diverse: **file-record I/O** (`astring`), **environment-
-dependent** output (`aprofile` — interpreter itself empty), **`Xst*` platform helpers with real
-bodies** (native `src/linux/xst.x` linking + call-site by-ref `@` ABI), and **1 GUI** (`amodal`,
-`Xui`) — all large efforts, not bounded builtins.
+`CHR$(c,count)`, `BIN$`/`BINB$`, and `0b`/`0o` literals added; unknown non-builtin calls and
+undefined-variable reads now match the interpreter's zero-default — unblocking `adatadim`,
+`afile`, + 1 more). The residual 18 are the large/fundamental efforts tabled above.
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
