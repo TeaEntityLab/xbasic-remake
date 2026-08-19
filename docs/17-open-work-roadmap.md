@@ -145,6 +145,28 @@ lowers as a shared pointer param — corpus-neutral so far since corpus `@scalar
 interpreter-stubbed Xst functions, but it closes the scalar half of the by-ref gap). The
 residual 10 are the large/fundamental efforts tabled above.
 
+### `@array` effort — verified scoping notes `[2026-08-19]`
+Precise root causes established this session, so the large effort can be scoped without
+re-deriving them:
+
+- **Bootstrap-safe.** The self-host toolchain (`compiler.x`/`cgen.x`/`lexer.x`/`parser.x`)
+  uses **zero array parameters**, so the array-param overhaul cannot perturb the byte-exact
+  bootstrap fixed point (same guarantee that made `@` scalar by-ref safe).
+- **Frontend `$`-naming mismatch.** For a string array, `DIM array$[]` registers the symbol
+  `array$`, but `@array$[]` lowers to `byref(name="array")` — the `$` is stripped (integer
+  arrays match: `array` on both sides). The interpreter resolves this via a suffix rule the
+  backend lacks; the fix normalizes array-symbol naming across DIM / param / by-ref.
+- **`ANY` polymorphism.** `aarray_ISNODE`'s `PrintArray (ANY array[])` is called with a
+  string array *and* an integer array — one statically-compiled function can't hold both
+  element representations (`ptr` vs `i32`); needs monomorphization or a boxed/tagged element.
+- **REDIM-through-by-ref.** `aprofile`'s `StringsToStringArray` does `REDIM array$[]` on the
+  by-ref array, so the ABI must let the callee reallocate/resize the caller's storage — i.e.
+  arrays as heap descriptors `{data, dims}` passed by pointer (the current `(holder-alloca,
+  dim-allocas)` shape is close, but the callee must *share* it, not copy).
+
+Net: `@array` reach needs frontend naming fix + `ANY` monomorphization + descriptor/REDIM
+ABI — bootstrap-safe, but multi-layer and atomic, not a bounded increment.
+
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
 x87 FPU-intrinsic JIT (old `xlib.s` FSIN/FCOS/FPREM/…) is deferred; runtime math
