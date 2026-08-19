@@ -42,7 +42,11 @@ comparison** uses `memcmp` + a length tiebreak (`str_cmp`, matching Rust `Vec<u8
 ordering), **`CHR$`** is a 1-byte byte-string, **`LEFT$`/`RIGHT$`/`MID$`/concat** build
 fresh byte-strings via `str_new`+`memcpy`, and **`STR$`/`HEX$`** copy `snprintf` output
 into a byte-string. **`TRIM$`/`LTRIM$`/`RTRIM$`/`UCASE$`/`LCASE$`/`SPACE$`** (loop-based
-ASCII scan/fold/`memset`), **`ASC`/`SGN`/`INT`/`FIX`/`MAX`/`MIN`** numeric builtins, and
+ASCII scan/fold/`memset`), **`ASC`/`SGN`/`INT`/`FIX`/`MAX`/`MIN`** numeric builtins,
+**libc math** (`SQRT`/`SIN`/`COS`/`TAN`/`EXP`/`LOG`/`LOG10`/`ATN`/`ATAN`/`ASIN`/`ACOS`/
+`ATAN2`/`SINH`/`COSH`/`TANH`/`CEIL`/`FLOOR`/`ROUND`/`POWER`/`EXP10`/`EXP2` + reciprocal/
+inverse `COT`/`SEC`/`CSC`/`ACOT`/`ASEC`/… via get-or-declare `double f(double)`),
+**`INSTR`** (2-arg, `strstr`), **`STRING$`**, **`CSIZE`**, and
 **`PRINT` comma/semicolon separators** (comma→tab, semicolon→none; one line per `PRINT`,
 matching `exec_print`). All
 string/array semantics parity-checked vs
