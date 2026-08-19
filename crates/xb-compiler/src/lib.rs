@@ -1350,6 +1350,12 @@ pub mod llvm_backend {
                             .into_int_value();
                         self.builder.build_store(pc, target).map_err(Self::err)?;
                         self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+                    } else {
+                        // Outside a state machine (a bare `RETURN` — GosubReturn — reached
+                        // with no GOSUB in flight, e.g. nested in an `IF` so the body was not
+                        // routed to the SM) this halts the function: return its default value,
+                        // matching the interpreter's empty-GOSUB-stack GosubReturn = halt.
+                        self.ret_default()?;
                     }
                 }
                 _ => {}
@@ -1526,6 +1532,23 @@ pub mod llvm_backend {
                     let id = self.func_ids.get(name).copied().unwrap_or(0);
                     Some(self.i32t.const_int(id as u64, true).into())
                 }
+                IrExprKind::Unary { op, operand } => match self.eval_value(operand)? {
+                    // Unary negation / plus (e.g. `-1` lowers to `Neg(1)`); mirrors the
+                    // interpreter. `Pos` is identity. A non-numeric operand yields nothing.
+                    Some(BasicValueEnum::IntValue(iv)) => Some(match op {
+                        xb_frontend::UnaryOp::Neg => {
+                            self.builder.build_int_neg(iv, "uneg").map_err(Self::err)?.into()
+                        }
+                        xb_frontend::UnaryOp::Pos => iv.into(),
+                    }),
+                    Some(BasicValueEnum::FloatValue(fv)) => Some(match op {
+                        xb_frontend::UnaryOp::Neg => {
+                            self.builder.build_float_neg(fv, "ufneg").map_err(Self::err)?.into()
+                        }
+                        xb_frontend::UnaryOp::Pos => fv.into(),
+                    }),
+                    _ => None,
+                },
                 IrExprKind::Symbol(sym) => match self.vars.get(&sym.name) {
                     Some((slot, ValueType::String)) => {
                         Some(self.builder.build_load(self.ptr, *slot, "ld").map_err(Self::err)?)
@@ -5251,6 +5274,73 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "ubound=3\nx\ny\n\n\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_unary_negation() {
+        use std::io::Write;
+        use std::process::Command;
+        // `-1` lowers to Unary{Neg, 1}; if unhandled, eval_value returns None and the whole
+        // assignment is silently dropped (the variable keeps its prior value). x=14 then x=-1
+        // must print -1. Regression guard for `atask` (`count = -1`).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             x = 14\n\
+             x = -1\n\
+             PRINT x\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_uneg.o");
+        let exep = dir.join("xb_llvm_uneg.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "-1\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_bare_return_halts_function() {
+        use std::io::Write;
+        use std::process::Command;
+        // A bare `RETURN` (no value) lowers to GosubReturn; with no GOSUB in flight it halts
+        // the function, matching the interpreter's empty-stack GosubReturn = halt. Here it is
+        // nested in an `IF` (so the body is not routed to the state machine), which previously
+        // made it a silent no-op that fell through. Prints only "before". Guard for `atask`
+        // (`IFZ assigned THEN RETURN` before its message loop).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             PRINT \"before\"\n\
+             n = 0\n\
+             IFZ n THEN RETURN\n\
+             PRINT \"after\"\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_bareret.o");
+        let exep = dir.join("xb_llvm_bareret.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "before\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
