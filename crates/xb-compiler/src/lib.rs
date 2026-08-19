@@ -1682,6 +1682,69 @@ pub mod llvm_backend {
             self.str_copy(s, av, cl)
         }
 
+        /// Get-or-declare a libc `double NAME(double)` and call it on `arg` (evaluated as f64).
+        fn call_libm1(&self, cname: &str, arg: &IrExpr) -> Result<BasicValueEnum<'ctx>, CompileError> {
+            let f = self.module.get_function(cname).unwrap_or_else(|| {
+                self.module.add_function(cname, self.f64t.fn_type(&[self.f64t.into()], false), None)
+            });
+            let a = self.eval_float(arg)?;
+            self.builder
+                .build_call(f, &[a.into()], "m1")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm(format!("{cname} returned void")))
+        }
+
+        /// Get-or-declare a libc `double NAME(double, double)`.
+        fn libm2(&self, cname: &str) -> FunctionValue<'ctx> {
+            self.module.get_function(cname).unwrap_or_else(|| {
+                self.module
+                    .add_function(cname, self.f64t.fn_type(&[self.f64t.into(), self.f64t.into()], false), None)
+            })
+        }
+
+        /// `double NAME(double, double)` applied to two f64 args.
+        fn call_libm2(&self, cname: &str, a: FloatValue<'ctx>, b: FloatValue<'ctx>) -> Result<BasicValueEnum<'ctx>, CompileError> {
+            self.builder
+                .build_call(self.libm2(cname), &[a.into(), b.into()], "m2")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm(format!("{cname} returned void")))
+        }
+
+        /// `1.0 / NAME(arg)` — reciprocal trig/hyperbolic (COT/SEC/CSC/COTH/SECH/CSCH).
+        fn call_recip(&self, cname: &str, arg: &IrExpr) -> Result<BasicValueEnum<'ctx>, CompileError> {
+            let v = self.call_libm1(cname, arg)?.into_float_value();
+            Ok(self
+                .builder
+                .build_float_div(self.f64t.const_float(1.0), v, "recip")
+                .map_err(Self::err)?
+                .into())
+        }
+
+        /// `double NAME(double)` applied to an already-evaluated f64 (for composed forms).
+        fn callm1v(&self, cname: &str, v: FloatValue<'ctx>) -> Result<FloatValue<'ctx>, CompileError> {
+            let f = self.module.get_function(cname).unwrap_or_else(|| {
+                self.module.add_function(cname, self.f64t.fn_type(&[self.f64t.into()], false), None)
+            });
+            Ok(self
+                .builder
+                .build_call(f, &[v.into()], "m1v")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm(format!("{cname} returned void")))?
+                .into_float_value())
+        }
+
+        /// `NAME(1.0 / arg)` — inverse reciprocal (ACSC/ACOTH/ASECH/ACSCH).
+        fn call_inv_recip(&self, cname: &str, arg: &IrExpr) -> Result<BasicValueEnum<'ctx>, CompileError> {
+            let v = self.eval_float(arg)?;
+            let inv = self.builder.build_float_div(self.f64t.const_float(1.0), v, "invr").map_err(Self::err)?;
+            Ok(self.callm1v(cname, inv)?.into())
+        }
         /// Translate a supported builtin call; `None` if unsupported (deferred).
         fn eval_builtin(
             &self,
@@ -1713,6 +1776,114 @@ pub mod llvm_backend {
                     }
                     _ => Ok(None),
                 },
+                ("SQRT", 1) => Ok(Some(self.call_libm1("sqrt", &args[0])?)),
+                ("SIN", 1) => Ok(Some(self.call_libm1("sin", &args[0])?)),
+                ("COS", 1) => Ok(Some(self.call_libm1("cos", &args[0])?)),
+                ("TAN", 1) => Ok(Some(self.call_libm1("tan", &args[0])?)),
+                ("EXP", 1) => Ok(Some(self.call_libm1("exp", &args[0])?)),
+                ("LOG", 1) => Ok(Some(self.call_libm1("log", &args[0])?)),
+                ("LOG10", 1) => Ok(Some(self.call_libm1("log10", &args[0])?)),
+                ("ACOS", 1) => Ok(Some(self.call_libm1("acos", &args[0])?)),
+                ("ASIN", 1) => Ok(Some(self.call_libm1("asin", &args[0])?)),
+                ("ATAN", 1) | ("ATN", 1) => Ok(Some(self.call_libm1("atan", &args[0])?)),
+                ("SINH", 1) => Ok(Some(self.call_libm1("sinh", &args[0])?)),
+                ("COSH", 1) => Ok(Some(self.call_libm1("cosh", &args[0])?)),
+                ("TANH", 1) => Ok(Some(self.call_libm1("tanh", &args[0])?)),
+                ("ASINH", 1) => Ok(Some(self.call_libm1("asinh", &args[0])?)),
+                ("ACOSH", 1) => Ok(Some(self.call_libm1("acosh", &args[0])?)),
+                ("ATANH", 1) => Ok(Some(self.call_libm1("atanh", &args[0])?)),
+                ("CEIL", 1) => Ok(Some(self.call_libm1("ceil", &args[0])?)),
+                ("FLOOR", 1) => Ok(Some(self.call_libm1("floor", &args[0])?)),
+                ("ROUND", 1) => Ok(Some(self.call_libm1("round", &args[0])?)),
+                ("COT", 1) => self.call_recip("tan", &args[0]).map(Some),
+                ("SEC", 1) => self.call_recip("cos", &args[0]).map(Some),
+                ("CSC", 1) => self.call_recip("sin", &args[0]).map(Some),
+                ("COTH", 1) => self.call_recip("tanh", &args[0]).map(Some),
+                ("SECH", 1) => self.call_recip("cosh", &args[0]).map(Some),
+                ("CSCH", 1) => self.call_recip("sinh", &args[0]).map(Some),
+                ("ACSC", 1) => self.call_inv_recip("asin", &args[0]).map(Some),
+                ("ACOTH", 1) => self.call_inv_recip("atanh", &args[0]).map(Some),
+                ("ASECH", 1) => self.call_inv_recip("acosh", &args[0]).map(Some),
+                ("ACSCH", 1) => self.call_inv_recip("asinh", &args[0]).map(Some),
+                ("ATAN2", 2) => {
+                    let a = self.eval_float(&args[0])?;
+                    let b = self.eval_float(&args[1])?;
+                    Ok(Some(self.call_libm2("atan2", a, b)?))
+                }
+                ("POWER", 2) => {
+                    let a = self.eval_float(&args[0])?;
+                    let b = self.eval_float(&args[1])?;
+                    Ok(Some(self.call_libm2("pow", a, b)?))
+                }
+                ("EXP10", 1) => {
+                    let v = self.eval_float(&args[0])?;
+                    Ok(Some(self.call_libm2("pow", self.f64t.const_float(10.0), v)?))
+                }
+                ("EXP2", 1) => {
+                    let v = self.eval_float(&args[0])?;
+                    Ok(Some(self.call_libm2("pow", self.f64t.const_float(2.0), v)?))
+                }
+                ("ASEC", 1) => {
+                    // M_PI_2 - asin(1/v)
+                    let v = self.eval_float(&args[0])?;
+                    let inv = self.builder.build_float_div(self.f64t.const_float(1.0), v, "invr").map_err(Self::err)?;
+                    let a = self.callm1v("asin", inv)?;
+                    Ok(Some(self.builder.build_float_sub(self.f64t.const_float(std::f64::consts::FRAC_PI_2), a, "asec").map_err(Self::err)?.into()))
+                }
+                ("ACOT", 1) => {
+                    // v > 1 ? atan(1/v) : M_PI_2 - atan(v)
+                    let v = self.eval_float(&args[0])?;
+                    let inv = self.builder.build_float_div(self.f64t.const_float(1.0), v, "invr").map_err(Self::err)?;
+                    let hi = self.callm1v("atan", inv)?;
+                    let av = self.callm1v("atan", v)?;
+                    let lo = self.builder.build_float_sub(self.f64t.const_float(std::f64::consts::FRAC_PI_2), av, "acotlo").map_err(Self::err)?;
+                    let gt1 = self.builder.build_float_compare(FloatPredicate::OGT, v, self.f64t.const_float(1.0), "gt1").map_err(Self::err)?;
+                    Ok(Some(self.builder.build_select(gt1, hi, lo, "acot").map_err(Self::err)?))
+                }
+                ("STRING$", 1) => {
+                    let iv = self.eval_int(&args[0])?;
+                    Ok(Some(self.str_from_int(self.fmt_d, iv)?.into()))
+                }
+                ("CSIZE", 1) => {
+                    let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(&args[0])? else {
+                        return Ok(None);
+                    };
+                    let n = self
+                        .builder
+                        .build_call(self.strlen, &[s.into()], "csz")
+                        .map_err(Self::err)?
+                        .try_as_basic_value()
+                        .basic()
+                        .ok_or_else(|| CompileError::Llvm("strlen returned void".into()))?
+                        .into_int_value();
+                    Ok(Some(self.builder.build_int_truncate(n, self.i32t, "csz32").map_err(Self::err)?.into()))
+                }
+                ("INSTR", 2) => {
+                    let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(&args[0])? else {
+                        return Ok(None);
+                    };
+                    let Some(BasicValueEnum::PointerValue(sub)) = self.eval_value(&args[1])? else {
+                        return Ok(None);
+                    };
+                    let strstr = self.module.get_function("strstr").unwrap_or_else(|| {
+                        self.module.add_function("strstr", self.ptr.fn_type(&[self.ptr.into(), self.ptr.into()], false), None)
+                    });
+                    let p = self
+                        .builder
+                        .build_call(strstr, &[s.into(), sub.into()], "iss")
+                        .map_err(Self::err)?
+                        .try_as_basic_value()
+                        .basic()
+                        .ok_or_else(|| CompileError::Llvm("strstr returned void".into()))?
+                        .into_pointer_value();
+                    let pnull = self.builder.build_is_null(p, "pnull").map_err(Self::err)?;
+                    let pi = self.builder.build_ptr_to_int(p, self.i64t, "pi").map_err(Self::err)?;
+                    let si = self.builder.build_ptr_to_int(s, self.i64t, "si").map_err(Self::err)?;
+                    let diff = self.builder.build_int_sub(pi, si, "diff").map_err(Self::err)?;
+                    let diff32 = self.builder.build_int_truncate(diff, self.i32t, "diff32").map_err(Self::err)?;
+                    let pos = self.builder.build_int_add(diff32, self.i32t.const_int(1, false), "pos").map_err(Self::err)?;
+                    Ok(Some(self.builder.build_select(pnull, self.i32t.const_zero(), pos, "instr").map_err(Self::err)?))
+                }
                 ("LEN", 1) => match self.eval_value(&args[0])? {
                     Some(BasicValueEnum::PointerValue(pv)) => {
                         let n32 = self
@@ -2789,6 +2960,37 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(run.stdout, b"5\nAB\x00CD\n1\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_math_and_string_builtins() {
+        use std::io::Write;
+        use std::process::Command;
+        // libc-backed math (SQRT/POWER via sqrt/pow) + string builtins (INSTR/STRING$/CSIZE)
+        // mirror the interpreter; INT() keeps the float results deterministic to print.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             PRINT SQRT(144.0)\n\
+             PRINT INT(SQRT(50.0))\n\
+             PRINT POWER(3.0, 4.0)\n\
+             PRINT INSTR(\"mississippi\", \"ssi\")\n\
+             PRINT STRING$(123)\n\
+             PRINT CSIZE(\"test\")\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_mb.o");
+        let exep = dir.join("xb_llvm_mb.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "12\n7\n81\n3\n123\n4\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
