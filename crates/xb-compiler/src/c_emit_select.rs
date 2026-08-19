@@ -126,7 +126,7 @@ pub(crate) fn emit_print(
         if let IrExprKind::FunctionCall { name, args } = &items[0].kind {
             if name == "TAB" && args.len() == 1 {
                 out.push_str(&ind);
-                out.push_str("{ char* _p = xb_strdup(\"\"); char* _t = xb_tab(strlen(_p), ");
+                out.push_str("{ char* _p = xb_str(\"\"); char* _t = xb_tab(xb_len(_p), ");
                 emit_expr(&args[0], out);
                 out.push_str("); _p = xb_concat(_p, _t); xb_print_str(_p); }\n");
                 return;
@@ -159,12 +159,12 @@ pub(crate) fn emit_print(
     out.push_str(";");
     for (i, expr) in items.iter().enumerate().skip(1) {
         if let PrintSep::Comma = separators[i - 1] {
-            out.push_str(" _p = xb_concat(_p, \"\\t\");");
+            out.push_str(" _p = xb_concat(_p, xb_str(\"\\t\"));");
         }
         // Check if this item is a TAB call
         if let IrExprKind::FunctionCall { name, args } = &expr.kind {
             if name == "TAB" && args.len() == 1 {
-                out.push_str(" { char* _t = xb_tab(strlen(_p), ");
+                out.push_str(" { char* _t = xb_tab(xb_len(_p), ");
                 emit_expr(&args[0], out);
                 out.push_str("); _p = xb_concat(_p, _t); }");
                 continue;

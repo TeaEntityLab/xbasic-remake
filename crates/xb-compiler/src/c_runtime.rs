@@ -7,49 +7,51 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("#include <time.h>\n");
     out.push_str("#include <stdint.h>\n");
     out.push('\n');
-    out.push_str("static char* xb_strdup(const char* s) { size_t n = strlen(s) + 1; char* r = (char*)malloc(n); memcpy(r, s, n); return r; }\n");
-    out.push_str("static char* xb_str(const char* s) { return xb_strdup(s); }\n");
+    // Byte-strings: a string is a char* to its data with a size_t length in an 8-byte
+    // header before the data (xb_len reads it) + a trailing NUL for legacy C-lib interop.
+    // This makes CHR$(0)/embedded/high bytes byte-accurate through len/concat/print/compare.
+    out.push_str("static char* xb_alloc(size_t n) { char* p = (char*)malloc(sizeof(size_t) + n + 1); *(size_t*)p = n; char* d = p + sizeof(size_t); d[n] = 0; return d; }\n");
+    out.push_str("static int xb_len(const char* s) { return (int)*((size_t*)s - 1); }\n");
+    out.push_str("static char* xb_from_cstr(const char* s) { size_t n = strlen(s); char* d = xb_alloc(n); memcpy(d, s, n); return d; }\n");
+    out.push_str("static char* xb_strdup(const char* s) { int n = xb_len(s); char* d = xb_alloc((size_t)n); memcpy(d, s, (size_t)n); return d; }\n");
+    out.push_str("static char* xb_str(const char* s) { return xb_from_cstr(s); }\n");
     out.push_str("static char* xb_concat(const char* a, const char* b) {\n");
-    out.push_str("    size_t la = strlen(a), lb = strlen(b);\n");
-    out.push_str("    char* r = malloc(la + lb + 1);\n");
-    out.push_str("    memcpy(r, a, la);\n");
-    out.push_str("    memcpy(r + la, b, lb);\n");
-    out.push_str("    r[la + lb] = 0;\n");
+    out.push_str("    int la = xb_len(a), lb = xb_len(b);\n");
+    out.push_str("    char* r = xb_alloc((size_t)(la + lb));\n");
+    out.push_str("    memcpy(r, a, (size_t)la);\n");
+    out.push_str("    memcpy(r + la, b, (size_t)lb);\n");
     out.push_str("    return r;\n");
     out.push_str("}\n");
-    out.push_str("static int xb_len(const char* s) { return (int)strlen(s); }\n");
     out.push_str("static int xb_asc(const char* s) { return (unsigned char)s[0]; }\n");
     out.push_str(
-        "static char* xb_chr(int c, int count) { if (count < 1) count = 1; char* r = malloc(count + 1); for (int i = 0; i < count; i++) r[i] = (char)c; r[count] = 0; return r; }\n",
+        "static char* xb_chr(int c, int count) { if (count < 1) count = 1; char* r = xb_alloc((size_t)count); for (int i = 0; i < count; i++) r[i] = (char)c; return r; }\n",
     );
+    out.push_str("static int xb_scmp(const char* a, const char* b) { int la = xb_len(a), lb = xb_len(b); int m = la < lb ? la : lb; int r = memcmp(a, b, (size_t)m); if (r) return r; return (la > lb) - (la < lb); }\n");
     out.push_str("static char* xb_left(const char* s, int n) {\n");
-    out.push_str("    int len = (int)strlen(s);\n");
+    out.push_str("    int len = xb_len(s);\n");
     out.push_str("    if (n < 0) n = 0;\n");
     out.push_str("    if (n > len) n = len;\n");
-    out.push_str("    char* r = malloc(n + 1);\n");
-    out.push_str("    memcpy(r, s, n);\n");
-    out.push_str("    r[n] = 0;\n");
+    out.push_str("    char* r = xb_alloc((size_t)n);\n");
+    out.push_str("    memcpy(r, s, (size_t)n);\n");
     out.push_str("    return r;\n");
     out.push_str("}\n");
     out.push_str("static char* xb_right(const char* s, int n) {\n");
-    out.push_str("    int len = (int)strlen(s);\n");
+    out.push_str("    int len = xb_len(s);\n");
     out.push_str("    if (n < 0) n = 0;\n");
     out.push_str("    if (n > len) n = len;\n");
-    out.push_str("    char* r = malloc(n + 1);\n");
-    out.push_str("    memcpy(r, s + len - n, n);\n");
-    out.push_str("    r[n] = 0;\n");
+    out.push_str("    char* r = xb_alloc((size_t)n);\n");
+    out.push_str("    memcpy(r, s + len - n, (size_t)n);\n");
     out.push_str("    return r;\n");
     out.push_str("}\n");
     out.push_str("static char* xb_mid(const char* s, int start, int len) {\n");
-    out.push_str("    int slen = (int)strlen(s);\n");
+    out.push_str("    int slen = xb_len(s);\n");
     out.push_str("    if (start < 1) start = 1;\n");
     out.push_str("    int off = start - 1;\n");
-    out.push_str("    if (off >= slen) return xb_strdup(\"\");\n");
+    out.push_str("    if (off >= slen) return xb_str(\"\");\n");
     out.push_str("    if (len < 0) len = slen - off;\n");
     out.push_str("    if (off + len > slen) len = slen - off;\n");
-    out.push_str("    char* r = malloc(len + 1);\n");
-    out.push_str("    memcpy(r, s + off, len);\n");
-    out.push_str("    r[len] = 0;\n");
+    out.push_str("    char* r = xb_alloc((size_t)len);\n");
+    out.push_str("    memcpy(r, s + off, (size_t)len);\n");
     out.push_str("    return r;\n");
     out.push_str("}\n");
     out.push_str("static int xb_instr2(const char* s, const char* sub) {\n");
@@ -109,10 +111,10 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("}\n");
     out.push_str("static int xb_val(const char* s) { return atoi(s); }\n");
     out.push_str(
-        "static char* xb_str_num(int v) { char* r = malloc(16); snprintf(r, 16, \"%d\", v); return r; }\n",
+        "static char* xb_str_num(int v) { char buf[16]; snprintf(buf, 16, \"%d\", v); return xb_from_cstr(buf); }\n",
     );
     out.push_str(
-        "static char* xb_str_float(double v) { char* r = malloc(32); snprintf(r, 32, \"%.17g\", v); return r; }\n",
+        "static char* xb_str_float(double v) { char buf[32]; snprintf(buf, 32, \"%.17g\", v); return xb_from_cstr(buf); }\n",
     );
     out.push_str("static int xb_eof(void) {\n");
     out.push_str("    int c = fgetc(stdin);\n");
@@ -122,20 +124,20 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("}\n");
     out.push_str("static char* xb_readline(void) {\n");
     out.push_str("    char buf[65536];\n");
-    out.push_str("    if (!fgets(buf, sizeof(buf), stdin)) return xb_strdup(\"\");\n");
+    out.push_str("    if (!fgets(buf, sizeof(buf), stdin)) return xb_str(\"\");\n");
     out.push_str("    int len = (int)strlen(buf);\n");
     out.push_str("    if (len > 0 && buf[len-1] == '\\n') buf[len-1] = 0;\n");
-    out.push_str("    return xb_strdup(buf);\n");
+    out.push_str("    return xb_from_cstr(buf);\n");
     out.push_str("}\n");
     out.push_str("static void xb_print_int(int v) { printf(\"%d\\n\", v); }\n");
-    out.push_str("static void xb_print_str(const char* s) { printf(\"%s\\n\", s); }\n");
+    out.push_str("static void xb_print_str(const char* s) { fwrite(s, 1, (size_t)xb_len(s), stdout); putchar('\\n'); }\n");
     out.push_str("static void xb_print_float(double v) { printf(\"%.17g\\n\", v); }\n");
-    out.push_str("static char* xb_ucase(const char* s) { char* r = xb_strdup(s); for (char* p = r; *p; p++) *p = toupper((unsigned char)*p); return r; }\n");
-    out.push_str("static char* xb_lcase(const char* s) { char* r = xb_strdup(s); for (char* p = r; *p; p++) *p = tolower((unsigned char)*p); return r; }\n");
-    out.push_str("static char* xb_trim(const char* s) { const char* start = s; while (*start == ' ' || *start == '\\t') start++; const char* end = s + strlen(s) - 1; while (end > start && (*end == ' ' || *end == '\\t')) end--; int len = end - start + 1; char* r = malloc(len + 1); memcpy(r, start, len); r[len] = 0; return r; }\n");
-    out.push_str("static char* xb_ltrim(const char* s) { const char* start = s; while (*start == ' ' || *start == '\\t') start++; return xb_strdup(start); }\n");
-    out.push_str("static char* xb_rtrim(const char* s) { int len = (int)strlen(s); while (len > 0 && (s[len-1] == ' ' || s[len-1] == '\\t')) len--; char* r = malloc(len + 1); memcpy(r, s, len); r[len] = 0; return r; }\n");
-    out.push_str("static char* xb_space(int n) { if (n < 0) n = 0; char* r = malloc(n + 1); memset(r, ' ', n); r[n] = 0; return r; }\n");
+    out.push_str("static char* xb_ucase(const char* s) { char* r = xb_strdup(s); int n = xb_len(r); for (int i = 0; i < n; i++) r[i] = (char)toupper((unsigned char)r[i]); return r; }\n");
+    out.push_str("static char* xb_lcase(const char* s) { char* r = xb_strdup(s); int n = xb_len(r); for (int i = 0; i < n; i++) r[i] = (char)tolower((unsigned char)r[i]); return r; }\n");
+    out.push_str("static char* xb_trim(const char* s) { int n = xb_len(s); int a = 0; while (a < n && (s[a] == ' ' || s[a] == '\\t')) a++; int b = n; while (b > a && (s[b-1] == ' ' || s[b-1] == '\\t')) b--; int len = b - a; char* r = xb_alloc((size_t)len); memcpy(r, s + a, (size_t)len); return r; }\n");
+    out.push_str("static char* xb_ltrim(const char* s) { int n = xb_len(s); int a = 0; while (a < n && (s[a] == ' ' || s[a] == '\\t')) a++; int len = n - a; char* r = xb_alloc((size_t)len); memcpy(r, s + a, (size_t)len); return r; }\n");
+    out.push_str("static char* xb_rtrim(const char* s) { int n = xb_len(s); while (n > 0 && (s[n-1] == ' ' || s[n-1] == '\\t')) n--; char* r = xb_alloc((size_t)n); memcpy(r, s, (size_t)n); return r; }\n");
+    out.push_str("static char* xb_space(int n) { if (n < 0) n = 0; char* r = xb_alloc((size_t)n); memset(r, ' ', (size_t)n); return r; }\n");
     out.push_str("static int xb_abs(int v) { return v < 0 ? -v : v; }\n");
     out.push_str("static double xb_fabs(double v) { return fabs(v); }\n");
     out.push_str("static int xb_sgn(int v) { return (v > 0) - (v < 0); }\n");
@@ -148,29 +150,29 @@ pub(crate) fn emit_header(out: &mut String) {
     crate::c_runtime_bit::emit_bit_reinterp_runtime(out);
     crate::c_runtime_bit::emit_bit_ops_runtime(out);
     crate::c_runtime_bit::emit_str_misc_runtime(out);
-    out.push_str("static char* xb_hex(int v) { char* r = malloc(16); snprintf(r, 16, \"%X\", v); return r; }\n");
-    out.push_str("static char* xb_hex2(int v, int w) { char* r = malloc(32); if (w > 0) snprintf(r, 32, \"%0*X\", w, v); else snprintf(r, 32, \"%X\", v); return r; }\n");
-    out.push_str("static char* xb_bin(int v) { char* r = malloc(33); int n = 0; if (v == 0) { r[0] = '0'; r[1] = 0; return r; } int t = v; while (t) { n++; t >>= 1; } r[n] = 0; t = v; while (t) { r[--n] = (t & 1) ? '1' : '0'; t >>= 1; } return r; }\n");
-    out.push_str("static char* xb_oct(int v) { char* r = malloc(16); snprintf(r, 16, \"%o\", v); return r; }\n");
-    out.push_str("static char* xb_string(int v) { char* r = malloc(16); snprintf(r, 16, \"%d\", v); return r; }\n");
-    out.push_str("static char* xb_signed(int v) { char* r = malloc(16); if (v >= 0) snprintf(r, 16, \"+%d\", v); else snprintf(r, 16, \"%d\", v); return r; }\n");
-    out.push_str("static char* xb_null(int n) { if (n < 0) n = 0; char* r = malloc(n + 1); memset(r, 0, n); r[n] = 0; return r; }\n");
+    out.push_str("static char* xb_hex(int v) { char buf[16]; snprintf(buf, 16, \"%X\", v); return xb_from_cstr(buf); }\n");
+    out.push_str("static char* xb_hex2(int v, int w) { char buf[32]; if (w > 0) snprintf(buf, 32, \"%0*X\", w, v); else snprintf(buf, 32, \"%X\", v); return xb_from_cstr(buf); }\n");
+    out.push_str("static char* xb_bin(int v) { char buf[33]; int n = 0; if (v == 0) { buf[0] = '0'; buf[1] = 0; return xb_from_cstr(buf); } int t = v; while (t) { n++; t >>= 1; } buf[n] = 0; t = v; while (t) { buf[--n] = (t & 1) ? '1' : '0'; t >>= 1; } return xb_from_cstr(buf); }\n");
+    out.push_str("static char* xb_oct(int v) { char buf[16]; snprintf(buf, 16, \"%o\", v); return xb_from_cstr(buf); }\n");
+    out.push_str("static char* xb_string(int v) { char buf[16]; snprintf(buf, 16, \"%d\", v); return xb_from_cstr(buf); }\n");
+    out.push_str("static char* xb_signed(int v) { char buf[16]; if (v >= 0) snprintf(buf, 16, \"+%d\", v); else snprintf(buf, 16, \"%d\", v); return xb_from_cstr(buf); }\n");
+    out.push_str("static char* xb_null(int n) { if (n < 0) n = 0; char* r = xb_alloc((size_t)n); memset(r, 0, (size_t)n); return r; }\n");
     crate::c_runtime_math::emit_math_functions(out);
     out.push_str("static int xb_data_int[256]; static double xb_data_float[256]; static char* xb_data_str[256]; static int xb_data_tag[256]; static int xb_data_count = 0; static int xb_data_pos = 0;\n");
     out.push_str("static void xb_data_add_int(int v) { xb_data_tag[xb_data_count] = 0; xb_data_int[xb_data_count] = v; xb_data_count++; }\n");
     out.push_str("static void xb_data_add_float(double v) { xb_data_tag[xb_data_count] = 1; xb_data_float[xb_data_count] = v; xb_data_count++; }\n");
-    out.push_str("static void xb_data_add_str(const char* v) { xb_data_tag[xb_data_count] = 2; xb_data_str[xb_data_count] = xb_strdup(v); xb_data_count++; }\n");
+    out.push_str("static void xb_data_add_str(const char* v) { xb_data_tag[xb_data_count] = 2; xb_data_str[xb_data_count] = xb_from_cstr(v); xb_data_count++; }\n");
     out.push_str("static void xb_read_int(int* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 0) *v = xb_data_int[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 1) *v = (int)xb_data_float[xb_data_pos]; else *v = atoi(xb_data_str[xb_data_pos]); xb_data_pos++; }\n");
     out.push_str("static void xb_read_float(double* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 1) *v = xb_data_float[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 0) *v = (double)xb_data_int[xb_data_pos]; else *v = atof(xb_data_str[xb_data_pos]); xb_data_pos++; }\n");
-    out.push_str("static char* xb_read_str(void) { if (xb_data_pos >= xb_data_count) return xb_strdup(\"\"); char* r; if (xb_data_tag[xb_data_pos] == 2) r = xb_strdup(xb_data_str[xb_data_pos]); else { r = malloc(32); if (xb_data_tag[xb_data_pos] == 0) snprintf(r, 32, \"%d\", xb_data_int[xb_data_pos]); else snprintf(r, 32, \"%.17g\", xb_data_float[xb_data_pos]); } xb_data_pos++; return r; }\n");
+    out.push_str("static char* xb_read_str(void) { if (xb_data_pos >= xb_data_count) return xb_str(\"\"); char* r; if (xb_data_tag[xb_data_pos] == 2) r = xb_strdup(xb_data_str[xb_data_pos]); else { char buf[32]; if (xb_data_tag[xb_data_pos] == 0) snprintf(buf, 32, \"%d\", xb_data_int[xb_data_pos]); else snprintf(buf, 32, \"%.17g\", xb_data_float[xb_data_pos]); r = xb_from_cstr(buf); } xb_data_pos++; return r; }\n");
     out.push_str("static void xb_restore(int idx) { xb_data_pos = idx; }\n");
     out.push_str("static int xb_error_code = 0;\n");
     out.push_str("static int xb_error(int n) { int old = xb_error_code; if (n != -1) xb_error_code = n; return old; }\n");
-    out.push_str("static char* xb_error_str(int n) { char* r = malloc(32); snprintf(r, 32, \"error %d\", n); return r; }\n");
+    out.push_str("static char* xb_error_str(int n) { char buf[32]; snprintf(buf, 32, \"error %d\", n); return xb_from_cstr(buf); }\n");
     out.push_str("static int xb_csize(const char* s) { const char* p = s; while (*p) p++; return (int)(p - s); }\n");
-    out.push_str("static char* xb_csize_str(const char* s) { const char* p = s; while (*p) p++; size_t n = p - s; char* r = malloc(n + 1); memcpy(r, s, n); r[n] = 0; return r; }\n");
+    out.push_str("static char* xb_csize_str(const char* s) { return xb_from_cstr(s); }\n");
     out.push_str(
-        "static char* xb_program_name(int _) { (void)_; return xb_strdup(xb_program_name_str); }\n",
+        "static char* xb_program_name(int _) { (void)_; return xb_from_cstr(xb_program_name_str); }\n",
     );
     out.push_str("static FILE* xb_files[256]; static int xb_file_count = 3;\n");
     out.push_str("static int xb_open(const char* name, int mode) {\n");
@@ -209,29 +211,29 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("}\n");
     out.push_str("static char* xb_infile(int fn) {\n");
     out.push_str(
-        "    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return xb_strdup(\"\");\n",
+        "    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return xb_str(\"\");\n",
     );
     out.push_str("    char buf[65536];\n");
-    out.push_str("    if (!fgets(buf, sizeof(buf), xb_files[fn])) return xb_strdup(\"\");\n");
+    out.push_str("    if (!fgets(buf, sizeof(buf), xb_files[fn])) return xb_str(\"\");\n");
     out.push_str("    int len = (int)strlen(buf);\n");
     out.push_str("    if (len > 0 && buf[len-1] == '\\n') buf[len-1] = 0;\n");
-    out.push_str("    return xb_strdup(buf);\n");
+    out.push_str("    return xb_from_cstr(buf);\n");
     out.push_str("}\n");
-    out.push_str("static char* xb_tab(int cur, int col) { if (col <= cur) return xb_strdup(\"\"); int n = col - cur; char* r = malloc(n + 1); memset(r, ' ', n); r[n] = 0; return r; }\n");
+    out.push_str("static char* xb_tab(int cur, int col) { if (col <= cur) return xb_str(\"\"); int n = col - cur; char* r = xb_alloc((size_t)n); memset(r, ' ', (size_t)n); return r; }\n");
     out.push_str("static char* xb_tab_0(int col) { return xb_tab(0, col); }\n");
     out.push_str("static int xb_isdata(const char* s) { return (s && s[0]) ? -1 : 0; }\n");
     out.push_str("static char* xb_inkey(void) {\n");
     out.push_str("    int c = getchar();\n");
-    out.push_str("    if (c == EOF) return xb_strdup(\"\");\n");
+    out.push_str("    if (c == EOF) return xb_str(\"\");\n");
     out.push_str("    char buf[2]; buf[0] = (char)c; buf[1] = 0;\n");
-    out.push_str("    return xb_strdup(buf);\n");
+    out.push_str("    return xb_from_cstr(buf);\n");
     out.push_str("}\n");
     out.push_str("static int xb_waitkey(void) { int c = getchar(); return (c == EOF) ? 0 : c; }\n");
     out.push_str("static int xb_isnode(const char* s) { return 0; }\n");
     out.push_str("static intptr_t xb_goaddr(intptr_t x) { return x; }\n");
     out.push_str("static intptr_t xb_subaddr(intptr_t x) { return x; }\n");
     out.push_str("static intptr_t xb_funcaddress(intptr_t x) { return x; }\n");
-    out.push_str("static char* xb_cstring(intptr_t addr) { return (char*)addr; }\n");
+    out.push_str("static char* xb_cstring(intptr_t addr) { return addr ? xb_from_cstr((char*)addr) : xb_str(\"\"); }\n");
     out.push_str("static int xb_sbyteat(intptr_t addr, intptr_t off) { return (int)(*(signed char*)(addr + off)); }\n");
     out.push_str("static int xb_ubyteat(intptr_t addr, intptr_t off) { return (int)(*(unsigned char*)(addr + off)); }\n");
     out.push_str("static int xb_sshortat(intptr_t addr, intptr_t off) { return (int)(*(signed short*)(addr + off)); }\n");
@@ -246,8 +248,8 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("static intptr_t xb_goaddrat(intptr_t addr, intptr_t off) { return *(intptr_t*)(addr + off); }\n");
 
     out.push_str("static void xb_mid_assign(char* dst, int start, int len, const char* src) {\n");
-    out.push_str("    int dlen = (int)strlen(dst);\n");
-    out.push_str("    int slen = (int)strlen(src);\n");
+    out.push_str("    int dlen = xb_len(dst);\n");
+    out.push_str("    int slen = xb_len(src);\n");
     out.push_str("    if (start < 1 || start > dlen) return;\n");
     out.push_str("    int si = start - 1;\n");
     out.push_str("    int copy = (len < 0) ? slen : len;\n");

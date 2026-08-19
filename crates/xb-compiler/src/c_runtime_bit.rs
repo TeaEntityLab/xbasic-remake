@@ -24,31 +24,31 @@ pub(crate) fn emit_bit_ops_runtime(out: &mut String) {
 }
 
 pub(crate) fn emit_str_misc_runtime(out: &mut String) {
-    out.push_str("static char* xb_binb(int v) { char* r = malloc(35); int n = 0; if (v == 0) { r[0] = '0'; r[1] = 'b'; r[2] = '0'; r[3] = 0; return r; } int t = v; while (t) { n++; t >>= 1; } r[0] = '0'; r[1] = 'b'; r[n + 2] = 0; t = v; while (t) { r[--n + 2] = (t & 1) ? '1' : '0'; t >>= 1; } return r; }\n");
-    out.push_str("static char* xb_binb2(int v, int d) { char* r = malloc(35); int n = 0; int t = v; while (t) { n++; t >>= 1; } if (n < d) n = d; if (v == 0 && d == 0) { r[0] = '0'; r[1] = 'b'; r[2] = '0'; r[3] = 0; return r; } if (v == 0) n = d; r[0] = '0'; r[1] = 'b'; r[n + 2] = 0; t = v; int pos = n + 1; while (pos > 1) { r[pos--] = (t & 1) ? '1' : '0'; t >>= 1; } return r; }\n");
-    out.push_str("static char* xb_octo(int v) { char* r = malloc(18); snprintf(r, 18, \"0o%o\", v); return r; }\n");
-    out.push_str("static char* xb_octo2(int v, int d) { char* r = malloc(20); if (d > 0) snprintf(r, 20, \"0o%0*o\", d, v); else snprintf(r, 20, \"0o%o\", v); return r; }\n");
-    out.push_str("static char* xb_bin2(int v, int d) { char* r = malloc(33); int n = 0; int t = v; while (t) { n++; t >>= 1; } if (n < d) n = d; if (v == 0) { if (d > 0) n = d; else { r[0] = '0'; r[1] = 0; return r; } } r[n] = 0; t = v; int pos = n - 1; while (pos >= 0) { r[pos--] = (t & 1) ? '1' : '0'; t >>= 1; } return r; }\n");
-    out.push_str("static char* xb_oct2(int v, int d) { char* r = malloc(18); if (d > 0) snprintf(r, 18, \"%0*o\", d, v); else snprintf(r, 18, \"%o\", v); return r; }\n");
+    out.push_str("static char* xb_binb(int v) { char buf[35]; int n = 0; if (v == 0) { buf[0] = '0'; buf[1] = 'b'; buf[2] = '0'; buf[3] = 0; return xb_from_cstr(buf); } int t = v; while (t) { n++; t >>= 1; } buf[0] = '0'; buf[1] = 'b'; buf[n + 2] = 0; t = v; while (t) { buf[--n + 2] = (t & 1) ? '1' : '0'; t >>= 1; } return xb_from_cstr(buf); }\n");
+    out.push_str("static char* xb_binb2(int v, int d) { char buf[35]; int n = 0; int t = v; while (t) { n++; t >>= 1; } if (n < d) n = d; if (v == 0 && d == 0) { buf[0] = '0'; buf[1] = 'b'; buf[2] = '0'; buf[3] = 0; return xb_from_cstr(buf); } if (v == 0) n = d; buf[0] = '0'; buf[1] = 'b'; buf[n + 2] = 0; t = v; int pos = n + 1; while (pos > 1) { buf[pos--] = (t & 1) ? '1' : '0'; t >>= 1; } return xb_from_cstr(buf); }\n");
+    out.push_str("static char* xb_octo(int v) { char buf[18]; snprintf(buf, 18, \"0o%o\", v); return xb_from_cstr(buf); }\n");
+    out.push_str("static char* xb_octo2(int v, int d) { char buf[20]; if (d > 0) snprintf(buf, 20, \"0o%0*o\", d, v); else snprintf(buf, 20, \"0o%o\", v); return xb_from_cstr(buf); }\n");
+    out.push_str("static char* xb_bin2(int v, int d) { char buf[33]; int n = 0; int t = v; while (t) { n++; t >>= 1; } if (n < d) n = d; if (v == 0) { if (d > 0) n = d; else { buf[0] = '0'; buf[1] = 0; return xb_from_cstr(buf); } } buf[n] = 0; t = v; int pos = n - 1; while (pos >= 0) { buf[pos--] = (t & 1) ? '1' : '0'; t >>= 1; } return xb_from_cstr(buf); }\n");
+    out.push_str("static char* xb_oct2(int v, int d) { char buf[18]; if (d > 0) snprintf(buf, 18, \"%0*o\", d, v); else snprintf(buf, 18, \"%o\", v); return xb_from_cstr(buf); }\n");
     out.push_str("static int xb_quit(int code) { exit(code); return 0; }\n");
-    out.push_str("static char* xb_cjust(const char* s, int w) { int len = (int)strlen(s); if (len >= w) { char* r = malloc(w + 1); memcpy(r, s, w); r[w] = 0; return r; } int total = w - len, left = total / 2, right = total - left; char* r = malloc(w + 1); memset(r, ' ', left); memcpy(r + left, s, len); memset(r + left + len, ' ', right); r[w] = 0; return r; }\n");
+    out.push_str("static char* xb_cjust(const char* s, int w) { int len = xb_len(s); if (len >= w) { char* r = xb_alloc((size_t)w); memcpy(r, s, (size_t)w); return r; } int total = w - len, left = total / 2, right = total - left; char* r = xb_alloc((size_t)w); memset(r, ' ', (size_t)left); memcpy(r + left, s, (size_t)len); memset(r + left + len, ' ', (size_t)right); return r; }\n");
     emit_format_runtime(out);
 }
 
 pub(crate) fn emit_format_runtime(out: &mut String) {
     out.push_str("static char* xb_format(const char* fmt, const char* sval, int ival, double fval, int is_float, int is_str) {\n");
     out.push_str("  if (is_str) {\n");
-    out.push_str("    int slen = (int)strlen(sval);\n");
+    out.push_str("    int slen = xb_len(sval);\n");
     out.push_str("    if (fmt[0] == '&') return xb_strdup(sval);\n");
     out.push_str("    if (fmt[0] == '<' || fmt[0] == '>' || fmt[0] == '|') {\n");
     out.push_str("      int w = 0; for (int i = 0; fmt[i] == fmt[0]; i++) w++;\n");
-    out.push_str("      if (slen >= w) { char* r = malloc(w + 1); memcpy(r, sval, w); r[w] = 0; return r; }\n");
+    out.push_str("      if (slen >= w) { char* r = xb_alloc((size_t)w); memcpy(r, sval, (size_t)w); return r; }\n");
     out.push_str("      int total = w - slen, left = total / 2, right = total - left;\n");
-    out.push_str("      char* r = malloc(w + 1); int pos = 0;\n");
+    out.push_str("      char* r = xb_alloc((size_t)w); int pos = 0;\n");
     out.push_str("      if (fmt[0] == '>') { for (int i = 0; i < total; i++) r[pos++] = ' '; memcpy(r + pos, sval, slen); }\n");
     out.push_str("      else if (fmt[0] == '|') { for (int i = 0; i < left; i++) r[pos++] = ' '; memcpy(r + pos, sval, slen); pos += slen; for (int i = 0; i < right; i++) r[pos++] = ' '; }\n");
     out.push_str("      else { memcpy(r, sval, slen); pos += slen; for (int i = 0; i < total; i++) r[pos++] = ' '; }\n");
-    out.push_str("      r[w] = 0; return r;\n");
+    out.push_str("      return r;\n");
     out.push_str("    }\n");
     out.push_str("    return xb_strdup(sval);\n");
     out.push_str("  }\n");
@@ -71,9 +71,9 @@ pub(crate) fn emit_format_runtime(out: &mut String) {
     out.push_str("    else if (c == '(') paren_neg = 1;\n");
     out.push_str("    else if (c == '_') i++;\n");
     out.push_str("  }\n");
-    out.push_str("  if (int_digits == 0 && frac_digits == 0 && !star_fill && !zero_fill) { char* r = malloc(64); snprintf(r, 64, \"%g\", val); return r; }\n");
+    out.push_str("  if (int_digits == 0 && frac_digits == 0 && !star_fill && !zero_fill) { char buf[64]; snprintf(buf, 64, \"%g\", val); return xb_from_cstr(buf); }\n");
     out.push_str("  int neg = val < 0.0; double abs_val = neg ? -val : val;\n");
-    out.push_str("  char* r = malloc(128); r[0] = 0; int pos = 0;\n");
+    out.push_str("  char r[128]; r[0] = 0; int pos = 0;\n");
     out.push_str("  if (paren_neg && neg) r[pos++] = '(';\n");
     out.push_str("  else if (leading_plus) r[pos++] = neg ? '-' : '+';\n");
     out.push_str("  else if (neg && !trailing_plus && !trailing_minus) r[pos++] = '-';\n");
@@ -93,7 +93,7 @@ pub(crate) fn emit_format_runtime(out: &mut String) {
     out.push_str("  if (paren_neg && neg) r[pos++] = ')';\n");
     out.push_str("  else if (trailing_plus) r[pos++] = neg ? '-' : '+';\n");
     out.push_str("  else if (trailing_minus && neg) r[pos++] = '-';\n");
-    out.push_str("  r[pos] = 0; return r;\n}\n");
+    out.push_str("  r[pos] = 0; return xb_from_cstr(r);\n}\n");
     out.push_str("static int xb_shell(const char* cmd) { return system(cmd); }\n");
     out.push_str("static int xb_library(int n) { return 0; }\n");
 }

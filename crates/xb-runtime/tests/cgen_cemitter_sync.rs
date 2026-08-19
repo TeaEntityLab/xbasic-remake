@@ -190,6 +190,50 @@ fn cemitter_and_cgen_agree_on_positive_corpus() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// CG-BYTESTRING: `CHR$(0)`, embedded, and high bytes must survive concat / LEN /
+/// PRINT byte-for-byte through BOTH C generators and match the interpreter. The
+/// pre-fix C `char*` null-terminated representation truncated at the first NUL;
+/// this pins the length-prefixed byte-string representation in both generators.
+#[test]
+fn cemitter_and_cgen_agree_on_embedded_nul_strings() {
+    let tmp = std::env::temp_dir().join("xb_sync_nul");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM s$\n\
+               s$ = \"AB\" + CHR$(0) + \"CD\"\n\
+               PRINT LEN(s$)\n\
+               PRINT s$\n\
+               PRINT LEN(CHR$(0))\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse embedded-nul program")
+        .lower_ir()
+        .expect("lower embedded-nul program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "nul_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "nul_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret embedded-nul program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // The NUL byte (0x00) sits between AB and CD; LEN is 5 (not 4), and
+    // LEN(CHR$(0)) is 1 (not 0) — i.e. no truncation at the first NUL.
+    assert_eq!(interp_out, "5\nAB\u{0}CD\n1\n", "interpreter reference");
+    assert_eq!(rust_out, interp_out, "CEmitter dropped/truncated the embedded NUL");
+    assert_eq!(self_out, interp_out, "cgen.x dropped/truncated the embedded NUL");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly

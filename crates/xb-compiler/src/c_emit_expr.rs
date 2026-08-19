@@ -35,7 +35,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
         IrExprKind::ByRef(inner) => emit_expr(inner, out),
         IrExprKind::Comparison { op, left, right } => {
             if left.value_type == ValueType::String || right.value_type == ValueType::String {
-                out.push_str("(-(strcmp(");
+                out.push_str("(-(xb_scmp(");
                 emit_expr(left, out);
                 out.push_str(", ");
                 emit_expr(right, out);
@@ -300,7 +300,7 @@ pub(crate) fn emit_default(vt: ValueType, out: &mut String) {
     match vt {
         ValueType::Integer => out.push('0'),
         ValueType::Float => out.push_str("0.0"),
-        ValueType::String => out.push_str("xb_strdup(\"\")"),
+        ValueType::String => out.push_str("xb_str(\"\")"),
     }
 }
 

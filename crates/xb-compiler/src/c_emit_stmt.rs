@@ -27,7 +27,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                         emit_expr(sz, out);
                         out.push_str(") + 1; _i++) ");
                         emit_var_name(symbol, out);
-                        out.push_str("[_i] = xb_strdup(\"\");\n");
+                        out.push_str("[_i] = xb_str(\"\");\n");
                     }
                 }
                 None => {

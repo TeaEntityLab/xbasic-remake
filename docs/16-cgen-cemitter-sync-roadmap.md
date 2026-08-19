@@ -92,45 +92,40 @@ one — an ongoing cosmetic burden. **Deferred**: CG-SIG + the behavioral corpus
 cover the high-value drift.
 
 ### CG-BODY-COVER — behavioral blind spots remain (low priority)
-The behavioral tests don't exercise address-of builtins, file mode 2, or
-high-byte strings (now a **confirmed** defect — see CG-BYTESTRING), so body-logic drift *in those specific
-helpers* isn't caught behaviorally (their signatures still are, via CG-SIG).
+The behavioral tests don't exercise address-of builtins or file mode 2, so body-logic
+drift *in those specific helpers* isn't caught behaviorally (their signatures still are,
+via CG-SIG). High-byte / embedded-NUL strings — formerly the largest blind spot — are now
+covered by a dedicated lock test (see CG-BYTESTRING ✅).
 Clean closure needs deterministic fixtures (hard for raw addresses / temp files);
 tracked, low priority given CG-SIG coverage.
 
-### CG-BYTESTRING — C backend drops embedded NULs / high bytes `[confirmed 2026-08-18]`
-Both C generators represent strings as C `char*` null-terminated (`xb_len` = `strlen`,
-`xb_concat`/`xb_left`/… `strlen`-based, `xb_chr` NUL-terminates), so `CHR$(0)`, embedded,
-and high bytes are silently lost — the **same defect the LLVM backend had before its
-RT-BYTESTRING fix (docs/17)**. Evidence — `"AB" + CHR$(0) + "CD"` prints `ABCD` with
-`LEN` 4 (should be `AB\0CD`, `LEN` 5) and `LEN(CHR$(0))` 0 (should be 1):
+### CG-BYTESTRING — byte-accurate strings in both C generators ✅ done `[2026-08-18]`
+Both C generators previously represented strings as C `char*` null-terminated (`xb_len` =
+`strlen`, `xb_concat`/`xb_left`/… `strlen`-based, `xb_chr` NUL-terminating), so `CHR$(0)`,
+embedded, and high bytes were silently lost — the same defect the LLVM backend had before
+its RT-BYTESTRING fix (docs/17). Before: `"AB" + CHR$(0) + "CD"` printed `ABCD` with `LEN`
+4 and `LEN(CHR$(0))` 0.
 
-```
-xb --run    : 35 0a 41 42 00 43 44 0a 41 00 42 0a 31 0a   (LEN 5; AB\0CD; A\0B; 1)
-xb --emit-c : 34 0a 41 42    43 44 0a 41    42 0a 30 0a   (LEN 4; ABCD;  AB;  0)
-```
+**Fix (applied identically to `c_runtime*.rs` / `c_emit_*.rs` and `cgen.x`):** a string is
+now a length-prefixed byte-string — a `char*` to the data with a `size_t` length in an
+8-byte header before it (`xb_alloc` / `xb_len`) plus a trailing NUL for C interop. Every
+producer allocates via `xb_alloc`; `xb_concat` / `LEN` / `LEFT$` / `RIGHT$` / `MID$` /
+`CHR$` / case / trim / space / `STR$` / `HEX$` / `FORMAT$` / … use the prefix length;
+`PRINT` writes exact bytes via `fwrite`; string comparison uses `xb_scmp` (`memcmp` +
+length tiebreak). Boundary sources that hand back raw C strings (`xb_cstring` from an
+address — now `0`-guarded, `INPUT`/`fgets`, `INKEY$`, DATA literals, program/version
+names) snapshot into a prefixed buffer via `xb_from_cstr`. String literals keep the
+`xb_str("…")` emission (now a prefixed copy).
 
-A correctness bug in the **primary AOT path** (the secondary LLVM backend is now correct).
-CG-BODY-COVER named this a blind spot; it is now a confirmed, evidence-backed defect.
-**Fix path**: length-prefixed strings mirroring the LLVM fix — keep the C type `char*`
-but store a `size_t` length in a header before the data (`xb_len` reads the prefix,
-`PRINT` writes exact bytes via `fwrite`, compare via `memcmp`+length, string literals
-wrapped `xb_lit("…", N)`), applied **identically** to `c_runtime.rs` / `c_emit_*.rs`
-**and** `cgen.x` so the sync tests stay green. The bootstrap fixed point (`compiler.ir`,
-IR text) is runtime-independent → unaffected; only `cgen_cemitter_sync` +
-`cgen_positive_corpus` (behavioral) gate it. Scoped as a large two-generator change
-(~40 helpers each); corpus-neutral today (no interp-clean corpus program uses embedded
-NULs), so it is **latent-correctness**, not a reach unlock.
-
-**Design boundary (harder than the LLVM fix):** unlike the LLVM backend — where every
-string is created by a helper I control — the C backend has strings that arrive as **raw
-`char*` aliasing arbitrary memory**: `xb_cstring(intptr_t addr)` returns `(char*)addr`,
-and the `*AT` peeks / `VARPTR` paths hand back untracked pointers; file `INPUT`/`fgets`
-and `INKEY$` also produce plain C buffers. A uniform prefix representation must therefore
-either copy each such source into a prefixed buffer at the boundary, or keep an
-address-aliased escape hatch (no prefix, `strlen`-length) — a real design decision, not a
-mechanical helper sweep. This is why it is a **multi-day representation overhaul**, not a
-drop-in of the LLVM change.
+Now byte-exact and identical across interpreter, CEmitter, and native `cgen.x`:
+`"AB"+CHR$(0)+"CD"` → `35 0a 41 42 00 43 44 0a 41 00 42 0a 31 0a` (LEN 5; `AB\0CD`; `A\0B`;
+`LEN(CHR$(0))` 1) from all three. The bootstrap fixed point (`compiler.ir` SHA-256
+`c8d5c7f1…`) is unchanged (runtime-independent). Locked by
+`cgen_cemitter_sync::cemitter_and_cgen_agree_on_embedded_nul_strings` (both generators ==
+interpreter), plus the existing corpus/selfhost sync tests. Residual: the `INSTR` / `RINSTR`
+/ case-insensitive search helpers still use `strstr` / `strncmp` internally — correct for
+the null-free norm, imperfect only for an embedded NUL *inside a search string* (extreme
+edge), documented and non-crashing.
 
 ## 5. Verification
 
