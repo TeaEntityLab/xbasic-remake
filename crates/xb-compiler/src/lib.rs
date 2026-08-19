@@ -250,6 +250,17 @@ pub mod llvm_backend {
         /// at every call site: lowered as a pointer to a `{data, dims}` descriptor the
         /// callee reads (read-only sharing; REDIM write-back is not yet modeled).
         byref_array_params: HashMap<String, std::collections::HashSet<usize>>,
+        /// File runtime (`OPEN`/`CLOSE`/`LOF`): libc `fopen`/`fclose`/`fseek`/`ftell` plus a
+        /// fixed handle table mapping an XBasic file number (table index + 3) to its `FILE*`,
+        /// mirroring the interpreter's `files` list (`OpenOptions`, `files.len() + 3`).
+        fopen: FunctionValue<'ctx>,
+        fclose: FunctionValue<'ctx>,
+        fseek: FunctionValue<'ctx>,
+        ftell: FunctionValue<'ctx>,
+        /// Global `[FILE_SLOTS x ptr]` of open `FILE*` (index = handle − 3).
+        file_table: PointerValue<'ctx>,
+        /// Global `i32` next-handle counter (monotonic, matches `files.len()`).
+        file_count: PointerValue<'ctx>,
     }
 
     impl<'ctx> Emit<'ctx> {
@@ -289,6 +300,23 @@ pub mod llvm_backend {
                 None,
             );
             let printf = module.add_function("printf", i32t.fn_type(&[ptr.into()], true), None);
+            // File runtime: libc file primitives + a fixed FILE* handle table.
+            let fopen =
+                module.add_function("fopen", ptr.fn_type(&[ptr.into(), ptr.into()], false), None);
+            let fclose = module.add_function("fclose", i32t.fn_type(&[ptr.into()], false), None);
+            let fseek = module.add_function(
+                "fseek",
+                i32t.fn_type(&[ptr.into(), i64t.into(), i32t.into()], false),
+                None,
+            );
+            let ftell = module.add_function("ftell", i64t.fn_type(&[ptr.into()], false), None);
+            let file_arr_ty = ptr.array_type(256);
+            let file_table_g = module.add_global(file_arr_ty, None, "xb_files");
+            file_table_g.set_initializer(&file_arr_ty.const_zero());
+            let file_table = file_table_g.as_pointer_value();
+            let file_count_g = module.add_global(i32t, None, "xb_file_n");
+            file_count_g.set_initializer(&i32t.const_zero());
+            let file_count = file_count_g.as_pointer_value();
             let main = module.add_function("main", i32t.fn_type(&[], false), None);
             builder.position_at_end(ctx.append_basic_block(main, "entry"));
             let g = |b: &Builder<'ctx>, s: &str, n: &str| -> Result<PointerValue<'ctx>, CompileError> {
@@ -324,6 +352,12 @@ pub mod llvm_backend {
                 sm: None,
                 byref_params: HashMap::new(),
                 byref_array_params: HashMap::new(),
+                fopen,
+                fclose,
+                fseek,
+                ftell,
+                file_table,
+                file_count,
                 vars: HashMap::new(),
                 funcs: HashMap::new(),
                 cur_fn: main,
@@ -1289,29 +1323,17 @@ pub mod llvm_backend {
                     }
                 }
                 IrExprKind::IntegerLiteral(v) => {
-                    // Mirror the interpreter's `parse_integer`: 0x/0b/0o + decimal, reinterpreting
-                    // unsigned 32/64-bit bit patterns as i32 (e.g. 0xEDB88320, 0b100…001).
-                    let radixed = |d: &str, r: u32| -> i32 {
-                        i32::from_str_radix(d, r)
-                            .or_else(|_| u32::from_str_radix(d, r).map(|u| u as i32))
-                            .or_else(|_| u64::from_str_radix(d, r).map(|u| u as i32))
-                            .unwrap_or(0)
-                    };
-                    let n: i32 = if let Some(h) = v.strip_prefix("0x").or_else(|| v.strip_prefix("0X")) {
-                        radixed(h, 16)
-                    } else if let Some(b) = v.strip_prefix("0b").or_else(|| v.strip_prefix("0B")) {
-                        radixed(b, 2)
-                    } else if let Some(o) = v.strip_prefix("0o").or_else(|| v.strip_prefix("0O")) {
-                        radixed(o, 8)
-                    } else {
-                        v.parse::<i32>()
-                            .or_else(|_| v.parse::<u32>().map(|u| u as i32))
-                            .or_else(|_| v.parse::<u64>().map(|u| u as i32))
-                            .or_else(|_| v.parse::<i64>().map(|i| i as i32))
-                            .unwrap_or(0)
-                    };
-                    Some(self.i32t.const_int(n as u64, true).into())
+                    Some(self.i32t.const_int(parse_int_literal(v) as u64, true).into())
                 }
+                IrExprKind::Constant { value, .. } => match expr.value_type {
+                    // System / user `$$` constant: the IR carries its resolved value. Match the
+                    // interpreter (`parse_integer`) for integers; support float/string too.
+                    ValueType::Float => {
+                        Some(self.f64t.const_float(value.parse::<f64>().unwrap_or(0.0)).into())
+                    }
+                    ValueType::String => Some(self.str_const(value.as_bytes())?.into()),
+                    _ => Some(self.i32t.const_int(parse_int_literal(value) as u64, true).into()),
+                },
                 IrExprKind::FloatLiteral(v) => {
                     Some(self.f64t.const_float(v.parse::<f64>().unwrap_or(0.0)).into())
                 }
@@ -2450,6 +2472,138 @@ pub mod llvm_backend {
             self.builder.position_at_end(dbb);
             Ok(self.builder.build_load(self.ptr, result, "fnr").map_err(Self::err)?)
         }
+        /// `OPEN(name$, mode)`: open a real file via libc `fopen`, register its `FILE*` in the
+        /// handle table, and return an XBasic file number (table index + 3, mirroring the
+        /// interpreter's `files.len() + 3`); −1 on failure. `mode` follows xst.dec (0=RD, 1=WR,
+        /// 2=RW, 3=WRNEW, 4=RWNEW). Handle numbers are monotonic, matching the interpreter.
+        fn file_open(&self, args: &[IrExpr]) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+            let Some(BasicValueEnum::PointerValue(name)) = self.eval_value(&args[0])? else {
+                return Ok(None);
+            };
+            let mode = self.eval_int(&args[1])?;
+            let eq = |m: u64, n: &str| -> Result<IntValue<'ctx>, CompileError> {
+                self.builder
+                    .build_int_compare(IntPredicate::EQ, mode, self.i32t.const_int(m, false), n)
+                    .map_err(Self::err)
+            };
+            // truncate = mode ∈ {1,3,4}; read+write = mode ∈ {2,4}. `fopen` string:
+            //   read-only → "rb"; truncate → "wb"; RW no-trunc → "r+b"; RW trunc → "w+b".
+            let trunc = {
+                let a = self.builder.build_or(eq(1, "m1")?, eq(3, "m3")?, "t13").map_err(Self::err)?;
+                self.builder.build_or(a, eq(4, "m4")?, "trunc").map_err(Self::err)?
+            };
+            let plus = self.builder.build_or(eq(2, "m2")?, eq(4, "m4b")?, "plus").map_err(Self::err)?;
+            let sel = self
+                .builder
+                .build_select(trunc, self.fmt_g("wb")?, self.fmt_g("rb")?, "ms1")
+                .map_err(Self::err)?
+                .into_pointer_value();
+            let nt = self.builder.build_not(trunc, "nt").map_err(Self::err)?;
+            let pnt = self.builder.build_and(plus, nt, "pnt").map_err(Self::err)?;
+            let sel = self
+                .builder
+                .build_select(pnt, self.fmt_g("r+b")?, sel, "ms2")
+                .map_err(Self::err)?
+                .into_pointer_value();
+            let pt = self.builder.build_and(plus, trunc, "pt").map_err(Self::err)?;
+            let sel = self
+                .builder
+                .build_select(pt, self.fmt_g("w+b")?, sel, "ms3")
+                .map_err(Self::err)?
+                .into_pointer_value();
+            let fp = self
+                .builder
+                .build_call(self.fopen, &[name.into(), sel.into()], "fopen")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("fopen returned void".into()))?
+                .into_pointer_value();
+            let is_null = self.builder.build_is_null(fp, "fnull").map_err(Self::err)?;
+            // Register: table[count] = fp; count += 1; handle = count + 3.
+            let idx = self
+                .builder
+                .build_load(self.i32t, self.file_count, "fidx")
+                .map_err(Self::err)?
+                .into_int_value();
+            let slot = unsafe {
+                self.builder
+                    .build_in_bounds_gep(
+                        self.ptr.array_type(256),
+                        self.file_table,
+                        &[self.i32t.const_zero(), idx],
+                        "fslot",
+                    )
+                    .map_err(Self::err)?
+            };
+            self.builder.build_store(slot, fp).map_err(Self::err)?;
+            let idx1 = self.builder.build_int_add(idx, self.i32t.const_int(1, false), "fidx1").map_err(Self::err)?;
+            self.builder.build_store(self.file_count, idx1).map_err(Self::err)?;
+            let handle = self.builder.build_int_add(idx, self.i32t.const_int(3, false), "fh").map_err(Self::err)?;
+            let neg1 = self.i32t.const_int((-1i64) as u64, true);
+            let res = self.builder.build_select(is_null, neg1, handle, "fres").map_err(Self::err)?;
+            Ok(Some(res))
+        }
+
+        /// `FILE*` slot pointer for handle `h` (table index `h − 3`).
+        fn file_slot(&self, h: IntValue<'ctx>) -> Result<PointerValue<'ctx>, CompileError> {
+            let idx = self.builder.build_int_sub(h, self.i32t.const_int(3, false), "fsidx").map_err(Self::err)?;
+            unsafe {
+                self.builder
+                    .build_in_bounds_gep(
+                        self.ptr.array_type(256),
+                        self.file_table,
+                        &[self.i32t.const_zero(), idx],
+                        "fs",
+                    )
+                    .map_err(Self::err)
+            }
+        }
+
+        /// `CLOSE(handle)`: `fclose` the file and clear its table slot; returns 0. Assumes a
+        /// valid handle from a prior `OPEN` (the corpus guards `OPEN >= 3` before use).
+        fn file_close(&self, args: &[IrExpr]) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+            let h = self.eval_int(&args[0])?;
+            let slot = self.file_slot(h)?;
+            let fp = self.builder.build_load(self.ptr, slot, "cfp").map_err(Self::err)?.into_pointer_value();
+            self.builder.build_call(self.fclose, &[fp.into()], "fclose").map_err(Self::err)?;
+            self.builder.build_store(slot, self.ptr.const_null()).map_err(Self::err)?;
+            Ok(Some(self.i32t.const_zero().into()))
+        }
+
+        /// `LOF(handle)`: length of the open file in bytes (seek to end, `ftell`, restore).
+        fn file_lof(&self, args: &[IrExpr]) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+            let h = self.eval_int(&args[0])?;
+            let slot = self.file_slot(h)?;
+            let fp = self.builder.build_load(self.ptr, slot, "lfp").map_err(Self::err)?.into_pointer_value();
+            let pos = self
+                .builder
+                .build_call(self.ftell, &[fp.into()], "ftpos")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("ftell returned void".into()))?
+                .into_int_value();
+            // SEEK_END = 2
+            self.builder
+                .build_call(self.fseek, &[fp.into(), self.i64t.const_zero().into(), self.i32t.const_int(2, false).into()], "seekend")
+                .map_err(Self::err)?;
+            let size = self
+                .builder
+                .build_call(self.ftell, &[fp.into()], "ftend")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("ftell returned void".into()))?
+                .into_int_value();
+            // Restore position (SEEK_SET = 0).
+            self.builder
+                .build_call(self.fseek, &[fp.into(), pos.into(), self.i32t.const_zero().into()], "seekpos")
+                .map_err(Self::err)?;
+            let size32 = self.builder.build_int_truncate(size, self.i32t, "lof").map_err(Self::err)?;
+            Ok(Some(size32.into()))
+        }
+
         /// Translate a supported builtin call; `None` if unsupported (deferred).
         fn eval_builtin(
             &self,
@@ -2458,6 +2612,9 @@ pub mod llvm_backend {
         ) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
             match (name, args.len()) {
                 ("FORMAT$", 2) => self.eval_format(&args[0], &args[1]),
+                ("OPEN", 2) => self.file_open(args),
+                ("CLOSE", 1) => self.file_close(args),
+                ("LOF", 1) => self.file_lof(args),
                 ("ABS", 1) => match self.eval_value(&args[0])? {
                     Some(BasicValueEnum::IntValue(iv)) => {
                         let neg = self.builder.build_int_neg(iv, "neg").map_err(Self::err)?;
@@ -2929,6 +3086,31 @@ pub mod llvm_backend {
                 },
                 _ => Ok(None),
             }
+        }
+    }
+
+    /// Parse an XBasic integer literal / constant value string to `i32`, mirroring the
+    /// interpreter's `parse_integer`: `0x`/`0b`/`0o` radix prefixes plus decimal, reinterpreting
+    /// unsigned 32/64-bit bit patterns as `i32` (e.g. `0xEDB88320`); unparsable → 0.
+    fn parse_int_literal(v: &str) -> i32 {
+        let radixed = |d: &str, r: u32| -> i32 {
+            i32::from_str_radix(d, r)
+                .or_else(|_| u32::from_str_radix(d, r).map(|u| u as i32))
+                .or_else(|_| u64::from_str_radix(d, r).map(|u| u as i32))
+                .unwrap_or(0)
+        };
+        if let Some(h) = v.strip_prefix("0x").or_else(|| v.strip_prefix("0X")) {
+            radixed(h, 16)
+        } else if let Some(b) = v.strip_prefix("0b").or_else(|| v.strip_prefix("0B")) {
+            radixed(b, 2)
+        } else if let Some(o) = v.strip_prefix("0o").or_else(|| v.strip_prefix("0O")) {
+            radixed(o, 8)
+        } else {
+            v.parse::<i32>()
+                .or_else(|_| v.parse::<u32>().map(|u| u as i32))
+                .or_else(|_| v.parse::<u64>().map(|u| u as i32))
+                .or_else(|_| v.parse::<i64>().map(|i| i as i32))
+                .unwrap_or(0)
         }
     }
 
@@ -4485,5 +4667,72 @@ mod tests {
         assert_eq!(String::from_utf8_lossy(&run.stdout), "3\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_evaluates_system_constants() {
+        use std::io::Write;
+        use std::process::Command;
+        // A `$$` constant used in an expression carries its resolved value in the IR
+        // (`IrExprKind::Constant`); the backend must evaluate it, not drop it. `$$WR`=1,
+        // `$$RD`=0, `$$TRUE`=-1 (xst.dec). Regression guard for `astring` (OPEN mode args).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             PRINT $$WR; \" \"; $$RD; \" \"; $$TRUE\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_const.o");
+        let exep = dir.join("xb_llvm_const.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "1 0 -1\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_file_open_close_lof() {
+        use std::io::Write;
+        use std::process::Command;
+        // Real file runtime: OPEN returns a handle (table index + 3, monotonic like the
+        // interpreter's `files.len() + 3`), CLOSE frees it, LOF reads the size (0 for the
+        // freshly created empty file). Prints "3 4 0". Regression guard for `astring`.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             f1 = OPEN (\"xb_lock_ftest.dat\", $$WR)\n\
+             CLOSE (f1)\n\
+             f2 = OPEN (\"xb_lock_ftest.dat\", $$RD)\n\
+             n = LOF (f2)\n\
+             CLOSE (f2)\n\
+             PRINT f1; \" \"; f2; \" \"; n\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_file.o");
+        let exep = dir.join("xb_llvm_file.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        // Run in a temp cwd so the data file lands there, then clean it up.
+        let run = Command::new(&exep).current_dir(&dir).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "3 4 0\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+        let _ = std::fs::remove_file(dir.join("xb_lock_ftest.dat"));
     }
 }
