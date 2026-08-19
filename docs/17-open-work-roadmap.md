@@ -95,7 +95,7 @@ The `llvm` path is behind the `xb-cli` `llvm` feature (`--features llvm`, forwar
 cli_backend_llvm_errors_when_feature_disabled (feature off)}`.
 
 **Reach `[verified 2026-08-18]`:** a differential sweep (LLVM-native vs `xb --run`
-over `xbasic-6.4.5/**/*.x`) finds **95 programs** produce **byte-identical** native
+over `xbasic-6.4.5/**/*.x`) finds **96 programs** produce **byte-identical** native
 output (up from 61 pre-`GOSUB`, 79 pre-FORMAT$, 84 pre-arotate), with **0** invalid-IR compile-fails — every runnable
 corpus program now emits valid IR (`module.verify()` gates it). Guarded by
 `cli.rs::cli_llvm_matches_interpreter_on_corpus_programs` (curated rich-output subset:
@@ -125,7 +125,7 @@ lever left**. The 10 interpreter-clean programs that still diverge, by root caus
 | Blocker | Programs | Nature |
 |---|---|---|
 | File / record I/O | `acrc32`, `astring`, `arecord` | Real `OPEN`/`GET`/`PUT`/`LOF` on files; the LLVM backend has no file runtime (`LOF`=0, reads empty). Deferred |
-| by-ref `@` **array** | `aarray_ISNODE`, `asortie` | Scalar `@` is done (pointer params sharing the caller's slot — see `llvm_backend_compiles_scalar_byref_params`). These need `@array$[]`, which requires the **array-descriptor ABI**: callees like `StringsToStringArray` `REDIM` the passed array, so arrays must become heap descriptors `{ptr, dims}` passed by pointer. Large; also gated on `ISNODE` / `XstQuickSort` |
+| by-ref `@` **array** (REDIM) | `asortie` | Read-only 1-D `@array[]` is done (a `{data, dims}` descriptor the callee reads — unblocked `aarray_ISNODE`; see `llvm_backend_compiles_array_byref_param`). What remains needs **REDIM-through-by-ref** (callee reallocates the caller's array) + `XstQuickSort`, i.e. shared heap descriptors with write-back — large |
 | Task / FUNCADDR system | `atask` | `SUBADDRESS`/`&func()`/timer scheduling — no runtime task system |
 | Real `Xst*` body | `aback` | `XstBinStringToBackString$` etc. have real bodies in `src/linux/xst.x`; needs native linking of that library |
 | Nondeterministic | `atimer` | `TIMER` — not differential-testable |
@@ -134,16 +134,15 @@ lever left**. The 10 interpreter-clean programs that still diverge, by root caus
 
 None is a single high-value unlock; each is a documented large effort or a fundamental
 representation change warranting explicit scoping. The incremental LLVM roadmap is at
-**95/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; `FORMAT$` +
+**96/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; `FORMAT$` +
 `CHR$(c,count)`, `BIN$`/`BINB$`, `0b`/`0o` literals, width-padded `HEXX$`/`HEX$`/`OCTO$`/
 `OCT$` (2-arg); unknown-call + undefined-variable zero-defaults; and **nested-GOSUB control
 flow** — a GOSUB nested in an `IF`/`FOR`/… now resumes correctly via a per-site *landing
 block* through the `pc`-dispatch, with FOR bound/step hoisted to entry allocas so landing
 re-entry does not break SSA dominance; unblocked `gif`/`gifview`/`aviewbmp`/`MakeDist`/
-`MakeDistLinux`, 2-arg radix unblocked `asystem`/`amodal`, and **scalar `@` by-ref** now
-lowers as a shared pointer param — corpus-neutral so far since corpus `@scalar` targets are
-interpreter-stubbed Xst functions, but it closes the scalar half of the by-ref gap). The
-residual 10 are the large/fundamental efforts tabled above.
+`MakeDistLinux`, 2-arg radix unblocked `asystem`/`amodal`, **scalar `@` by-ref** lowers as a
+shared pointer param, and **read-only 1-D `@array[]` by-ref** (a `{data, dims}` descriptor)
+unblocked `aarray_ISNODE`). The residual 9 are the large/fundamental efforts tabled above.
 
 ### `@array` effort — verified scoping notes `[2026-08-19]`
 Precise root causes established this session, so the large effort can be scoped without

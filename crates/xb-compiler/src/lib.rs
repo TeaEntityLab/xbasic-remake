@@ -175,6 +175,7 @@ pub mod llvm_backend {
             let ctx = Context::create();
             let mut emit = Emit::new(&ctx)?;
             emit.byref_params = collect_byref_params(&program.items);
+            emit.byref_array_params = collect_byref_array_params(&program.items);
             emit.declare_functions(&program.items);
             emit.emit_body(&program.items)?;
             if let Some(body) = entry_body(&program) {
@@ -245,6 +246,10 @@ pub mod llvm_backend {
         /// (never by-value): lowered as pointer params sharing the caller's slot. Array `@`
         /// (which needs the array-descriptor ABI) is excluded.
         byref_params: HashMap<String, std::collections::HashSet<usize>>,
+        /// Per-function parameter positions passed as `@array[]` (by-ref of a 1-D array)
+        /// at every call site: lowered as a pointer to a `{data, dims}` descriptor the
+        /// callee reads (read-only sharing; REDIM write-back is not yet modeled).
+        byref_array_params: HashMap<String, std::collections::HashSet<usize>>,
     }
 
     impl<'ctx> Emit<'ctx> {
@@ -318,6 +323,7 @@ pub mod llvm_backend {
                 arrays: HashMap::new(),
                 sm: None,
                 byref_params: HashMap::new(),
+                byref_array_params: HashMap::new(),
                 vars: HashMap::new(),
                 funcs: HashMap::new(),
                 cur_fn: main,
@@ -355,6 +361,14 @@ pub mod llvm_backend {
                 ValueType::Float => self.f64t.into(),
                 _ => self.i32t.into(),
             }
+        }
+
+        /// Runtime array descriptor `{ ptr data, [4 x i64] dims }` for passing a 1-D array
+        /// by reference: the caller stores the buffer pointer + dim counts, the callee GEPs
+        /// the fields and reads through them (read-only sharing).
+        fn arr_desc_ty(&self) -> inkwell::types::StructType<'ctx> {
+            self.ctx
+                .struct_type(&[self.ptr.into(), self.i64t.array_type(4).into()], false)
         }
 
         /// GEP to element `name[index, extra_indices...]` via row-major Horner offset
@@ -497,11 +511,14 @@ pub mod llvm_backend {
                         continue;
                     }
                     let refset = self.byref_params.get(name);
+                    let aref = self.byref_array_params.get(name);
                     let pts: Vec<BasicMetadataTypeEnum> = params
                         .iter()
                         .enumerate()
                         .map(|(i, p)| {
-                            if refset.is_some_and(|r| r.contains(&i)) {
+                            if refset.is_some_and(|r| r.contains(&i))
+                                || aref.is_some_and(|r| r.contains(&i))
+                            {
                                 self.ptr.into()
                             } else {
                                 self.llvm_type(p.value_type).into()
@@ -536,11 +553,29 @@ pub mod llvm_backend {
                     let bb = self.ctx.append_basic_block(f, "entry");
                     self.builder.position_at_end(bb);
                     let refset = self.byref_params.get(name).cloned();
+                    let aref = self.byref_array_params.get(name).cloned();
                     for (i, p) in params.iter().enumerate() {
                         let arg = f.get_nth_param(i as u32);
-                        if refset.as_ref().is_some_and(|r| r.contains(&i)) {
-                            // By-ref param: the LLVM arg is a pointer to the caller's slot;
-                            // use it directly as this variable's slot so reads/writes share it.
+                        if aref.as_ref().is_some_and(|r| r.contains(&i)) {
+                            // @array param: the arg is a `{data, dims}` descriptor pointer.
+                            // GEP its fields as the array's holder + dim-0 slot so array ops
+                            // read the shared buffer/count (1-D read-only sharing).
+                            if let Some(a) = arg {
+                                let dty = self.arr_desc_ty();
+                                let desc = a.into_pointer_value();
+                                let holder = self
+                                    .builder
+                                    .build_struct_gep(dty, desc, 0, "phdata")
+                                    .map_err(|_| CompileError::Llvm("param desc data gep".into()))?;
+                                let dims0 = self
+                                    .builder
+                                    .build_struct_gep(dty, desc, 1, "phdims")
+                                    .map_err(|_| CompileError::Llvm("param desc dims gep".into()))?;
+                                self.arrays.insert(p.name.clone(), (holder, p.value_type, vec![dims0]));
+                            }
+                        } else if refset.as_ref().is_some_and(|r| r.contains(&i)) {
+                            // By-ref scalar param: the LLVM arg is a pointer to the caller's
+                            // slot; use it directly so reads/writes share it.
                             if let Some(a) = arg {
                                 self.vars.insert(p.name.clone(), (a.into_pointer_value(), p.value_type));
                             }
@@ -1184,11 +1219,43 @@ pub mod llvm_backend {
             Ok(match &expr.kind {
                 IrExprKind::StringLiteral(s) => Some(self.str_const(s.as_bytes())?.into()),
                 IrExprKind::ByRef(inner) => {
-                    // `@scalar`: pass a pointer to the caller's variable slot, shared with a
-                    // by-ref pointer param. Array `@` (name not in `vars`) → None (call
-                    // skipped, as before) until the array-descriptor ABI lands.
+                    // `@scalar`: pass a pointer to the caller's variable slot. `@array[]`:
+                    // materialize a `{data, dims}` descriptor and pass its pointer (read-only
+                    // 1-D). Anything else → None (call skipped, as before).
                     if let IrExprKind::Symbol(sym) = &inner.kind {
-                        self.vars.get(&sym.name).map(|(slot, _)| (*slot).into())
+                        if let Some((holder, _elem, dims)) = self.arrays.get(&sym.name).cloned() {
+                            let dty = self.arr_desc_ty();
+                            let desc = self.entry_alloca(dty.into(), "adesc")?;
+                            let bufptr =
+                                self.builder.build_load(self.ptr, holder, "abuf").map_err(Self::err)?;
+                            let dptr = self
+                                .builder
+                                .build_struct_gep(dty, desc, 0, "addata")
+                                .map_err(|_| CompileError::Llvm("desc data gep".into()))?;
+                            self.builder.build_store(dptr, bufptr).map_err(Self::err)?;
+                            let dimsp = self
+                                .builder
+                                .build_struct_gep(dty, desc, 1, "addims")
+                                .map_err(|_| CompileError::Llvm("desc dims gep".into()))?;
+                            for (k, cslot) in dims.iter().enumerate().take(4) {
+                                let cnt =
+                                    self.builder.build_load(self.i64t, *cslot, "acnt").map_err(Self::err)?;
+                                let ep = unsafe {
+                                    self.builder
+                                        .build_in_bounds_gep(
+                                            self.i64t,
+                                            dimsp,
+                                            &[self.i64t.const_int(k as u64, false)],
+                                            "adimk",
+                                        )
+                                        .map_err(Self::err)?
+                                };
+                                self.builder.build_store(ep, cnt).map_err(Self::err)?;
+                            }
+                            Some(desc.into())
+                        } else {
+                            self.vars.get(&sym.name).map(|(slot, _)| (*slot).into())
+                        }
                     } else {
                         None
                     }
@@ -2941,6 +3008,50 @@ pub mod llvm_backend {
         result
     }
 
+    /// `@array[]` by-ref parameter positions per function: a position passed `ByRef` of an
+    /// array-named symbol at ≥1 call site and never any other way (safe to lower as a shared
+    /// descriptor). 1-D read-only sharing; string-array `$`-name mismatch and REDIM
+    /// write-back are the deferred parts of the full effort (docs/17).
+    fn collect_byref_array_params(
+        items: &[IrItem],
+    ) -> HashMap<String, std::collections::HashSet<usize>> {
+        use std::collections::HashSet;
+        let mut arrays: HashSet<String> = HashSet::new();
+        collect_array_names(items, &mut arrays);
+        let mut aref: HashMap<String, HashSet<usize>> = HashMap::new();
+        let mut other: HashMap<String, HashSet<usize>> = HashMap::new();
+        {
+            let mut on_call = |name: &str, args: &[IrExpr]| {
+                for (i, a) in args.iter().enumerate() {
+                    let arr_ref = match &a.kind {
+                        IrExprKind::ByRef(inner) => {
+                            matches!(&inner.kind, IrExprKind::Symbol(s) if arrays.contains(&s.name))
+                        }
+                        _ => false,
+                    };
+                    if arr_ref {
+                        aref.entry(name.to_string()).or_default().insert(i);
+                    } else {
+                        other.entry(name.to_string()).or_default().insert(i);
+                    }
+                }
+            };
+            walk_calls(items, &mut on_call);
+        }
+        let mut result: HashMap<String, HashSet<usize>> = HashMap::new();
+        for (name, positions) in aref {
+            let excluded = other.get(&name);
+            let refset: HashSet<usize> = positions
+                .into_iter()
+                .filter(|p| excluded.is_none_or(|e| !e.contains(p)))
+                .collect();
+            if !refset.is_empty() {
+                result.insert(name, refset);
+            }
+        }
+        result
+    }
+
     /// True if a body has top-level labels/GOSUB/GOTO (needs state-machine emission).
     fn body_has_labels(items: &[IrItem]) -> bool {
         items.iter().any(|it| {
@@ -4059,6 +4170,47 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "6\n[hi]\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_array_byref_param() {
+        use std::io::Write;
+        use std::process::Command;
+        // `@array[]` passes a 1-D array by reference via a `{data, dims}` descriptor: the
+        // callee reads the caller's buffer and dim-0 count (UBOUND + element access). This
+        // is the LLVM backend's *correct* behavior; the interpreter is value-degenerate for
+        // `@array` value-reads (unblocks aarray_ISNODE, whose output is ISNODE-driven).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             DECLARE FUNCTION Dump (a[])\n\
+             FUNCTION Entry ()\n\
+             DIM a[2]\n\
+             a[0] = 10\n\
+             a[1] = 20\n\
+             a[2] = 30\n\
+             Dump (@a[])\n\
+             END FUNCTION\n\
+             FUNCTION Dump (a[])\n\
+             FOR i = 0 TO UBOUND(a[])\n\
+             PRINT a[i]\n\
+             NEXT i\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_arrbr.o");
+        let exep = dir.join("xb_llvm_arrbr.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "10\n20\n30\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
