@@ -1419,6 +1419,45 @@ pub mod llvm_backend {
             Ok(data)
         }
 
+        /// A private C format-string global (for `snprintf`); returns its data pointer.
+        fn fmt_g(&self, s: &str) -> Result<PointerValue<'ctx>, CompileError> {
+            Ok(self.builder.build_global_string_ptr(s, "fmt").map_err(Self::err)?.as_pointer_value())
+        }
+
+        /// `LJUST$`/`RJUST$`/`CJUST$`: copy `s` into a width-`w` byte-string padded with
+        /// spaces (mode 0=left, 1=right, 2=center). Branchless: out length is `max(len,w)`,
+        /// so an over-long `s` degenerates to a plain copy (zero-byte memsets are no-ops).
+        fn str_justify(&self, s_arg: &IrExpr, w_arg: &IrExpr, mode: u8) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+            let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(s_arg)? else {
+                return Ok(None);
+            };
+            let w = self.eval_int(w_arg)?;
+            let w64 = self.builder.build_int_s_extend(w, self.i64t, "w64").map_err(Self::err)?;
+            let slen = self.str_len(s)?;
+            let sgtw = self.builder.build_int_compare(IntPredicate::SGT, slen, w64, "sgtw").map_err(Self::err)?;
+            let outlen = self.builder.build_select(sgtw, slen, w64, "outlen").map_err(Self::err)?.into_int_value();
+            let r = self.str_new(outlen)?;
+            let pad = self.builder.build_int_sub(outlen, slen, "pad").map_err(Self::err)?;
+            let leftpad = match mode {
+                1 => pad,
+                2 => self.builder.build_int_signed_div(pad, self.i64t.const_int(2, false), "lp").map_err(Self::err)?,
+                _ => self.i64t.const_zero(),
+            };
+            let space = self.i32t.const_int(b' ' as u64, false);
+            self.builder.build_call(self.memset, &[r.into(), space.into(), leftpad.into()], "ms1").map_err(Self::err)?;
+            let dst = unsafe {
+                self.builder.build_in_bounds_gep(self.ctx.i8_type(), r, &[leftpad], "jdst").map_err(Self::err)?
+            };
+            self.builder.build_call(self.memcpy, &[dst.into(), s.into(), slen.into()], "jmc").map_err(Self::err)?;
+            let ls = self.builder.build_int_add(leftpad, slen, "ls").map_err(Self::err)?;
+            let rightpad = self.builder.build_int_sub(outlen, ls, "rp").map_err(Self::err)?;
+            let rstart = unsafe {
+                self.builder.build_in_bounds_gep(self.ctx.i8_type(), r, &[ls], "jrs").map_err(Self::err)?
+            };
+            self.builder.build_call(self.memset, &[rstart.into(), space.into(), rightpad.into()], "ms2").map_err(Self::err)?;
+            Ok(Some(r.into()))
+        }
+
         /// A global length-prefixed byte-string constant; returns its data pointer.
         fn str_const(&self, bytes: &[u8]) -> Result<PointerValue<'ctx>, CompileError> {
             let i8t = self.ctx.i8_type();
@@ -1884,6 +1923,24 @@ pub mod llvm_backend {
                     let pos = self.builder.build_int_add(diff32, self.i32t.const_int(1, false), "pos").map_err(Self::err)?;
                     Ok(Some(self.builder.build_select(pnull, self.i32t.const_zero(), pos, "instr").map_err(Self::err)?))
                 }
+                ("OCT$", 1) => {
+                    let iv = self.eval_int(&args[0])?;
+                    Ok(Some(self.str_from_int(self.fmt_g("%o")?, iv)?.into()))
+                }
+                ("SIGNED$", 1) => {
+                    let iv = self.eval_int(&args[0])?;
+                    Ok(Some(self.str_from_int(self.fmt_g("%+d")?, iv)?.into()))
+                }
+                ("NULL$", 1) => {
+                    let n = self.eval_int(&args[0])?;
+                    let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
+                    let neg = self.builder.build_int_compare(IntPredicate::SLT, n64, self.i64t.const_zero(), "nn").map_err(Self::err)?;
+                    let clamped = self.builder.build_select(neg, self.i64t.const_zero(), n64, "nclamp").map_err(Self::err)?.into_int_value();
+                    Ok(Some(self.str_new(clamped)?.into()))
+                }
+                ("LJUST$", 2) => self.str_justify(&args[0], &args[1], 0),
+                ("RJUST$", 2) => self.str_justify(&args[0], &args[1], 1),
+                ("CJUST$", 2) => self.str_justify(&args[0], &args[1], 2),
                 ("LEN", 1) => match self.eval_value(&args[0])? {
                     Some(BasicValueEnum::PointerValue(pv)) => {
                         let n32 = self
@@ -2991,6 +3048,37 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "12\n7\n81\n3\n123\n4\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_justify_and_radix_builtins() {
+        use std::io::Write;
+        use std::process::Command;
+        // LJUST$/RJUST$/CJUST$ (branchless pad, no truncation) + OCT$/SIGNED$/NULL$ mirror
+        // the interpreter, including embedded spaces and the over-long passthrough case.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             PRINT LJUST$(\"hi\", 6)\n\
+             PRINT RJUST$(\"hi\", 6)\n\
+             PRINT CJUST$(\"hi\", 6)\n\
+             PRINT LJUST$(\"toolong\", 4)\n\
+             PRINT OCT$(64)\n\
+             PRINT SIGNED$(5)\n\
+             PRINT LEN(NULL$(3))\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_jb.o");
+        let exep = dir.join("xb_llvm_jb.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "hi    \n    hi\n  hi  \ntoolong\n100\n+5\n3\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
