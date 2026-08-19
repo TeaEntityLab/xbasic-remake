@@ -94,10 +94,13 @@ cover the high-value drift.
 ### CG-BODY-COVER — behavioral blind spots remain (low priority)
 The behavioral tests don't exercise address-of builtins or file mode 2, so body-logic
 drift *in those specific helpers* isn't caught behaviorally (their signatures still are,
-via CG-SIG). High-byte / embedded-NUL strings — formerly the largest blind spot — are now
-covered by a dedicated lock test (see CG-BYTESTRING ✅).
-Clean closure needs deterministic fixtures (hard for raw addresses / temp files);
-tracked, low priority given CG-SIG coverage.
+via CG-SIG). Embedded-NUL / low-byte strings are covered by CG-BYTESTRING, and **true high
+bytes (`0x80`–`0xFF`)** are now locked across both C generators by
+`cemitter_and_cgen_agree_on_high_byte_strings` (`CHR$(200)+CHR$(255)` → byte-faithful
+`LEN`/`PRINT`; the interpreter is excluded there as its `Vec<String>` output sink is
+UTF-8-lossy for high bytes — the byte-faithful C backends are the correct behavior).
+Remaining blind spots are address-of builtins and file mode 2; clean closure needs
+deterministic fixtures (hard for raw addresses / temp files) — tracked, low priority.
 
 ### CG-BYTESTRING — byte-accurate strings in both C generators ✅ done `[2026-08-18]`
 Both C generators previously represented strings as C `char*` null-terminated (`xb_len` =

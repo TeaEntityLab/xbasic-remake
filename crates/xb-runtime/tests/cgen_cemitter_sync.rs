@@ -234,6 +234,44 @@ fn cemitter_and_cgen_agree_on_embedded_nul_strings() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// CG-BODY-COVER: true high bytes (`0x80`–`0xFF`) must survive concat / LEN / PRINT
+/// byte-for-byte through BOTH C generators. The interpreter's `Vec<String>` output
+/// sink is UTF-8-lossy for high bytes, so it is *not* the reference here — the
+/// byte-faithful C backends are the correct XBasic behavior, and this pins them to
+/// each other (the corpus never exercises high bytes, so drift here was uncaught).
+#[test]
+fn cemitter_and_cgen_agree_on_high_byte_strings() {
+    let tmp = std::env::temp_dir().join("xb_sync_hi");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM s$\n\
+               s$ = CHR$(200) + CHR$(255)\n\
+               PRINT LEN(s$)\n\
+               PRINT s$\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse high-byte program")
+        .lower_ir()
+        .expect("lower high-byte program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "hi_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "hi_self", &self_c, None);
+
+    // LEN is 2 (two raw bytes), then bytes 0xC8 0xFF verbatim — no UTF-8 mangling,
+    // no NUL truncation. `compile_and_exec` decodes each output byte as a char.
+    let expected = "2\n\u{C8}\u{FF}\n";
+    assert_eq!(rust_out, expected, "CEmitter corrupted high bytes");
+    assert_eq!(self_out, rust_out, "cgen.x diverged from CEmitter on high bytes");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
