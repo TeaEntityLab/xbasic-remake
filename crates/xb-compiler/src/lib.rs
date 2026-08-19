@@ -664,11 +664,36 @@ pub mod llvm_backend {
         /// `GOTO`/labels), else the straight-line path. GOSUBs — including ones nested in
         /// `IF`/`FOR`/… — resume via per-site landing blocks (see `SmCtx`).
         fn emit_body(&mut self, items: &[IrItem]) -> Result<(), CompileError> {
+            self.prealloc_scalars(items)?;
             if body_has_labels(items) {
                 self.emit_body_sm(items)
             } else {
                 self.emit_items(items)
             }
+        }
+
+        /// Pre-create a zero-initialized alloca for every scalar assigned in this body, so a
+        /// read emitted before its assignment (auto-vivified counters, `INC` after a first
+        /// read, forward references inside loops) loads the stored value rather than a frozen
+        /// undefined-variable constant (see `collect_assigned_scalars`). Params, by-ref args,
+        /// and arrays are already registered in `self.vars`/`self.arrays` before the body is
+        /// emitted, so `get_or_alloca` returns those untouched and this never shadows them.
+        fn prealloc_scalars(&mut self, items: &[IrItem]) -> Result<(), CompileError> {
+            let mut assigned = std::collections::BTreeMap::new();
+            collect_assigned_scalars(items, &mut assigned);
+            for (name, vt) in assigned {
+                if self.vars.contains_key(&name) || self.arrays.contains_key(&name) {
+                    continue;
+                }
+                let slot = self.get_or_alloca(&name, vt)?;
+                let default: BasicValueEnum = match vt {
+                    ValueType::String => self.str_const(b"")?.into(),
+                    ValueType::Float => self.f64t.const_zero().into(),
+                    _ => self.i32t.const_zero().into(),
+                };
+                self.builder.build_store(slot, default).map_err(Self::err)?;
+            }
+            Ok(())
         }
 
         /// State-machine emission for a label-bearing body: one block per top-level item,
@@ -832,6 +857,9 @@ pub mod llvm_backend {
                         let v = self.coerce_to(v, self.llvm_type(elem).into())?;
                         self.builder.build_store(ep, v).map_err(Self::err)?;
                     }
+                }
+                IrItem::MidAssign { target, start, length, value } => {
+                    self.mid_assign(target, start, length, value)?;
                 }
                 IrItem::Print { items, separators } => {
                     for (i, e) in items.iter().enumerate() {
@@ -1804,6 +1832,75 @@ pub mod llvm_backend {
                 .build_select(ge, d, self.i64t.const_zero(), "usub")
                 .map_err(Self::err)?
                 .into_int_value())
+        }
+
+        /// `MID$(target, start[, len]) = value`: overwrite bytes of the string variable
+        /// `target`, starting at 1-based `start`, with up to `len` bytes of `value` (all of
+        /// `value` when `len` is absent). Byte copy — embedded NULs preserved, string length
+        /// unchanged. Clamped so it never reads/writes past either string; a no-op when
+        /// `start` exceeds `len(target)`. Uses `usize`-style unsigned min / saturating-sub, so
+        /// it matches the interpreter's `MidAssign` byte-for-byte.
+        ///
+        /// Copy-on-write: the target's slot is rewritten to a fresh heap buffer holding the
+        /// mutated copy, rather than mutating in place. This gives value semantics (matching
+        /// the interpreter, which clones on assignment) and — crucially — never writes through
+        /// a read-only string-literal global (`s$ = "ABC"; s${2} = …`) or an aliased buffer.
+        fn mid_assign(
+            &self,
+            target: &IrExpr,
+            start: &IrExpr,
+            length: &Option<IrExpr>,
+            value: &IrExpr,
+        ) -> Result<(), CompileError> {
+            let IrExprKind::Symbol(sym) = &target.kind else {
+                return Ok(());
+            };
+            let Some((slot, ValueType::String)) = self.vars.get(&sym.name).copied() else {
+                return Ok(());
+            };
+            let Some(BasicValueEnum::PointerValue(src)) = self.eval_value(value)? else {
+                return Ok(());
+            };
+            let old = self
+                .builder
+                .build_load(self.ptr, slot, "mold")
+                .map_err(Self::err)?
+                .into_pointer_value();
+            let dlen = self.str_len(old)?;
+            // Fresh writable buffer = a byte-for-byte copy of the current target.
+            let dst = self.str_new(dlen)?;
+            self.builder
+                .build_call(self.memcpy, &[dst.into(), old.into(), dlen.into()], "mcopy")
+                .map_err(Self::err)?;
+            let start64 = self
+                .builder
+                .build_int_s_extend(self.eval_int(start)?, self.i64t, "mstart")
+                .map_err(Self::err)?;
+            let si = self.usub_sat(start64, self.i64t.const_int(1, false))?;
+            let slen = self.str_len(src)?;
+            let copy_req = match length {
+                Some(len_expr) => self
+                    .builder
+                    .build_int_s_extend(self.eval_int(len_expr)?, self.i64t, "mlen")
+                    .map_err(Self::err)?,
+                None => slen,
+            };
+            let copy = self.umin(copy_req, slen)?;
+            let avail = self.usub_sat(dlen, si)?;
+            let copy = self.umin(copy, avail)?;
+            // Clamp the destination offset into the buffer (data..data+len, the last being the
+            // trailing NUL) so the GEP stays in bounds even when `copy` is zero.
+            let si_g = self.umin(si, dlen)?;
+            let dstoff = unsafe {
+                self.builder
+                    .build_in_bounds_gep(self.ctx.i8_type(), dst, &[si_g], "mdst")
+                    .map_err(Self::err)?
+            };
+            self.builder
+                .build_call(self.memcpy, &[dstoff.into(), src.into(), copy.into()], "mmc")
+                .map_err(Self::err)?;
+            self.builder.build_store(slot, dst).map_err(Self::err)?;
+            Ok(())
         }
 
         /// Allocate a byte-string = `len` bytes copied from `src + off`.
@@ -2862,6 +2959,45 @@ pub mod llvm_backend {
                     }
                 }
                 IrItem::Compound(items) => collect_array_names(items, out),
+                _ => {}
+            }
+        }
+    }
+
+    /// Names (with type) assigned via a plain scalar `Assignment` anywhere in one function
+    /// body (recursing into control-flow bodies, but NOT into nested `Function` items — each
+    /// body is pre-allocated at its own `emit_body`). Used to pre-create zero-initialized
+    /// allocas so a read emitted *before* the assignment in emission order — e.g. an
+    /// auto-vivified counter read in `s${i+o}` then `INC o`'d later in the same loop — loads
+    /// the stored value instead of a frozen undefined-variable constant. Deterministic order
+    /// (`BTreeMap`). Arrays are `ArrayAssignment`/`Dim`, never collected here.
+    fn collect_assigned_scalars(
+        items: &[IrItem],
+        out: &mut std::collections::BTreeMap<String, ValueType>,
+    ) {
+        for it in items {
+            match it {
+                IrItem::Assignment { target, .. } => {
+                    out.entry(target.name.clone()).or_insert(target.value_type);
+                }
+                IrItem::While { body, .. }
+                | IrItem::For { body, .. }
+                | IrItem::DoLoop { body, .. } => collect_assigned_scalars(body, out),
+                IrItem::If { then_body, else_body, .. } => {
+                    collect_assigned_scalars(then_body, out);
+                    if let Some(b) = else_body {
+                        collect_assigned_scalars(b, out);
+                    }
+                }
+                IrItem::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        collect_assigned_scalars(&c.body, out);
+                    }
+                    if let Some(b) = default {
+                        collect_assigned_scalars(b, out);
+                    }
+                }
+                IrItem::Compound(items) => collect_assigned_scalars(items, out),
                 _ => {}
             }
         }
@@ -4279,6 +4415,74 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "[0][]\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_mid_assign() {
+        use std::io::Write;
+        use std::process::Command;
+        // `s${n} = v` overwrites a byte of the string in place (1-based start `n+1`, byte
+        // copy). Copy-on-write means it is safe even on a string-literal-assigned variable
+        // (a read-only global): `"ABC"` with byte 3 set to 88 ('X') → "ABX". Regression guard
+        // for `acharmap` (`test${i}=i`).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             s$ = \"ABC\"\n\
+             s${2} = 88\n\
+             PRINT s$\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_mid.o");
+        let exep = dir.join("xb_llvm_mid.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "ABX\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_prealloc_autovivified_counter() {
+        use std::io::Write;
+        use std::process::Command;
+        // A counter never explicitly initialized (`o`), incremented inside a loop, must
+        // observe its own increments: `INC o`'s `o + 1` read is emitted once, before the
+        // store, so without a pre-created zero-initialized alloca the read is a frozen `0`
+        // constant and `o` stays 1. With the prealloc it counts 1,2,3. Regression guard for
+        // `acharmap` (`o` typo'd, never initialized; read in `test${i+o}` before `INC o`).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             FOR i = 0 TO 2\n\
+             INC o\n\
+             NEXT i\n\
+             PRINT o\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_prealloc.o");
+        let exep = dir.join("xb_llvm_prealloc.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "3\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
