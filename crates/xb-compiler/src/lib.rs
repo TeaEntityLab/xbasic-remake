@@ -1792,6 +1792,340 @@ pub mod llvm_backend {
             let inv = self.builder.build_float_div(self.f64t.const_float(1.0), v, "invr").map_err(Self::err)?;
             Ok(self.callm1v(cname, inv)?.into())
         }
+        /// Append byte `c` to `work[*pos]`, advancing `*pos` only when `cond` — the byte is
+        /// always stored but overwritten by the next append when `cond` is false (branchless).
+        fn fmt_push_cond(&self, work: PointerValue<'ctx>, pos: PointerValue<'ctx>, c: IntValue<'ctx>, cond: IntValue<'ctx>) -> Result<(), CompileError> {
+            let p = self.builder.build_load(self.i64t, pos, "fp").map_err(Self::err)?.into_int_value();
+            let ep = unsafe { self.builder.build_in_bounds_gep(self.ctx.i8_type(), work, &[p], "fep").map_err(Self::err)? };
+            self.builder.build_store(ep, c).map_err(Self::err)?;
+            let adv = self.builder.build_int_z_extend(cond, self.i64t, "fadv").map_err(Self::err)?;
+            let np = self.builder.build_int_add(p, adv, "fnp").map_err(Self::err)?;
+            self.builder.build_store(pos, np).map_err(Self::err)?;
+            Ok(())
+        }
+
+        /// A libc `char* NAME(...)` external (get-or-declare); shape via `two_ptr`/`ptr_i32`.
+        fn libc_ptr_fn(&self, name: &str, second_is_int: bool) -> FunctionValue<'ctx> {
+            self.module.get_function(name).unwrap_or_else(|| {
+                let arg2 = if second_is_int { self.i32t.into() } else { self.ptr.into() };
+                self.module.add_function(name, self.ptr.fn_type(&[self.ptr.into(), arg2], false), None)
+            })
+        }
+
+        /// `FORMAT$(fmt, value)` — dispatch on the value type (string align vs numeric).
+        fn eval_format(&self, fmt_arg: &IrExpr, val_arg: &IrExpr) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+            let Some(BasicValueEnum::PointerValue(fmt)) = self.eval_value(fmt_arg)? else {
+                return Ok(None);
+            };
+            match self.eval_value(val_arg)? {
+                Some(BasicValueEnum::PointerValue(sval)) => self.format_string(fmt, sval).map(Some),
+                Some(BasicValueEnum::IntValue(iv)) => {
+                    let d = self.builder.build_signed_int_to_float(iv, self.f64t, "fi2f").map_err(Self::err)?;
+                    self.format_num(fmt, d).map(Some)
+                }
+                Some(BasicValueEnum::FloatValue(fv)) => self.format_num(fmt, fv).map(Some),
+                _ => Ok(None),
+            }
+        }
+
+        /// String `FORMAT$`: `&` (and any non-align pattern) copies whole; `<`/`>`/`|` place the
+        /// string left/right/center in a width counted from the leading pattern chars, truncating
+        /// an over-long string to that width (mirrors `xb_format` is_str path).
+        fn format_string(&self, fmt: PointerValue<'ctx>, sval: PointerValue<'ctx>) -> Result<BasicValueEnum<'ctx>, CompileError> {
+            let i8t = self.ctx.i8_type();
+            let slen = self.str_len(sval)?;
+            let c0 = self.builder.build_load(i8t, fmt, "c0").map_err(Self::err)?.into_int_value();
+            let lt = self.builder.build_int_compare(IntPredicate::EQ, c0, i8t.const_int(b'<' as u64, false), "islt").map_err(Self::err)?;
+            let gt = self.builder.build_int_compare(IntPredicate::EQ, c0, i8t.const_int(b'>' as u64, false), "isgt").map_err(Self::err)?;
+            let bar = self.builder.build_int_compare(IntPredicate::EQ, c0, i8t.const_int(b'|' as u64, false), "isbar").map_err(Self::err)?;
+            let o1 = self.builder.build_or(lt, gt, "o1").map_err(Self::err)?;
+            let isalign = self.builder.build_or(o1, bar, "isalign").map_err(Self::err)?;
+            let result = self.builder.build_alloca(self.ptr, "fsres").map_err(Self::err)?;
+            let align_bb = self.ctx.append_basic_block(self.cur_fn, "fs.align");
+            let dup_bb = self.ctx.append_basic_block(self.cur_fn, "fs.dup");
+            let done_bb = self.ctx.append_basic_block(self.cur_fn, "fs.done");
+            self.builder.build_conditional_branch(isalign, align_bb, dup_bb).map_err(Self::err)?;
+            self.builder.position_at_end(dup_bb);
+            let dup = self.str_copy(sval, self.i64t.const_zero(), slen)?;
+            self.builder.build_store(result, dup).map_err(Self::err)?;
+            self.builder.build_unconditional_branch(done_bb).map_err(Self::err)?;
+            self.builder.position_at_end(align_bb);
+            let widx = self.builder.build_alloca(self.i64t, "fw").map_err(Self::err)?;
+            self.builder.build_store(widx, self.i64t.const_zero()).map_err(Self::err)?;
+            let wcount = self.builder.build_alloca(self.i64t, "fwc").map_err(Self::err)?;
+            self.builder.build_store(wcount, self.i64t.const_zero()).map_err(Self::err)?;
+            let wh = self.ctx.append_basic_block(self.cur_fn, "fw.head");
+            let wb = self.ctx.append_basic_block(self.cur_fn, "fw.body");
+            let we = self.ctx.append_basic_block(self.cur_fn, "fw.exit");
+            self.builder.build_unconditional_branch(wh).map_err(Self::err)?;
+            self.builder.position_at_end(wh);
+            let wi = self.builder.build_load(self.i64t, widx, "wi").map_err(Self::err)?.into_int_value();
+            let wcp = unsafe { self.builder.build_in_bounds_gep(i8t, fmt, &[wi], "wcp").map_err(Self::err)? };
+            let wc = self.builder.build_load(i8t, wcp, "wc").map_err(Self::err)?.into_int_value();
+            let wnul = self.builder.build_int_compare(IntPredicate::EQ, wc, i8t.const_int(0, false), "wnul").map_err(Self::err)?;
+            self.builder.build_conditional_branch(wnul, we, wb).map_err(Self::err)?;
+            self.builder.position_at_end(wb);
+            let weq = self.builder.build_int_compare(IntPredicate::EQ, wc, c0, "weq").map_err(Self::err)?;
+            let wcv = self.builder.build_load(self.i64t, wcount, "wcv").map_err(Self::err)?.into_int_value();
+            let wce = self.builder.build_int_z_extend(weq, self.i64t, "wce").map_err(Self::err)?;
+            self.builder.build_store(wcount, self.builder.build_int_add(wcv, wce, "wcn").map_err(Self::err)?).map_err(Self::err)?;
+            self.builder.build_store(widx, self.builder.build_int_add(wi, self.i64t.const_int(1, false), "wnext").map_err(Self::err)?).map_err(Self::err)?;
+            self.builder.build_unconditional_branch(wh).map_err(Self::err)?;
+            self.builder.position_at_end(we);
+            let w = self.builder.build_load(self.i64t, wcount, "w").map_err(Self::err)?.into_int_value();
+            let copylen = self.umin(slen, w)?;
+            let r = self.str_new(w)?;
+            let pad = self.builder.build_int_sub(w, copylen, "fspad").map_err(Self::err)?;
+            let half = self.builder.build_int_signed_div(pad, self.i64t.const_int(2, false), "fshalf").map_err(Self::err)?;
+            let bz = self.builder.build_select(bar, half, self.i64t.const_zero(), "fsbz").map_err(Self::err)?.into_int_value();
+            let leftpad = self.builder.build_select(gt, pad, bz, "fslp").map_err(Self::err)?.into_int_value();
+            // '>' truncation copies the LAST `w` bytes (src offset slen-copylen); '<'/'|' copy the first.
+            let gtoff = self.builder.build_int_sub(slen, copylen, "gtoff").map_err(Self::err)?;
+            let src_off = self.builder.build_select(gt, gtoff, self.i64t.const_zero(), "srcoff").map_err(Self::err)?.into_int_value();
+            let src = unsafe { self.builder.build_in_bounds_gep(i8t, sval, &[src_off], "fssrc").map_err(Self::err)? };
+            let space = self.i32t.const_int(b' ' as u64, false);
+            self.builder.build_call(self.memset, &[r.into(), space.into(), leftpad.into()], "fsms1").map_err(Self::err)?;
+            let dst = unsafe { self.builder.build_in_bounds_gep(i8t, r, &[leftpad], "fsdst").map_err(Self::err)? };
+            self.builder.build_call(self.memcpy, &[dst.into(), src.into(), copylen.into()], "fsmc").map_err(Self::err)?;
+            let ls = self.builder.build_int_add(leftpad, copylen, "fsls").map_err(Self::err)?;
+            let rp = self.builder.build_int_sub(w, ls, "fsrp").map_err(Self::err)?;
+            let rstart = unsafe { self.builder.build_in_bounds_gep(i8t, r, &[ls], "fsrs").map_err(Self::err)? };
+            self.builder.build_call(self.memset, &[rstart.into(), space.into(), rp.into()], "fsms2").map_err(Self::err)?;
+            self.builder.build_store(result, r).map_err(Self::err)?;
+            self.builder.build_unconditional_branch(done_bb).map_err(Self::err)?;
+            self.builder.position_at_end(done_bb);
+            Ok(self.builder.build_load(self.ptr, result, "fsr").map_err(Self::err)?)
+        }
+        /// Numeric `FORMAT$`: parse `#`/`.`/`,`/`$`/`*`/`0`/`+`/`-`/`(`/`_` pattern flags, then
+        /// build sign/dollar/fill-pad/commas/int/decimals/trailing exactly as `xb_format`.
+        fn format_num(&self, fmt: PointerValue<'ctx>, val: FloatValue<'ctx>) -> Result<BasicValueEnum<'ctx>, CompileError> {
+            let i8t = self.ctx.i8_type();
+            let z32 = self.i32t.const_zero();
+            let ch = |b: u8| i8t.const_int(b as u64, false);
+            let flag = |n: &str| -> Result<PointerValue<'ctx>, CompileError> {
+                let a = self.builder.build_alloca(self.i32t, n).map_err(Self::err)?;
+                self.builder.build_store(a, z32).map_err(Self::err)?;
+                Ok(a)
+            };
+            let (int_digits, frac_digits, has_decimal, has_commas) = (flag("int_d")?, flag("frac_d")?, flag("has_dec")?, flag("has_com")?);
+            let (dollar, star_fill, zero_fill) = (flag("dollar")?, flag("star")?, flag("zero")?);
+            let (leading_plus, trailing_plus, trailing_minus, paren_neg) = (flag("lp")?, flag("tp")?, flag("tm")?, flag("pn")?);
+            let orr = |a: PointerValue<'ctx>, cond: IntValue<'ctx>| -> Result<(), CompileError> {
+                let f = self.builder.build_load(self.i32t, a, "f").map_err(Self::err)?.into_int_value();
+                let e = self.builder.build_int_z_extend(cond, self.i32t, "e").map_err(Self::err)?;
+                let nf = self.builder.build_or(f, e, "nf").map_err(Self::err)?;
+                self.builder.build_store(a, nf).map_err(Self::err)?;
+                Ok(())
+            };
+            let addc = |a: PointerValue<'ctx>, cond: IntValue<'ctx>| -> Result<(), CompileError> {
+                let f = self.builder.build_load(self.i32t, a, "f").map_err(Self::err)?.into_int_value();
+                let e = self.builder.build_int_z_extend(cond, self.i32t, "e").map_err(Self::err)?;
+                let nf = self.builder.build_int_add(f, e, "nf").map_err(Self::err)?;
+                self.builder.build_store(a, nf).map_err(Self::err)?;
+                Ok(())
+            };
+            let eqc = |c: IntValue<'ctx>, b: u8| self.builder.build_int_compare(IntPredicate::EQ, c, ch(b), "eqc").map_err(Self::err);
+            // parse loop
+            let ial = self.builder.build_alloca(self.i64t, "ial").map_err(Self::err)?;
+            self.builder.build_store(ial, self.i64t.const_zero()).map_err(Self::err)?;
+            let ph = self.ctx.append_basic_block(self.cur_fn, "fn.ph");
+            let pb = self.ctx.append_basic_block(self.cur_fn, "fn.pb");
+            let pe = self.ctx.append_basic_block(self.cur_fn, "fn.pe");
+            self.builder.build_unconditional_branch(ph).map_err(Self::err)?;
+            self.builder.position_at_end(ph);
+            let i = self.builder.build_load(self.i64t, ial, "i").map_err(Self::err)?.into_int_value();
+            let cp = unsafe { self.builder.build_in_bounds_gep(i8t, fmt, &[i], "cp").map_err(Self::err)? };
+            let c = self.builder.build_load(i8t, cp, "c").map_err(Self::err)?.into_int_value();
+            let isnul = self.builder.build_int_compare(IntPredicate::EQ, c, ch(0), "isnul").map_err(Self::err)?;
+            self.builder.build_conditional_branch(isnul, pe, pb).map_err(Self::err)?;
+            self.builder.position_at_end(pb);
+            let hash = eqc(c, b'#')?;
+            let hd = self.builder.build_load(self.i32t, has_decimal, "hd").map_err(Self::err)?.into_int_value();
+            let hd_nz = self.builder.build_int_compare(IntPredicate::NE, hd, z32, "hdnz").map_err(Self::err)?;
+            let not_hd = self.builder.build_not(hd_nz, "nhd").map_err(Self::err)?;
+            addc(frac_digits, self.builder.build_and(hash, hd_nz, "if").map_err(Self::err)?)?;
+            addc(int_digits, self.builder.build_and(hash, not_hd, "ii").map_err(Self::err)?)?;
+            orr(has_decimal, eqc(c, b'.')?)?;
+            orr(has_commas, eqc(c, b',')?)?;
+            orr(dollar, eqc(c, b'$')?)?;
+            orr(star_fill, eqc(c, b'*')?)?;
+            orr(zero_fill, eqc(c, b'0')?)?;
+            let plus = eqc(c, b'+')?;
+            let idv = self.builder.build_load(self.i32t, int_digits, "idv").map_err(Self::err)?.into_int_value();
+            let id_pos = self.builder.build_int_compare(IntPredicate::SGT, idv, z32, "idpos").map_err(Self::err)?;
+            let not_idpos = self.builder.build_not(id_pos, "nidpos").map_err(Self::err)?;
+            orr(trailing_plus, self.builder.build_and(plus, id_pos, "tpc").map_err(Self::err)?)?;
+            orr(leading_plus, self.builder.build_and(plus, not_idpos, "lpc").map_err(Self::err)?)?;
+            orr(trailing_minus, self.builder.build_and(eqc(c, b'-')?, id_pos, "tmc").map_err(Self::err)?)?;
+            orr(paren_neg, eqc(c, b'(')?)?;
+            let us = eqc(c, b'_')?;
+            let skip = self.builder.build_int_z_extend(us, self.i64t, "skip").map_err(Self::err)?;
+            let i1 = self.builder.build_int_add(i, self.i64t.const_int(1, false), "i1").map_err(Self::err)?;
+            let i2 = self.builder.build_int_add(i1, skip, "i2").map_err(Self::err)?;
+            self.builder.build_store(ial, i2).map_err(Self::err)?;
+            self.builder.build_unconditional_branch(ph).map_err(Self::err)?;
+            self.builder.position_at_end(pe);
+            // simple case: no digits and no fill -> "%g"
+            let ld = |a: PointerValue<'ctx>, n: &str| self.builder.build_load(self.i32t, a, n).map_err(Self::err).map(|v| v.into_int_value());
+            let nz = |v: IntValue<'ctx>, n: &str| self.builder.build_int_compare(IntPredicate::NE, v, z32, n).map_err(Self::err);
+            let idv = ld(int_digits, "id")?;
+            let fdv = ld(frac_digits, "fd")?;
+            let sfv = ld(star_fill, "sf")?;
+            let zfv = ld(zero_fill, "zf")?;
+            let noid = self.builder.build_int_compare(IntPredicate::EQ, idv, z32, "noid").map_err(Self::err)?;
+            let nofd = self.builder.build_int_compare(IntPredicate::EQ, fdv, z32, "nofd").map_err(Self::err)?;
+            let nosf = self.builder.build_int_compare(IntPredicate::EQ, sfv, z32, "nosf").map_err(Self::err)?;
+            let nozf = self.builder.build_int_compare(IntPredicate::EQ, zfv, z32, "nozf").map_err(Self::err)?;
+            let s1 = self.builder.build_and(noid, nofd, "s1").map_err(Self::err)?;
+            let s2 = self.builder.build_and(nosf, nozf, "s2").map_err(Self::err)?;
+            let simple = self.builder.build_and(s1, s2, "simple").map_err(Self::err)?;
+            let result = self.builder.build_alloca(self.ptr, "fnres").map_err(Self::err)?;
+            let sbb = self.ctx.append_basic_block(self.cur_fn, "fn.simple");
+            let bbb = self.ctx.append_basic_block(self.cur_fn, "fn.build");
+            let dbb = self.ctx.append_basic_block(self.cur_fn, "fn.done");
+            self.builder.build_conditional_branch(simple, sbb, bbb).map_err(Self::err)?;
+            self.builder.position_at_end(sbb);
+            let nb0 = self.builder.build_alloca(i8t.array_type(64), "nb0").map_err(Self::err)?;
+            self.builder.build_call(self.snprintf, &[nb0.into(), self.i64t.const_int(64, false).into(), self.fmt_g("%g")?.into(), val.into()], "sg").map_err(Self::err)?;
+            let sr = self.str_from_cstr(nb0)?;
+            self.builder.build_store(result, sr).map_err(Self::err)?;
+            self.builder.build_unconditional_branch(dbb).map_err(Self::err)?;
+            // build
+            self.builder.position_at_end(bbb);
+            let tru = self.ctx.bool_type().const_int(1, false);
+            let neg = self.builder.build_float_compare(FloatPredicate::OLT, val, self.f64t.const_zero(), "neg").map_err(Self::err)?;
+            let nv = self.builder.build_float_neg(val, "nv").map_err(Self::err)?;
+            let absv = self.builder.build_select(neg, nv, val, "absv").map_err(Self::err)?.into_float_value();
+            let work = self.builder.build_alloca(i8t.array_type(256), "work").map_err(Self::err)?;
+            let pos = self.builder.build_alloca(self.i64t, "pos").map_err(Self::err)?;
+            self.builder.build_store(pos, self.i64t.const_zero()).map_err(Self::err)?;
+            let pn_nz = nz(ld(paren_neg, "pn")?, "pnnz")?;
+            let lp_nz = nz(ld(leading_plus, "lp")?, "lpnz")?;
+            let tp_nz = nz(ld(trailing_plus, "tp")?, "tpnz")?;
+            let tm_nz = nz(ld(trailing_minus, "tm")?, "tmnz")?;
+            let dol_nz = nz(ld(dollar, "dl")?, "dlnz")?;
+            let com_nz = nz(ld(has_commas, "hc")?, "hcnz")?;
+            let sf_nz = nz(ld(star_fill, "sf2")?, "sfnz")?;
+            let zf_nz = nz(ld(zero_fill, "zf2")?, "zfnz")?;
+            let dec_nz = nz(ld(has_decimal, "hdc")?, "hdcnz")?;
+            let open_paren = self.builder.build_and(pn_nz, neg, "openp").map_err(Self::err)?;
+            let not_open = self.builder.build_not(open_paren, "nopen").map_err(Self::err)?;
+            self.fmt_push_cond(work, pos, ch(b'('), open_paren)?;
+            let lead = self.builder.build_and(lp_nz, not_open, "lead").map_err(Self::err)?;
+            let lead_char = self.builder.build_select(neg, ch(b'-'), ch(b'+'), "leadc").map_err(Self::err)?.into_int_value();
+            self.fmt_push_cond(work, pos, lead_char, lead)?;
+            let not_lp = self.builder.build_not(lp_nz, "nlp").map_err(Self::err)?;
+            let not_tp = self.builder.build_not(tp_nz, "ntp").map_err(Self::err)?;
+            let not_tm = self.builder.build_not(tm_nz, "ntm").map_err(Self::err)?;
+            let b1 = self.builder.build_and(neg, not_open, "b1").map_err(Self::err)?;
+            let b2 = self.builder.build_and(not_lp, not_tp, "b2").map_err(Self::err)?;
+            let b3 = self.builder.build_and(b2, not_tm, "b3").map_err(Self::err)?;
+            let bare = self.builder.build_and(b1, b3, "bare").map_err(Self::err)?;
+            self.fmt_push_cond(work, pos, ch(b'-'), bare)?;
+            self.fmt_push_cond(work, pos, ch(b'$'), dol_nz)?;
+            // numbuf via %.*f or %g
+            let nb = self.builder.build_alloca(i8t.array_type(64), "nb").map_err(Self::err)?;
+            let fd2 = ld(frac_digits, "fd2")?;
+            let fd_pos = self.builder.build_int_compare(IntPredicate::SGT, fd2, z32, "fdpos").map_err(Self::err)?;
+            let usedec = self.builder.build_and(dec_nz, fd_pos, "usedec").map_err(Self::err)?;
+            let nbf = self.ctx.append_basic_block(self.cur_fn, "fn.nbf");
+            let nbg = self.ctx.append_basic_block(self.cur_fn, "fn.nbg");
+            let nbd = self.ctx.append_basic_block(self.cur_fn, "fn.nbd");
+            self.builder.build_conditional_branch(usedec, nbf, nbg).map_err(Self::err)?;
+            self.builder.position_at_end(nbf);
+            self.builder.build_call(self.snprintf, &[nb.into(), self.i64t.const_int(64, false).into(), self.fmt_g("%.*f")?.into(), fd2.into(), absv.into()], "nbf").map_err(Self::err)?;
+            self.builder.build_unconditional_branch(nbd).map_err(Self::err)?;
+            self.builder.position_at_end(nbg);
+            self.builder.build_call(self.snprintf, &[nb.into(), self.i64t.const_int(64, false).into(), self.fmt_g("%g")?.into(), absv.into()], "nbg").map_err(Self::err)?;
+            self.builder.build_unconditional_branch(nbd).map_err(Self::err)?;
+            self.builder.position_at_end(nbd);
+            let strchr = self.libc_ptr_fn("strchr", true);
+            let dot = self.builder.build_call(strchr, &[nb.into(), self.i32t.const_int(b'.' as u64, false).into()], "dot").map_err(Self::err)?.try_as_basic_value().basic().ok_or_else(|| CompileError::Llvm("strchr void".into()))?.into_pointer_value();
+            let has_dot = self.builder.build_not(self.builder.build_is_null(dot, "dotnull").map_err(Self::err)?, "hasdot").map_err(Self::err)?;
+            let nblen = self.builder.build_call(self.strlen, &[nb.into()], "nblen").map_err(Self::err)?.try_as_basic_value().basic().ok_or_else(|| CompileError::Llvm("strlen void".into()))?.into_int_value();
+            let dot_i = self.builder.build_ptr_to_int(dot, self.i64t, "doti").map_err(Self::err)?;
+            let nb_i = self.builder.build_ptr_to_int(nb, self.i64t, "nbi").map_err(Self::err)?;
+            let dot_off = self.builder.build_int_sub(dot_i, nb_i, "dotoff").map_err(Self::err)?;
+            let oil = self.builder.build_select(has_dot, dot_off, nblen, "oil").map_err(Self::err)?.into_int_value();
+            let fill = {
+                let z = self.builder.build_select(zf_nz, ch(b'0'), ch(b' '), "fz").map_err(Self::err)?.into_int_value();
+                self.builder.build_select(sf_nz, ch(b'*'), z, "fill").map_err(Self::err)?.into_int_value()
+            };
+            let oil_m1 = self.builder.build_int_sub(oil, self.i64t.const_int(1, false), "oilm1").map_err(Self::err)?;
+            let commas_if = self.builder.build_int_signed_div(oil_m1, self.i64t.const_int(3, false), "comif").map_err(Self::err)?;
+            let commas = self.builder.build_select(com_nz, commas_if, self.i64t.const_zero(), "commas").map_err(Self::err)?.into_int_value();
+            let idl = self.builder.build_int_s_extend(ld(int_digits, "id2")?, self.i64t, "idl").map_err(Self::err)?;
+            let oic = self.builder.build_int_add(oil, commas, "oic").map_err(Self::err)?;
+            let padgt = self.builder.build_int_compare(IntPredicate::SGT, idl, oic, "padgt").map_err(Self::err)?;
+            let paddiff = self.builder.build_int_sub(idl, oic, "paddiff").map_err(Self::err)?;
+            let pad = self.builder.build_select(padgt, paddiff, self.i64t.const_zero(), "pad").map_err(Self::err)?.into_int_value();
+            // pad loop
+            let pj = self.builder.build_alloca(self.i64t, "pj").map_err(Self::err)?;
+            self.builder.build_store(pj, self.i64t.const_zero()).map_err(Self::err)?;
+            let pph = self.ctx.append_basic_block(self.cur_fn, "fn.pph");
+            let ppb = self.ctx.append_basic_block(self.cur_fn, "fn.ppb");
+            let ppe = self.ctx.append_basic_block(self.cur_fn, "fn.ppe");
+            self.builder.build_unconditional_branch(pph).map_err(Self::err)?;
+            self.builder.position_at_end(pph);
+            let jv = self.builder.build_load(self.i64t, pj, "jv").map_err(Self::err)?.into_int_value();
+            let jlt = self.builder.build_int_compare(IntPredicate::SLT, jv, pad, "jlt").map_err(Self::err)?;
+            self.builder.build_conditional_branch(jlt, ppb, ppe).map_err(Self::err)?;
+            self.builder.position_at_end(ppb);
+            self.fmt_push_cond(work, pos, fill, tru)?;
+            self.builder.build_store(pj, self.builder.build_int_add(jv, self.i64t.const_int(1, false), "jn").map_err(Self::err)?).map_err(Self::err)?;
+            self.builder.build_unconditional_branch(pph).map_err(Self::err)?;
+            self.builder.position_at_end(ppe);
+            // int digits with commas
+            let ci = self.builder.build_alloca(self.i64t, "ci").map_err(Self::err)?;
+            self.builder.build_store(ci, self.i64t.const_zero()).map_err(Self::err)?;
+            let cih = self.ctx.append_basic_block(self.cur_fn, "fn.cih");
+            let cib = self.ctx.append_basic_block(self.cur_fn, "fn.cib");
+            let cie = self.ctx.append_basic_block(self.cur_fn, "fn.cie");
+            self.builder.build_unconditional_branch(cih).map_err(Self::err)?;
+            self.builder.position_at_end(cih);
+            let civ = self.builder.build_load(self.i64t, ci, "civ").map_err(Self::err)?.into_int_value();
+            let cilt = self.builder.build_int_compare(IntPredicate::SLT, civ, oil, "cilt").map_err(Self::err)?;
+            self.builder.build_conditional_branch(cilt, cib, cie).map_err(Self::err)?;
+            self.builder.position_at_end(cib);
+            let i_gt0 = self.builder.build_int_compare(IntPredicate::SGT, civ, self.i64t.const_zero(), "igt0").map_err(Self::err)?;
+            let oil_ci = self.builder.build_int_sub(oil, civ, "oilci").map_err(Self::err)?;
+            let rem = self.builder.build_int_signed_rem(oil_ci, self.i64t.const_int(3, false), "rem").map_err(Self::err)?;
+            let rem0 = self.builder.build_int_compare(IntPredicate::EQ, rem, self.i64t.const_zero(), "rem0").map_err(Self::err)?;
+            let ch1 = self.builder.build_and(com_nz, i_gt0, "ch1").map_err(Self::err)?;
+            let comma_here = self.builder.build_and(ch1, rem0, "commah").map_err(Self::err)?;
+            self.fmt_push_cond(work, pos, ch(b','), comma_here)?;
+            let ncp = unsafe { self.builder.build_in_bounds_gep(i8t, nb, &[civ], "ncp").map_err(Self::err)? };
+            let nc = self.builder.build_load(i8t, ncp, "nc").map_err(Self::err)?.into_int_value();
+            self.fmt_push_cond(work, pos, nc, tru)?;
+            self.builder.build_store(ci, self.builder.build_int_add(civ, self.i64t.const_int(1, false), "cin").map_err(Self::err)?).map_err(Self::err)?;
+            self.builder.build_unconditional_branch(cih).map_err(Self::err)?;
+            self.builder.position_at_end(cie);
+            // decimals
+            self.fmt_push_cond(work, pos, ch(b'.'), has_dot)?;
+            let dotp1 = unsafe { self.builder.build_in_bounds_gep(i8t, dot, &[self.i64t.const_int(1, false)], "dotp1").map_err(Self::err)? };
+            let safe = self.builder.build_select(has_dot, dotp1, nb, "safe").map_err(Self::err)?.into_pointer_value();
+            let flen_raw = self.builder.build_call(self.strlen, &[safe.into()], "flenr").map_err(Self::err)?.try_as_basic_value().basic().ok_or_else(|| CompileError::Llvm("strlen void".into()))?.into_int_value();
+            let flen = self.builder.build_select(has_dot, flen_raw, self.i64t.const_zero(), "flen").map_err(Self::err)?.into_int_value();
+            let pv = self.builder.build_load(self.i64t, pos, "pvd").map_err(Self::err)?.into_int_value();
+            let wdst = unsafe { self.builder.build_in_bounds_gep(i8t, work, &[pv], "wdst").map_err(Self::err)? };
+            self.builder.build_call(self.memcpy, &[wdst.into(), safe.into(), flen.into()], "dmc").map_err(Self::err)?;
+            self.builder.build_store(pos, self.builder.build_int_add(pv, flen, "posd").map_err(Self::err)?).map_err(Self::err)?;
+            // trailing
+            self.fmt_push_cond(work, pos, ch(b')'), open_paren)?;
+            let t_plus = self.builder.build_and(tp_nz, not_open, "tplus").map_err(Self::err)?;
+            let t_plus_char = self.builder.build_select(neg, ch(b'-'), ch(b'+'), "tpc2").map_err(Self::err)?.into_int_value();
+            self.fmt_push_cond(work, pos, t_plus_char, t_plus)?;
+            let tmm1 = self.builder.build_and(tm_nz, neg, "tmm1").map_err(Self::err)?;
+            let tmm2 = self.builder.build_and(not_open, not_tp, "tmm2").map_err(Self::err)?;
+            let t_minus = self.builder.build_and(tmm1, tmm2, "tminus").map_err(Self::err)?;
+            self.fmt_push_cond(work, pos, ch(b'-'), t_minus)?;
+            let finalpos = self.builder.build_load(self.i64t, pos, "finalpos").map_err(Self::err)?.into_int_value();
+            let br = self.str_copy(work, self.i64t.const_zero(), finalpos)?;
+            self.builder.build_store(result, br).map_err(Self::err)?;
+            self.builder.build_unconditional_branch(dbb).map_err(Self::err)?;
+            self.builder.position_at_end(dbb);
+            Ok(self.builder.build_load(self.ptr, result, "fnr").map_err(Self::err)?)
+        }
         /// Translate a supported builtin call; `None` if unsupported (deferred).
         fn eval_builtin(
             &self,
@@ -1799,6 +2133,7 @@ pub mod llvm_backend {
             args: &[IrExpr],
         ) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
             match (name, args.len()) {
+                ("FORMAT$", 2) => self.eval_format(&args[0], &args[1]),
                 ("ABS", 1) => match self.eval_value(&args[0])? {
                     Some(BasicValueEnum::IntValue(iv)) => {
                         let neg = self.builder.build_int_neg(iv, "neg").map_err(Self::err)?;
@@ -2047,16 +2382,24 @@ pub mod llvm_backend {
                     }
                     _ => Ok(None),
                 },
-                ("CHR$", 1) => {
+                ("CHR$", 1) | ("CHR$", 2) => {
                     let n = self.eval_int(&args[0])?;
-                    let ch = self
-                        .builder
-                        .build_int_truncate(n, self.ctx.i8_type(), "ch")
-                        .map_err(Self::err)?;
-                    // A 1-byte byte-string; storing the char keeps CHR$(0) as a real NUL byte.
-                    let buf = self.str_new(self.i64t.const_int(1, false))?;
-                    self.builder.build_store(buf, ch).map_err(Self::err)?;
-                    Ok(Some(buf.into()))
+                    let chi = self.builder.build_int_truncate(n, self.ctx.i8_type(), "ch").map_err(Self::err)?;
+                    // 2-arg CHR$(c, count) = `count` copies; 1-arg = a single byte (CHR$(0) = a real NUL).
+                    if args.len() == 2 {
+                        let cnt = self.eval_int(&args[1])?;
+                        let cnt64 = self.builder.build_int_s_extend(cnt, self.i64t, "cnt64").map_err(Self::err)?;
+                        let neg = self.builder.build_int_compare(IntPredicate::SLT, cnt64, self.i64t.const_zero(), "cneg").map_err(Self::err)?;
+                        let clamped = self.builder.build_select(neg, self.i64t.const_zero(), cnt64, "cclamp").map_err(Self::err)?.into_int_value();
+                        let buf = self.str_new(clamped)?;
+                        let ci = self.builder.build_int_z_extend(chi, self.i32t, "chi32").map_err(Self::err)?;
+                        self.builder.build_call(self.memset, &[buf.into(), ci.into(), clamped.into()], "chrms").map_err(Self::err)?;
+                        Ok(Some(buf.into()))
+                    } else {
+                        let buf = self.str_new(self.i64t.const_int(1, false))?;
+                        self.builder.build_store(buf, chi).map_err(Self::err)?;
+                        Ok(Some(buf.into()))
+                    }
                 }
                 ("LEFT$", 2) => {
                     let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(&args[0])? else {
@@ -3178,6 +3521,42 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "hi    \n    hi\n  hi  \ntoolong\ntool\nllo\nhel\n100\n+5\n3\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_format_builtin() {
+        use std::io::Write;
+        use std::process::Command;
+        // FORMAT$ string align (< > | &, with >-truncation taking the last w) + numeric
+        // (#-digits, decimals, commas, $, *-fill, leading sign) mirror the interpreter.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             PRINT \"<\"; FORMAT$(\"<<<<<<\", \"hi\"); \">\"\n\
+             PRINT \"<\"; FORMAT$(\">>>>>>\", \"hi\"); \">\"\n\
+             PRINT \"<\"; FORMAT$(\"||||||\", \"hi\"); \">\"\n\
+             PRINT \"<\"; FORMAT$(\">>>>\", \"toolongstring\"); \">\"\n\
+             PRINT FORMAT$(\"######.##\", 1234.5)\n\
+             PRINT FORMAT$(\"$#,###.##\", 1234567.89)\n\
+             PRINT FORMAT$(\"*#####\", 42)\n\
+             PRINT FORMAT$(\"#####\", 0 - 5)\n\
+             PRINT FORMAT$(\"&\", \"amp\")\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_fmt.o");
+        let exep = dir.join("xb_llvm_fmt.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "<hi    >\n<    hi>\n<  hi  >\n<ring>\n  1234.50\n$1,234,567.89\n***42\n-    5\namp\n"
+        );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
