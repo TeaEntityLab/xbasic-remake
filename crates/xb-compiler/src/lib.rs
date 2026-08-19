@@ -1138,7 +1138,14 @@ pub mod llvm_backend {
                     Some((slot, _)) => {
                         Some(self.builder.build_load(self.i32t, *slot, "ld").map_err(Self::err)?)
                     }
-                    None => None,
+                    // Undefined variable: XBasic auto-vivifies to the type default (0 /
+                    // 0.0 / "") on read; the interpreter does the same, so the backend
+                    // must too rather than skip (which would drop the value from PRINT).
+                    None => Some(match sym.value_type {
+                        ValueType::String => self.str_const(b"")?.into(),
+                        ValueType::Float => self.f64t.const_zero().into(),
+                        _ => self.i32t.const_zero().into(),
+                    }),
                 },
                 IrExprKind::Arithmetic { op, left, right } => {
                     if matches!(op, ArithmeticOp::Add)
@@ -3721,6 +3728,36 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "0\n[]\n0\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_defaults_undefined_variable_reads() {
+        use std::io::Write;
+        use std::process::Command;
+        // A never-assigned variable auto-vivifies to its type default on read (0 /
+        // ""), exactly as the interpreter does — the backend must not drop it from
+        // PRINT. Regression guard for e.g. `afile.x` (`error = ERROR(0)` skipped).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             PRINT \"[\"; nevref; \"][\"; nevref$; \"]\"\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_uv.o");
+        let exep = dir.join("xb_llvm_uv.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "[0][]\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
