@@ -119,20 +119,20 @@ byte-accurate through concat / `LEN` / `PRINT` / comparison (`putchar` loop + `m
 with a length tiebreak), not truncated at the first NUL by `printf("%s")`. Proven
 byte-exact (`AB\0CD`) and locked by `llvm_backend_compiles_embedded_nul_strings`.
 Remaining gates to higher reach — all deferred-large or fundamental, **no bounded
-lever left**. The 2 interpreter-clean programs that still diverge, by root cause
-(byte-faithful PRINT output, `MID$`/`s${n}=v` byte-assignment, the auto-vivified-scalar
-prealloc, `$$` constant evaluation, the `OPEN`/`CLOSE`/`LOF`/`WRITE`/`READ`/`EOF` file
-runtime, the missing `DO…LOOP` codegen, and `&func()` (`FuncAddr`) synthetic ids were
-resolved this session; see the summary):
+lever left**. The 1 remaining interpreter-clean program that still diverges is a
+non-terminating GUI/task program (below). This session resolved byte-faithful PRINT output,
+`MID$`/`s${n}=v` byte-assignment, the auto-vivified-scalar prealloc, `$$` constant
+evaluation, the `OPEN`/`CLOSE`/`LOF`/`WRITE`/`READ`/`EOF` file runtime, the missing
+`DO…LOOP` codegen, `&func()` (`FuncAddr`) synthetic ids, and forward-/GOSUB-`DIM`'d array
+registration + null-string-element PRINT (see the summary):
 
 | Blocker | Programs | Nature |
 |---|---|---|
-| by-ref `@` **array** (REDIM) | `asortie` | Read-only 1-D `@array[]` is done (a `{data, dims}` descriptor the callee reads — unblocked `aarray_ISNODE`; see `llvm_backend_compiles_array_byref_param`). What remains needs **REDIM-through-by-ref** (callee reallocates the caller's array) + `XstQuickSort`, i.e. shared heap descriptors with write-back — large |
 | Task runtime | `atask` | `XstStartTask`/`XstStopTask` scheduling + the `XuiGetNextCallback` message loop — `&func()` addresses now resolve (`FuncAddr`), but there is no task scheduler or callback dispatch runtime, so the compiled program never runs the tasks. Large |
 
 None is a single high-value unlock; each is a documented large effort or a fundamental
 representation change warranting explicit scoping. The incremental LLVM roadmap is at
-**103/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; byte-faithful
+**104/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; byte-faithful
 PRINT output — high bytes/NULs raw, unblocked `aback`/`acharmap`; `MID$`/`s${n}=v` byte-
 assignment (copy-on-write) + auto-vivified-scalar prealloc, unblocked `acharmap`; `$$`
 constant evaluation + the `OPEN`/`CLOSE`/`LOF`/`WRITE`/`READ` file runtime, unblocked
@@ -140,7 +140,11 @@ constant evaluation + the `OPEN`/`CLOSE`/`LOF`/`WRITE`/`READ` file runtime, unbl
 previously-unhandled **`DO…LOOP` codegen** (body-first post-condition loops ran zero times),
 unblocked `aprofile`; **`&func()` synthetic ids** (`FuncAddr` = 1-based program order),
 unblocked `atimer` (which only prints `&Timer()`, not a clock — the earlier
-"nondeterministic" label was wrong); `FORMAT$` +
+"nondeterministic" label was wrong); **forward-/GOSUB-`DIM`'d array pre-registration** so
+`UBOUND`/element access before the `DIM` reads the real runtime shape (not -1) + null-safe
+string-element PRINT, unblocked `asortie` (its earlier "@array REDIM write-back" diagnosis
+was wrong — `XstQuickSort` is stubbed in both, so the *unsorted* arrays already match);
+`FORMAT$` +
 `CHR$(c,count)`, `BIN$`/`BINB$`, `0b`/`0o` literals, width-padded `HEXX$`/`HEX$`/`OCTO$`/
 `OCT$` (2-arg); unknown-call + undefined-variable zero-defaults; and **nested-GOSUB control
 flow** — a GOSUB nested in an `IF`/`FOR`/… now resumes correctly via a per-site *landing
@@ -148,7 +152,7 @@ block* through the `pc`-dispatch, with FOR bound/step hoisted to entry allocas s
 re-entry does not break SSA dominance; unblocked `gif`/`gifview`/`aviewbmp`/`MakeDist`/
 `MakeDistLinux`, 2-arg radix unblocked `asystem`/`amodal`, **scalar `@` by-ref** lowers as a
 shared pointer param, and **read-only 1-D `@array[]` by-ref** (a `{data, dims}` descriptor)
-unblocked `aarray_ISNODE`). The residual 2 are the large/fundamental efforts tabled above.
+unblocked `aarray_ISNODE`). The residual 1 is the large task-runtime effort tabled above.
 
 ### `@array` effort — verified scoping notes `[2026-08-19]`
 Precise root causes established this session, so the large effort can be scoped without

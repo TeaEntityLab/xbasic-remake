@@ -781,6 +781,7 @@ pub mod llvm_backend {
         /// `GOTO`/labels), else the straight-line path. GOSUBs — including ones nested in
         /// `IF`/`FOR`/… — resume via per-site landing blocks (see `SmCtx`).
         fn emit_body(&mut self, items: &[IrItem]) -> Result<(), CompileError> {
+            self.prealloc_arrays(items)?;
             self.prealloc_scalars(items)?;
             if body_has_labels(items) {
                 self.emit_body_sm(items)
@@ -809,6 +810,32 @@ pub mod llvm_backend {
                     _ => self.i32t.const_zero().into(),
                 };
                 self.builder.build_store(slot, default).map_err(Self::err)?;
+            }
+            Ok(())
+        }
+
+        /// Pre-register every array `DIM`'d in this body — an entry-block holder (null) plus
+        /// one zero-initialized i64 count slot per dimension — so a `UBOUND`/element access
+        /// emitted before the `DIM` in emission order (e.g. after a GOSUB to a subroutine that
+        /// DIMs the array) reads the same slots the DIM later writes, instead of the
+        /// unknown-array default (−1). The `DIM` arm reuses these slots when the dimensionality
+        /// matches. Arrays already registered (by-ref array params) are left untouched.
+        fn prealloc_arrays(&mut self, items: &[IrItem]) -> Result<(), CompileError> {
+            let mut dims = std::collections::BTreeMap::new();
+            collect_dim_arrays(items, &mut dims);
+            for (name, (elem, ndims)) in dims {
+                if self.arrays.contains_key(&name) {
+                    continue;
+                }
+                let holder = self.entry_alloca(self.ptr.into(), &name)?;
+                self.builder.build_store(holder, self.ptr.const_null()).map_err(Self::err)?;
+                let mut shape = Vec::with_capacity(ndims);
+                for k in 0..ndims {
+                    let s = self.entry_alloca(self.i64t.into(), &format!("{name}_d{k}"))?;
+                    self.builder.build_store(s, self.i64t.const_zero()).map_err(Self::err)?;
+                    shape.push(s);
+                }
+                self.arrays.insert(name, (holder, elem, shape));
             }
             Ok(())
         }
@@ -942,19 +969,33 @@ pub mod llvm_backend {
                         .basic()
                         .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
                         .into_pointer_value();
-                    // Persist the shape: one i64 alloca per dim holding the count.
-                    let mut shape: Vec<PointerValue<'ctx>> = Vec::with_capacity(counts.len());
-                    for (k, c) in counts.iter().enumerate() {
-                        let s = self.entry_alloca(self.i64t.into(), &format!("{}_d{k}", symbol.name))?;
-                        self.builder.build_store(s, *c).map_err(Self::err)?;
-                        shape.push(s);
-                    }
-                    let existing = self.arrays.get(&symbol.name).map(|(h, _, _)| *h);
-                    let holder = match existing {
-                        Some(h) => h,
-                        None => {
-                            self.entry_alloca(self.ptr.into(), &symbol.name)?
+                    // Persist the shape as one i64 count slot per dim. Reuse the array's
+                    // existing slots (holder + per-dim counts) when the dimensionality matches
+                    // — e.g. pre-registered by `prealloc_arrays`, so a `UBOUND`/access emitted
+                    // before this `DIM` (after a GOSUB) reads the same slots — otherwise create
+                    // fresh ones.
+                    let existing = self.arrays.get(&symbol.name).cloned();
+                    let shape: Vec<PointerValue<'ctx>> = match &existing {
+                        Some((_, _, sh)) if sh.len() == counts.len() => {
+                            for (s, c) in sh.iter().zip(counts.iter()) {
+                                self.builder.build_store(*s, *c).map_err(Self::err)?;
+                            }
+                            sh.clone()
                         }
+                        _ => {
+                            let mut sh = Vec::with_capacity(counts.len());
+                            for (k, c) in counts.iter().enumerate() {
+                                let s = self
+                                    .entry_alloca(self.i64t.into(), &format!("{}_d{k}", symbol.name))?;
+                                self.builder.build_store(s, *c).map_err(Self::err)?;
+                                sh.push(s);
+                            }
+                            sh
+                        }
+                    };
+                    let holder = match &existing {
+                        Some((h, _, _)) => *h,
+                        None => self.entry_alloca(self.ptr.into(), &symbol.name)?,
                     };
                     self.builder.build_store(holder, buf).map_err(Self::err)?;
                     self.arrays.insert(symbol.name.clone(), (holder, elem, shape));
@@ -1951,12 +1992,19 @@ pub mod llvm_backend {
         /// Write a byte-string to stdout via a `putchar` loop over its length (handles
         /// embedded NULs; shares libc's stdout buffer with `printf` so ordering is kept).
         fn str_print(&self, s: PointerValue<'ctx>) -> Result<(), CompileError> {
-            let len = self.str_len(s)?;
-            let idx = self.builder.build_alloca(self.i64t, "pi").map_err(Self::err)?;
-            self.builder.build_store(idx, self.i64t.const_zero()).map_err(Self::err)?;
+            // A null string pointer (an unassigned string slot / array element, which the
+            // interpreter treats as "") prints as empty — guard before reading the length
+            // prefix at `s - 8`, which would fault on null.
+            let isnull = self.builder.build_is_null(s, "spnull").map_err(Self::err)?;
+            let go = self.ctx.append_basic_block(self.cur_fn, "sp.go");
             let head = self.ctx.append_basic_block(self.cur_fn, "sp.head");
             let body = self.ctx.append_basic_block(self.cur_fn, "sp.body");
             let exit = self.ctx.append_basic_block(self.cur_fn, "sp.exit");
+            self.builder.build_conditional_branch(isnull, exit, go).map_err(Self::err)?;
+            self.builder.position_at_end(go);
+            let len = self.str_len(s)?;
+            let idx = self.builder.build_alloca(self.i64t, "pi").map_err(Self::err)?;
+            self.builder.build_store(idx, self.i64t.const_zero()).map_err(Self::err)?;
             self.builder.build_unconditional_branch(head).map_err(Self::err)?;
             self.builder.position_at_end(head);
             let iv = self.builder.build_load(self.i64t, idx, "pv").map_err(Self::err)?.into_int_value();
@@ -3405,6 +3453,51 @@ pub mod llvm_backend {
                     }
                 }
                 IrItem::Compound(items) => collect_assigned_scalars(items, out),
+                _ => {}
+            }
+        }
+    }
+
+    /// Arrays `DIM`'d anywhere in one function body (recursing into control-flow bodies, but
+    /// NOT nested `Function` items) with their element type and maximum dimensionality. Used
+    /// to pre-register array shape slots so a `UBOUND`/access emitted *before* the `DIM` in
+    /// emission order — e.g. after a `GOSUB` to a subroutine that `DIM`s the array — reads the
+    /// same runtime-updated slots instead of the unknown-array default (−1). Deterministic
+    /// order (`BTreeMap`).
+    fn collect_dim_arrays(
+        items: &[IrItem],
+        out: &mut std::collections::BTreeMap<String, (ValueType, usize)>,
+    ) {
+        for it in items {
+            match it {
+                IrItem::Dim { symbol, size, extra_dims, is_array: true, .. } => {
+                    let ndims = size.iter().count() + extra_dims.len();
+                    out.entry(symbol.name.clone())
+                        .and_modify(|e| {
+                            if ndims > e.1 {
+                                e.1 = ndims;
+                            }
+                        })
+                        .or_insert((symbol.value_type, ndims));
+                }
+                IrItem::While { body, .. }
+                | IrItem::For { body, .. }
+                | IrItem::DoLoop { body, .. } => collect_dim_arrays(body, out),
+                IrItem::If { then_body, else_body, .. } => {
+                    collect_dim_arrays(then_body, out);
+                    if let Some(b) = else_body {
+                        collect_dim_arrays(b, out);
+                    }
+                }
+                IrItem::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        collect_dim_arrays(&c.body, out);
+                    }
+                    if let Some(b) = default {
+                        collect_dim_arrays(b, out);
+                    }
+                }
+                IrItem::Compound(items) => collect_dim_arrays(items, out),
                 _ => {}
             }
         }
@@ -5116,6 +5209,48 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "2 3\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_forward_dimd_array_ubound_and_null_elems() {
+        use std::io::Write;
+        use std::process::Command;
+        // An array DIM'd in a GOSUB subroutine is used (UBOUND + element read) in code
+        // emitted before the DIM. Pre-registration makes UBOUND read the runtime shape (3,
+        // not the unknown-array -1 that skips the loop); unassigned string elements read as ""
+        // (null-safe PRINT), matching the interpreter. Guard for `asortie`. Output:
+        // "ubound=3\nx\ny\n\n\n".
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             GOSUB Init\n\
+             PRINT \"ubound=\"; UBOUND(arr$[])\n\
+             FOR i = 0 TO UBOUND(arr$[])\n\
+             PRINT arr$[i]\n\
+             NEXT i\n\
+             RETURN\n\
+             Init:\n\
+             DIM arr$[3]\n\
+             arr$[0] = \"x\"\n\
+             arr$[1] = \"y\"\n\
+             RETURN\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_fwdim.o");
+        let exep = dir.join("xb_llvm_fwdim.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "ubound=3\nx\ny\n\n\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
