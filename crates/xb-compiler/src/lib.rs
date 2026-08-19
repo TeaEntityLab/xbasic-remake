@@ -975,6 +975,58 @@ pub mod llvm_backend {
                     self.branch_to(header)?;
                     self.builder.position_at_end(exit);
                 }
+                IrItem::DoLoop { pre_condition, post_condition, body } => {
+                    // `loop { [pre-check→exit]; body; [post-check→exit] }` — mirrors the
+                    // interpreter. A `WHILE` guard continues while its condition is nonzero; an
+                    // `UNTIL` guard continues while it is zero (`is_while` is compile-time).
+                    let header = self.ctx.append_basic_block(self.cur_fn, "do.head");
+                    let body_bb = self.ctx.append_basic_block(self.cur_fn, "do.body");
+                    let exit = self.ctx.append_basic_block(self.cur_fn, "do.exit");
+                    self.branch_to(header)?;
+                    self.builder.position_at_end(header);
+                    match pre_condition {
+                        Some((cond, is_while)) => {
+                            let c = self.eval_bool(cond)?;
+                            let keep = if *is_while {
+                                c
+                            } else {
+                                self.builder.build_not(c, "do.pre.not").map_err(Self::err)?
+                            };
+                            self.builder
+                                .build_conditional_branch(keep, body_bb, exit)
+                                .map_err(Self::err)?;
+                        }
+                        None => self.branch_to(body_bb)?,
+                    }
+                    self.builder.position_at_end(body_bb);
+                    self.emit_items(body)?;
+                    // Post-condition / back-edge, only if the body did not already terminate
+                    // the block (e.g. an unconditional RETURN inside the loop).
+                    let open = self
+                        .builder
+                        .get_insert_block()
+                        .and_then(|b| b.get_terminator())
+                        .is_none();
+                    if open {
+                        match post_condition {
+                            Some((cond, is_while)) => {
+                                let c = self.eval_bool(cond)?;
+                                let keep = if *is_while {
+                                    c
+                                } else {
+                                    self.builder.build_not(c, "do.post.not").map_err(Self::err)?
+                                };
+                                self.builder
+                                    .build_conditional_branch(keep, header, exit)
+                                    .map_err(Self::err)?;
+                            }
+                            None => {
+                                self.builder.build_unconditional_branch(header).map_err(Self::err)?;
+                            }
+                        }
+                    }
+                    self.builder.position_at_end(exit);
+                }
                 IrItem::For { var, start, end, step, body } => {
                     let slot = self.get_or_alloca(&var.name, ValueType::Integer)?;
                     let start_v = self.eval_int(start)?;
@@ -4867,5 +4919,49 @@ mod tests {
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
         let _ = std::fs::remove_file(dir.join("xb_rec_lock.dat"));
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_compiles_do_loop_forms() {
+        use std::io::Write;
+        use std::process::Command;
+        // All three DO/LOOP shapes. The body-first post-condition forms (LOOP UNTIL / LOOP
+        // WHILE) were previously unhandled in emit_item — the loop body never ran (0
+        // iterations). n counts to 3 (UNTIL n>=3), m to 8 (WHILE m<8), k to 2 (pre WHILE k<2).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DECLARE FUNCTION Entry ()\n\
+             FUNCTION Entry ()\n\
+             n = 0\n\
+             DO\n\
+             INC n\n\
+             LOOP UNTIL (n >= 3)\n\
+             PRINT n\n\
+             m = 5\n\
+             DO\n\
+             INC m\n\
+             LOOP WHILE (m < 8)\n\
+             PRINT m\n\
+             k = 0\n\
+             DO WHILE (k < 2)\n\
+             INC k\n\
+             LOOP\n\
+             PRINT k\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_doloop.o");
+        let exep = dir.join("xb_llvm_doloop.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "3\n8\n2\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
     }
 }

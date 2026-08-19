@@ -119,10 +119,10 @@ byte-accurate through concat / `LEN` / `PRINT` / comparison (`putchar` loop + `m
 with a length tiebreak), not truncated at the first NUL by `printf("%s")`. Proven
 byte-exact (`AB\0CD`) and locked by `llvm_backend_compiles_embedded_nul_strings`.
 Remaining gates to higher reach — all deferred-large or fundamental, **no bounded
-lever left**. The 5 interpreter-clean programs that still diverge, by root cause
+lever left**. The 4 interpreter-clean programs that still diverge, by root cause
 (byte-faithful PRINT output, `MID$`/`s${n}=v` byte-assignment, the auto-vivified-scalar
-prealloc, `$$` constant evaluation, the `OPEN`/`CLOSE`/`LOF` file runtime, and the
-`WRITE`/`READ [n]` record data path were resolved this session; see the summary):
+prealloc, `$$` constant evaluation, the `OPEN`/`CLOSE`/`LOF`/`WRITE`/`READ` file runtime,
+and the missing `DO…LOOP` codegen were resolved this session; see the summary):
 
 | Blocker | Programs | Nature |
 |---|---|---|
@@ -130,15 +130,15 @@ prealloc, `$$` constant evaluation, the `OPEN`/`CLOSE`/`LOF` file runtime, and t
 | by-ref `@` **array** (REDIM) | `asortie` | Read-only 1-D `@array[]` is done (a `{data, dims}` descriptor the callee reads — unblocked `aarray_ISNODE`; see `llvm_backend_compiles_array_byref_param`). What remains needs **REDIM-through-by-ref** (callee reallocates the caller's array) + `XstQuickSort`, i.e. shared heap descriptors with write-back — large |
 | Task / FUNCADDR system | `atask` | `SUBADDRESS`/`&func()`/timer scheduling — no runtime task system |
 | Nondeterministic | `atimer` | `TIMER` — not differential-testable |
-| Environment-dependent | `aprofile` | Interpreter reads a missing profile file and exits empty; the backend's differing early-exit path emits a stub line — low-value parity |
 
 None is a single high-value unlock; each is a documented large effort or a fundamental
 representation change warranting explicit scoping. The incremental LLVM roadmap is at
-**100/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; byte-faithful
+**101/105 faithful, 0 compile-fails** (byte-strings resolved RT-BYTESTRING; byte-faithful
 PRINT output — high bytes/NULs raw, unblocked `aback`/`acharmap`; `MID$`/`s${n}=v` byte-
 assignment (copy-on-write) + auto-vivified-scalar prealloc, unblocked `acharmap`; `$$`
 constant evaluation + the `OPEN`/`CLOSE`/`LOF`/`WRITE`/`READ` file runtime, unblocked
-`astring`/`arecord`; `FORMAT$` +
+`astring`/`arecord`; the previously-unhandled **`DO…LOOP` codegen** (body-first post-condition
+loops ran zero times), unblocked `aprofile`; `FORMAT$` +
 `CHR$(c,count)`, `BIN$`/`BINB$`, `0b`/`0o` literals, width-padded `HEXX$`/`HEX$`/`OCTO$`/
 `OCT$` (2-arg); unknown-call + undefined-variable zero-defaults; and **nested-GOSUB control
 flow** — a GOSUB nested in an `IF`/`FOR`/… now resumes correctly via a per-site *landing
@@ -146,7 +146,7 @@ block* through the `pc`-dispatch, with FOR bound/step hoisted to entry allocas s
 re-entry does not break SSA dominance; unblocked `gif`/`gifview`/`aviewbmp`/`MakeDist`/
 `MakeDistLinux`, 2-arg radix unblocked `asystem`/`amodal`, **scalar `@` by-ref** lowers as a
 shared pointer param, and **read-only 1-D `@array[]` by-ref** (a `{data, dims}` descriptor)
-unblocked `aarray_ISNODE`). The residual 5 are the large/fundamental efforts tabled above.
+unblocked `aarray_ISNODE`). The residual 4 are the large/fundamental efforts tabled above.
 
 ### `@array` effort — verified scoping notes `[2026-08-19]`
 Precise root causes established this session, so the large effort can be scoped without
