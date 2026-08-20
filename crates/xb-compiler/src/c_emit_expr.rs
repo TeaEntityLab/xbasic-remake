@@ -229,6 +229,17 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 crate::c_emit_bitops::emit_bit_op_call(name, args, out);
             } else if name == "MID$" && args.len() == 2 {
                 crate::c_emit_str2::emit_mid2(args, out, emit_expr);
+            } else if crate::c_emit::is_unknown_call(name) {
+                // Unknown callee (non-builtin, undefined): mirror the interpreter's
+                // call_function stub (call.rs) and the LLVM backend (lib.rs) — yield
+                // the zero-default ("" for a $-suffixed name, else 0). Args are
+                // skipped, matching the backends, so undefined/external calls (GUI
+                // Xgr*/Xui*, forward-referenced library functions) compile and match.
+                if name.ends_with('$') {
+                    out.push_str("xb_str(\"\")");
+                } else {
+                    out.push('0');
+                }
             } else {
                 emit_c_function_name(name, out);
                 out.push('(');
@@ -273,9 +284,16 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             out.push(')');
         }
         IrExprKind::FuncAddr(name) => {
-            out.push_str("((intptr_t)&");
-            emit_c_function_name(name, out);
-            out.push(')');
+            if crate::c_emit::is_unknown_call(name) {
+                // Unknown function address: interp/LLVM resolve &func of an unknown
+                // name to 0; match so it compiles instead of referencing an
+                // undeclared symbol.
+                out.push('0');
+            } else {
+                out.push_str("((intptr_t)&");
+                emit_c_function_name(name, out);
+                out.push(')');
+            }
         }
     }
 }

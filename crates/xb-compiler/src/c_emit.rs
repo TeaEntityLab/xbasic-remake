@@ -3,6 +3,50 @@ use crate::c_emit_select::emit_body;
 use crate::c_runtime::{emit_forward_decls, emit_globals, emit_header};
 use crate::ir::{IrItem, IrProgram, IrSymbol};
 use crate::ValueType;
+use std::cell::RefCell;
+use std::collections::HashSet;
+
+thread_local! {
+    /// User-defined function names for the program currently being emitted, so a
+    /// call site can tell a real callee from an unknown one (`is_unknown_call`).
+    static DEFINED_FUNCS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
+}
+
+/// Record every user-defined function name for `program`. Called once per
+/// `emit_program` before any body is emitted.
+fn set_defined_funcs(program: &IrProgram) {
+    DEFINED_FUNCS.with(|s| {
+        let mut set = s.borrow_mut();
+        set.clear();
+        for item in &program.items {
+            if let IrItem::Function { name, .. } = item {
+                set.insert(name.clone());
+            }
+        }
+    });
+}
+
+/// A called name that is neither a user-defined function, a recognized builtin,
+/// nor a deferred builtin — i.e. one the C generator would emit as an (undeclared)
+/// `xb_user_<name>`. The interpreter (`call.rs`) and the LLVM backend (`lib.rs`)
+/// stub these to the zero-default; the C generator does the same at each call site
+/// so undefined/external calls (GUI `Xgr*`/`Xui*`, forward-referenced library
+/// functions) compile and match byte-for-byte instead of failing `cc`.
+pub(crate) fn is_unknown_call(name: &str) -> bool {
+    if DEFINED_FUNCS.with(|s| s.borrow().contains(name)) {
+        return false;
+    }
+    // A recognized/deferred builtin has a real runtime impl (or must be left alone
+    // rather than replaced by a wrong constant) — never stub it.
+    if crate::is_builtin::is_builtin(name) {
+        return false;
+    }
+    // Only names the generator maps to its `xb_user_` fallback are stubbable; a
+    // builtin the emitter special-cases (e.g. `READLINE$`) maps to `xb_<name>`.
+    let mut probe = String::new();
+    crate::c_emit_helpers::emit_c_function_name(name, &mut probe);
+    probe.starts_with("xb_user_")
+}
 
 pub struct CEmitter;
 
@@ -19,6 +63,7 @@ impl CEmitter {
 
     pub fn emit_program(&self, program: &IrProgram) -> String {
         crate::c_emit_select::reset_select_state();
+        set_defined_funcs(program);
         let mut out = String::new();
         emit_version_global(program, &mut out);
         emit_program_name_global(program, &mut out);

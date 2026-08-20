@@ -256,6 +256,12 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             }
         }
         IrItem::Call { name, args } => {
+            if crate::c_emit::is_unknown_call(name) {
+                // Unknown callee: no-op (interp/LLVM stub yields a discarded
+                // zero-default, args skipped). Emitting nothing keeps undefined/
+                // external statement calls (GUI Xgr*/Xui*, etc.) compiling.
+                return;
+            }
             out.push_str(&ind);
             crate::c_emit_helpers::emit_c_function_name(name, out);
             out.push('(');
