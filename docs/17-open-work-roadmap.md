@@ -24,8 +24,12 @@
 > and dual-use scalar/array names split into scalar + `_arr` array (5 demos:
 > gif/gifview/Kittedy/zap/adatadim). The 3 divergers: `aarray`/`aarray_ISNODE`
 > (introspect XBasic array metadata via `&array[]`+`XLONGAT`, need the legacy
-> array ABI) and `acrc32` (intptr_t-vs-i32 arithmetic width). **One** compile-fail
-> left: qbtoxb (shared String array). LLVM: 150/0 faithful. Bootstrap + `cgen.x` intact.
+> array ABI) and `acrc32` (**shift semantics**: cgen's `>>` on `intptr_t` shifts
+> logically, but the interp *and* LLVM reference both do i32 *arithmetic* shift —
+> `sum >> 1` on the negative `0xEDB88320` sign-extends there; cgen is the odd one
+> out, and a fix means emitting i32-arithmetic `>>` mirrored in `cgen.x`). **One**
+> compile-fail left: qbtoxb (shared String array + `0s`/`0d` float-hex literals).
+> LLVM: 150/0 faithful. Bootstrap + `cgen.x` intact.
 
 ## 0. Open-gap index (at a glance)
 
@@ -39,6 +43,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~CGEN-ANY-PARAM~~ | C backend | ✅ **done** (2026-08-20): array params (`UBYTE gif[]`) thread `is_array` → C pointers; `*AT` memory builtins fold to the interp's 0/no-op stub (aquick faithful) | — | ✅ |
 | ~~CGEN-COMPOSITE-ARR~~ | C backend | ✅ **done** (2026-08-20): composite member arrays hoist once (dyn pointer wins); scalar+array DIM of one name no longer double-declares (arecord/adata faithful) | — | ✅ |
 | CGEN-BYREF-DESC | C backend | array-by-ref has no length/metadata in C: `UBOUND(param[])`, `&array[]`+`XLONGAT` introspection segfault/diverge; needs a `{data,len}` descriptor matching the legacy array ABI | `aarray`/`aarray_ISNODE` | feature |
+| CGEN-SHIFT | C backend | `>>` on `intptr_t` shifts logically; interp+LLVM reference do i32 *arithmetic* shift (`0xEDB88320>>1` sign-extends). cgen is the odd one out — emit i32-arithmetic `>>` mirrored in cgen.x (broad; risks `(int32_t)` truncating 64-bit values) | `acrc32` (diverge) | feature |
 | ~~CGEN-GOTO-VLA~~ | C backend | ✅ **done** (2026-08-20): sized array DIMs in a GOSUB function now heap-allocate (dyn pointer) instead of stack VLAs, so the GOSUB `goto` no longer bypasses a VLA init (agrids faithful) | — | ✅ |
 | ~~CGEN-SCALAR-ARRAY-DUAL~~ | C backend | ✅ **done** (2026-08-20): a name used as both scalar and array now emits two C vars — scalar `xb_var_x` + array `xb_var_x_arr` (mirrors the interp's TypedSlot value/array fields), routed by IR-node kind; array *DIMs* also count as array-context (adatadim's scalar `SWAP a[]`); params excluded (gif/gifview/Kittedy/zap/adatadim faithful) | — | ✅ |
 | ~~CGEN-NAME-CONFLICT~~ | C backend | ✅ **partly done** (2026-08-20): aligned string_byte_read + byref_symbol with symbol()'s resolution and fixed duplicate-param rename to fire only on true C-name collision (atools faithful). qbtoxb still fails — its `xbasic$` is a shared *String array* force-dyn'd as `intptr_t*` (should be `char**`) with a byref-arg tangle → folded into CGEN-SHARED-ARR | `qbtoxb` (via CGEN-SHARED-ARR) | ◑ |
