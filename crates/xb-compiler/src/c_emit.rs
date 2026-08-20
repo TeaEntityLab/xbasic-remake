@@ -123,11 +123,18 @@ fn set_fn_context(items: &[IrItem], params: &[crate::ir::IrParam]) {
     });
     FN_DUAL_USE.with(|s| {
         let mut set = crate::c_emit_hoist::collect_dual_use(items);
-        // A parameter is a single C declaration (an array param is already a
-        // pointer); it can't be split into scalar + `_arr` vars. Only local
-        // (AUTO/auto-vivified) names are dual-split.
+        // A name used as both scalar and array splits into a scalar var + a
+        // separate `_arr` array. A genuine dual-use PARAM (qbtoxb's `token[]`,
+        // also read as a scalar `token = token[i]`) keeps this split: the array
+        // param takes the `_arr` name, a local scalar takes the base name. But a
+        // *scalar* param only looks array-ish — e.g. String `path$` with
+        // `UBOUND(path$)`/`path${i}` byte-ops — and is a single scalar C decl
+        // that must NOT split. So drop non-array params from the set. The corpus
+        // has no dual-use array param, so this stays byte-neutral there.
         for p in params {
-            set.remove(&p.name);
+            if !p.is_array {
+                set.remove(&p.name);
+            }
         }
         *s.borrow_mut() = set;
     });
@@ -341,6 +348,9 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             if !seen.insert(name.clone()) {
                 continue;
             }
+            // Establish the per-function context BEFORE the signature so a
+            // dual-use array param is emitted with its `_arr` array name.
+            set_fn_context(body, params);
             out.push_str(c_type(*return_type));
             out.push_str(" xb_user_");
             out.push_str(name);
@@ -356,13 +366,25 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
                 // Array param (`UBYTE gif[]`): a pointer, so the body's `p[i]`
                 // subscripts bind (a caller array decays to this pointer).
                 out.push_str(if p.is_array { " *" } else { " " });
-                emit_var_name(
-                    &IrSymbol {
-                        name: p.name.clone(),
-                        value_type: p.value_type,
-                    },
-                    out,
-                );
+                if p.is_array && is_dual_use(&p.name) {
+                    // Dual-use array param: the array param takes the `_arr`
+                    // name; the base-name scalar is a local (emit_hoisted_scalars).
+                    emit_array_var_name(
+                        &IrSymbol {
+                            name: p.name.clone(),
+                            value_type: p.value_type,
+                        },
+                        out,
+                    );
+                } else {
+                    emit_var_name(
+                        &IrSymbol {
+                            name: p.name.clone(),
+                            value_type: p.value_type,
+                        },
+                        out,
+                    );
+                }
                 // Duplicate param *C names*: the interpreter's zip-binding writes
                 // the slot per name so the LAST occurrence wins; earlier dups get
                 // an unused suffixed C name (C forbids duplicate parameters). Two
@@ -378,7 +400,6 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
                 }
             }
             out.push_str(") {\n");
-            set_fn_context(body, params);
             crate::c_emit_hoist::emit_hoisted_scalars(body, params, Some(name), out, 1);
             emit_dyn_decls(out, 1);
             if *return_type != ValueType::Integer {

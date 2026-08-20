@@ -39,7 +39,12 @@ pub(crate) fn emit_hoisted_scalars(
     let params: HashSet<&str> = params.iter().map(|p| p.name.as_str()).collect();
     let ind = "    ".repeat(indent);
     for (name, vt) in &scalars {
-        if params.contains(name.as_str()) || own_name == Some(name.as_str()) {
+        // Skip params (declared in the signature) and the function's own name —
+        // EXCEPT a dual-use param, whose array facet took the `_arr` name in the
+        // signature, so its scalar facet still needs this local declaration.
+        if (params.contains(name.as_str()) && !crate::c_emit::is_dual_use(name))
+            || own_name == Some(name.as_str())
+        {
             continue;
         }
         // A dual-use name (scalar AND array) is emitted as BOTH a scalar here
@@ -481,6 +486,13 @@ struct DynWalk {
     late: HashSet<String>,
     dim_count: BTreeMap<String, u32>,
     dim_info: BTreeMap<String, (bool, ValueType)>,
+    /// Array names `Dim`'d inside a nested control-flow block (an `IF`/`FOR`/…
+    /// body, not the function top level). A sized C array declared in a block is
+    /// a block-scoped VLA that later out-of-block uses can't see (qbtoxb's
+    /// `#line`, `REDIM`'d inside an `IF`), so such names must be function-hoisted
+    /// (dyn). This is structural, so it round-trips through the text IR (unlike
+    /// the `redim` flag, which the frozen v0.1 golden IR does not serialize).
+    nested_arrays: HashSet<String>,
 }
 
 impl DynWalk {
@@ -523,7 +535,7 @@ impl DynWalk {
         }
     }
 
-    fn items(&mut self, items: &[IrItem]) {
+    fn items(&mut self, items: &[IrItem], nested: bool) {
         for it in items {
             match it {
                 IrItem::Dim { symbol, size, is_array, .. } => {
@@ -531,8 +543,12 @@ impl DynWalk {
                         .dim_info
                         .entry(symbol.name.clone())
                         .or_insert((false, symbol.value_type));
-                    e.0 |= *is_array || size.is_some();
+                    let arr = *is_array || size.is_some();
+                    e.0 |= arr;
                     *self.dim_count.entry(symbol.name.clone()).or_insert(0) += 1;
+                    if nested && arr {
+                        self.nested_arrays.insert(symbol.name.clone());
+                    }
                     if let Some(sz) = size {
                         self.expr(sz);
                     }
@@ -571,20 +587,20 @@ impl DynWalk {
                 IrItem::SharedAssignment { value, .. } => self.expr(value),
                 IrItem::If { condition, then_body, else_body } => {
                     self.expr(condition);
-                    self.items(then_body);
+                    self.items(then_body, true);
                     if let Some(b) = else_body {
-                        self.items(b);
+                        self.items(b, true);
                     }
                 }
                 IrItem::While { condition, body } => {
                     self.expr(condition);
-                    self.items(body);
+                    self.items(body, true);
                 }
                 IrItem::DoLoop { pre_condition, post_condition, body } => {
                     if let Some((e, _)) = pre_condition {
                         self.expr(e);
                     }
-                    self.items(body);
+                    self.items(body, true);
                     if let Some((e, _)) = post_condition {
                         self.expr(e);
                     }
@@ -596,7 +612,7 @@ impl DynWalk {
                     if let Some(s) = step {
                         self.expr(s);
                     }
-                    self.items(body);
+                    self.items(body, true);
                 }
                 IrItem::Return { value: Some(e) } => self.expr(e),
                 IrItem::Call { args, .. } => {
@@ -619,13 +635,13 @@ impl DynWalk {
                         for cond in &c.conditions {
                             self.expr(cond);
                         }
-                        self.items(&c.body);
+                        self.items(&c.body, true);
                     }
                     if let Some(b) = default {
-                        self.items(b);
+                        self.items(b, true);
                     }
                 }
-                IrItem::Compound(items) => self.items(items),
+                IrItem::Compound(items) => self.items(items, nested),
                 IrItem::GosubExpr(e) | IrItem::GotoExpr(e) => self.expr(e),
                 _ => {}
             }
@@ -657,7 +673,7 @@ pub(crate) fn has_gosub(items: &[IrItem]) -> bool {
 
 pub(crate) fn collect_dyn_names(items: &[IrItem], params: &[IrParam], has_gosub: bool) -> DynNames {
     let mut w = DynWalk::default();
-    w.items(items);
+    w.items(items, false);
     let params: HashSet<&str> = params.iter().map(|p| p.name.as_str()).collect();
     let mut dyn_names = DynNames::default();
     for (name, count) in &w.dim_count {
@@ -668,8 +684,10 @@ pub(crate) fn collect_dyn_names(items: &[IrItem], params: &[IrParam], has_gosub:
         let late = w.late.contains(name);
         // A GOSUB function's sized array DIMs must be heap (dyn), not stack VLAs
         // — a GOSUB `goto` bypassing a VLA declaration is a hard C error
-        // (gif/gifview). Force every array DIM to dyn there.
-        let force = has_gosub && is_array;
+        // (gif/gifview). An array DIM'd inside a nested block must also be heap:
+        // a block-scoped VLA can't be seen by later out-of-block uses (qbtoxb's
+        // `#line`, `REDIM`'d inside an `IF`). Force both to dyn.
+        let force = is_array && (has_gosub || w.nested_arrays.contains(name));
         if !force && !late && *count < 2 {
             continue;
         }
