@@ -758,6 +758,13 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             if *return_type != ValueType::Integer {
                 crate::c_emit_expr::emit_return_var_decl(name, *return_type, out);
             }
+            // Isolate this function's GOSUB frames from a caller's: a function-level
+            // `RETURN` lowers to `GosubReturn`, which must return from the FUNCTION
+            // (not pop a caller's gosub frame off the shared global stack). Capture
+            // the entry `sp`; `GosubReturn` pops only while `sp > base` (CGEN-GOSUB-SCOPE).
+            if crate::c_emit_hoist::has_gosub(body) {
+                out.push_str("    int xb_gosub_base = xb_gosub_sp;\n");
+            }
             crate::c_emit_goto::emit_computed_goto_prologue(body, out, 1);
             emit_body(body, out, 1);
             emit_byref_copy_out(out, 1);
@@ -805,6 +812,9 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     // Top-level scalars (walk_items ignores nested Function bodies).
     crate::c_emit_hoist::emit_hoisted_scalars(&program.items, &[], None, out, 1);
     emit_dyn_decls(out, 1);
+    if crate::c_emit_hoist::has_gosub(&program.items) {
+        out.push_str("    int xb_gosub_base = xb_gosub_sp;\n");
+    }
     crate::c_emit_goto::emit_computed_goto_prologue(&program.items, out, 1);
     emit_body(top, out, 1);
     if let Some((name, params)) = entry {

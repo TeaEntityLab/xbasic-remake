@@ -468,9 +468,12 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             out.push_str(&format!("xb_gosub_ret_{name}{suffix}:\n"));
         }
         IrItem::GosubReturn => {
+            // Pop only this function's own GOSUB frames (sp > entry base); reaching
+            // the base means a function-level `RETURN`, so return from the function
+            // instead of jumping to a caller's gosub frame (CGEN-GOSUB-SCOPE).
             out.push_str(&ind);
             out.push_str(
-                "if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;\n",
+                "if (xb_gosub_sp > xb_gosub_base) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;\n",
             );
         }
         IrItem::GosubExpr(expr) => {

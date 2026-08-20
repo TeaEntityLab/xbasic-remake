@@ -168,6 +168,50 @@ END FUNCTION
     );
 }
 
+/// GOSUB stack scoping (CGEN-GOSUB-SCOPE): a bare `RETURN` in a gosub-using
+/// function lowers to `GosubReturn`; the interpreter scopes GOSUB per function
+/// (`Flow::GosubReturn` bubbles up within the function — if no `Gosub` catches
+/// it, the function returns). The C backend's `xb_gosub_stack`/`xb_gosub_sp` is a
+/// shared GLOBAL, so a function-level `RETURN` reached while a *caller* has an
+/// active GOSUB must NOT pop the caller's frame. Fix: each function captures
+/// `xb_gosub_base = xb_gosub_sp` on entry and `GosubReturn` pops only while
+/// `sp > base`; reaching the base returns from the function. Here `Sub1(0)` takes
+/// an early bare `RETURN` while `Main`'s `GOSUB Blk` is active — without the fix
+/// it jumps to a garbage address (this is exactly aarray's segfault).
+#[test]
+fn cgen_matches_interpreter_on_gosub_scope() {
+    let source = "\
+VERSION \"0.1\"
+DECLARE FUNCTION Sub1 (a)
+FUNCTION Main
+\tINTEGER x
+\tGOSUB Blk
+\tPRINT \"main done\"
+\tRETURN
+Blk:
+\tx = Sub1(0)
+\tPRINT \"blk got \"; x
+\tRETURN
+END FUNCTION
+FUNCTION Sub1 (a)
+\tIF a = 0 THEN RETURN
+\tGOSUB Helper
+\tRETURN
+Helper:
+\tPRINT \"helper\"
+\tRETURN
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_gosub_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "gosubscope", &tmp);
+    assert_eq!(
+        native, interp,
+        "gosub-scope cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+}
+
 /// i32 arithmetic semantics (CGEN-SHIFT): XBasic INTEGER is i32 (`RuntimeValue::
 /// Integer(i32)`, `wrapping_*`), but the C backend stores values as `intptr_t`
 /// (i64) so that label-address integers aren't truncated. Integer arithmetic,
