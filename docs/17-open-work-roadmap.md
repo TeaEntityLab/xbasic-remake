@@ -197,25 +197,23 @@ the other 4 are blocked by three genuine (non-platform) *features*, not bounded 
 - **Composite `SHARED` arrays — ✅ done `[2026-08-20]`**: `SHARED <TYPE> var[size]` now
   recognizes the composite type and creates shared, sized member arrays (commit `c818b58`),
   clearing `unknown runtime slot Ary_varData.numElements`.
-- **Full `SHARED` semantics (scalars + REDIM) + data-flow — `ary` next blocker `[2026-08-20]`**:
-  `ary` now blocks on an `-48000` array index. That value is a *downstream symptom*:
-  `Ary_GetCodeBufferIndexCode` hashes `charCode = (c${0} - ASC("0")) * 1000`, and on an **empty**
-  `c$`/`name$`, `c${0}` reads 0 → `(0-48)*1000 = -48000` → `bufferIndexCount[-48000]`. The empty
-  `name$` comes from upstream state that is still wrong because (a) `SHARED` *scalars*
-  (`Ary_numVarCodes`, `Ary_numNames`, …) don't propagate — the fix so far is arrays-only, since
-  the 25 faithful scalar-`SHARED` demos rely on interp+backend sharing the same per-function bug
-  (see the lock) — and (b) the stubbed builtins below feed wrong values. Real scalar `SHARED` +
-  `REDIM`-of-shared needs **analyzer-level shared-var tracking**: register `SHARED`-keyword names
-  and re-route their plain `Identifier`/assignment refs to `SharedVariable`/`SharedAssignment`.
-  **Implementation path (verified feasible for 2 of 3 backends):** the interpreter *and* the
-  CEmitter (`c_emit_expr.rs`) already lower `SharedVariable`/`SharedAssignment`, so analyzer
-  routing makes scalar `SHARED` work byte-faithfully on interp + the **C backend** (the primary /
-  bootstrap backend) with only a golden regen (`static_redim_doevents`). The **inkwell** backend
-  (`lib.rs`) has *no* `SharedVariable` lowering, so it would diverge — hence a **gate-backend
-  decision** is required: either move the 106/106 differential to the C backend (primary) and
-  track inkwell `SharedVariable` as separate deferred work, or add inkwell globals first. Either
-  way it is a coordinated change with regression risk to the 25 scalar-`SHARED` demos, gated on
-  the differential.
+- **`ary` `-48000` — deeper data-flow, *not* scalar `SHARED` `[2026-08-20]`**: `ary` blocks on an
+  `-48000` array index — a *downstream symptom*: `Ary_GetCodeBufferIndexCode` hashes
+  `charCode = (c${0} - ASC("0")) * 1000`; on an **empty** `name$`, `c${0}` reads 0 →
+  `(0-48)*1000 = -48000` → `bufferIndexCount[-48000]`. **Tested this session:** implementing
+  scalar `SHARED` (analyzer routing to `SharedVariable`, which interp + CEmitter already lower)
+  made cross-function scalar `SHARED` work but did **not** clear the `-48000` — so the empty
+  `name$` has a deeper source: `REDIM` of a `SHARED` *composite* array (`REDIM Ary_varData[m]`
+  lowers with `shared=false`, shadowing the shared member arrays → data loss) and/or the stubbed
+  builtins below. That scalar-`SHARED` change was **reverted**: it rewrites a frozen v0.1 golden
+  (`static_redim_doevents.ir`) and diverges the inkwell backend without unblocking ary — not
+  justified unilaterally.
+- **`REDIM`-of-shared + full `SHARED` semantics — deferred `[2026-08-20]`**: routing `REDIM` (and
+  plain refs) of `SHARED`-declared names to the shared store needs **analyzer-level shared-var
+  tracking**. Feasible for interp + the C backend (both lower `SharedVariable`), but it rewrites a
+  frozen v0.1 golden and the inkwell backend lacks `SharedVariable` — so it needs a **gate-backend
+  + frozen-contract decision** (make the C generator the 106/106 gate + authorize the golden
+  regen, inkwell deferred). Coordinated change, regression risk to the 25 scalar-`SHARED` demos.
 - **Stubbed runtime builtins** (`ary`/`ary1`): `XstStringToNumber` (×15), `XstQuickSort` (×5),
   `XstCopyArray` are stubs needing real implementations (both layers, per the lock below). So
   `ary` is a multi-step effort (SHARED arrays ✅, composite-array params ✅, composite SHARED
