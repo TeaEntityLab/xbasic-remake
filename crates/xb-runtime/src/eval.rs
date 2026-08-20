@@ -21,14 +21,16 @@ pub(crate) fn eval(
     program: &IrProgram,
     expr: &IrExpr,
     state: &mut ExecutionState,
+    output: &mut Vec<String>,
 ) -> Result<RuntimeValue, RuntimeError> {
-    eval_expr(program, expr, state)
+    eval_expr(program, expr, state, output)
 }
 
 pub(crate) fn eval_expr(
     program: &IrProgram,
     expr: &IrExpr,
     state: &mut ExecutionState,
+    output: &mut Vec<String>,
 ) -> Result<RuntimeValue, RuntimeError> {
     let value = match &expr.kind {
         IrExprKind::StringLiteral(v) => RuntimeValue::from_string(v.clone()),
@@ -37,19 +39,19 @@ pub(crate) fn eval_expr(
         IrExprKind::Constant { value, .. } => RuntimeValue::Integer(parse_integer(value)?),
         // `@x` reads as the current value of the referenced lvalue; the
         // write-back on return is performed by the call site (call.rs).
-        IrExprKind::ByRef(inner) => eval(program, inner, state)?,
+        IrExprKind::ByRef(inner) => eval(program, inner, state, output)?,
         IrExprKind::Comparison { op, left, right } => {
-            let l = eval(program, left, state)?;
-            let r = eval(program, right, state)?;
+            let l = eval(program, left, state, output)?;
+            let r = eval(program, right, state, output)?;
             RuntimeValue::Integer(crate::compare::compare(*op, &l, &r)?)
         }
         IrExprKind::Arithmetic { op, left, right } => {
-            let l = eval(program, left, state)?;
-            let r = eval(program, right, state)?;
+            let l = eval(program, left, state, output)?;
+            let r = eval(program, right, state, output)?;
             crate::arith::arith(*op, &l, &r)?
         }
         IrExprKind::Not(inner) => {
-            let v = eval(program, inner, state)?;
+            let v = eval(program, inner, state, output)?;
             let RuntimeValue::Integer(n) = v else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::Integer,
@@ -59,7 +61,7 @@ pub(crate) fn eval_expr(
             RuntimeValue::Integer(!n)
         }
         IrExprKind::Unary { op, operand } => {
-            let v = eval(program, operand, state)?;
+            let v = eval(program, operand, state, output)?;
             match op {
                 xb_compiler::UnaryOp::Neg => match v {
                     RuntimeValue::Integer(n) => RuntimeValue::Integer(-n),
@@ -75,8 +77,8 @@ pub(crate) fn eval_expr(
             }
         }
         IrExprKind::Boolean { op, left, right } => {
-            let l = eval(program, left, state)?;
-            let r = eval(program, right, state)?;
+            let l = eval(program, left, state, output)?;
+            let r = eval(program, right, state, output)?;
             let (RuntimeValue::Integer(a), RuntimeValue::Integer(b)) = (l, r) else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::Integer,
@@ -90,8 +92,8 @@ pub(crate) fn eval_expr(
             })
         }
         IrExprKind::Logical { op, left, right } => {
-            let l = eval(program, left, state)?;
-            let r = eval(program, right, state)?;
+            let l = eval(program, left, state, output)?;
+            let r = eval(program, right, state, output)?;
             let (RuntimeValue::Integer(a), RuntimeValue::Integer(b)) = (l, r) else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::Integer,
@@ -127,8 +129,7 @@ pub(crate) fn eval_expr(
         IrExprKind::SharedVariable(s) => read_slot(&state.shared, s)?,
         IrExprKind::Symbol(s) => read_slot(&state.slots, s)?,
         IrExprKind::FunctionCall { name, args } => {
-            let mut out = Vec::new();
-            return crate::call::call_function(program, name, args, state, &mut out);
+            return crate::call::call_function(program, name, args, state, output);
         }
         IrExprKind::ArrayAccess {
             symbol,
@@ -137,7 +138,7 @@ pub(crate) fn eval_expr(
         } => {
             let mut idxs: Vec<usize> = Vec::with_capacity(1 + extra_indices.len());
             for e in std::iter::once(index.as_ref()).chain(extra_indices.iter()) {
-                match eval(program, e, state)? {
+                match eval(program, e, state, output)? {
                     RuntimeValue::Integer(n) => idxs.push(n as usize),
                     other => {
                         return Err(RuntimeError::TypeMismatch {
@@ -241,10 +242,10 @@ pub(crate) fn exec_for(
             actual: ValueType::Integer,
         });
     };
-    let s = eval(program, start, state)?;
-    let e = eval(program, end, state)?;
+    let s = eval(program, start, state, output)?;
+    let e = eval(program, end, state, output)?;
     let st = match step {
-        Some(se) => eval(program, se, state)?,
+        Some(se) => eval(program, se, state, output)?,
         None => RuntimeValue::Integer(1),
     };
     let (RuntimeValue::Integer(mut i), RuntimeValue::Integer(ei), RuntimeValue::Integer(si)) =

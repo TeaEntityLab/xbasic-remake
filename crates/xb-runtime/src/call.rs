@@ -79,8 +79,8 @@ pub(crate) fn call_function(
             ));
         }
         "OPEN" => {
-            let arg0 = eval(program, &args[0], state)?;
-            let arg1 = eval(program, &args[1], state)?;
+            let arg0 = eval(program, &args[0], state, output)?;
+            let arg1 = eval(program, &args[1], state, output)?;
             let RuntimeValue::String(name) = arg0 else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::String,
@@ -116,7 +116,7 @@ pub(crate) fn call_function(
             }
         }
         "CLOSE" => {
-            let arg = eval(program, &args[0], state)?;
+            let arg = eval(program, &args[0], state, output)?;
             let RuntimeValue::Integer(fn_num) = arg else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::Integer,
@@ -131,8 +131,8 @@ pub(crate) fn call_function(
             return Ok(RuntimeValue::Integer(0));
         }
         "__WRITE_RECORD" => {
-            let f = eval(program, &args[0], state)?;
-            let n = eval(program, &args[1], state)?;
+            let f = eval(program, &args[0], state, output)?;
+            let n = eval(program, &args[1], state, output)?;
             let (RuntimeValue::Integer(fn_num), RuntimeValue::Integer(count)) = (f, n) else {
                 return Ok(RuntimeValue::Integer(-1));
             };
@@ -147,8 +147,8 @@ pub(crate) fn call_function(
             return Ok(RuntimeValue::Integer(count));
         }
         "__READ_RECORD" => {
-            let f = eval(program, &args[0], state)?;
-            let n = eval(program, &args[1], state)?;
+            let f = eval(program, &args[0], state, output)?;
+            let n = eval(program, &args[1], state, output)?;
             let (RuntimeValue::Integer(fn_num), RuntimeValue::Integer(count)) = (f, n) else {
                 return Ok(RuntimeValue::Integer(-1));
             };
@@ -163,7 +163,7 @@ pub(crate) fn call_function(
             return Ok(RuntimeValue::Integer(got as i32));
         }
         "LOF" => {
-            let arg = eval(program, &args[0], state)?;
+            let arg = eval(program, &args[0], state, output)?;
             let RuntimeValue::Integer(fn_num) = arg else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::Integer,
@@ -182,7 +182,7 @@ pub(crate) fn call_function(
             return Ok(RuntimeValue::Integer(len as i32));
         }
         "POF" => {
-            let arg = eval(program, &args[0], state)?;
+            let arg = eval(program, &args[0], state, output)?;
             let RuntimeValue::Integer(fn_num) = arg else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::Integer,
@@ -202,8 +202,8 @@ pub(crate) fn call_function(
             return Ok(RuntimeValue::Integer(pos as i32));
         }
         "SEEK" => {
-            let arg0 = eval(program, &args[0], state)?;
-            let arg1 = eval(program, &args[1], state)?;
+            let arg0 = eval(program, &args[0], state, output)?;
+            let arg1 = eval(program, &args[1], state, output)?;
             let RuntimeValue::Integer(fn_num) = arg0 else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::Integer,
@@ -228,7 +228,7 @@ pub(crate) fn call_function(
             return Ok(RuntimeValue::Integer(r.map(|p| p as i32).unwrap_or(-1)));
         }
         "INFILE$" => {
-            let arg = eval(program, &args[0], state)?;
+            let arg = eval(program, &args[0], state, output)?;
             let RuntimeValue::Integer(fn_num) = arg else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::Integer,
@@ -260,7 +260,7 @@ pub(crate) fn call_function(
             return Ok(RuntimeValue::String(buf));
         }
         "ERROR" | "ERROR$" => {
-            let arg = eval(program, &args[0], state)?;
+            let arg = eval(program, &args[0], state, output)?;
             let RuntimeValue::Integer(n) = arg else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::Integer,
@@ -277,7 +277,7 @@ pub(crate) fn call_function(
             return Ok(RuntimeValue::from_string(format!("error {n}")));
         }
         "QUIT" => {
-            let arg = eval(program, &args[0], state)?;
+            let arg = eval(program, &args[0], state, output)?;
             let RuntimeValue::Integer(code) = arg else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::Integer,
@@ -287,7 +287,7 @@ pub(crate) fn call_function(
             return Err(RuntimeError::Quit { code });
         }
         "SHELL" => {
-            let arg = eval(program, &args[0], state)?;
+            let arg = eval(program, &args[0], state, output)?;
             let RuntimeValue::String(cmd) = arg else {
                 return Err(RuntimeError::TypeMismatch {
                     expected: ValueType::String,
@@ -309,7 +309,7 @@ pub(crate) fn call_function(
     if is_builtin(name) {
         let mut vals = Vec::with_capacity(args.len());
         for arg in args {
-            vals.push(eval(program, arg, state)?);
+            vals.push(eval(program, arg, state, output)?);
         }
         return crate::builtin::eval_builtin(name, &vals);
     }
@@ -362,7 +362,7 @@ pub(crate) fn call_function(
         }
         if !passed_array {
             // Coerce each scalar argument to the parameter type (XBasic implicit coercion).
-            let v = crate::helpers::coerce_value(eval(program, arg, state)?, p.value_type);
+            let v = crate::helpers::coerce_value(eval(program, arg, state, output)?, p.value_type);
             slot.set(v);
         }
         local.insert(p.name.clone(), slot);

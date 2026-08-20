@@ -123,7 +123,7 @@ pub(crate) fn exec_items(
                     // [d0+1, d1+1, …]; empty `DIM a[]` -> empty shape (len 0).
                     let mut dims: Vec<usize> = Vec::new();
                     for e in size.iter().chain(extra_dims.iter()) {
-                        match eval(program, e, state)? {
+                        match eval(program, e, state, output)? {
                             RuntimeValue::Integer(i) => {
                                 dims.push((i.max(0) as usize).wrapping_add(1))
                             }
@@ -180,7 +180,7 @@ pub(crate) fn exec_items(
                 }
             }
             IrItem::Assignment { target, value } => {
-                let v = eval(program, value, state)?;
+                let v = eval(program, value, state, output)?;
                 // Coerce to the target type (XBasic implicit coercion).
                 let v = crate::helpers::coerce_value(v, target.value_type);
                 // Auto-declare the variable on first assignment (legacy XBasic
@@ -199,7 +199,7 @@ pub(crate) fn exec_items(
             } => {
                 let mut idxs: Vec<usize> = Vec::with_capacity(1 + extra_indices.len());
                 for e in std::iter::once(index).chain(extra_indices.iter()) {
-                    match eval(program, e, state)? {
+                    match eval(program, e, state, output)? {
                         RuntimeValue::Integer(i) => idxs.push(i as usize),
                         n => {
                             return Err(RuntimeError::TypeMismatch {
@@ -210,7 +210,7 @@ pub(crate) fn exec_items(
                     }
                 }
                 let v =
-                    crate::helpers::coerce_value(eval(program, value, state)?, target.value_type);
+                    crate::helpers::coerce_value(eval(program, value, state, output)?, target.value_type);
                 let slot = state
                     .slots
                     .get_mut(&target.name)
@@ -240,13 +240,13 @@ pub(crate) fn exec_items(
                         });
                     }
                 };
-                let start_val = eval(program, start, state)?;
+                let start_val = eval(program, start, state, output)?;
                 let len_val = if let Some(len_expr) = length {
-                    Some(eval(program, len_expr, state)?)
+                    Some(eval(program, len_expr, state, output)?)
                 } else {
                     None
                 };
-                let src_val = eval(program, value, state)?;
+                let src_val = eval(program, value, state, output)?;
                 let RuntimeValue::Integer(start_i) = start_val else {
                     return Err(RuntimeError::TypeMismatch {
                         expected: ValueType::Integer,
@@ -282,19 +282,19 @@ pub(crate) fn exec_items(
             IrItem::BuiltinAssign { name, args, value } => {
                 // *AT assignment: in interpreter, this is a no-op (no real memory)
                 // Just evaluate the value to check for errors
-                let _ = eval(program, value, state)?;
+                let _ = eval(program, value, state, output)?;
                 let _ = name;
                 let _ = args;
             }
             IrItem::SharedAssignment { target, value } => {
-                crate::interpreter_select::exec_shared(target, value, program, state)?;
+                crate::interpreter_select::exec_shared(target, value, program, state, output)?;
             }
             IrItem::If {
                 condition,
                 then_body,
                 else_body,
             } => {
-                let cond = eval(program, condition, state)?;
+                let cond = eval(program, condition, state, output)?;
                 if let RuntimeValue::Integer(v) = cond {
                     if v != 0 {
                         match exec_items(program, then_body, func_body, 0, state, output)? {
@@ -330,7 +330,7 @@ pub(crate) fn exec_items(
             IrItem::While { condition, body } => {
                 let mut pending_flow: Option<Flow> = None;
                 loop {
-                    let cond = eval(program, condition, state)?;
+                    let cond = eval(program, condition, state, output)?;
                     if let RuntimeValue::Integer(v) = cond {
                         if v == 0 {
                             break;
@@ -363,7 +363,7 @@ pub(crate) fn exec_items(
                 let mut pending_flow: Option<Flow> = None;
                 loop {
                     if let Some((cond, is_while)) = pre_condition {
-                        let v = eval(program, cond, state)?;
+                        let v = eval(program, cond, state, output)?;
                         if let RuntimeValue::Integer(n) = v {
                             if (*is_while && n == 0) || (!*is_while && n != 0) {
                                 break;
@@ -385,7 +385,7 @@ pub(crate) fn exec_items(
                         Flow::Continue => {}
                     }
                     if let Some((cond, is_while)) = post_condition {
-                        let v = eval(program, cond, state)?;
+                        let v = eval(program, cond, state, output)?;
                         if let RuntimeValue::Integer(n) = v {
                             if (*is_while && n == 0) || (!*is_while && n != 0) {
                                 break;
@@ -449,7 +449,7 @@ pub(crate) fn exec_items(
                 program, name, args, state, output,
             )?),
             IrItem::Return { value } => {
-                return crate::exec_helpers::exec_return(program, value, state)
+                return crate::exec_helpers::exec_return(program, value, state, output)
             }
             IrItem::Compound(inner) => {
                 let flow = exec_items(program, inner, func_body, 0, state, output)?;
@@ -492,7 +492,7 @@ pub(crate) fn exec_items(
                 return Ok(Flow::GosubReturn);
             }
             IrItem::GosubExpr(expr) => {
-                let val = eval(program, expr, state)?;
+                let val = eval(program, expr, state, output)?;
                 let RuntimeValue::Integer(addr) = val else {
                     return Err(RuntimeError::TypeMismatch {
                         expected: ValueType::Integer,
@@ -512,7 +512,7 @@ pub(crate) fn exec_items(
                 }
             }
             IrItem::GotoExpr(expr) => {
-                let val = eval(program, expr, state)?;
+                let val = eval(program, expr, state, output)?;
                 let RuntimeValue::Integer(addr) = val else {
                     return Err(RuntimeError::TypeMismatch {
                         expected: ValueType::Integer,

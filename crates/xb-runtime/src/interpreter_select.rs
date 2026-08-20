@@ -13,11 +13,11 @@ pub(crate) fn exec_select_case(
     state: &mut ExecutionState,
     output: &mut Vec<String>,
 ) -> Result<Flow, RuntimeError> {
-    let sel = eval(program, selector, state)?;
+    let sel = eval(program, selector, state, output)?;
     let mut matched = false;
     for case in cases {
         for cond in &case.conditions {
-            let cv = eval(program, cond, state)?;
+            let cv = eval(program, cond, state, output)?;
             if sel == cv {
                 let flow = exec_items(program, &case.body, func_body, 0, state, output)?;
                 match flow {
@@ -84,7 +84,7 @@ pub(crate) fn exec_print(
         // Handle TAB() specially — pad to column
         if let IrExprKind::FunctionCall { name, args } = &expr.kind {
             if name == "TAB" && args.len() == 1 {
-                let col = eval(program, &args[0], state)?;
+                let col = eval(program, &args[0], state, output)?;
                 if let RuntimeValue::Integer(c) = col {
                     let cur = line.chars().count();
                     if (c as usize) > cur {
@@ -94,7 +94,7 @@ pub(crate) fn exec_print(
                 continue;
             }
         }
-        line.push_str(&eval(program, expr, state)?.render_faithful());
+        line.push_str(&eval(program, expr, state, output)?.render_faithful());
     }
     output.push(line);
     Ok(())
@@ -105,9 +105,10 @@ pub(crate) fn exec_shared(
     value: &IrExpr,
     program: &IrProgram,
     state: &mut ExecutionState,
+    output: &mut Vec<String>,
 ) -> Result<(), RuntimeError> {
     // Coerce to the target type (XBasic implicit coercion).
-    let v = crate::helpers::coerce_value(eval(program, value, state)?, target.value_type);
+    let v = crate::helpers::coerce_value(eval(program, value, state, output)?, target.value_type);
     let slot = state
         .shared
         .entry(target.name.clone())

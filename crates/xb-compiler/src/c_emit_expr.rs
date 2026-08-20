@@ -68,7 +68,9 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
         // there and only affects XBSourceLib (7 core libs, float-array by-ref).
         IrExprKind::ByRef(inner) => emit_expr(inner, out),
         IrExprKind::Comparison { op, left, right } => {
-            if left.value_type == ValueType::String || right.value_type == ValueType::String {
+            let ls = left.value_type == ValueType::String;
+            let rs = right.value_type == ValueType::String;
+            if ls && rs {
                 out.push_str("(-(xb_scmp(");
                 emit_expr(left, out);
                 out.push_str(", ");
@@ -76,6 +78,30 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(") ");
                 out.push_str(cmp_op(*op));
                 out.push_str(" 0))");
+            } else if ls || rs {
+                // Mixed string/numeric (e.g. `IFZ s$` lowers to `s$ == 0`): the
+                // interpreter compares the string's byte length to the number
+                // (compare.rs), so emit a length-vs-number test — never xb_scmp,
+                // whose xb_len(0) reads a bogus length header and crashes.
+                out.push_str("-(");
+                if ls {
+                    out.push_str("(intptr_t)xb_len(");
+                    emit_expr(left, out);
+                    out.push(')');
+                } else {
+                    emit_expr(left, out);
+                }
+                out.push(' ');
+                out.push_str(cmp_op(*op));
+                out.push(' ');
+                if rs {
+                    out.push_str("(intptr_t)xb_len(");
+                    emit_expr(right, out);
+                    out.push(')');
+                } else {
+                    emit_expr(right, out);
+                }
+                out.push(')');
             } else {
                 out.push_str("-(");
                 emit_expr(left, out);
@@ -300,11 +326,17 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 // evaluated. xb_eof takes no parameter.
                 out.push_str("xb_eof()");
             } else if name == "INLINE$" {
-                // Expression-position INLINE$ never prints its prompt: eval.rs
-                // routes FunctionCall through call_function with a *discarded*
-                // output sink, so the interp swallows it. Only the next stdin
-                // line (or "" at EOF) is produced.
-                out.push_str("xb_inline(0)");
+                // INLINE$ prints a literal prompt (interp call.rs pushes it to the
+                // real output sink — see eval.rs threading output through
+                // FunctionCall) then reads the next stdin line (or "" at EOF).
+                // Non-literal prompts are not printed (interp only pushes a
+                // StringLiteral arg); mirrors the statement position (c_emit_stmt).
+                out.push_str("xb_inline(");
+                match args.first().map(|a| &a.kind) {
+                    Some(crate::ir::IrExprKind::StringLiteral(_)) => emit_expr(&args[0], out),
+                    _ => out.push('0'),
+                }
+                out.push(')');
             } else if (name == "RIGHT$" || name == "LEFT$") && args.len() == 1 {
                 // Missing count: the interpreter errors if this executes
                 // (string_slice indexes args[1]); pad 0 so it compiles.
