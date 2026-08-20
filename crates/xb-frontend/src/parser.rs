@@ -294,11 +294,34 @@ impl Parser {
         crate::parser_select::parse_print(self)
     }
 
+    /// A `#`-prefixed `SharedName` embeds its type suffix in the name with
+    /// `suffix: None` (e.g. `#xbasic$` lexes to name `"xbasic$"`), whereas a
+    /// regular `Identifier` already carries a separate suffix. Split a trailing
+    /// `$`/`!`/`#` off such a name so the declared element type is correct
+    /// (`STRING #xbasic$[]` / `DIM #xbasic$[]` -> String, not the default
+    /// Integer). No-op when a suffix is already present or none is embedded.
+    fn shared_name_suffix(
+        (name, suffix): (String, Option<TypeSuffix>),
+    ) -> (String, Option<TypeSuffix>) {
+        if suffix.is_some() {
+            return (name, suffix);
+        }
+        if let Some(base) = name.strip_suffix('$') {
+            (base.to_string(), Some(TypeSuffix::String))
+        } else if let Some(base) = name.strip_suffix('!') {
+            (base.to_string(), Some(TypeSuffix::Single))
+        } else if let Some(base) = name.strip_suffix('#') {
+            (base.to_string(), Some(TypeSuffix::Double))
+        } else {
+            (name, None)
+        }
+    }
+
     fn dim_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::Dim)?;
         let mut dims = Vec::new();
         loop {
-            let (name, suffix) = self.expect_name_or_keyword()?;
+            let (name, suffix) = Self::shared_name_suffix(self.expect_name_or_keyword()?);
             let (size, is_array, extra_dims) = self.parse_array_size()?;
             dims.push(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: false, shared: false });
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
@@ -333,7 +356,7 @@ impl Parser {
         }
         let mut dims = Vec::new();
         loop {
-            let (name, name_suffix) = self.expect_name_or_keyword()?;
+            let (name, name_suffix) = Self::shared_name_suffix(self.expect_name_or_keyword()?);
             // Skip parameter type list in parentheses (FUNCADDR declarations)
             // Check before parse_array_size to avoid consuming ( as array size
             if matches!(self.peek_kind(), TokenKind::Symbol('('))
