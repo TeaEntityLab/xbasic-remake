@@ -9,18 +9,22 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-20**. `cargo test --workspace --exclude
-> xb-ide` = **182 passed / 0 failed**. C-backend demo sweep: **99/114 compile,
-> 58 byte-faithful, diverge=1** (up from 3→55→97→99; the sole diverger is
-> `acrc32`, the intptr_t-vs-i32 arithmetic-width class). Ten CEmitter fix
+> xb-ide` = **182 passed / 0 failed**. C-backend demo sweep: **106/114 compile,
+> 63 byte-faithful, diverge=3** (up from 3→55→97→106). Fourteen CEmitter fix
 > batches — each byte-neutral on the self-host + v0.1 corpus or mirrored in
-> `cgen.x` (`cgen_cemitter_sync` 5/5 throughout) — landed: arity
-> reconciliation, dynamic DIMs, label guards, INLINE\$, FOR-var type fix,
-> suffix-aware auto_symbol, identifier sanitization (`. \$ ! #`), param-Dim
-> guard, shared-variable read collection, leading-zero literals, `\$\$` GIANT
-> suffix lexing, synthetic `&Func` ids, NUL-safe literals, string-scalar
-> UBOUND, and unsigned-shift bin helpers (arotate hang). Remaining 15
-> compile-fails: ANY/UBYTE array params (7), composite arrays (3), residual
-> undeclared/brace-conflation (5). LLVM: 150/0 faithful. Bootstrap untouched.
+> `cgen.x` (`cgen_cemitter_sync` 5/5 throughout) — landed: arity reconciliation,
+> dynamic DIMs, label guards, INLINE\$, FOR-var type fix, suffix-aware
+> auto_symbol, identifier sanitization (`. \$ ! # @`), param-Dim guard,
+> shared-variable read collection, leading-zero literals, `\$\$` GIANT suffix
+> lexing, synthetic `&Func` ids, NUL-safe literals, string-scalar UBOUND,
+> unsigned-shift bin helpers (arotate hang), array-parameter pointers, `*AT`
+> memory-builtin stubs, composite-member-array single-hoist, and consistent
+> brace-byte-read naming. The 3 divergers: `aarray`/`aarray_ISNODE` (introspect
+> XBasic array metadata via `&array[]`+`XLONGAT`, need real array descriptors)
+> and `acrc32` (intptr_t-vs-i32 arithmetic width). Remaining 8 compile-fails are
+> deep single-cause gaps (SHARED arrays across functions, goto-over-VLA with
+> GOSUB, growable-array SWAP, cross-scope type conflict). LLVM: 150/0 faithful.
+> Bootstrap fixed point + `cgen.x` byte-identity untouched.
 
 ## 0. Open-gap index (at a glance)
 
@@ -31,13 +35,15 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~CGEN-BUILTINS~~ | C backend | ✅ **done** (2026-08-20): `INLINE$`, `EOF`, `RIGHT$`/`LEFT$` 1-arg, `STRING$` via `xb_string` | — | ✅ |
 | ~~CGEN-AROTATE~~ | C backend | ✅ **done** (2026-08-20): `xb_bin2`/`xb_binb`/`xb_binb2` shifted a signed int (negative rotate results looped forever); unsigned shifts, mirrored in cgen.x | — | ✅ |
 | CGEN-REDIM | C backend | `REDIM` emitted as `DIM` (fixed C arrays; no resize-preserving realloc) | REDIM-idiom demos AOT | feature |
-| CGEN-ANY-PARAM | C backend | `ANY`/`UBYTE array[]` params lowered as scalar `intptr_t`; body subscripts them → 7 demo compile-fails | `aarray`/`gif`/`gifview`/`zap`/`aquick`/`atools`/`aarray_ISNODE` | feature |
-| ~~CGEN-DOLLAR-DOLLAR~~ | C backend | ✅ **done** (2026-08-20): `\$\$` *suffix* is GIANT (64-bit int); lexer no longer swallows it as a duplicate STRING `\$` (aclient/aserver/asystem cleared) | — | ✅ |
-| CGEN-COMPOSITE-ARR | C backend | composite member arrays hoisted as both pointer (dyn) and scalar → redefinition | `arecord`/`adatadim`/`adata` | feature |
-| CGEN-SHARED-ARR | C backend | `SHARED`/composite arrays + array-by-ref lower function-local (§1 interp features) | ary-class programs AOT | feature |
+| ~~CGEN-ANY-PARAM~~ | C backend | ✅ **done** (2026-08-20): array params (`UBYTE gif[]`) thread `is_array` → C pointers; `*AT` memory builtins fold to the interp's 0/no-op stub (aquick faithful) | — | ✅ |
+| ~~CGEN-COMPOSITE-ARR~~ | C backend | ✅ **done** (2026-08-20): composite member arrays hoist once (dyn pointer wins); scalar+array DIM of one name no longer double-declares (arecord/adata faithful) | — | ✅ |
+| CGEN-BYREF-DESC | C backend | array-by-ref has no length/metadata in C: `UBOUND(param[])`, `&array[]`+`XLONGAT` introspection segfault/diverge; needs a `{data,len}` descriptor matching the legacy array ABI | `aarray`/`aarray_ISNODE` | feature |
+| CGEN-GOTO-VLA | C backend | `GOSUB`'s `goto` can't jump over a runtime-sized `DIM arr[n]` (C VLA scope rule) | `gif`/`gifview` | feature |
+| CGEN-NAME-CONFLICT | C backend | cross-scope/type-conflict name derivation: array param `i[]` vs local `i`, hoist declares one of `v0`/`v0$` | `zap`/`atools` | feature |
+| CGEN-SHARED-ARR | C backend | `SHARED`/composite arrays + array-by-ref lower function-local; a `text$[]` DIM'd in one function is undeclared in another | `agrids`, ary-class AOT | feature |
 | LLVM-SHARED-ARR | LLVM | `SHARED` *arrays* still per-function (only `##` scalars are globals now) | `ary`/`ary1` AOT parity | feature |
-| LLVM-BYREF-REDIM | LLVM | REDIM-through-`@array[]` needs `{data,dims}` heap descriptors shared by pointer | general by-ref parity | feature |
 | LLVM-ANY | LLVM | `ANY array[]` polymorphism (monomorphize or tagged elements) | `aarray_ISNODE` | feature |
+| LLVM-BYREF-REDIM | LLVM | REDIM-through-`@array[]` needs `{data,dims}` heap descriptors shared by pointer | general by-ref parity | feature |
 | FLOAT-FMT | LLVM + C runtime | shortest-round-trip float print (Ryū-class) vs `snprintf("%g")` | `geo.x` byte-parity | feature |
 | LLVM-DEFER | LLVM | content-preserving REDIM, array bounds checks, `PRINT TAB()` line buffer | polish | feature |
 | RT-IO-BYTES | interpreter | I/O channels are `Vec<String>`; high-byte PRINT/INPUT lossy at the pipe boundary | byte-faithful piped I/O | refactor |
