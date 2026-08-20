@@ -458,6 +458,41 @@ pub(crate) fn collect_dimmed_names(items: &[IrItem], dimmed: &mut HashSet<String
     collect_dimmed(items, dimmed);
 }
 
+/// Names with an *array* `Dim` (`is_array` or sized) in `items` — the subset of
+/// `collect_dimmed_names` that actually allocates array storage. A name with only
+/// a *scalar* `Dim` but referenced as an array (a flattened composite array member
+/// `px3D.shape[i].x`, DIM'd scalar from its TYPE decl but indexed) has no array
+/// storage, so its array accesses must fold like a truly undimmed array. Recurses
+/// control flow but not nested `Function` bodies.
+pub(crate) fn collect_array_dimmed_names(items: &[IrItem], out: &mut HashSet<String>) {
+    for it in items {
+        match it {
+            IrItem::Dim { symbol, size, is_array, .. } if *is_array || size.is_some() => {
+                out.insert(symbol.name.clone());
+            }
+            IrItem::If { then_body, else_body, .. } => {
+                collect_array_dimmed_names(then_body, out);
+                if let Some(b) = else_body {
+                    collect_array_dimmed_names(b, out);
+                }
+            }
+            IrItem::While { body, .. }
+            | IrItem::For { body, .. }
+            | IrItem::DoLoop { body, .. } => collect_array_dimmed_names(body, out),
+            IrItem::SelectCase { cases, default, .. } => {
+                for c in cases {
+                    collect_array_dimmed_names(&c.body, out);
+                }
+                if let Some(b) = default {
+                    collect_array_dimmed_names(b, out);
+                }
+            }
+            IrItem::Compound(items) => collect_array_dimmed_names(items, out),
+            _ => {}
+        }
+    }
+}
+
 /// Names used as BOTH a scalar (a bare `Symbol` read/write, `FOR` var, …) AND
 /// an array (`a[i]`, `UBOUND(a[])`, array `DIM`). The interpreter's `TypedSlot`
 /// holds independent `value` (scalar) and `array` fields, so one such name is

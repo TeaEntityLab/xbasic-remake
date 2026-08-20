@@ -123,8 +123,11 @@ pub(crate) fn func_addr_id(name: &str) -> i32 {
 fn set_fn_context(items: &[IrItem], params: &[crate::ir::IrParam]) {
     let mut refs = HashSet::new();
     crate::c_emit_hoist::collect_array_refs(items, &mut refs);
+    // Array storage comes only from an *array* `Dim`; a name with only a scalar
+    // `Dim` but referenced as an array has no `_arr` facet, so it must fold like
+    // an undimmed array (dual-use composite member `px3D.shape[i].x`).
     let mut dimmed = HashSet::new();
-    crate::c_emit_hoist::collect_dimmed_names(items, &mut dimmed);
+    crate::c_emit_hoist::collect_array_dimmed_names(items, &mut dimmed);
     for p in params {
         dimmed.insert(p.name.clone());
     }
