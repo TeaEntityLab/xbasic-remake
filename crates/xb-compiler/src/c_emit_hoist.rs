@@ -235,3 +235,353 @@ fn collect_dimmed(items: &[IrItem], dimmed: &mut HashSet<String>) {
         }
     }
 }
+
+/// Array names *referenced* in `items` (subscript reads/writes, `UBOUND`) with the
+/// symbol's element type — the array analogue of the scalar walk above. Recurses
+/// control flow and nested expressions, not nested functions.
+pub(crate) fn collect_array_refs(items: &[IrItem], refs: &mut HashSet<String>) {
+    fn expr(e: &IrExpr, refs: &mut HashSet<String>) {
+        match &e.kind {
+            IrExprKind::ArrayAccess { symbol, index, extra_indices } => {
+                refs.insert(symbol.name.clone());
+                expr(index, refs);
+                for x in extra_indices {
+                    expr(x, refs);
+                }
+            }
+            IrExprKind::ArrayUBound { symbol } => {
+                refs.insert(symbol.name.clone());
+            }
+            IrExprKind::ByRef(inner) | IrExprKind::Not(inner) => expr(inner, refs),
+            IrExprKind::Unary { operand, .. } => expr(operand, refs),
+            IrExprKind::Comparison { left, right, .. }
+            | IrExprKind::Arithmetic { left, right, .. }
+            | IrExprKind::Boolean { left, right, .. }
+            | IrExprKind::Logical { left, right, .. } => {
+                expr(left, refs);
+                expr(right, refs);
+            }
+            IrExprKind::FunctionCall { args, .. } => {
+                for a in args {
+                    expr(a, refs);
+                }
+            }
+            _ => {}
+        }
+    }
+    for it in items {
+        match it {
+            IrItem::Print { items, .. } => {
+                for e in items {
+                    expr(e, refs);
+                }
+            }
+            IrItem::Assignment { value, .. } => expr(value, refs),
+            IrItem::ArrayAssignment { target, index, extra_indices, value } => {
+                refs.insert(target.name.clone());
+                expr(index, refs);
+                for x in extra_indices {
+                    expr(x, refs);
+                }
+                expr(value, refs);
+            }
+            IrItem::MidAssign { target, start, length, value } => {
+                expr(target, refs);
+                expr(start, refs);
+                if let Some(l) = length {
+                    expr(l, refs);
+                }
+                expr(value, refs);
+            }
+            IrItem::BuiltinAssign { args, value, .. } => {
+                for a in args {
+                    expr(a, refs);
+                }
+                expr(value, refs);
+            }
+            IrItem::SharedAssignment { value, .. } => expr(value, refs),
+            IrItem::If { condition, then_body, else_body } => {
+                expr(condition, refs);
+                collect_array_refs(then_body, refs);
+                if let Some(b) = else_body {
+                    collect_array_refs(b, refs);
+                }
+            }
+            IrItem::While { condition, body } => {
+                expr(condition, refs);
+                collect_array_refs(body, refs);
+            }
+            IrItem::DoLoop { pre_condition, post_condition, body } => {
+                if let Some((e, _)) = pre_condition {
+                    expr(e, refs);
+                }
+                if let Some((e, _)) = post_condition {
+                    expr(e, refs);
+                }
+                collect_array_refs(body, refs);
+            }
+            IrItem::For { start, end, step, body, .. } => {
+                expr(start, refs);
+                expr(end, refs);
+                if let Some(s) = step {
+                    expr(s, refs);
+                }
+                collect_array_refs(body, refs);
+            }
+            IrItem::Return { value: Some(e) } => expr(e, refs),
+            IrItem::Call { args, .. } => {
+                for a in args {
+                    expr(a, refs);
+                }
+            }
+            IrItem::SelectCase { selector, cases, default } => {
+                expr(selector, refs);
+                for c in cases {
+                    for cond in &c.conditions {
+                        expr(cond, refs);
+                    }
+                    collect_array_refs(&c.body, refs);
+                }
+                if let Some(b) = default {
+                    collect_array_refs(b, refs);
+                }
+            }
+            IrItem::Compound(items) => collect_array_refs(items, refs),
+            IrItem::GosubExpr(e) | IrItem::GotoExpr(e) => expr(e, refs),
+            _ => {}
+        }
+    }
+}
+
+/// Label names present in `items` (recursing control flow, not nested functions) —
+/// the set of `xb_label_<name>:` a single emitted C function will contain.
+pub(crate) fn collect_labels(items: &[IrItem], labels: &mut HashSet<String>) {
+    for it in items {
+        match it {
+            IrItem::Label(name) => {
+                labels.insert(name.clone());
+            }
+            IrItem::If { then_body, else_body, .. } => {
+                collect_labels(then_body, labels);
+                if let Some(b) = else_body {
+                    collect_labels(b, labels);
+                }
+            }
+            IrItem::While { body, .. }
+            | IrItem::For { body, .. }
+            | IrItem::DoLoop { body, .. } => collect_labels(body, labels),
+            IrItem::SelectCase { cases, default, .. } => {
+                for c in cases {
+                    collect_labels(&c.body, labels);
+                }
+                if let Some(b) = default {
+                    collect_labels(b, labels);
+                }
+            }
+            IrItem::Compound(items) => collect_labels(items, labels),
+            _ => {}
+        }
+    }
+}
+
+/// Names with any `Dim` in `items` (scalar or array) — public wrapper over the
+/// hoist pass's own dimmed-set walk, for the per-function emit context.
+pub(crate) fn collect_dimmed_names(items: &[IrItem], dimmed: &mut HashSet<String>) {
+    collect_dimmed(items, dimmed);
+}
+
+/// Names whose `Dim` cannot stay a plain in-place C declaration: referenced
+/// *before* their first `Dim` in emission order (XBasic executes `DIM` mid-flow,
+/// classically under a `GOSUB Initialize` label after the dispatch code), or
+/// `Dim`'d more than once (C forbids redeclaration; the interpreter just resets
+/// the slot). Such names get a hoisted declaration and their `Dim` sites become
+/// (re)allocations/resets. The shared corpus compiles today, so it contains no
+/// such name — this is byte-neutral there.
+#[derive(Default)]
+pub(crate) struct DynNames {
+    /// name → element type, for names with an array `Dim` (sized or `[]`).
+    pub arrays: BTreeMap<String, ValueType>,
+    /// name → type, for names with only scalar `Dim`s.
+    pub scalars: BTreeMap<String, ValueType>,
+}
+
+#[derive(Default)]
+struct DynWalk {
+    used: HashSet<String>,
+    late: HashSet<String>,
+    dim_count: BTreeMap<String, u32>,
+    dim_info: BTreeMap<String, (bool, ValueType)>,
+}
+
+impl DynWalk {
+    fn touch(&mut self, name: &str) {
+        if !self.dim_count.contains_key(name) {
+            // No Dim seen yet in emission order: a Dim later makes this "late".
+            self.late.insert(name.to_string());
+        }
+        self.used.insert(name.to_string());
+    }
+
+    fn expr(&mut self, e: &IrExpr) {
+        match &e.kind {
+            IrExprKind::Symbol(s) => self.touch(&s.name),
+            IrExprKind::ArrayAccess { symbol, index, extra_indices } => {
+                self.touch(&symbol.name);
+                self.expr(index);
+                for x in extra_indices {
+                    self.expr(x);
+                }
+            }
+            IrExprKind::ArrayUBound { symbol } | IrExprKind::SizeOf { symbol } => {
+                self.touch(&symbol.name);
+            }
+            IrExprKind::ByRef(inner) | IrExprKind::Not(inner) => self.expr(inner),
+            IrExprKind::Unary { operand, .. } => self.expr(operand),
+            IrExprKind::Comparison { left, right, .. }
+            | IrExprKind::Arithmetic { left, right, .. }
+            | IrExprKind::Boolean { left, right, .. }
+            | IrExprKind::Logical { left, right, .. } => {
+                self.expr(left);
+                self.expr(right);
+            }
+            IrExprKind::FunctionCall { args, .. } => {
+                for a in args {
+                    self.expr(a);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn items(&mut self, items: &[IrItem]) {
+        for it in items {
+            match it {
+                IrItem::Dim { symbol, size, is_array, .. } => {
+                    let e = self
+                        .dim_info
+                        .entry(symbol.name.clone())
+                        .or_insert((false, symbol.value_type));
+                    e.0 |= *is_array || size.is_some();
+                    *self.dim_count.entry(symbol.name.clone()).or_insert(0) += 1;
+                    if let Some(sz) = size {
+                        self.expr(sz);
+                    }
+                }
+                IrItem::Print { items, .. } => {
+                    for e in items {
+                        self.expr(e);
+                    }
+                }
+                IrItem::Assignment { target, value } => {
+                    self.touch(&target.name);
+                    self.expr(value);
+                }
+                IrItem::ArrayAssignment { target, index, extra_indices, value } => {
+                    self.touch(&target.name);
+                    self.expr(index);
+                    for x in extra_indices {
+                        self.expr(x);
+                    }
+                    self.expr(value);
+                }
+                IrItem::MidAssign { target, start, length, value } => {
+                    self.expr(target);
+                    self.expr(start);
+                    if let Some(l) = length {
+                        self.expr(l);
+                    }
+                    self.expr(value);
+                }
+                IrItem::BuiltinAssign { args, value, .. } => {
+                    for a in args {
+                        self.expr(a);
+                    }
+                    self.expr(value);
+                }
+                IrItem::SharedAssignment { value, .. } => self.expr(value),
+                IrItem::If { condition, then_body, else_body } => {
+                    self.expr(condition);
+                    self.items(then_body);
+                    if let Some(b) = else_body {
+                        self.items(b);
+                    }
+                }
+                IrItem::While { condition, body } => {
+                    self.expr(condition);
+                    self.items(body);
+                }
+                IrItem::DoLoop { pre_condition, post_condition, body } => {
+                    if let Some((e, _)) = pre_condition {
+                        self.expr(e);
+                    }
+                    self.items(body);
+                    if let Some((e, _)) = post_condition {
+                        self.expr(e);
+                    }
+                }
+                IrItem::For { var, start, end, step, body } => {
+                    self.touch(&var.name);
+                    self.expr(start);
+                    self.expr(end);
+                    if let Some(s) = step {
+                        self.expr(s);
+                    }
+                    self.items(body);
+                }
+                IrItem::Return { value: Some(e) } => self.expr(e),
+                IrItem::Call { args, .. } => {
+                    for a in args {
+                        self.expr(a);
+                    }
+                }
+                IrItem::Swap { left, right } => {
+                    self.touch(&left.name);
+                    self.touch(&right.name);
+                }
+                IrItem::Read(syms) => {
+                    for s in syms {
+                        self.touch(&s.name);
+                    }
+                }
+                IrItem::SelectCase { selector, cases, default } => {
+                    self.expr(selector);
+                    for c in cases {
+                        for cond in &c.conditions {
+                            self.expr(cond);
+                        }
+                        self.items(&c.body);
+                    }
+                    if let Some(b) = default {
+                        self.items(b);
+                    }
+                }
+                IrItem::Compound(items) => self.items(items),
+                IrItem::GosubExpr(e) | IrItem::GotoExpr(e) => self.expr(e),
+                _ => {}
+            }
+        }
+    }
+}
+
+pub(crate) fn collect_dyn_names(items: &[IrItem], params: &[IrParam]) -> DynNames {
+    let mut w = DynWalk::default();
+    w.items(items);
+    let params: HashSet<&str> = params.iter().map(|p| p.name.as_str()).collect();
+    let mut dyn_names = DynNames::default();
+    for (name, count) in &w.dim_count {
+        if params.contains(name.as_str()) {
+            continue;
+        }
+        let late = w.late.contains(name);
+        if !late && *count < 2 {
+            continue;
+        }
+        let (is_array, vt) = w.dim_info[name];
+        if is_array {
+            dyn_names.arrays.insert(name.clone(), vt);
+        } else {
+            dyn_names.scalars.insert(name.clone(), vt);
+        }
+    }
+    dyn_names
+}

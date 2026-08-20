@@ -229,6 +229,24 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 crate::c_emit_bitops::emit_bit_op_call(name, args, out);
             } else if name == "MID$" && args.len() == 2 {
                 crate::c_emit_str2::emit_mid2(args, out, emit_expr);
+            } else if name == "EOF" {
+                // The interpreter ignores the handle arg entirely (EOF tests
+                // piped-input exhaustion; call.rs) — the arg is not even
+                // evaluated. xb_eof takes no parameter.
+                out.push_str("xb_eof()");
+            } else if name == "INLINE$" {
+                // Expression-position INLINE$ never prints its prompt: eval.rs
+                // routes FunctionCall through call_function with a *discarded*
+                // output sink, so the interp swallows it. Only the next stdin
+                // line (or "" at EOF) is produced.
+                out.push_str("xb_inline(0)");
+            } else if (name == "RIGHT$" || name == "LEFT$") && args.len() == 1 {
+                // Missing count: the interpreter errors if this executes
+                // (string_slice indexes args[1]); pad 0 so it compiles.
+                emit_c_function_name(name, out);
+                out.push('(');
+                emit_expr(&args[0], out);
+                out.push_str(", 0)");
             } else if crate::c_emit::is_unknown_call(name) {
                 // Unknown callee (non-builtin, undefined): mirror the interpreter's
                 // call_function stub (call.rs) and the LLVM backend (lib.rs) — yield
@@ -240,30 +258,52 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 } else {
                     out.push('0');
                 }
+            } else if crate::c_emit::is_builtin_without_helper(name) {
+                // Recognized builtin with no emitter arm and no C helper (the name
+                // maps to xb_user_*, e.g. a call-form UBOUND): the interpreter
+                // errors only if this executes — yield the zero-default.
+                if name.ends_with('$') {
+                    out.push_str("xb_str(\"\")");
+                } else {
+                    out.push('0');
+                }
             } else {
                 emit_c_function_name(name, out);
                 out.push('(');
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        out.push_str(", ");
-                    }
-                    emit_expr(arg, out);
-                }
+                emit_call_args(name, args, out);
                 out.push(')');
             }
         }
         IrExprKind::ArrayAccess { symbol, index, .. } => {
-            emit_symbol_ref(symbol, out);
-            out.push('[');
-            emit_expr(index, out);
-            out.push(']');
+            if crate::c_emit::is_undimmed_array(&symbol.name) {
+                // Auto-vivified (never-`Dim`'d) array: the interpreter reads the
+                // type default for any index (eval.rs missing-slot arm); emit it.
+                emit_default(symbol.value_type, out);
+            } else {
+                emit_symbol_ref(symbol, out);
+                out.push('[');
+                emit_expr(index, out);
+                out.push(']');
+            }
         }
         IrExprKind::ArrayUBound { symbol } => {
-            out.push_str("(int)(sizeof(");
-            emit_var_name(symbol, out);
-            out.push_str(")/sizeof(");
-            emit_var_name(symbol, out);
-            out.push_str("[0])-1)");
+            if crate::c_emit::is_undimmed_array(&symbol.name) {
+                // UBOUND of an undeclared array is -1 (interp eval.rs), so
+                // `FOR i = 0 TO UBOUND(a[])` loops zero times.
+                out.push_str("(-1)");
+            } else if crate::c_emit::is_dyn_array(&symbol.name) {
+                // Late/repeated DIM: the array is a hoisted pointer; sizeof would
+                // be wrong. Read the tracked upper bound.
+                out.push_str("((int)xb_ub_");
+                out.push_str(&symbol.name);
+                out.push(')');
+            } else {
+                out.push_str("(int)(sizeof(");
+                emit_var_name(symbol, out);
+                out.push_str(")/sizeof(");
+                emit_var_name(symbol, out);
+                out.push_str("[0])-1)");
+            }
         }
         IrExprKind::SizeOf { symbol } => {
             out.push_str("(int)sizeof(");
@@ -279,9 +319,16 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             out.push_str(&size.to_string());
         }
         IrExprKind::LabelAddress(name) => {
-            out.push_str("((intptr_t)&&xb_label_");
-            out.push_str(name);
-            out.push(')');
+            if crate::c_emit::fn_has_label(name) {
+                out.push_str("((intptr_t)&&xb_label_");
+                out.push_str(name);
+                out.push(')');
+            } else {
+                // Label absent from this function: the interpreter's
+                // `label_addresses.get(name)` yields 0 (eval.rs); `&&xb_label_X`
+                // would be an undeclared C label.
+                out.push('0');
+            }
         }
         IrExprKind::FuncAddr(name) => {
             if crate::c_emit::is_unknown_call(name) {
@@ -312,6 +359,31 @@ pub(crate) fn emit_var_name(symbol: &IrSymbol, out: &mut String) {
         }
     }
     out.push_str(&symbol.name);
+}
+
+/// Emit a call's argument list. For a user-defined callee whose arg count
+/// mismatches its declared params, reconcile arity exactly like the interpreter
+/// (`call.rs` `params.zip(args)`: extra args dropped unevaluated) and the LLVM
+/// backend (`eval_args`: missing params padded with zero-defaults). A matching
+/// count (every self-host/v0.1 program) emits byte-identically to the plain loop.
+pub(crate) fn emit_call_args(name: &str, args: &[IrExpr], out: &mut String) {
+    let params = crate::c_emit::defined_params(name);
+    let (take, pad) = match &params {
+        Some(p) if args.len() != p.len() => (args.len().min(p.len()), &p[args.len().min(p.len())..]),
+        _ => (args.len(), &[][..]),
+    };
+    for (i, arg) in args.iter().take(take).enumerate() {
+        if i > 0 {
+            out.push_str(", ");
+        }
+        emit_expr(arg, out);
+    }
+    for (i, vt) in pad.iter().enumerate() {
+        if take + i > 0 {
+            out.push_str(", ");
+        }
+        emit_default(*vt, out);
+    }
 }
 
 pub(crate) fn emit_default(vt: ValueType, out: &mut String) {

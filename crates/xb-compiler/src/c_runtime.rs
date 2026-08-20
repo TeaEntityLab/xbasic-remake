@@ -301,6 +301,10 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
                         "var_"
                     });
                     out.push_str(&p.name);
+                    // Keep prototypes consistent with emit_functions' dup rename.
+                    if params[i + 1..].iter().any(|q| q.name == p.name) {
+                        out.push_str(&format!("__dup{i}"));
+                    }
                 }
             }
             out.push_str(");\n");
