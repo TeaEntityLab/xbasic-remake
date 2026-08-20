@@ -182,24 +182,24 @@ the other 4 are blocked by three genuine (non-platform) *features*, not bounded 
   decimal formatter (Ryū/Grisu-class) in the C runtime; a naïve `%g` retry breaks simple
   values (`30` → `3e+01`). The demo corpus never prints such computed floats, so it is
   unaffected (all 106 already match).
-- **Cross-function `SHARED` arrays** (`ary.x`, `ary1.0001.x`): after this session's `@array`
-  by-ref fix (below), `ary` advances past composite-array by-ref and the `$`-naming mismatch
-  to its real blocker — `SHARED Ary_nameList$[]`. The `SHARED` *keyword* declaration (as
-  opposed to `##`-shared syntax) is dropped at parse time: `SHARED x[]` and `DIM x[]` both
-  produce `Statement::Dim` with no shared flag, so the variable is never registered in the
-  shared store and plain `x[i]` refs bind to a per-function local (even scalar `SHARED x`
-  fails across functions). Making it work is a cross-cutting 4-layer feature: carry a `shared`
-  flag parser→analyzer, register SHARED vars, route plain symbol/array read+write to the
-  shared store (interpreter **and** LLVM backend globals), and honor `SHARED x[n]` sizing.
-  Regression risk to the 106 (many use `SHARED`), so it must be gated on the full corpus
-  differential. Critical: the 25 interp-clean demos using scalar `SHARED` are byte-faithful
-  only because interpreter **and** LLVM backend carry the *same* bug (SHARED-keyword → a
-  per-function local; e.g. `atask.x` never actually propagates `terminateProgram`), so an
-  interpreter-only fix would *diverge* them. The fix must land in both layers together.
-  Even with `SHARED` arrays fixed, `ary`/`ary1` further depend on stubbed runtime builtins —
-  `XstStringToNumber` (×15), `XstQuickSort` (×5), `XstCopyArray` — which must also be
-  implemented in both layers; so `ary` is a multi-step effort (12 distinct `SHARED` arrays +
-  these builtins), not a single fix.
+- **Cross-function `SHARED` arrays — interpreter side ✅ done `[2026-08-20]`** (`ary`, `ary1`):
+  the `SHARED` *keyword* array declaration now routes to the interpreter's module-shared store
+  (commit `ccec0a5`), so `SHARED x[]` propagates across functions; this advanced `ary` past the
+  `nameList$` blocker. Only arrays route to shared (scalar `SHARED` stays per-function, so the
+  LLVM backend — where scalar `SHARED` is also per-function — stays byte-identical). The backend
+  still treats `SHARED` *arrays* as per-function, so `ary` is interpreter-workable but not yet
+  AOT-byte-faithful; the only faithful demos using `SHARED` arrays (`CursorEdit`/`Kittedy`)
+  print nothing, so `diverge=0` held (verified full differential).
+- **Composite-ARRAY by-ref params — `ary` next blocker `[2026-08-20]`**: `ary` now blocks on
+  `pathMember[i].code = c$` where `pathMember` is a `@`-by-ref composite *array* param. Such a
+  param flattens each member as a **scalar** (`pathMember.code:string`), not a per-member array
+  (`pathMember.code[]`), so `pathMember[i].code` is misread as a byte-index of a scalar string
+  (`MID$(pathMember.code, i+1, 1) = CHR$(c$)`), yielding a spurious `CHR$(String)`. Local
+  composite arrays flatten correctly (verified); the gap is member-array flattening for
+  composite-array *params* (frontend `flatten_composite`/param lowering).
+- **Stubbed runtime builtins** (`ary`/`ary1`): `XstStringToNumber` (×15), `XstQuickSort` (×5),
+  `XstCopyArray` are stubs needing real implementations (both layers, per the lock below). So
+  `ary` is a multi-step effort (SHARED arrays ✅, composite-array params, builtins), not one fix.
 - **Command-line arguments** (`XBMerge.x`): reads `XstGetCommandLineArguments`; with no args
   the interpreter and backend take different usage-vs-empty paths (borderline platform).
 
