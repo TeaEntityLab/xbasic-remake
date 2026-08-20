@@ -197,27 +197,25 @@ the other 4 are blocked by three genuine (non-platform) *features*, not bounded 
 - **Composite `SHARED` arrays — ✅ done `[2026-08-20]`**: `SHARED <TYPE> var[size]` now
   recognizes the composite type and creates shared, sized member arrays (commit `c818b58`),
   clearing `unknown runtime slot Ary_varData.numElements`.
-- **`ary` `-48000` — deeper data-flow, *not* scalar `SHARED` `[2026-08-20]`**: `ary` blocks on an
-  `-48000` array index — a *downstream symptom*: `Ary_GetCodeBufferIndexCode` hashes
-  `charCode = (c${0} - ASC("0")) * 1000`; on an **empty** `name$`, `c${0}` reads 0 →
-  `(0-48)*1000 = -48000` → `bufferIndexCount[-48000]`. **Tested this session:** implementing
-  scalar `SHARED` (analyzer routing to `SharedVariable`, which interp + CEmitter already lower)
-  made cross-function scalar `SHARED` work but did **not** clear the `-48000` — so the empty
-  `name$` has a deeper source: `REDIM` of a `SHARED` *composite* array (`REDIM Ary_varData[m]`
-  lowers with `shared=false`, shadowing the shared member arrays → data loss) and/or the stubbed
-  builtins below. That scalar-`SHARED` change was **reverted**: it rewrites a frozen v0.1 golden
-  (`static_redim_doevents.ir`) and diverges the inkwell backend without unblocking ary — not
-  justified unilaterally.
-- **`REDIM`-of-shared + full `SHARED` semantics — deferred `[2026-08-20]`**: routing `REDIM` (and
-  plain refs) of `SHARED`-declared names to the shared store needs **analyzer-level shared-var
-  tracking**. Feasible for interp + the C backend (both lower `SharedVariable`), but it rewrites a
-  frozen v0.1 golden and the inkwell backend lacks `SharedVariable` — so it needs a **gate-backend
-  + frozen-contract decision** (make the C generator the 106/106 gate + authorize the golden
-  regen, inkwell deferred). Coordinated change, regression risk to the 25 scalar-`SHARED` demos.
-- **Stubbed runtime builtins** (`ary`/`ary1`): `XstStringToNumber` (×15), `XstQuickSort` (×5),
-  `XstCopyArray` are stubs needing real implementations (both layers, per the lock below). So
-  `ary` is a multi-step effort (SHARED arrays ✅, composite-array params ✅, composite SHARED
-  arrays ✅, full scalar SHARED + REDIM, builtins), not one fix.
+- **`REDIM`-of-shared arrays — ✅ done `[2026-08-20]`**: a `REDIM` of a `SHARED`-declared array
+  (incl. composite `REDIM Ary_varData[m]`) now resizes the module-shared storage instead of
+  shadowing it locally (commit `b15004f`; the analyzer tracks `SHARED` array names per function).
+  This **completes the SHARED-array feature**: DIM / access / `@`by-ref / REDIM, scalar-member +
+  composite, cross-function. Contract-safe (arrays-only, no `SharedVariable`, no golden touch).
+- **`ary` `-48000` — definitively the stubbed builtins `[2026-08-20]`**: `ary` blocks on an
+  `-48000` index: `Ary_GetCodeBufferIndexCode` hashes `charCode = (c${0} - ASC("0")) * 1000`, and
+  on an **empty** `name$`, `c${0}` = 0 → `(0-48)*1000`. Two candidate causes were **tested and
+  eliminated** this session — scalar `SHARED` and `REDIM`-of-shared-composite both now work, yet
+  ary still hits `-48000` — so the empty `name$` comes from the **stubbed builtins** below
+  (`XstStringToNumber` feeds ary's number/name parsing). (The scalar-`SHARED` experiment was
+  reverted: it rewrites a frozen v0.1 golden and diverges inkwell without unblocking ary.)
+- **Stubbed runtime builtins — `ary`'s remaining blocker** (`ary`/`ary1`): `XstStringToNumber`
+  (×15, used by 34 corpus files incl. the faithful demos `aconvert`/`qbtoxb`), `XstQuickSort`
+  (×5), `XstCopyArray` hit the generic unknown-call stub (return `0`/`""`). Real implementations
+  must land in **both** the interpreter and a backend (per the lock): interp + CEmitter is
+  straightforward, but the demos using them are byte-faithful *because* both stub identically, so
+  an interp-only impl diverges them — needs the same **gate-backend decision** (C backend primary
+  + inkwell deferred). Golden-safe (no v0.1 golden uses `Xst*`).
 - **Command-line arguments** (`XBMerge.x`): reads `XstGetCommandLineArguments`; with no args
   the interpreter and backend take different usage-vs-empty paths (borderline platform).
 
