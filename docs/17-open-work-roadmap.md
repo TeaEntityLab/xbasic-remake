@@ -205,9 +205,17 @@ the other 4 are blocked by three genuine (non-platform) *features*, not bounded 
   (`Ary_numVarCodes`, `Ary_numNames`, …) don't propagate — the fix so far is arrays-only, since
   the 25 faithful scalar-`SHARED` demos rely on interp+backend sharing the same per-function bug
   (see the lock) — and (b) the stubbed builtins below feed wrong values. Real scalar `SHARED` +
-  `REDIM`-of-shared needs **analyzer-level shared-var tracking** routing scalar refs/writes to the
-  shared store, in **both** interpreter and LLVM-backend globals, gated on the full differential —
-  the deep architectural piece, a coordinated 2-layer effort with regression risk to the 25 demos.
+  `REDIM`-of-shared needs **analyzer-level shared-var tracking**: register `SHARED`-keyword names
+  and re-route their plain `Identifier`/assignment refs to `SharedVariable`/`SharedAssignment`.
+  **Implementation path (verified feasible for 2 of 3 backends):** the interpreter *and* the
+  CEmitter (`c_emit_expr.rs`) already lower `SharedVariable`/`SharedAssignment`, so analyzer
+  routing makes scalar `SHARED` work byte-faithfully on interp + the **C backend** (the primary /
+  bootstrap backend) with only a golden regen (`static_redim_doevents`). The **inkwell** backend
+  (`lib.rs`) has *no* `SharedVariable` lowering, so it would diverge — hence a **gate-backend
+  decision** is required: either move the 106/106 differential to the C backend (primary) and
+  track inkwell `SharedVariable` as separate deferred work, or add inkwell globals first. Either
+  way it is a coordinated change with regression risk to the 25 scalar-`SHARED` demos, gated on
+  the differential.
 - **Stubbed runtime builtins** (`ary`/`ary1`): `XstStringToNumber` (×15), `XstQuickSort` (×5),
   `XstCopyArray` are stubs needing real implementations (both layers, per the lock below). So
   `ary` is a multi-step effort (SHARED arrays ✅, composite-array params ✅, composite SHARED
