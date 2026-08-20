@@ -212,6 +212,52 @@ END FUNCTION
     );
 }
 
+/// Expression-context function side effects (interpreter `eval` output-sink bug):
+/// a function called in *expression* position (`x = Foo()`, `IF Foo() THEN`)
+/// discarded a *local* output buffer, so its PRINTs (and INLINE$ prompts) were
+/// swallowed while the return value stayed correct — this made `XBMerge` print
+/// nothing. `eval`/`eval_expr` now thread the real output sink. Also locks the C
+/// mirror: expression-position INLINE$ prints its literal prompt, and `IFZ s$`
+/// (string vs integer `0`) compares byte length — never `xb_scmp(s, 0)`, whose
+/// `xb_len(0)` read a bogus length header and crashed (qbtoxb's segfault).
+#[test]
+fn cgen_matches_interpreter_on_expr_call_side_effects() {
+    let source = "\
+VERSION \"0.1\"
+DECLARE FUNCTION Foo ()
+FUNCTION Main
+\tINTEGER x
+\tx = Foo()
+\tPRINT \"x=\"; x
+\tIF Foo() THEN PRINT \"cond\"
+\ts$ = INLINE$ (\"prompt>\")
+\tIFZ s$ THEN PRINT \"empty\"
+\ts$ = \"hi\"
+\tIFZ s$ THEN PRINT \"wrong\"
+\tPRINT \"done\"
+END FUNCTION
+FUNCTION Foo ()
+\tPRINT \"side\"
+\tRETURN 1
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_exprcall_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "exprcall", &tmp);
+    assert_eq!(
+        native, interp,
+        "expr-call side-effect cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    // The previously-swallowed side effects must actually appear (guard against a
+    // regression that makes BOTH backends silently empty again — which would
+    // still be "equal" but wrong).
+    assert!(
+        interp.contains("side") && interp.contains("prompt>") && interp.contains("empty"),
+        "expected expression-context side effects in output: {interp:?}"
+    );
+}
+
 /// i32 arithmetic semantics (CGEN-SHIFT): XBasic INTEGER is i32 (`RuntimeValue::
 /// Integer(i32)`, `wrapping_*`), but the C backend stores values as `intptr_t`
 /// (i64) so that label-address integers aren't truncated. Integer arithmetic,

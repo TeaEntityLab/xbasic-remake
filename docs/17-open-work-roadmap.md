@@ -16,15 +16,20 @@
 > the 40 remaining are GUI programs that block on empty stdin (untestable, not
 > divergences). Recent flips: `acrc32` (CGEN-SHIFT i32 masking), `aarray`/
 > `aarray_ISNODE` (CGEN-GOSUB-SCOPE — per-function GOSUB stack; was misdiagnosed as
-> the array ABI). Beyond demos, **XBSourceLib core libs 13/13 C-compile, 10
-> byte-faithful** (`msc`/`fgr`/`vgr`/`vgrOld`/`geo`/`mergeTest01`/`mergeTest02`/`mergeTest03`/`mergeOut`/`mergeOut02`).
+> the array ABI). Beyond demos, **XBSourceLib core libs 13/13 C-compile, 11
+> byte-faithful** (`msc`/`fgr`/`vgr`/`vgrOld`/`geo`/`mergeTest01`/`mergeTest02`/`mergeTest03`/`mergeOut`/`mergeOut02`/`XBMerge`).
 > The only remaining lib gaps are not C-backend byte-divergences: `ary`/`ary1.0001`
 > are **interp-performance** — `TestAryPerformance` runs ~105k `ArySet/Get` ops
 > whose name-buffer lookups are O(n) (linear `DO WHILE` scans of `Ary_varCodes`) →
 > O(n²) total, so the *interpreter* exceeds 90s while cgen (compiled) finishes in
 > <1s; they migrate correctly via cgen with no known divergence source (all of
 > i32/float/gosub/by-ref now fixed), just untestable-by-interp like the GUI demos.
-> `XBMerge` diverges only on `XstGetCommandLineArguments` no-args flow (RT-ARGS, edge).
+> `XBMerge` is now **byte-faithful** (RT-ARGS resolved 2026-08-21, `1975c75`): the
+> root cause was a general **interpreter** bug — a function called in *expression*
+> position (`x = Foo()`, `IF Foo() THEN`) discarded its output sink, swallowing
+> PRINTs and INLINE\$ prompts (`GetArguments` printed usage but the interp lost it);
+> `eval` now threads the real output. The C backend mirrors it (expr-position
+> INLINE\$ prompt; string-vs-numeric comparison via byte length, not `xb_scmp(s,0)`).
 > and the C backend now handles **row-major multi-dim arrays** (direct + text-IR).
 > Twenty-six CEmitter fix
 > batches — each byte-neutral on the self-host + v0.1 corpus or mirrored in
@@ -91,7 +96,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | RT-XST | interp + backends | real `XstStringToNumber`/`XstQuickSort`/`XstCopyArray` (all zero-stubs today) | `ary`'s `-48000`; **coordinated** change per the §1 lock | feature |
 | RT-ATTACH | interpreter | `ATTACH` sub-array aliasing (view binding between array slots) | `ary` TestAryPerformance | feature |
 | RT-KERNEL32 | runtime | `GetStdHandle`/`ReadFile`/`WriteFile` + `$$STD_*_HANDLE` | `acgibin` | platform |
-| RT-ARGS | runtime | `XstGetCommandLineArguments` | `XBMerge` | platform |
+| ~~RT-ARGS~~ | runtime | ✅ **resolved** (2026-08-21, `1975c75`): not a runtime gap — `XBMerge`'s empty output was a general interpreter bug (expression-context function calls discarded their output sink; `GetArguments` printed the usage prompt but `eval` swallowed it). `eval`/`eval_expr` now thread the real output; C backend mirrors (expr INLINE\$ prompt + string-vs-num comparison by length). XBMerge byte-faithful; XBSourceLib 10→11/13 | `XBMerge` | ✅ |
 | SHARED-SCALAR | all four paths | `SHARED` *keyword* scalars stay per-function (locked approximation; `##` is the shared form). True legacy semantics = golden + all-backend coordinated change (experiment reverted: rewrites a frozen v0.1 golden) | full legacy `SHARED` fidelity | decision |
 | GUI-RUNTIME | platform | Xgr/Xui runtime (winit + softbuffer per docs/12) | 43 GUI demos + 3 init overflows + `DrawScaled` + 19 GTK | platform (large) |
 | CG-BYTES | two-C-gen sync | byte-identical emitted C (helper order/param names/formatting) | tightest sync lock (docs/16) | cosmetic |
