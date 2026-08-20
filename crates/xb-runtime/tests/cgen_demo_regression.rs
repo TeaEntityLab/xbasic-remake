@@ -184,6 +184,11 @@ fn cgen_matches_interpreter_on_xbsourcelib() {
         ("XBSourceLib/utils/mergeTest01.x", "core-lib compile+run"),
         ("XBSourceLib/utils/mergeTest02.x", "core-lib compile+run"),
         ("XBSourceLib/utils/mergeOut02.x", "core-lib compile+run"),
+        ("XBSourceLib/fgr/fgr.x", "array-facet fold (dual-use undimmed)"),
+        ("XBSourceLib/utils/mergeOut.x", "core-lib compile+run"),
+        ("XBSourceLib/utils/mergeTest03.x", "core-lib compile+run"),
+        ("XBSourceLib/vgr/vgr.x", "array-facet fold (dual-use undimmed)"),
+        ("XBSourceLib/vgr/vgrOld.x", "array-facet fold (dual-use undimmed)"),
     ];
     let mut failures = Vec::new();
     for (rel, feature) in libs {
