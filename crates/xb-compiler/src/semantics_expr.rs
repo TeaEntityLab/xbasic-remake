@@ -605,7 +605,12 @@ impl Analyzer {
 
     /// Lower a brace-notation byte read `s${off}` to `ASC(MID$(s, off + 1, 1))`.
     fn string_byte_read(&self, var: &str, index: &Expression) -> ExprResult {
-        let sym = self.checked_symbol(var)?;
+        // Resolve the string through the same path as a normal `s$` read so its
+        // IR name matches the assignment target: on an Integer/String type
+        // conflict (`raw` and `raw$`), both resolve to the full name `raw$`;
+        // otherwise both stay bare. checked_symbol(bare) alone always returned
+        // the bare name, mismatching the `raw$` assignment (afile/agrids/atools).
+        let s_expr = self.symbol(var, Some(xb_frontend::TypeSuffix::String))?;
         let idx = self.expr(index)?;
         let one = CheckedExpr::new(
             CheckedExprKind::IntegerLiteral("1".to_owned()),
@@ -619,7 +624,6 @@ impl Analyzer {
             },
             ValueType::Integer,
         );
-        let s_expr = CheckedExpr::new(CheckedExprKind::Symbol(sym), ValueType::String);
         let mid = CheckedExpr::new(
             CheckedExprKind::FunctionCall {
                 name: "MID$".to_owned(),

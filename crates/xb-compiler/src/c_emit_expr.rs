@@ -399,12 +399,7 @@ pub(crate) fn emit_var_name(symbol: &IrSymbol, out: &mut String) {
     // carry `$`/`!`/`#` — C identifiers can't contain those. Replace `.` with
     // `_`, `$` with `_s`, `!` with `_f`, `#` with `_d` to avoid collisions
     // (the type is already encoded in the xb_str_/xb_var_ prefix).
-    let sanitized = symbol.name
-        .replace('.', "_")
-        .replace('$', "_s")
-        .replace('!', "_f")
-        .replace('#', "_d");
-    out.push_str(&sanitized);
+    out.push_str(&sanitize_c_ident(&symbol.name));
 }
 
 /// Sanitize an XBasic name for use as a C identifier suffix (after a prefix
@@ -414,6 +409,7 @@ pub(crate) fn sanitize_c_ident(name: &str) -> String {
         .replace('$', "_s")
         .replace('!', "_f")
         .replace('#', "_d")
+        .replace('@', "_a")
 }
 
 /// Emit a call's argument list. For a user-defined callee whose arg count
