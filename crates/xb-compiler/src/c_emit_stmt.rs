@@ -132,9 +132,13 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     emit_default(symbol.value_type, out);
                     out.push_str(";\n");
                 }
-                None if dyn_scalar => {
-                    // Late/repeated scalar `DIM`: declaration hoisted; the site
-                    // resets to the default like the interpreter's fresh slot.
+                None if dyn_scalar || crate::c_emit::is_dual_use(&symbol.name) => {
+                    // Late/repeated scalar `DIM`, or the scalar facet of a dual-use
+                    // name (`emit_hoisted_scalars` already declared it at the top):
+                    // the site resets to the default like the interpreter's fresh
+                    // slot. A dual-use scalar `DIM` that re-declared here would be a
+                    // C redefinition — a flattened composite array member DIM'd as
+                    // a scalar but indexed as an array (`px3D.shape[i].x`).
                     emit_var_name(symbol, out);
                     out.push_str(" = ");
                     emit_default(symbol.value_type, out);
