@@ -94,16 +94,26 @@ impl Lexer<'_> {
                 return Token::new(TokenKind::IntegerLiteral(text), pos);
             }
             if let Some(prefix @ ('d' | 'D')) = self.lookahead {
-                text.push(prefix);
+                // `0d<16 hex>` — a DOUBLE-precision literal given by its IEEE-754
+                // bit pattern (XBasic float-bits notation), not an integer.
                 self.advance();
-                self.take_while(&mut text, is_hex_digit);
-                return Token::new(TokenKind::IntegerLiteral(text), pos);
+                let mut hex = String::new();
+                self.take_while(&mut hex, is_hex_digit);
+                let bits = u64::from_str_radix(&hex, 16).unwrap_or(0);
+                let v = f64::from_bits(bits);
+                let _ = prefix;
+                return Token::new(TokenKind::FloatLiteral(format!("{v:?}")), pos);
             }
             if let Some(prefix @ ('s' | 'S')) = self.lookahead {
-                text.push(prefix);
+                // `0s<8 hex>` — a SINGLE-precision literal given by its IEEE-754
+                // bit pattern, widened to the runtime's f64 float.
                 self.advance();
-                self.take_while(&mut text, is_hex_digit);
-                return Token::new(TokenKind::IntegerLiteral(text), pos);
+                let mut hex = String::new();
+                self.take_while(&mut hex, is_hex_digit);
+                let bits = u32::from_str_radix(&hex, 16).unwrap_or(0);
+                let v = f32::from_bits(bits) as f64;
+                let _ = prefix;
+                return Token::new(TokenKind::FloatLiteral(format!("{v:?}")), pos);
             }
             self.take_while(&mut text, |ch| ch.is_ascii_digit());
             if self.lookahead == Some('.') {
