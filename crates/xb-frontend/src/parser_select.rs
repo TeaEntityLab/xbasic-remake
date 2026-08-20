@@ -432,7 +432,23 @@ impl Parser {
                 self.index += 1;
             }
         }
-        if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
+        // A composite TYPE qualifier (`SHARED TYPE var[…]`) is captured so the
+        // variable is registered composite and (for a sized array) its member
+        // arrays are created in the shared store; a non-composite qualifier is
+        // skipped as before.
+        let mut composite_type: Option<String> = None;
+        if let TokenKind::Identifier { name: tn, .. } = self.peek_kind().clone() {
+            if self.composite_types.contains(&tn)
+                && matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::Identifier { .. }) | Some(TokenKind::SharedName(_))
+                )
+            {
+                composite_type = Some(tn);
+                self.index += 1;
+            }
+        }
+        if composite_type.is_none() && matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
             let saved = self.index;
             self.index += 1;
             if !matches!(self.peek_kind(), TokenKind::Identifier { .. })
@@ -455,6 +471,29 @@ impl Parser {
         };
         let (size, is_array, extra_dims) = self.parse_array_size()?;
         self.skip_to_line_end();
+        if let Some(type_name) = composite_type {
+            // Register the composite variable; for a sized array decl also emit a
+            // shared sizing DIM so `dim()` flattens it into shared member arrays.
+            let decl = Statement::CompositeDecl {
+                type_name,
+                var: name.clone(),
+                shared: is_shared,
+                is_array,
+            };
+            if is_array && size.is_some() {
+                let dim = Statement::Dim {
+                    name,
+                    suffix,
+                    size,
+                    extra_dims,
+                    is_array: true,
+                    redim: false,
+                    shared: is_shared,
+                };
+                return Ok(Statement::Compound(vec![decl, dim]));
+            }
+            return Ok(decl);
+        }
         Ok(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: false, shared: is_shared && is_array })
     }
 

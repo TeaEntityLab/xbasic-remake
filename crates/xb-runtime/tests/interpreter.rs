@@ -523,6 +523,35 @@ fn composite_array_by_ref_param_member_assignment() {
 }
 
 #[test]
+fn composite_shared_array_persists_across_functions() {
+    // A composite `SHARED` array (`SHARED VD v[n]`) sizes its flattened member
+    // arrays in the module-shared store; another function's `SHARED VD v[]` reads
+    // them back — `v[i].member` binds to the shared per-member array.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         TYPE VD\nINT .numElements\nEND TYPE\n\
+         FUNCTION Init ()\n\
+         SHARED VD v[3]\n\
+         v[0].numElements = 42\n\
+         v[1].numElements = 7\n\
+         END FUNCTION\n\
+         FUNCTION Use ()\n\
+         SHARED VD v[]\n\
+         PRINT v[0].numElements\nPRINT v[1].numElements\n\
+         END FUNCTION\n\
+         FUNCTION Main\n\
+         Init ()\n\
+         Use ()\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["42", "7"]);
+}
+
+#[test]
 fn compares_float_to_integer_literal() {
     // `a! = 0` compares a float to an integer literal; the runtime must promote
     // the integer, not raise a type mismatch.
