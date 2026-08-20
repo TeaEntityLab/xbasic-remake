@@ -1,7 +1,7 @@
 use crate::c_emit_expr::emit_var_name;
 use crate::c_emit_select::emit_body;
 use crate::c_runtime::{emit_forward_decls, emit_globals, emit_header};
-use crate::ir::{IrItem, IrProgram, IrSymbol};
+use crate::ir::{IrExpr, IrItem, IrProgram, IrSymbol};
 use crate::ValueType;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -39,6 +39,13 @@ thread_local! {
     /// as a scalar `xb_var_x` plus a separate array `xb_var_x_arr` (interp's slot
     /// holds both a `value` and an `array`). Empty for the shared corpus.
     static FN_DUAL_USE: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
+    /// Per-function multi-dim array shapes: name → its declared dimension-size
+    /// expressions (`[size, extra_dims…]`). A multi-dim `arr[i,j]` access needs
+    /// the shape to compute the row-major flat offset (the interpreter flattens
+    /// to a 1-D store). Only populated for arrays `Dim`'d with `extra_dims` in
+    /// the current function; empty for the shared corpus (all 1-D), so no 1-D
+    /// emission changes.
+    static FN_ARRAY_DIMS: RefCell<HashMap<String, Vec<IrExpr>>> = RefCell::new(HashMap::new());
 }
 
 /// Record every user-defined function name for `program`. Called once per
@@ -138,6 +145,11 @@ fn set_fn_context(items: &[IrItem], params: &[crate::ir::IrParam]) {
         }
         *s.borrow_mut() = set;
     });
+    FN_ARRAY_DIMS.with(|s| {
+        let mut m = s.borrow_mut();
+        m.clear();
+        crate::c_emit_hoist::collect_array_dims(items, &mut m);
+    });
     GOSUB_RET_SEEN.with(|s| s.borrow_mut().clear());
 }
 
@@ -174,6 +186,75 @@ pub(crate) fn array_ident(name: &str) -> String {
     } else {
         base
     }
+}
+
+/// The declared dimension-size expressions of a multi-dim array in the current
+/// function, or `None` for a 1-D / by-ref / unknown array. Present only for
+/// arrays `Dim`'d here with `extra_dims`.
+pub(crate) fn array_dims(name: &str) -> Option<Vec<IrExpr>> {
+    FN_ARRAY_DIMS.with(|s| s.borrow().get(name).cloned())
+}
+
+/// Emit the row-major flat offset for a multi-dim access `arr[i0,i1,…]` given the
+/// array's declared dimension-size expressions `dims` (`[d0,d1,…]`). Mirrors the
+/// interpreter's flattening (`slot.rs::array_offset`: `off = off*(dk+1) + ik`),
+/// i.e. `Σ_k ik · ∏_{m>k}(dm+1)`. Each `dm+1` is the element count of dimension
+/// `m` (XBasic `DIM a[n]` has indices `0..=n`).
+pub(crate) fn emit_flat_offset(dims: &[IrExpr], indices: &[&IrExpr], out: &mut String) {
+    out.push('(');
+    for (k, idx) in indices.iter().enumerate() {
+        if k > 0 {
+            out.push_str(" + ");
+        }
+        out.push('(');
+        crate::c_emit_expr::emit_expr(idx, out);
+        out.push(')');
+        for d in &dims[k + 1..] {
+            out.push_str(" * ((");
+            crate::c_emit_expr::emit_expr(d, out);
+            out.push_str(")+1)");
+        }
+    }
+    out.push(')');
+}
+
+/// Emit the flattened element count `∏_k (dk+1)` for a multi-dim array's storage.
+pub(crate) fn emit_flat_size(dims: &[IrExpr], out: &mut String) {
+    out.push('(');
+    for (k, d) in dims.iter().enumerate() {
+        if k > 0 {
+            out.push_str(" * ");
+        }
+        out.push_str("((");
+        crate::c_emit_expr::emit_expr(d, out);
+        out.push_str(")+1)");
+    }
+    out.push(')');
+}
+
+/// Emit the C subscript for an array access/assignment. For a multi-dim access
+/// (`extra_indices` present) whose shape is known locally, emit the row-major
+/// flat offset; otherwise emit the single `index` unchanged (1-D, and the
+/// byte-identical path for by-ref arrays whose shape isn't visible here — those
+/// keep the historical 1-D approximation, matching the shared corpus exactly).
+pub(crate) fn emit_array_subscript(
+    name: &str,
+    index: &IrExpr,
+    extra_indices: &[IrExpr],
+    out: &mut String,
+) {
+    if !extra_indices.is_empty() {
+        if let Some(dims) = array_dims(name) {
+            if dims.len() == 1 + extra_indices.len() {
+                let mut indices: Vec<&IrExpr> = Vec::with_capacity(dims.len());
+                indices.push(index);
+                indices.extend(extra_indices.iter());
+                emit_flat_offset(&dims, &indices, out);
+                return;
+            }
+        }
+    }
+    crate::c_emit_expr::emit_expr(index, out);
 }
 /// Whether the current C function will contain `xb_label_<name>:`.
 pub(crate) fn fn_has_label(name: &str) -> bool {

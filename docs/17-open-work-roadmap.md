@@ -11,7 +11,7 @@
 > Last full re-verification: **2026-08-20**. `cargo test --workspace --exclude
 > xb-ide` = **183 passed / 0 failed**. C-backend demo sweep: **114/114 compile,
 > 71 byte-faithful, diverge=3, 0 compile-fails** (up from 3→55→97→113→114).
-> Twenty CEmitter fix
+> Twenty-one CEmitter fix
 > batches — each byte-neutral on the self-host + v0.1 corpus or mirrored in
 > `cgen.x` (`cgen_cemitter_sync` 5/5 throughout; native bootstrap fixed point
 > re-verified) — landed: arity reconciliation, dynamic DIMs, label guards,
@@ -26,7 +26,8 @@
 > gif/gifview/Kittedy/zap/adatadim), and — closing the last compile-fail —
 > nested-block array DIMs hoisted to dyn (a `REDIM` inside an `IF` was a
 > block-scoped VLA later indexed out-of-block) + dual-use *array params* split
-> (qbtoxb's `token[]`, also read as a scalar `token = token[i]`). The 3
+> (qbtoxb's `token[]`, also read as a scalar `token = token[i]`) — plus row-major
+> **multi-dim array flattening** (`a[i,j]` → `Σ ik·∏(dm+1)`, direct path). The 3
 > divergers: `aarray`/`aarray_ISNODE`
 > (introspect XBasic array metadata via `&array[]`+`XLONGAT`, need the legacy
 > array ABI) and `acrc32` (**shift semantics**: cgen's `>>` on `intptr_t` shifts
@@ -53,7 +54,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~CGEN-ANY-PARAM~~ | C backend | ✅ **done** (2026-08-20): array params (`UBYTE gif[]`) thread `is_array` → C pointers; `*AT` memory builtins fold to the interp's 0/no-op stub (aquick faithful) | — | ✅ |
 | ~~CGEN-COMPOSITE-ARR~~ | C backend | ✅ **done** (2026-08-20): composite member arrays hoist once (dyn pointer wins); scalar+array DIM of one name no longer double-declares (arecord/adata faithful) | — | ✅ |
 | CGEN-BYREF-DESC | C backend | array-by-ref has no length/metadata in C. aarray's crash pinned (2026-08-20): `EXC_BAD_ACCESS` **jump to a garbage address (0x1000)** — its multi-dim array's higher dimensions *hold real addresses* (`$$HIGHER_DIMENSION`), and `ATTACH`ed sub-arrays are dereferenced/jumped as legacy-ABI pointers cgen doesn't lay out. The interp's `PrintArray` returns early (stubbed introspection) and never reaches the jump; cgen proceeds and jumps into garbage. Needs a `{data,len,infoword}` descriptor + `ATTACH` aliasing (RT-ATTACH) + `ANY` polymorphism — the full legacy array ABI | `aarray`/`aarray_ISNODE` | feature |
-| CGEN-MULTIDIM | C backend | cgen ignores `extra_dims`/`extra_indices` entirely (grep-confirmed 2026-08-20): every array is 1D. `DIM arr[3,2,]` allocates only `[3]`; the interp flattens row-major (`dims[k]=declared+1`, `off=off*d+i`), so `UBOUND(arr[3,2,])` = 11 vs 0. But **no demo would flip**: the two faithful 2D-users don't *observe* 2D access in output — Kittedy is a GUI game (empty output on empty stdin; its `squareInfo[iCol,jRow]` loop never runs) and adatadim uses `SWAP c[1,2,],z[]` sub-array *slicing* (ATTACH-like), not `arr[i,j]` value access. Real multi-dim is entangled with composites (Kittedy's `[i,j].member`), SWAP-slicing/ATTACH (adatadim), and system-constant dims — a deliberate feature needing the `{data,dims}` descriptor for by-ref strides, not a reactive fix | (latent; no demo flips) | feature |
+| ~~CGEN-MULTIDIM~~ | C backend | ✅ **partly done** (2026-08-20): local multi-dim arrays flatten row-major in the direct (`CEmitter`) path — `DIM a[i,j,…]` allocates `∏(dk+1)`, `a[i,j]` computes `Σ ik·∏_{m>k}(dm+1)`, `UBOUND`=flat-1 (matches the interp's `slot.rs::array_offset`). Gated on `extra_dims`/`extra_indices` non-empty → 1-D stays byte-identical (corpus is all 1-D; sync 5/5, bootstrap intact, no demo flips). Locked by `cgen_matches_interpreter_on_multidim_arrays`. **Remaining**: the text-IR serialization drops `extra_dims`/`extra_indices`, so the self-hosted `compiler.x`→`cgen.x` path can't carry multi-dim yet (no corpus/bootstrap impact — all 1-D); by-ref multi-dim needs the `{data,dims}` descriptor (CGEN-BYREF-DESC) for runtime strides | (capability; no demo flips) | ◑ |
 | CGEN-SHIFT | C backend | cgen values are `intptr_t` (i64); the interp is **i32** (`RuntimeValue::Integer(i32)`). acrc32's divergence is this width gap, and it is **multi-seam, not a bounded shift fix** (verified 2026-08-20): casting `>>` to `((int32_t)x)>>n` fixes `table[1]` (0x77073096→0x09073096, matching the interp's arithmetic i32 shift) but then *exposes* a second seam — the self-check `sum!=bum` (`sum` XORs the ULONG *variable* `magic`, `bum` XORs the *literal* `0xEDB88320`) fires because the sign-extended i64 shift result differs from the two operands in bits >32 (`HEX$(,8)` masks them equal). Needs systematic i32 arithmetic (all int ops, mirrored in cgen.x), risking 64-bit truncation — deferred as a coordinated feature | `acrc32` (diverge) | feature |
 | ~~CGEN-GOTO-VLA~~ | C backend | ✅ **done** (2026-08-20): sized array DIMs in a GOSUB function now heap-allocate (dyn pointer) instead of stack VLAs, so the GOSUB `goto` no longer bypasses a VLA init (agrids faithful) | — | ✅ |
 | ~~CGEN-SCALAR-ARRAY-DUAL~~ | C backend | ✅ **done** (2026-08-20): a name used as both scalar and array now emits two C vars — scalar `xb_var_x` + array `xb_var_x_arr` (mirrors the interp's TypedSlot value/array fields), routed by IR-node kind; array *DIMs* also count as array-context (adatadim's scalar `SWAP a[]`); a genuine dual-use *array param* also splits (qbtoxb's `token[]`, also read as scalar `token = token[i]`); scalar params excluded (gif/gifview/Kittedy/zap/adatadim/qbtoxb faithful) | — | ✅ |

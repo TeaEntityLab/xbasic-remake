@@ -301,7 +301,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push(')');
             }
         }
-        IrExprKind::ArrayAccess { symbol, index, .. } => {
+        IrExprKind::ArrayAccess { symbol, index, extra_indices } => {
             if crate::c_emit::is_undimmed_array(&symbol.name) {
                 // Auto-vivified (never-`Dim`'d) array: the interpreter reads the
                 // type default for any index (eval.rs missing-slot arm); emit it.
@@ -309,7 +309,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             } else {
                 crate::c_emit::emit_array_var_name(symbol, out);
                 out.push('[');
-                emit_expr(index, out);
+                crate::c_emit::emit_array_subscript(&symbol.name, index, extra_indices, out);
                 out.push(']');
             }
         }

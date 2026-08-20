@@ -17,7 +17,7 @@ use crate::c_emit::c_type;
 use crate::c_emit_expr::{emit_default, emit_var_name};
 use crate::ir::{IrExpr, IrExprKind, IrItem, IrParam, IrSymbol};
 use crate::ValueType;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Emit `<ctype> xb_..name = <default>;` for each scalar referenced in `body` that
 /// is not dimensioned, not a parameter, and not `own_name` (the function's return
@@ -406,6 +406,43 @@ pub(crate) fn collect_labels(items: &[IrItem], labels: &mut HashSet<String>) {
                 }
             }
             IrItem::Compound(items) => collect_labels(items, labels),
+            _ => {}
+        }
+    }
+}
+
+/// Multi-dim array shapes `Dim`'d in `items` (a function body): name → its
+/// declared dimension-size expressions `[size, extra_dims…]`. Only arrays with
+/// `extra_dims` (genuinely multi-dim) are recorded; a 1-D array is absent, so
+/// the emitter's multi-dim path never fires for it (1-D stays byte-identical).
+/// Recurses control flow but not nested `Function` bodies.
+pub(crate) fn collect_array_dims(items: &[IrItem], out: &mut HashMap<String, Vec<IrExpr>>) {
+    for it in items {
+        match it {
+            IrItem::Dim { symbol, size: Some(sz), extra_dims, .. } if !extra_dims.is_empty() => {
+                let mut dims = Vec::with_capacity(1 + extra_dims.len());
+                dims.push(sz.clone());
+                dims.extend(extra_dims.iter().cloned());
+                out.insert(symbol.name.clone(), dims);
+            }
+            IrItem::If { then_body, else_body, .. } => {
+                collect_array_dims(then_body, out);
+                if let Some(b) = else_body {
+                    collect_array_dims(b, out);
+                }
+            }
+            IrItem::While { body, .. }
+            | IrItem::For { body, .. }
+            | IrItem::DoLoop { body, .. } => collect_array_dims(body, out),
+            IrItem::SelectCase { cases, default, .. } => {
+                for c in cases {
+                    collect_array_dims(&c.body, out);
+                }
+                if let Some(b) = default {
+                    collect_array_dims(b, out);
+                }
+            }
+            IrItem::Compound(items) => collect_array_dims(items, out),
             _ => {}
         }
     }

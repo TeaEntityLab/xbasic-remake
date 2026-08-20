@@ -121,3 +121,49 @@ fn cgen_matches_interpreter_on_curated_demos() {
         failures.join("\n")
     );
 }
+
+/// Multi-dim arrays (CGEN-MULTIDIM): the interpreter flattens `DIM a[i,j,…]` to a
+/// 1-D store (row-major); the C backend must compute the same flat offset for
+/// `a[i,j]` and the same flat `UBOUND`. Locks the direct (`CEmitter`) path — the
+/// CLI default. No demo exercises observable 2-D access (Kittedy is GUI-empty,
+/// adatadim SWAP-slices), so this synthetic program is the regression guard.
+#[test]
+fn cgen_matches_interpreter_on_multidim_arrays() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tXLONG grid[2,3]
+\tXLONG cube[1,2,1]
+\tXLONG i, j, k
+\tFOR i = 0 TO 2
+\t\tFOR j = 0 TO 3
+\t\t\tgrid[i,j] = i * 10 + j
+\t\tNEXT j
+\tNEXT i
+\tFOR i = 0 TO 2
+\t\tFOR j = 0 TO 3
+\t\t\tPRINT grid[i,j];
+\t\tNEXT j
+\t\tPRINT
+\tNEXT i
+\tPRINT \"grid ubound=\"; UBOUND(grid[])
+\tFOR i = 0 TO 1
+\t\tFOR j = 0 TO 2
+\t\t\tFOR k = 0 TO 1
+\t\t\t\tcube[i,j,k] = i * 100 + j * 10 + k
+\t\t\tNEXT k
+\t\tNEXT j
+\tNEXT i
+\tPRINT \"cube[1,2,1]=\"; cube[1,2,1]
+\tPRINT \"cube ubound=\"; UBOUND(cube[])
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_multidim_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "multidim", &tmp);
+    assert_eq!(
+        native, interp,
+        "multi-dim cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+}

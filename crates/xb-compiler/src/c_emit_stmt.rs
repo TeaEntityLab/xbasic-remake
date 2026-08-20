@@ -11,13 +11,55 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         IrItem::Print { items, separators } => {
             crate::c_emit_select::emit_print(items, separators, out, indent);
         }
-        IrItem::Dim { symbol, size, is_array, .. } => {
+        IrItem::Dim { symbol, size, is_array, extra_dims, .. } => {
             // A `Dim` of a name that is already a function parameter is a no-op
             // in C (the param is already declared); emitting it would be a
             // redefinition. The interpreter's execute_dim would reset the slot,
             // but for demo lifetimes this is safe.
             if crate::c_emit::is_fn_param(&symbol.name) {
                 return;
+            }
+            // Multi-dim array (`DIM a[i,j,…]`): the interpreter flattens to a 1-D
+            // store of ∏(dk+1) elements (slot.rs::new_array_nd). Allocate the same
+            // flat count; `arr[i,j]` accesses compute the row-major offset. 1-D
+            // arrays (empty `extra_dims`) fall through to the byte-identical path.
+            if !extra_dims.is_empty() {
+                if let Some(sz) = size {
+                    let mut dims = vec![sz.clone()];
+                    dims.extend(extra_dims.iter().cloned());
+                    let dyn_array = crate::c_emit::is_dyn_array(&symbol.name);
+                    out.push_str(&ind);
+                    if dyn_array {
+                        out.push_str("xb_ub_");
+                        out.push_str(&crate::c_emit::array_ident(&symbol.name));
+                        out.push_str(" = ");
+                        crate::c_emit::emit_flat_size(&dims, out);
+                        out.push_str(" - 1;\n");
+                        out.push_str(&ind);
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push_str(" = calloc((size_t)(xb_ub_");
+                        out.push_str(&crate::c_emit::array_ident(&symbol.name));
+                        out.push_str(" + 1), sizeof(*");
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push_str("));\n");
+                    } else {
+                        out.push_str(c_type(symbol.value_type));
+                        out.push(' ');
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push('[');
+                        crate::c_emit::emit_flat_size(&dims, out);
+                        out.push_str("];\n");
+                    }
+                    if symbol.value_type == ValueType::String {
+                        out.push_str(&ind);
+                        out.push_str("for (intptr_t _i = 0; _i < ");
+                        crate::c_emit::emit_flat_size(&dims, out);
+                        out.push_str("; _i++) ");
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push_str("[_i] = xb_str(\"\");\n");
+                    }
+                    return;
+                }
             }
             let dyn_array = crate::c_emit::is_dyn_array(&symbol.name);
             let dyn_scalar = crate::c_emit::is_dyn_scalar(&symbol.name);
@@ -118,8 +160,8 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         IrItem::ArrayAssignment {
             target,
             index,
+            extra_indices,
             value,
-            ..
         } => {
             if crate::c_emit::is_undimmed_array(&target.name) {
                 // Write to a never-`Dim`'d array: the interpreter errors only when
@@ -134,7 +176,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             out.push_str(&ind);
             crate::c_emit::emit_array_var_name(target, out);
             out.push('[');
-            emit_expr(index, out);
+            crate::c_emit::emit_array_subscript(&target.name, index, extra_indices, out);
             out.push_str("] = ");
             emit_expr(value, out);
             out.push_str(";\n");
