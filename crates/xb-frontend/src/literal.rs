@@ -350,7 +350,22 @@ impl Lexer<'_> {
 
     fn type_suffix(&mut self) -> Option<TypeSuffix> {
         let suffix = match self.lookahead {
-            Some('$') => TypeSuffix::String,
+            Some('$') => {
+                self.advance();
+                // `$$` is the GIANT (64-bit integer) suffix — `endian$$`,
+                // `address$$` — distinct from the STRING `$` (endian$ is a
+                // different variable). Previously the second `$` was swallowed
+                // as a "duplicate", typing GIANT variables as String.
+                if self.lookahead == Some('$') {
+                    self.advance();
+                    return Some(TypeSuffix::Giant);
+                }
+                // Consume any stray trailing suffix characters (legacy tolerance).
+                while matches!(self.lookahead, Some('%') | Some('!') | Some('#')) {
+                    self.advance();
+                }
+                return Some(TypeSuffix::String);
+            }
             Some('%') => TypeSuffix::Integer,
             Some('!') => TypeSuffix::Single,
             Some('#') => TypeSuffix::Double,
@@ -372,7 +387,7 @@ impl Lexer<'_> {
             _ => return None,
         };
         self.advance();
-        // Consume any duplicate suffix characters (e.g. endian$$, 234567$$)
+        // Consume any duplicate suffix characters (e.g. 234567%%)
         while matches!(
             self.lookahead,
             Some('$') | Some('%') | Some('!') | Some('#')
