@@ -14,6 +14,10 @@ thread_local! {
     /// (drop extra args, pad missing with zero-defaults) like the interpreter's
     /// `params.zip(args)` binding and the LLVM backend's `eval_args`.
     static DEFINED_SIGS: RefCell<HashMap<String, Vec<crate::ValueType>>> = RefCell::new(HashMap::new());
+    /// Per-param `is_array` flag per user-defined function: a by-ref arg to an
+    /// array/pointer param must be emitted as a pointer, not a value (a scalar
+    /// float by-ref to `double *` is otherwise a hard cc error). See CGEN-BYREF-ARG.
+    static DEFINED_PARAM_ARRAYS: RefCell<HashMap<String, Vec<bool>>> = RefCell::new(HashMap::new());
     /// Per-function emit context: array names referenced but never `Dim`'d in the
     /// current function (auto-vivified — reads fold to the type default like the
     /// interpreter's missing-slot path), and the labels the current C function
@@ -71,6 +75,16 @@ fn set_defined_funcs(program: &IrProgram) {
             }
         }
     });
+    DEFINED_PARAM_ARRAYS.with(|s| {
+        let mut m = s.borrow_mut();
+        m.clear();
+        for item in &program.items {
+            if let IrItem::Function { name, params, .. } = item {
+                m.entry(name.clone())
+                    .or_insert_with(|| params.iter().map(|p| p.is_array).collect());
+            }
+        }
+    });
     FUNC_IDS.with(|s| {
         let mut ids = s.borrow_mut();
         ids.clear();
@@ -91,6 +105,11 @@ fn set_defined_funcs(program: &IrProgram) {
 /// unknown names (whose call sites are emitted as-is / stubbed).
 pub(crate) fn defined_params(name: &str) -> Option<Vec<crate::ValueType>> {
     DEFINED_SIGS.with(|s| s.borrow().get(name).cloned())
+}
+
+/// Per-param `is_array` flags of a user-defined callee (for by-ref arg emission).
+pub(crate) fn defined_param_arrays(name: &str) -> Option<Vec<bool>> {
+    DEFINED_PARAM_ARRAYS.with(|s| s.borrow().get(name).cloned())
 }
 
 /// The interpreter's synthetic `&Func` value: 1-based program-item order
