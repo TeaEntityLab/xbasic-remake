@@ -552,6 +552,37 @@ fn composite_shared_array_persists_across_functions() {
 }
 
 #[test]
+fn redim_of_shared_array_resizes_shared_storage() {
+    // A function that only `SHARED`-declares an array and then `REDIM`s it must
+    // resize the module-shared storage (not shadow it with a fresh local), so a
+    // later function sees the resized/filled array. Covers REDIM-of-shared for a
+    // composite `SHARED` array.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         TYPE VD\nINT .n\nEND TYPE\n\
+         FUNCTION Grow ()\n\
+         SHARED VD v[]\n\
+         REDIM v[2]\n\
+         v[0].n = 11\n\
+         v[2].n = 33\n\
+         END FUNCTION\n\
+         FUNCTION Use ()\n\
+         SHARED VD v[]\n\
+         PRINT v[0].n\nPRINT v[2].n\n\
+         END FUNCTION\n\
+         FUNCTION Main\n\
+         Grow ()\n\
+         Use ()\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["11", "33"]);
+}
+
+#[test]
 fn compares_float_to_integer_literal() {
     // `a! = 0` compares a float to an integer literal; the runtime must promote
     // the integer, not raise a type mismatch.

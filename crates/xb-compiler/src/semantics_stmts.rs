@@ -14,6 +14,13 @@ impl Analyzer {
         redim: bool,
         shared: bool,
     ) -> ItemResult {
+        // A `SHARED`-declared array stays shared across DIM/REDIM in this function,
+        // so a `REDIM` of it (parser-marked `shared=false`) still resizes the
+        // module-shared storage instead of shadowing it with a fresh local.
+        let shared = shared || self.shared_arrays.contains(name);
+        if shared && is_array {
+            self.shared_arrays.insert(name.to_owned());
+        }
         let checked_extra_dims = extra_dims
             .iter()
             .map(|e| self.expr(e))

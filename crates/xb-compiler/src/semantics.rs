@@ -57,6 +57,11 @@ pub struct Analyzer {
     /// Base names used with both a string and a non-string type in one scope,
     /// whose slots must be disambiguated (see `slot_name`, VAR-SUFFIX-COLLISION).
     pub(crate) collisions: BTreeSet<String>,
+    /// Array names declared `SHARED` in the *current* function (reset per function).
+    /// A `DIM`/`REDIM` of one of these routes to the module-shared store, so a
+    /// `REDIM` of a `SHARED` array (or composite array) resizes the shared storage
+    /// instead of shadowing it with a fresh local (`REDIM`-of-shared).
+    pub(crate) shared_arrays: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

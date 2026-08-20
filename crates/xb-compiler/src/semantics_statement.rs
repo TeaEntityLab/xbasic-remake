@@ -276,7 +276,7 @@ impl Analyzer {
         &mut self,
         type_name: &str,
         var: &str,
-        _shared: bool,
+        shared: bool,
         is_array: bool,
     ) -> ItemResult {
         self.composite_vars
@@ -288,6 +288,11 @@ impl Analyzer {
         self.flatten_composite(var, &layout, &mut leaves);
         if is_array {
             // Array declared without a size yet; member arrays are DIM'd later.
+            // A `SHARED` composite array registers so a later `DIM`/`REDIM` of it
+            // routes to the module-shared store (REDIM-of-shared, via `dim()`).
+            if shared {
+                self.shared_arrays.insert(var.to_owned());
+            }
             for (mname, vt) in &leaves {
                 self.arrays.insert(mname.clone(), *vt);
             }
