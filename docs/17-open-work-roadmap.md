@@ -40,8 +40,8 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~CGEN-COMPOSITE-ARR~~ | C backend | ✅ **done** (2026-08-20): composite member arrays hoist once (dyn pointer wins); scalar+array DIM of one name no longer double-declares (arecord/adata faithful) | — | ✅ |
 | CGEN-BYREF-DESC | C backend | array-by-ref has no length/metadata in C: `UBOUND(param[])`, `&array[]`+`XLONGAT` introspection segfault/diverge; needs a `{data,len}` descriptor matching the legacy array ABI | `aarray`/`aarray_ISNODE` | feature |
 | ~~CGEN-GOTO-VLA~~ | C backend | ✅ **done** (2026-08-20): sized array DIMs in a GOSUB function now heap-allocate (dyn pointer) instead of stack VLAs, so the GOSUB `goto` no longer bypasses a VLA init (agrids faithful) | — | ✅ |
-| CGEN-SCALAR-ARRAY-DUAL | C backend | one name used as both a scalar (`hash = hash AND x`) and an array (`hash[i]`); C can't be pointer and scalar at once | `gif`/`gifview` | feature |
-| CGEN-NAME-CONFLICT | C backend | cross-scope/type-conflict name derivation: array param `i[]` vs local `i`; hoist declares one of `v0`/`v0$` | `zap`/`atools` | feature |
+| CGEN-SCALAR-ARRAY-DUAL | C backend | one name is a dynamically scalar-or-array slot: used as a scalar (`found = FALSE`, `INC found`) AND an array (`found[i,j]`); C can't be a scalar and a pointer at once (needs a tagged/union slot) | `gif`/`gifview`/`Kittedy`/`zap` (`i[]` param vs `FOR i`) | feature |
+| CGEN-NAME-CONFLICT | C backend | holistic bare-vs-full name derivation: one string var resolves to `line` in a call arg but `line$` in a print; `v0`/`v0$` type conflict; hoist declares one form — needs one canonical resolver across symbol/byref/assignment/byte-read | `atools`/`qbtoxb` | feature |
 | CGEN-SHARED-ARR | C backend | `SHARED`/composite arrays + array-by-ref lower function-local (ary-class programs; agrids now compiles via VLAs→heap) | ary-class AOT | feature |
 | LLVM-SHARED-ARR | LLVM | `SHARED` *arrays* still per-function (only `##` scalars are globals now) | `ary`/`ary1` AOT parity | feature |
 | LLVM-ANY | LLVM | `ANY array[]` polymorphism (monomorphize or tagged elements) | `aarray_ISNODE` | feature |
