@@ -126,6 +126,25 @@ emitter lowers shared arrays to correctly-typed globals — each step gated on
 `cgen_cemitter_sync` + the bootstrap fixed point, and none allowed to change the
 Integer typing of shared string *scalars* (`assignment`-path, not `dim`).
 
+**Progress `[2026-08-20]`.** Facet 1 (element type) **landed** (`b1e0353`):
+`Parser::shared_name_suffix` splits a SharedName's embedded `$`/`!`/`#` in both
+`dim_stmt` and `typed_dim_stmt`, so `STRING #xbasic$[]` / `DIM #xbasic$[]` now
+type uniformly as String (`dim xbasic$:string`) — byte-neutral (interp 183/0,
+bootstrap MATCH, sync 5/5, LLVM 105/0), resolving qbtoxb's `xbasic$` element-type
+error class. Facet 2 (the harder core) is now mapped to code: `#line` is a
+**shared dual-use** slot — a scalar (`XLONG #line`, `#line = n`) AND an array
+(`#line[i]`, `REDIM #line[n]`), used cross-function (OutputToken, TranslateLine).
+But `#line[i]` lowers to a *local* `array_assign line:integer[…]` (a `Symbol`,
+not a `SharedVariable`), because `parser::primary` routes a `SharedName` through
+`identifier_expr` — dropping the `#` for array/subscript positions. Facet 2 thus
+needs: (i) `primary`/semantics to route a `SharedName` array access/`REDIM` to
+shared storage (a `SharedVariable`), not a local `Symbol`; (ii) the emitter to
+lower a shared array to a module global (`xb_shared_line_arr` + `xb_ub_…`),
+reusing the local dual-use split (scalar `xb_shared_line` + array
+`xb_shared_line_arr`) for a shared slot; (iii) `REDIM #line[n]` to resize it.
+This is shared-array-globals + shared-dual-use + REDIM combined — a multi-step
+feature, each step gated on sync + bootstrap, none touching shared-scalar typing.
+
 ## 1. Backends
 
 ### LB-STUB — LLVM backend emits a real native object ✅ done
