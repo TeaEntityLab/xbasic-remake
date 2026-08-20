@@ -145,6 +145,17 @@ reusing the local dual-use split (scalar `xb_shared_line` + array
 This is shared-array-globals + shared-dual-use + REDIM combined — a multi-step
 feature, each step gated on sync + bootstrap, none touching shared-scalar typing.
 
+**Scope depth (why facet 2 is a major feature, not a parser tweak).** The
+`SharedVariable` IR node is *scalar-only*: `semantics::array_access` has no shared
+path, so even `##name[i]` lowers to a **local** `ArrayAccess`/`array_assign`
+(untested — the corpus has no shared arrays, only shared scalars). Routing the
+parser's `SharedName` reads to shared therefore does *not* suffice; facet 2 needs
+a new **end-to-end shared-array concept**: parser marks a shared array
+access/assign/`REDIM`, semantics tracks shared-array names, a new IR node carries
+the shared-array op, and the emitter lowers it to a module global. That threads
+all four layers (parser/semantics/IR/emitter) — the reason qbtoxb (one demo,
+113→114) is a dedicated feature, not the reactive continuation of facet 1.
+
 ## 1. Backends
 
 ### LB-STUB — LLVM backend emits a real native object ✅ done
