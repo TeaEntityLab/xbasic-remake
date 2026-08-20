@@ -30,7 +30,11 @@ pub(crate) fn parse_item(
         let (items, separators) = crate::text_ir_parser_select::parse_print_items(rest, l)?;
         return Ok(IrItem::Print { items, separators });
     }
-    if let Some(rest) = content.strip_prefix("dim ") {
+    if let Some(rest0) = content.strip_prefix("dim ") {
+        let (shared, rest) = match rest0.strip_prefix("shared ") {
+            Some(r) => (true, r),
+            None => (false, rest0),
+        };
         if let Some(br) = rest.find('[') {
             let sym = parse_symbol_decl(rest[..br].trim()).map_err(|e| err(e, l))?;
             let rb = rest.rfind(']').ok_or_else(|| err("missing ]".into(), l))?;
@@ -46,6 +50,7 @@ pub(crate) fn parse_item(
                 extra_dims: Vec::new(),
                 is_array: true,
                 redim: false,
+                shared,
             });
         }
         let sym = parse_symbol_decl(rest.trim()).map_err(|e| err(e, l))?;
@@ -55,6 +60,7 @@ pub(crate) fn parse_item(
             extra_dims: Vec::new(),
             is_array: false,
             redim: false,
+            shared,
         });
     }
     if let Some(rest) = content.strip_prefix("assign ") {

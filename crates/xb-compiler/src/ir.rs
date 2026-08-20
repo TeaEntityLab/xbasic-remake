@@ -43,6 +43,7 @@ pub enum IrItem {
         extra_dims: Vec<IrExpr>,
         is_array: bool,
         redim: bool,
+        shared: bool,
     },
     Assignment {
         target: IrSymbol,

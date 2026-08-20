@@ -300,7 +300,7 @@ impl Parser {
         loop {
             let (name, suffix) = self.expect_name_or_keyword()?;
             let (size, is_array, extra_dims) = self.parse_array_size()?;
-            dims.push(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: false });
+            dims.push(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: false, shared: false });
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
             } else {
@@ -374,6 +374,7 @@ impl Parser {
                 extra_dims,
                 is_array,
                 redim: false,
+                shared: false,
             });
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
@@ -431,6 +432,7 @@ impl Parser {
             extra_dims: Vec::new(),
             is_array: false,
             redim: false,
+            shared: false,
         })
     }
     fn type_stmt(&mut self) -> Result<Statement, ParseError> {

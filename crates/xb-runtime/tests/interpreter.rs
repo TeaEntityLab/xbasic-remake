@@ -157,6 +157,7 @@ fn allows_redimension_of_slot() {
                 extra_dims: Vec::new(),
                 is_array: false,
                 redim: false,
+                shared: false,
             },
             IrItem::Dim {
                 symbol: repeated,
@@ -164,6 +165,7 @@ fn allows_redimension_of_slot() {
                 extra_dims: Vec::new(),
                 is_array: false,
                 redim: false,
+                shared: false,
             },
         ],
         data_values: Vec::new(),
@@ -217,6 +219,7 @@ fn coerces_string_value_to_integer_target() {
                 extra_dims: Vec::new(),
                 is_array: false,
                 redim: false,
+                shared: false,
             },
             IrItem::Assignment {
                 target: count.clone(),
@@ -461,6 +464,34 @@ fn string_array_by_ref_keeps_suffix_naming() {
         .execute_main(&program, &mut output)
         .unwrap();
     assert_eq!(output, ["hi", "yo"]);
+}
+
+#[test]
+fn shared_keyword_array_persists_across_functions() {
+    // A `SHARED x[]` array lives in the module-shared store: one function sizes +
+    // fills it, another reads it back after the call. (Only arrays route to the
+    // shared store; scalar `SHARED` keeps its per-function behavior.)
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Init ()\n\
+         SHARED g$[3]\n\
+         g$[0] = \"hello\"\n\
+         g$[1] = \"world\"\n\
+         END FUNCTION\n\
+         FUNCTION Use ()\n\
+         SHARED g$[]\n\
+         PRINT g$[0]\nPRINT g$[1]\n\
+         END FUNCTION\n\
+         FUNCTION Main\n\
+         Init ()\n\
+         Use ()\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["hello", "world"]);
 }
 
 #[test]

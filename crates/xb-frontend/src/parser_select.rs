@@ -420,6 +420,7 @@ impl Parser {
 
 impl Parser {
     pub(crate) fn shared_static_stmt(&mut self) -> Result<Statement, crate::ParseError> {
+        let is_shared = matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Shared));
         self.index += 1; // consume SHARED/STATIC keyword
                          // Skip optional /path/ prefix: SHARED /yyy/ retAddr[999]
         if matches!(self.peek_kind(), TokenKind::Symbol('/')) {
@@ -454,7 +455,7 @@ impl Parser {
         };
         let (size, is_array, extra_dims) = self.parse_array_size()?;
         self.skip_to_line_end();
-        Ok(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: false })
+        Ok(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: false, shared: is_shared && is_array })
     }
 
     pub(crate) fn redim_stmt(&mut self) -> Result<Statement, crate::ParseError> {
@@ -462,7 +463,7 @@ impl Parser {
         let (name, suffix) = self.expect_name_or_keyword()?;
         let (size, is_array, extra_dims) = self.parse_array_size()?;
         self.expect_line_end()?;
-        Ok(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: true })
+        Ok(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: true, shared: false })
     }
 }
 

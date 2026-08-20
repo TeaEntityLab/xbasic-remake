@@ -12,6 +12,7 @@ impl Analyzer {
         extra_dims: &[Expression],
         is_array: bool,
         redim: bool,
+        shared: bool,
     ) -> ItemResult {
         let checked_extra_dims = extra_dims
             .iter()
@@ -36,6 +37,7 @@ impl Analyzer {
                         extra_dims: checked_extra_dims.clone(),
                         is_array: true,
                         redim,
+                        shared,
                     });
                 }
                 return Ok(CheckedItem::Compound(items));
@@ -78,6 +80,7 @@ impl Analyzer {
             extra_dims: checked_extra_dims,
             is_array,
             redim,
+            shared,
         })
     }
 

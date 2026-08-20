@@ -30,6 +30,9 @@ pub enum Statement {
         is_array: bool,
         /// `true` for `REDIM` (resize preserving existing contents) vs `DIM`.
         redim: bool,
+        /// `true` when declared via the `SHARED` keyword (module-shared storage);
+        /// array declarations then route to the interpreter's shared store.
+        shared: bool,
     },
     Assignment {
         target: String,

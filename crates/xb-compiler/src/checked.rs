@@ -91,6 +91,7 @@ pub enum CheckedItem {
         extra_dims: Vec<CheckedExpr>,
         is_array: bool,
         redim: bool,
+        shared: bool,
     },
     Assignment {
         target: CheckedSymbol,

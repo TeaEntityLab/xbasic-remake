@@ -147,7 +147,7 @@ pub(crate) fn eval_expr(
                     }
                 }
             }
-            let value = match state.slots.get(&symbol.name) {
+            let value = match state.slots.get(&symbol.name).or_else(|| state.shared.get(&symbol.name)) {
                 Some(slot) => {
                     let off = slot.array_offset(&idxs).ok_or_else(|| {
                         RuntimeError::ArrayIndexOutOfRange {

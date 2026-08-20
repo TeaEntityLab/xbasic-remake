@@ -45,14 +45,19 @@ impl TextIrEmitter {
                     out.push_str(&format!("{line}\n"));
                 }
             }
-            IrItem::Dim { symbol, size, .. } => match size {
-                Some(sz) => out.push_str(&format!(
-                    "{prefix}dim {}[{}]\n",
-                    self.emit_symbol(symbol),
-                    self.emit_expr(sz)
-                )),
-                None => out.push_str(&format!("{prefix}dim {}\n", self.emit_symbol(symbol))),
-            },
+            IrItem::Dim { symbol, size, shared, .. } => {
+                let sh = if *shared { "shared " } else { "" };
+                match size {
+                    Some(sz) => out.push_str(&format!(
+                        "{prefix}dim {sh}{}[{}]\n",
+                        self.emit_symbol(symbol),
+                        self.emit_expr(sz)
+                    )),
+                    None => {
+                        out.push_str(&format!("{prefix}dim {sh}{}\n", self.emit_symbol(symbol)))
+                    }
+                }
+            }
             IrItem::Assignment { target, value } => {
                 out.push_str(&format!(
                     "{prefix}assign {} = {}\n",

@@ -85,12 +85,14 @@ impl IrItem {
                 extra_dims,
                 is_array,
                 redim,
+                shared,
             } => Self::Dim {
                 symbol: IrSymbol::lower(symbol),
                 size: size.as_ref().map(IrExpr::lower),
                 extra_dims: extra_dims.iter().map(IrExpr::lower).collect(),
                 is_array: *is_array,
                 redim: *redim,
+                shared: *shared,
             },
             CheckedItem::Assignment { target, value } => Self::Assignment {
                 target: IrSymbol::lower(target),
@@ -231,6 +233,7 @@ impl IrItem {
                         extra_dims: Vec::new(),
                         is_array: false,
                         redim: false,
+                        shared: false,
                     })
                     .collect();
                 items.push(Self::Read(symbols.iter().map(IrSymbol::lower).collect()));

@@ -116,6 +116,7 @@ pub(crate) fn exec_items(
                 extra_dims,
                 is_array,
                 redim,
+                shared,
             } => {
                 if *is_array {
                     // Inclusive upper bounds: DIM a[d0, d1, …] -> shape
@@ -134,18 +135,40 @@ pub(crate) fn exec_items(
                             }
                         }
                     }
+                    // `SHARED x[…]` arrays live in the module-shared store so they
+                    // persist across function calls (threaded via ExecutionState);
+                    // plain `DIM`/`REDIM` arrays are function-local.
+                    let store = if *shared {
+                        &mut state.shared
+                    } else {
+                        &mut state.slots
+                    };
                     if *redim {
                         // REDIM reshapes preserving the common prefix; REDIM of an
                         // undeclared name creates it (legacy XBasic).
-                        state
-                            .slots
+                        store
+                            .entry(symbol.name.clone())
+                            .or_insert_with(|| {
+                                TypedSlot::new_array_nd(symbol.value_type, Vec::new())
+                            })
+                            .array_reshape(dims);
+                    } else if *shared && dims.is_empty() {
+                        // `SHARED x[]` references the shared array without resizing;
+                        // create an empty one only if it does not exist yet.
+                        store.entry(symbol.name.clone()).or_insert_with(|| {
+                            TypedSlot::new_array_nd(symbol.value_type, Vec::new())
+                        });
+                    } else if *shared {
+                        // `SHARED x[n]` sizes the shared array (create-or-resize,
+                        // preserving existing data across re-declaration/order).
+                        store
                             .entry(symbol.name.clone())
                             .or_insert_with(|| {
                                 TypedSlot::new_array_nd(symbol.value_type, Vec::new())
                             })
                             .array_reshape(dims);
                     } else {
-                        state.slots.insert(
+                        store.insert(
                             symbol.name.clone(),
                             TypedSlot::new_array_nd(symbol.value_type, dims),
                         );
@@ -191,6 +214,7 @@ pub(crate) fn exec_items(
                 let slot = state
                     .slots
                     .get_mut(&target.name)
+                    .or_else(|| state.shared.get_mut(&target.name))
                     .ok_or_else(|| RuntimeError::UnknownSlot {
                         name: target.name.clone(),
                     })?;

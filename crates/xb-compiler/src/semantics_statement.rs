@@ -26,7 +26,8 @@ impl Analyzer {
                 extra_dims,
                 is_array,
                 redim,
-            } => self.dim(name, *suffix, size.as_ref(), extra_dims, *is_array, *redim),
+                shared,
+            } => self.dim(name, *suffix, size.as_ref(), extra_dims, *is_array, *redim, *shared),
             Statement::Assignment {
                 target,
                 suffix,
@@ -302,6 +303,7 @@ impl Analyzer {
                     extra_dims: Vec::new(),
                     is_array: false,
                     redim: false,
+                    shared: false,
                 });
             }
             Ok(CheckedItem::Compound(items))
