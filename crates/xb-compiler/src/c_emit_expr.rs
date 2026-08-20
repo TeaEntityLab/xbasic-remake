@@ -307,9 +307,18 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
         }
         IrExprKind::ArrayUBound { symbol } => {
             if crate::c_emit::is_undimmed_array(&symbol.name) {
-                // UBOUND of an undeclared array is -1 (interp eval.rs), so
-                // `FOR i = 0 TO UBOUND(a[])` loops zero times.
-                out.push_str("(-1)");
+                if symbol.value_type == ValueType::String {
+                    // UBOUND(s$) of a scalar string is its last byte offset,
+                    // LEN(s$) - 1 (interp eval.rs ArrayUBound string arm) —
+                    // aback's `FOR i = 0 TO UBOUND(b$)` byte loop.
+                    out.push_str("(xb_len(");
+                    emit_var_name(symbol, out);
+                    out.push_str(") - 1)");
+                } else {
+                    // UBOUND of an undeclared array is -1 (interp eval.rs), so
+                    // `FOR i = 0 TO UBOUND(a[])` loops zero times.
+                    out.push_str("(-1)");
+                }
             } else if crate::c_emit::is_dyn_array(&symbol.name) {
                 // Late/repeated DIM: the array is a hoisted pointer; sizeof would
                 // be wrong. Read the tracked upper bound.
