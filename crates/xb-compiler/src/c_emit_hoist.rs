@@ -423,6 +423,37 @@ pub(crate) fn collect_dual_use(items: &[IrItem]) -> HashSet<String> {
     walk_items(items, &mut scalar_ctx);
     let mut array_ctx: HashSet<String> = HashSet::new();
     collect_array_refs(items, &mut array_ctx);
+    // Also treat an array `DIM` as array-context: `DIM a[]` + `SWAP a, z`
+    // (scalar) makes `a` dual-use even when `a[i]` is never accessed (adatadim).
+    fn array_dims(items: &[IrItem], out: &mut HashSet<String>) {
+        for it in items {
+            match it {
+                IrItem::Dim { symbol, size, is_array, .. } if *is_array || size.is_some() => {
+                    out.insert(symbol.name.clone());
+                }
+                IrItem::If { then_body, else_body, .. } => {
+                    array_dims(then_body, out);
+                    if let Some(b) = else_body {
+                        array_dims(b, out);
+                    }
+                }
+                IrItem::While { body, .. }
+                | IrItem::For { body, .. }
+                | IrItem::DoLoop { body, .. }
+                | IrItem::Compound(body) => array_dims(body, out),
+                IrItem::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        array_dims(&c.body, out);
+                    }
+                    if let Some(b) = default {
+                        array_dims(b, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    array_dims(items, &mut array_ctx);
     scalar_ctx
         .into_keys()
         .filter(|n| array_ctx.contains(n))
