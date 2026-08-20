@@ -132,15 +132,32 @@ fn emit_main(program: &IrProgram, out: &mut String) {
             )
         })
         .collect();
-    let has_main = program
+    // Entry point: mirror IrProgram::entry_or_first("Main") / the interpreter's
+    // execute_main — call the `Main` function, or, when absent, the first defined
+    // function (legacy XBasic runs the first function, commonly `Entry`). Only a
+    // parameterless entry is callable from C `main`.
+    let entry = program
         .items
         .iter()
-        .any(|i| matches!(i, IrItem::Function { name, .. } if name == "Main"));
+        .find_map(|i| match i {
+            IrItem::Function { name, params, .. } if name == "Main" => Some((name, params)),
+            _ => None,
+        })
+        .or_else(|| {
+            program.items.iter().find_map(|i| match i {
+                IrItem::Function { name, params, .. } => Some((name, params)),
+                _ => None,
+            })
+        });
     out.push_str("int main(void) {\n");
     emit_data_init(program, out);
     emit_body(top, out, 1);
-    if has_main {
-        out.push_str("    xb_user_Main();\n");
+    if let Some((name, params)) = entry {
+        if params.is_empty() {
+            out.push_str("    xb_user_");
+            out.push_str(name);
+            out.push_str("();\n");
+        }
     }
     out.push_str("    fflush(stdout);\n");
     out.push_str("    return 0;\n");
