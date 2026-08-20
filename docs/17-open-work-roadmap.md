@@ -18,9 +18,13 @@
 > `aarray_ISNODE` (CGEN-GOSUB-SCOPE — per-function GOSUB stack; was misdiagnosed as
 > the array ABI). Beyond demos, **XBSourceLib core libs 13/13 C-compile, 10
 > byte-faithful** (`msc`/`fgr`/`vgr`/`vgrOld`/`geo`/`mergeTest01`/`mergeTest02`/`mergeTest03`/`mergeOut`/`mergeOut02`).
-> The only remaining lib gaps are `Xst*`-stub-driven: `ary`/`ary1.0001` (interp
-> *hangs* — array-fn stubs never advance a 50k loop; needs RT-XST) and `XBMerge`
-> (RT-ARGS) — neither a C-backend byte-divergence,
+> The only remaining lib gaps are not C-backend byte-divergences: `ary`/`ary1.0001`
+> are **interp-performance** — `TestAryPerformance` runs ~105k `ArySet/Get` ops
+> whose name-buffer lookups are O(n) (linear `DO WHILE` scans of `Ary_varCodes`) →
+> O(n²) total, so the *interpreter* exceeds 90s while cgen (compiled) finishes in
+> <1s; they migrate correctly via cgen with no known divergence source (all of
+> i32/float/gosub/by-ref now fixed), just untestable-by-interp like the GUI demos.
+> `XBMerge` diverges only on `XstGetCommandLineArguments` no-args flow (RT-ARGS, edge).
 > and the C backend now handles **row-major multi-dim arrays** (direct + text-IR).
 > Twenty-six CEmitter fix
 > batches — each byte-neutral on the self-host + v0.1 corpus or mirrored in
