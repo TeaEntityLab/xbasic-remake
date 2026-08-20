@@ -9,15 +9,18 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-20**. `cargo test --workspace --exclude
-> xb-ide` = **182 passed / 0 failed**. C-backend demo sweep: **97/114 compile,
-> 53 byte-faithful** (up from 3→55→97). Six CEmitter fix batches — each a no-op
-> on the self-host + v0.1 corpus (`cgen_cemitter_sync` 5/5 throughout) — landed:
-> arity reconciliation, dynamic DIMs, label guards, INLINE\$, FOR-var type fix,
-> suffix-aware auto_symbol, composite dot/\$/!/ sanitization, param-Dim guard,
-> shared-variable read collection, leading-zero decimal literal fix, and
-> xb_ub_ name sanitization. Remaining 17 compile-fails are deep type-system
-> gaps (ANY/UBYTE array params, \$\$ shared constants, composite arrays).
-> LLVM backend: 150/0 faithful (unchanged). Bootstrap fixed point untouched.
+> xb-ide` = **182 passed / 0 failed**. C-backend demo sweep: **99/114 compile,
+> 58 byte-faithful, diverge=1** (up from 3→55→97→99; the sole diverger is
+> `acrc32`, the intptr_t-vs-i32 arithmetic-width class). Ten CEmitter fix
+> batches — each byte-neutral on the self-host + v0.1 corpus or mirrored in
+> `cgen.x` (`cgen_cemitter_sync` 5/5 throughout) — landed: arity
+> reconciliation, dynamic DIMs, label guards, INLINE\$, FOR-var type fix,
+> suffix-aware auto_symbol, identifier sanitization (`. \$ ! #`), param-Dim
+> guard, shared-variable read collection, leading-zero literals, `\$\$` GIANT
+> suffix lexing, synthetic `&Func` ids, NUL-safe literals, string-scalar
+> UBOUND, and unsigned-shift bin helpers (arotate hang). Remaining 15
+> compile-fails: ANY/UBYTE array params (7), composite arrays (3), residual
+> undeclared/brace-conflation (5). LLVM: 150/0 faithful. Bootstrap untouched.
 
 ## 0. Open-gap index (at a glance)
 
@@ -26,10 +29,10 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~CGEN-ARRAYS~~ | C backend | ✅ **done** (2026-08-20): auto-vivified array hoisting + dynamic DIMs + undimmed-array folds | — | ✅ |
 | ~~CGEN-ARGC~~ | C backend | ✅ **done** (2026-08-20): arity reconciliation (drop extras, pad missing) via `DEFINED_SIGS` | — | ✅ |
 | ~~CGEN-BUILTINS~~ | C backend | ✅ **done** (2026-08-20): `INLINE$`, `EOF`, `RIGHT$`/`LEFT$` 1-arg, `STRING$` via `xb_string` | — | ✅ |
-| CGEN-AROTATE | C backend | `arotate.x` diverges: generated C hangs (6 s timeout, no output) where interp prints | 1 demo | bug |
+| ~~CGEN-AROTATE~~ | C backend | ✅ **done** (2026-08-20): `xb_bin2`/`xb_binb`/`xb_binb2` shifted a signed int (negative rotate results looped forever); unsigned shifts, mirrored in cgen.x | — | ✅ |
 | CGEN-REDIM | C backend | `REDIM` emitted as `DIM` (fixed C arrays; no resize-preserving realloc) | REDIM-idiom demos AOT | feature |
 | CGEN-ANY-PARAM | C backend | `ANY`/`UBYTE array[]` params lowered as scalar `intptr_t`; body subscripts them → 7 demo compile-fails | `aarray`/`gif`/`gifview`/`zap`/`aquick`/`atools`/`aarray_ISNODE` | feature |
-| CGEN-DOLLAR-DOLLAR | C backend | `$$`-prefixed shared constants parsed as String (suffix `$`) instead of Integer shared var → 5 demo compile-fails | `amemory`/`amakemap`/`atimer`/`aclient`/`aserver` | parser |
+| ~~CGEN-DOLLAR-DOLLAR~~ | C backend | ✅ **done** (2026-08-20): `\$\$` *suffix* is GIANT (64-bit int); lexer no longer swallows it as a duplicate STRING `\$` (aclient/aserver/asystem cleared) | — | ✅ |
 | CGEN-COMPOSITE-ARR | C backend | composite member arrays hoisted as both pointer (dyn) and scalar → redefinition | `arecord`/`adatadim`/`adata` | feature |
 | CGEN-SHARED-ARR | C backend | `SHARED`/composite arrays + array-by-ref lower function-local (§1 interp features) | ary-class programs AOT | feature |
 | LLVM-SHARED-ARR | LLVM | `SHARED` *arrays* still per-function (only `##` scalars are globals now) | `ary`/`ary1` AOT parity | feature |
