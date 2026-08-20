@@ -194,19 +194,21 @@ the other 4 are blocked by three genuine (non-platform) *features*, not bounded 
   `@`-by-ref composite *array* param now flattens each member as an array (`pathMember.code[]`)
   and lowers to array access, not a scalar byte-index (commit `3649aa8`), clearing the spurious
   `CHR$(String)`.
-- **Composite `SHARED` arrays — `ary` next blocker `[2026-08-20]`**: `ary` now blocks on
-  `SHARED ARY_VAR_DATA Ary_varData[4500]` (`unknown runtime slot Ary_varData.numElements`).
-  Two gaps: (1) `Statement::CompositeDecl` has **no size field**, so the inline `[4500]` on a
-  composite decl is dropped and the member arrays are never created/sized; (2) `REDIM
-  Ary_varData[m]` in a function that only `SHARED`-declares it must resize the *shared* member
-  arrays, but `REDIM` isn't shared-flagged — needing **analyzer-level shared-var tracking**
-  (mark refs/REDIMs of SHARED-declared names shared), the deeper architecture the interp-
-  fallback deferred. Multi-part: CompositeDecl size + shared member-array Dims + analyzer
-  tracking.
+- **Composite `SHARED` arrays — ✅ done `[2026-08-20]`**: `SHARED <TYPE> var[size]` now
+  recognizes the composite type and creates shared, sized member arrays (commit `c818b58`),
+  clearing `unknown runtime slot Ary_varData.numElements`.
+- **Full `SHARED` semantics (scalars + REDIM) — `ary` next blocker `[2026-08-20]`**: `ary` now
+  blocks on an `-48000` array index — a `SHARED` *scalar* (`Ary_numVarCodes`, `Ary_numNames`, …)
+  used in an index expression. Scalar `SHARED` is deliberately **not** propagated (the fix so far
+  is arrays-only, since the 25 faithful scalar-`SHARED` demos rely on interp+backend sharing the
+  same per-function bug — see the lock below). Real scalar `SHARED` + `REDIM`-of-shared needs
+  **analyzer-level shared-var tracking** routing scalar refs/writes to the shared store, in
+  **both** interpreter and LLVM-backend globals, gated on the full differential — the deep
+  architectural piece, a coordinated 2-layer effort with regression risk to the 25 demos.
 - **Stubbed runtime builtins** (`ary`/`ary1`): `XstStringToNumber` (×15), `XstQuickSort` (×5),
   `XstCopyArray` are stubs needing real implementations (both layers, per the lock below). So
   `ary` is a multi-step effort (SHARED arrays ✅, composite-array params ✅, composite SHARED
-  arrays, builtins), not one fix.
+  arrays ✅, full scalar SHARED + REDIM, builtins), not one fix.
 - **Command-line arguments** (`XBMerge.x`): reads `XstGetCommandLineArguments`; with no args
   the interpreter and backend take different usage-vs-empty paths (borderline platform).
 
