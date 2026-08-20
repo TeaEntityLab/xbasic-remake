@@ -24,8 +24,9 @@ impl Analyzer {
             let rt = match name {
                 "ABS" => arg.value_type,
                 "STR$" => ValueType::String,
-                "XLONG" | "SBYTE" | "UBYTE" | "SSHORT" | "USHORT" | "SLONG" | "ULONG" | "GIANT"
+                "XLONG" | "SBYTE" | "UBYTE" | "SSHORT" | "USHORT" | "SLONG" | "ULONG"
                 | "GOADDR" | "SUBADDR" => ValueType::Integer,
+                "GIANT" => ValueType::Giant,
                 "DOUBLE" | "SINGLE" => ValueType::Float,
                 _ => unreachable!(),
             };

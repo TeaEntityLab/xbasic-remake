@@ -126,17 +126,22 @@ pub(crate) fn eval_high1(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeE
 }
 
 pub(crate) fn eval_ghigh(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
-    let RuntimeValue::Integer(v) = &args[0] else {
-        return Err(type_err(args[0].value_type()));
-    };
-    Ok(RuntimeValue::Integer(*v >> 31))
+    // High 32 bits of the 64-bit value. An INTEGER (i32) sign-extends to GIANT,
+    // so its high word is the replicated sign bit (`v >> 31`).
+    match &args[0] {
+        RuntimeValue::Giant(v) => Ok(RuntimeValue::Integer((*v >> 32) as i32)),
+        RuntimeValue::Integer(v) => Ok(RuntimeValue::Integer(*v >> 31)),
+        _ => Err(type_err(args[0].value_type())),
+    }
 }
 
 pub(crate) fn eval_glow(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
-    let RuntimeValue::Integer(v) = &args[0] else {
-        return Err(type_err(args[0].value_type()));
-    };
-    Ok(RuntimeValue::Integer(*v))
+    // Low 32 bits, reinterpreted as i32.
+    match &args[0] {
+        RuntimeValue::Giant(v) => Ok(RuntimeValue::Integer(*v as i32)),
+        RuntimeValue::Integer(v) => Ok(RuntimeValue::Integer(*v)),
+        _ => Err(type_err(args[0].value_type())),
+    }
 }
 
 pub(crate) fn eval_sign(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {

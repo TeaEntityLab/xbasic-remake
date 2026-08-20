@@ -28,6 +28,11 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
             ValueType::String
         } else if name == "ABS" && !args.is_empty() {
             args[0].value_type
+        } else if name == "GIANT" || name == "GMAKE" || name == "GIANTAT" {
+            // Conversion/assembly builtins whose return type isn't in the sig
+            // table (GIANT) or is a widened GIANT (GMAKE/GIANTAT) — keep the
+            // 64-bit result type so the text-IR round-trip matches direct IR.
+            ValueType::Giant
         } else {
             crate::builtin::builtin_return_type(name).unwrap_or(ValueType::Integer)
         };

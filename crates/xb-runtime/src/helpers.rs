@@ -35,9 +35,23 @@ pub(crate) fn coerce_value(value: RuntimeValue, target: ValueType) -> RuntimeVal
         (ValueType::Float, RuntimeValue::String(s)) => RuntimeValue::Float(
             String::from_utf8_lossy(&s).trim().parse::<f64>().unwrap_or(0.0),
         ),
-        (ValueType::String, v @ (RuntimeValue::Integer(_) | RuntimeValue::Float(_))) => {
-            RuntimeValue::from_string(v.render())
+        (ValueType::Integer, RuntimeValue::Giant(g)) => RuntimeValue::Integer(g as i32),
+        (ValueType::Float, RuntimeValue::Giant(g)) => RuntimeValue::Float(g as f64),
+        (ValueType::Giant, RuntimeValue::Integer(i)) => RuntimeValue::Giant(i as i64),
+        (ValueType::Giant, RuntimeValue::Float(f)) => RuntimeValue::Giant(f as i64),
+        (ValueType::Giant, RuntimeValue::String(s)) => {
+            let s = String::from_utf8_lossy(&s);
+            RuntimeValue::Giant(
+                s.trim()
+                    .parse::<i64>()
+                    .or_else(|_| s.trim().parse::<f64>().map(|f| f as i64))
+                    .unwrap_or(0),
+            )
         }
+        (
+            ValueType::String,
+            v @ (RuntimeValue::Integer(_) | RuntimeValue::Float(_) | RuntimeValue::Giant(_)),
+        ) => RuntimeValue::from_string(v.render()),
         // Already the target type (Integer/Float/String -> same).
         (_, v) => v,
     }
@@ -74,6 +88,25 @@ pub(crate) fn parse_integer(literal: &str) -> Result<i32, RuntimeError> {
             .or_else(|_| literal.parse::<i64>().map(|i| i as i32))
     };
     parsed.map_err(|_| invalid_literal(literal, ValueType::Integer))
+}
+
+/// Parse a GIANT (i64) literal. Like `parse_integer` but 64-bit wide: a decimal
+/// that overflows signed 32-bit keeps its full value (matches the C backend's
+/// `int64_t` slot), and hex/binary/octal reinterpret the bit pattern.
+pub(crate) fn parse_giant(literal: &str) -> Result<i64, RuntimeError> {
+    fn radixed(digits: &str, radix: u32) -> Result<i64, std::num::ParseIntError> {
+        i64::from_str_radix(digits, radix).or_else(|_| u64::from_str_radix(digits, radix).map(|u| u as i64))
+    }
+    let parsed = if let Some(h) = literal.strip_prefix("0x").or_else(|| literal.strip_prefix("0X")) {
+        radixed(h, 16)
+    } else if let Some(b) = literal.strip_prefix("0b").or_else(|| literal.strip_prefix("0B")) {
+        radixed(b, 2)
+    } else if let Some(o) = literal.strip_prefix("0o").or_else(|| literal.strip_prefix("0O")) {
+        radixed(o, 8)
+    } else {
+        literal.parse::<i64>().or_else(|_| literal.parse::<u64>().map(|u| u as i64))
+    };
+    parsed.map_err(|_| invalid_literal(literal, ValueType::Giant))
 }
 
 pub(crate) fn parse_float(literal: &str) -> Result<f64, RuntimeError> {

@@ -222,16 +222,18 @@ pub(crate) fn emit_type_conversion(
     emit_fn: impl Fn(&IrExpr, &mut String),
 ) {
     let prefix = match (name, arg.value_type) {
+        ("GIANT", ValueType::String) => "atoll(",
+        ("GIANT", _) => "(int64_t)(",
         (
-            "XLONG" | "SBYTE" | "UBYTE" | "SSHORT" | "USHORT" | "SLONG" | "ULONG" | "GIANT",
+            "XLONG" | "SBYTE" | "UBYTE" | "SSHORT" | "USHORT" | "SLONG" | "ULONG",
             ValueType::String,
         ) => "atoi(",
         (
-            "XLONG" | "SBYTE" | "UBYTE" | "SSHORT" | "USHORT" | "SLONG" | "ULONG" | "GIANT",
-            ValueType::Float,
+            "XLONG" | "SBYTE" | "UBYTE" | "SSHORT" | "USHORT" | "SLONG" | "ULONG",
+            ValueType::Float | ValueType::Giant,
         ) => "(int)(",
         ("DOUBLE" | "SINGLE", ValueType::String) => "atof(",
-        ("DOUBLE" | "SINGLE", ValueType::Integer) => "(double)(",
+        ("DOUBLE" | "SINGLE", ValueType::Integer | ValueType::Giant) => "(double)(",
         _ => "(",
     };
     out.push_str(prefix);

@@ -6,6 +6,7 @@ use xb_compiler::{EntryLookupError, ValueType};
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
     Integer(i32),
+    Giant(i64),
     Float(f64),
     String(Vec<u8>),
 }
@@ -13,6 +14,7 @@ pub enum RuntimeValue {
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataEntry {
     Integer(i32),
+    Giant(i64),
     Float(f64),
     String(String),
 }
@@ -21,6 +23,7 @@ impl RuntimeValue {
     pub const fn value_type(&self) -> ValueType {
         match self {
             Self::Integer(_) => ValueType::Integer,
+            Self::Giant(_) => ValueType::Giant,
             Self::Float(_) => ValueType::Float,
             Self::String(_) => ValueType::String,
         }
@@ -29,6 +32,7 @@ impl RuntimeValue {
     pub(crate) fn default_for(value_type: ValueType) -> Self {
         match value_type {
             ValueType::Integer => Self::Integer(0),
+            ValueType::Giant => Self::Giant(0),
             ValueType::Float => Self::Float(0.0),
             ValueType::String => Self::String(Vec::new()),
         }
@@ -37,6 +41,7 @@ impl RuntimeValue {
     pub(crate) fn render(&self) -> String {
         match self {
             Self::Integer(value) => value.to_string(),
+            Self::Giant(value) => value.to_string(),
             Self::Float(value) => value.to_string(),
             Self::String(value) => String::from_utf8_lossy(value).into_owned(),
         }

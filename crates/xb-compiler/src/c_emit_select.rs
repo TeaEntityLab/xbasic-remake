@@ -133,6 +133,7 @@ pub(crate) fn emit_print(
         out.push_str(&ind);
         match items[0].value_type {
             ValueType::Integer => out.push_str("xb_print_int("),
+            ValueType::Giant => out.push_str("xb_print_giant("),
             ValueType::Float => out.push_str("xb_print_float("),
             ValueType::String => out.push_str("xb_print_str("),
         }
@@ -179,6 +180,11 @@ fn emit_str_expr(expr: &IrExpr, out: &mut String) {
     match expr.value_type {
         ValueType::Integer => {
             out.push_str("xb_str_num(");
+            emit_expr(expr, out);
+            out.push(')');
+        }
+        ValueType::Giant => {
+            out.push_str("xb_str_giant(");
             emit_expr(expr, out);
             out.push(')');
         }

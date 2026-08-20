@@ -6,10 +6,21 @@ use crate::semantics::{Analyzer, CompositeLayout, ExprResult, ItemResult, ValueT
 impl Analyzer {
     pub(crate) fn expr(&self, expr: &Expression) -> ExprResult {
         match expr {
-            Expression::IntegerLiteral(v) => Ok(CheckedExpr::new(
-                CheckedExprKind::IntegerLiteral(v.clone()),
-                ValueType::Integer,
-            )),
+            Expression::IntegerLiteral(v) => {
+                // A DECIMAL literal that overflows signed 32-bit is a GIANT
+                // (XstStringToNumber spec). Hex/binary/octal are bit-patterns and
+                // stay XLONG (i32) — e.g. `0xEDB88320` is -1, not 3_988_292_384.
+                let is_radix = ["0x", "0X", "0b", "0B", "0o", "0O"]
+                    .iter()
+                    .any(|p| v.starts_with(p));
+                let vt = match (is_radix, v.parse::<i64>()) {
+                    (false, Ok(n)) if n > i32::MAX as i64 || n < i32::MIN as i64 => {
+                        ValueType::Giant
+                    }
+                    _ => ValueType::Integer,
+                };
+                Ok(CheckedExpr::new(CheckedExprKind::IntegerLiteral(v.clone()), vt))
+            }
             Expression::FloatLiteral(v) => Ok(CheckedExpr::new(
                 CheckedExprKind::FloatLiteral(v.clone()),
                 ValueType::Float,
@@ -121,9 +132,13 @@ impl Analyzer {
                 ValueType::Integer,
             ));
         }
-        let rt = if op.is_integer_op()
-            || (lv.value_type != ValueType::Float && rv.value_type != ValueType::Float)
-        {
+        let has_giant = lv.value_type == ValueType::Giant || rv.value_type == ValueType::Giant;
+        let has_float = lv.value_type == ValueType::Float || rv.value_type == ValueType::Float;
+        // GIANT (i64) dominates INTEGER but yields to FLOAT (the interpreter widens
+        // a Giant to f64 when the other operand is a Float — see arith.rs).
+        let rt = if has_giant && !has_float {
+            ValueType::Giant
+        } else if op.is_integer_op() || !has_float {
             ValueType::Integer
         } else {
             ValueType::Float

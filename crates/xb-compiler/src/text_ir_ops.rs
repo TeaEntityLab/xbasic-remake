@@ -33,6 +33,7 @@ impl TextIrEmitter {
     pub(crate) fn emit_type(self, value_type: ValueType) -> &'static str {
         match value_type {
             ValueType::Integer => "integer",
+            ValueType::Giant => "giant",
             ValueType::Float => "float",
             ValueType::String => "string",
         }

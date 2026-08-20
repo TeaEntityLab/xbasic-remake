@@ -113,7 +113,7 @@ fn sig(name: &str) -> Option<BuiltinSig> {
         ),
         "GMAKE" => (
             &[ValueType::Integer, ValueType::Integer][..],
-            ValueType::Integer,
+            ValueType::Giant,
         ),
         "SMAKE" => (&[ValueType::Integer][..], ValueType::Float),
         "XMAKE" => (&[ValueType::Float][..], ValueType::Integer),
@@ -145,8 +145,8 @@ fn sig(name: &str) -> Option<BuiltinSig> {
         ),
         "HIGH0" => (&[ValueType::Integer][..], ValueType::Integer),
         "HIGH1" => (&[ValueType::Integer][..], ValueType::Integer),
-        "GHIGH" => (&[ValueType::Integer][..], ValueType::Integer),
-        "GLOW" => (&[ValueType::Integer][..], ValueType::Integer),
+        "GHIGH" => (&[ValueType::Giant][..], ValueType::Integer),
+        "GLOW" => (&[ValueType::Giant][..], ValueType::Integer),
         "SIGN" => (&[ValueType::Float][..], ValueType::Integer),
         "CJUST$" | "RJUST$" | "LJUST$" => (
             &[ValueType::String, ValueType::Integer][..],
@@ -239,7 +239,7 @@ fn sig(name: &str) -> Option<BuiltinSig> {
         ),
         "GIANTAT" => (
             &[ValueType::Integer, ValueType::Integer][..],
-            ValueType::Integer,
+            ValueType::Giant,
         ),
         "SINGLEAT" => (
             &[ValueType::Integer, ValueType::Integer][..],

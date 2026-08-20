@@ -5,6 +5,7 @@ pub use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, LogicalOp, Param, P
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
     Integer,
+    Giant,
     Float,
     String,
 }
@@ -14,7 +15,8 @@ impl ValueType {
         match suffix {
             Some(TypeSuffix::String) => Self::String,
             Some(TypeSuffix::Single | TypeSuffix::Double) => Self::Float,
-            Some(TypeSuffix::Integer | TypeSuffix::Giant) | None => Self::Integer,
+            Some(TypeSuffix::Giant) => Self::Giant,
+            Some(TypeSuffix::Integer) | None => Self::Integer,
         }
     }
 }

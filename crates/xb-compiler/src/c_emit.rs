@@ -886,6 +886,7 @@ fn emit_fallback_return(name: &str, return_type: ValueType, out: &mut String) {
 pub(crate) fn c_type(vt: ValueType) -> &'static str {
     match vt {
         ValueType::Integer => "intptr_t",
+        ValueType::Giant => "int64_t",
         ValueType::Float => "double",
         ValueType::String => "char*",
     }

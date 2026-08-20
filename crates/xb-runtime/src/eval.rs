@@ -1,4 +1,4 @@
-use crate::helpers::{parse_float, parse_integer, read_slot};
+use crate::helpers::{parse_float, parse_giant, parse_integer, read_slot};
 use crate::interpreter::{exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue};
 use xb_compiler::{BooleanOp, IrExpr, IrExprKind, IrItem, IrProgram, LogicalOp, ValueType};
 
@@ -34,7 +34,13 @@ pub(crate) fn eval_expr(
 ) -> Result<RuntimeValue, RuntimeError> {
     let value = match &expr.kind {
         IrExprKind::StringLiteral(v) => RuntimeValue::from_string(v.clone()),
-        IrExprKind::IntegerLiteral(v) => RuntimeValue::Integer(parse_integer(v)?),
+        IrExprKind::IntegerLiteral(v) => {
+            if expr.value_type == ValueType::Giant {
+                RuntimeValue::Giant(parse_giant(v)?)
+            } else {
+                RuntimeValue::Integer(parse_integer(v)?)
+            }
+        }
         IrExprKind::FloatLiteral(v) => RuntimeValue::Float(parse_float(v)?),
         IrExprKind::Constant { value, .. } => RuntimeValue::Integer(parse_integer(value)?),
         // `@x` reads as the current value of the referenced lvalue; the
@@ -191,6 +197,7 @@ pub(crate) fn eval_expr(
             if let Some(arr) = &slot.array {
                 let elem_size = match symbol.value_type {
                     ValueType::Integer => 4,
+                    ValueType::Giant => 8,
                     ValueType::Float => 8,
                     ValueType::String => 8,
                 };
@@ -198,6 +205,7 @@ pub(crate) fn eval_expr(
             }
             let size = match slot.value_type() {
                 ValueType::Integer => 4,
+                ValueType::Giant => 8,
                 ValueType::Float => 8,
                 ValueType::String => 8,
             };
@@ -206,6 +214,7 @@ pub(crate) fn eval_expr(
         IrExprKind::SizeOfType { value_type } => {
             let size = match value_type {
                 ValueType::Integer => 4,
+                ValueType::Giant => 8,
                 ValueType::Float => 8,
                 ValueType::String => 8,
             };

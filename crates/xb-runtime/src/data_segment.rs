@@ -28,6 +28,7 @@ pub(crate) fn exec_read(
         state.data_pos += 1;
         let val = match entry {
             DataEntry::Integer(n) => RuntimeValue::Integer(*n),
+            DataEntry::Giant(n) => RuntimeValue::Giant(*n),
             DataEntry::Float(f) => RuntimeValue::Float(*f),
             DataEntry::String(s) => RuntimeValue::from_string(s.clone()),
         };

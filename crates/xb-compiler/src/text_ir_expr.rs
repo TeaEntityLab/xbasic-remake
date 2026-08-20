@@ -78,6 +78,7 @@ impl TextIrEmitter {
             IrExprKind::SizeOfType { value_type } => {
                 let t = match value_type {
                     ValueType::Integer => "integer",
+                    ValueType::Giant => "giant",
                     ValueType::Float => "float",
                     ValueType::String => "string",
                 };

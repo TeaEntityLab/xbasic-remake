@@ -43,6 +43,7 @@ pub(crate) fn parse_symbol(s: &str) -> Result<(String, ValueType), String> {
 pub(crate) fn parse_type(s: &str) -> Result<ValueType, String> {
     match s {
         "integer" => Ok(ValueType::Integer),
+        "giant" => Ok(ValueType::Giant),
         "float" => Ok(ValueType::Float),
         "string" => Ok(ValueType::String),
         _ => Err(format!("unknown type: {s}")),

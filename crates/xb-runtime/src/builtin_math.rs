@@ -135,6 +135,7 @@ pub(crate) fn eval_abs(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeErr
 pub(crate) fn eval_to_float(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
     match &args[0] {
         RuntimeValue::Integer(n) => Ok(RuntimeValue::Float(*n as f64)),
+        RuntimeValue::Giant(n) => Ok(RuntimeValue::Float(*n as f64)),
         RuntimeValue::Float(n) => Ok(RuntimeValue::Float(*n)),
         RuntimeValue::String(s) => Ok(RuntimeValue::Float(
             String::from_utf8_lossy(s).parse().unwrap_or(0.0),
@@ -145,9 +146,22 @@ pub(crate) fn eval_to_float(args: &[RuntimeValue]) -> Result<RuntimeValue, Runti
 pub(crate) fn eval_to_int(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
     match &args[0] {
         RuntimeValue::Integer(n) => Ok(RuntimeValue::Integer(*n)),
+        RuntimeValue::Giant(n) => Ok(RuntimeValue::Integer(*n as i32)),
         RuntimeValue::Float(n) => Ok(RuntimeValue::Integer(*n as i32)),
         RuntimeValue::String(s) => Ok(RuntimeValue::Integer(
             String::from_utf8_lossy(s).parse().unwrap_or(0),
+        )),
+    }
+}
+
+/// GIANT() conversion — widen any numeric/string to a 64-bit GIANT.
+pub(crate) fn eval_to_giant(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
+    match &args[0] {
+        RuntimeValue::Integer(n) => Ok(RuntimeValue::Giant(*n as i64)),
+        RuntimeValue::Giant(n) => Ok(RuntimeValue::Giant(*n)),
+        RuntimeValue::Float(n) => Ok(RuntimeValue::Giant(*n as i64)),
+        RuntimeValue::String(s) => Ok(RuntimeValue::Giant(
+            String::from_utf8_lossy(s).trim().parse().unwrap_or(0),
         )),
     }
 }
@@ -222,8 +236,8 @@ pub(crate) fn eval_gmake(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeE
     let RuntimeValue::Integer(lo) = &args[1] else {
         return Err(type_err(args[1].value_type()));
     };
-    let bits = ((*hi as u64) << 32) | (*lo as u64);
-    Ok(RuntimeValue::Integer(bits as i64 as i32))
+    let bits = ((*hi as u32 as u64) << 32) | (*lo as u32 as u64);
+    Ok(RuntimeValue::Giant(bits as i64))
 }
 
 pub(crate) fn eval_smake(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {

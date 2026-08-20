@@ -419,6 +419,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
         IrExprKind::SizeOfType { value_type } => {
             let size = match value_type {
                 ValueType::Integer => 4,
+                ValueType::Giant => 8,
                 ValueType::Float => 8,
                 ValueType::String => 8,
             };
@@ -545,6 +546,7 @@ pub(crate) fn emit_call_args(name: &str, args: &[IrExpr], out: &mut String) {
 
 pub(crate) fn emit_default(vt: ValueType, out: &mut String) {
     match vt {
+        ValueType::Giant => out.push('0'),
         ValueType::Integer => out.push('0'),
         ValueType::Float => out.push_str("0.0"),
         ValueType::String => out.push_str("xb_str(\"\")"),

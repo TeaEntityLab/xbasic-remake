@@ -21,6 +21,19 @@ pub fn compare(op: ComparisonOp, l: &RuntimeValue, r: &RuntimeValue) -> Result<i
         // otherwise mismatch.
         (RuntimeValue::String(a), RuntimeValue::Integer(b)) => (a.len() as i64).cmp(&(*b as i64)),
         (RuntimeValue::Integer(a), RuntimeValue::String(b)) => (*a as i64).cmp(&(b.len() as i64)),
+        // GIANT (i64) comparisons: Giant/Integer compare as i64; Giant/Float
+        // promotes to f64; String/Giant uses byte length like String/Integer.
+        (RuntimeValue::Giant(a), RuntimeValue::Giant(b)) => a.cmp(b),
+        (RuntimeValue::Giant(a), RuntimeValue::Integer(b)) => a.cmp(&(*b as i64)),
+        (RuntimeValue::Integer(a), RuntimeValue::Giant(b)) => (*a as i64).cmp(b),
+        (RuntimeValue::Giant(a), RuntimeValue::Float(b)) => (*a as f64)
+            .partial_cmp(b)
+            .unwrap_or(std::cmp::Ordering::Equal),
+        (RuntimeValue::Float(a), RuntimeValue::Giant(b)) => a
+            .partial_cmp(&(*b as f64))
+            .unwrap_or(std::cmp::Ordering::Equal),
+        (RuntimeValue::String(a), RuntimeValue::Giant(b)) => (a.len() as i64).cmp(b),
+        (RuntimeValue::Giant(a), RuntimeValue::String(b)) => a.cmp(&(b.len() as i64)),
         _ => {
             return Err(RuntimeError::TypeMismatch {
                 expected: ValueType::Integer,

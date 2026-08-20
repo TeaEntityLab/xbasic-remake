@@ -157,9 +157,10 @@ pub(crate) fn eval_builtin(
         }
         "ABS" => crate::builtin_math::eval_abs(args),
         "DOUBLE" | "SINGLE" => crate::builtin_math::eval_to_float(args),
-        "XLONG" | "SBYTE" | "UBYTE" | "SSHORT" | "USHORT" | "SLONG" | "ULONG" | "GIANT" => {
+        "XLONG" | "SBYTE" | "UBYTE" | "SSHORT" | "USHORT" | "SLONG" | "ULONG" => {
             crate::builtin_math::eval_to_int(args)
         }
+        "GIANT" => crate::builtin_math::eval_to_giant(args),
         "SGN" => {
             let RuntimeValue::Integer(n) = &args[0] else {
                 return Err(type_err(args[0].value_type()));

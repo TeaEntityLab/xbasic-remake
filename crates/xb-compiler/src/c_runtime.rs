@@ -113,6 +113,9 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str(
         "static char* xb_str_num(int v) { char buf[16]; snprintf(buf, 16, \"%d\", v); return xb_from_cstr(buf); }\n",
     );
+    out.push_str(
+        "static char* xb_str_giant(int64_t v) { char buf[24]; snprintf(buf, 24, \"%lld\", (long long)v); return xb_from_cstr(buf); }\n",
+    );
     // Shortest-round-trip float print matching Rust's f64 `Display` (the
     // interpreter's `render`, slot.rs), so cgen float output is byte-identical.
     // Round MYSELF from a 41-sig-fig expansion (correctly-rounded on any libc at
@@ -174,6 +177,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    return xb_from_cstr(buf);\n");
     out.push_str("}\n");
     out.push_str("static void xb_print_int(int v) { printf(\"%d\\n\", v); }\n");
+    out.push_str("static void xb_print_giant(int64_t v) { printf(\"%lld\\n\", (long long)v); }\n");
     out.push_str("static void xb_print_str(const char* s) { fwrite(s, 1, (size_t)xb_len(s), stdout); putchar('\\n'); }\n");
     out.push_str("static void xb_print_float(double v) { char buf[400]; xb_fmt_float(v, buf, 400); printf(\"%s\\n\", buf); }\n");
     out.push_str("static char* xb_ucase(const char* s) { char* r = xb_strdup(s); int n = xb_len(r); for (int i = 0; i < n; i++) r[i] = (char)toupper((unsigned char)r[i]); return r; }\n");
@@ -207,6 +211,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("static void xb_data_add_float(double v) { xb_data_tag[xb_data_count] = 1; xb_data_float[xb_data_count] = v; xb_data_count++; }\n");
     out.push_str("static void xb_data_add_str(const char* v) { xb_data_tag[xb_data_count] = 2; xb_data_str[xb_data_count] = xb_from_cstr(v); xb_data_count++; }\n");
     out.push_str("static void xb_read_int(int* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 0) *v = xb_data_int[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 1) *v = (int)xb_data_float[xb_data_pos]; else *v = atoi(xb_data_str[xb_data_pos]); xb_data_pos++; }\n");
+    out.push_str("static void xb_read_giant(int64_t* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 0) *v = xb_data_int[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 1) *v = (int64_t)xb_data_float[xb_data_pos]; else *v = (int64_t)atoll(xb_data_str[xb_data_pos]); xb_data_pos++; }\n");
     out.push_str("static void xb_read_float(double* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 1) *v = xb_data_float[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 0) *v = (double)xb_data_int[xb_data_pos]; else *v = atof(xb_data_str[xb_data_pos]); xb_data_pos++; }\n");
     out.push_str("static char* xb_read_str(void) { if (xb_data_pos >= xb_data_count) return xb_str(\"\"); char* r; if (xb_data_tag[xb_data_pos] == 2) r = xb_strdup(xb_data_str[xb_data_pos]); else { char buf[400]; if (xb_data_tag[xb_data_pos] == 0) snprintf(buf, 400, \"%d\", xb_data_int[xb_data_pos]); else xb_fmt_float(xb_data_float[xb_data_pos], buf, 400); r = xb_from_cstr(buf); } xb_data_pos++; return r; }\n");
     out.push_str("static void xb_restore(int idx) { xb_data_pos = idx; }\n");

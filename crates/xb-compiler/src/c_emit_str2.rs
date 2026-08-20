@@ -150,7 +150,7 @@ pub(crate) fn emit_format(
             emit_fn(&args[1], out);
             out.push_str(", 1, 0");
         }
-        ValueType::Integer => {
+        ValueType::Integer | ValueType::Giant => {
             out.push_str("NULL, ");
             emit_fn(&args[1], out);
             out.push_str(", 0.0, 0, 0");

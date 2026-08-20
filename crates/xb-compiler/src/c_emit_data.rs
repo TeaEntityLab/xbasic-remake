@@ -11,6 +11,12 @@ pub(crate) fn emit_read(symbols: &[IrSymbol], out: &mut String, indent: usize) {
                 emit_var_name(sym, out);
                 out.push_str(");\n");
             }
+            crate::ValueType::Giant => {
+                out.push_str(&pad);
+                out.push_str("xb_read_giant(&");
+                emit_var_name(sym, out);
+                out.push_str(");\n");
+            }
             crate::ValueType::Float => {
                 out.push_str(&pad);
                 out.push_str("xb_read_float(&");

@@ -4,7 +4,7 @@ pub(crate) fn emit_bit_reinterp_runtime(out: &mut String) {
     );
     out.push_str("static int xb_dlow(double v) { uint64_t b; memcpy(&b, &v, 8); return (int)(b & 0xFFFFFFFF); }\n");
     out.push_str("static double xb_dmake(int hi, int lo) { uint64_t b = ((uint64_t)(unsigned)hi << 32) | (unsigned)lo; double v; memcpy(&v, &b, 8); return v; }\n");
-    out.push_str("static int xb_gmake(int hi, int lo) { return lo; }\n");
+    out.push_str("static int64_t xb_gmake(int hi, int lo) { return (int64_t)(((uint64_t)(unsigned)hi << 32) | (unsigned)lo); }\n");
     out.push_str("static double xb_smake(int v) { float f; uint32_t b = (unsigned)v; memcpy(&f, &b, 4); return (double)f; }\n");
     out.push_str("static int xb_xmake(double v) { float f = (float)v; uint32_t b; memcpy(&b, &f, 4); return (int)b; }\n");
 }
@@ -18,8 +18,8 @@ pub(crate) fn emit_bit_ops_runtime(out: &mut String) {
     out.push_str("static int xb_make(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)(((unsigned)v & mask) << o); }\n");
     out.push_str("static int xb_high0(int v) { unsigned b = ~(unsigned)v; int i; for (i=31; i>=0; i--) if (b & (1u<<i)) return i; return 0; }\n");
     out.push_str("static int xb_high1(int v) { unsigned b = (unsigned)v; int i; for (i=31; i>=0; i--) if (b & (1u<<i)) return i; return 0; }\n");
-    out.push_str("static int xb_ghigh(int v) { return v >> 31; }\n");
-    out.push_str("static int xb_glow(int v) { return v; }\n");
+    out.push_str("static int xb_ghigh(int64_t v) { return (int)(v >> 32); }\n");
+    out.push_str("static int xb_glow(int64_t v) { return (int)v; }\n");
     out.push_str("static int xb_sign(double v) { return (v < 0.0) ? -1 : 1; }\n");
 }
 
