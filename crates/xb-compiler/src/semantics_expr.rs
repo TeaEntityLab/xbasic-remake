@@ -350,10 +350,16 @@ impl Analyzer {
         // (the byte offset is 0-based; MID$ is 1-based).
         {
             let base = name.trim_end_matches('$');
-            if args.len() == 1
+            // Real builtins were dispatched above, so a `$`-suffixed 1-arg call
+            // on a known (non-array, non-function) variable is a byte read. Use
+            // `contains_key(base)` — not `== String` — so it also fires when an
+            // Integer `string` and String `string$` collide (symbols[base] is
+            // then Integer, but `string$` is still a byte-indexable string).
+            if name.ends_with('$')
+                && args.len() == 1
                 && !self.functions.contains_key(name)
                 && !self.arrays.contains_key(name)
-                && self.symbols.get(base) == Some(&ValueType::String)
+                && self.symbols.contains_key(base)
             {
                 return self.string_byte_read(base, &args[0]);
             }

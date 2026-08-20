@@ -569,7 +569,29 @@ impl DynWalk {
     }
 }
 
-pub(crate) fn collect_dyn_names(items: &[IrItem], params: &[IrParam]) -> DynNames {
+/// Does `items` (a function body) contain a `GOSUB` (goto-based) construct?
+/// A `GOSUB`'s `goto` cannot legally jump over a C variable-length-array
+/// declaration, so in such a function sized array `DIM`s must be heap-allocated
+/// (dyn) rather than stack VLAs.
+pub(crate) fn has_gosub(items: &[IrItem]) -> bool {
+    items.iter().any(|it| match it {
+        IrItem::Gosub(_) | IrItem::GosubExpr(_) | IrItem::GosubReturn => true,
+        IrItem::If { then_body, else_body, .. } => {
+            has_gosub(then_body) || else_body.as_deref().is_some_and(has_gosub)
+        }
+        IrItem::While { body, .. }
+        | IrItem::For { body, .. }
+        | IrItem::DoLoop { body, .. }
+        | IrItem::Compound(body) => has_gosub(body),
+        IrItem::SelectCase { cases, default, .. } => {
+            cases.iter().any(|c| has_gosub(&c.body))
+                || default.as_deref().is_some_and(has_gosub)
+        }
+        _ => false,
+    })
+}
+
+pub(crate) fn collect_dyn_names(items: &[IrItem], params: &[IrParam], has_gosub: bool) -> DynNames {
     let mut w = DynWalk::default();
     w.items(items);
     let params: HashSet<&str> = params.iter().map(|p| p.name.as_str()).collect();
@@ -578,11 +600,15 @@ pub(crate) fn collect_dyn_names(items: &[IrItem], params: &[IrParam]) -> DynName
         if params.contains(name.as_str()) {
             continue;
         }
+        let (is_array, vt) = w.dim_info[name];
         let late = w.late.contains(name);
-        if !late && *count < 2 {
+        // A GOSUB function's sized array DIMs must be heap (dyn), not stack VLAs
+        // — a GOSUB `goto` bypassing a VLA declaration is a hard C error
+        // (gif/gifview). Force every array DIM to dyn there.
+        let force = has_gosub && is_array;
+        if !force && !late && *count < 2 {
             continue;
         }
-        let (is_array, vt) = w.dim_info[name];
         if is_array {
             dyn_names.arrays.insert(name.clone(), vt);
         } else {

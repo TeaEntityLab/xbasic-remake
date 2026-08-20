@@ -98,8 +98,9 @@ fn set_fn_context(items: &[IrItem], params: &[crate::ir::IrParam]) {
     for p in params {
         dimmed.insert(p.name.clone());
     }
+    let fn_has_gosub = crate::c_emit_hoist::has_gosub(items);
     FN_DYN.with(|s| {
-        *s.borrow_mut() = crate::c_emit_hoist::collect_dyn_names(items, params);
+        *s.borrow_mut() = crate::c_emit_hoist::collect_dyn_names(items, params, fn_has_gosub);
     });
     FN_UNDIMMED_ARRAYS.with(|s| {
         let mut set = s.borrow_mut();
