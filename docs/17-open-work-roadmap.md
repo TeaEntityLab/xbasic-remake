@@ -109,6 +109,19 @@ exactly that lowering. So the fix must type shared string *arrays* as `char**`
 entanglement (the "bounded" element-type fix touches load-bearing shared-scalar
 typing) is why qbtoxb is a deliberate coordinated effort, not a reactive patch.
 
+**Entry point (turnkey).** `xb_frontend::parser::typed_dim_stmt` (parser.rs:318)
+is where a `<TYPE> name[]` declaration loses three things at once: it *skips* the
+leading element-type keyword (`STRING`), takes a `#`-prefixed `SharedName`
+(`#xbasic$`) as the bare name `"xbasic$"` with `suffix: None`, and hardcodes
+`shared: false`. So `STRING #xbasic$[]` emits `Dim { name: "xbasic$", suffix:
+None, shared: false }` → `dim xbasic$:integer`. The feature therefore starts
+there: (a) capture the type keyword / read the SharedName's trailing `$`/`!`/`#`
+as the element type, (b) set `shared: true` for a `SharedName`; then (c)
+`semantics::dim` routes a shared array to module-shared storage, and (d) the C
+emitter lowers shared arrays to correctly-typed globals — each step gated on
+`cgen_cemitter_sync` + the bootstrap fixed point, and none allowed to change the
+Integer typing of shared string *scalars* (`assignment`-path, not `dim`).
+
 ## 1. Backends
 
 ### LB-STUB — LLVM backend emits a real native object ✅ done
