@@ -190,6 +190,7 @@ pub mod llvm_backend {
                 m
             };
             emit.declare_functions(&program.items);
+            emit.declare_shared(&program.items);
             emit.emit_body(&program.items)?;
             if let Some(body) = entry_body(&program) {
                 emit.emit_body(body)?;
@@ -245,6 +246,10 @@ pub mod llvm_backend {
         /// Return type of the function currently being emitted.
         cur_ret: ValueType,
         vars: HashMap<String, (PointerValue<'ctx>, ValueType)>,
+        /// Module-shared scalar variables (`SHARED`), as LLVM globals keyed by name so
+        /// they persist across function calls — mirrors the interpreter's `state.shared`
+        /// and the C backend's `xb_shared_<name>` file-scope globals.
+        shared: HashMap<String, (PointerValue<'ctx>, ValueType)>,
         i64t: IntType<'ctx>,
         calloc: FunctionValue<'ctx>,
         strlen: FunctionValue<'ctx>,
@@ -443,6 +448,7 @@ pub mod llvm_backend {
                 file_table,
                 file_count,
                 vars: HashMap::new(),
+                shared: HashMap::new(),
                 funcs: HashMap::new(),
                 func_ids: HashMap::new(),
                 cur_fn: main,
@@ -652,6 +658,30 @@ pub mod llvm_backend {
                     let f = self.module.add_function(name, fty, None);
                     self.funcs.insert(name.clone(), f);
                 }
+            }
+        }
+
+        /// Create an LLVM global for every `SHARED` scalar (each `SharedAssignment`
+        /// target, in any function), so `SharedAssignment` stores and `SharedVariable`
+        /// reads resolve to a module-persistent slot — matching the interpreter's
+        /// `state.shared` and the C backend's `xb_shared_<name>` globals. A shared
+        /// variable never assigned has no global and reads its type default (as in the
+        /// interpreter), so collecting assignment targets is sufficient.
+        fn declare_shared(&mut self, items: &[IrItem]) {
+            let mut names: std::collections::BTreeMap<String, ValueType> =
+                std::collections::BTreeMap::new();
+            collect_shared(items, &mut names);
+            for (name, vt) in names {
+                let g = self
+                    .module
+                    .add_global(self.llvm_type(vt), None, &format!("xb_shared_{name}"));
+                let init: BasicValueEnum = match vt {
+                    ValueType::String => self.ptr.const_null().into(),
+                    ValueType::Float => self.f64t.const_zero().into(),
+                    ValueType::Integer => self.i32t.const_zero().into(),
+                };
+                g.set_initializer(&init);
+                self.shared.insert(name, (g.as_pointer_value(), vt));
             }
         }
 
@@ -1006,6 +1036,19 @@ pub mod llvm_backend {
                     if let Some(v) = self.eval_value(value)? {
                         let slot = self.get_or_alloca(&target.name, target.value_type)?;
                         let v = self.coerce_to(v, self.llvm_type(target.value_type).into())?;
+                        self.builder.build_store(slot, v).map_err(Self::err)?;
+                    }
+                }
+                IrItem::SharedAssignment { target, value } => {
+                    // Store to the module-shared global (mirrors the interpreter's
+                    // exec_shared and the C backend's `xb_shared_<name> = …`); declared
+                    // up front by declare_shared. Previously fell through `_ => {}`, so a
+                    // shared write was silently dropped.
+                    if let (Some(v), Some((slot, vt))) = (
+                        self.eval_value(value)?,
+                        self.shared.get(&target.name).copied(),
+                    ) {
+                        let v = self.coerce_to(v, self.llvm_type(vt).into())?;
                         self.builder.build_store(slot, v).map_err(Self::err)?;
                     }
                 }
@@ -1564,6 +1607,25 @@ pub mod llvm_backend {
                     // Undefined variable: XBasic auto-vivifies to the type default (0 /
                     // 0.0 / "") on read; the interpreter does the same, so the backend
                     // must too rather than skip (which would drop the value from PRINT).
+                    None => Some(match sym.value_type {
+                        ValueType::String => self.str_const(b"")?.into(),
+                        ValueType::Float => self.f64t.const_zero().into(),
+                        _ => self.i32t.const_zero().into(),
+                    }),
+                },
+                IrExprKind::SharedVariable(sym) => match self.shared.get(&sym.name) {
+                    Some((slot, ValueType::String)) => {
+                        Some(self.builder.build_load(self.ptr, *slot, "shld").map_err(Self::err)?)
+                    }
+                    Some((slot, ValueType::Float)) => {
+                        Some(self.builder.build_load(self.f64t, *slot, "shld").map_err(Self::err)?)
+                    }
+                    Some((slot, _)) => {
+                        Some(self.builder.build_load(self.i32t, *slot, "shld").map_err(Self::err)?)
+                    }
+                    // A shared read before any shared write auto-vivifies to the type
+                    // default, matching the interpreter (previously fell through to `_ =>
+                    // None`, dropping the value from PRINT).
                     None => Some(match sym.value_type {
                         ValueType::String => self.str_const(b"")?.into(),
                         ValueType::Float => self.f64t.const_zero().into(),
@@ -3467,6 +3529,42 @@ pub mod llvm_backend {
         }
     }
 
+    /// Every `SHARED` scalar (name → type) assigned anywhere in the program, recursing
+    /// all bodies *including* nested `Function` items — `SHARED` variables span
+    /// functions. Deterministic order (`BTreeMap`).
+    fn collect_shared(
+        items: &[IrItem],
+        out: &mut std::collections::BTreeMap<String, ValueType>,
+    ) {
+        for it in items {
+            match it {
+                IrItem::SharedAssignment { target, .. } => {
+                    out.entry(target.name.clone()).or_insert(target.value_type);
+                }
+                IrItem::Function { body, .. }
+                | IrItem::While { body, .. }
+                | IrItem::For { body, .. }
+                | IrItem::DoLoop { body, .. } => collect_shared(body, out),
+                IrItem::If { then_body, else_body, .. } => {
+                    collect_shared(then_body, out);
+                    if let Some(b) = else_body {
+                        collect_shared(b, out);
+                    }
+                }
+                IrItem::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        collect_shared(&c.body, out);
+                    }
+                    if let Some(b) = default {
+                        collect_shared(b, out);
+                    }
+                }
+                IrItem::Compound(items) => collect_shared(items, out),
+                _ => {}
+            }
+        }
+    }
+
     /// Names (with type) assigned via a plain scalar `Assignment` anywhere in one function
     /// body (recursing into control-flow bodies, but NOT into nested `Function` items — each
     /// body is pre-allocated at its own `emit_body`). Used to pre-create zero-initialized
@@ -4933,6 +5031,42 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "0\n[]\n0\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_shares_variables_across_functions() {
+        use std::io::Write;
+        use std::process::Command;
+        // `##name` is a module-shared scalar: a write in one function is visible in
+        // another. The backend must lower SharedAssignment/SharedVariable to an LLVM
+        // global (both previously fell through to a no-op / None, dropping the shared
+        // state), matching the interpreter and the C backend.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             FUNCTION SetIt ()\n\
+             ##counter = 42\n\
+             ##name$ = \"hello\"\n\
+             END FUNCTION\n\
+             FUNCTION Main\n\
+             SetIt ()\n\
+             PRINT ##counter\n\
+             PRINT ##name$\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_shared.o");
+        let exep = dir.join("xb_llvm_shared.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "42\nhello\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
