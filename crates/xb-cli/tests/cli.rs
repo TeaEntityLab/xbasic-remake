@@ -126,6 +126,49 @@ fn cli_compile_produces_native_executable() {
     let _ = std::fs::remove_file(&exe);
 }
 
+#[test]
+fn cli_c_backend_syncs_entry_hoist_and_unknown_calls() {
+    // Locks three C-generator sync fixes together (each a no-op on the self-host /
+    // v0.1 corpus): the entry point runs the first function when there is no `Main`
+    // (legacy `Entry`); auto-vivified scalars (`i`, `total`) are hoisted and declared;
+    // and an unknown callee is stubbed to the zero-default (statement = no-op,
+    // expression = 0) — matching `xb --run`. Output: total 1+2+3 = 6, then the stubbed
+    // `XstUnknownVal` call = 0.
+    let src = "VERSION \"0.1\"\n\
+        FUNCTION Entry ()\n\
+        FOR i = 1 TO 3\n\
+        total = total + i\n\
+        NEXT i\n\
+        PRINT total\n\
+        XstUnknownProc (total)\n\
+        PRINT XstUnknownVal (total)\n\
+        END FUNCTION\n";
+    let tmp = std::env::temp_dir().join("xb_cli_cgen_sync");
+    let _ = std::fs::create_dir_all(&tmp);
+    let srcp = tmp.join("sync.x");
+    std::fs::write(&srcp, src).unwrap();
+    let exe = tmp.join("sync_exe");
+    let _ = std::fs::remove_file(&exe);
+    let output = Command::new(env!("CARGO_BIN_EXE_xb"))
+        .args([
+            "--compile",
+            srcp.to_str().unwrap(),
+            "-o",
+            exe.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "compile stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let run = Command::new(&exe).output().unwrap();
+    assert_eq!(String::from_utf8(run.stdout).unwrap(), "6\n0\n");
+    let _ = std::fs::remove_file(&exe);
+    let _ = std::fs::remove_file(&srcp);
+}
+
 #[cfg(feature = "llvm")]
 #[test]
 fn cli_compile_llvm_backend_produces_native_executable() {
