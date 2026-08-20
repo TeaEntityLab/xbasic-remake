@@ -9,8 +9,9 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-20**. `cargo test --workspace --exclude
-> xb-ide` = **182 passed / 0 failed**. C-backend demo sweep: **113/114 compile,
-> 70 byte-faithful, diverge=3** (up from 3→55→97→113). Nineteen CEmitter fix
+> xb-ide` = **183 passed / 0 failed**. C-backend demo sweep: **114/114 compile,
+> 71 byte-faithful, diverge=3, 0 compile-fails** (up from 3→55→97→113→114).
+> Twenty CEmitter fix
 > batches — each byte-neutral on the self-host + v0.1 corpus or mirrored in
 > `cgen.x` (`cgen_cemitter_sync` 5/5 throughout; native bootstrap fixed point
 > re-verified) — landed: arity reconciliation, dynamic DIMs, label guards,
@@ -21,14 +22,19 @@
 > array-parameter pointers, `*AT` memory-builtin stubs, composite-member-array
 > single-hoist, consistent brace-byte-read naming, GOSUB-function VLAs→heap,
 > type-conflict byte-reads, duplicate-param rename only on true C-name collision,
-> and dual-use scalar/array names split into scalar + `_arr` array (5 demos:
-> gif/gifview/Kittedy/zap/adatadim). The 3 divergers: `aarray`/`aarray_ISNODE`
+> dual-use scalar/array names split into scalar + `_arr` array (5 demos:
+> gif/gifview/Kittedy/zap/adatadim), and — closing the last compile-fail —
+> nested-block array DIMs hoisted to dyn (a `REDIM` inside an `IF` was a
+> block-scoped VLA later indexed out-of-block) + dual-use *array params* split
+> (qbtoxb's `token[]`, also read as a scalar `token = token[i]`). The 3
+> divergers: `aarray`/`aarray_ISNODE`
 > (introspect XBasic array metadata via `&array[]`+`XLONGAT`, need the legacy
 > array ABI) and `acrc32` (**shift semantics**: cgen's `>>` on `intptr_t` shifts
 > logically, but the interp *and* LLVM reference both do i32 *arithmetic* shift —
 > `sum >> 1` on the negative `0xEDB88320` sign-extends there; cgen is the odd one
-> out, and a fix means emitting i32-arithmetic `>>` mirrored in `cgen.x`). **One**
-> compile-fail left: qbtoxb (shared String array + `0s`/`0d` float-hex literals).
+> out, and a fix means emitting i32-arithmetic `>>` mirrored in `cgen.x`). qbtoxb
+> — the last compile-fail (a 2800-line QuickBASIC→XBasic translator) — now
+> compiles and is byte-faithful (empty output on EOF, matching the interp).
 > LLVM: 150/0 faithful — **re-verified** after this session's shared-frontend
 > changes (feature tests 105/0; a targeted interp differential over
 > asystem/aclient/aserver/aback/atrim/atimer/arotate all match, confirming
@@ -49,9 +55,10 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | CGEN-BYREF-DESC | C backend | array-by-ref has no length/metadata in C: `UBOUND(param[])`, `&array[]`+`XLONGAT` introspection segfault/diverge; needs a `{data,len}` descriptor matching the legacy array ABI | `aarray`/`aarray_ISNODE` | feature |
 | CGEN-SHIFT | C backend | `>>` on `intptr_t` shifts logically; interp+LLVM reference do i32 *arithmetic* shift (`0xEDB88320>>1` sign-extends). cgen is the odd one out — emit i32-arithmetic `>>` mirrored in cgen.x (broad; risks `(int32_t)` truncating 64-bit values) | `acrc32` (diverge) | feature |
 | ~~CGEN-GOTO-VLA~~ | C backend | ✅ **done** (2026-08-20): sized array DIMs in a GOSUB function now heap-allocate (dyn pointer) instead of stack VLAs, so the GOSUB `goto` no longer bypasses a VLA init (agrids faithful) | — | ✅ |
-| ~~CGEN-SCALAR-ARRAY-DUAL~~ | C backend | ✅ **done** (2026-08-20): a name used as both scalar and array now emits two C vars — scalar `xb_var_x` + array `xb_var_x_arr` (mirrors the interp's TypedSlot value/array fields), routed by IR-node kind; array *DIMs* also count as array-context (adatadim's scalar `SWAP a[]`); params excluded (gif/gifview/Kittedy/zap/adatadim faithful) | — | ✅ |
-| ~~CGEN-NAME-CONFLICT~~ | C backend | ✅ **partly done** (2026-08-20): aligned string_byte_read + byref_symbol with symbol()'s resolution and fixed duplicate-param rename to fire only on true C-name collision (atools faithful). qbtoxb still fails — its `xbasic$` is a shared *String array* force-dyn'd as `intptr_t*` (should be `char**`) with a byref-arg tangle → folded into CGEN-SHARED-ARR | `qbtoxb` (via CGEN-SHARED-ARR) | ◑ |
-| CGEN-SHARED-ARR | C backend | `SHARED`/composite arrays + array-by-ref lower function-local (ary-class programs; agrids now compiles via VLAs→heap) | ary-class AOT | feature |
+| ~~CGEN-SCALAR-ARRAY-DUAL~~ | C backend | ✅ **done** (2026-08-20): a name used as both scalar and array now emits two C vars — scalar `xb_var_x` + array `xb_var_x_arr` (mirrors the interp's TypedSlot value/array fields), routed by IR-node kind; array *DIMs* also count as array-context (adatadim's scalar `SWAP a[]`); a genuine dual-use *array param* also splits (qbtoxb's `token[]`, also read as scalar `token = token[i]`); scalar params excluded (gif/gifview/Kittedy/zap/adatadim/qbtoxb faithful) | — | ✅ |
+| ~~CGEN-NAME-CONFLICT~~ | C backend | ✅ **done** (2026-08-20): aligned string_byte_read + byref_symbol with symbol()'s resolution; duplicate-param rename fires only on true C-name collision (atools faithful). qbtoxb's `xbasic$` shared-String-array element-typing resolved (facet 1, b1e0353); its remaining `#line`/`token` tangle closed structurally (nested-DIM hoist + dual-use array-param split, 6153215) — **qbtoxb now compiles + byte-faithful** | `qbtoxb` ✅ | ✅ |
+| ~~CGEN-NESTED-DIM~~ | C backend | ✅ **done** (2026-08-20): a sized array DIM inside an `IF`/`FOR`/`WHILE`/`SELECT` body is a block-scoped VLA that later out-of-block uses can't see (qbtoxb `REDIM #line[]` inside an `IF`, indexed after); such names now force to dyn (function-hoisted), structural so it round-trips text IR (frozen v0.1 golden unchanged) | `qbtoxb` | ✅ |
+| CGEN-SHARED-ARR | C backend | true `SHARED`/composite array *runtime* semantics still lower function-local (module-shared arrays aren't real C globals). **No demo compile blocker** (qbtoxb compiles; it exits at EOF before its shared `#line[]` runs); needed for correct shared-array *behavior* in ary-class programs | ary-class AOT | feature |
 | LLVM-SHARED-ARR | LLVM | `SHARED` *arrays* still per-function (only `##` scalars are globals now) | `ary`/`ary1` AOT parity | feature |
 | LLVM-ANY | LLVM | `ANY array[]` polymorphism (monomorphize or tagged elements) | `aarray_ISNODE` | feature |
 | LLVM-BYREF-REDIM | LLVM | REDIM-through-`@array[]` needs `{data,dims}` heap descriptors shared by pointer | general by-ref parity | feature |
@@ -76,6 +83,24 @@ Micro-residual documented in place: `FUNCADDRESS` (the builtin) returns `0` — 
 program uses it (§2 RT-FUNCPTR).
 
 ### CGEN-SHARED-ARR design — qbtoxb, the last demo compile-fail `[2026-08-20]`
+
+> **RESOLVED `[2026-08-20]` — qbtoxb compiles + is byte-faithful (114/114).** The
+> full end-to-end shared-array IR feature analyzed below was **not** required. Two
+> observations collapsed it to a bounded, structural fix: (1) qbtoxb reads stdin,
+> hits EOF, and exits *before* its translation logic runs, so its interp output is
+> empty — the C backend only needs to **compile** and produce empty output, not
+> model shared-array runtime semantics; (2) `xbasic$`'s element-type facet was
+> already fixed (facet 1, `b1e0353`: `shared_name_suffix`). The residue was two
+> *scoping/naming* bugs, both fixed structurally in `6153215`: `#line` `REDIM`'d
+> inside an `IF` became a block-scoped C VLA that later out-of-block uses couldn't
+> see (→ **CGEN-NESTED-DIM**: nested-block array DIMs force to dyn), and `token[]`
+> was an array param also read as a scalar `token = token[i]` (→ dual-use *array
+> param* split under **CGEN-SCALAR-ARRAY-DUAL**). Both triggers are structural, so
+> they round-trip the frozen text IR; the corpus has neither pattern, so
+> `cgen_cemitter_sync` 5/5 + bootstrap held. True shared-array *runtime* semantics
+> (module arrays as real C globals) remain a non-blocking future feature
+> (**CGEN-SHARED-ARR**, ary-class programs). The analysis below is retained as the
+> record of the deeper feature it was mistaken for.
 
 qbtoxb (a 2800-line QuickBASIC→XBasic translator) is the only remaining C
 compile-fail (113/114). Its 7 cc errors trace to two variables, both facets of

@@ -1,6 +1,6 @@
 //! CGEN-DEMO-REGRESSION (docs/17): a curated byte-faithfulness gate on the C
 //! generator over legacy demo programs, locking the fixes that took the demo
-//! sweep from 3 → 113/114 compiled and 36 → 70 byte-faithful.
+//! sweep from 3 → 114/114 compiled and 36 → 71 byte-faithful.
 //!
 //! For each demo: lower via the Rust frontend, run the interpreter (the
 //! reference), emit C via `CEmitter`, compile it with the same flags the CLI
@@ -11,9 +11,10 @@
 //!
 //! The list is curated for the cargo suite: every entry terminates quickly on
 //! empty stdin (no GUI loop, no network wait) and is deterministic. Each demo
-//! is annotated with the emitter feature it guards. `gif`/`Kittedy` produce no
-//! output on empty stdin but still lock the *scalar/array dual-use* codegen
-//! (a dual-use regression would fail to compile them).
+//! is annotated with the emitter feature it guards. `gif`/`Kittedy`/`qbtoxb`
+//! produce no output on empty stdin but still lock the codegen that lets them
+//! compile (a scalar/array dual-use, nested-block array DIM, or dual-use
+//! array-param regression would fail to compile them).
 
 mod common;
 
@@ -34,6 +35,10 @@ const DEMOS: &[(&str, &str)] = &[
     ("atimer", "synthetic &Func ids"),
     ("gif", "scalar/array dual-use (local hash)"),
     ("Kittedy", "scalar/array dual-use (found)"),
+    (
+        "qbtoxb",
+        "nested-block array DIM → dyn + dual-use array param (CGEN-NESTED-DIM)",
+    ),
 ];
 
 /// Interpreter reference output for `source` on empty stdin.
