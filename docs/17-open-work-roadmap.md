@@ -71,6 +71,38 @@ sections below or the named sibling docs; ✅-done items are omitted.
 Micro-residual documented in place: `FUNCADDRESS` (the builtin) returns `0` — no corpus
 program uses it (§2 RT-FUNCPTR).
 
+### CGEN-SHARED-ARR design — qbtoxb, the last demo compile-fail `[2026-08-20]`
+
+qbtoxb (a 2800-line QuickBASIC→XBasic translator) is the only remaining C
+compile-fail (113/114). Its 7 cc errors trace to two variables, both facets of
+the SHARED-array feature — a **coordinated** change, not a bounded fix, so it is
+scoped here rather than attempted reactively (a wrong move risks the `cgen.x`
+byte-identity lock; the payoff is one demo, 113→114):
+
+1. **`xbasic$` — String-array element type under a shared/local/type-conflict
+   tangle.** `STRING #xbasic$[]` (a `#`-shared String array, src line 271)
+   coexists with a local `DIM xbasic$[#xuline]` (line 1671) *and* an Integer
+   `xbasic`. The analyzer lowers the DIM as **`dim xbasic$:integer`** (wrong —
+   it is a String array), so the dyn-array hoist emits `intptr_t* xb_var_xbasic_s`
+   while element writes use `char** xb_str_xbasic_s` → undeclared-identifier +
+   `intptr_t*`-vs-`int` cc errors. Fix needs the analyzer to type a `$`-suffixed
+   array as String even under an Integer/shared name conflict, and the emitter to
+   carry the String element type through the (possibly shared) array.
+2. **`line` — cross-function array flow.** `@line[]` is a by-ref array param of
+   `TranslateLine`/`TranslateStatement` (src 105-106), but `line[i]` is also used
+   in a function where `line` is neither a param nor a local `DIM` → undeclared
+   `xb_var_line`. Fix needs shared/threaded array storage across the call chain
+   (the interp shares one slot; the C backend lowers each function's `line`
+   independently).
+
+Both reduce to: **`SHARED`/`#`-prefixed and cross-function arrays must lower to
+correctly-typed C globals (or a shared `{data,len,elem}` descriptor), not
+per-function locals**, with the analyzer's `$`/type-suffix resolution kept
+consistent for shared arrays. Prerequisite verified: no `SHARED` *array* appears
+in the self-host tools or v0.1 corpus (only scalar `##`), so a globals-based
+implementation can be byte-neutral there — but it MUST be checked against
+`cgen_cemitter_sync` + the native bootstrap fixed point before landing.
+
 ## 1. Backends
 
 ### LB-STUB — LLVM backend emits a real native object ✅ done
