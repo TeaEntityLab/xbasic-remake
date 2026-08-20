@@ -14,7 +14,18 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             out.push_str("\")");
         }
         IrExprKind::IntegerLiteral(v) => {
-            out.push_str(v);
+            // XBasic decimal literals like 08, 09 are invalid C octal constants.
+            // Strip leading zeros (preserving "0" itself and 0x hex prefixes).
+            if v.starts_with("0x") || v.starts_with("0X") || v.starts_with("0b") || v.starts_with("0B") {
+                out.push_str(v);
+            } else if let Some(stripped) = v.strip_prefix('-') {
+                out.push('-');
+                let s = stripped.trim_start_matches('0');
+                out.push_str(if s.is_empty() { "0" } else { s });
+            } else {
+                let s = v.trim_start_matches('0');
+                out.push_str(if s.is_empty() { "0" } else { s });
+            }
         }
         IrExprKind::FloatLiteral(v) => {
             out.push_str(v);
