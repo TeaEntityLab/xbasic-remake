@@ -9,8 +9,8 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-20**. `cargo test --workspace --exclude
-> xb-ide` = **182 passed / 0 failed**. C-backend demo sweep: **107/114 compile,
-> 64 byte-faithful, diverge=3** (up from 3→55→97→107). Sixteen CEmitter fix
+> xb-ide` = **182 passed / 0 failed**. C-backend demo sweep: **108/114 compile,
+> 65 byte-faithful, diverge=3** (up from 3→55→97→108). Seventeen CEmitter fix
 > batches — each byte-neutral on the self-host + v0.1 corpus or mirrored in
 > `cgen.x` (`cgen_cemitter_sync` 5/5 throughout) — landed: arity reconciliation,
 > dynamic DIMs, label guards, INLINE\$, FOR-var type fix, suffix-aware
@@ -19,13 +19,13 @@
 > lexing, synthetic `&Func` ids, NUL-safe literals, string-scalar UBOUND,
 > unsigned-shift bin helpers (arotate hang), array-parameter pointers, `*AT`
 > memory-builtin stubs, composite-member-array single-hoist, consistent
-> brace-byte-read naming, GOSUB-function VLAs→heap, and type-conflict
-> byte-reads. The 3 divergers: `aarray`/`aarray_ISNODE` (introspect XBasic array
-> metadata via `&array[]`+`XLONGAT`, need real array descriptors) and `acrc32`
-> (intptr_t-vs-i32 arithmetic width). Remaining 7 compile-fails are deep
-> single-cause gaps (scalar/array dual-use of one name, growable-array SWAP,
-> cross-scope type conflict, shared-vs-local). LLVM: 150/0 faithful.
-> Bootstrap fixed point + `cgen.x` byte-identity untouched.
+> brace-byte-read naming, GOSUB-function VLAs→heap, type-conflict byte-reads,
+> and duplicate-param rename only on true C-name collision. The 3 divergers:
+> `aarray`/`aarray_ISNODE` (introspect XBasic array metadata via
+> `&array[]`+`XLONGAT`, need real array descriptors) and `acrc32` (intptr_t-vs-i32
+> arithmetic width). Remaining 6 compile-fails are deep gaps: scalar/array
+> dual-use of one name (4), a shared-String-array + name-conflict tangle (1),
+> growable-array SWAP (1). LLVM: 150/0 faithful. Bootstrap + `cgen.x` untouched.
 
 ## 0. Open-gap index (at a glance)
 
@@ -41,7 +41,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | CGEN-BYREF-DESC | C backend | array-by-ref has no length/metadata in C: `UBOUND(param[])`, `&array[]`+`XLONGAT` introspection segfault/diverge; needs a `{data,len}` descriptor matching the legacy array ABI | `aarray`/`aarray_ISNODE` | feature |
 | ~~CGEN-GOTO-VLA~~ | C backend | ✅ **done** (2026-08-20): sized array DIMs in a GOSUB function now heap-allocate (dyn pointer) instead of stack VLAs, so the GOSUB `goto` no longer bypasses a VLA init (agrids faithful) | — | ✅ |
 | CGEN-SCALAR-ARRAY-DUAL | C backend | one name is a dynamically scalar-or-array slot: used as a scalar (`found = FALSE`, `INC found`) AND an array (`found[i,j]`); C can't be a scalar and a pointer at once (needs a tagged/union slot) | `gif`/`gifview`/`Kittedy`/`zap` (`i[]` param vs `FOR i`) | feature |
-| CGEN-NAME-CONFLICT | C backend | holistic bare-vs-full name derivation: one string var resolves to `line` in a call arg but `line$` in a print; `v0`/`v0$` type conflict; hoist declares one form — needs one canonical resolver across symbol/byref/assignment/byte-read | `atools`/`qbtoxb` | feature |
+| ~~CGEN-NAME-CONFLICT~~ | C backend | ✅ **partly done** (2026-08-20): aligned string_byte_read + byref_symbol with symbol()'s resolution and fixed duplicate-param rename to fire only on true C-name collision (atools faithful). qbtoxb still fails — its `xbasic$` is a shared *String array* force-dyn'd as `intptr_t*` (should be `char**`) with a byref-arg tangle → folded into CGEN-SHARED-ARR | `qbtoxb` (via CGEN-SHARED-ARR) | ◑ |
 | CGEN-SHARED-ARR | C backend | `SHARED`/composite arrays + array-by-ref lower function-local (ary-class programs; agrids now compiles via VLAs→heap) | ary-class AOT | feature |
 | LLVM-SHARED-ARR | LLVM | `SHARED` *arrays* still per-function (only `##` scalars are globals now) | `ary`/`ary1` AOT parity | feature |
 | LLVM-ANY | LLVM | `ANY array[]` polymorphism (monomorphize or tagged elements) | `aarray_ISNODE` | feature |
