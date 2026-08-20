@@ -196,11 +196,27 @@ the other 4 are blocked by three genuine (non-platform) *features*, not bounded 
   only because interpreter **and** LLVM backend carry the *same* bug (SHARED-keyword → a
   per-function local; e.g. `atask.x` never actually propagates `terminateProgram`), so an
   interpreter-only fix would *diverge* them. The fix must land in both layers together.
+  Even with `SHARED` arrays fixed, `ary`/`ary1` further depend on stubbed runtime builtins —
+  `XstStringToNumber` (×15), `XstQuickSort` (×5), `XstCopyArray` — which must also be
+  implemented in both layers; so `ary` is a multi-step effort (12 distinct `SHARED` arrays +
+  these builtins), not a single fix.
 - **Command-line arguments** (`XBMerge.x`): reads `XstGetCommandLineArguments`; with no args
   the interpreter and backend take different usage-vs-empty paths (borderline platform).
 
 Bootstrap-safe: the self-host toolchain uses none of these (no printed floats, zero composite
 params, no `XstGetCommandLineArguments`).
+
+### Interpreter/backend byte-faithful lock — the constraint on all remaining reach `[2026-08-20]`
+
+The 106/106 (and XBSourceLib 9/13) byte-faithful result means the interpreter and the LLVM
+backend are **locked together**: they match today partly because they share the *same*
+approximations (stubbed `Xst*` builtins, `SHARED`-keyword → per-function local, GUI no-ops).
+Consequently there are **no interpreter-only correctness wins left** — improving any such
+behavior in the interpreter alone would *diverge* it from the backend and regress the faithful
+set. Every remaining non-platform feature (SHARED semantics, real `Xst*` builtins, float
+formatting) is therefore a **coordinated interpreter + backend change**, verified against the
+full 151-demo differential. (This session's `@array` by-ref was safe precisely because it made
+the interpreter *converge* to behavior the backend already had, rather than diverge.)
 
 ### `@array` by-ref — interpreter side ✅ done `[2026-08-20]`
 The interpreter now implements array pass-by-reference end-to-end (commit `47a68ac`):
