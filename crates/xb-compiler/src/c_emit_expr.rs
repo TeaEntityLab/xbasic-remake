@@ -43,7 +43,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
         }
         IrExprKind::SharedVariable(s) => {
             out.push_str("xb_shared_");
-            out.push_str(&s.name.replace('.', "_").replace('$', "_s").replace('!', "_f").replace('#', "_d"));
+            out.push_str(&sanitize_c_ident(&s.name));
         }
         IrExprKind::Symbol(s) => {
             emit_symbol_ref(s, out);
@@ -405,11 +405,18 @@ pub(crate) fn emit_var_name(symbol: &IrSymbol, out: &mut String) {
 /// Sanitize an XBasic name for use as a C identifier suffix (after a prefix
 /// like `xb_ub_`). Mirrors the sanitization in `emit_var_name`.
 pub(crate) fn sanitize_c_ident(name: &str) -> String {
+    // The XBasic type suffixes `$ ! # @ & %` (and doubled `$$ @@ && %%`) are part
+    // of a name — `value` (XLONG), `value@` (SBYTE), `value&&` (ULONG) are three
+    // distinct variables — but none is a legal C identifier char. Map each to a
+    // distinct `_x` (the type is already in the `xb_var_`/`xb_str_` prefix), so
+    // the three become `value`, `value_a`, `value_l_l`.
     name.replace('.', "_")
         .replace('$', "_s")
         .replace('!', "_f")
         .replace('#', "_d")
         .replace('@', "_a")
+        .replace('&', "_l")
+        .replace('%', "_h")
 }
 
 /// Emit a call's argument list. For a user-defined callee whose arg count

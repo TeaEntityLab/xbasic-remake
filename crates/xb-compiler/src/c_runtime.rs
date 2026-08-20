@@ -260,13 +260,13 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("static void* xb_gosub_stack[256]; static int xb_gosub_sp = 0;\n");
 }
 
-/// Sanitize an XBasic name for use as a C identifier: replace `.`, `$`, `!`,
-/// `#` with `_`, `_s`, `_f`, `_d` (mirrors `c_emit_expr::emit_var_name`).
+/// Sanitize an XBasic name for use as a C identifier. Delegates to the single
+/// source of truth `c_emit_expr::sanitize_c_ident` (replaces `.`/`$`/`!`/`#`/`@`
+/// with `_`/`_s`/`_f`/`_d`/`_a`) so a forward-decl param name can't drift from
+/// the definition's — an `@`-suffixed name (SBYTE, e.g. XBSourceLib `value@`)
+/// previously leaked a literal `@` into a forward declaration and broke cc.
 fn sanitize_c_name(name: &str) -> String {
-    name.replace('.', "_")
-        .replace('$', "_s")
-        .replace('!', "_f")
-        .replace('#', "_d")
+    crate::c_emit_expr::sanitize_c_ident(name)
 }
 
 use crate::c_emit::c_type;

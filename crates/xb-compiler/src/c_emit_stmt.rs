@@ -231,7 +231,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         IrItem::SharedAssignment { target, value } => {
             out.push_str(&ind);
             out.push_str("xb_shared_");
-            out.push_str(&target.name.replace('.', "_").replace('$', "_s").replace('!', "_f").replace('#', "_d"));
+            out.push_str(&crate::c_emit_expr::sanitize_c_ident(&target.name));
             out.push_str(" = ");
             emit_expr(value, out);
             out.push_str(";\n");
