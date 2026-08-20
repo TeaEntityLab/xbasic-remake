@@ -3,6 +3,7 @@ mod c_emit;
 mod c_emit_bitops;
 mod c_emit_data;
 mod c_emit_expr;
+mod c_emit_goto;
 mod c_emit_helpers;
 mod c_emit_hoist;
 mod c_emit_logical;

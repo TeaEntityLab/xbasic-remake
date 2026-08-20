@@ -118,6 +118,7 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             if *return_type != ValueType::Integer {
                 crate::c_emit_expr::emit_return_var_decl(name, *return_type, out);
             }
+            crate::c_emit_goto::emit_computed_goto_prologue(body, out, 1);
             emit_body(body, out, 1);
             if *return_type != ValueType::Integer {
                 emit_fallback_return(name, *return_type, out);
@@ -161,6 +162,7 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     emit_data_init(program, out);
     // Top-level scalars (walk_items ignores nested Function bodies).
     crate::c_emit_hoist::emit_hoisted_scalars(&program.items, &[], None, out, 1);
+    crate::c_emit_goto::emit_computed_goto_prologue(&program.items, out, 1);
     emit_body(top, out, 1);
     if let Some((name, params)) = entry {
         if params.is_empty() {
