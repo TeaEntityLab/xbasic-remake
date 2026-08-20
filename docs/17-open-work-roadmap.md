@@ -9,8 +9,8 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-20**. `cargo test --workspace --exclude
-> xb-ide` = **182 passed / 0 failed**. C-backend demo sweep: **112/114 compile,
-> 69 byte-faithful, diverge=3** (up from 3→55→97→112). Eighteen CEmitter fix
+> xb-ide` = **182 passed / 0 failed**. C-backend demo sweep: **113/114 compile,
+> 70 byte-faithful, diverge=3** (up from 3→55→97→113). Nineteen CEmitter fix
 > batches — each byte-neutral on the self-host + v0.1 corpus or mirrored in
 > `cgen.x` (`cgen_cemitter_sync` 5/5 throughout; native bootstrap fixed point
 > re-verified) — landed: arity reconciliation, dynamic DIMs, label guards,
@@ -21,11 +21,11 @@
 > array-parameter pointers, `*AT` memory-builtin stubs, composite-member-array
 > single-hoist, consistent brace-byte-read naming, GOSUB-function VLAs→heap,
 > type-conflict byte-reads, duplicate-param rename only on true C-name collision,
-> and dual-use scalar/array names split into scalar + `_arr` array (4 demos).
-> The 3 divergers: `aarray`/`aarray_ISNODE` (introspect XBasic array metadata via
-> `&array[]`+`XLONGAT`, need real array descriptors) and `acrc32` (intptr_t-vs-i32
-> arithmetic width). Only 2 compile-fails left: qbtoxb (shared String array) and
-> adatadim (growable-array SWAP). LLVM: 150/0 faithful. Bootstrap + `cgen.x` intact.
+> and dual-use scalar/array names split into scalar + `_arr` array (5 demos:
+> gif/gifview/Kittedy/zap/adatadim). The 3 divergers: `aarray`/`aarray_ISNODE`
+> (introspect XBasic array metadata via `&array[]`+`XLONGAT`, need the legacy
+> array ABI) and `acrc32` (intptr_t-vs-i32 arithmetic width). **One** compile-fail
+> left: qbtoxb (shared String array). LLVM: 150/0 faithful. Bootstrap + `cgen.x` intact.
 
 ## 0. Open-gap index (at a glance)
 
@@ -35,12 +35,12 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~CGEN-ARGC~~ | C backend | ✅ **done** (2026-08-20): arity reconciliation (drop extras, pad missing) via `DEFINED_SIGS` | — | ✅ |
 | ~~CGEN-BUILTINS~~ | C backend | ✅ **done** (2026-08-20): `INLINE$`, `EOF`, `RIGHT$`/`LEFT$` 1-arg, `STRING$` via `xb_string` | — | ✅ |
 | ~~CGEN-AROTATE~~ | C backend | ✅ **done** (2026-08-20): `xb_bin2`/`xb_binb`/`xb_binb2` shifted a signed int (negative rotate results looped forever); unsigned shifts, mirrored in cgen.x | — | ✅ |
-| CGEN-REDIM | C backend | `REDIM` emitted as `DIM` (fixed C arrays; no resize-preserving realloc) | REDIM-idiom demos AOT | feature |
+| CGEN-REDIM | C backend | `REDIM` emitted as `DIM` (fixed C arrays; no resize-preserving realloc). No demo blocker (adatadim's `SWAP a[],z[]` was a dual-use scalar swap, not growable arrays); needed only for content-preserving REDIM idioms | — (no demo) | feature |
 | ~~CGEN-ANY-PARAM~~ | C backend | ✅ **done** (2026-08-20): array params (`UBYTE gif[]`) thread `is_array` → C pointers; `*AT` memory builtins fold to the interp's 0/no-op stub (aquick faithful) | — | ✅ |
 | ~~CGEN-COMPOSITE-ARR~~ | C backend | ✅ **done** (2026-08-20): composite member arrays hoist once (dyn pointer wins); scalar+array DIM of one name no longer double-declares (arecord/adata faithful) | — | ✅ |
 | CGEN-BYREF-DESC | C backend | array-by-ref has no length/metadata in C: `UBOUND(param[])`, `&array[]`+`XLONGAT` introspection segfault/diverge; needs a `{data,len}` descriptor matching the legacy array ABI | `aarray`/`aarray_ISNODE` | feature |
 | ~~CGEN-GOTO-VLA~~ | C backend | ✅ **done** (2026-08-20): sized array DIMs in a GOSUB function now heap-allocate (dyn pointer) instead of stack VLAs, so the GOSUB `goto` no longer bypasses a VLA init (agrids faithful) | — | ✅ |
-| ~~CGEN-SCALAR-ARRAY-DUAL~~ | C backend | ✅ **done** (2026-08-20): a name used as both scalar and array now emits two C vars — scalar `xb_var_x` + array `xb_var_x_arr` (mirrors the interp's TypedSlot value/array fields), routed by IR-node kind; params excluded (gif/gifview/Kittedy/zap faithful) | — | ✅ |
+| ~~CGEN-SCALAR-ARRAY-DUAL~~ | C backend | ✅ **done** (2026-08-20): a name used as both scalar and array now emits two C vars — scalar `xb_var_x` + array `xb_var_x_arr` (mirrors the interp's TypedSlot value/array fields), routed by IR-node kind; array *DIMs* also count as array-context (adatadim's scalar `SWAP a[]`); params excluded (gif/gifview/Kittedy/zap/adatadim faithful) | — | ✅ |
 | ~~CGEN-NAME-CONFLICT~~ | C backend | ✅ **partly done** (2026-08-20): aligned string_byte_read + byref_symbol with symbol()'s resolution and fixed duplicate-param rename to fire only on true C-name collision (atools faithful). qbtoxb still fails — its `xbasic$` is a shared *String array* force-dyn'd as `intptr_t*` (should be `char**`) with a byref-arg tangle → folded into CGEN-SHARED-ARR | `qbtoxb` (via CGEN-SHARED-ARR) | ◑ |
 | CGEN-SHARED-ARR | C backend | `SHARED`/composite arrays + array-by-ref lower function-local (ary-class programs; agrids now compiles via VLAs→heap) | ary-class AOT | feature |
 | LLVM-SHARED-ARR | LLVM | `SHARED` *arrays* still per-function (only `##` scalars are globals now) | `ary`/`ary1` AOT parity | feature |
