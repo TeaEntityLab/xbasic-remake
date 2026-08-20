@@ -297,13 +297,19 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
             if params.is_empty() {
                 out.push_str("void");
             } else {
+                let byref = crate::c_emit::defined_param_byref(name).unwrap_or_default();
                 for (i, p) in params.iter().enumerate() {
                     if i > 0 {
                         out.push_str(", ");
                     }
+                    // Match emit_functions: a by-ref scalar sharing an array param's
+                    // name stays a plain value param (Kittedy's `@adjacent`+`@adjacent[]`).
+                    let p_byref = byref.get(i).copied().unwrap_or(false)
+                        && !params.iter().any(|q| q.is_array && q.name == p.name);
                     out.push_str(c_type(p.value_type));
-                    // Array param → pointer (matches emit_functions).
-                    out.push_str(if p.is_array { " *" } else { " " });
+                    // Array param → pointer; a by-ref SCALAR param is also a
+                    // pointer (`x_ref`, copy-in/out) — must match emit_functions.
+                    out.push_str(if p.is_array || p_byref { " *" } else { " " });
                     out.push_str("xb_");
                     out.push_str(if p.value_type == ValueType::String {
                         "str_"
@@ -311,6 +317,9 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
                         "var_"
                     });
                     out.push_str(&sanitize_c_name(&p.name));
+                    if p_byref && !p.is_array {
+                        out.push_str("_ref");
+                    }
                     // Keep prototypes consistent with emit_functions' dup rename:
                     // only when the emitted C name actually collides (same raw
                     // name AND same string-ness).

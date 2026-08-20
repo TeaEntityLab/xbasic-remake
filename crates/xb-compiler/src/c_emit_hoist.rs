@@ -452,14 +452,7 @@ pub(crate) fn collect_array_dims(items: &[IrItem], out: &mut HashMap<String, Vec
     }
 }
 
-/// Names with any `Dim` in `items` (scalar or array) — public wrapper over the
-/// hoist pass's own dimmed-set walk, for the per-function emit context.
-pub(crate) fn collect_dimmed_names(items: &[IrItem], dimmed: &mut HashSet<String>) {
-    collect_dimmed(items, dimmed);
-}
-
-/// Names with an *array* `Dim` (`is_array` or sized) in `items` — the subset of
-/// `collect_dimmed_names` that actually allocates array storage. A name with only
+/// Names with an *array* `Dim` (`is_array` or sized) in `items`. A name with only
 /// a *scalar* `Dim` but referenced as an array (a flattened composite array member
 /// `px3D.shape[i].x`, DIM'd scalar from its TYPE decl but indexed) has no array
 /// storage, so its array accesses must fold like a truly undimmed array. Recurses

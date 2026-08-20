@@ -434,22 +434,24 @@ pub(crate) fn emit_call_args(name: &str, args: &[IrExpr], out: &mut String) {
         _ => (args.len(), &[][..]),
     };
     let param_arrays = crate::c_emit::defined_param_arrays(name);
+    let param_byref = crate::c_emit::defined_param_byref(name);
     for (i, arg) in args.iter().take(take).enumerate() {
         if i > 0 {
             out.push_str(", ");
         }
-        // A by-ref arg to an array/pointer param must be a pointer, not a value:
-        // a scalar float by-ref to `double *` is otherwise a hard cc error (int is
-        // only masked by -Wno-int-conversion). A pure dyn array is already a
+        // A by-ref arg to a *pointer* param (an array param, or a by-ref scalar
+        // param `T* x_ref`) must be a pointer, not a value — a scalar float by-ref
+        // to `double *` is otherwise a hard cc error. A pure dyn array is already a
         // pointer variable → pass it directly; everything else (scalar, static
-        // array, dual-use scalar facet, string) takes address-of `&x` — a valid
-        // pointer to the data (array-of and 1-element views are covered by
-        // -Wno-incompatible-pointer-types). Only fires for by-ref args to array
-        // params of a known callee, so the corpus (0 by-ref) is byte-identical.
-        let to_array = param_arrays
+        // array, dual-use scalar facet, string) takes address-of `&x`. Only fires
+        // for by-ref args to known callees; the corpus has 0 by-ref → byte-identical.
+        let to_ptr = param_arrays
             .as_ref()
-            .is_some_and(|pa| pa.get(i).copied().unwrap_or(false));
-        if to_array {
+            .is_some_and(|pa| pa.get(i).copied().unwrap_or(false))
+            || param_byref
+                .as_ref()
+                .is_some_and(|pb| pb.get(i).copied().unwrap_or(false));
+        if to_ptr {
             if let IrExprKind::ByRef(inner) = &arg.kind {
                 if let IrExprKind::Symbol(s) = &inner.kind {
                     if crate::c_emit::is_dyn_array(&s.name)

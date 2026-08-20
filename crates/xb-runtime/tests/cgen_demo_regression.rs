@@ -168,12 +168,67 @@ END FUNCTION
     );
 }
 
+/// By-ref parameter write-back (CGEN-BYREF-WRITEBACK): the interpreter's call
+/// binding keys write-back on the *argument* being `@arg` (`ByRef`), not the
+/// callee's param decl, so the C backend makes a param a pointer (`T* x_ref` with
+/// copy-in/copy-out) iff EVERY call site passes it `@` (and none by value). Locks:
+/// (1) a scalar `@n` out-param writes back; (2) a composite `@p` out-param writes
+/// each member back; (3) a param `@`-ed at one site but passed by value at another
+/// (`UseVal`) stays by value and still type-checks (the intersection rule) - here
+/// the callee never writes it, so the interp's write-back is a no-op and matches.
+/// geo's `GeoPerpendicularLine @L2` is the real-world driver (diverges only on
+/// FLOAT-FMT now, not the by-ref part).
+#[test]
+fn cgen_matches_interpreter_on_byref_writeback() {
+    let source = "\
+VERSION \"0.1\"
+TYPE PT
+\tSINGLE .x
+\tSINGLE .y
+END TYPE
+FUNCTION Main
+\tINTEGER n
+\tPT p
+\tINTEGER a, b
+\tn = 5
+\tDoubler(@n)
+\tPRINT \"n=\"; n
+\tFillPt(@p)
+\tPRINT \"p=\"; p.x; p.y
+\ta = 3
+\tb = 7
+\tUseVal(@a)
+\tUseVal(b)
+\tPRINT \"a=\"; a
+END FUNCTION
+FUNCTION Doubler (INTEGER q)
+\tq = q * 2
+END FUNCTION
+FUNCTION FillPt (PT r)
+\tr.x = 1.5
+\tr.y = 2.5
+END FUNCTION
+FUNCTION UseVal (INTEGER v)
+\tPRINT \"got=\"; v
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_byref_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "byref", &tmp);
+    assert_eq!(
+        native, interp,
+        "by-ref write-back cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+}
+
 /// XBSourceLib core libraries that now C-compile and match the interpreter
 /// (MIG-SEMANTICS): extends the byte-faithfulness gate beyond the demo corpus to
 /// legacy core libs. `msc` exercises the full XBasic type-suffix sanitization
 /// (`value@` SBYTE, `value&&` ULONG, …) that a plain `. $ ! #` sanitizer dropped.
-/// (geo/XBMerge diverge on FLOAT-FMT/RT-ARGS; 7 more need by-ref array write-back
-/// — see docs/17 CGEN-BYREF-DESC.)
+/// (geo/XBMerge diverge on FLOAT-FMT/RT-ARGS; scalar/composite `@` by-ref
+/// write-back now lands via CGEN-BYREF-WRITEBACK — see docs/17. The remaining
+/// by-ref *array* write-back with runtime strides is CGEN-BYREF-DESC.)
 #[test]
 fn cgen_matches_interpreter_on_xbsourcelib() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

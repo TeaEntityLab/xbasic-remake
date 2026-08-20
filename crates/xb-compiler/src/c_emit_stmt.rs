@@ -362,6 +362,10 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         }
         IrItem::Function { .. } => {}
         IrItem::Return { value } => {
+            // Copy-out by-ref scalar params before returning, so their final
+            // values reach the caller (CGEN-BYREF-WRITEBACK). No-op when the
+            // function has no by-ref scalar param (every corpus/most demos).
+            crate::c_emit::emit_byref_copy_out(out, indent);
             out.push_str(&ind);
             match value {
                 Some(e) => {

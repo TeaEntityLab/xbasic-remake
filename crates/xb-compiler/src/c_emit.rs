@@ -18,6 +18,10 @@ thread_local! {
     /// array/pointer param must be emitted as a pointer, not a value (a scalar
     /// float by-ref to `double *` is otherwise a hard cc error). See CGEN-BYREF-ARG.
     static DEFINED_PARAM_ARRAYS: RefCell<HashMap<String, Vec<bool>>> = RefCell::new(HashMap::new());
+    /// Per-param `by_ref` flag per user-defined function, so a by-ref arg to a
+    /// by-ref param is passed as a pointer (`&x`) to match the pointer param
+    /// (CGEN-BYREF-WRITEBACK). Empty-ish for the corpus (no by-ref param).
+    static DEFINED_PARAM_BYREF: RefCell<HashMap<String, Vec<bool>>> = RefCell::new(HashMap::new());
     /// Per-function emit context: array names referenced but never `Dim`'d in the
     /// current function (auto-vivified — reads fold to the type default like the
     /// interpreter's missing-slot path), and the labels the current C function
@@ -50,6 +54,11 @@ thread_local! {
     /// the current function; empty for the shared corpus (all 1-D), so no 1-D
     /// emission changes.
     static FN_ARRAY_DIMS: RefCell<HashMap<String, Vec<IrExpr>>> = RefCell::new(HashMap::new());
+    /// By-reference SCALAR params of the current function (`@value`, not arrays):
+    /// emitted as `T* x_ref` with copy-in (`T x = *x_ref;`) at the top and
+    /// copy-out (`*x_ref = x;`) before every return, so writes reach the caller
+    /// (CGEN-BYREF-WRITEBACK). Empty for the corpus (no by-ref param).
+    static FN_BYREF_PARAMS: RefCell<Vec<(String, ValueType)>> = RefCell::new(Vec::new());
 }
 
 /// Record every user-defined function name for `program`. Called once per
@@ -85,6 +94,24 @@ fn set_defined_funcs(program: &IrProgram) {
             }
         }
     });
+    DEFINED_PARAM_BYREF.with(|s| {
+        let mut m = s.borrow_mut();
+        m.clear();
+        // Call-site driven: a param is by-ref iff EVERY call passes `@arg` there
+        // and none passes it by value. This matches the interpreter (whose
+        // write-back keys on the *arg* being `ByRef`, not the param decl - a
+        // `DECLARE @p` defined without `@` still writes back, e.g. geo's
+        // `GeoPerpendicularLine @L2`) while keeping a fixed C signature that
+        // type-checks every call. A param `@`-ed at some sites but passed by value
+        // at others (ary's `ArySetSINGLE value!`, spuriously `@`-ed) stays by
+        // value; the interp's write-back there is a no-op (callee never writes it).
+        // A composite `@v` has already flattened to per-member `byref(...)` args.
+        let mut seen: HashMap<String, Vec<(bool, bool)>> = HashMap::new();
+        collect_callsite_byref(&program.items, &mut seen);
+        for (name, states) in seen {
+            m.insert(name, states.iter().map(|(br, bv)| *br && !*bv).collect());
+        }
+    });
     FUNC_IDS.with(|s| {
         let mut ids = s.borrow_mut();
         ids.clear();
@@ -101,6 +128,150 @@ fn set_defined_funcs(program: &IrProgram) {
     });
 }
 
+/// Record, per callee position, whether an `@arg` (`ByRef`) and/or a by-value arg
+/// is ever passed there, across every call site in the program. A param is by-ref
+/// (a C pointer with copy-in/copy-out) iff `seen_byref && !seen_byval` - the
+/// call-site-driven model the interpreter uses, restricted to positions that are
+/// *consistently* `@` so the fixed C signature still type-checks every call.
+fn collect_callsite_byref(items: &[IrItem], m: &mut HashMap<String, Vec<(bool, bool)>>) {
+    fn record(name: &str, args: &[IrExpr], m: &mut HashMap<String, Vec<(bool, bool)>>) {
+        let v = m.entry(name.to_owned()).or_default();
+        if v.len() < args.len() {
+            v.resize(args.len(), (false, false));
+        }
+        for (i, a) in args.iter().enumerate() {
+            if matches!(a.kind, crate::ir::IrExprKind::ByRef(_)) {
+                v[i].0 = true;
+            } else {
+                v[i].1 = true;
+            }
+        }
+    }
+    fn walk_expr(e: &IrExpr, m: &mut HashMap<String, Vec<(bool, bool)>>) {
+        use crate::ir::IrExprKind as K;
+        match &e.kind {
+            K::FunctionCall { name, args } => {
+                record(name, args, m);
+                for a in args {
+                    walk_expr(a, m);
+                }
+            }
+            K::ByRef(inner) | K::Not(inner) => walk_expr(inner, m),
+            K::Unary { operand, .. } => walk_expr(operand, m),
+            K::Comparison { left, right, .. }
+            | K::Arithmetic { left, right, .. }
+            | K::Boolean { left, right, .. }
+            | K::Logical { left, right, .. } => {
+                walk_expr(left, m);
+                walk_expr(right, m);
+            }
+            K::ArrayAccess { index, extra_indices, .. } => {
+                walk_expr(index, m);
+                for x in extra_indices {
+                    walk_expr(x, m);
+                }
+            }
+            _ => {}
+        }
+    }
+    for it in items {
+        match it {
+            IrItem::Call { name, args } => {
+                record(name, args, m);
+                for a in args {
+                    walk_expr(a, m);
+                }
+            }
+            IrItem::Print { items, .. } => {
+                for e in items {
+                    walk_expr(e, m);
+                }
+            }
+            IrItem::Dim { size, extra_dims, .. } => {
+                if let Some(s) = size {
+                    walk_expr(s, m);
+                }
+                for x in extra_dims {
+                    walk_expr(x, m);
+                }
+            }
+            IrItem::Assignment { value, .. } | IrItem::SharedAssignment { value, .. } => {
+                walk_expr(value, m);
+            }
+            IrItem::ArrayAssignment { index, extra_indices, value, .. } => {
+                walk_expr(index, m);
+                for x in extra_indices {
+                    walk_expr(x, m);
+                }
+                walk_expr(value, m);
+            }
+            IrItem::MidAssign { target, start, length, value } => {
+                walk_expr(target, m);
+                walk_expr(start, m);
+                if let Some(l) = length {
+                    walk_expr(l, m);
+                }
+                walk_expr(value, m);
+            }
+            IrItem::BuiltinAssign { args, value, .. } => {
+                for a in args {
+                    walk_expr(a, m);
+                }
+                walk_expr(value, m);
+            }
+            IrItem::If { condition, then_body, else_body } => {
+                walk_expr(condition, m);
+                collect_callsite_byref(then_body, m);
+                if let Some(e) = else_body {
+                    collect_callsite_byref(e, m);
+                }
+            }
+            IrItem::While { condition, body } => {
+                walk_expr(condition, m);
+                collect_callsite_byref(body, m);
+            }
+            IrItem::DoLoop { pre_condition, post_condition, body } => {
+                if let Some((e, _)) = pre_condition {
+                    walk_expr(e, m);
+                }
+                if let Some((e, _)) = post_condition {
+                    walk_expr(e, m);
+                }
+                collect_callsite_byref(body, m);
+            }
+            IrItem::For { start, end, step, body, .. } => {
+                walk_expr(start, m);
+                walk_expr(end, m);
+                if let Some(s) = step {
+                    walk_expr(s, m);
+                }
+                collect_callsite_byref(body, m);
+            }
+            IrItem::Function { body, .. } => collect_callsite_byref(body, m),
+            IrItem::Return { value } => {
+                if let Some(v) = value {
+                    walk_expr(v, m);
+                }
+            }
+            IrItem::SelectCase { selector, cases, default } => {
+                walk_expr(selector, m);
+                for c in cases {
+                    for cond in &c.conditions {
+                        walk_expr(cond, m);
+                    }
+                    collect_callsite_byref(&c.body, m);
+                }
+                if let Some(d) = default {
+                    collect_callsite_byref(d, m);
+                }
+            }
+            IrItem::Compound(items) => collect_callsite_byref(items, m),
+            IrItem::GosubExpr(e) | IrItem::GotoExpr(e) => walk_expr(e, m),
+            _ => {}
+        }
+    }
+}
+
 /// Declared param types of a user-defined function, or `None` for builtins /
 /// unknown names (whose call sites are emitted as-is / stubbed).
 pub(crate) fn defined_params(name: &str) -> Option<Vec<crate::ValueType>> {
@@ -112,6 +283,11 @@ pub(crate) fn defined_param_arrays(name: &str) -> Option<Vec<bool>> {
     DEFINED_PARAM_ARRAYS.with(|s| s.borrow().get(name).cloned())
 }
 
+/// Per-param `by_ref` flags of a user-defined callee (for by-ref arg emission).
+pub(crate) fn defined_param_byref(name: &str) -> Option<Vec<bool>> {
+    DEFINED_PARAM_BYREF.with(|s| s.borrow().get(name).cloned())
+}
+
 /// The interpreter's synthetic `&Func` value: 1-based program-item order
 /// (eval.rs `function_id`), or 0 for a name with no Function item.
 pub(crate) fn func_addr_id(name: &str) -> i32 {
@@ -120,7 +296,7 @@ pub(crate) fn func_addr_id(name: &str) -> i32 {
 
 /// Establish the per-function emit context for `items` (a function body, or the
 /// whole program's items for `main` — the walkers skip nested `Function` bodies).
-fn set_fn_context(items: &[IrItem], params: &[crate::ir::IrParam]) {
+fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
     let mut refs = HashSet::new();
     crate::c_emit_hoist::collect_array_refs(items, &mut refs);
     // Array storage comes only from an *array* `Dim`; a name with only a scalar
@@ -172,7 +348,64 @@ fn set_fn_context(items: &[IrItem], params: &[crate::ir::IrParam]) {
         m.clear();
         crate::c_emit_hoist::collect_array_dims(items, &mut m);
     });
+    FN_BYREF_PARAMS.with(|s| {
+        let mut v = s.borrow_mut();
+        v.clear();
+        // By-ref SCALAR params only (call-site driven): a by-ref ARRAY param is
+        // already a pointer (its element writes reach the caller directly), so it
+        // needs no copy-out. Position i is by-ref iff some call passes `@` there.
+        let byref = defined_param_byref(name).unwrap_or_default();
+        v.extend(
+            params
+                .iter()
+                .enumerate()
+                .filter(|(i, p)| {
+                    !p.is_array
+                        && byref.get(*i).copied().unwrap_or(false)
+                        // Skip a by-ref scalar sharing an array param's name (see
+                        // emit_functions): it stays a plain value param, no copy-out.
+                        && !params.iter().any(|q| q.is_array && q.name == p.name)
+                })
+                .map(|(_, p)| (p.name.clone(), p.value_type)),
+        );
+    });
     GOSUB_RET_SEEN.with(|s| s.borrow_mut().clear());
+}
+
+/// Copy-in prologue: `T x = *x_ref;` for each by-ref scalar param, so the body
+/// works on a local (unchanged) and the pointer param carries the caller's value.
+pub(crate) fn emit_byref_copy_in(out: &mut String, indent: usize) {
+    let ind = "    ".repeat(indent);
+    FN_BYREF_PARAMS.with(|s| {
+        for (name, vt) in s.borrow().iter() {
+            let sym = IrSymbol { name: name.clone(), value_type: *vt };
+            out.push_str(&ind);
+            out.push_str(c_type(*vt));
+            out.push(' ');
+            crate::c_emit_expr::emit_var_name(&sym, out);
+            out.push_str(" = *");
+            crate::c_emit_expr::emit_var_name(&sym, out);
+            out.push_str("_ref;\n");
+        }
+    });
+}
+
+/// Copy-out epilogue: `*x_ref = x;` for each by-ref scalar param, emitted before
+/// every function return so the local's final value reaches the caller (mirrors
+/// the interpreter's post-call by-ref write-back).
+pub(crate) fn emit_byref_copy_out(out: &mut String, indent: usize) {
+    let ind = "    ".repeat(indent);
+    FN_BYREF_PARAMS.with(|s| {
+        for (name, vt) in s.borrow().iter() {
+            let sym = IrSymbol { name: name.clone(), value_type: *vt };
+            out.push_str(&ind);
+            out.push('*');
+            crate::c_emit_expr::emit_var_name(&sym, out);
+            out.push_str("_ref = ");
+            crate::c_emit_expr::emit_var_name(&sym, out);
+            out.push_str(";\n");
+        }
+    });
 }
 
 /// An array referenced in the current function without any `Dim` — reads fold to
@@ -453,7 +686,7 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             }
             // Establish the per-function context BEFORE the signature so a
             // dual-use array param is emitted with its `_arr` array name.
-            set_fn_context(body, params);
+            set_fn_context(name, body, params);
             out.push_str(c_type(*return_type));
             out.push_str(" xb_user_");
             out.push_str(name);
@@ -461,17 +694,33 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             if params.is_empty() {
                 out.push_str("void");
             }
+            let byref = defined_param_byref(name).unwrap_or_default();
             for (i, p) in params.iter().enumerate() {
                 if i > 0 {
                     out.push_str(", ");
                 }
+                // A by-ref SCALAR whose base name is ALSO an array param (Kittedy's
+                // `@adjacent, @adjacent[]`) can't take the `_ref` scalar treatment:
+                // its copy-in local would collide with the array pointer param. Fall
+                // back to a plain value param (the original emission) for that name.
+                let p_byref = byref.get(i).copied().unwrap_or(false)
+                    && !params.iter().any(|q| q.is_array && q.name == p.name);
                 out.push_str(c_type(p.value_type));
-                // Array param (`UBYTE gif[]`): a pointer, so the body's `p[i]`
-                // subscripts bind (a caller array decays to this pointer).
-                out.push_str(if p.is_array { " *" } else { " " });
-                if p.is_array && is_dual_use(&p.name) {
-                    // Dual-use array param: the array param takes the `_arr`
-                    // name; the base-name scalar is a local (emit_hoisted_scalars).
+                // Array param → pointer (body `p[i]` binds). A by-ref SCALAR param
+                // is also a pointer (`x_ref`) with a copied-in local `x`; by-ref is
+                // call-site driven (`@arg`), matching the interpreter's write-back
+                // (CGEN-BYREF-WRITEBACK). A plain scalar param stays a value.
+                out.push_str(if p.is_array || p_byref { " *" } else { " " });
+                if p_byref && !p.is_array {
+                    emit_var_name(
+                        &IrSymbol {
+                            name: p.name.clone(),
+                            value_type: p.value_type,
+                        },
+                        out,
+                    );
+                    out.push_str("_ref");
+                } else if p.is_array && is_dual_use(&p.name) {
                     emit_array_var_name(
                         &IrSymbol {
                             name: p.name.clone(),
@@ -503,6 +752,7 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
                 }
             }
             out.push_str(") {\n");
+            emit_byref_copy_in(out, 1);
             crate::c_emit_hoist::emit_hoisted_scalars(body, params, Some(name), out, 1);
             emit_dyn_decls(out, 1);
             if *return_type != ValueType::Integer {
@@ -510,6 +760,7 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             }
             crate::c_emit_goto::emit_computed_goto_prologue(body, out, 1);
             emit_body(body, out, 1);
+            emit_byref_copy_out(out, 1);
             if *return_type != ValueType::Integer {
                 emit_fallback_return(name, *return_type, out);
             } else {
@@ -550,7 +801,7 @@ fn emit_main(program: &IrProgram, out: &mut String) {
         });
     out.push_str("int main(void) {\n");
     emit_data_init(program, out);
-    set_fn_context(&program.items, &[]);
+    set_fn_context("", &program.items, &[]);
     // Top-level scalars (walk_items ignores nested Function bodies).
     crate::c_emit_hoist::emit_hoisted_scalars(&program.items, &[], None, out, 1);
     emit_dyn_decls(out, 1);
