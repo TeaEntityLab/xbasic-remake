@@ -29,7 +29,11 @@
 > `sum >> 1` on the negative `0xEDB88320` sign-extends there; cgen is the odd one
 > out, and a fix means emitting i32-arithmetic `>>` mirrored in `cgen.x`). **One**
 > compile-fail left: qbtoxb (shared String array + `0s`/`0d` float-hex literals).
-> LLVM: 150/0 faithful. Bootstrap + `cgen.x` intact.
+> LLVM: 150/0 faithful — **re-verified** after this session's shared-frontend
+> changes (feature tests 105/0; a targeted interp differential over
+> asystem/aclient/aserver/aback/atrim/atimer/arotate all match, confirming
+> `$$`-GIANT lexing / `0s`-`0d` / `byref_symbol` / `for_stmt` / `auto_symbol` /
+> `string_byte_read` did not regress it). Bootstrap + `cgen.x` intact.
 
 ## 0. Open-gap index (at a glance)
 
