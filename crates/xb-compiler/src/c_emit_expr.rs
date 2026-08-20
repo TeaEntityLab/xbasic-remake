@@ -25,7 +25,19 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             // XBasic decimal literals like 08, 09 are invalid C octal constants.
             // Strip leading zeros (preserving "0" itself and 0x hex prefixes).
             if v.starts_with("0x") || v.starts_with("0X") || v.starts_with("0b") || v.starts_with("0B") {
+                // A hex/binary literal (0xEDB88320, 0xFFFFFFFF) is an i32 bit
+                // pattern (XBasic INTEGER is i32) but in C it is `unsigned int`
+                // (positive). Cast to int32_t for the signed i32 value the
+                // interpreter uses (0xFFFFFFFF -> -1), so later shifts/prints stay
+                // i32-faithful even though storage is intptr_t (CGEN-SHIFT).
+                let wrap = expr.value_type == ValueType::Integer;
+                if wrap {
+                    out.push_str("(int32_t)(");
+                }
                 out.push_str(v);
+                if wrap {
+                    out.push(')');
+                }
             } else if let Some(stripped) = v.strip_prefix('-') {
                 out.push('-');
                 let s = stripped.trim_start_matches('0');
@@ -98,6 +110,18 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 emit_expr(right, out);
                 out.push(')');
             } else {
+                // Integer arithmetic wraps at 32 bits (XBasic INTEGER is i32;
+                // interp `wrapping_*`). Values are stored as `intptr_t` (i64) so
+                // that address-valued integers - computed GOSUB/GOTO label
+                // pointers - are NOT truncated (see CGEN-SHIFT). Compute in i64,
+                // then truncate the *result* to i32: `(int32_t)(a OP b)`. This is
+                // defined (i64 op can't overflow for i32 operands; the cast is a
+                // 2's-complement narrowing) and needs no `-fwrapv`. Byte-neutral
+                // for in-range values (the cast is identity).
+                let mask = expr.value_type == ValueType::Integer;
+                if mask {
+                    out.push_str("(int32_t)");
+                }
                 out.push('(');
                 emit_expr(left, out);
                 out.push(' ');
@@ -108,11 +132,17 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             }
         }
         IrExprKind::Not(inner) => {
+            if expr.value_type == ValueType::Integer {
+                out.push_str("(int32_t)");
+            }
             out.push_str("(~");
             emit_expr(inner, out);
             out.push(')');
         }
         IrExprKind::Unary { op, operand } => {
+            if expr.value_type == ValueType::Integer {
+                out.push_str("(int32_t)");
+            }
             out.push('(');
             match op {
                 xb_frontend::UnaryOp::Neg => out.push('-'),
@@ -122,6 +152,11 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             out.push(')');
         }
         IrExprKind::Boolean { op, left, right } => {
+            // Bitwise AND/OR/XOR on i32 values; mask the result to i32 so high
+            // bits from the i64 storage don't leak into a later shift (CGEN-SHIFT).
+            if expr.value_type == ValueType::Integer {
+                out.push_str("(int32_t)");
+            }
             out.push_str("((");
             emit_expr(left, out);
             out.push_str(") ");

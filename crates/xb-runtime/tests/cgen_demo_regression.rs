@@ -168,6 +168,46 @@ END FUNCTION
     );
 }
 
+/// i32 arithmetic semantics (CGEN-SHIFT): XBasic INTEGER is i32 (`RuntimeValue::
+/// Integer(i32)`, `wrapping_*`), but the C backend stores values as `intptr_t`
+/// (i64) so that label-address integers aren't truncated. Integer arithmetic,
+/// bitwise ops, unary, and hex/binary literals are therefore masked to i32 with
+/// `(int32_t)(...)` so overflow/shift/sign match the interpreter. Locks the cases
+/// that diverge under raw i64: arithmetic right-shift sign-extension of a
+/// bit-31-set value, `0xFFFFFFFF` as -1, multiply/add overflow wrap, and XOR with
+/// a high-bit literal. This is what makes acrc32's CRC table byte-faithful.
+#[test]
+fn cgen_matches_interpreter_on_i32_arithmetic() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tXLONG x, y
+\tx = 0xEDB88320
+\tPRINT HEX$(x, 8)
+\ty = x >> 1
+\tPRINT HEX$(y, 8)
+\tx = 0xFFFFFFFF
+\tPRINT HEX$(x >> 8, 8)
+\tx = 0x40000000
+\ty = x * 4
+\tPRINT HEX$(y, 8)
+\tx = 0x12345678 XOR 0xFFFFFFFF
+\tPRINT HEX$(x, 8)
+\tx = 0x7FFFFFFF
+\ty = x + 1
+\tPRINT HEX$(y, 8)
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_i32_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "i32arith", &tmp);
+    assert_eq!(
+        native, interp,
+        "i32 arithmetic cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+}
+
 /// By-ref parameter write-back (CGEN-BYREF-WRITEBACK): the interpreter's call
 /// binding keys write-back on the *argument* being `@arg` (`ByRef`), not the
 /// callee's param decl, so the C backend makes a param a pointer (`T* x_ref` with
