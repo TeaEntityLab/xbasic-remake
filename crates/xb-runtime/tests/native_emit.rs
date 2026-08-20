@@ -301,3 +301,43 @@ fn c_emit_preserves_ir_semantics() {
         }
     }
 }
+
+/// Multi-dim arrays round-trip through the text IR (CGEN-MULTIDIM): `extra_dims`
+/// (`DIM a[i,j]`) and `extra_indices` (`a[i,j]`) must survive TextIrEmitter →
+/// TextIrParser, or the C emitted from the parsed IR would drop a dimension and
+/// differ from the C emitted directly. No positive-corpus file is multi-dim, so
+/// this inline program is the guard for that serialization.
+#[test]
+fn c_emit_multidim_round_trips_through_text_ir() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tXLONG grid[2,3]
+\tXLONG cube[1,2,1]
+\tXLONG i, j, k
+\tFOR i = 0 TO 2
+\t\tFOR j = 0 TO 3
+\t\t\tgrid[i,j] = i * 10 + j
+\t\tNEXT j
+\tNEXT i
+\tFOR i = 0 TO 1
+\t\tFOR j = 0 TO 2
+\t\t\tFOR k = 0 TO 1
+\t\t\t\tcube[i,j,k] = i + j + k
+\t\t\tNEXT k
+\t\tNEXT j
+\tNEXT i
+\tPRINT grid[1,2]; cube[1,2,1]; UBOUND(grid[]); UBOUND(cube[])
+END FUNCTION
+";
+    let unit = FrontendUnit::parse(source).expect("parse");
+    let program = unit.lower_ir().expect("lower");
+    let ir_text = TextIrEmitter::new().emit_program(&program);
+    let parsed = TextIrParser::parse(&ir_text).expect("parse text IR");
+    let c1 = CEmitter::new().emit_program(&program);
+    let c2 = CEmitter::new().emit_program(&parsed);
+    assert_eq!(
+        c1, c2,
+        "multi-dim C differs after text-IR round-trip (extra_dims/extra_indices dropped?)"
+    );
+}

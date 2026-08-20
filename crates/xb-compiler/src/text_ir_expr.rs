@@ -60,12 +60,13 @@ impl TextIrEmitter {
                 let as_str: Vec<String> = args.iter().map(|a| self.emit_expr(a)).collect();
                 format!("call {}({})", name, as_str.join(", "))
             }
-            IrExprKind::ArrayAccess { symbol, index, .. } => {
-                format!(
-                    "array_access({}[{}])",
-                    self.emit_symbol(symbol),
-                    self.emit_expr(index)
-                )
+            IrExprKind::ArrayAccess { symbol, index, extra_indices } => {
+                let mut idx = self.emit_expr(index);
+                for e in extra_indices {
+                    idx.push(',');
+                    idx.push_str(&self.emit_expr(e));
+                }
+                format!("array_access({}[{}])", self.emit_symbol(symbol), idx)
             }
             IrExprKind::ArrayUBound { symbol } => {
                 format!("array_ubound({})", self.emit_symbol(symbol))

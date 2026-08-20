@@ -235,7 +235,11 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
             let (name, vt) = parse_symbol(content[..bracket].trim())?;
             let idx_part = &content[bracket + 1..];
             let rbracket = idx_part.rfind(']').ok_or("missing ] in array_access")?;
-            let index = parse_expr(&idx_part[..rbracket])?;
+            let mut idxs = parse_args(&idx_part[..rbracket])?;
+            if idxs.is_empty() {
+                return Err("empty index in array_access".into());
+            }
+            let index = idxs.remove(0);
             IrExpr::new(
                 IrExprKind::ArrayAccess {
                     symbol: IrSymbol {
@@ -243,7 +247,7 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
                         value_type: vt,
                     },
                     index: Box::new(index),
-                    extra_indices: Vec::new(),
+                    extra_indices: idxs,
                 },
                 vt,
             )
@@ -297,7 +301,7 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
     Ok((result, rest))
 }
 
-fn parse_args(s: &str) -> Result<Vec<IrExpr>, String> {
+pub(crate) fn parse_args(s: &str) -> Result<Vec<IrExpr>, String> {
     let s = s.trim();
     if s.is_empty() {
         return Ok(Vec::new());

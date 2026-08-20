@@ -1,5 +1,5 @@
 use crate::ir::{IrExpr, IrExprKind, IrItem};
-use crate::text_ir_parser_expr::parse_expr;
+use crate::text_ir_parser_expr::{parse_args, parse_expr};
 use crate::text_ir_parser_helpers::{parse_params, parse_symbol_decl, parse_type};
 
 use crate::text_ir_parser::{err, parse_items, parse_loop_condition, TextIrParseError};
@@ -39,15 +39,21 @@ pub(crate) fn parse_item(
             let sym = parse_symbol_decl(rest[..br].trim()).map_err(|e| err(e, l))?;
             let rb = rest.rfind(']').ok_or_else(|| err("missing ]".into(), l))?;
             let inner = rest[br + 1..rb].trim();
-            let size = if inner.is_empty() {
-                None
+            let (size, extra_dims) = if inner.is_empty() {
+                (None, Vec::new())
             } else {
-                Some(parse_expr(inner).map_err(|e| err(e, l))?)
+                let mut dims = parse_args(inner).map_err(|e| err(e, l))?;
+                if dims.is_empty() {
+                    (None, Vec::new())
+                } else {
+                    let first = dims.remove(0);
+                    (Some(first), dims)
+                }
             };
             return Ok(IrItem::Dim {
                 symbol: sym,
                 size,
-                extra_dims: Vec::new(),
+                extra_dims,
                 is_array: true,
                 redim: false,
                 shared,
@@ -80,12 +86,16 @@ pub(crate) fn parse_item(
         let rb = rest
             .find("] = ")
             .ok_or_else(|| err("missing ] =".into(), l))?;
-        let idx_e = parse_expr(&rest[br + 1..rb]).map_err(|e| err(e, l))?;
+        let mut idxs = parse_args(&rest[br + 1..rb]).map_err(|e| err(e, l))?;
+        if idxs.is_empty() {
+            return Err(err("empty index in array_assign".into(), l));
+        }
+        let idx_e = idxs.remove(0);
         let val = parse_expr(&rest[rb + 4..]).map_err(|e| err(e, l))?;
         return Ok(IrItem::ArrayAssignment {
             target: tgt,
             index: idx_e,
-            extra_indices: Vec::new(),
+            extra_indices: idxs,
             value: val,
         });
     }

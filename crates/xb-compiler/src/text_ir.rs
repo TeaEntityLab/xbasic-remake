@@ -45,14 +45,21 @@ impl TextIrEmitter {
                     out.push_str(&format!("{line}\n"));
                 }
             }
-            IrItem::Dim { symbol, size, shared, .. } => {
+            IrItem::Dim { symbol, size, extra_dims, shared, .. } => {
                 let sh = if *shared { "shared " } else { "" };
                 match size {
-                    Some(sz) => out.push_str(&format!(
-                        "{prefix}dim {sh}{}[{}]\n",
-                        self.emit_symbol(symbol),
-                        self.emit_expr(sz)
-                    )),
+                    Some(sz) => {
+                        let mut dims = self.emit_expr(sz);
+                        for e in extra_dims {
+                            dims.push(',');
+                            dims.push_str(&self.emit_expr(e));
+                        }
+                        out.push_str(&format!(
+                            "{prefix}dim {sh}{}[{}]\n",
+                            self.emit_symbol(symbol),
+                            dims
+                        ));
+                    }
                     None => {
                         out.push_str(&format!("{prefix}dim {sh}{}\n", self.emit_symbol(symbol)))
                     }
@@ -68,13 +75,18 @@ impl TextIrEmitter {
             IrItem::ArrayAssignment {
                 target,
                 index,
+                extra_indices,
                 value,
-                ..
             } => {
+                let mut idx = self.emit_expr(index);
+                for e in extra_indices {
+                    idx.push(',');
+                    idx.push_str(&self.emit_expr(e));
+                }
                 out.push_str(&format!(
                     "{prefix}array_assign {}[{}] = {}\n",
                     self.emit_symbol(target),
-                    self.emit_expr(index),
+                    idx,
                     self.emit_expr(value)
                 ));
             }
