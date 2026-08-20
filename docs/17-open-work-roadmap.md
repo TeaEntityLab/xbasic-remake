@@ -197,14 +197,17 @@ the other 4 are blocked by three genuine (non-platform) *features*, not bounded 
 - **Composite `SHARED` arrays — ✅ done `[2026-08-20]`**: `SHARED <TYPE> var[size]` now
   recognizes the composite type and creates shared, sized member arrays (commit `c818b58`),
   clearing `unknown runtime slot Ary_varData.numElements`.
-- **Full `SHARED` semantics (scalars + REDIM) — `ary` next blocker `[2026-08-20]`**: `ary` now
-  blocks on an `-48000` array index — a `SHARED` *scalar* (`Ary_numVarCodes`, `Ary_numNames`, …)
-  used in an index expression. Scalar `SHARED` is deliberately **not** propagated (the fix so far
-  is arrays-only, since the 25 faithful scalar-`SHARED` demos rely on interp+backend sharing the
-  same per-function bug — see the lock below). Real scalar `SHARED` + `REDIM`-of-shared needs
-  **analyzer-level shared-var tracking** routing scalar refs/writes to the shared store, in
-  **both** interpreter and LLVM-backend globals, gated on the full differential — the deep
-  architectural piece, a coordinated 2-layer effort with regression risk to the 25 demos.
+- **Full `SHARED` semantics (scalars + REDIM) + data-flow — `ary` next blocker `[2026-08-20]`**:
+  `ary` now blocks on an `-48000` array index. That value is a *downstream symptom*:
+  `Ary_GetCodeBufferIndexCode` hashes `charCode = (c${0} - ASC("0")) * 1000`, and on an **empty**
+  `c$`/`name$`, `c${0}` reads 0 → `(0-48)*1000 = -48000` → `bufferIndexCount[-48000]`. The empty
+  `name$` comes from upstream state that is still wrong because (a) `SHARED` *scalars*
+  (`Ary_numVarCodes`, `Ary_numNames`, …) don't propagate — the fix so far is arrays-only, since
+  the 25 faithful scalar-`SHARED` demos rely on interp+backend sharing the same per-function bug
+  (see the lock) — and (b) the stubbed builtins below feed wrong values. Real scalar `SHARED` +
+  `REDIM`-of-shared needs **analyzer-level shared-var tracking** routing scalar refs/writes to the
+  shared store, in **both** interpreter and LLVM-backend globals, gated on the full differential —
+  the deep architectural piece, a coordinated 2-layer effort with regression risk to the 25 demos.
 - **Stubbed runtime builtins** (`ary`/`ary1`): `XstStringToNumber` (×15), `XstQuickSort` (×5),
   `XstCopyArray` are stubs needing real implementations (both layers, per the lock below). So
   `ary` is a multi-step effort (SHARED arrays ✅, composite-array params ✅, composite SHARED
