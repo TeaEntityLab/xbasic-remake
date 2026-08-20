@@ -99,9 +99,15 @@ Both reduce to: **`SHARED`/`#`-prefixed and cross-function arrays must lower to
 correctly-typed C globals (or a shared `{data,len,elem}` descriptor), not
 per-function locals**, with the analyzer's `$`/type-suffix resolution kept
 consistent for shared arrays. Prerequisite verified: no `SHARED` *array* appears
-in the self-host tools or v0.1 corpus (only scalar `##`), so a globals-based
-implementation can be byte-neutral there — but it MUST be checked against
-`cgen_cemitter_sync` + the native bootstrap fixed point before landing.
+in the self-host tools or v0.1 corpus — BUT the corpus *does* use shared string
+*scalars* (`##XBDir$`, `##funcTypes$`, `##sharedDecls$`, …) that are currently
+typed **Integer** (the embedded `$` is not read as a suffix) and lower to
+`intptr_t` globals holding punned `char*` values — and the bootstrap depends on
+exactly that lowering. So the fix must type shared string *arrays* as `char**`
+**without** changing shared string *scalar* typing, and MUST be gated on
+`cgen_cemitter_sync` + the native bootstrap fixed point before landing. This
+entanglement (the "bounded" element-type fix touches load-bearing shared-scalar
+typing) is why qbtoxb is a deliberate coordinated effort, not a reactive patch.
 
 ## 1. Backends
 
