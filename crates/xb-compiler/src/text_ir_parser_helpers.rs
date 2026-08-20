@@ -167,10 +167,17 @@ pub(crate) fn parse_params(s: &str) -> Result<Vec<crate::ir::IrParam>, String> {
                 .find(':')
                 .ok_or_else(|| format!("missing : in param: {p}"))?;
             let name = p[..colon].to_string();
-            let vt = parse_type(p[colon + 1..].trim())?;
+            let type_str = p[colon + 1..].trim();
+            // An array param is encoded `name:type[]` (see text_ir emit).
+            let (type_str, is_array) = match type_str.strip_suffix("[]") {
+                Some(base) => (base.trim(), true),
+                None => (type_str, false),
+            };
+            let vt = parse_type(type_str)?;
             Ok(crate::ir::IrParam {
                 name,
                 value_type: vt,
+                is_array,
             })
         })
         .collect()

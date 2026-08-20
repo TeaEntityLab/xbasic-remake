@@ -302,7 +302,8 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
                         out.push_str(", ");
                     }
                     out.push_str(c_type(p.value_type));
-                    out.push(' ');
+                    // Array param → pointer (matches emit_functions).
+                    out.push_str(if p.is_array { " *" } else { " " });
                     out.push_str("xb_");
                     out.push_str(if p.value_type == ValueType::String {
                         "str_"

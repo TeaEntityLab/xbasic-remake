@@ -46,6 +46,7 @@ impl Analyzer {
                         cps.push(CheckedParam {
                             name: mname,
                             value_type: mvt,
+                            is_array: p.is_array,
                         });
                     }
                     continue;
@@ -53,6 +54,11 @@ impl Analyzer {
             }
             let vt = ValueType::from_suffix(p.suffix);
             scoped.symbols.insert(p.name.clone(), vt);
+            // An array param (`UBYTE gif[]`) registers as an array so body
+            // subscripts/`UBOUND` resolve to array access, not a byte index.
+            if p.is_array {
+                scoped.arrays.insert(p.name.clone(), vt);
+            }
             cps.push(CheckedParam::from_ast(p));
         }
         scoped.symbols.insert(f.name.clone(), ret);

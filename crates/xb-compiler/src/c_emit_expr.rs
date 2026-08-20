@@ -248,6 +248,14 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 crate::c_emit_bitops::emit_bit_op_call(name, args, out);
             } else if name == "MID$" && args.len() == 2 {
                 crate::c_emit_str2::emit_mid2(args, out, emit_expr);
+            } else if crate::c_emit_stmt::is_at_write_builtin(name) {
+                // *AT memory reads: the interpreter has no real memory and
+                // returns 0 / 0.0 (builtin.rs) — a real *(T*)(addr) would
+                // dereference the stub-0 address. Emit the zero-default; also
+                // sidesteps the arg-count mismatch (1-arg UBYTEAT(addr) vs the
+                // 2-arg xb_ubyteat helper).
+                let (_, is_float) = crate::c_emit_stmt::at_write_ctype(name);
+                out.push_str(if is_float { "0.0" } else { "0" });
             } else if name == "EOF" {
                 // The interpreter ignores the handle arg entirely (EOF tests
                 // piped-input exhaustion; call.rs) — the arg is not even

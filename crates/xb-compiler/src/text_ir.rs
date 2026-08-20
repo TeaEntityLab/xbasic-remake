@@ -207,7 +207,14 @@ impl TextIrEmitter {
             } => {
                 let ps: Vec<String> = params
                     .iter()
-                    .map(|p| format!("{}:{}", p.name, self.emit_type(p.value_type)))
+                    .map(|p| {
+                        format!(
+                            "{}:{}{}",
+                            p.name,
+                            self.emit_type(p.value_type),
+                            if p.is_array { "[]" } else { "" }
+                        )
+                    })
                     .collect();
                 out.push_str(&format!(
                     "{prefix}function {}({}) -> {}\n",

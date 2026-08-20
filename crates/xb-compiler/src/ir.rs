@@ -221,4 +221,6 @@ pub struct IrSymbol {
 pub struct IrParam {
     pub name: String,
     pub value_type: ValueType,
+    /// Declared array parameter — the C backend emits it as a pointer.
+    pub is_array: bool,
 }

@@ -279,6 +279,9 @@ impl CheckedSymbol {
 pub struct CheckedParam {
     pub name: String,
     pub value_type: ValueType,
+    /// `true` for a declared array parameter (`UBYTE gif[]`, `ANY a[]`): the C
+    /// backend emits it as a pointer so the body's `p[i]` subscripts bind.
+    pub is_array: bool,
 }
 
 impl CheckedParam {
@@ -286,6 +289,7 @@ impl CheckedParam {
         Self {
             name: p.name.clone(),
             value_type: ValueType::from_suffix(p.suffix),
+            is_array: p.is_array,
         }
     }
 }

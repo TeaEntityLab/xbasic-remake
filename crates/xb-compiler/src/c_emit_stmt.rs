@@ -162,21 +162,14 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         }
         IrItem::BuiltinAssign { name, args, value } => {
             out.push_str(&ind);
-            // *AT assignment: e.g. UBYTEAT(addr, off) = val → *(unsigned char*)(addr+off) = val
+            // *AT assignment: the interpreter has no real memory — it no-ops the
+            // write, evaluating only the value for side-effects/errors
+            // (interpreter.rs BuiltinAssign). Match it: a real `*(T*)(addr)=v`
+            // would dereference the stub-0 address and crash.
             if is_at_write_builtin(name) {
-                let (ctype, is_float) = at_write_ctype(name);
-                out.push_str(&format!("*({ctype}*)("));
-                emit_expr(&args[0], out);
-                if args.len() == 2 {
-                    out.push_str(" + ");
-                    emit_expr(&args[1], out);
-                }
-                out.push_str(") = ");
-                if is_float {
-                    out.push_str("(double)");
-                }
+                out.push_str("(void)(");
                 emit_expr(value, out);
-                out.push_str(";\n");
+                out.push_str(");\n");
             } else {
                 // Fallback: function call style
                 emit_c_function_name(name, out);
@@ -450,7 +443,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
     }
 }
 
-fn is_at_write_builtin(name: &str) -> bool {
+pub(crate) fn is_at_write_builtin(name: &str) -> bool {
     matches!(
         name,
         "SBYTEAT"
@@ -468,7 +461,7 @@ fn is_at_write_builtin(name: &str) -> bool {
     )
 }
 
-fn at_write_ctype(name: &str) -> (&'static str, bool) {
+pub(crate) fn at_write_ctype(name: &str) -> (&'static str, bool) {
     match name {
         "SBYTEAT" => ("signed char", false),
         "UBYTEAT" => ("unsigned char", false),

@@ -265,6 +265,7 @@ impl IrParam {
         Self {
             name: p.name.clone(),
             value_type: p.value_type,
+            is_array: p.is_array,
         }
     }
 }

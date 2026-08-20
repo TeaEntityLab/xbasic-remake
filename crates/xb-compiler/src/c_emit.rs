@@ -314,7 +314,9 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
                     out.push_str(", ");
                 }
                 out.push_str(c_type(p.value_type));
-                out.push(' ');
+                // Array param (`UBYTE gif[]`): a pointer, so the body's `p[i]`
+                // subscripts bind (a caller array decays to this pointer).
+                out.push_str(if p.is_array { " *" } else { " " });
                 emit_var_name(
                     &IrSymbol {
                         name: p.name.clone(),
