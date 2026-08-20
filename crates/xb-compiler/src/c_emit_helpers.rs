@@ -42,7 +42,9 @@ pub(crate) fn emit_c_string(s: &str, out: &mut String) {
             '\n' => out.push_str("\\n"),
             '\t' => out.push_str("\\t"),
             '\r' => out.push_str("\\r"),
-            '\0' => out.push_str("\\0"),
+            // Fixed 3-digit octal: a following digit char can't extend it
+            // (`"\0001"` = NUL + '1'; bare `"\01"` would munch the digit).
+            '\0' => out.push_str("\\000"),
             c if (c as u32) < 0x20 => {
                 out.push_str(&format!("\\x{:02x}", c as u32));
             }

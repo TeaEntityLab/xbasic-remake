@@ -32,6 +32,9 @@ thread_local! {
     /// Per-function parameter names: a `Dim` of a name that is already a
     /// parameter must not re-declare it in C (would be a redefinition).
     static FN_PARAMS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
+    /// `&Func` synthetic ids: 1-based program-item order, mirroring the
+    /// interpreter's eval.rs `function_id` (LLVM emits the same ids).
+    static FUNC_IDS: RefCell<HashMap<String, i32>> = RefCell::new(HashMap::new());
 }
 
 /// Record every user-defined function name for `program`. Called once per
@@ -57,12 +60,32 @@ fn set_defined_funcs(program: &IrProgram) {
             }
         }
     });
+    FUNC_IDS.with(|s| {
+        let mut ids = s.borrow_mut();
+        ids.clear();
+        let mut id: i32 = 0;
+        for item in &program.items {
+            if let IrItem::Function { name, .. } = item {
+                // Mirror eval.rs function_id exactly: every Function item
+                // (including forward-decl duplicates) increments; first
+                // occurrence of a name wins.
+                id += 1;
+                ids.entry(name.clone()).or_insert(id);
+            }
+        }
+    });
 }
 
 /// Declared param types of a user-defined function, or `None` for builtins /
 /// unknown names (whose call sites are emitted as-is / stubbed).
 pub(crate) fn defined_params(name: &str) -> Option<Vec<crate::ValueType>> {
     DEFINED_SIGS.with(|s| s.borrow().get(name).cloned())
+}
+
+/// The interpreter's synthetic `&Func` value: 1-based program-item order
+/// (eval.rs `function_id`), or 0 for a name with no Function item.
+pub(crate) fn func_addr_id(name: &str) -> i32 {
+    FUNC_IDS.with(|s| s.borrow().get(name).copied().unwrap_or(0))
 }
 
 /// Establish the per-function emit context for `items` (a function body, or the
@@ -248,6 +271,14 @@ impl CEmitter {
             // next stdin line (or "" at EOF) — call.rs "INLINE$".
             out.push_str(
                 "static char* xb_inline(const char* prompt) {\n    if (prompt) xb_print_str(prompt);\n    return xb_readline();\n}\n",
+            );
+        }
+        if body.contains("xb_str_n(") {
+            // Length-carrying literal constructor for embedded-NUL strings
+            // (xb_str/strlen would truncate). Usage-gated: byte-neutral for
+            // programs without NUL literals (the entire shared corpus).
+            out.push_str(
+                "static char* xb_str_n(const char* s, size_t n) { char* d = xb_alloc(n); memcpy(d, s, n); return d; }\n",
             );
         }
         out.push_str(&body);

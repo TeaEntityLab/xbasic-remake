@@ -9,9 +9,17 @@ use crate::ValueType;
 pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
     match &expr.kind {
         IrExprKind::StringLiteral(v) => {
-            out.push_str("xb_str(\"");
-            emit_c_string(v, out);
-            out.push_str("\")");
+            if v.contains('\0') {
+                // Embedded NUL: xb_str goes through strlen and would truncate;
+                // xb_str_n (usage-gated helper) carries the byte length.
+                out.push_str("xb_str_n(\"");
+                emit_c_string(v, out);
+                out.push_str(&format!("\", {})", v.len()));
+            } else {
+                out.push_str("xb_str(\"");
+                emit_c_string(v, out);
+                out.push_str("\")");
+            }
         }
         IrExprKind::IntegerLiteral(v) => {
             // XBasic decimal literals like 08, 09 are invalid C octal constants.
@@ -348,9 +356,10 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 // undeclared symbol.
                 out.push('0');
             } else {
-                out.push_str("((intptr_t)&");
-                emit_c_function_name(name, out);
-                out.push(')');
+                // The interpreter's &Func value is a synthetic 1-based id in
+                // program-item order (eval.rs function_id), not a machine
+                // address — LLVM matches; emit the same id for byte parity.
+                out.push_str(&crate::c_emit::func_addr_id(name).to_string());
             }
         }
     }
