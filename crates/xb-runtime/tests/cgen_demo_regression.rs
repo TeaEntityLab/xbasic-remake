@@ -167,3 +167,41 @@ END FUNCTION
         "multi-dim cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
     );
 }
+
+/// XBSourceLib core libraries that now C-compile and match the interpreter
+/// (MIG-SEMANTICS): extends the byte-faithfulness gate beyond the demo corpus to
+/// legacy core libs. `msc` exercises the full XBasic type-suffix sanitization
+/// (`value@` SBYTE, `value&&` ULONG, …) that a plain `. $ ! #` sanitizer dropped.
+/// (geo/XBMerge diverge on FLOAT-FMT/RT-ARGS; 7 more need by-ref array write-back
+/// — see docs/17 CGEN-BYREF-DESC.)
+#[test]
+fn cgen_matches_interpreter_on_xbsourcelib() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let tmp = std::env::temp_dir().join("xb_cgen_xbsourcelib_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let libs: &[(&str, &str)] = &[
+        ("XBSourceLib/msc/msc.x", "type-suffix sanitization (@ & %)"),
+        ("XBSourceLib/utils/mergeTest01.x", "core-lib compile+run"),
+        ("XBSourceLib/utils/mergeTest02.x", "core-lib compile+run"),
+        ("XBSourceLib/utils/mergeOut02.x", "core-lib compile+run"),
+    ];
+    let mut failures = Vec::new();
+    for (rel, feature) in libs {
+        let source = fs::read_to_string(root.join(rel))
+            .unwrap_or_else(|e| panic!("read {rel}: {e}"));
+        let stem = Path::new(rel).file_stem().unwrap().to_str().unwrap();
+        let interp = interp_output(&source);
+        let native = cgen_output(&source, stem, &tmp);
+        if native != interp {
+            failures.push(format!(
+                "{rel} ({feature}): cgen output differs from interpreter\n  \
+                 interp={interp:?}\n  cgen  ={native:?}"
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "XBSourceLib cgen regression:\n{}",
+        failures.join("\n")
+    );
+}
