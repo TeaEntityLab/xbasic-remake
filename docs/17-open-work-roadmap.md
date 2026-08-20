@@ -9,25 +9,28 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-20**. `cargo test --workspace --exclude
-> xb-ide` = **182 passed / 0 failed**. This pass synced the three backends
-> (interpreter / C generator / LLVM) on the demo corpus — see **Backend feature-sync**
-> in §1: five contract-safe CEmitter fixes took the C generator from **3→55/151**
-> byte-faithful demos (diverge=1: `arotate.x`), and the LLVM backend now lowers `SHARED` (`##`)
-> variables to globals (150/151 unchanged, new lock test). Bootstrap fixed point and
-> `cgen.x` byte-identity untouched (every fix is a no-op on the self-host + v0.1 corpus).
+> xb-ide` = **182 passed / 0 failed**. C-backend demo sweep: **97/114 compile,
+> 53 byte-faithful** (up from 3→55→97). Six CEmitter fix batches — each a no-op
+> on the self-host + v0.1 corpus (`cgen_cemitter_sync` 5/5 throughout) — landed:
+> arity reconciliation, dynamic DIMs, label guards, INLINE\$, FOR-var type fix,
+> suffix-aware auto_symbol, composite dot/\$/!/ sanitization, param-Dim guard,
+> shared-variable read collection, leading-zero decimal literal fix, and
+> xb_ub_ name sanitization. Remaining 17 compile-fails are deep type-system
+> gaps (ANY/UBYTE array params, \$\$ shared constants, composite arrays).
+> LLVM backend: 150/0 faithful (unchanged). Bootstrap fixed point untouched.
 
 ## 0. Open-gap index (at a glance)
 
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
-
-| Gap | Area | What's missing | Blocks | Class |
-|---|---|---|---|---|
-| CGEN-ARRAYS | C backend | auto-vivified **arrays** undeclared (array analogue of the landed scalar hoisting) | largest remaining demo compile-fail bucket | feature |
-| CGEN-ARGC | C backend | defined function called with extra args (callback-style) → C arg-count error | demo compile-fails | feature |
-| CGEN-BUILTINS | C backend | `STRING$`/`INLINE$`, float `STR$`/`VAL` C-runtime impls | demo compile-fails | feature |
+| ~~CGEN-ARRAYS~~ | C backend | ✅ **done** (2026-08-20): auto-vivified array hoisting + dynamic DIMs + undimmed-array folds | — | ✅ |
+| ~~CGEN-ARGC~~ | C backend | ✅ **done** (2026-08-20): arity reconciliation (drop extras, pad missing) via `DEFINED_SIGS` | — | ✅ |
+| ~~CGEN-BUILTINS~~ | C backend | ✅ **done** (2026-08-20): `INLINE$`, `EOF`, `RIGHT$`/`LEFT$` 1-arg, `STRING$` via `xb_string` | — | ✅ |
 | CGEN-AROTATE | C backend | `arotate.x` diverges: generated C hangs (6 s timeout, no output) where interp prints | 1 demo | bug |
 | CGEN-REDIM | C backend | `REDIM` emitted as `DIM` (fixed C arrays; no resize-preserving realloc) | REDIM-idiom demos AOT | feature |
+| CGEN-ANY-PARAM | C backend | `ANY`/`UBYTE array[]` params lowered as scalar `intptr_t`; body subscripts them → 7 demo compile-fails | `aarray`/`gif`/`gifview`/`zap`/`aquick`/`atools`/`aarray_ISNODE` | feature |
+| CGEN-DOLLAR-DOLLAR | C backend | `$$`-prefixed shared constants parsed as String (suffix `$`) instead of Integer shared var → 5 demo compile-fails | `amemory`/`amakemap`/`atimer`/`aclient`/`aserver` | parser |
+| CGEN-COMPOSITE-ARR | C backend | composite member arrays hoisted as both pointer (dyn) and scalar → redefinition | `arecord`/`adatadim`/`adata` | feature |
 | CGEN-SHARED-ARR | C backend | `SHARED`/composite arrays + array-by-ref lower function-local (§1 interp features) | ary-class programs AOT | feature |
 | LLVM-SHARED-ARR | LLVM | `SHARED` *arrays* still per-function (only `##` scalars are globals now) | `ary`/`ary1` AOT parity | feature |
 | LLVM-BYREF-REDIM | LLVM | REDIM-through-`@array[]` needs `{data,dims}` heap descriptors shared by pointer | general by-ref parity | feature |
