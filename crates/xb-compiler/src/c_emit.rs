@@ -114,6 +114,7 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
                 );
             }
             out.push_str(") {\n");
+            crate::c_emit_hoist::emit_hoisted_scalars(body, params, Some(name), out, 1);
             if *return_type != ValueType::Integer {
                 crate::c_emit_expr::emit_return_var_decl(name, *return_type, out);
             }
@@ -158,6 +159,8 @@ fn emit_main(program: &IrProgram, out: &mut String) {
         });
     out.push_str("int main(void) {\n");
     emit_data_init(program, out);
+    // Top-level scalars (walk_items ignores nested Function bodies).
+    crate::c_emit_hoist::emit_hoisted_scalars(&program.items, &[], None, out, 1);
     emit_body(top, out, 1);
     if let Some((name, params)) = entry {
         if params.is_empty() {

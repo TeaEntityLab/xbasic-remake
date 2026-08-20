@@ -4,6 +4,7 @@ mod c_emit_bitops;
 mod c_emit_data;
 mod c_emit_expr;
 mod c_emit_helpers;
+mod c_emit_hoist;
 mod c_emit_logical;
 mod c_emit_select;
 mod c_emit_stmt;
