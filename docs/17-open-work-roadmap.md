@@ -8,13 +8,13 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
-> Last full re-verification: **2026-08-17**. `cargo test --workspace --exclude
-> xb-ide` = **154 passed / 0 failed**; every `✅ done` item below re-confirmed via
-> its named locking test, and every open item re-confirmed still open (no silent
-> regression *or* silent progress). Two doc corrections landed this pass:
-> DEMO-RUNTIME recount (68/114) and the stale bootstrap fixed-point hash
-> (`f6e21a03…` → `c8d5c7f1…`; docs/13 §Stages, docs/14 §21). One gap was found and
-> fixed this pass: RT-FIXEDSTR (`STRING*N` composite members; see §2).
+> Last full re-verification: **2026-08-20**. `cargo test --workspace --exclude
+> xb-ide` = **181 passed / 0 failed**. This pass synced the three backends
+> (interpreter / C generator / LLVM) on the demo corpus — see **Backend feature-sync**
+> in §1: five contract-safe CEmitter fixes took the C generator from **3→55/151**
+> byte-faithful demos (diverge=0), and the LLVM backend now lowers `SHARED` (`##`)
+> variables to globals (150/151 unchanged, new lock test). Bootstrap fixed point and
+> `cgen.x` byte-identity untouched (every fix is a no-op on the self-host + v0.1 corpus).
 
 ## 1. Backends
 
@@ -233,6 +233,56 @@ set. Every remaining non-platform feature (SHARED semantics, real `Xst*` builtin
 formatting) is therefore a **coordinated interpreter + backend change**, verified against the
 full 151-demo differential. (This session's `@array` by-ref was safe precisely because it made
 the interpreter *converge* to behavior the backend already had, rather than diverge.)
+
+### Backend feature-sync — cgen demos 3→55, LLVM shared vars `[2026-08-20]`
+
+The three execution paths (interpreter, C generator "cgen", LLVM) were measured for
+demo-corpus parity and synced. Empirically the **C generator — the primary/bootstrap
+backend — was the *least* capable on the demo corpus**: only **3/151** demos
+compiled+ran byte-faithfully (vs LLVM's 150), because cgen lacked several structural
+features the interpreter and LLVM already had. Five contract-safe CEmitter fixes —
+each a **no-op on the self-host tools + v0.1 corpus**, so `cgen.x` stays byte-identical
+and the bootstrap is untouched — raised it to **55/151, diverge=0**:
+
+- **Unknown-callee stubs (`96ee9e5`)** — a call to a non-builtin, non-user function
+  (GUI `Xgr*`/`Xui*`, forward-referenced library funcs like `Howdy`) emitted an
+  undeclared `xb_user_<name>`; now yields the zero-default (`""`/`0`, args skipped),
+  matching interp (`call.rs`) and LLVM (`lib.rs`).
+- **Entry point (`3213d23`)** — `main` now runs `entry_or_first("Main")` (the `Main`
+  function, else the first defined function — legacy `Entry`), not only `Main`, so
+  Entry-based demos (`aloha`, `ahowdy`) produce output.
+- **Function dedup (`e58fc50`)** — XBasic forward declarations lower to a duplicate
+  function item; emit each `xb_user_<name>` once (first-wins, matching the
+  interpreter's `find_function`) to avoid a C `redefinition`.
+- **Scalar hoisting (`6d68db4`)** — the dominant blocker: auto-vivified scalars
+  (`FOR i`, `kid`, `text`) have no `Dim`, so cgen emitted undeclared `xb_var_i` /
+  `xb_str_text`. `c_emit_hoist` declares every referenced-but-undimensioned scalar
+  (excluding params / the return var) at function top, mirroring the interp/LLVM lazy
+  alloca (**+47 demos**).
+- **Computed-GOTO prologue (`7a0fee9`)** — `GotoExpr`/`GosubReturn` lower to `goto
+  *expr`, which C accepts only with an `&&label` present; `c_emit_goto` emits an
+  unreachable dummy-label block when a function performs a bare computed goto and
+  provides none (excludes `Gosub`/`GosubExpr`, which already emit one).
+
+**LLVM shared variables (`287397a`)** — the LLVM backend silently dropped
+`SharedAssignment` (fell through `emit_item`'s `_ => {}`) and read `SharedVariable` as
+`None`, so a module-shared `##` scalar written in one function read back as its default
+in another. `declare_shared` now creates an LLVM global (`xb_shared_<name>`) per
+`SharedAssignment` target; stores/loads mirror the interp's `state.shared` and cgen's
+globals. A `##counter`/`##name$` program prints `42`/`hello` identically on interp, C,
+and LLVM (was `0`/empty on LLVM). LLVM differential unchanged at **150/150 faithful,
+diverge=0**; locked by `llvm_backend_shares_variables_across_functions`.
+
+**Remaining C-backend blockers (the 55→ tail — structural, not correctness):**
+undeclared **arrays** (auto-vivified arrays such as `Sub[]` — the array analogue of
+scalar hoisting), callback **arg-count** mismatches (a defined function called with
+extra args via `funcaddr`), genuinely deferred builtins (`STRING$`→`xb_string`,
+`INLINE$`→`xb_inline`, float `STR$`/`VAL`), and one diverge (`arotate.x`). `cgen.x`
+needs none of the demo-only fixes: it only ever compiles the all-`Main`,
+all-dimensioned, computed-goto-free self-host toolchain, where each fix is a no-op.
+
+Verification each step: full suite **181/0**; `cgen_cemitter_sync` / `bootstrap` /
+`cgen_selfhost` / `native_pipeline` / `self_rebuild` green; C + LLVM demo differentials.
 
 ### `@array` by-ref — interpreter side ✅ done `[2026-08-20]`
 The interpreter now implements array pass-by-reference end-to-end (commit `47a68ac`):
