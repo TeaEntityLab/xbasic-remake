@@ -371,6 +371,99 @@ fn composite_by_ref_parameter_writes_members_back() {
 }
 
 #[test]
+fn array_by_ref_parameter_is_readable_in_callee() {
+    // `@a[]` passes an array by reference; the callee can read its elements and
+    // UBOUND (the caller's storage + shape are threaded into the param slot).
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Show (@a[])\n\
+         PRINT a[0]\nPRINT a[1]\nPRINT UBOUND(a[])\n\
+         END FUNCTION\n\
+         FUNCTION Main\n\
+         DIM a[3]\n\
+         a[0] = 11\n\
+         a[1] = 22\n\
+         Show(@a[])\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["11", "22", "3"]);
+}
+
+#[test]
+fn array_by_ref_parameter_writes_elements_back() {
+    // A callee's element writes through `@a[]` propagate to the caller's array.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Fill (@a[])\n\
+         a[0] = 7\n\
+         a[1] = 8\n\
+         END FUNCTION\n\
+         FUNCTION Main\n\
+         DIM a[3]\n\
+         Fill(@a[])\n\
+         PRINT a[0]\nPRINT a[1]\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["7", "8"]);
+}
+
+#[test]
+fn redim_through_by_ref_resizes_callers_array() {
+    // The callee `REDIM`s a by-ref array; the resize + fills must be written back
+    // into the caller's storage (REDIM-through-by-ref).
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Fill (@a[])\n\
+         REDIM a[3]\n\
+         a[0] = 42\n\
+         a[3] = 99\n\
+         END FUNCTION\n\
+         FUNCTION Main\n\
+         DIM a[]\n\
+         Fill(@a[])\n\
+         PRINT UBOUND(a[])\nPRINT a[0]\nPRINT a[3]\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["3", "42", "99"]);
+}
+
+#[test]
+fn string_array_by_ref_keeps_suffix_naming() {
+    // A string array `@a$[]` must keep its `$` in the by-ref symbol and the param
+    // slot (matching DIM / element access), so the callee binds to the passed-in
+    // array instead of a scalar named `a`.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Fill (@a$[])\n\
+         a$[0] = \"hi\"\n\
+         a$[1] = \"yo\"\n\
+         END FUNCTION\n\
+         FUNCTION Main\n\
+         DIM a$[3]\n\
+         Fill(@a$[])\n\
+         PRINT a$[0]\nPRINT a$[1]\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["hi", "yo"]);
+}
+
+#[test]
 fn compares_float_to_integer_literal() {
     // `a! = 0` compares a float to an integer literal; the runtime must promote
     // the integer, not raise a type mismatch.

@@ -223,8 +223,14 @@ impl Parser {
                 match self.peek_kind().clone() {
                     TokenKind::Identifier { name, suffix } => {
                         self.index += 1;
-                        // Skip optional array brackets
+                        // Optional array brackets: `@a$[]` is a by-ref array. Bake
+                        // the type suffix into the name (like `ArrayRef`) so the
+                        // by-ref symbol matches the array's slot name (`a$`) used by
+                        // DIM and element access; otherwise the `$` is dropped and
+                        // the array can't be found or written back.
+                        let mut is_array = false;
                         if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+                            is_array = true;
                             self.index += 1;
                             if !matches!(self.peek_kind(), TokenKind::Symbol(']')) {
                                 let _ = self.expression();
@@ -237,7 +243,14 @@ impl Parser {
                             let full = full_name(name, suffix);
                             return Ok(Expression::FunctionCall { name: full, args });
                         }
-                        Ok(Expression::ByRefIdentifier { name, suffix })
+                        if is_array {
+                            Ok(Expression::ByRefIdentifier {
+                                name: full_name(name, suffix),
+                                suffix,
+                            })
+                        } else {
+                            Ok(Expression::ByRefIdentifier { name, suffix })
+                        }
                     }
                     TokenKind::SharedName(name) => {
                         self.index += 1;

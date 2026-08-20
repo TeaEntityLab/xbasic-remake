@@ -1,7 +1,7 @@
 use crate::ast::{Expression, Param, Statement, UnaryOp};
 use crate::parser::{ParseError, Parser};
 use crate::parser_expr::is_statement_keyword;
-use crate::token::{Keyword, SourcePos, TokenKind, TypeSuffix};
+use crate::token::{full_name, Keyword, SourcePos, TokenKind, TypeSuffix};
 
 impl Parser {
     pub(crate) fn expect_identifier(&mut self) -> Result<(String, Option<TypeSuffix>), ParseError> {
@@ -387,14 +387,19 @@ impl Parser {
                     self.index += 1;
                 }
                 let (name, suffix) = self.expect_name_or_keyword()?;
-                // Skip optional array brackets
+                // Optional array brackets: an array param `a$[]` keeps the type
+                // suffix in its slot name (matching DIM / element access) so the
+                // callee body's `a$[…]` binds to the passed-in array.
+                let mut is_array = false;
                 if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+                    is_array = true;
                     self.index += 1;
                     if !matches!(self.peek_kind(), TokenKind::Symbol(']')) {
                         let _ = self.expression();
                     }
                     self.expect_symbol(']')?;
                 }
+                let name = if is_array { full_name(name, suffix) } else { name };
                 params.push(Param {
                     name,
                     suffix,

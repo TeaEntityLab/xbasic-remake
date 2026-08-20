@@ -338,10 +338,33 @@ pub(crate) fn call_function(
     local.insert(fname.to_string(), ret_slot);
     let mut writebacks: Vec<(String, String)> = Vec::new();
     for (p, arg) in params.iter().zip(args) {
-        // Coerce each argument to the parameter type (XBasic implicit coercion).
-        let v = crate::helpers::coerce_value(eval(program, arg, state)?, p.value_type);
         let mut slot = TypedSlot::new(p.value_type);
-        slot.set(v);
+        // If the argument names an array (directly or via `@`), pass its storage
+        // (elements + shape) into the callee so it can read/UBOUND/REDIM the array;
+        // `@`-args are also written back after the call (see below).
+        let arg_symbol = match &arg.kind {
+            xb_compiler::IrExprKind::ByRef(inner) => match &inner.kind {
+                xb_compiler::IrExprKind::Symbol(s) => Some(s),
+                _ => None,
+            },
+            xb_compiler::IrExprKind::Symbol(s) => Some(s),
+            _ => None,
+        };
+        let mut passed_array = false;
+        if let Some(s) = arg_symbol {
+            if let Some(src) = state.slots.get(&s.name).or_else(|| state.shared.get(&s.name)) {
+                if src.array.is_some() {
+                    slot.array = src.array.clone();
+                    slot.dims = src.dims.clone();
+                    passed_array = true;
+                }
+            }
+        }
+        if !passed_array {
+            // Coerce each scalar argument to the parameter type (XBasic implicit coercion).
+            let v = crate::helpers::coerce_value(eval(program, arg, state)?, p.value_type);
+            slot.set(v);
+        }
         local.insert(p.name.clone(), slot);
         // `@x` (by-ref): record the caller lvalue to write the param back into.
         if let xb_compiler::IrExprKind::ByRef(inner) = &arg.kind {
@@ -379,18 +402,32 @@ pub(crate) fn call_function(
     // Propagate by-ref (`@`) parameter results back into the caller's lvalues.
     for (pname, target) in &writebacks {
         if let Some(src) = sub.slots.get(pname) {
-            let val = src.value.clone();
-            let vt = state
-                .slots
-                .get(target)
-                .map(|s| s.value_type())
-                .unwrap_or_else(|| val.value_type());
-            let coerced = crate::helpers::coerce_value(val, vt);
-            state
-                .slots
-                .entry(target.clone())
-                .or_insert_with(|| TypedSlot::new(vt))
-                .set(coerced);
+            if src.array.is_some() {
+                // Array by-ref: write the (possibly REDIM'd) elements + shape back
+                // into the caller's array so callee resize/fill propagates.
+                let arr = src.array.clone();
+                let dims = src.dims.clone();
+                let vt = src.value_type;
+                let dst = state
+                    .slots
+                    .entry(target.clone())
+                    .or_insert_with(|| TypedSlot::new(vt));
+                dst.array = arr;
+                dst.dims = dims;
+            } else {
+                let val = src.value.clone();
+                let vt = state
+                    .slots
+                    .get(target)
+                    .map(|s| s.value_type())
+                    .unwrap_or_else(|| val.value_type());
+                let coerced = crate::helpers::coerce_value(val, vt);
+                state
+                    .slots
+                    .entry(target.clone())
+                    .or_insert_with(|| TypedSlot::new(vt))
+                    .set(coerced);
+            }
         }
     }
     result
