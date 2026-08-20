@@ -340,13 +340,14 @@ fn collect_shared(
 ) {
     for item in items {
         match item {
-            IrItem::SharedAssignment { target, .. } => {
+            IrItem::SharedAssignment { target, value } => {
                 if seen.insert(target.name.clone()) {
                     out.push_str(c_type(target.value_type));
                     out.push_str(" xb_shared_");
                     out.push_str(&sanitize_c_name(&target.name));
                     out.push_str(" = 0;\n");
                 }
+                collect_shared_expr(value, seen, out);
             }
             IrItem::If {
                 then_body,
@@ -358,9 +359,106 @@ fn collect_shared(
                     collect_shared(eb, seen, out);
                 }
             }
-            IrItem::While { body, .. } => collect_shared(body, seen, out),
+            IrItem::While { condition, body, .. } => {
+                collect_shared_expr(condition, seen, out);
+                collect_shared(body, seen, out);
+            }
+            IrItem::For { start, end, step, body, .. } => {
+                collect_shared_expr(start, seen, out);
+                collect_shared_expr(end, seen, out);
+                if let Some(s) = step {
+                    collect_shared_expr(s, seen, out);
+                }
+                collect_shared(body, seen, out);
+            }
+            IrItem::DoLoop { pre_condition, post_condition, body, .. } => {
+                if let Some((e, _)) = pre_condition {
+                    collect_shared_expr(e, seen, out);
+                }
+                if let Some((e, _)) = post_condition {
+                    collect_shared_expr(e, seen, out);
+                }
+                collect_shared(body, seen, out);
+            }
+            IrItem::Print { items: exprs, .. } => {
+                for e in exprs {
+                    collect_shared_expr(e, seen, out);
+                }
+            }
+            IrItem::Assignment { value, .. } => collect_shared_expr(value, seen, out),
+            IrItem::ArrayAssignment { index, extra_indices, value, .. } => {
+                collect_shared_expr(index, seen, out);
+                for x in extra_indices {
+                    collect_shared_expr(x, seen, out);
+                }
+                collect_shared_expr(value, seen, out);
+            }
+            IrItem::Call { args, .. } => {
+                for a in args {
+                    collect_shared_expr(a, seen, out);
+                }
+            }
+            IrItem::Return { value: Some(e) } => collect_shared_expr(e, seen, out),
             IrItem::Function { body, .. } => collect_shared(body, seen, out),
+            IrItem::Compound(items) => collect_shared(items, seen, out),
+            IrItem::SelectCase { selector, cases, default, .. } => {
+                collect_shared_expr(selector, seen, out);
+                for c in cases {
+                    for cond in &c.conditions {
+                        collect_shared_expr(cond, seen, out);
+                    }
+                    collect_shared(&c.body, seen, out);
+                }
+                if let Some(b) = default {
+                    collect_shared(b, seen, out);
+                }
+            }
             _ => {}
         }
+    }
+}
+
+fn collect_shared_expr(e: &crate::ir::IrExpr, seen: &mut std::collections::HashSet<String>, out: &mut String) {
+    use crate::ir::IrExprKind;
+    match &e.kind {
+        IrExprKind::SharedVariable(s) => {
+            if seen.insert(s.name.clone()) {
+                out.push_str(c_type(s.value_type));
+                out.push_str(" xb_shared_");
+                out.push_str(&sanitize_c_name(&s.name));
+                out.push_str(" = 0;\n");
+            }
+        }
+        IrExprKind::Symbol(_) | IrExprKind::StringLiteral(_) | IrExprKind::IntegerLiteral(_)
+        | IrExprKind::FloatLiteral(_) | IrExprKind::Constant { .. } | IrExprKind::LabelAddress(_)
+        | IrExprKind::FuncAddr(_) | IrExprKind::SizeOf { .. } | IrExprKind::SizeOfType { .. } => {}
+        IrExprKind::ByRef(inner) => collect_shared_expr(inner, seen, out),
+        IrExprKind::Comparison { left, right, .. } => {
+            collect_shared_expr(left, seen, out);
+            collect_shared_expr(right, seen, out);
+        }
+        IrExprKind::Arithmetic { left, right, .. } => {
+            collect_shared_expr(left, seen, out);
+            collect_shared_expr(right, seen, out);
+        }
+        IrExprKind::Not(inner) | IrExprKind::Unary { operand: inner, .. } => {
+            collect_shared_expr(inner, seen, out);
+        }
+        IrExprKind::Boolean { left, right, .. } | IrExprKind::Logical { left, right, .. } => {
+            collect_shared_expr(left, seen, out);
+            collect_shared_expr(right, seen, out);
+        }
+        IrExprKind::FunctionCall { args, .. } => {
+            for a in args {
+                collect_shared_expr(a, seen, out);
+            }
+        }
+        IrExprKind::ArrayAccess { index, extra_indices, .. } => {
+            collect_shared_expr(index, seen, out);
+            for x in extra_indices {
+                collect_shared_expr(x, seen, out);
+            }
+        }
+        IrExprKind::ArrayUBound { .. } => {}
     }
 }
