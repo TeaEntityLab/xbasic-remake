@@ -203,8 +203,21 @@ fn walk_items(items: &[IrItem], scalars: &mut BTreeMap<String, ValueType>) {
                 }
             }
             IrItem::GosubExpr(e) | IrItem::GotoExpr(e) => walk_expr(e, scalars),
-            // `Dim` declares (handled by collect_dimmed); nested `Function` items do
-            // not occur inside a body; the rest carry no scalar references.
+            // A `Dim`'s size/extra-dim expressions can reference scalars that
+            // appear nowhere else (`DIM hash[uhash]` where `uhash` is only read
+            // here — the interpreter reads it as the 0 default). Walk them so
+            // such scalars are hoisted; the declared `symbol` itself is an array,
+            // handled by collect_dimmed.
+            IrItem::Dim { size, extra_dims, .. } => {
+                if let Some(sz) = size {
+                    walk_expr(sz, scalars);
+                }
+                for e in extra_dims {
+                    walk_expr(e, scalars);
+                }
+            }
+            // Nested `Function` items do not occur inside a body; the rest carry
+            // no scalar references.
             _ => {}
         }
     }

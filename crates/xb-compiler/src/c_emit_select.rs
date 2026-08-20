@@ -92,12 +92,10 @@ pub(crate) fn emit_swap(
     crate::c_emit_expr::emit_var_name(left, &mut ln);
     let mut rn = String::new();
     crate::c_emit_expr::emit_var_name(right, &mut rn);
+    // Scope the temp in a block so repeated SWAPs of the same left variable
+    // (two `SWAP a, x` in one function) don't redeclare `_swap_tmp_a`.
     out.push_str(ind);
-    out.push_str(&format!("{lt} _swap_tmp_{ln} = {ln};\n"));
-    out.push_str(ind);
-    out.push_str(&format!("{ln} = {rn};\n"));
-    out.push_str(ind);
-    out.push_str(&format!("{rn} = _swap_tmp_{ln};\n"));
+    out.push_str(&format!("{{ {lt} _swap_tmp_{ln} = {ln}; {ln} = {rn}; {rn} = _swap_tmp_{ln}; }}\n"));
 }
 
 pub(crate) fn emit_body<'a, I>(items: I, out: &mut String, indent: usize)
