@@ -9,14 +9,15 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-21** (all backends). `cargo test --workspace
-> --exclude xb-ide` = **186 passed / 0 failed**; `cgen_cemitter_sync` **5/5**;
+> --exclude xb-ide` = **187 passed / 0 failed**; `cgen_cemitter_sync` **5/5**;
 > native bootstrap fixed point **intact**; LLVM **105/0**. C-backend demo sweep:
 > **114/114 compile, 71 byte-faithful, diverge=3, 0 compile-fails** (up from
-> 3→55→97→113→114). Beyond demos, **XBSourceLib core libs 13/13 C-compile, 9
-> byte-faithful** (`msc`/`fgr`/`vgr`/`vgrOld`/`mergeTest01`/`mergeTest02`/`mergeTest03`/`mergeOut`/`mergeOut02`;
-> the remaining divergers are FLOAT-FMT `geo` (its `@`-param write-back now lands
-> via CGEN-BYREF-WRITEBACK — values `30 30 39.9999…` correct — leaving only a
-> float-format ULP), RT-ARGS `XBMerge`, array-ABI `ary`/`ary1.0001`),
+> 3→55→97→113→114). Beyond demos, **XBSourceLib core libs 13/13 C-compile, 10
+> byte-faithful** (`msc`/`fgr`/`vgr`/`vgrOld`/`geo`/`mergeTest01`/`mergeTest02`/`mergeTest03`/`mergeOut`/`mergeOut02`;
+> `geo` now byte-identical after CGEN-BYREF-WRITEBACK (its `@`-param writes reach
+> the caller) + CGEN-FLOAT-FMT (shortest-round-trip float printing matching Rust
+> `Display`). The remaining divergers are RT-ARGS `XBMerge` and array-ABI
+> `ary`/`ary1.0001`),
 > and the C backend now handles **row-major multi-dim arrays** (direct + text-IR).
 > Twenty-six CEmitter fix
 > batches — each byte-neutral on the self-host + v0.1 corpus or mirrored in
@@ -77,7 +78,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | LLVM-SHARED-ARR | LLVM | `SHARED` *arrays* still per-function (only `##` scalars are globals now) | `ary`/`ary1` AOT parity | feature |
 | LLVM-ANY | LLVM | `ANY array[]` polymorphism (monomorphize or tagged elements) | `aarray_ISNODE` | feature |
 | LLVM-BYREF-REDIM | LLVM | REDIM-through-`@array[]` needs `{data,dims}` heap descriptors shared by pointer | general by-ref parity | feature |
-| FLOAT-FMT | LLVM + C runtime | shortest-round-trip float print vs `snprintf("%.17g")`. **Investigated 2026-08-21**: the interp uses Rust's f64 `Display` (correctly-rounded shortest, always fixed-decimal — `100`, `100000000000000000000`, never scientific). A `%.*e` round-trip loop (find min precision that `strtod`-round-trips, then place the decimal point manually) matches Rust on **99.97%** of random doubles (199834/199892) — but the remaining 0.03% are last-digit ties (`…027.2` vs Rust `…027.3`): macOS libc `%e` is **not correctly-rounded** at shortest precision, so it's also **non-portable** (glibc rounds differently → cross-platform non-determinism in a compiler). Exact parity needs a correctly-rounded shortest formatter (Ryū/Grisu-class) in C, **mirrored in `cgen.x`** (3 emit sites: `xb_str_float`/`xb_print_float`/`xb_read_str`). geo's specific values (`39.99990409954015`, `20.000095900459847`) already match the loop — only these ties block it | `geo.x` byte-parity (by-ref part now ✅) | feature |
+| ~~CGEN-FLOAT-FMT~~ | C backend | ✅ **done** (2026-08-21, `6357403`): shortest-round-trip float print matching the interp's Rust f64 `Display` (`slot.rs` `to_string`), replacing `snprintf("%.17g")` which over-emitted 17 sig figs (geo `39.999904099540153` vs interp `39.99990409954015`). `xb_fmt_float`: expand to 41 sig figs via `%.40e` (correctly-rounded at that width on any libc), find the shortest prefix that `strtod`-round-trips while rounding **myself** with **round-half-away-from-zero** (Rust's tie-break — exact `.25`→`.3`), then place the decimal point in fixed notation (never scientific). The earlier `%.*e`-loop approach hit 0.03% ties because it relied on libc's shortest-precision rounding; doing the rounding myself from a high-precision expansion is portable + deterministic. Validated vs Rust `Display` on 1e6 random doubles + denormal/MAX/MIN/2^±53 edges: **0 mismatches**. Mirrored in `cgen.x` (same algorithm + signature; sync asserts output + helper sigs). XBSourceLib 9→10 faithful (geo). Locked by `cgen_matches_interpreter_on_xbsourcelib`. **Remaining**: the LLVM backend still prints via its own path (LLVM float parity is separate) | `geo.x` ✅ | ✅ (C) |
 | LLVM-DEFER | LLVM | content-preserving REDIM, array bounds checks, `PRINT TAB()` line buffer | polish | feature |
 | RT-IO-BYTES | interpreter | I/O channels are `Vec<String>`; high-byte PRINT/INPUT lossy at the pipe boundary | byte-faithful piped I/O | refactor |
 | RT-XST | interp + backends | real `XstStringToNumber`/`XstQuickSort`/`XstCopyArray` (all zero-stubs today) | `ary`'s `-48000`; **coordinated** change per the §1 lock | feature |
