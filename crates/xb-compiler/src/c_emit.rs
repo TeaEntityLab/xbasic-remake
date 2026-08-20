@@ -77,6 +77,7 @@ impl CEmitter {
 }
 
 fn emit_functions(program: &IrProgram, out: &mut String) {
+    let mut seen = HashSet::new();
     for item in &program.items {
         if let IrItem::Function {
             name,
@@ -85,6 +86,12 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             body,
         } = item
         {
+            // XBasic forward declarations lower to a duplicate empty definition; the
+            // interpreter's find_function resolves the FIRST occurrence, so emit each
+            // name once (first-wins) to match and avoid a C redefinition.
+            if !seen.insert(name.clone()) {
+                continue;
+            }
             out.push_str(c_type(*return_type));
             out.push_str(" xb_user_");
             out.push_str(name);

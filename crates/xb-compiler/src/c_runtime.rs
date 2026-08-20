@@ -265,6 +265,7 @@ use crate::ir::{IrItem, IrProgram};
 use crate::ValueType;
 
 pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
+    let mut seen = std::collections::HashSet::new();
     for item in &program.items {
         if let IrItem::Function {
             name,
@@ -273,6 +274,12 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
             ..
         } = item
         {
+            // Match emit_functions / the interpreter's find_function: one decl per
+            // name (first-wins), since XBasic forward declarations lower to a
+            // duplicate function item.
+            if !seen.insert(name.clone()) {
+                continue;
+            }
             out.push_str(c_type(*return_type));
             out.push(' ');
             out.push_str("xb_user_");
