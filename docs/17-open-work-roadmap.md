@@ -9,12 +9,48 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-20**. `cargo test --workspace --exclude
-> xb-ide` = **181 passed / 0 failed**. This pass synced the three backends
+> xb-ide` = **182 passed / 0 failed**. This pass synced the three backends
 > (interpreter / C generator / LLVM) on the demo corpus — see **Backend feature-sync**
 > in §1: five contract-safe CEmitter fixes took the C generator from **3→55/151**
-> byte-faithful demos (diverge=0), and the LLVM backend now lowers `SHARED` (`##`)
+> byte-faithful demos (diverge=1: `arotate.x`), and the LLVM backend now lowers `SHARED` (`##`)
 > variables to globals (150/151 unchanged, new lock test). Bootstrap fixed point and
 > `cgen.x` byte-identity untouched (every fix is a no-op on the self-host + v0.1 corpus).
+
+## 0. Open-gap index (at a glance)
+
+Everything still open, one line each — the "what's left" view. Details live in the
+sections below or the named sibling docs; ✅-done items are omitted.
+
+| Gap | Area | What's missing | Blocks | Class |
+|---|---|---|---|---|
+| CGEN-ARRAYS | C backend | auto-vivified **arrays** undeclared (array analogue of the landed scalar hoisting) | largest remaining demo compile-fail bucket | feature |
+| CGEN-ARGC | C backend | defined function called with extra args (callback-style) → C arg-count error | demo compile-fails | feature |
+| CGEN-BUILTINS | C backend | `STRING$`/`INLINE$`, float `STR$`/`VAL` C-runtime impls | demo compile-fails | feature |
+| CGEN-AROTATE | C backend | `arotate.x` diverges: generated C hangs (6 s timeout, no output) where interp prints | 1 demo | bug |
+| CGEN-REDIM | C backend | `REDIM` emitted as `DIM` (fixed C arrays; no resize-preserving realloc) | REDIM-idiom demos AOT | feature |
+| CGEN-SHARED-ARR | C backend | `SHARED`/composite arrays + array-by-ref lower function-local (§1 interp features) | ary-class programs AOT | feature |
+| LLVM-SHARED-ARR | LLVM | `SHARED` *arrays* still per-function (only `##` scalars are globals now) | `ary`/`ary1` AOT parity | feature |
+| LLVM-BYREF-REDIM | LLVM | REDIM-through-`@array[]` needs `{data,dims}` heap descriptors shared by pointer | general by-ref parity | feature |
+| LLVM-ANY | LLVM | `ANY array[]` polymorphism (monomorphize or tagged elements) | `aarray_ISNODE` | feature |
+| FLOAT-FMT | LLVM + C runtime | shortest-round-trip float print (Ryū-class) vs `snprintf("%g")` | `geo.x` byte-parity | feature |
+| LLVM-DEFER | LLVM | content-preserving REDIM, array bounds checks, `PRINT TAB()` line buffer | polish | feature |
+| RT-IO-BYTES | interpreter | I/O channels are `Vec<String>`; high-byte PRINT/INPUT lossy at the pipe boundary | byte-faithful piped I/O | refactor |
+| RT-XST | interp + backends | real `XstStringToNumber`/`XstQuickSort`/`XstCopyArray` (all zero-stubs today) | `ary`'s `-48000`; **coordinated** change per the §1 lock | feature |
+| RT-ATTACH | interpreter | `ATTACH` sub-array aliasing (view binding between array slots) | `ary` TestAryPerformance | feature |
+| RT-KERNEL32 | runtime | `GetStdHandle`/`ReadFile`/`WriteFile` + `$$STD_*_HANDLE` | `acgibin` | platform |
+| RT-ARGS | runtime | `XstGetCommandLineArguments` | `XBMerge` | platform |
+| SHARED-SCALAR | all four paths | `SHARED` *keyword* scalars stay per-function (locked approximation; `##` is the shared form). True legacy semantics = golden + all-backend coordinated change (experiment reverted: rewrites a frozen v0.1 golden) | full legacy `SHARED` fidelity | decision |
+| GUI-RUNTIME | platform | Xgr/Xui runtime (winit + softbuffer per docs/12) | 43 GUI demos + 3 init overflows + `DrawScaled` + 19 GTK | platform (large) |
+| CG-BYTES | two-C-gen sync | byte-identical emitted C (helper order/param names/formatting) | tightest sync lock (docs/16) | cosmetic |
+| CG-BODY-COVER | two-C-gen sync | behavioral coverage of addr-of builtins / file mode 2 | drift blind spot (docs/16) | test gap |
+| CHECK-LOC | hygiene | `checks/verify-bootstrap.sh` ≤250-LOC rule has 27 pre-existing violations (not an enforced gate; real gate = the cargo suite) | none | hygiene |
+| JIT-X87 | strategic | x87-exact FPU semantics (`iced-x86`/dynasm JIT) | only if compat tests demand | deferred |
+| STAGE3-LLVM | strategic | LLVM as the *selfhost* AOT backend (C generator is today's default + bootstrap path) | stage-3 backend split (docs/13) | deferred |
+| CRANELIFT | strategic | debug backend | — | deferred |
+| ENTRY-SCAFFOLD | runtime | `entry.rs` `XxxMain` callback scaffold is not a generated-program pipeline (docs/14 §4) | exported-callback programs | deferred |
+
+Micro-residual documented in place: `FUNCADDRESS` (the builtin) returns `0` — no corpus
+program uses it (§2 RT-FUNCPTR).
 
 ## 1. Backends
 
@@ -242,7 +278,7 @@ backend — was the *least* capable on the demo corpus**: only **3/151** demos
 compiled+ran byte-faithfully (vs LLVM's 150), because cgen lacked several structural
 features the interpreter and LLVM already had. Five contract-safe CEmitter fixes —
 each a **no-op on the self-host tools + v0.1 corpus**, so `cgen.x` stays byte-identical
-and the bootstrap is untouched — raised it to **55/151, diverge=0**:
+and the bootstrap is untouched — raised it to **55/151** (one diverge: `arotate.x`):
 
 - **Unknown-callee stubs (`96ee9e5`)** — a call to a non-builtin, non-user function
   (GUI `Xgr*`/`Xui*`, forward-referenced library funcs like `Howdy`) emitted an
@@ -277,9 +313,12 @@ diverge=0**; locked by `llvm_backend_shares_variables_across_functions`.
 undeclared **arrays** (auto-vivified arrays such as `Sub[]` — the array analogue of
 scalar hoisting), callback **arg-count** mismatches (a defined function called with
 extra args via `funcaddr`), genuinely deferred builtins (`STRING$`→`xb_string`,
-`INLINE$`→`xb_inline`, float `STR$`/`VAL`), and one diverge (`arotate.x`). `cgen.x`
-needs none of the demo-only fixes: it only ever compiles the all-`Main`,
-all-dimensioned, computed-goto-free self-host toolchain, where each fix is a no-op.
+`INLINE$`→`xb_inline`, float `STR$`/`VAL`), and one diverge — `arotate.x`: the
+generated C **hangs** (6 s timeout, no output) where the interpreter prints its
+rotation patterns (re-measured 2026-08-20), i.e. a loop-condition miscompile, not
+wrong text. `cgen.x` needs none of the demo-only fixes: it only ever compiles the
+all-`Main`, all-dimensioned, computed-goto-free self-host toolchain, where each fix
+is a no-op.
 
 Verification each step: full suite **181/0**; `cgen_cemitter_sync` / `bootstrap` /
 `cgen_selfhost` / `native_pipeline` / `self_rebuild` green; C + LLVM demo differentials.

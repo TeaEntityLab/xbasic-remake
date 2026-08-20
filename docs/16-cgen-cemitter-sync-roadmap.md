@@ -5,10 +5,13 @@
 > Companion to [17-open-work-roadmap.md](17-open-work-roadmap.md) (the umbrella
 > "everything not done yet" list). This doc is scoped to the two C generators.
 >
-> Re-verified **2026-08-17**: `cargo test -p xb-runtime --test cgen_cemitter_sync`
-> = **3/3** (positive-corpus, selfhost-tools, helper-signatures). CG-ADDR / CG-OPEN
-> / CG-SIG remain ✅ done; CG-BYTES / CG-BODY-COVER remain deferred/open. Full
-> workspace suite: 154 passed / 0 failed.
+> Re-verified **2026-08-20**: `cargo test -p xb-runtime --test cgen_cemitter_sync`
+> = **5/5** (positive-corpus, selfhost-tools, helper-signatures, embedded-NUL strings,
+> high-byte strings). CG-ADDR / CG-OPEN / CG-SIG / CG-BYTESTRING remain ✅ done;
+> CG-BYTES / CG-BODY-COVER remain deferred/open. Full workspace suite: **182 / 0**.
+> Note: the five 2026-08-20 CEmitter demo fixes (docs/17 §1 Backend feature-sync) are
+> deliberate **no-ops on the shared corpus** — byte-identity with `cgen.x` held without
+> touching it.
 
 ## 1. Why this exists
 
