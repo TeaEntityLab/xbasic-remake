@@ -226,9 +226,9 @@ END FUNCTION
 /// (MIG-SEMANTICS): extends the byte-faithfulness gate beyond the demo corpus to
 /// legacy core libs. `msc` exercises the full XBasic type-suffix sanitization
 /// (`value@` SBYTE, `value&&` ULONG, …) that a plain `. $ ! #` sanitizer dropped.
-/// (geo/XBMerge diverge on FLOAT-FMT/RT-ARGS; scalar/composite `@` by-ref
-/// write-back now lands via CGEN-BYREF-WRITEBACK — see docs/17. The remaining
-/// by-ref *array* write-back with runtime strides is CGEN-BYREF-DESC.)
+/// `geo` exercises `@`-param write-back (CGEN-BYREF-WRITEBACK) AND shortest-float
+/// printing (CGEN-FLOAT-FMT) — both now land, so it's byte-faithful. (XBMerge
+/// still diverges on RT-ARGS; `ary` on the legacy array ABI — see docs/17.)
 #[test]
 fn cgen_matches_interpreter_on_xbsourcelib() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -244,6 +244,7 @@ fn cgen_matches_interpreter_on_xbsourcelib() {
         ("XBSourceLib/utils/mergeTest03.x", "core-lib compile+run"),
         ("XBSourceLib/vgr/vgr.x", "array-facet fold (dual-use undimmed)"),
         ("XBSourceLib/vgr/vgrOld.x", "array-facet fold (dual-use undimmed)"),
+        ("XBSourceLib/geo/geo.x", "by-ref write-back + shortest-float printing"),
     ];
     let mut failures = Vec::new();
     for (rel, feature) in libs {

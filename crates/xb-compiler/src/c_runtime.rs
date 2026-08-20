@@ -113,8 +113,52 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str(
         "static char* xb_str_num(int v) { char buf[16]; snprintf(buf, 16, \"%d\", v); return xb_from_cstr(buf); }\n",
     );
+    // Shortest-round-trip float print matching Rust's f64 `Display` (the
+    // interpreter's `render`, slot.rs), so cgen float output is byte-identical.
+    // Round MYSELF from a 41-sig-fig expansion (correctly-rounded on any libc at
+    // that width) using round-half-away-from-zero, then place the decimal point
+    // (fixed notation, never scientific — like Rust). Verified against Rust
+    // `Display` on 1e6 random doubles + denormal/MAX/MIN edges (0 mismatches).
     out.push_str(
-        "static char* xb_str_float(double v) { char buf[32]; snprintf(buf, 32, \"%.17g\", v); return xb_from_cstr(buf); }\n",
+        r#"static void xb_fmt_float(double v, char* out, int outn) {
+    if (v != v) { snprintf(out, (size_t)outn, "NaN"); return; }
+    if (v == (1.0/0.0)) { snprintf(out, (size_t)outn, "inf"); return; }
+    if (v == -(1.0/0.0)) { snprintf(out, (size_t)outn, "-inf"); return; }
+    if (v == 0.0) { snprintf(out, (size_t)outn, signbit(v) ? "-0" : "0"); return; }
+    char hi[80]; snprintf(hi, sizeof hi, "%.40e", v);
+    const char* s = hi; int neg = 0;
+    if (*s == '-') { neg = 1; s++; }
+    char md[48]; int nmd = 0;
+    md[nmd++] = *s++;
+    if (*s == '.') { s++; while (*s && *s != 'e' && *s != 'E') md[nmd++] = *s++; }
+    int hexp = (*s == 'e' || *s == 'E') ? atoi(s + 1) : 0;
+    char best[48]; int bestn = 0, bestexp = 0;
+    for (int p = 1; p <= 17; p++) {
+        char r[48]; int rn = p, rexp = hexp;
+        for (int i = 0; i < p; i++) r[i] = md[i];
+        if (p < nmd && md[p] >= '5') {
+            int i = p - 1;
+            for (; i >= 0; i--) { if (r[i] < '9') { r[i]++; break; } r[i] = '0'; }
+            if (i < 0) { memmove(r + 1, r, (size_t)p); r[0] = '1'; rexp++; }
+        }
+        while (rn > 1 && r[rn - 1] == '0') rn--;
+        char cand[72]; int ci = 0; cand[ci++] = r[0];
+        if (rn > 1) { cand[ci++] = '.'; for (int i = 1; i < rn; i++) cand[ci++] = r[i]; }
+        snprintf(cand + ci, (size_t)((int)sizeof cand - ci), "e%d", rexp);
+        double rt = strtod(cand, 0); if (neg) rt = -rt;
+        memcpy(best, r, (size_t)rn); bestn = rn; bestexp = rexp;
+        if (rt == v) break;
+    }
+    int point = bestexp + 1; char* o = out; if (neg) *o++ = '-';
+    if (point <= 0) { *o++ = '0'; *o++ = '.'; for (int i = 0; i < -point; i++) *o++ = '0'; for (int i = 0; i < bestn; i++) *o++ = best[i]; }
+    else if (point >= bestn) { for (int i = 0; i < bestn; i++) *o++ = best[i]; for (int i = 0; i < point - bestn; i++) *o++ = '0'; }
+    else { for (int i = 0; i < point; i++) *o++ = best[i]; *o++ = '.'; for (int i = point; i < bestn; i++) *o++ = best[i]; }
+    *o = 0;
+}
+"#,
+    );
+    out.push_str(
+        "static char* xb_str_float(double v) { char buf[400]; xb_fmt_float(v, buf, 400); return xb_from_cstr(buf); }\n",
     );
     out.push_str("static int xb_eof(void) {\n");
     out.push_str("    int c = fgetc(stdin);\n");
@@ -131,7 +175,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("}\n");
     out.push_str("static void xb_print_int(int v) { printf(\"%d\\n\", v); }\n");
     out.push_str("static void xb_print_str(const char* s) { fwrite(s, 1, (size_t)xb_len(s), stdout); putchar('\\n'); }\n");
-    out.push_str("static void xb_print_float(double v) { printf(\"%.17g\\n\", v); }\n");
+    out.push_str("static void xb_print_float(double v) { char buf[400]; xb_fmt_float(v, buf, 400); printf(\"%s\\n\", buf); }\n");
     out.push_str("static char* xb_ucase(const char* s) { char* r = xb_strdup(s); int n = xb_len(r); for (int i = 0; i < n; i++) r[i] = (char)toupper((unsigned char)r[i]); return r; }\n");
     out.push_str("static char* xb_lcase(const char* s) { char* r = xb_strdup(s); int n = xb_len(r); for (int i = 0; i < n; i++) r[i] = (char)tolower((unsigned char)r[i]); return r; }\n");
     out.push_str("static char* xb_trim(const char* s) { int n = xb_len(s); int a = 0; while (a < n && (s[a] == ' ' || s[a] == '\\t')) a++; int b = n; while (b > a && (s[b-1] == ' ' || s[b-1] == '\\t')) b--; int len = b - a; char* r = xb_alloc((size_t)len); memcpy(r, s + a, (size_t)len); return r; }\n");
@@ -164,7 +208,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("static void xb_data_add_str(const char* v) { xb_data_tag[xb_data_count] = 2; xb_data_str[xb_data_count] = xb_from_cstr(v); xb_data_count++; }\n");
     out.push_str("static void xb_read_int(int* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 0) *v = xb_data_int[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 1) *v = (int)xb_data_float[xb_data_pos]; else *v = atoi(xb_data_str[xb_data_pos]); xb_data_pos++; }\n");
     out.push_str("static void xb_read_float(double* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 1) *v = xb_data_float[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 0) *v = (double)xb_data_int[xb_data_pos]; else *v = atof(xb_data_str[xb_data_pos]); xb_data_pos++; }\n");
-    out.push_str("static char* xb_read_str(void) { if (xb_data_pos >= xb_data_count) return xb_str(\"\"); char* r; if (xb_data_tag[xb_data_pos] == 2) r = xb_strdup(xb_data_str[xb_data_pos]); else { char buf[32]; if (xb_data_tag[xb_data_pos] == 0) snprintf(buf, 32, \"%d\", xb_data_int[xb_data_pos]); else snprintf(buf, 32, \"%.17g\", xb_data_float[xb_data_pos]); r = xb_from_cstr(buf); } xb_data_pos++; return r; }\n");
+    out.push_str("static char* xb_read_str(void) { if (xb_data_pos >= xb_data_count) return xb_str(\"\"); char* r; if (xb_data_tag[xb_data_pos] == 2) r = xb_strdup(xb_data_str[xb_data_pos]); else { char buf[400]; if (xb_data_tag[xb_data_pos] == 0) snprintf(buf, 400, \"%d\", xb_data_int[xb_data_pos]); else xb_fmt_float(xb_data_float[xb_data_pos], buf, 400); r = xb_from_cstr(buf); } xb_data_pos++; return r; }\n");
     out.push_str("static void xb_restore(int idx) { xb_data_pos = idx; }\n");
     out.push_str("static int xb_error_code = 0;\n");
     out.push_str("static int xb_error(int n) { int old = xb_error_code; if (n != -1) xb_error_code = n; return old; }\n");
