@@ -182,37 +182,51 @@ the other 4 are blocked by three genuine (non-platform) *features*, not bounded 
   decimal formatter (Ryū/Grisu-class) in the C runtime; a naïve `%g` retry breaks simple
   values (`30` → `3e+01`). The demo corpus never prints such computed floats, so it is
   unaffected (all 106 already match).
-- **Composite-array members** (`ary.x`, `ary1.0001.x`): `DIM pathMember[N]` of a `TYPE` with
-  members (`STRING*16 .code`), then `pathMember[0].code` — the interpreter does not allocate
-  the per-member flattened arrays, so the member-array reads out of range at index 0. Needs
-  composite-array member storage in the interpreter (+ matching backend lowering).
+- **Cross-function `SHARED` arrays** (`ary.x`, `ary1.0001.x`): after this session's `@array`
+  by-ref fix (below), `ary` advances past composite-array by-ref and the `$`-naming mismatch
+  to its real blocker — `SHARED Ary_nameList$[]`. The `SHARED` *keyword* declaration (as
+  opposed to `##`-shared syntax) is dropped at parse time: `SHARED x[]` and `DIM x[]` both
+  produce `Statement::Dim` with no shared flag, so the variable is never registered in the
+  shared store and plain `x[i]` refs bind to a per-function local (even scalar `SHARED x`
+  fails across functions). Making it work is a cross-cutting 4-layer feature: carry a `shared`
+  flag parser→analyzer, register SHARED vars, route plain symbol/array read+write to the
+  shared store (interpreter **and** LLVM backend globals), and honor `SHARED x[n]` sizing.
+  Regression risk to the 106 (many use `SHARED`), so it must be gated on the full corpus
+  differential. Critical: the 25 interp-clean demos using scalar `SHARED` are byte-faithful
+  only because interpreter **and** LLVM backend carry the *same* bug (SHARED-keyword → a
+  per-function local; e.g. `atask.x` never actually propagates `terminateProgram`), so an
+  interpreter-only fix would *diverge* them. The fix must land in both layers together.
 - **Command-line arguments** (`XBMerge.x`): reads `XstGetCommandLineArguments`; with no args
   the interpreter and backend take different usage-vs-empty paths (borderline platform).
 
 Bootstrap-safe: the self-host toolchain uses none of these (no printed floats, zero composite
 params, no `XstGetCommandLineArguments`).
 
-### `@array` effort — verified scoping notes `[2026-08-19]`
-Precise root causes established this session, so the large effort can be scoped without
-re-deriving them:
+### `@array` by-ref — interpreter side ✅ done `[2026-08-20]`
+The interpreter now implements array pass-by-reference end-to-end (commit `47a68ac`):
 
-- **Bootstrap-safe.** The self-host toolchain (`compiler.x`/`cgen.x`/`lexer.x`/`parser.x`)
-  uses **zero array parameters**, so the array-param overhaul cannot perturb the byte-exact
-  bootstrap fixed point (same guarantee that made `@` scalar by-ref safe).
-- **Frontend `$`-naming mismatch.** For a string array, `DIM array$[]` registers the symbol
-  `array$`, but `@array$[]` lowers to `byref(name="array")` — the `$` is stripped (integer
-  arrays match: `array` on both sides). The interpreter resolves this via a suffix rule the
-  backend lacks; the fix normalizes array-symbol naming across DIM / param / by-ref.
-- **`ANY` polymorphism.** `aarray_ISNODE`'s `PrintArray (ANY array[])` is called with a
-  string array *and* an integer array — one statically-compiled function can't hold both
-  element representations (`ptr` vs `i32`); needs monomorphization or a boxed/tagged element.
-- **REDIM-through-by-ref.** `aprofile`'s `StringsToStringArray` does `REDIM array$[]` on the
-  by-ref array, so the ABI must let the callee reallocate/resize the caller's storage — i.e.
-  arrays as heap descriptors `{data, dims}` passed by pointer (the current `(holder-alloca,
-  dim-allocas)` shape is close, but the callee must *share* it, not copy).
+- **Pass-in + write-back** (`call.rs`): a call arg naming an array (directly or via `@`) copies
+  the caller's storage (elements + shape) into the callee's param slot; on `@`-writeback the
+  callee's (possibly `REDIM`'d) array + dims are copied back, so read-through, element
+  write-back, and **REDIM-through-by-ref** all work (locked by 4 interpreter tests).
+- **`$`-naming normalization** (`parser`): `@a$[]` (call-site) and `a$[]` (param decl) now bake
+  the type suffix into the slot name (like `ArrayRef`/`ArrayAccess`), so the by-ref symbol and
+  param bind to the same `a$` slot the callee body uses (integer arrays already matched).
 
-Net: `@array` reach needs frontend naming fix + `ANY` monomorphization + descriptor/REDIM
-ABI — bootstrap-safe, but multi-layer and atomic, not a bounded increment.
+Verified regression-free: full suite 173/0, interp corpus clean=106 (unchanged), LLVM
+differential faithful on all array-affected demos, bootstrap `c8d5c7f1` intact.
+
+Remaining `@array` work (not yet done):
+
+- **LLVM backend general `@array` parity.** The backend handles read-only 1-D `@array[]`
+  (`aarray_ISNODE`) and array-by-ref params; general REDIM-through-by-ref needs arrays as heap
+  descriptors `{data, dims}` shared by pointer (callee resizes the caller's storage, not a copy).
+- **`ANY` polymorphism.** `aarray_ISNODE`'s `PrintArray (ANY array[])` is called with a string
+  *and* an integer array — one statically-compiled function can't hold both element reps
+  (`ptr` vs `i32`); needs monomorphization or a boxed/tagged element.
+
+Bootstrap-safe: the self-host toolchain uses zero array parameters, so none of this perturbs
+the byte-exact 3-stage bootstrap fixed point.
 
 ### JIT-X87 — FPU-intrinsic JIT not implemented `[verified]`
 No JIT crate is present (`iced-x86` / `dynasm` absent from `Cargo.lock`). The
