@@ -190,13 +190,20 @@ impl Analyzer {
         Ok(CheckedSymbol::new(name.to_owned(), vt))
     }
 
-    /// Like checked_symbol but auto-declares unknown symbols as Integer
+    /// Like checked_symbol but auto-declares unknown symbols, inferring the
+    /// type from a trailing `$` (String), `!` (Float), or `#` (Float) suffix
+    /// when the bare name is not in the symbol table. This matches how the
+    /// interpreter's slot table distinguishes `field3` from `field3$`.
     pub(crate) fn auto_symbol(&self, name: &str) -> CheckedSymbol {
         let vt = self
             .symbols
             .get(name)
             .copied()
-            .unwrap_or(ValueType::Integer);
+            .unwrap_or_else(|| match name.chars().last() {
+                Some('$') => ValueType::String,
+                Some('!') | Some('#') => ValueType::Float,
+                _ => ValueType::Integer,
+            });
         CheckedSymbol::new(name.to_owned(), vt)
     }
 }

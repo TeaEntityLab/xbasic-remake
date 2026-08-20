@@ -12,6 +12,13 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             crate::c_emit_select::emit_print(items, separators, out, indent);
         }
         IrItem::Dim { symbol, size, is_array, .. } => {
+            // A `Dim` of a name that is already a function parameter is a no-op
+            // in C (the param is already declared); emitting it would be a
+            // redefinition. The interpreter's execute_dim would reset the slot,
+            // but for demo lifetimes this is safe.
+            if crate::c_emit::is_fn_param(&symbol.name) {
+                return;
+            }
             let dyn_array = crate::c_emit::is_dyn_array(&symbol.name);
             let dyn_scalar = crate::c_emit::is_dyn_scalar(&symbol.name);
             out.push_str(&ind);

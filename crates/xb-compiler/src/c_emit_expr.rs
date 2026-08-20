@@ -358,7 +358,9 @@ pub(crate) fn emit_var_name(symbol: &IrSymbol, out: &mut String) {
             out.push_str("xb_var_");
         }
     }
-    out.push_str(&symbol.name);
+    // Composite member names contain dots (`host.address`); C identifiers
+    // can't, so replace `.` with `_` (`xb_var_host_address`).
+    out.push_str(&symbol.name.replace('.', "_"));
 }
 
 /// Emit a call's argument list. For a user-defined callee whose arg count

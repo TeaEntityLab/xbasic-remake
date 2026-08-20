@@ -102,8 +102,13 @@ impl Analyzer {
             | Statement::Data(_) => Ok(CheckedItem::Nop),
             Statement::Goto(expr) => match expr {
                 Expression::Identifier { name, suffix: None }
-                    if self.checked_symbol(name).is_err() =>
+                    if self.checked_symbol(name).is_err()
+                        || self.functions.contains_key(name) =>
                 {
+                    // A bare name that is not a local variable, or is a function
+                    // name (not a label), resolves as a direct Goto to a label —
+                    // the C emitter no-ops if the label is absent (interp errors
+                    // only if executed).
                     Ok(CheckedItem::Goto(name.clone()))
                 }
                 _ => {
@@ -113,7 +118,8 @@ impl Analyzer {
             },
             Statement::Gosub(expr) => match expr {
                 Expression::Identifier { name, suffix: None }
-                    if self.checked_symbol(name).is_err() =>
+                    if self.checked_symbol(name).is_err()
+                        || self.functions.contains_key(name) =>
                 {
                     Ok(CheckedItem::Gosub(name.clone()))
                 }
@@ -160,8 +166,11 @@ impl Analyzer {
         body: &[Statement],
         scope: Scope,
     ) -> ItemResult {
-        let sym = self.auto_symbol(var);
-        // Allow any type for FOR loop variable (auto-declared as integer)
+        // FOR loop variables are always integer counters (the interpreter's
+        // execute_for uses an integer slot). Don't use auto_symbol here: a
+        // prior `y$ = ...` assignment poisons `self.symbols["y"]` with String,
+        // which would make `auto_symbol("y")` return the wrong type.
+        let sym = CheckedSymbol::new(var.to_owned(), ValueType::Integer);
         let start = self.expr(start)?;
         let end = self.expr(end)?;
         let step = step.map(|s| self.expr(s)).transpose()?;

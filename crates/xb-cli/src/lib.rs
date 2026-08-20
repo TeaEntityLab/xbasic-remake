@@ -182,6 +182,8 @@ fn compile_via_c(source: &Path, output: &Path) -> Result<String, CliError> {
     let result = Command::new(&cc)
         .args([
             "-O0",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
             "-o",
             output.to_str().unwrap(),
             c_path.to_str().unwrap(),

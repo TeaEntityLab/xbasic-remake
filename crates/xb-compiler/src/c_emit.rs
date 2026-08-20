@@ -28,8 +28,10 @@ thread_local! {
     /// Names whose `Dim` sites become (re)allocations/resets instead of C
     /// declarations: referenced before their first `Dim` in emission order, or
     /// `Dim`'d 2+ times (see c_emit_hoist::collect_dyn_names). Arrays carry the
-    /// element type; scalars their type. Empty for the entire shared corpus.
     static FN_DYN: RefCell<crate::c_emit_hoist::DynNames> = RefCell::new(crate::c_emit_hoist::DynNames::default());
+    /// Per-function parameter names: a `Dim` of a name that is already a
+    /// parameter must not re-declare it in C (would be a redefinition).
+    static FN_PARAMS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
 }
 
 /// Record every user-defined function name for `program`. Called once per
@@ -86,6 +88,11 @@ fn set_fn_context(items: &[IrItem], params: &[crate::ir::IrParam]) {
         set.clear();
         crate::c_emit_hoist::collect_labels(items, &mut set);
     });
+    FN_PARAMS.with(|s| {
+        let mut set = s.borrow_mut();
+        set.clear();
+        set.extend(params.iter().map(|p| p.name.clone()));
+    });
     GOSUB_RET_SEEN.with(|s| s.borrow_mut().clear());
 }
 
@@ -100,6 +107,12 @@ pub(crate) fn is_undimmed_array(name: &str) -> bool {
 /// Whether the current C function will contain `xb_label_<name>:`.
 pub(crate) fn fn_has_label(name: &str) -> bool {
     FN_LABELS.with(|s| s.borrow().contains(name))
+}
+
+/// Whether `name` is a parameter of the current function — a `Dim` of a param
+/// name must not re-declare it in C (would be a redefinition).
+pub(crate) fn is_fn_param(name: &str) -> bool {
+    FN_PARAMS.with(|s| s.borrow().contains(name))
 }
 
 /// An array whose `Dim` is late/repeated: declared at function top as a pointer
