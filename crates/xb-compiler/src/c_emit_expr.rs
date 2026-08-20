@@ -48,9 +48,12 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
         IrExprKind::Symbol(s) => {
             emit_symbol_ref(s, out);
         }
-        // C by-ref write-back is not modeled; emit the inner value. (No corpus or
-        // self-host program uses `@`, so this arm is exercised only via the
-        // interpreter path today — see docs/17 RT-NESTED-COMPOSITE.)
+        // C by-ref write-back is not modeled; emit the inner value. Adding `&`
+        // unconditionally is wrong — a by-ref arg to a *scalar* param needs the
+        // value, only a by-ref arg to an *array/pointer* param needs the address;
+        // the correct choice needs the callee's param kind (see docs/17
+        // CGEN-BYREF-ARG). No corpus or demo uses by-ref, so this arm is inert
+        // there and only affects XBSourceLib (7 core libs, float-array by-ref).
         IrExprKind::ByRef(inner) => emit_expr(inner, out),
         IrExprKind::Comparison { op, left, right } => {
             if left.value_type == ValueType::String || right.value_type == ValueType::String {
