@@ -405,6 +405,7 @@ impl Parser {
                     suffix,
                     type_name,
                     by_ref,
+                    is_array,
                 });
                 if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                     self.index += 1;

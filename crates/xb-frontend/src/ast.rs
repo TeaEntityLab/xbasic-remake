@@ -187,6 +187,9 @@ pub struct Param {
     pub type_name: Option<String>,
     /// `@`-prefixed pass-by-reference parameter.
     pub by_ref: bool,
+    /// `true` when the parameter carried array brackets (`a[]` / `TYPE a[]`), so
+    /// the analyzer flattens composite members as arrays and array access binds.
+    pub is_array: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

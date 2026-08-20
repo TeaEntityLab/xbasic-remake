@@ -495,6 +495,34 @@ fn shared_keyword_array_persists_across_functions() {
 }
 
 #[test]
+fn composite_array_by_ref_param_member_assignment() {
+    // A composite *array* passed `@p[]` by reference: `p[i].member = v` in the
+    // callee must bind to the per-member array (`p.member[i]`) and write back to
+    // the caller — not misfire as a scalar byte-index. (No REDIM in the callee;
+    // it relies on the passed-in array's shape.)
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         TYPE PT\nINT .n\nEND TYPE\n\
+         FUNCTION Fill (PT @p[])\n\
+         i = 0\n\
+         p[i].n = 10\n\
+         p[1].n = 20\n\
+         END FUNCTION\n\
+         FUNCTION Main\n\
+         PT arr[3]\n\
+         DIM arr[3]\n\
+         Fill(@arr[])\n\
+         PRINT arr[0].n\nPRINT arr[1].n\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["10", "20"]);
+}
+
+#[test]
 fn compares_float_to_integer_literal() {
     // `a! = 0` compares a float to an integer literal; the runtime must promote
     // the integer, not raise a type mismatch.

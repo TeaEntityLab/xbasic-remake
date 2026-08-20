@@ -35,6 +35,13 @@ impl Analyzer {
                     scoped.flatten_composite(&p.name, &layout, &mut leaves);
                     for (mname, mvt) in leaves {
                         scoped.symbols.insert(mname.clone(), mvt);
+                        // A composite *array* param (`TYPE @p[]`) flattens each member
+                        // into a member array (`p.member[]`), matching how a local
+                        // composite array declares its members, so `p[i].member`
+                        // lowers to array access instead of a scalar byte-index.
+                        if p.is_array {
+                            scoped.arrays.insert(mname.clone(), mvt);
+                        }
                         cps.push(CheckedParam {
                             name: mname,
                             value_type: mvt,
