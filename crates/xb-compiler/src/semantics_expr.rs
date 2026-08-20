@@ -495,9 +495,19 @@ impl Analyzer {
     fn byref_symbol(&self, name: &str, suffix: Option<xb_frontend::TypeSuffix>) -> ExprResult {
         // Bare `@x` reads as x's value; the ByRef marker is applied only at call
         // sites (see `call_arg`), where write-back into the caller is meaningful.
-        let vt = ValueType::from_suffix(suffix);
-        let sym = CheckedSymbol::new(name.to_owned(), vt);
-        Ok(CheckedExpr::new(CheckedExprKind::Symbol(sym), vt))
+        // Resolve the name exactly like `symbol()` so `@line$` (byref arg) and a
+        // plain `line$` read canonicalize to the SAME slot on a type conflict
+        // (an Integer `line` coexisting with a String `line$` → full name
+        // `line$`); otherwise the writeback target and the reader diverge.
+        let suffix_vt = ValueType::from_suffix(suffix);
+        let sym = match self.checked_symbol(name) {
+            Ok(s) if s.value_type == suffix_vt || name.contains('.') => s,
+            Ok(_) => {
+                CheckedSymbol::new(xb_frontend::full_name(name.to_owned(), suffix), suffix_vt)
+            }
+            Err(_) => CheckedSymbol::new(name.to_owned(), suffix_vt),
+        };
+        Ok(CheckedExpr::new(CheckedExprKind::Symbol(sym), suffix_vt))
     }
 
     /// Analyze a call argument, wrapping `@x` by-reference args in `ByRef` so the
