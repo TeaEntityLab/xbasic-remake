@@ -311,8 +311,14 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
                         "var_"
                     });
                     out.push_str(&sanitize_c_name(&p.name));
-                    // Keep prototypes consistent with emit_functions' dup rename.
-                    if params[i + 1..].iter().any(|q| q.name == p.name) {
+                    // Keep prototypes consistent with emit_functions' dup rename:
+                    // only when the emitted C name actually collides (same raw
+                    // name AND same string-ness).
+                    let p_str = p.value_type == ValueType::String;
+                    if params[i + 1..]
+                        .iter()
+                        .any(|q| q.name == p.name && (q.value_type == ValueType::String) == p_str)
+                    {
                         out.push_str(&format!("__dup{i}"));
                     }
                 }

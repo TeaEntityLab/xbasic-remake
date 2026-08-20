@@ -325,10 +325,17 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
                     },
                     out,
                 );
-                // Duplicate param names: the interpreter's zip-binding writes the
-                // slot per name, so the LAST occurrence wins; earlier dups get an
-                // unused suffixed C name (C forbids duplicate parameters).
-                if params[i + 1..].iter().any(|q| q.name == p.name) {
+                // Duplicate param *C names*: the interpreter's zip-binding writes
+                // the slot per name so the LAST occurrence wins; earlier dups get
+                // an unused suffixed C name (C forbids duplicate parameters). Two
+                // params collide only when they share the emitted name — same raw
+                // name AND same string-ness (`v0` Integer and `v0` String map to
+                // xb_var_v0 vs xb_str_v0, distinct, so must NOT be renamed).
+                let p_str = p.value_type == crate::ValueType::String;
+                if params[i + 1..]
+                    .iter()
+                    .any(|q| q.name == p.name && (q.value_type == crate::ValueType::String) == p_str)
+                {
                     out.push_str(&format!("__dup{i}"));
                 }
             }
