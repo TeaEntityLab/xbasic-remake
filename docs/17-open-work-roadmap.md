@@ -8,10 +8,14 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
-> Last full re-verification: **2026-08-20**. `cargo test --workspace --exclude
-> xb-ide` = **183 passed / 0 failed**. C-backend demo sweep: **114/114 compile,
-> 71 byte-faithful, diverge=3, 0 compile-fails** (up from 3→55→97→113→114).
-> Twenty-one CEmitter fix
+> Last full re-verification: **2026-08-20** (all backends). `cargo test --workspace
+> --exclude xb-ide` = **186 passed / 0 failed**; `cgen_cemitter_sync` **5/5**;
+> native bootstrap fixed point **intact**; LLVM **105/0**. C-backend demo sweep:
+> **114/114 compile, 71 byte-faithful, diverge=3, 0 compile-fails** (up from
+> 3→55→97→113→114). Beyond demos, **XBSourceLib core libs 6/13 C-compile, 4
+> byte-faithful** (`msc`/`mergeTest01`/`mergeTest02`/`mergeOut02`), and the C
+> backend now handles **row-major multi-dim arrays** (direct + text-IR paths).
+> Twenty-two CEmitter fix
 > batches — each byte-neutral on the self-host + v0.1 corpus or mirrored in
 > `cgen.x` (`cgen_cemitter_sync` 5/5 throughout; native bootstrap fixed point
 > re-verified) — landed: arity reconciliation, dynamic DIMs, label guards,
