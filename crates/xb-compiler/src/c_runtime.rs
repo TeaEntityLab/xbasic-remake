@@ -6,7 +6,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("#include <ctype.h>\n");
     out.push_str("#include <time.h>\n");
     out.push_str("#include <stdint.h>\n");
-    out.push('\n');
+
     // Byte-strings: a string is a char* to its data with a size_t length in an 8-byte
     // header before the data (xb_len reads it) + a trailing NUL for legacy C-lib interop.
     // This makes CHR$(0)/embedded/high bytes byte-accurate through len/concat/print/compare.
@@ -260,6 +260,15 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("static void* xb_gosub_stack[256]; static int xb_gosub_sp = 0;\n");
 }
 
+/// Sanitize an XBasic name for use as a C identifier: replace `.`, `$`, `!`,
+/// `#` with `_`, `_s`, `_f`, `_d` (mirrors `c_emit_expr::emit_var_name`).
+fn sanitize_c_name(name: &str) -> String {
+    name.replace('.', "_")
+        .replace('$', "_s")
+        .replace('!', "_f")
+        .replace('#', "_d")
+}
+
 use crate::c_emit::c_type;
 use crate::ir::{IrItem, IrProgram};
 use crate::ValueType;
@@ -300,7 +309,7 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
                     } else {
                         "var_"
                     });
-                    out.push_str(&p.name);
+                    out.push_str(&sanitize_c_name(&p.name));
                     // Keep prototypes consistent with emit_functions' dup rename.
                     if params[i + 1..].iter().any(|q| q.name == p.name) {
                         out.push_str(&format!("__dup{i}"));
@@ -335,7 +344,7 @@ fn collect_shared(
                 if seen.insert(target.name.clone()) {
                     out.push_str(c_type(target.value_type));
                     out.push_str(" xb_shared_");
-                    out.push_str(&target.name);
+                    out.push_str(&sanitize_c_name(&target.name));
                     out.push_str(" = 0;\n");
                 }
             }

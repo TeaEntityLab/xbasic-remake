@@ -24,7 +24,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
         }
         IrExprKind::SharedVariable(s) => {
             out.push_str("xb_shared_");
-            out.push_str(&s.name);
+            out.push_str(&s.name.replace('.', "_").replace('$', "_s").replace('!', "_f").replace('#', "_d"));
         }
         IrExprKind::Symbol(s) => {
             emit_symbol_ref(s, out);
@@ -358,9 +358,16 @@ pub(crate) fn emit_var_name(symbol: &IrSymbol, out: &mut String) {
             out.push_str("xb_var_");
         }
     }
-    // Composite member names contain dots (`host.address`); C identifiers
-    // can't, so replace `.` with `_` (`xb_var_host_address`).
-    out.push_str(&symbol.name.replace('.', "_"));
+    // Composite member names contain dots and auto-declared type-suffixed names
+    // carry `$`/`!`/`#` — C identifiers can't contain those. Replace `.` with
+    // `_`, `$` with `_s`, `!` with `_f`, `#` with `_d` to avoid collisions
+    // (the type is already encoded in the xb_str_/xb_var_ prefix).
+    let sanitized = symbol.name
+        .replace('.', "_")
+        .replace('$', "_s")
+        .replace('!', "_f")
+        .replace('#', "_d");
+    out.push_str(&sanitized);
 }
 
 /// Emit a call's argument list. For a user-defined callee whose arg count
