@@ -29,21 +29,21 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     // execute-time slot reset. (Repeated DIMs leak the old block —
                     // acceptable for demo lifetimes.)
                     out.push_str("xb_ub_");
-                    out.push_str(&symbol.name);
+                    out.push_str(&crate::c_emit_expr::sanitize_c_ident(&symbol.name));
                     out.push_str(" = (");
                     emit_expr(sz, out);
                     out.push_str(");\n");
                     out.push_str(&ind);
                     emit_var_name(symbol, out);
                     out.push_str(" = calloc((size_t)(xb_ub_");
-                    out.push_str(&symbol.name);
+                    out.push_str(&crate::c_emit_expr::sanitize_c_ident(&symbol.name));
                     out.push_str(" + 1), sizeof(*");
                     emit_var_name(symbol, out);
                     out.push_str("));\n");
                     if symbol.value_type == ValueType::String {
                         out.push_str(&ind);
                         out.push_str("for (intptr_t _i = 0; _i <= xb_ub_");
-                        out.push_str(&symbol.name);
+                        out.push_str(&crate::c_emit_expr::sanitize_c_ident(&symbol.name));
                         out.push_str("; _i++) ");
                         emit_var_name(symbol, out);
                         out.push_str("[_i] = xb_str(\"\");\n");
@@ -69,7 +69,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     // Late/repeated `DIM a[]`: reset the hoisted pointer to the
                     // empty state (UBOUND -1), like the interpreter's empty array.
                     out.push_str("xb_ub_");
-                    out.push_str(&symbol.name);
+                    out.push_str(&crate::c_emit_expr::sanitize_c_ident(&symbol.name));
                     out.push_str(" = -1;\n");
                     out.push_str(&ind);
                     emit_var_name(symbol, out);

@@ -306,7 +306,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 // Late/repeated DIM: the array is a hoisted pointer; sizeof would
                 // be wrong. Read the tracked upper bound.
                 out.push_str("((int)xb_ub_");
-                out.push_str(&symbol.name);
+                out.push_str(&sanitize_c_ident(&symbol.name));
                 out.push(')');
             } else {
                 out.push_str("(int)(sizeof(");
@@ -379,6 +379,15 @@ pub(crate) fn emit_var_name(symbol: &IrSymbol, out: &mut String) {
         .replace('!', "_f")
         .replace('#', "_d");
     out.push_str(&sanitized);
+}
+
+/// Sanitize an XBasic name for use as a C identifier suffix (after a prefix
+/// like `xb_ub_`). Mirrors the sanitization in `emit_var_name`.
+pub(crate) fn sanitize_c_ident(name: &str) -> String {
+    name.replace('.', "_")
+        .replace('$', "_s")
+        .replace('!', "_f")
+        .replace('#', "_d")
 }
 
 /// Emit a call's argument list. For a user-defined callee whose arg count

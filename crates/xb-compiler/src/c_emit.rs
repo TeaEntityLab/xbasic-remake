@@ -147,7 +147,7 @@ pub(crate) fn emit_dyn_decls(out: &mut String, indent: usize) {
             out.push_str(" = 0;\n");
             out.push_str(&ind);
             out.push_str("intptr_t xb_ub_");
-            out.push_str(name);
+            out.push_str(&crate::c_emit_expr::sanitize_c_ident(name));
             out.push_str(" = -1;\n");
         }
         for (name, vt) in &dyn_names.scalars {
