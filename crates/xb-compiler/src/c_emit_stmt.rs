@@ -65,7 +65,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                         out.push_str("[_i] = xb_str(\"\");\n");
                     }
                 }
-                None if *is_array && dyn_array => {
+                None if dyn_array => {
                     // Late/repeated `DIM a[]`: reset the hoisted pointer to the
                     // empty state (UBOUND -1), like the interpreter's empty array.
                     out.push_str("xb_ub_");

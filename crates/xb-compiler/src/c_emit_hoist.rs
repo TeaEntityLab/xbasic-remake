@@ -42,6 +42,12 @@ pub(crate) fn emit_hoisted_scalars(
         if dimmed.contains(name)
             || params.contains(name.as_str())
             || own_name == Some(name.as_str())
+            // The dynamic-name system already hoists these (as a pointer for a
+            // late/repeated-DIM array, or a reset scalar). A composite member
+            // array `type0.a` DIM'd 2+ times lands in dyn arrays *and* is seen
+            // as a Symbol here — hoisting both is a C redefinition.
+            || crate::c_emit::is_dyn_array(name)
+            || crate::c_emit::is_dyn_scalar(name)
         {
             continue;
         }
