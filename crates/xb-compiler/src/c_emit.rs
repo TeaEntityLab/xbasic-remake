@@ -35,6 +35,10 @@ thread_local! {
     /// `&Func` synthetic ids: 1-based program-item order, mirroring the
     /// interpreter's eval.rs `function_id` (LLVM emits the same ids).
     static FUNC_IDS: RefCell<HashMap<String, i32>> = RefCell::new(HashMap::new());
+    /// Names used as both a scalar and an array in the current function — emitted
+    /// as a scalar `xb_var_x` plus a separate array `xb_var_x_arr` (interp's slot
+    /// holds both a `value` and an `array`). Empty for the shared corpus.
+    static FN_DUAL_USE: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
 }
 
 /// Record every user-defined function name for `program`. Called once per
@@ -117,6 +121,16 @@ fn set_fn_context(items: &[IrItem], params: &[crate::ir::IrParam]) {
         set.clear();
         set.extend(params.iter().map(|p| p.name.clone()));
     });
+    FN_DUAL_USE.with(|s| {
+        let mut set = crate::c_emit_hoist::collect_dual_use(items);
+        // A parameter is a single C declaration (an array param is already a
+        // pointer); it can't be split into scalar + `_arr` vars. Only local
+        // (AUTO/auto-vivified) names are dual-split.
+        for p in params {
+            set.remove(&p.name);
+        }
+        *s.borrow_mut() = set;
+    });
     GOSUB_RET_SEEN.with(|s| s.borrow_mut().clear());
 }
 
@@ -128,6 +142,32 @@ pub(crate) fn is_undimmed_array(name: &str) -> bool {
     FN_UNDIMMED_ARRAYS.with(|s| s.borrow().contains(name))
 }
 
+/// Whether `name` is used as both a scalar and an array in the current function
+/// (see FN_DUAL_USE). Its array identity carries an `_arr` suffix in C.
+pub(crate) fn is_dual_use(name: &str) -> bool {
+    FN_DUAL_USE.with(|s| s.borrow().contains(name))
+}
+
+/// Emit the C name for a symbol used in ARRAY context. Identical to
+/// `emit_var_name` except a dual-use name gets an `_arr` suffix so its array
+/// storage is a distinct C variable from its scalar (`xb_var_hash_arr`).
+pub(crate) fn emit_array_var_name(symbol: &IrSymbol, out: &mut String) {
+    crate::c_emit_expr::emit_var_name(symbol, out);
+    if is_dual_use(&symbol.name) {
+        out.push_str("_arr");
+    }
+}
+
+/// The `xb_ub_`/dyn-pointer identifier suffix for an array name — `_arr`-tagged
+/// for a dual-use name so it matches `emit_array_var_name`.
+pub(crate) fn array_ident(name: &str) -> String {
+    let base = crate::c_emit_expr::sanitize_c_ident(name);
+    if is_dual_use(name) {
+        format!("{base}_arr")
+    } else {
+        base
+    }
+}
 /// Whether the current C function will contain `xb_label_<name>:`.
 pub(crate) fn fn_has_label(name: &str) -> bool {
     FN_LABELS.with(|s| s.borrow().contains(name))
@@ -161,17 +201,15 @@ pub(crate) fn emit_dyn_decls(out: &mut String, indent: usize) {
     FN_DYN.with(|s| {
         let dyn_names = s.borrow();
         for (name, vt) in &dyn_names.arrays {
+            let sym = IrSymbol { name: name.clone(), value_type: *vt };
             out.push_str(&ind);
             out.push_str(c_type(*vt));
             out.push_str(" *");
-            emit_var_name(
-                &IrSymbol { name: name.clone(), value_type: *vt },
-                out,
-            );
+            emit_array_var_name(&sym, out);
             out.push_str(" = 0;\n");
             out.push_str(&ind);
             out.push_str("intptr_t xb_ub_");
-            out.push_str(&crate::c_emit_expr::sanitize_c_ident(name));
+            out.push_str(&array_ident(name));
             out.push_str(" = -1;\n");
         }
         for (name, vt) in &dyn_names.scalars {

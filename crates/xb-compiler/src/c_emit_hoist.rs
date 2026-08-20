@@ -39,15 +39,18 @@ pub(crate) fn emit_hoisted_scalars(
     let params: HashSet<&str> = params.iter().map(|p| p.name.as_str()).collect();
     let ind = "    ".repeat(indent);
     for (name, vt) in &scalars {
-        if dimmed.contains(name)
-            || params.contains(name.as_str())
-            || own_name == Some(name.as_str())
-            // The dynamic-name system already hoists these (as a pointer for a
-            // late/repeated-DIM array, or a reset scalar). A composite member
-            // array `type0.a` DIM'd 2+ times lands in dyn arrays *and* is seen
-            // as a Symbol here — hoisting both is a C redefinition.
-            || crate::c_emit::is_dyn_array(name)
-            || crate::c_emit::is_dyn_scalar(name)
+        if params.contains(name.as_str()) || own_name == Some(name.as_str()) {
+            continue;
+        }
+        // A dual-use name (scalar AND array) is emitted as BOTH a scalar here
+        // and a separate `_arr` array by the dyn hoist — so DON'T skip it even
+        // though it is dimmed / dyn. Otherwise the dynamic-name system already
+        // hoists the name (pointer for a late/repeated-DIM array, or a reset
+        // scalar), and it also has an inline `Dim`; hoisting again = C redefinition.
+        if !crate::c_emit::is_dual_use(name)
+            && (dimmed.contains(name)
+                || crate::c_emit::is_dyn_array(name)
+                || crate::c_emit::is_dyn_scalar(name))
         {
             continue;
         }
@@ -407,6 +410,23 @@ pub(crate) fn collect_labels(items: &[IrItem], labels: &mut HashSet<String>) {
 /// hoist pass's own dimmed-set walk, for the per-function emit context.
 pub(crate) fn collect_dimmed_names(items: &[IrItem], dimmed: &mut HashSet<String>) {
     collect_dimmed(items, dimmed);
+}
+
+/// Names used as BOTH a scalar (a bare `Symbol` read/write, `FOR` var, …) AND
+/// an array (`a[i]`, `UBOUND(a[])`, array `DIM`). The interpreter's `TypedSlot`
+/// holds independent `value` (scalar) and `array` fields, so one such name is
+/// two things at once; the C backend mirrors it as a scalar `xb_var_x` plus a
+/// separate array `xb_var_x_arr` (routed by IR-node kind at emission). Empty for
+/// the shared corpus (no dual-use name), so this is byte-neutral there.
+pub(crate) fn collect_dual_use(items: &[IrItem]) -> HashSet<String> {
+    let mut scalar_ctx: BTreeMap<String, ValueType> = BTreeMap::new();
+    walk_items(items, &mut scalar_ctx);
+    let mut array_ctx: HashSet<String> = HashSet::new();
+    collect_array_refs(items, &mut array_ctx);
+    scalar_ctx
+        .into_keys()
+        .filter(|n| array_ctx.contains(n))
+        .collect()
 }
 
 /// Names whose `Dim` cannot stay a plain in-place C declaration: referenced

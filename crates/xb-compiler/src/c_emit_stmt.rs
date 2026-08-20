@@ -29,30 +29,30 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     // execute-time slot reset. (Repeated DIMs leak the old block —
                     // acceptable for demo lifetimes.)
                     out.push_str("xb_ub_");
-                    out.push_str(&crate::c_emit_expr::sanitize_c_ident(&symbol.name));
+                    out.push_str(&crate::c_emit::array_ident(&symbol.name));
                     out.push_str(" = (");
                     emit_expr(sz, out);
                     out.push_str(");\n");
                     out.push_str(&ind);
-                    emit_var_name(symbol, out);
+                    crate::c_emit::emit_array_var_name(symbol, out);
                     out.push_str(" = calloc((size_t)(xb_ub_");
-                    out.push_str(&crate::c_emit_expr::sanitize_c_ident(&symbol.name));
+                    out.push_str(&crate::c_emit::array_ident(&symbol.name));
                     out.push_str(" + 1), sizeof(*");
-                    emit_var_name(symbol, out);
+                    crate::c_emit::emit_array_var_name(symbol, out);
                     out.push_str("));\n");
                     if symbol.value_type == ValueType::String {
                         out.push_str(&ind);
                         out.push_str("for (intptr_t _i = 0; _i <= xb_ub_");
-                        out.push_str(&crate::c_emit_expr::sanitize_c_ident(&symbol.name));
+                        out.push_str(&crate::c_emit::array_ident(&symbol.name));
                         out.push_str("; _i++) ");
-                        emit_var_name(symbol, out);
+                        crate::c_emit::emit_array_var_name(symbol, out);
                         out.push_str("[_i] = xb_str(\"\");\n");
                     }
                 }
                 Some(sz) => {
                     out.push_str(c_type(symbol.value_type));
                     out.push(' ');
-                    emit_var_name(symbol, out);
+                    crate::c_emit::emit_array_var_name(symbol, out);
                     out.push_str("[(");
                     emit_expr(sz, out);
                     out.push_str(") + 1];\n");
@@ -61,7 +61,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                         out.push_str("for (int _i = 0; _i < (");
                         emit_expr(sz, out);
                         out.push_str(") + 1; _i++) ");
-                        emit_var_name(symbol, out);
+                        crate::c_emit::emit_array_var_name(symbol, out);
                         out.push_str("[_i] = xb_str(\"\");\n");
                     }
                 }
@@ -69,10 +69,10 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     // Late/repeated `DIM a[]`: reset the hoisted pointer to the
                     // empty state (UBOUND -1), like the interpreter's empty array.
                     out.push_str("xb_ub_");
-                    out.push_str(&crate::c_emit_expr::sanitize_c_ident(&symbol.name));
+                    out.push_str(&crate::c_emit::array_ident(&symbol.name));
                     out.push_str(" = -1;\n");
                     out.push_str(&ind);
-                    emit_var_name(symbol, out);
+                    crate::c_emit::emit_array_var_name(symbol, out);
                     out.push_str(" = 0;\n");
                 }
                 None if *is_array => {
@@ -82,10 +82,10 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     // mis-emitted a *scalar*, so any later `a[i]` failed cc.
                     out.push_str(c_type(symbol.value_type));
                     out.push(' ');
-                    emit_var_name(symbol, out);
+                    crate::c_emit::emit_array_var_name(symbol, out);
                     out.push_str("[1];\n");
                     out.push_str(&ind);
-                    emit_var_name(symbol, out);
+                    crate::c_emit::emit_array_var_name(symbol, out);
                     out.push_str("[0] = ");
                     emit_default(symbol.value_type, out);
                     out.push_str(";\n");
@@ -132,7 +132,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 return;
             }
             out.push_str(&ind);
-            emit_var_name(target, out);
+            crate::c_emit::emit_array_var_name(target, out);
             out.push('[');
             emit_expr(index, out);
             out.push_str("] = ");

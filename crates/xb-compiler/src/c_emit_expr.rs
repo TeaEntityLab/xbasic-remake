@@ -307,7 +307,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 // type default for any index (eval.rs missing-slot arm); emit it.
                 emit_default(symbol.value_type, out);
             } else {
-                emit_symbol_ref(symbol, out);
+                crate::c_emit::emit_array_var_name(symbol, out);
                 out.push('[');
                 emit_expr(index, out);
                 out.push(']');
@@ -331,19 +331,19 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 // Late/repeated DIM: the array is a hoisted pointer; sizeof would
                 // be wrong. Read the tracked upper bound.
                 out.push_str("((int)xb_ub_");
-                out.push_str(&sanitize_c_ident(&symbol.name));
+                out.push_str(&crate::c_emit::array_ident(&symbol.name));
                 out.push(')');
             } else {
                 out.push_str("(int)(sizeof(");
-                emit_var_name(symbol, out);
+                crate::c_emit::emit_array_var_name(symbol, out);
                 out.push_str(")/sizeof(");
-                emit_var_name(symbol, out);
+                crate::c_emit::emit_array_var_name(symbol, out);
                 out.push_str("[0])-1)");
             }
         }
         IrExprKind::SizeOf { symbol } => {
             out.push_str("(int)sizeof(");
-            emit_var_name(symbol, out);
+            crate::c_emit::emit_array_var_name(symbol, out);
             out.push(')');
         }
         IrExprKind::SizeOfType { value_type } => {
