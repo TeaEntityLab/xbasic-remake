@@ -29,7 +29,7 @@ pub(crate) fn emit_hoisted_scalars(
     out: &mut String,
     indent: usize,
 ) {
-    let mut scalars: BTreeMap<String, ValueType> = BTreeMap::new();
+    let mut scalars: BTreeMap<(String, bool), ValueType> = BTreeMap::new();
     walk_items(body, &mut scalars);
     if scalars.is_empty() {
         return;
@@ -38,7 +38,7 @@ pub(crate) fn emit_hoisted_scalars(
     collect_dimmed(body, &mut dimmed);
     let params: HashSet<&str> = params.iter().map(|p| p.name.as_str()).collect();
     let ind = "    ".repeat(indent);
-    for (name, vt) in &scalars {
+    for ((name, _is_str), vt) in &scalars {
         // Skip params (declared in the signature) and the function's own name —
         // EXCEPT a dual-use param, whose array facet took the `_arr` name in the
         // signature, so its scalar facet still needs this local declaration.
@@ -75,11 +75,15 @@ pub(crate) fn emit_hoisted_scalars(
     }
 }
 
-fn note(sym: &IrSymbol, scalars: &mut BTreeMap<String, ValueType>) {
-    scalars.entry(sym.name.clone()).or_insert(sym.value_type);
+fn note(sym: &IrSymbol, scalars: &mut BTreeMap<(String, bool), ValueType>) {
+    // Key by (name, is_string): a name used as BOTH a String and a non-String
+    // (`fillColour` — `xb_str_fillColour` and `xb_var_fillColour`) is two distinct
+    // C variables, so both facets must be declared (name-only keying dropped one).
+    let is_str = sym.value_type == ValueType::String;
+    scalars.entry((sym.name.clone(), is_str)).or_insert(sym.value_type);
 }
 
-fn walk_expr(e: &IrExpr, scalars: &mut BTreeMap<String, ValueType>) {
+fn walk_expr(e: &IrExpr, scalars: &mut BTreeMap<(String, bool), ValueType>) {
     match &e.kind {
         IrExprKind::Symbol(s) => note(s, scalars),
         // `SharedVariable` reads a module-shared `xb_shared_` global, not a local.
@@ -117,7 +121,7 @@ fn walk_expr(e: &IrExpr, scalars: &mut BTreeMap<String, ValueType>) {
     }
 }
 
-fn walk_items(items: &[IrItem], scalars: &mut BTreeMap<String, ValueType>) {
+fn walk_items(items: &[IrItem], scalars: &mut BTreeMap<(String, bool), ValueType>) {
     for it in items {
         match it {
             IrItem::Print { items, .. } => {
@@ -461,7 +465,7 @@ pub(crate) fn collect_dimmed_names(items: &[IrItem], dimmed: &mut HashSet<String
 /// separate array `xb_var_x_arr` (routed by IR-node kind at emission). Empty for
 /// the shared corpus (no dual-use name), so this is byte-neutral there.
 pub(crate) fn collect_dual_use(items: &[IrItem]) -> HashSet<String> {
-    let mut scalar_ctx: BTreeMap<String, ValueType> = BTreeMap::new();
+    let mut scalar_ctx: BTreeMap<(String, bool), ValueType> = BTreeMap::new();
     walk_items(items, &mut scalar_ctx);
     let mut array_ctx: HashSet<String> = HashSet::new();
     collect_array_refs(items, &mut array_ctx);
@@ -498,6 +502,7 @@ pub(crate) fn collect_dual_use(items: &[IrItem]) -> HashSet<String> {
     array_dims(items, &mut array_ctx);
     scalar_ctx
         .into_keys()
+        .map(|(n, _)| n)
         .filter(|n| array_ctx.contains(n))
         .collect()
 }
