@@ -11,10 +11,13 @@
 > Last full re-verification: **2026-08-21** (all backends, post-array-ABI). `cargo
 > test --workspace --exclude xb-ide` = **194 passed / 0 failed**; `cgen_cemitter_sync`
 > **5/5** (byte-identity intact); native bootstrap fixed point **intact**; LLVM
-> **105/0**. C-backend demo sweep: **114/114 compile, 74 byte-faithful, diverge=0,
-> 0 compile-fails** — **every testable (non-GUI) demo matches the interpreter**; the
-> 40 remaining are GUI programs that block on empty stdin (untestable, not
-> divergences). **NEW (`be03117`): the by-ref array ABI (`CGEN-BYREF-REDIM`) landed**
+> **105/0**. C-backend demo sweep: **114/114 compile, 111 byte-faithful, diverge=0,
+> 0 compile-fails** — every testable demo matches the interpreter; the 3 remaining
+> (aclient/aserver network sockets + aeasy) block on real I/O, not the GUI loop.
+> **NEW (`0b42cf1`): headless Xgr/Xui GUI runtime landed** — `XuiGetNextCallback`
+> delivers one synthetic `CloseWindow` so the ~37 GUI message-loop demos run to
+> completion + are differential-faithful (74→111); fixed string `SELECT CASE`
+> (pointer→content compare). **Prior (`be03117`): the by-ref array ABI landed**
 > — full `(T** data, intptr_t* ub)` descriptor + `XstQuickSort`/`XstCopyArray`, so
 > **`xbsourcelib` `fgr`/`vgr`/`msc`/`ary` now sort + copy arrays for real** and stay
 > byte-faithful (`cgen_demo_regression` 11/11). Every `Xst*` builtin the corpus uses
@@ -108,7 +111,8 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | RT-KERNEL32 | runtime | `GetStdHandle`/`ReadFile`/`WriteFile` + `$$STD_*_HANDLE` | `acgibin` | platform |
 | ~~RT-ARGS~~ | runtime | ✅ **resolved** (2026-08-21, `1975c75`): not a runtime gap — `XBMerge`'s empty output was a general interpreter bug (expression-context function calls discarded their output sink; `GetArguments` printed the usage prompt but `eval` swallowed it). `eval`/`eval_expr` now thread the real output; C backend mirrors (expr INLINE\$ prompt + string-vs-num comparison by length). XBMerge byte-faithful; XBSourceLib 10→11/13 | `XBMerge` | ✅ |
 | SHARED-SCALAR | all four paths | `SHARED` *keyword* scalars stay per-function (locked approximation; `##` is the shared form). True legacy semantics = golden + all-backend coordinated change (experiment reverted: rewrites a frozen v0.1 golden) | full legacy `SHARED` fidelity | decision |
-| GUI-RUNTIME | platform | Xgr/Xui runtime (winit + softbuffer per docs/12) | 43 GUI demos + 3 init overflows + `DrawScaled` + 19 GTK | platform (large) |
+| ~~GUI-HEADLESS~~ | C backend + interp | ✅ **done** (2026-08-21, `0b42cf1`): headless Xgr/Xui runtime — `XuiGetNextCallback` delivers one synthetic `CloseWindow` (demos' loops `QUIT` on it) so the ~37 message-loop GUI demos run to completion + are differential-faithful (interp==cgen), instead of hanging on a display event loop. All other Xgr*/Xui* keep the unknown-callee stub (`$`→"", else 0). Also fixed string `SELECT CASE` (pointer→`xb_scmp` content compare — what let `CloseWindow` match its CASE). Byte-neutral on self-host/v0.1 (sync 5/5). **Demo sweep 74→111 faithful, diverge=0, compile-fail=0.** | ~37 GUI demos | ✅ |
+| GUI-RUNTIME | platform | *real* Xgr/Xui runtime (winit + softbuffer per docs/12) — actual window/display, beyond the headless differential stub | live rendering for 43 GUI demos + 3 init overflows + `DrawScaled` + 19 GTK | platform (large) |
 | CG-BYTES | two-C-gen sync | byte-identical emitted C (helper order/param names/formatting) | tightest sync lock (docs/16) | cosmetic |
 | CG-BODY-COVER | two-C-gen sync | behavioral coverage of addr-of builtins / file mode 2 | drift blind spot (docs/16) | test gap |
 | CHECK-LOC | hygiene | `checks/verify-bootstrap.sh` ≤250-LOC rule has 27 pre-existing violations (not an enforced gate; real gate = the cargo suite) | none | hygiene |

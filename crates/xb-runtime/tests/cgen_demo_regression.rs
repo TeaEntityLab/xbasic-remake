@@ -553,3 +553,146 @@ END FUNCTION
         "XstQuickSort must sort @v[] + fill the @idx[] permutation: {interp:?}"
     );
 }
+
+/// Locks the string `SELECT CASE` fix (`0b42cf1`): the C backend emitted a raw
+/// `_sel == xb_str("…")` **pointer** comparison for a string selector, which is
+/// always false — the wrong CASE (or CASE ELSE) ran. It must compare by content
+/// (`xb_scmp`), matching the interpreter. This is what lets the headless GUI
+/// runtime's `CloseWindow` match its CASE; a regression here would silently break
+/// every string `SELECT`, so it is locked directly (no GUI loop, no hang risk).
+#[test]
+fn cgen_matches_interpreter_on_string_select_case() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tDIM msg$
+\tmsg$ = \"Close\" + \"Window\"
+\tSELECT CASE msg$
+\t\tCASE \"Open\"        : PRINT \"open\"
+\t\tCASE \"CloseWindow\" : PRINT \"close\"
+\t\tCASE ELSE           : PRINT \"else\"
+\tEND SELECT
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_string_select_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "strselect", &tmp);
+    assert_eq!(
+        native, interp,
+        "string SELECT CASE cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert!(
+        interp.contains("close") && !interp.contains("else"),
+        "a computed string must match its CASE by content, not pointer identity: {interp:?}"
+    );
+}
+
+/// Like `interp_output`, but treats a `QUIT(n)` (`RuntimeError::Quit`) as a clean
+/// program exit — exactly as the CLI's `run_path` does — keeping the output
+/// collected before the quit. GUI demos exit via `QUIT` on `CloseWindow`.
+fn interp_output_allow_quit(source: &str) -> String {
+    let prog = FrontendUnit::parse(source)
+        .expect("parse")
+        .lower_ir()
+        .expect("lower");
+    let mut lines = Vec::new();
+    match Interpreter::new().execute_main_with_input(&prog, Vec::new(), &mut lines) {
+        Ok(_) | Err(xb_runtime::RuntimeError::Quit { .. }) => {}
+        Err(e) => panic!("interp execute: {e:?}"),
+    }
+    lines.into_iter().map(|l| format!("{l}\n")).collect()
+}
+/// Locks the headless Xgr/Xui GUI runtime (`0b42cf1`): a `DO WHILE
+/// XuiGetNextCallback(...)` message loop that `QUIT`s on `CloseWindow` must run to
+/// completion (not hang) in **both** backends, and match. `XuiGetNextCallback`
+/// delivers one synthetic `CloseWindow` then FALSE. Both sides are timeout-guarded
+/// so a regression (infinite loop) fails the test instead of stalling the suite.
+#[test]
+fn cgen_gui_message_loop_terminates_and_matches() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tDIM grid, message$, v0, v1, v2, v3, kid, r1$
+\tXuiCreateWindow (@grid, 100, 100, 200, 200, 0, \"demo\")
+\tPRINT \"before-loop\"
+\tDO WHILE XuiGetNextCallback (@grid, @message$, @v0, @v1, @v2, @v3, @kid, @r1$)
+\t\tSELECT CASE message$
+\t\t\tCASE \"CloseWindow\" : PRINT \"got-close\" : QUIT (0)
+\t\t\tCASE ELSE          : PRINT \"other\"
+\t\tEND SELECT
+\tLOOP
+\tPRINT \"after-loop\"
+END FUNCTION
+";
+    // Interpreter reference, in a thread so a regressed infinite loop fails fast.
+    let src_owned = source.to_string();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(interp_output_allow_quit(&src_owned));
+    });
+    let interp = rx
+        .recv_timeout(std::time::Duration::from_secs(20))
+        .expect("interp GUI message loop did not terminate (XuiGetNextCallback regression)");
+
+    // cgen: compile, then spawn + poll try_wait, killing if it overruns.
+    let prog = FrontendUnit::parse(source)
+        .expect("parse")
+        .lower_ir()
+        .expect("lower");
+    let c_src = CEmitter::new().emit_program(&prog);
+    let tmp = std::env::temp_dir().join("xb_cgen_gui_loop_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let c_path = tmp.join("guiloop.c");
+    let exe = tmp.join("guiloop");
+    fs::write(&c_path, &c_src).expect("write C");
+    let cc = Command::new(common::cc::cc())
+        .args([
+            "-O0",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+            "-o",
+            exe.to_str().unwrap(),
+            c_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("cc spawn");
+    assert!(
+        cc.status.success(),
+        "cc failed for GUI loop: {}",
+        String::from_utf8_lossy(&cc.stderr)
+    );
+    let mut child = Command::new(common::exe_path(&exe))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn binary");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    loop {
+        match child.try_wait().expect("try_wait") {
+            Some(_) => break,
+            None if std::time::Instant::now() >= deadline => {
+                let _ = child.kill();
+                panic!("cgen GUI message loop did not terminate (XuiGetNextCallback regression)");
+            }
+            None => std::thread::sleep(std::time::Duration::from_millis(50)),
+        }
+    }
+    let out = child.wait_with_output().expect("wait binary");
+    let native: String = out.stdout.iter().map(|&b| b as char).collect();
+    let _ = fs::remove_file(&c_path);
+    let _ = fs::remove_file(&exe);
+    assert_eq!(
+        native, interp,
+        "GUI message-loop cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert!(
+        interp.contains("before-loop") && interp.contains("got-close"),
+        "the loop must run once, receive the synthetic CloseWindow, and QUIT: {interp:?}"
+    );
+    assert!(
+        !interp.contains("after-loop"),
+        "QUIT(0) must terminate before the post-loop PRINT: {interp:?}"
+    );
+}
