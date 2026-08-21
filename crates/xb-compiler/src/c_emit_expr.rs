@@ -317,6 +317,10 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(", ");
                 emit_byref_addr(&args[4], out);
                 out.push(')');
+            } else if name == "XstQuickSort" && args.len() == 5 {
+                emit_quicksort_call(args, out);
+            } else if name == "XstCopyArray" && args.len() == 2 {
+                emit_copyarray_call(args, out);
             } else if name == "XstBackStringToBinString$" && !args.is_empty() {
                 // Pure string transform (mirrors interp xst::back_to_bin); the
                 // `@back$` arg is passed by value (the string).
@@ -404,7 +408,12 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             }
         }
         IrExprKind::ArrayUBound { symbol } => {
-            if crate::c_emit::is_undimmed_array(&symbol.name) {
+            if crate::c_emit::is_descriptor_param(&symbol.name) {
+                // Descriptor by-ref array param: the length cell `*xb_ub_x` (docs/18).
+                out.push_str("((int)*");
+                out.push_str(&crate::c_emit::descriptor_ub_ident(&symbol.name));
+                out.push(')');
+            } else if crate::c_emit::is_undimmed_array(&symbol.name) {
                 if symbol.value_type == ValueType::String {
                     // UBOUND(s$) of a scalar string is its last byte offset,
                     // LEN(s$) - 1 (interp eval.rs ArrayUBound string arm) —
@@ -432,9 +441,17 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             }
         }
         IrExprKind::SizeOf { symbol } => {
-            out.push_str("(int)sizeof(");
-            crate::c_emit::emit_array_var_name(symbol, out);
-            out.push(')');
+            if crate::c_emit::is_descriptor_param(&symbol.name) {
+                out.push_str("(int)((*");
+                out.push_str(&crate::c_emit::descriptor_ub_ident(&symbol.name));
+                out.push_str(" + 1) * sizeof(**");
+                crate::c_emit::emit_descriptor_data_ptr(symbol, out);
+                out.push_str("))");
+            } else {
+                out.push_str("(int)sizeof(");
+                crate::c_emit::emit_array_var_name(symbol, out);
+                out.push(')');
+            }
         }
         IrExprKind::SizeOfType { value_type } => {
             let size = match value_type {
@@ -474,6 +491,17 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
 }
 
 fn emit_symbol_ref(s: &IrSymbol, out: &mut String) {
+    if crate::c_emit::is_descriptor_param(&s.name) {
+        // A bare descriptor-array-param name reads the slot's SCALAR field, which
+        // for a by-ref array param is the type default (the array lives in
+        // `slot.array`; `read_slot` returns `slot.value` = default) — so `IFZ a[]`
+        // (lowered to `a == 0`) tests the empty scalar, and `addr = a` (memory-op,
+        // stubbed consumer) reads 0. Emitting the default matches the interpreter
+        // (helpers.rs `read_slot`); the data pointer is reached via `a[i]`/UBOUND
+        // (docs/18).
+        emit_default(s.value_type, out);
+        return;
+    }
     emit_var_name(s, out);
 }
 
@@ -554,9 +582,39 @@ pub(crate) fn emit_call_args(name: &str, args: &[IrExpr], out: &mut String) {
     };
     let param_arrays = crate::c_emit::defined_param_arrays(name);
     let param_byref = crate::c_emit::defined_param_byref(name);
+    let param_descriptor = crate::c_emit::defined_param_descriptor(name);
     for (i, arg) in args.iter().take(take).enumerate() {
         if i > 0 {
             out.push_str(", ");
+        }
+        // Descriptor-aware by-ref array passing (docs/18): the arg form is dictated
+        // by the *callee's* param shape. A descriptor position takes `(data, ub)`;
+        // a plain `T*` position receiving our descriptor local derefs `*x_d`.
+        if let IrExprKind::ByRef(b) = &arg.kind {
+            if let IrExprKind::Symbol(s) = &b.kind {
+                let callee_desc = param_descriptor
+                    .as_ref()
+                    .is_some_and(|pd| pd.get(i).copied().unwrap_or(false));
+                if callee_desc {
+                    if crate::c_emit::is_descriptor_param(&s.name) {
+                        crate::c_emit::emit_descriptor_data_ptr(s, out);
+                        out.push_str(", ");
+                        out.push_str(&crate::c_emit::descriptor_ub_ident(&s.name));
+                    } else {
+                        out.push('&');
+                        crate::c_emit::emit_raw_array_name(s, out);
+                        out.push_str(", &xb_ub_");
+                        out.push_str(&crate::c_emit::array_ident(&s.name));
+                    }
+                    continue;
+                }
+                if crate::c_emit::is_descriptor_param(&s.name) {
+                    out.push_str("(*");
+                    crate::c_emit::emit_descriptor_data_ptr(s, out);
+                    out.push(')');
+                    continue;
+                }
+            }
         }
         // A by-ref arg to a *pointer* param (an array param, or a by-ref scalar
         // param `T* x_ref`) must be a pointer, not a value — a scalar float by-ref
@@ -593,6 +651,132 @@ pub(crate) fn emit_call_args(name: &str, args: &[IrExpr], out: &mut String) {
         }
         emit_default(*vt, out);
     }
+}
+
+/// The array symbol of a whole-array by-ref arg (`@a[]` → `ByRef(Symbol(a))`).
+fn array_symbol(expr: &IrExpr) -> Option<&IrSymbol> {
+    let inner = match &expr.kind {
+        IrExprKind::ByRef(b) => b.as_ref(),
+        _ => expr,
+    };
+    match &inner.kind {
+        IrExprKind::Symbol(s) | IrExprKind::SharedVariable(s) => Some(s),
+        IrExprKind::ArrayAccess { symbol, .. } | IrExprKind::ArrayUBound { symbol } => Some(symbol),
+        _ => None,
+    }
+}
+
+/// Emit the element count of an array arg (`*ub+1` descriptor, `ub+1` dyn, else
+/// `sizeof/sizeof`).
+fn emit_array_len(sym: &IrSymbol, out: &mut String) {
+    if crate::c_emit::is_descriptor_param(&sym.name) {
+        out.push_str("(*");
+        out.push_str(&crate::c_emit::descriptor_ub_ident(&sym.name));
+        out.push_str(" + 1)");
+    } else if crate::c_emit::is_dyn_array(&sym.name) {
+        out.push_str("(xb_ub_");
+        out.push_str(&crate::c_emit::array_ident(&sym.name));
+        out.push_str(" + 1)");
+    } else {
+        out.push_str("(intptr_t)(sizeof(");
+        crate::c_emit::emit_array_var_name(sym, out);
+        out.push_str(")/sizeof(");
+        crate::c_emit::emit_array_var_name(sym, out);
+        out.push_str("[0]))");
+    }
+}
+
+/// Emit the `(data_addr, ub_addr)` descriptor pair for a resizable array arg — a
+/// descriptor param forwards `xb_var_x_d, xb_ub_x`; a local dyn takes address-of.
+fn emit_array_descriptor(sym: &IrSymbol, out: &mut String) {
+    if crate::c_emit::is_descriptor_param(&sym.name) {
+        crate::c_emit::emit_descriptor_data_ptr(sym, out);
+        out.push_str(", ");
+        out.push_str(&crate::c_emit::descriptor_ub_ident(&sym.name));
+    } else {
+        out.push('&');
+        crate::c_emit::emit_raw_array_name(sym, out);
+        out.push_str(", &xb_ub_");
+        out.push_str(&crate::c_emit::array_ident(&sym.name));
+    }
+}
+
+fn array_et(vt: ValueType) -> &'static str {
+    match vt {
+        ValueType::Float => "1",
+        ValueType::String => "2",
+        _ => "0",
+    }
+}
+
+/// Emit `XstQuickSort(@a[], @n[], low, high, mode)` — sort `a[]` in place (8-byte
+/// slot reorder) + resize/fill the index array `@n[]` via its descriptor.
+pub(crate) fn emit_quicksort_call(args: &[IrExpr], out: &mut String) {
+    let a = array_symbol(&args[0]);
+    let n = array_symbol(&args[1]);
+    out.push_str("xb_quicksort((void*)");
+    match a {
+        Some(s) => crate::c_emit::emit_array_var_name(s, out),
+        None => out.push('0'),
+    }
+    out.push_str(", ");
+    out.push_str(array_et(a.map(|s| s.value_type).unwrap_or(ValueType::Integer)));
+    out.push_str(", ");
+    match a {
+        Some(s) => emit_array_len(s, out),
+        None => out.push('0'),
+    }
+    out.push_str(", (intptr_t**)");
+    match n {
+        Some(s) => {
+            let mut d = String::new();
+            emit_array_descriptor(s, &mut d);
+            let (nd, nub) = d.split_once(", ").unwrap_or((d.as_str(), "0"));
+            out.push_str(nd);
+            out.push_str(", (intptr_t*)");
+            out.push_str(nub);
+        }
+        None => out.push_str("0, (intptr_t*)0"),
+    }
+    out.push_str(", (intptr_t)(");
+    emit_expr(&args[2], out);
+    out.push_str("), (intptr_t)(");
+    emit_expr(&args[3], out);
+    out.push_str("), (intptr_t)(");
+    emit_expr(&args[4], out);
+    out.push_str("))");
+}
+
+/// Emit `XstCopyArray(@src[], @dst[])` — resize `@dst[]` to `@src[]`'s length and
+/// copy every element (strings deep-copied by the runtime helper).
+pub(crate) fn emit_copyarray_call(args: &[IrExpr], out: &mut String) {
+    let src = array_symbol(&args[0]);
+    let dst = array_symbol(&args[1]);
+    out.push_str("xb_copyarray((void*)");
+    match src {
+        Some(s) => crate::c_emit::emit_array_var_name(s, out),
+        None => out.push('0'),
+    }
+    out.push_str(", ");
+    match src {
+        Some(s) => emit_array_len(s, out),
+        None => out.push('0'),
+    }
+    out.push_str(", ");
+    out.push_str(array_et(src.map(|s| s.value_type).unwrap_or(ValueType::Integer)));
+    out.push_str(", (void**)");
+    match dst {
+        Some(s) => {
+            let mut d = String::new();
+            emit_array_descriptor(s, &mut d);
+            let (dd, dub) = d.split_once(", ").unwrap_or((d.as_str(), "0"));
+            out.push_str(dd);
+            out.push_str(", (intptr_t*)");
+            out.push_str(dub);
+        }
+        None => out.push_str("0, (intptr_t*)0"),
+    }
+    out.push(')');
 }
 
 pub(crate) fn emit_default(vt: ValueType, out: &mut String) {

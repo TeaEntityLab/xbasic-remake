@@ -237,3 +237,68 @@ pub(crate) fn back_to_bin(bytes: &[u8]) -> Vec<u8> {
     }
     out
 }
+
+use crate::interpreter::RuntimeValue;
+use std::cmp::Ordering;
+
+fn as_f64(v: &RuntimeValue) -> f64 {
+    match v {
+        RuntimeValue::Integer(n) => *n as f64,
+        RuntimeValue::Giant(n) => *n as f64,
+        RuntimeValue::Float(n) => *n,
+        RuntimeValue::String(_) => 0.0,
+    }
+}
+
+/// Compare two `XstQuickSort` elements (homogeneous typed array; mixed → numeric).
+/// `ci` = case-insensitive strings.
+fn xst_cmp(a: &RuntimeValue, b: &RuntimeValue, ci: bool) -> Ordering {
+    match (a, b) {
+        (RuntimeValue::Integer(x), RuntimeValue::Integer(y)) => x.cmp(y),
+        (RuntimeValue::Giant(x), RuntimeValue::Giant(y)) => x.cmp(y),
+        (RuntimeValue::Float(x), RuntimeValue::Float(y)) => {
+            x.partial_cmp(y).unwrap_or(Ordering::Equal)
+        }
+        (RuntimeValue::String(x), RuntimeValue::String(y)) => {
+            if ci {
+                let lx: Vec<u8> = x.iter().map(|b| b.to_ascii_lowercase()).collect();
+                let ly: Vec<u8> = y.iter().map(|b| b.to_ascii_lowercase()).collect();
+                lx.cmp(&ly)
+            } else {
+                x.cmp(y)
+            }
+        }
+        _ => as_f64(a).partial_cmp(&as_f64(b)).unwrap_or(Ordering::Equal),
+    }
+}
+
+/// `XstQuickSort(@a[], @n[], low, high, mode)` core: stably sort `a[low..=high]`
+/// (ties keep ascending original index), returning the reordered full array + the
+/// permutation `n` (`n[new] = old`; outside `[low,high]` maps to self). `mode`
+/// bit0 = decreasing, bit1 = case-insensitive.
+pub(crate) fn quicksort(
+    elems: &[RuntimeValue],
+    low: usize,
+    high: usize,
+    mode: i64,
+) -> (Vec<RuntimeValue>, Vec<i64>) {
+    let len = elems.len();
+    let mut result = elems.to_vec();
+    let mut n: Vec<i64> = (0..len as i64).collect();
+    if len == 0 || low > high || high >= len {
+        return (result, n);
+    }
+    let decreasing = mode & 1 != 0;
+    let ci = mode & 2 != 0;
+    let mut idx: Vec<usize> = (low..=high).collect();
+    idx.sort_by(|&i, &j| {
+        let ord = xst_cmp(&elems[i], &elems[j], ci);
+        let ord = if decreasing { ord.reverse() } else { ord };
+        ord.then(i.cmp(&j))
+    });
+    for (k, &orig) in idx.iter().enumerate() {
+        result[low + k] = elems[orig].clone();
+        n[low + k] = orig as i64;
+    }
+    (result, n)
+}

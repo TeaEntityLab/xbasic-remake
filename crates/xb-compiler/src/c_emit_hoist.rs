@@ -15,7 +15,7 @@
 
 use crate::c_emit::c_type;
 use crate::c_emit_expr::{emit_default, emit_var_name};
-use crate::ir::{IrExpr, IrExprKind, IrItem, IrParam, IrSymbol};
+use crate::ir::{IrExpr, IrExprKind, IrItem, IrParam, IrProgram, IrSymbol};
 use crate::ValueType;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -486,13 +486,46 @@ pub(crate) fn collect_array_dimmed_names(items: &[IrItem], out: &mut HashSet<Str
     }
 }
 
+/// Array names `Dim`'d with an explicit *size* or `REDIM`'d — a genuine resize
+/// (not a bare `DIM x[]` empty reset). Seeds the descriptor closure (docs/18): an
+/// empty `DIM x[]` of a param (qbtoxb) must NOT force a descriptor, but
+/// `DIM x[n]`/`REDIM x[n]` (which reallocs the caller's array) must.
+pub(crate) fn collect_resize_dimmed_names(items: &[IrItem], out: &mut HashSet<String>) {
+    for it in items {
+        match it {
+            IrItem::Dim { symbol, size, redim, .. } if *redim || size.is_some() => {
+                out.insert(symbol.name.clone());
+            }
+            IrItem::If { then_body, else_body, .. } => {
+                collect_resize_dimmed_names(then_body, out);
+                if let Some(b) = else_body {
+                    collect_resize_dimmed_names(b, out);
+                }
+            }
+            IrItem::While { body, .. }
+            | IrItem::For { body, .. }
+            | IrItem::DoLoop { body, .. } => collect_resize_dimmed_names(body, out),
+            IrItem::SelectCase { cases, default, .. } => {
+                for c in cases {
+                    collect_resize_dimmed_names(&c.body, out);
+                }
+                if let Some(b) = default {
+                    collect_resize_dimmed_names(b, out);
+                }
+            }
+            IrItem::Compound(items) => collect_resize_dimmed_names(items, out),
+            _ => {}
+        }
+    }
+}
+
 /// Names used as BOTH a scalar (a bare `Symbol` read/write, `FOR` var, …) AND
 /// an array (`a[i]`, `UBOUND(a[])`, array `DIM`). The interpreter's `TypedSlot`
 /// holds independent `value` (scalar) and `array` fields, so one such name is
 /// two things at once; the C backend mirrors it as a scalar `xb_var_x` plus a
 /// separate array `xb_var_x_arr` (routed by IR-node kind at emission). Empty for
 /// the shared corpus (no dual-use name), so this is byte-neutral there.
-pub(crate) fn collect_dual_use(items: &[IrItem]) -> HashSet<String> {
+pub(crate) fn collect_dual_use(items: &[IrItem], extra_array: &HashSet<String>) -> HashSet<String> {
     let mut scalar_ctx: BTreeMap<(String, bool), ValueType> = BTreeMap::new();
     walk_items(items, &mut scalar_ctx);
     let mut array_ctx: HashSet<String> = HashSet::new();
@@ -528,6 +561,10 @@ pub(crate) fn collect_dual_use(items: &[IrItem]) -> HashSet<String> {
         }
     }
     array_dims(items, &mut array_ctx);
+    // Names forced to arrays (by-ref descriptor params / descriptor-dyn locals) are
+    // array-context too: one with a scalar use (`~error`, `maxZ = z`) is dual-use —
+    // a scalar facet `xb_var_x` plus the array facet `xb_var_x_arr` (docs/18).
+    array_ctx.extend(extra_array.iter().cloned());
     scalar_ctx
         .into_keys()
         .map(|(n, _)| n)
@@ -741,7 +778,12 @@ pub(crate) fn has_gosub(items: &[IrItem]) -> bool {
     })
 }
 
-pub(crate) fn collect_dyn_names(items: &[IrItem], params: &[IrParam], has_gosub: bool) -> DynNames {
+pub(crate) fn collect_dyn_names(
+    items: &[IrItem],
+    params: &[IrParam],
+    has_gosub: bool,
+    descriptor_locals: &HashMap<String, ValueType>,
+) -> DynNames {
     let mut w = DynWalk::default();
     w.items(items, false);
     let params: HashSet<&str> = params.iter().map(|p| p.name.as_str()).collect();
@@ -757,7 +799,13 @@ pub(crate) fn collect_dyn_names(items: &[IrItem], params: &[IrParam], has_gosub:
         // (gif/gifview). An array DIM'd inside a nested block must also be heap:
         // a block-scoped VLA can't be seen by later out-of-block uses (qbtoxb's
         // `#line`, `REDIM`'d inside an `IF`). Force both to dyn.
-        let force = is_array && (has_gosub || w.nested_arrays.contains(name));
+        // A local array passed `@x[]` to a by-ref descriptor position (docs/18)
+        // must be a heap pointer with a length cell so the callee can read its
+        // length / realloc + write back — force it dyn.
+        let force = is_array
+            && (has_gosub
+                || w.nested_arrays.contains(name)
+                || descriptor_locals.contains_key(name));
         if !force && !late && *count < 2 {
             continue;
         }
@@ -767,5 +815,276 @@ pub(crate) fn collect_dyn_names(items: &[IrItem], params: &[IrParam], has_gosub:
             dyn_names.scalars.insert(name.clone(), vt);
         }
     }
+    // A local passed `@x[]` to a descriptor position but never `Dim`'d here (e.g.
+    // Kittedy's `colors` — an initially-empty array the callee REDIMs) is not in
+    // `dim_count`; force it dyn with the by-ref arg's element type so the C decl is
+    // a heap pointer + `xb_ub_` cell, matching the descriptor call-site (docs/18).
+    for (name, vt) in descriptor_locals {
+        if !params.contains(name.as_str()) {
+            dyn_names.arrays.entry(name.clone()).or_insert(*vt);
+            dyn_names.scalars.remove(name);
+        }
+    }
     dyn_names
+}
+
+/// A whole-array by-ref arg `@x[]` lowers to `ByRef(Symbol(x))` (or
+/// `SharedVariable`). Return the array name.
+fn byref_array_name(e: &IrExpr) -> Option<(String, ValueType)> {
+    let inner = match &e.kind {
+        IrExprKind::ByRef(b) => &b.kind,
+        k => k,
+    };
+    match inner {
+        IrExprKind::Symbol(s) | IrExprKind::SharedVariable(s) => {
+            Some((s.name.clone(), s.value_type))
+        }
+        _ => None,
+    }
+}
+
+/// Does builtin `name` need a length/descriptor for its by-ref array arg at 0-based
+/// `pos`? `XstQuickSort(@a[],@n[],…)` and `XstCopyArray(@src[],@dst[])` both need
+/// length for arg 0 (bound/source) and a resizable descriptor for arg 1.
+pub(crate) fn builtin_needs_descriptor(name: &str, pos: usize) -> bool {
+    matches!(name, "XstQuickSort" | "XstCopyArray") && pos < 2
+}
+
+/// Collect `UBOUND`/`SIZE` array-name targets + `(callee, arg_pos, arg_name)` call
+/// edges, recursively over items + expression `FunctionCall`s.
+fn collect_desc_info(
+    items: &[IrItem],
+    ubound: &mut HashSet<String>,
+    edges: &mut Vec<(String, usize, String, ValueType)>,
+) {
+    fn args_edges(
+        name: &str,
+        args: &[IrExpr],
+        edges: &mut Vec<(String, usize, String, ValueType)>,
+    ) {
+        for (i, a) in args.iter().enumerate() {
+            if let Some((s, vt)) = byref_array_name(a) {
+                edges.push((name.to_string(), i, s, vt));
+            }
+        }
+    }
+    fn expr(e: &IrExpr, ub: &mut HashSet<String>, edges: &mut Vec<(String, usize, String, ValueType)>) {
+        match &e.kind {
+            IrExprKind::ArrayUBound { symbol } | IrExprKind::SizeOf { symbol } => {
+                ub.insert(symbol.name.clone());
+            }
+            IrExprKind::FunctionCall { name, args } => {
+                args_edges(name, args, edges);
+                for a in args {
+                    expr(a, ub, edges);
+                }
+            }
+            IrExprKind::ByRef(inner) | IrExprKind::Not(inner) => expr(inner, ub, edges),
+            IrExprKind::Unary { operand, .. } => expr(operand, ub, edges),
+            IrExprKind::Comparison { left, right, .. }
+            | IrExprKind::Arithmetic { left, right, .. }
+            | IrExprKind::Boolean { left, right, .. }
+            | IrExprKind::Logical { left, right, .. } => {
+                expr(left, ub, edges);
+                expr(right, ub, edges);
+            }
+            IrExprKind::ArrayAccess { index, extra_indices, .. } => {
+                expr(index, ub, edges);
+                for x in extra_indices {
+                    expr(x, ub, edges);
+                }
+            }
+            _ => {}
+        }
+    }
+    for it in items {
+        match it {
+            IrItem::Call { name, args } => {
+                args_edges(name, args, edges);
+                for a in args {
+                    expr(a, ubound, edges);
+                }
+            }
+            IrItem::Assignment { value, .. } => expr(value, ubound, edges),
+            IrItem::ArrayAssignment { index, extra_indices, value, .. } => {
+                expr(index, ubound, edges);
+                for x in extra_indices {
+                    expr(x, ubound, edges);
+                }
+                expr(value, ubound, edges);
+            }
+            IrItem::MidAssign { target, start, length, value } => {
+                expr(target, ubound, edges);
+                expr(start, ubound, edges);
+                if let Some(l) = length {
+                    expr(l, ubound, edges);
+                }
+                expr(value, ubound, edges);
+            }
+            IrItem::BuiltinAssign { args, value, .. } => {
+                for a in args {
+                    expr(a, ubound, edges);
+                }
+                expr(value, ubound, edges);
+            }
+            IrItem::SharedAssignment { value, .. } => expr(value, ubound, edges),
+            IrItem::Print { items, .. } => {
+                for e in items {
+                    expr(e, ubound, edges);
+                }
+            }
+            IrItem::If { condition, then_body, else_body } => {
+                expr(condition, ubound, edges);
+                collect_desc_info(then_body, ubound, edges);
+                if let Some(b) = else_body {
+                    collect_desc_info(b, ubound, edges);
+                }
+            }
+            IrItem::While { condition, body } => {
+                expr(condition, ubound, edges);
+                collect_desc_info(body, ubound, edges);
+            }
+            IrItem::DoLoop { pre_condition, post_condition, body } => {
+                if let Some((e, _)) = pre_condition {
+                    expr(e, ubound, edges);
+                }
+                if let Some((e, _)) = post_condition {
+                    expr(e, ubound, edges);
+                }
+                collect_desc_info(body, ubound, edges);
+            }
+            IrItem::For { start, end, step, body, .. } => {
+                expr(start, ubound, edges);
+                expr(end, ubound, edges);
+                if let Some(s) = step {
+                    expr(s, ubound, edges);
+                }
+                collect_desc_info(body, ubound, edges);
+            }
+            IrItem::Return { value: Some(e) } => expr(e, ubound, edges),
+            IrItem::SelectCase { selector, cases, default } => {
+                expr(selector, ubound, edges);
+                for c in cases {
+                    for cond in &c.conditions {
+                        expr(cond, ubound, edges);
+                    }
+                    collect_desc_info(&c.body, ubound, edges);
+                }
+                if let Some(d) = default {
+                    collect_desc_info(d, ubound, edges);
+                }
+            }
+            IrItem::Dim { size: Some(e), .. } => expr(e, ubound, edges),
+            _ => {}
+        }
+    }
+}
+
+/// Program-level by-ref-array descriptor closure (docs/18). A param needs the
+/// `(T** data_d, intptr_t* ub)` descriptor iff its body `UBOUND`s/`SIZE`s/`DIM`s/
+/// `REDIM`s it or passes it to `XstQuickSort`/`XstCopyArray` (pos 0/1), OR it is
+/// passed `@x[]` to a callee position that is itself a descriptor (backward
+/// fixpoint). Returns per-fn (descriptor params, must-be-dyn locals). Empty for the
+/// whole shared corpus → emission unchanged → sync-safe.
+pub(crate) fn collect_descriptor_params(
+    program: &IrProgram,
+) -> HashMap<String, (HashSet<String>, HashMap<String, ValueType>)> {
+    struct F {
+        name: String,
+        array_params: Vec<String>,
+        edges: Vec<(String, usize, String, ValueType)>,
+    }
+    let mut params_of: HashMap<String, Vec<(String, bool)>> = HashMap::new();
+    let mut fns: Vec<F> = Vec::new();
+    let mut desc: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut dyn_locals: HashMap<String, HashMap<String, ValueType>> = HashMap::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    for it in &program.items {
+        let IrItem::Function { name, params, body, .. } = it else {
+            continue;
+        };
+        if !seen.insert(name.clone()) {
+            continue; // first-wins, matching emit_functions dedup
+        }
+        params_of.insert(
+            name.clone(),
+            params.iter().map(|p| (p.name.clone(), p.is_array)).collect(),
+        );
+        let array_params: Vec<String> =
+            params.iter().filter(|p| p.is_array).map(|p| p.name.clone()).collect();
+        let mut ubound = HashSet::new();
+        let mut edges = Vec::new();
+        collect_desc_info(body, &mut ubound, &mut edges);
+        let mut resized = HashSet::new();
+        collect_resize_dimmed_names(body, &mut resized);
+        // Seed: array param genuinely RESIZED here (`DIM x[n]`/`REDIM x[n]`, which
+        // reallocs the caller's array). A bare `UBOUND`/`SIZE`/empty-`DIM x[]` does
+        // NOT seed — it stays a plain array unless made a descriptor by resize
+        // reachability (propagation), so read-only `UBOUND` uses `sizeof` as before
+        // (docs/18; avoids qbtoxb's stubbed-Xst-array-builtin arrays becoming
+        // descriptors and crashing).
+        let mut d = HashSet::new();
+        for ap in &array_params {
+            if resized.contains(ap) {
+                d.insert(ap.clone());
+            }
+        }
+        // Seed: array param passed to an Xst descriptor position.
+        for (callee, pos, sym, _vt) in &edges {
+            if builtin_needs_descriptor(callee, *pos) && array_params.iter().any(|p| p == sym) {
+                d.insert(sym.clone());
+            }
+        }
+        if !d.is_empty() {
+            desc.insert(name.clone(), d);
+        }
+        fns.push(F { name: name.clone(), array_params, edges });
+    }
+
+    // Backward fixpoint: `@x[]` passed to a descriptor position makes `x` a
+    // descriptor (param) / dyn (local).
+    loop {
+        let mut changed = false;
+        for f in &fns {
+            for (callee, pos, sym, vt) in &f.edges {
+                let target_desc = builtin_needs_descriptor(callee, *pos)
+                    || params_of
+                        .get(callee)
+                        .and_then(|cp| cp.get(*pos))
+                        .map(|(pn, _)| desc.get(callee).is_some_and(|s| s.contains(pn)))
+                        .unwrap_or(false);
+                if !target_desc {
+                    continue;
+                }
+                if f.array_params.iter().any(|p| p == sym) {
+                    if desc.entry(f.name.clone()).or_default().insert(sym.clone()) {
+                        changed = true;
+                    }
+                } else if dyn_locals
+                    .entry(f.name.clone())
+                    .or_default()
+                    .insert(sym.clone(), *vt)
+                    .is_none()
+                {
+                    changed = true;
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    let mut result = HashMap::new();
+    for f in &fns {
+        result.insert(
+            f.name.clone(),
+            (
+                desc.get(&f.name).cloned().unwrap_or_default(),
+                dyn_locals.get(&f.name).cloned().unwrap_or_default(),
+            ),
+        );
+    }
+    result
 }

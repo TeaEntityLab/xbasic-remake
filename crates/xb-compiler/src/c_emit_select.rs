@@ -87,15 +87,34 @@ pub(crate) fn emit_swap(
     out: &mut String,
     ind: &str,
 ) {
-    let lt = c_type(left.value_type);
+    // A descriptor by-ref array param swaps its data pointer `(*x_d)` (type `T*`);
+    // a plain name swaps its value. The temp uses the raw name so `(*…)` never
+    // appears in an identifier (docs/18).
+    let ldesc = crate::c_emit::is_descriptor_param(&left.name);
+    let lt = if ldesc {
+        format!("{}*", c_type(left.value_type))
+    } else {
+        c_type(left.value_type).to_string()
+    };
+    let side = |s: &crate::ir::IrSymbol, out: &mut String| {
+        if crate::c_emit::is_descriptor_param(&s.name) {
+            out.push_str("(*");
+            crate::c_emit::emit_descriptor_data_ptr(s, out);
+            out.push(')');
+        } else {
+            crate::c_emit_expr::emit_var_name(s, out);
+        }
+    };
     let mut ln = String::new();
-    crate::c_emit_expr::emit_var_name(left, &mut ln);
+    side(left, &mut ln);
     let mut rn = String::new();
-    crate::c_emit_expr::emit_var_name(right, &mut rn);
+    side(right, &mut rn);
+    let mut tmp = String::from("_swap_tmp_");
+    crate::c_emit_expr::emit_var_name(left, &mut tmp);
     // Scope the temp in a block so repeated SWAPs of the same left variable
-    // (two `SWAP a, x` in one function) don't redeclare `_swap_tmp_a`.
+    // (two `SWAP a, x` in one function) don't redeclare the temp.
     out.push_str(ind);
-    out.push_str(&format!("{{ {lt} _swap_tmp_{ln} = {ln}; {ln} = {rn}; {rn} = _swap_tmp_{ln}; }}\n"));
+    out.push_str(&format!("{{ {lt} {tmp} = {ln}; {ln} = {rn}; {rn} = {tmp}; }}\n"));
 }
 
 pub(crate) fn emit_body<'a, I>(items: I, out: &mut String, indent: usize)
