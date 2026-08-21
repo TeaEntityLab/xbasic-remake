@@ -746,6 +746,57 @@ fn cemitter_and_cgen_agree_on_unknown_call() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Bare RETURN in a non-GOSUB function (CGEN-SELFHOST-PARITY): a bare `RETURN`
+/// lowers to `gosub_return`, which cgen.x emits as
+/// `if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;`.
+/// In a function with NO gosub / computed-goto there is no `&&label` expression,
+/// and C rejects an indirect `goto *` in a function with no address-of-label
+/// ("indirect goto in function with no address-of-label expressions") - this
+/// blocked 16 demos. cgen.x now post-processes each buffered function body: if it
+/// contains no `&&`, the dead gosub-return `goto *` (its guard is always false with
+/// an empty stack) is rewritten to a plain `return 0;`. Behaviorally identical and
+/// byte-neutral on the selfhost tools (their goto-return functions all have gosub,
+/// hence `&&`, so the rewrite never fires - bootstrap fixed point intact).
+#[test]
+fn cemitter_and_cgen_agree_on_bare_return_no_gosub() {
+    let tmp = std::env::temp_dir().join("xb_sync_bare_return");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               x = 5\n\
+               IF x > 3 THEN\n\
+               PRINT \"big\"\n\
+               RETURN\n\
+               END IF\n\
+               PRINT \"small\"\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse bare-return program")
+        .lower_ir()
+        .expect("lower bare-return program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "br_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "br_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret bare-return program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "big\n", "bare-return reference output");
+    assert_eq!(rust_out, self_out, "cgen.x bare-return differs from CEmitter");
+    assert_eq!(rust_out, interp_out, "bare-return differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly

@@ -680,6 +680,9 @@ WHILE pos <= LEN(src$)
       dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
     ELSEIF stmt$ = "end function" THEN
       inFunc = 0
+      IF INSTR(funcBody$, "&&") = 0 THEN
+        funcBody$ = replace$(funcBody$, "if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;", "return 0;")
+      END IF
       hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
       fullBody$ = hoists$ + funcBody$
       IF LEN(fullBody$) > 0 THEN
@@ -2309,6 +2312,27 @@ FUNCTION emit_hoists$(used$, dimmed$)
     END IF
   WEND
   emit_hoists$ = out$
+END FUNCTION
+
+' Replace every occurrence of `n$` in `h$` with `r$` (cgen.x has no built-in).
+FUNCTION replace$(h$, n$, r$)
+  DIM out$
+  DIM rest$
+  DIM p
+  out$ = ""
+  rest$ = h$
+  IF LEN(n$) = 0 THEN
+    replace$ = h$
+    RETURN replace$
+  END IF
+  p = INSTR(rest$, n$)
+  WHILE p > 0
+    out$ = out$ + LEFT$(rest$, p - 1) + r$
+    rest$ = MID$(rest$, p + LEN(n$), LEN(rest$) - p - LEN(n$) + 1)
+    p = INSTR(rest$, n$)
+  WEND
+  out$ = out$ + rest$
+  replace$ = out$
 END FUNCTION
 
 FUNCTION emit_stmt$(s$)
