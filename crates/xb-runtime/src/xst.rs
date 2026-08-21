@@ -183,3 +183,57 @@ pub(crate) fn parse_number(bytes: &[u8], start: usize) -> XstNumber {
         integer_result(val, j)
     }
 }
+
+/// `XstBackStringToBinString$` — convert XBasic backslash escapes to their
+/// binary bytes (spec: `xbasic-6.4.5/help/xst.hlp`). Pure (no by-ref). Escapes:
+/// `\"`→0x22, `\\`→0x5C, `\a\b\t\n\v\f\r`→07..0D, `\0`-`\9`→0x00-0x09,
+/// `\A`-`\F`→0x0A-0x0F, `\G`-`\V`→0x10-0x1F, `\Z`→0xFF, `\xHH`→hex byte;
+/// any other `\c` passes `c` literally. Duplicated byte-for-byte in the C
+/// runtime (`c_runtime.rs::emit_back_to_bin_runtime`).
+pub(crate) fn back_to_bin(bytes: &[u8]) -> Vec<u8> {
+    let n = bytes.len();
+    let mut out = Vec::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        if bytes[i] == b'\\' && i + 1 < n {
+            let c = bytes[i + 1];
+            i += 2;
+            match c {
+                b'"' => out.push(0x22),
+                b'\\' => out.push(0x5C),
+                b'a' => out.push(0x07),
+                b'b' => out.push(0x08),
+                b't' => out.push(0x09),
+                b'n' => out.push(0x0A),
+                b'v' => out.push(0x0B),
+                b'f' => out.push(0x0C),
+                b'r' => out.push(0x0D),
+                b'x' => {
+                    let mut val: u8 = 0;
+                    let mut k = 0;
+                    while k < 2 && i < n {
+                        let d = match bytes[i] {
+                            h @ b'0'..=b'9' => h - b'0',
+                            h @ b'a'..=b'f' => h - b'a' + 10,
+                            h @ b'A'..=b'F' => h - b'A' + 10,
+                            _ => break,
+                        };
+                        val = val.wrapping_mul(16).wrapping_add(d);
+                        i += 1;
+                        k += 1;
+                    }
+                    out.push(val);
+                }
+                b'0'..=b'9' => out.push(c - b'0'),
+                b'A'..=b'F' => out.push(c - b'A' + 0x0A),
+                b'G'..=b'V' => out.push(c - b'G' + 0x10),
+                b'Z' => out.push(0xFF),
+                other => out.push(other),
+            }
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    out
+}

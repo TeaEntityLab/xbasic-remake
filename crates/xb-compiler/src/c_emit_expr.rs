@@ -317,6 +317,12 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(", ");
                 emit_byref_addr(&args[4], out);
                 out.push(')');
+            } else if name == "XstBackStringToBinString$" && !args.is_empty() {
+                // Pure string transform (mirrors interp xst::back_to_bin); the
+                // `@back$` arg is passed by value (the string).
+                out.push_str("xb_back_to_bin(");
+                emit_byref_value(&args[0], out);
+                out.push(')');
             } else if name == "EXTS"
                 || name == "EXTU"
                 || name == "CLR"

@@ -666,6 +666,9 @@ impl CEmitter {
         if body.contains("xb_xst_str_to_num(") {
             crate::c_runtime::emit_xst_runtime(&mut out);
         }
+        if body.contains("xb_back_to_bin(") {
+            crate::c_runtime::emit_back_to_bin_runtime(&mut out);
+        }
         out.push_str(&body);
         out
     }

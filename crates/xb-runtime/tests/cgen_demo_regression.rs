@@ -428,6 +428,40 @@ END FUNCTION
     );
 }
 
+/// `XstBackStringToBinString$` (RT-XST): pure string function converting XBasic
+/// backslash escapes to binary bytes (xst.hlp). Duplicated in interp
+/// (`xst::back_to_bin`), the gated C runtime (`emit_back_to_bin_runtime`), and
+/// used by msc/fgr/vgr. Exercises `\t \n \xHH \<digit> \<A-F> \<G-V>` and a
+/// literal char after `\`.
+#[test]
+fn cgen_matches_interpreter_on_back_string() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\ts$ = \"X\\tY\\nZ\\x42\\5\\A\\GW\"
+\tr$ = XstBackStringToBinString$(@s$)
+\tout$ = \"\"
+\tFOR i = 1 TO LEN(r$)
+\t\tout$ = out$ + STR$(ASC(MID$(r$, i, 1))) + \" \"
+\tNEXT
+\tPRINT \"len=\"; LEN(r$)
+\tPRINT out$
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_backstring_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "backstring", &tmp);
+    assert_eq!(
+        native, interp,
+        "back-string cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert!(
+        interp.contains("88 9 89 10 90 66 5 10 16 87"),
+        "expected decoded escape bytes: {interp:?}"
+    );
+}
+
 /// XBSourceLib core libraries that now C-compile and match the interpreter
 /// (MIG-SEMANTICS): extends the byte-faithfulness gate beyond the demo corpus to
 /// legacy core libs. `msc` exercises the full XBasic type-suffix sanitization

@@ -565,3 +565,34 @@ pub(crate) fn emit_xst_runtime(out: &mut String) {
     out.push_str("    int64_t mag = (int64_t)strtoll(buf, 0, 10); int64_t val = neg ? -mag : mag; xb_xst_int_result(val, j, after, rtype, value); return 0;\n");
     out.push_str("}\n");
 }
+
+/// `XstBackStringToBinString$` C runtime — byte-for-byte port of
+/// `xst::back_to_bin`. Gated: emitted only when `xb_back_to_bin(` is used
+/// (byte-neutral for the Xst-free corpus). Result may contain embedded NULs, so
+/// it's length-prefixed via `xb_alloc` (not a C string).
+pub(crate) fn emit_back_to_bin_runtime(out: &mut String) {
+    out.push_str("static char* xb_back_to_bin(const char* s) {\n");
+    out.push_str("    int n = xb_len(s); char* tmp = (char*)malloc((size_t)n + 1); int oi = 0, i = 0;\n");
+    out.push_str("    while (i < n) {\n");
+    out.push_str("        if (s[i] == '\\\\' && i + 1 < n) {\n");
+    out.push_str("            char c = s[i+1]; i += 2;\n");
+    out.push_str("            if (c == '\"') tmp[oi++] = 0x22;\n");
+    out.push_str("            else if (c == '\\\\') tmp[oi++] = 0x5C;\n");
+    out.push_str("            else if (c == 'a') tmp[oi++] = 0x07;\n");
+    out.push_str("            else if (c == 'b') tmp[oi++] = 0x08;\n");
+    out.push_str("            else if (c == 't') tmp[oi++] = 0x09;\n");
+    out.push_str("            else if (c == 'n') tmp[oi++] = 0x0A;\n");
+    out.push_str("            else if (c == 'v') tmp[oi++] = 0x0B;\n");
+    out.push_str("            else if (c == 'f') tmp[oi++] = 0x0C;\n");
+    out.push_str("            else if (c == 'r') tmp[oi++] = 0x0D;\n");
+    out.push_str("            else if (c == 'x') { int val=0,k=0; while(k<2 && i<n){ char h=s[i]; int d; if(h>='0'&&h<='9')d=h-'0'; else if(h>='a'&&h<='f')d=h-'a'+10; else if(h>='A'&&h<='F')d=h-'A'+10; else break; val=val*16+d; i++; k++; } tmp[oi++]=(char)val; }\n");
+    out.push_str("            else if (c>='0'&&c<='9') tmp[oi++]=c-'0';\n");
+    out.push_str("            else if (c>='A'&&c<='F') tmp[oi++]=c-'A'+0x0A;\n");
+    out.push_str("            else if (c>='G'&&c<='V') tmp[oi++]=c-'G'+0x10;\n");
+    out.push_str("            else if (c=='Z') tmp[oi++]=(char)0xFF;\n");
+    out.push_str("            else tmp[oi++]=c;\n");
+    out.push_str("        } else { tmp[oi++]=s[i++]; }\n");
+    out.push_str("    }\n");
+    out.push_str("    char* r = xb_alloc((size_t)oi); memcpy(r, tmp, (size_t)oi); free(tmp); return r;\n");
+    out.push_str("}\n");
+}

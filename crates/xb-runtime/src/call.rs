@@ -305,6 +305,13 @@ pub(crate) fn call_function(
         }
         "LIBRARY" => return Ok(RuntimeValue::Integer(0)),
         "XstStringToNumber" => return xst_string_to_number(program, args, state, output),
+        "XstBackStringToBinString$" => {
+            let s = match eval(program, &args[0], state, output)? {
+                RuntimeValue::String(bytes) => bytes,
+                other => other.render().into_bytes(),
+            };
+            return Ok(RuntimeValue::String(crate::xst::back_to_bin(&s)));
+        }
         _ => {}
     }
     if is_builtin(name) {
