@@ -145,6 +145,37 @@ sections below or the named sibling docs; ✅-done items are omitted.
 Micro-residual documented in place: `FUNCADDRESS` (the builtin) returns `0` — no corpus
 program uses it (§2 RT-FUNCPTR).
 
+
+### CGEN-DUALUSE — dual-use `_arr` split (attempted, reverted) `[2026-08-22]`
+
+> **Attempted and REVERTED** (regressed faithful 70→67). The nested-fn demos'
+> remaining blocker is the `Sub[]` dispatch array: a *true dual-use* name used as a
+> bare scalar (`IF Sub == 0`) AND as an array (`Sub[msg]`, holding `label_addr`
+> values), used before its DIM. Rust splits it into a scalar facet `xb_var_Sub` + a
+> dyn array facet `xb_var_Sub_arr`. A minimal repro worked and sync stayed 30/30, but
+> the differential caught a **regression**, so it was reverted to the clean
+> faithful=70 checkpoint. **A complete (non-regressing) implementation MUST:**
+> (1) **exclude case-A names** (`##dynNames$`, scalar-DIM+array-DIM used only as
+> array — my single-facet 1-D dyn) from the dual-use set, else it double-handles them
+> (acharmap/aunicode/aviewbmp regressed); (2) cover **every** subscript site with the
+> `_arr` rename (a missed site → `subscripted value is not an array`); (3) provide
+> **typed facets** — `char*`/`char**` for a string dual-use like `text$` (the
+> nested-fn demos hit `redefinition of xb_str_text$` next), `intptr_t`/`intptr_t*` for
+> integer. The nested-fn demos are a deep multiply-blocked chain (nested-fn →
+> retval-dim → Sub `_arr` → subscripted-value → string-dual-use → …), so this is a
+> **coordinated pass, not an increment** — incremental attempts regress or 0-flip.
+
+### CGEN-ARGSPLIT-STRLIT — call-arg splitter not string-literal-aware `[2026-08-22]`
+
+> **Latent bug** (worked around, not yet fixed). cgen.x's multi-arg call splitter
+> counts parens without skipping string literals, so a `(` inside a string-literal
+> argument mis-splits the args — e.g. `INSTR(s$, "symbol(", p + 7)` leaked a raw
+> `arith(` into the C (undeclared-function cc error). Same class as the earlier
+> `first_expr$` escaped-quote scanner bug. Workaround: build such needles with
+> concatenation + `CHR$(40)` for `(` (a string literal with `(` in a plain assignment
+> compiles fine; only multi-arg *calls* break). A proper fix makes the arg-splitter
+> skip string literals. Caught by `cemitter_and_cgen_agree_on_selfhost_tools`.
+
 ### CGEN-NESTED-FN — IMPLEMENTED `[2026-08-22, 823008f]`
 
 > **DONE** (`823008f`, sync 28/28, bootstrap fixed point intact, no demo
