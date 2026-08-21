@@ -1618,7 +1618,10 @@ fn cemitter_and_cgen_agree_on_function_name_self_dim() {
                VERSION \"0.1\"\n\
                FUNCTION Main ()\n\
                DIM Main\n\
-               Main = 42\n\
+               DIM tally\n\
+               DIM tally\n\
+               tally = 7\n\
+               Main = tally\n\
                PRINT Main\n\
                END FUNCTION\n";
     let prog = FrontendUnit::parse(src)
@@ -1639,9 +1642,9 @@ fn cemitter_and_cgen_agree_on_function_name_self_dim() {
         .expect("interpret self-dim program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "42\n", "self-dim reference output");
+    assert_eq!(interp_out, "7\n", "self-dim reference output");
     assert_eq!(rust_out, interp_out, "CEmitter mishandled function-name self-DIM");
-    assert_eq!(self_out, interp_out, "cgen.x re-declared the return-value on a self-DIM");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled retval self-DIM or repeated scalar DIM");
     let _ = fs::remove_dir_all(&tmp);
 }
 

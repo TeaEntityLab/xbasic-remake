@@ -547,6 +547,7 @@ PRINT ""
 ##dynNames$ = ""
 ##undimmed$ = ""
 ##dynStr$ = ""
+##scalarSeen$ = ""
 ##selectState = 0
 ##selectExpr$ = ""
 ##selectBraces = 0
@@ -721,6 +722,7 @@ WHILE pos <= LEN(src$)
           usedSyms$ = CHR$(10)
           dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
           ##gosubRetCount$ = ""
+          ##scalarSeen$ = ""
           nestBlocks$ = ""
           inNest = 0
         END IF
@@ -752,8 +754,12 @@ WHILE pos <= LEN(src$)
         IF inFunc = 1 THEN
           IF LEFT$(stmt$, 4) = "dim " THEN
             IF INSTR(stmt$, "[") = 0 THEN
-              IF dim_name$(stmt$) = funcName$ THEN
+              IF dim_name$(stmt$) = funcName$ OR INSTR(##scalarSeen$, ":" + dim_name$(stmt$) + ":") > 0 THEN
                 cCode$ = ""
+              ELSE
+                IF INSTR(cCode$, " xb_var_") > 0 OR INSTR(cCode$, " xb_str_") > 0 THEN
+                  ##scalarSeen$ = ##scalarSeen$ + ":" + dim_name$(stmt$) + ":"
+                END IF
               END IF
             END IF
           END IF
