@@ -105,6 +105,57 @@ through **all** emission sites (the list above **plus** `SizeOf`, `MidAssign`,
 `Swap`, `Read`, `BuiltinAssign`, `Inc`/`Dec`); verify against `cgen_demo_regression`
 (fast, includes the 8 libs) before the full differential.
 
+## Chokepoint design + complete emission-site checklist (2026-08-21)
+
+Attempt 1 failed by *whack-a-mole* — per-arm branches meant each new site
+(`gif`→`Kittedy`→`msc`) surfaced only at `cc` time. Fix: a **chokepoint** so most
+sites auto-handle, plus this **exhaustive checklist** (grepped from the tree) so
+the next pass covers everything before the first build.
+
+**Chokepoint:** make `emit_array_var_name(sym)` emit `(*xb_var_x_d)` when
+`is_descriptor_param(sym)` (else unchanged). Add a raw builder
+`emit_raw_array_name` (current body) for constructing the `_d`/param names, and a
+`emit_array_ub_ref(name)` returning `(*xb_ub_x)` for a descriptor param / `xb_ub_x`
+for a dyn local. Then every caller of `emit_array_var_name` (24 sites, mostly
+local-dyn `DIM` allocations that never fire for a param) auto-derefs correctly.
+
+**Sites that auto-handle via the chokepoint** (they call `emit_array_var_name`, or
+`emit_expr` which routes through `ArrayAccess`/`Symbol`):
+- `ArrayAccess` read (`c_emit_expr`), `ArrayAssignment` write (`c_emit_stmt`),
+  `MidAssign` target (`emit_expr(target)`), `ArrayUBound` sizeof-branch.
+
+**Sites needing an explicit descriptor branch** (direct `emit_var_name` / hardcoded
+`xb_ub_` / special shape):
+1. `emit_symbol_ref` (bare `Symbol`) → `(intptr_t)(*xb_var_x_d)` (bare array name =
+   buffer address; `*AT` consumers are stubbed, so faithful).
+2. `ArrayUBound` → descriptor: `(*xb_ub_x)`, not `sizeof`.
+3. `SizeOf` (`SIZE(x[])`) → `(*xb_ub_x + 1) * sizeof(**xb_var_x_d)` (byte size), not
+   `sizeof((*x_d))` (that's element size — wrong).
+4. `emit_swap` (`c_emit_select`, uses `emit_var_name`) → whole-array descriptor swap.
+5. `emit_read` (`c_emit_data`) → array-element target of a descriptor.
+6. `Inc`/`Dec` of a descriptor array element.
+7. `BuiltinAssign` / `*AT` memory-op args (`c_emit_stmt` `is_at_write_builtin`).
+8. Param decl — `emit_functions` (`c_emit.rs`) **and** `emit_forward_decls`
+   (`c_runtime.rs`): descriptor shape `T **xb_var_x_d, intptr_t *xb_ub_x`, RAW name.
+9. Call-site `emit_call_args`: **passing-form consistency** — the arg form is
+   dictated by the *callee's* param shape, not the caller's need:
+   - callee param i is a descriptor → pass descriptor: local dyn `&xb_var_x,&xb_ub_x`;
+     descriptor param forward `xb_var_x_d, xb_ub_x`.
+   - callee param i is plain `T*` but caller's `x` is a descriptor → pass `*xb_var_x_d`.
+10. `REDIM`/`DIM` of a descriptor param → realloc + `*ub` (verified in Attempt 1).
+
+**Closure (length-carrying), backward fixpoint** — a param is a descriptor iff its
+body `UBOUND`s / `SIZE`s / `REDIM`/`DIM`s it, or passes it to `XstQuickSort`/
+`XstCopyArray` (pos 0 or 1), **or** passes `@x[]` to a callee position that is
+itself a descriptor. Locals passed to a descriptor position → dyn. Exclude all
+closure names from `FN_DUAL_USE`.
+
+**Order of work:** closure analysis → chokepoint + `emit_raw`/`ub_ref` → the 10
+branch sites → dyn promotion + dual-use exclusion → `XstQuickSort`/`XstCopyArray`
+(interp `xst.rs` + gated C runtimes) → `cargo test cgen_demo_regression` (6s, 8
+libs) green → full differential → suite. Each site is now known up front.
+
+
 ## Design: descriptor mechanics (scope superseded by Attempt 1 → full closure)
 
 > The mechanics below (descriptor shape, per-site emission, dyn promotion) are
