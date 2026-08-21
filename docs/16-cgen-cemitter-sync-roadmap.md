@@ -94,24 +94,29 @@ reconciling ~170 helpers' order/formatting between a Rust emitter and an XBasic
 one — an ongoing cosmetic burden. **Deferred**: CG-SIG + the behavioral corpus
 cover the high-value drift.
 
-### CG-BODY-COVER — computed GOTO closed; AT-deref + file-mode-2 remain (low priority)
+### CG-BODY-COVER — computed GOTO + AT-write lvalue closed; AT-deref reads + file-mode-2 remain (low priority)
 Behavioral coverage of the addr-of / control-flow builtins is now substantial: the
 positive corpus executes computed GOSUB (`computed_gosub_test`, `GosubExpr` via
 `SUBADDRESS`), `FUNCADDRESS` (`funcaddress_test`), and sequential file I/O
 (`fileio_test`, mode 0) through both C generators + the interpreter. **Computed GOTO
-(`GotoExpr` via `GOADDRESS`) is now locked** by `cemitter_and_cgen_agree_on_computed_goto`
-— adding it surfaced a real latent drift: cgen.x's `goto_expr` arm compared `LEFT$(s$, 9)`
-against the 10-char `"goto_expr "` and never fired, so the self-hosted generator silently
-dropped every computed GOTO (fixed `1efe782`, byte-neutral on the corpus, bootstrap fixed
-point intact). Embedded-NUL / low-byte strings are covered by CG-BYTESTRING; **true high
-bytes (`0x80`–`0xFF`)** by `cemitter_and_cgen_agree_on_high_byte_strings` (`CHR$(200)+CHR$(255)`
-→ byte-faithful `LEN`/`PRINT`; the interpreter is excluded there — its `Vec<String>` output
+(`GotoExpr` via `GOADDRESS`) and AT-write lvalues (`XLONGAT(addr) = <expr>`, a
+`BuiltinAssign`) are now locked** by `cemitter_and_cgen_agree_on_computed_goto` /
+`_on_builtin_assign`. Adding them surfaced — and a systematic audit of *every*
+`LEFT$(s$, N) = "literal"` statement-dispatch arm in cgen.x confirmed — a real bug class:
+two arms had an off-by-one length that silently dropped their whole statement. `goto_expr`
+compared `LEFT$(s$, 9)` against the 10-char `"goto_expr "` (fixed `1efe782`); `builtin_assign`
+compared `LEFT$(s$, 15)` against the 14-char `"builtin_assign"` (fixed `05e9645`, which also
+aligned its handler to the Rust CEmitter's `(void)(value)` — a no-op write that still
+evaluates the value for side-effects, matching the interpreter). Both byte-neutral on the
+corpus, bootstrap fixed point intact; the dispatch-length class is now fully swept.
+Embedded-NUL / low-byte strings are covered by CG-BYTESTRING; **true high bytes
+(`0x80`–`0xFF`)** by `cemitter_and_cgen_agree_on_high_byte_strings` (`CHR$(200)+CHR$(255)` →
+byte-faithful `LEN`/`PRINT`; the interpreter is excluded there — its `Vec<String>` output
 sink is UTF-8-lossy for high bytes, so the byte-faithful C backends are the reference).
-Remaining blind spots are the **AT-dereference builtins** (`XLONGAT`/`GIANTAT`/`SUBADDRAT`/
-`GOADDRAT`) and **file mode 2**: the AT builtins are interp-divergent *by design* (the
-interpreter has no real memory and returns 0, while the C backends dereference real
-addresses), so a clean deterministic cross-backend fixture is genuinely hard — tracked, low
-priority.
+Remaining blind spots are the **AT-dereference *reads*** (`XLONGAT`/`GIANTAT`/… as rvalues)
+and **file mode 2**: the AT reads are interp-divergent *by design* (the interpreter has no
+real memory and returns 0, while the C backends dereference real addresses), so a clean
+deterministic cross-backend fixture is genuinely hard — tracked, low priority.
 
 ### CG-BYTESTRING — byte-accurate strings in both C generators ✅ done `[2026-08-18]`
 Both C generators previously represented strings as C `char*` null-terminated (`xb_len` =

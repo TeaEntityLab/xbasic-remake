@@ -9,8 +9,8 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-21** (all backends, post-array-ABI). `cargo
-> test --workspace --exclude xb-ide` = **207 passed / 0 failed**; `cgen_cemitter_sync`
-> **6/6** (byte-identity intact, +computed-GOTO); native bootstrap fixed point **intact**; LLVM
+> test --workspace --exclude xb-ide` = **208 passed / 0 failed**; `cgen_cemitter_sync`
+> **7/7** (byte-identity intact, +computed-GOTO +AT-write); native bootstrap fixed point **intact**; LLVM
 > **105/0**. C-backend demo sweep: **114/114 compile, 111 byte-faithful, diverge=0,
 > 0 compile-fails** — every testable demo matches the interpreter; the 3 remaining
 > (aclient/aserver network sockets + aeasy) block on real I/O, not the GUI loop.
@@ -125,7 +125,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~GUI-HEADLESS~~ | C backend + interp | ✅ **done** (2026-08-21, `0b42cf1`): headless Xgr/Xui runtime — `XuiGetNextCallback` delivers one synthetic `CloseWindow` (demos' loops `QUIT` on it) so the ~37 message-loop GUI demos run to completion + are differential-faithful (interp==cgen), instead of hanging on a display event loop. All other Xgr*/Xui* keep the unknown-callee stub (`$`→"", else 0). Also fixed string `SELECT CASE` (pointer→`xb_scmp` content compare — what let `CloseWindow` match its CASE). Byte-neutral on self-host/v0.1 (sync 5/5). **Demo sweep 74→111 faithful, diverge=0, compile-fail=0.** | ~37 GUI demos | ✅ |
 | GUI-RUNTIME | platform | *real* Xgr/Xui runtime (winit + softbuffer per docs/12) — actual window/display, beyond the headless differential stub | live rendering for 43 GUI demos + 3 init overflows + `DrawScaled` + 19 GTK | platform (large) |
 | CG-BYTES | two-C-gen sync | byte-identical emitted C (helper order/param names/formatting) | tightest sync lock (docs/16) | cosmetic |
-| CG-BODY-COVER | two-C-gen sync | computed GOTO (`GotoExpr`/`GOADDRESS`) ✅ **done** (2026-08-21, `1efe782`): `cemitter_and_cgen_agree_on_computed_goto` locks all three backends — caught + fixed a real cgen.x off-by-one (`LEFT$(s$, 9)` vs 10-char `"goto_expr "`) that silently dropped every computed GOTO. SUBADDRESS/FUNCADDRESS/computed-GOSUB/sequential-file-IO already corpus-covered. **Remaining** (low pri): AT-deref builtins (`XLONGAT` etc., interp-divergent by design) + file mode 2 | drift blind spot (docs/16) | ◑ partial |
+| CG-BODY-COVER | two-C-gen sync | computed GOTO (`GotoExpr`/`GOADDRESS`, `1efe782`) + AT-write lvalue (`BuiltinAssign`, `05e9645`) ✅ **done** (2026-08-21): `cemitter_and_cgen_agree_on_{computed_goto,builtin_assign}` lock all three backends. A systematic audit of every `LEFT$(s$, N) = "lit"` dispatch in cgen.x found + fixed **2 off-by-one drops** (`goto_expr`, `builtin_assign`) — the dispatch-length bug class is now fully swept. SUBADDRESS/FUNCADDRESS/computed-GOSUB/sequential-file-IO also corpus-covered. **Remaining** (low pri): AT-deref *reads* (`XLONGAT` rvalue etc. — interp returns 0 vs C real memory, divergent by design) + file mode 2 | drift blind spot (docs/16) | ◑ partial |
 | CHECK-LOC | hygiene | `checks/verify-bootstrap.sh` ≤250-LOC rule has 27 pre-existing violations (not an enforced gate; real gate = the cargo suite) | none | hygiene |
 | JIT-X87 | strategic | x87-exact FPU semantics (`iced-x86`/dynasm JIT) | only if compat tests demand | deferred |
 | STAGE3-LLVM | strategic | LLVM as the *selfhost* AOT backend (C generator is today's default + bootstrap path) | stage-3 backend split (docs/13) | deferred |
