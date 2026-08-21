@@ -874,3 +874,35 @@ END FUNCTION
         "SIZE of a scalar String is the 8-byte slot; SIZE(XLONG) is 4: {interp:?}"
     );
 }
+
+/// Locks the unary-POS-on-String fix (`+ s$`, xrun.x line 149 `+ log$ + …`). The
+/// interpreter's POS is identity (`Pos => v`, any type), but `unary()` in
+/// semantics mapped a String operand to an Integer *result* — so `+s$` was typed
+/// Integer while holding a String, crashing the interp's arith ("expected
+/// Integer, got Integer") and emitting `+`-on-`char*` (invalid C) in the backend.
+/// POS now keeps the operand's type; the C emitter passes a String POS through
+/// unchanged. Flipped core lib xrun (11/18 `src/` libs compile).
+#[test]
+fn cgen_matches_interpreter_on_unary_pos_string() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\ts$ = \"hi\"
+\tt$ = + s$ + \"!\"
+\tPRINT t$
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_pos_string_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "posstr", &tmp);
+    assert_eq!(
+        native, interp,
+        "unary +string cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert_eq!(
+        interp.trim(),
+        "hi!",
+        "unary POS on a String is identity, so `+s$ + \"!\"` concatenates: {interp:?}"
+    );
+}

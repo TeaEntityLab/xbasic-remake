@@ -193,9 +193,17 @@ impl Analyzer {
 
     fn unary(&self, op: xb_frontend::UnaryOp, operand: &Expression) -> ExprResult {
         let v = self.expr(operand)?;
-        let vt = match v.value_type {
-            ValueType::String => ValueType::Integer,
-            other => other,
+        let vt = match op {
+            // POS is identity (interp `Pos => v`): the result keeps the operand's
+            // type, so `+s$` stays String and `arith(+s$ + "!")` concatenates
+            // (rather than being mis-typed Integer, which crashes the interp and
+            // emits `+`-on-`char*` in C — xrun.x `+ log$ + …`).
+            xb_frontend::UnaryOp::Pos => v.value_type,
+            // NEG on a String is a runtime error; type it Integer (numeric default).
+            xb_frontend::UnaryOp::Neg => match v.value_type {
+                ValueType::String => ValueType::Integer,
+                other => other,
+            },
         };
         Ok(CheckedExpr::new(
             CheckedExprKind::Unary {

@@ -166,16 +166,24 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             out.push(')');
         }
         IrExprKind::Unary { op, operand } => {
-            if expr.value_type == ValueType::Integer {
-                out.push_str("(int32_t)");
+            // Unary POS is identity in the interpreter (`Pos => v`, any type). On a
+            // String operand it must pass through unchanged — `+` on a `char*` is
+            // an invalid C unary expression (`+log$` in xrun.x). Numeric POS/Neg
+            // keep the (int32_t)-masked form (CGEN-SHIFT), byte-neutral.
+            if matches!(op, xb_frontend::UnaryOp::Pos) && operand.value_type == ValueType::String {
+                emit_expr(operand, out);
+            } else {
+                if expr.value_type == ValueType::Integer {
+                    out.push_str("(int32_t)");
+                }
+                out.push('(');
+                match op {
+                    xb_frontend::UnaryOp::Neg => out.push('-'),
+                    xb_frontend::UnaryOp::Pos => out.push('+'),
+                }
+                emit_expr(operand, out);
+                out.push(')');
             }
-            out.push('(');
-            match op {
-                xb_frontend::UnaryOp::Neg => out.push('-'),
-                xb_frontend::UnaryOp::Pos => out.push('+'),
-            }
-            emit_expr(operand, out);
-            out.push(')');
         }
         IrExprKind::Boolean { op, left, right } => {
             // Bitwise AND/OR/XOR on i32 values; mask the result to i32 so high
