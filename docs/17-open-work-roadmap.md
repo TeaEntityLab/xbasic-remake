@@ -9,8 +9,8 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-21** (all backends, post-array-ABI). `cargo
-> test --workspace --exclude xb-ide` = **214 passed / 0 failed**; `cgen_cemitter_sync`
-> **9/9** (byte-identity intact; +computed-GOTO +AT-write +pos/SIZE +giant-literal); +4 interp Giant-context fixes (neg/bitwise/conditions/builtin-args); native bootstrap fixed point **intact**; LLVM
+> test --workspace --exclude xb-ide` = **215 passed / 0 failed**; `cgen_cemitter_sync`
+> **10/10** (byte-identity intact; +computed-GOTO +AT-write +pos/SIZE +giant-literal +float-arith); +4 interp Giant-context fixes; +cgen.x float-arith typing fix; native bootstrap fixed point **intact**; LLVM
 > **105/0**. C-backend demo sweep: **114/114 compile, 111 byte-faithful, diverge=0,
 > 0 compile-fails** — every testable demo matches the interpreter; the 3 remaining
 > (aclient/aserver network sockets + aeasy) block on real I/O, not the GUI loop.
