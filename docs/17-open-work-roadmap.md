@@ -9,7 +9,7 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-21** (all backends, post-array-ABI). `cargo
-> test --workspace --exclude xb-ide` = **205 passed / 0 failed**; `cgen_cemitter_sync`
+> test --workspace --exclude xb-ide` = **206 passed / 0 failed**; `cgen_cemitter_sync`
 > **5/5** (byte-identity intact); native bootstrap fixed point **intact**; LLVM
 > **105/0**. C-backend demo sweep: **114/114 compile, 111 byte-faithful, diverge=0,
 > 0 compile-fails** — every testable demo matches the interpreter; the 3 remaining

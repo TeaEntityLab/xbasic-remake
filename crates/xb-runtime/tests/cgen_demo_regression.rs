@@ -1017,3 +1017,44 @@ END FUNCTION
         "`XLONG imm` and `STRING imm$` are distinct slots: {interp:?}"
     );
 }
+
+/// Locks the CGEN-SHARED-ARR composite-member gate (xin `host.address`): a name
+/// used as a scalar composite (`Rec host`) in one function AND a SHARED composite
+/// array (`SHARED Rec host[]`) in another shares flattened member slots
+/// (`host.id`). The array member must NOT become a heap-global pointer (which
+/// would clash with the scalar `host.id` uses); it stays local. `collect_dual_use`
+/// skips dotted names, so a dedicated scalar-DIM'd exclusion gates it.
+#[test]
+fn cgen_matches_interpreter_on_composite_scalar_vs_shared_array() {
+    let source = "\
+VERSION \"0.1\"
+TYPE Rec
+\tXLONG .id
+\tSTRING .nm
+END TYPE
+FUNCTION Main
+\tRec host
+\thost.id = 5 : host.nm = \"sc\"
+\tFill ()
+\tPRINT host.nm; \"=\"; host.id
+END FUNCTION
+FUNCTION Fill ()
+\tSHARED Rec host[]
+\tREDIM host[1]
+\thost[0].id = 7 : host[0].nm = \"arr\"
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_composite_scalar_shared");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "compsclshr", &tmp);
+    assert_eq!(
+        native, interp,
+        "composite scalar vs shared array cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert_eq!(
+        interp.trim(),
+        "sc=5",
+        "the scalar composite `host` must be independent of the SHARED `host[]` array: {interp:?}"
+    );
+}

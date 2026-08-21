@@ -173,6 +173,15 @@ fn set_defined_funcs(program: &IrProgram) {
             let mut dual = std::collections::HashSet::new();
             collect_program_dual_use(&program.items, &mut dual);
             m.retain(|name, _| !dual.contains(name));
+            // Composite-member dual-use gate: a shared array member (dotted name)
+            // that is ALSO DIM'd as a SCALAR anywhere — a scalar composite
+            // `HOST host` vs an array composite `SHARED HOST host[]` both flatten
+            // `host.address` — must keep the local emission. A global pointer
+            // would clash with the scalar uses, and `collect_dual_use` skips
+            // dotted names so the first gate misses it (CGEN-SHARED-ARR).
+            let mut scalar_dimmed = std::collections::HashSet::new();
+            collect_scalar_dimmed_names(&program.items, &mut scalar_dimmed);
+            m.retain(|name, _| !scalar_dimmed.contains(name));
         }
     });
 }
@@ -204,6 +213,40 @@ fn collect_shared_arrays(items: &[IrItem], out: &mut HashMap<String, crate::Valu
                 }
             }
             IrItem::Compound(items) => collect_shared_arrays(items, out),
+            _ => {}
+        }
+    }
+}
+
+/// Recursively collect names DIM'd as a SCALAR (`Dim { is_array: false }`), across
+/// function bodies + nested blocks — for the CGEN-SHARED-ARR composite-member gate
+/// (a name that is both a scalar composite member and a shared array member must
+/// not become a global pointer).
+fn collect_scalar_dimmed_names(items: &[IrItem], out: &mut HashSet<String>) {
+    for item in items {
+        match item {
+            IrItem::Dim { symbol, is_array: false, .. } => {
+                out.insert(symbol.name.clone());
+            }
+            IrItem::Function { body, .. } => collect_scalar_dimmed_names(body, out),
+            IrItem::If { then_body, else_body, .. } => {
+                collect_scalar_dimmed_names(then_body, out);
+                if let Some(eb) = else_body {
+                    collect_scalar_dimmed_names(eb, out);
+                }
+            }
+            IrItem::While { body, .. }
+            | IrItem::For { body, .. }
+            | IrItem::DoLoop { body, .. } => collect_scalar_dimmed_names(body, out),
+            IrItem::SelectCase { cases, default, .. } => {
+                for c in cases {
+                    collect_scalar_dimmed_names(&c.body, out);
+                }
+                if let Some(d) = default {
+                    collect_scalar_dimmed_names(d, out);
+                }
+            }
+            IrItem::Compound(items) => collect_scalar_dimmed_names(items, out),
             _ => {}
         }
     }
