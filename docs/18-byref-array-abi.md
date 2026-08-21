@@ -57,7 +57,60 @@ Three faults, all from arrays having no `{data, ub}` descriptor:
 3. **`REDIM` dropped / no realloc.** A by-ref param can't be reallocated because
    it's a fixed stack array with no heap storage or writeback path.
 
-## Design: resize-only descriptor (minimal blast radius)
+## Attempt 1 (2026-08-21): mechanism verified; scope is the FULL descriptor
+
+A complete implementation pass was built end-to-end and then reverted (kept the
+tree green at 193/0). It **proved the descriptor mechanism** and **corrected the
+scope**. Findings, so the next pass starts from truth:
+
+**Verified working (byte-identical interp==cgen) with a resize-only descriptor:**
+- `collect_resized(program)` fixpoint (in `c_emit_hoist.rs`): seeds = array params
+  `Dim`'d in body + `XstQuickSort`/`XstCopyArray` resized positions; propagates
+  through call args. Returns per-fn (resized params, must-be-dyn locals). Empty
+  for the whole corpus → sync-safe. This analysis is correct — reuse it.
+- Descriptor `(T** xb_var_p_d, intptr_t* xb_ub_p)`; emission wired through params,
+  forward-decls, `ArrayAccess`, `ArrayAssignment`, `ArrayUBound`, `REDIM`/`DIM`,
+  call-args, and bare `Symbol`. **`DIM`-of-param zeros all (calloc semantics);
+  `REDIM` preserves + zero-fills the grown tail (realloc)** — both matched the
+  interpreter. Repros `Grow(@a[]){REDIM}`, `Fill(@a[]){DIM}`, and local
+  `XstQuickSort` (int/string/decreasing/case-insensitive/partial-range +
+  permutation) were **byte-identical**.
+- Dual-use fix: exclude resized/dyn closure names from `FN_DUAL_USE` so
+  `@a[]`→`byref(symbol(a))` stops minting a spurious `xb_var_a` scalar facet. Works.
+
+**Why resize-only is INSUFFICIENT (the scope correction):** the libs `UBOUND` an
+array that is a **read-only param in one function but resized in another**
+(`msc`/`Kittedy`: `UBOUND(colors[])`, `UBOUND(error[])`). A read-only array param
+has no length cell, so `UBOUND` emits `xb_ub_colors` → **undeclared identifier**.
+So **length must ride on every by-ref array param**, not just resized ones —
+i.e. the full ~4430-site descriptor, or two shapes: length-carrying read-only
+`(T* data, intptr_t ub)` vs resizable `(T** data_d, intptr_t* ub)`, with the
+**length-carrying closure** (UBOUND'd ∪ Xst-source ∪ resized) propagated through
+the call graph so a caller passing `@x[]` supplies `x`'s length consistently.
+- `nameList$` (XstCopyArray source in the libs) **is** REDIM'd (fgr.x:8866) → it is
+  a resized param and already carries length; the earlier "read-only source needs
+  length" worry was a bad test. The real read-only-length need is **`UBOUND` of a
+  read-only param**.
+- Bare array name as a scalar (`addr = bmp`) = the buffer address; emit
+  `(intptr_t)(*xb_var_bmp_d)` (interp has no real addresses, but the consuming
+  `*AT` memory builtins are stubbed 0/no-op in both backends, so it stays faithful).
+- `XstQuickSort`/`XstCopyArray` C runtimes (8-byte-slot reorder + `et`-dispatch +
+  `xb_strdup` deep-copy) + interp `xst::quicksort`/`copyarray` were written and
+  work; wire them once the descriptor threads length everywhere.
+
+**Recommended next-pass shape:** implement the **length-carrying closure** (not
+resize-only): every by-ref array param in the closure becomes
+`(T** data_d, intptr_t* ub)` (uniform — read-only just never reallocs); route it
+through **all** emission sites (the list above **plus** `SizeOf`, `MidAssign`,
+`Swap`, `Read`, `BuiltinAssign`, `Inc`/`Dec`); verify against `cgen_demo_regression`
+(fast, includes the 8 libs) before the full differential.
+
+## Design: descriptor mechanics (scope superseded by Attempt 1 → full closure)
+
+> The mechanics below (descriptor shape, per-site emission, dyn promotion) are
+> correct and were verified. Only the **scope** changed: Attempt 1 proved the
+> closure must be **length-carrying** (UBOUND'd ∪ Xst-source ∪ resized), not
+> resize-only. Read "resized" below as "in the length-carrying closure".
 
 Blast radius matters: there are **4430** `@array[]` param mentions across the
 corpus. Do **not** change every by-ref array param — read-only ones stay `T* x`
