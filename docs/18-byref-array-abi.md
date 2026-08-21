@@ -1,12 +1,40 @@
 # 18 — By-ref array ABI (`CGEN-BYREF-REDIM`) — turnkey implementation guide
 
-**Status:** designed + de-risked, not implemented. This is the single remaining
-high-value C-backend gap. It unblocks `RT-XST` `XstQuickSort` (14 uses) +
-`XstCopyArray` (2 uses) and general `REDIM`-through-`@array[]`, which the core
-libs (`fgr`/`vgr`/`msc` + 5 `ary`/merge variants) all need. Scale ≈ GIANT: a
+**Status (2026-08-21):** IMPLEMENTED + VERIFIED on branch
+`wip/cgen-byref-array-descriptor` (commit `625ce19`) — **`xbsourcelib` is now
+FAITHFUL** (`cgen_demo_regression` 9/10: `fgr`/`vgr`/`msc`/`ary` sort + copy for
+real via `XstQuickSort`/`XstCopyArray`), all 8 libs compile, 5 isolated repros
+byte-identical. **Sole remaining blocker: `qbtoxb` (curated) SIGSEGVs** on its
+pathological shared-string-array `SWAP` + keyword-table + computed-`GOSUB`
+patterns over descriptors (it was only *accidentally* faithful before, via
+plain-pointer arrays + an EOF early-exit). Reverted from `main` to keep it green
+(193/0); the working code lives on the branch so the next pass only needs to
+pinpoint + fix the `qbtoxb` crash, not re-derive the descriptor. This unblocks
+`RT-XST` `XstQuickSort` (14) + `XstCopyArray` (2) + general `REDIM`-through-
+`@array[]` for the core libs (`fgr`/`vgr`/`msc` + 5 `ary`/merge variants).
+
+### What the verified implementation covers (branch `625ce19`)
+- `collect_descriptor_params` fixpoint — **resize-seeded** (`REDIM`/`DIM`-with-size
+  + `XstQuickSort`/`XstCopyArray` pos 0/1), **backward-propagated**; a bare
+  `UBOUND`/`SIZE`/empty-`DIM x[]` does NOT seed (keeps qbtoxb's stubbed-Xst arrays
+  plain — though qbtoxb still crashes on its *genuinely*-resized arrays).
+- Descriptor `(T** xb_var_x_d, intptr_t* xb_ub_x)` via an `emit_array_var_name`
+  **chokepoint** (`(*xb_var_x_d)` for descriptor params) + `emit_raw_array_name`
+  (name-building, dual-use-independent so fwd-decl == definition) + `emit_array_ub_ref`.
+- Descriptor-aware: `ArrayAccess`/`ArrayAssignment` (chokepoint), `ArrayUBound`
+  (`*ub`), `SizeOf`, bare `Symbol` (`(intptr_t)(*x_d)`), `REDIM`/`DIM`
+  (realloc; DIM zero-all, REDIM preserve+zero-tail), `emit_swap`, `emit_call_args`
+  (passing-form consistency: descriptor pos → `(data,ub)`; plain pos ← descriptor
+  local → `*x_d`), param decls (both sites).
+- Genuinely-dual descriptor **locals** (`maxZ = z` scalar + `@maxZ[]` array) stay
+  dual-use via `collect_dual_use(extra_array)`; descriptor **params** are never dual.
+- `XstQuickSort`/`XstCopyArray`: interp (`xst::quicksort`/`copyarray`) + gated C
+  runtimes (8-byte-slot reorder, `et`-dispatch, `xb_strdup` deep-copy).
+
+### Original framing (pre-verification)
+The single remaining high-value C-backend gap. Scale ≈ GIANT: a
 byte-identity-critical ABI change best done in one focused pass with the demo/lib
-differential budget (~300s/cycle), **not** a tail-end grind (two prior partial
-attempts were correctly reverted — see roadmap row `CGEN-REDIM`).
+differential budget (~300s/cycle), **not** a tail-end grind.
 
 ## The bug (verified 2026-08-21)
 
