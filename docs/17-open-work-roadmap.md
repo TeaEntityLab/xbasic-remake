@@ -9,8 +9,8 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-21** (all backends, post-array-ABI). `cargo
-> test --workspace --exclude xb-ide` = **232 passed / 0 failed**; `cgen_cemitter_sync`
-> **27/27** (byte-identity intact; +float-arith +multidim +hoist +entry +unknown-call +bare-return +dedup +arg-count +inline-helper +escaped-quote +type-suffix-sanitize +typed-unknown-default +leading-zero +EOF-arg +repeated-gosub +computed-goto-prologue +version-offbyone +AT-stub-0 +composite-dot-sanitize +binary-literal); +4 interp Giant-context fixes; cgen.x self-hosted-generator fixes lifting **self-hosted demo faithfulness 1→67** (true cgen.x differential, real bootstrap cc flags; the computed-GOTO-prologue fix replaced an earlier rewrite-to-return hack, matching Rust; the binary-literal fix flipped arotate — a long-standing "diverge" that was a `0b..` miscompile, not a loop hang); native bootstrap fixed point **intact**; LLVM
+> test --workspace --exclude xb-ide` = **233 passed / 0 failed**; `cgen_cemitter_sync`
+> **28/28** (byte-identity intact; +float-arith +multidim +hoist +entry +unknown-call +bare-return +dedup +arg-count +inline-helper +escaped-quote +type-suffix-sanitize +typed-unknown-default +leading-zero +EOF-arg +repeated-gosub +computed-goto-prologue +version-offbyone +AT-stub-0 +composite-dot-sanitize +binary-literal +nested-fn); +4 interp Giant-context fixes; cgen.x self-hosted-generator fixes lifting **self-hosted demo faithfulness 1→67** (true cgen.x differential, real bootstrap cc flags; the computed-GOTO-prologue fix replaced an earlier rewrite-to-return hack, matching Rust; the binary-literal fix flipped arotate — a long-standing "diverge" that was a `0b..` miscompile, not a loop hang); native bootstrap fixed point **intact**; LLVM
 > **105/0**. C-backend demo sweep: **114/114 compile, 111 byte-faithful, diverge=0,
 > 0 compile-fails** — every testable demo matches the interpreter; the 3 remaining
 > (aclient/aserver network sockets + aeasy) block on real I/O, not the GUI loop.
@@ -145,9 +145,18 @@ sections below or the named sibling docs; ✅-done items are omitted.
 Micro-residual documented in place: `FUNCADDRESS` (the builtin) returns `0` — no corpus
 program uses it (§2 RT-FUNCPTR).
 
-### CGEN-NESTED-FN design — the largest remaining cc-fail cluster (19 demos) `[2026-08-22]`
+### CGEN-NESTED-FN — IMPLEMENTED `[2026-08-22, 823008f]`
 
-> **Investigated, not yet implemented.** The 19 `function definition is not allowed
+> **DONE** (`823008f`, sync 28/28, bootstrap fixed point intact, no demo
+> regression): cgen.x now emits single-level nested functions as inline
+> `xb_label_<name>:` blocks per the design below. awrite (a nested-fn cc-fail) now
+> compiles; the other 18 nested-fn demos are unblocked a layer but stay
+> multiply-blocked on dual-dim/SHARED, so demo faithful is unchanged at 67 (awrite is
+> a GUI interp-timeout, not differentially scored). Locked by
+> `cemitter_and_cgen_agree_on_nested_function` (minimal non-GUI repro). The design as
+> built, retained for reference:
+
+> The 19 `function definition is not allowed
 > here` cc-fails are all **single-level** nested functions (verified: 0 demos nest
 > deeper than one level). A nested `INTERNAL FUNCTION` (e.g. `Callback`/`CreateWindow`
 > inside `XitMain`) captures the parent's locals and is invoked via a computed GOSUB
