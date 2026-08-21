@@ -696,3 +696,36 @@ END FUNCTION
         "QUIT(0) must terminate before the post-loop PRINT: {interp:?}"
     );
 }
+
+/// Locks the `#var$` string-typing fix: a `#`-prefixed variable with a `$`
+/// suffix embeds its suffix in the name (SharedName, `suffix: None`), so the
+/// reference/by-ref typing (`ref_value_type`) must infer String from the name's
+/// trailing char — otherwise `from_suffix(None)` types it Integer and a
+/// `"s" + #foo$` concat raises a spurious "expected Integer, got String" (the
+/// real acgibin crash). Both backends must agree (faithful). This does NOT assert
+/// the single-`#` shared round-trip (assign→read), which is a separate deeper
+/// `#`-vs-`##` storage question — only the type/no-crash/faithfulness contract.
+#[test]
+fn cgen_matches_interpreter_on_hash_string_var() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tname$ = \"HOME\"
+\tXstGetEnvironmentVariable (@name$, @#homeDir$)
+\tx$ = \"[\" + #homeDir$ + \"]\"
+\tPRINT x$
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_hash_string_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "hashstr", &tmp);
+    assert_eq!(
+        native, interp,
+        "#var$ string concat cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert!(
+        interp.starts_with("[") && interp.contains("]"),
+        "a `\"s\" + #foo$` concat must run without a spurious type mismatch: {interp:?}"
+    );
+}

@@ -3,6 +3,25 @@ use xb_frontend::{ArithmeticOp, BooleanOp, ComparisonOp, Expression};
 use crate::checked::{CheckedExpr, CheckedExprKind, CheckedItem, CheckedSymbol};
 use crate::semantics::{Analyzer, CompositeLayout, ExprResult, ItemResult, ValueType};
 
+/// The value type for a symbol reference. Uses the explicit `suffix` when the
+/// lexer separated one; otherwise infers from a trailing type char embedded in
+/// `name`. A `#`-prefixed `SharedName` embeds its suffix in the name with
+/// `suffix: None` (`#foo$` lexes to name `"foo$"`), so `from_suffix(None)` would
+/// wrongly type it Integer and a `"s" + #foo$` concat / `#foo$ = "x"` assign
+/// would raise a spurious type mismatch. Mirrors `auto_symbol`. A plain
+/// `Identifier` never reaches here with `suffix: None` *and* a trailing `$`/`!`/`#`
+/// (the lexer separates those), so inspecting the last char is safe.
+fn ref_value_type(name: &str, suffix: Option<xb_frontend::TypeSuffix>) -> ValueType {
+    match suffix {
+        Some(_) => ValueType::from_suffix(suffix),
+        None => match name.chars().last() {
+            Some('$') => ValueType::String,
+            Some('!') | Some('#') => ValueType::Float,
+            _ => ValueType::Integer,
+        },
+    }
+}
+
 impl Analyzer {
     pub(crate) fn expr(&self, expr: &Expression) -> ExprResult {
         match expr {
@@ -456,7 +475,7 @@ impl Analyzer {
 
     fn symbol(&self, name: &str, suffix: Option<xb_frontend::TypeSuffix>) -> ExprResult {
         let full = xb_frontend::full_name(name.to_owned(), suffix);
-        let suffix_vt = ValueType::from_suffix(suffix);
+        let suffix_vt = ref_value_type(name, suffix);
         if !name.contains('.') && self.collisions.contains(name) {
             return Ok(CheckedExpr::new(
                 CheckedExprKind::Symbol(CheckedSymbol::new(self.slot_name(name, suffix), suffix_vt)),
@@ -514,7 +533,7 @@ impl Analyzer {
         // plain `line$` read canonicalize to the SAME slot on a type conflict
         // (an Integer `line` coexisting with a String `line$` → full name
         // `line$`); otherwise the writeback target and the reader diverge.
-        let suffix_vt = ValueType::from_suffix(suffix);
+        let suffix_vt = ref_value_type(name, suffix);
         let sym = match self.checked_symbol(name) {
             Ok(s) if s.value_type == suffix_vt || name.contains('.') => s,
             Ok(_) => {
