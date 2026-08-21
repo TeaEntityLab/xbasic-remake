@@ -118,15 +118,18 @@ and **file mode 2**: the AT reads are interp-divergent *by design* (the interpre
 real memory and returns 0, while the C backends dereference real addresses), so a clean
 deterministic cross-backend fixture is genuinely hard — tracked, low priority.
 
-Unary `+` (`pos`) and `SIZE(TYPE)` (`size_of_type`) — the last IR tokens with no
-positive-corpus coverage — are now locked by
-`cemitter_and_cgen_agree_on_unary_pos_and_sizeof_type` (all three backends agree). Verifying
-them surfaced one genuine **interp-vs-C divergence** (not a cgen.x drift): `SIZE(var)`
-(`size_of`) on a scalar integer returns **4** in the interpreter (logical XLONG size) but
-**8** in *both* C backends (`sizeof(intptr_t)` storage). The two C generators agree with each
-other, so it is not a sync break; it stems from the C backend storing every `integer` as an
-8-byte `intptr_t` vs XBasic's 4-byte XLONG. Reconciling is deep, bootstrap-entangled work
-(cgen.x itself uses `SIZE(var)` internally), so it is deferred — tracked here, low priority.
+Unary `+` (`pos`), `SIZE(TYPE)` (`size_of_type`), and `SIZE(var)` (`size_of`, scalar +
+array) — the last IR tokens with no positive-corpus coverage — are now locked by
+`cemitter_and_cgen_agree_on_unary_pos_and_size` (all three backends agree). Verifying them
+surfaced and **fixed** (`d2dfd6b`) a genuine faithfulness bug: `SIZE(var)` on a scalar
+integer returned **4** in the interpreter (logical XLONG size) but **8** in both C backends
+(they emitted `sizeof(intptr_t)` storage, not the logical size) — inconsistent with the
+32-bit XLONG *arithmetic* the C backends already perform (verified: `2e9 + 2e9` wraps to
+`-294967296` in all three) and with `SIZE(XLONG)` = 4. Both backends now emit element-count
+`*` logical size (`SIZE(x)` = 4, `SIZE(int a[3])` = 16); `logical` is 4 for Integer, 8 for
+Giant/Double/String, matching `SizeOfType` + the interpreter. Bootstrap-safe (cgen.x does
+not use `SIZE(var)` — the IR hits were its own dispatch string literals) and byte-neutral on
+the corpus/selfhost (0 `SIZE(var)` uses).
 
 ### CG-BYTESTRING — byte-accurate strings in both C generators ✅ done `[2026-08-18]`
 Both C generators previously represented strings as C `char*` null-terminated (`xb_len` =

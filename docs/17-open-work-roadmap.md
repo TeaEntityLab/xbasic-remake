@@ -10,7 +10,7 @@
 
 > Last full re-verification: **2026-08-21** (all backends, post-array-ABI). `cargo
 > test --workspace --exclude xb-ide` = **209 passed / 0 failed**; `cgen_cemitter_sync`
-> **8/8** (byte-identity intact; +computed-GOTO +AT-write +pos/SizeOfType); native bootstrap fixed point **intact**; LLVM
+> **8/8** (byte-identity intact; +computed-GOTO +AT-write +pos/SIZE); native bootstrap fixed point **intact**; LLVM
 > **105/0**. C-backend demo sweep: **114/114 compile, 111 byte-faithful, diverge=0,
 > 0 compile-fails** — every testable demo matches the interpreter; the 3 remaining
 > (aclient/aserver network sockets + aeasy) block on real I/O, not the GUI loop.
