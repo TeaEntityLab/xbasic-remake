@@ -46,6 +46,11 @@ DIM firstFunc$
 DIM firstParams$
 DIM emittedFuncs$
 DIM skipFunc
+DIM nestBlocks$
+DIM inNest
+DIM nfName$
+DIM nfAfter$
+DIM nfClose
 
 src$ = ""
 WHILE EOF() = 0
@@ -607,6 +612,8 @@ PRINT ""
 
 hasMain = 0
 inFunc = 0
+inNest = 0
+nestBlocks$ = ""
 mainBody$ = ""
 pos = 1
 WHILE pos <= LEN(src$)
@@ -668,49 +675,83 @@ WHILE pos <= LEN(src$)
         dataPos = dataSpace + 1
       LOOP
     ELSEIF LEFT$(stmt$, 9) = "function " THEN
-      inFunc = 1
       rest$ = MID$(stmt$, 10, LEN(stmt$) - 9)
       parenPos = INSTR(rest$, "(")
-      funcName$ = LEFT$(rest$, parenPos - 1)
-      IF INSTR(emittedFuncs$, ":" + funcName$ + ":") > 0 THEN
-        skipFunc = 1
+      nfName$ = LEFT$(rest$, parenPos - 1)
+      IF inFunc = 1 THEN
+        ' Nested INTERNAL FUNCTION: the frontend lowers its name as a label
+        ' (label_addr(X) -> &&xb_label_X, gosub X -> goto xb_label_X). C forbids
+        ' nested function definitions, so emit its body as an xb_label_<name>: block
+        ' inside the parent (placed after the parent body, guarded from fall-through)
+        ' and hoist its locals into the parent's shared C scope. Byte-neutral on the
+        ' selfhost tools, which nest no functions.
+        inNest = 1
+        nestBlocks$ = nestBlocks$ + "xb_label_" + nfName$ + ":" + CHR$(10)
+        nfAfter$ = MID$(rest$, parenPos + 1, LEN(rest$) - parenPos)
+        nfClose = INSTR(nfAfter$, ")")
+        dimmedSyms$ = dimmedSyms$ + param_names$(LEFT$(nfAfter$, nfClose - 1))
       ELSE
-        skipFunc = 0
-        emittedFuncs$ = emittedFuncs$ + ":" + funcName$ + ":"
-        IF funcName$ = "Main" THEN
-          hasMain = 1
+        inFunc = 1
+        funcName$ = nfName$
+        IF INSTR(emittedFuncs$, ":" + funcName$ + ":") > 0 THEN
+          skipFunc = 1
+        ELSE
+          skipFunc = 0
+          emittedFuncs$ = emittedFuncs$ + ":" + funcName$ + ":"
+          IF funcName$ = "Main" THEN
+            hasMain = 1
+          END IF
+          afterParen$ = MID$(rest$, parenPos + 1, LEN(rest$) - parenPos)
+          closeParen = INSTR(afterParen$, ")")
+          params$ = LEFT$(afterParen$, closeParen - 1)
+          IF LEN(firstFunc$) = 0 THEN
+            firstFunc$ = funcName$
+            firstParams$ = params$
+          END IF
+          retType$ = MID$(afterParen$, closeParen + 5, LEN(afterParen$) - closeParen - 4)
+          PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(" + emit_params$(params$) + ") {"
+          PRINT "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";"
+          funcBody$ = ""
+          usedSyms$ = CHR$(10)
+          dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
+          ##gosubRetCount$ = ""
+          nestBlocks$ = ""
+          inNest = 0
         END IF
-        afterParen$ = MID$(rest$, parenPos + 1, LEN(rest$) - parenPos)
-        closeParen = INSTR(afterParen$, ")")
-        params$ = LEFT$(afterParen$, closeParen - 1)
-        IF LEN(firstFunc$) = 0 THEN
-          firstFunc$ = funcName$
-          firstParams$ = params$
-        END IF
-        retType$ = MID$(afterParen$, closeParen + 5, LEN(afterParen$) - closeParen - 4)
-        PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(" + emit_params$(params$) + ") {"
-        PRINT "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";"
-        funcBody$ = ""
-        usedSyms$ = CHR$(10)
-        dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
-        ##gosubRetCount$ = ""
       END IF
     ELSEIF stmt$ = "end function" THEN
-      inFunc = 0
-      IF skipFunc = 0 THEN
-        hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
-        fullBody$ = hoists$ + computed_goto_prologue$(funcBody$) + funcBody$
-        IF LEN(fullBody$) > 0 THEN
-          PRINT LEFT$(fullBody$, LEN(fullBody$) - 1)
+      IF inNest = 1 THEN
+        nestBlocks$ = nestBlocks$ + "    if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;" + CHR$(10)
+        inNest = 0
+      ELSE
+        inFunc = 0
+        IF skipFunc = 0 THEN
+          hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
+          fullBody$ = hoists$ + computed_goto_prologue$(funcBody$ + nestBlocks$) + funcBody$
+          IF LEN(nestBlocks$) > 0 THEN
+            fullBody$ = fullBody$ + "    if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;" + CHR$(10) + nestBlocks$
+          END IF
+          IF LEN(fullBody$) > 0 THEN
+            PRINT LEFT$(fullBody$, LEN(fullBody$) - 1)
+          END IF
+          PRINT "    return " + c_var_name$(funcName$, retType$) + ";"
+          PRINT "}"
         END IF
-        PRINT "    return " + c_var_name$(funcName$, retType$) + ";"
-        PRINT "}"
+        skipFunc = 0
+        nestBlocks$ = ""
       END IF
-      skipFunc = 0
     ELSE
       IF skipFunc = 0 THEN
         cCode$ = emit_stmt$(stmt$)
-        IF inFunc = 1 THEN
+        IF inNest = 1 THEN
+          usedSyms$ = scan_used$(stmt$, usedSyms$)
+          IF LEFT$(stmt$, 4) = "dim " THEN
+            dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
+          ELSEIF LEFT$(stmt$, 6) = "redim " THEN
+            dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
+          END IF
+          nestBlocks$ = nestBlocks$ + cCode$ + CHR$(10)
+        ELSEIF inFunc = 1 THEN
           usedSyms$ = scan_used$(stmt$, usedSyms$)
           IF LEFT$(stmt$, 4) = "dim " THEN
             dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)

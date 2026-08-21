@@ -1361,6 +1361,58 @@ fn cemitter_and_cgen_agree_on_binary_literals() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Nested functions (CGEN-NESTED-FN): a `SUB`/`INTERNAL FUNCTION` nested inside a
+/// parent function body captures the parent's locals and is invoked via `GOSUB`
+/// (the frontend lowers the nested name as a label — `label_addr`/`gosub` already
+/// emit `xb_label_<name>`). C forbids nested function definitions, so cgen.x used to
+/// emit an illegal nested `xb_user_<name>() { … }` ("function definition is not
+/// allowed here"). It now emits the nested body as an `xb_label_<name>:` block placed
+/// after the parent body (guarded from fall-through), hoisting the nested locals into
+/// the parent's shared C scope — mirroring the Rust CEmitter's inline-label-block
+/// scheme. Here `Bump` shares `x` with `Main`; two GOSUBs take it 0 -> 21 -> 42.
+#[test]
+fn cemitter_and_cgen_agree_on_nested_function() {
+    let tmp = std::env::temp_dir().join("xb_sync_nestfn");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"nesttest\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               x = 0\n\
+               GOSUB Bump\n\
+               PRINT x\n\
+               GOSUB Bump\n\
+               PRINT x\n\
+               RETURN\n\
+               SUB Bump\n\
+               x = x + 21\n\
+               END SUB\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse nested-function program")
+        .lower_ir()
+        .expect("lower nested-function program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "nestfn_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "nestfn_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret nested-function program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "21\n42\n", "nested-function reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled the nested function");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled the nested function (label-block emission)");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
