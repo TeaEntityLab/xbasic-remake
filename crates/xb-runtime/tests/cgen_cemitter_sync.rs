@@ -1315,6 +1315,52 @@ fn cemitter_and_cgen_agree_on_composite_member_idents() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Binary integer literals (CGEN-SELFHOST-PARITY): `0b1000000` is a gcc/clang
+/// extension the interpreter evaluates (64) and the Rust CEmitter emits verbatim.
+/// cgen.x's strip_zeros$ (added for the `08`/`09` octal hazard) exempted hex
+/// (`0x..`) but not binary, so it stripped the leading `0` of `0b..` — leaving a
+/// bare `b1000000` (undeclared identifier) or `0` — miscompiling every binary
+/// literal (arotate's long-standing "diverge" was this; agraphic cc-failed). The
+/// fix exempts `0b`/`0B` like `0x`; all three backends now agree.
+#[test]
+fn cemitter_and_cgen_agree_on_binary_literals() {
+    let tmp = std::env::temp_dir().join("xb_sync_binlit");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"binlit\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               PRINT 0b1000000\n\
+               PRINT 0b0001\n\
+               PRINT 0b10000000000000011000000000000001\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse binary-literal program")
+        .lower_ir()
+        .expect("lower binary-literal program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "binlit_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "binlit_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret binary-literal program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // 0b1000000 = 64; 0b0001 = 1 (leading binary zeros preserved); the 32-bit
+    // pattern wraps to a negative i32.
+    assert_eq!(interp_out, "64\n1\n-2147385343\n", "binary-literal reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled binary literals");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled binary literals (strip_zeros stripped 0b)");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly

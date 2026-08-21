@@ -2502,12 +2502,21 @@ FUNCTION strip_zeros$(n$)
   DIM d$
   DIM i
   ' Only DECIMAL leading zeros are the C-octal hazard. Leave hex (`0x..`/`0X..`)
-  ' and anything else (empty) exactly as-is.
+  ' and binary (`0b..`/`0B..`, a gcc/clang extension the interp + Rust CEmitter
+  ' both accept) and anything else (empty) exactly as-is.
   IF INSTR(n$, "x") > 0 THEN
     strip_zeros$ = n$
     RETURN strip_zeros$
   END IF
   IF INSTR(n$, "X") > 0 THEN
+    strip_zeros$ = n$
+    RETURN strip_zeros$
+  END IF
+  IF INSTR(n$, "b") > 0 THEN
+    strip_zeros$ = n$
+    RETURN strip_zeros$
+  END IF
+  IF INSTR(n$, "B") > 0 THEN
     strip_zeros$ = n$
     RETURN strip_zeros$
   END IF
