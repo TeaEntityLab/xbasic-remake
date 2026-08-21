@@ -513,6 +513,9 @@ PRINT "static void xb_print_int(int v) { printf(" + CHR$(34) + "%d" + CHR$(92) +
 PRINT "static void xb_print_giant(int64_t v) { printf(" + CHR$(34) + "%lld" + CHR$(92) + "n" + CHR$(34) + ", (long long)v); }"
 PRINT "static void xb_print_str(const char* s) { fwrite(s, 1, (size_t)xb_len(s), stdout); putchar('" + CHR$(92) + "n'); }"
 PRINT "static void xb_print_float(double v) { char buf[400]; xb_fmt_float(v, buf, 400); printf(" + CHR$(34) + "%s" + CHR$(92) + "n" + CHR$(34) + ", buf); }"
+IF INSTR(src$, "INLINE$(") > 0 THEN
+  PRINT "static char* xb_inline(const char* prompt) { if (prompt) xb_print_str(prompt); return xb_readline(); }"
+END IF
 PRINT "static int xb_data_int[256]; static double xb_data_float[256]; static char* xb_data_str[256]; static int xb_data_tag[256]; static int xb_data_count = 0; static int xb_data_pos = 0;"
 PRINT "static void xb_data_add_int(int v) { xb_data_tag[xb_data_count] = 0; xb_data_int[xb_data_count] = v; xb_data_count++; }"
 PRINT "static void xb_data_add_float(double v) { xb_data_tag[xb_data_count] = 1; xb_data_float[xb_data_count] = v; xb_data_count++; }"

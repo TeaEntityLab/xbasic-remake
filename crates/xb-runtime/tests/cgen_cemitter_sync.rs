@@ -897,6 +897,50 @@ fn cemitter_and_cgen_agree_on_arg_count() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// INLINE$ helper (CGEN-SELFHOST-PARITY): `INLINE$(prompt)` maps to `xb_inline`,
+/// but cgen.x's C prelude omitted the helper Rust emits -> undeclared-function cc
+/// error (hello/ahello/atask). cgen.x now emits it - `static char* xb_inline(const
+/// char* prompt) { if (prompt) xb_print_str(prompt); return xb_readline(); }` -
+/// conditionally, gated on the text IR containing `INLINE$(` (a real call; the
+/// bare literal `string("INLINE$")` in cgen.x's own mapping code lacks the paren,
+/// so self-compile stays byte-identical). With empty stdin the prompt prints as its
+/// own line and INLINE$ returns "" at EOF, matching the interpreter.
+#[test]
+fn cemitter_and_cgen_agree_on_inline_helper() {
+    let tmp = std::env::temp_dir().join("xb_sync_inline");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               s$ = INLINE$(\"Prompt: \")\n\
+               PRINT \"got[\" + s$ + \"]\"\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse inline program")
+        .lower_ir()
+        .expect("lower inline program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "in_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "in_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret inline program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "Prompt: \ngot[]\n", "INLINE$ empty-stdin reference output");
+    assert_eq!(rust_out, self_out, "cgen.x INLINE$ helper differs from CEmitter");
+    assert_eq!(rust_out, interp_out, "INLINE$ helper differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
