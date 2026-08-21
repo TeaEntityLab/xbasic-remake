@@ -698,11 +698,8 @@ WHILE pos <= LEN(src$)
     ELSEIF stmt$ = "end function" THEN
       inFunc = 0
       IF skipFunc = 0 THEN
-        IF INSTR(funcBody$, "&&") = 0 THEN
-          funcBody$ = replace$(funcBody$, "if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;", "return 0;")
-        END IF
         hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
-        fullBody$ = hoists$ + funcBody$
+        fullBody$ = hoists$ + computed_goto_prologue$(funcBody$) + funcBody$
         IF LEN(fullBody$) > 0 THEN
           PRINT LEFT$(fullBody$, LEN(fullBody$) - 1)
         END IF
@@ -2538,6 +2535,25 @@ FUNCTION gosub_ret_suffix$(name$)
   cnt = VAL(LEFT$(rest$, cp - 1))
   ##gosubRetCount$ = replace$(##gosubRetCount$, ":" + name$ + "=" + STR$(cnt) + ":", ":" + name$ + "=" + STR$(cnt + 1) + ":")
   gosub_ret_suffix$ = "_" + STR$(cnt + 1)
+END FUNCTION
+
+' Computed-GOTO prologue (mirrors the Rust CEmitter's emit_computed_goto_prologue).
+' A bare `goto *expr` (a `GosubReturn` bare-RETURN dispatch or a `goto_expr`) needs
+' an address-of-label somewhere in the function for C to accept the indirect goto.
+' `gosub`/`gosub_expr` emit `&&xb_gosub_ret_*` and satisfy it on their own; a
+' function whose only computed goto is a bare RETURN or `goto_expr` has none, so we
+' emit an unreachable dummy-label block. No-op when the body already emits a
+' `&&xb_gosub_ret_` or has no computed goto -> byte-identical on the self-host corpus
+' (whose lone bare RETURN sits in a `gosub` function).
+FUNCTION computed_goto_prologue$(body$)
+  DIM p$
+  p$ = ""
+  IF INSTR(body$, "goto *") > 0 THEN
+    IF INSTR(body$, "&&xb_gosub_ret_") = 0 THEN
+      p$ = "    if (0) { void* _xb_la = &&_xb_cg_dummy; (void)_xb_la; _xb_cg_dummy: (void)0; }" + CHR$(10)
+    END IF
+  END IF
+  computed_goto_prologue$ = p$
 END FUNCTION
 
 FUNCTION emit_stmt$(s$)
