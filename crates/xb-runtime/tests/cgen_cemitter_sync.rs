@@ -637,6 +637,59 @@ fn cemitter_and_cgen_agree_on_undeclared_local() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Entry point = `Main` if present, else the first defined function (CGEN-SELFHOST-
+/// PARITY): legacy XBasic runs the first function, commonly `Entry` - ALL 114 demos
+/// use a non-`Main` entry. The interpreter mirrors this (`entry_or_first("Main")`)
+/// and the Rust CEmitter calls `xb_user_Entry()` from C `main`, but cgen.x only ever
+/// emitted `xb_user_Main();` (guarded by `hasMain`), so for every demo it called
+/// NOTHING -> empty output (uncaught: the selfhost tools are all `FUNCTION Main`).
+/// cgen.x now tracks the first function (`firstFunc$`/`firstParams$`) and, absent a
+/// `Main`, calls it when parameterless. Byte-neutral on the selfhost tools (they have
+/// `Main`, so the `hasMain` branch is unchanged). This alone flipped the cgen.x demo
+/// differential from faithful=3/diverge=4 to faithful=7/diverge=0.
+#[test]
+fn cemitter_and_cgen_agree_on_non_main_entry() {
+    let tmp = std::env::temp_dir().join("xb_sync_entry");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    // No `Main`; the entry is the first function `Entry` (with a helper after it, to
+    // confirm cgen.x picks the FIRST function, not just any/the last).
+    let src = "VERSION \"0.1\"\n\
+               DECLARE FUNCTION Entry ()\n\
+               DECLARE FUNCTION Helper (n)\n\
+               FUNCTION Entry ()\n\
+               PRINT \"from entry\"\n\
+               PRINT Helper(20)\n\
+               END FUNCTION\n\
+               FUNCTION Helper (n)\n\
+               RETURN n + 1\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse non-main-entry program")
+        .lower_ir()
+        .expect("lower non-main-entry program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "en_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "en_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret non-main-entry program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "from entry\n21\n", "non-main-entry reference output");
+    assert_eq!(rust_out, self_out, "cgen.x non-Main entry differs from CEmitter");
+    assert_eq!(rust_out, interp_out, "non-Main entry differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly

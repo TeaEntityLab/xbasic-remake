@@ -42,6 +42,8 @@ DIM usedSyms$
 DIM dimmedSyms$
 DIM fullBody$
 DIM hoists$
+DIM firstFunc$
+DIM firstParams$
 
 src$ = ""
 WHILE EOF() = 0
@@ -666,6 +668,10 @@ WHILE pos <= LEN(src$)
       afterParen$ = MID$(rest$, parenPos + 1, LEN(rest$) - parenPos)
       closeParen = INSTR(afterParen$, ")")
       params$ = LEFT$(afterParen$, closeParen - 1)
+      IF LEN(firstFunc$) = 0 THEN
+        firstFunc$ = funcName$
+        firstParams$ = params$
+      END IF
       retType$ = MID$(afterParen$, closeParen + 5, LEN(afterParen$) - closeParen - 4)
       PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(" + emit_params$(params$) + ") {"
       PRINT "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";"
@@ -704,6 +710,10 @@ IF LEN(mainBody$) > 0 THEN
 END IF
 IF hasMain = 1 THEN
   PRINT "    xb_user_Main();"
+ELSEIF LEN(firstFunc$) > 0 THEN
+  IF LEN(trim_spaces$(firstParams$)) = 0 THEN
+    PRINT "    xb_user_" + firstFunc$ + "();"
+  END IF
 END IF
 PRINT "    fflush(stdout);"
 PRINT "    return 0;"
