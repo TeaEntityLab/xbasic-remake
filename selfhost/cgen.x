@@ -544,6 +544,7 @@ PRINT ""
 ##funcArity$ = ""
 ##gosubRetCount$ = ""
 ##sharedDecls$ = ""
+##dynNames$ = ""
 ##selectState = 0
 ##selectExpr$ = ""
 ##selectBraces = 0
@@ -610,6 +611,7 @@ WHILE fwdPos <= LEN(src$)
 WEND
 PRINT ""
 
+##dynNames$ = scan_dyn$(src$)
 hasMain = 0
 inFunc = 0
 inNest = 0
@@ -2011,7 +2013,11 @@ FUNCTION emit_expr$(e$)
       varType$ = "integer"
       varName$ = t$
     END IF
-    emit_expr$ = "(int)(sizeof(" + c_var_name$(varName$, varType$) + ")/sizeof(" + c_var_name$(varName$, varType$) + "[0])-1)"
+    IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
+      emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
+    ELSE
+      emit_expr$ = "(int)(sizeof(" + c_var_name$(varName$, varType$) + ")/sizeof(" + c_var_name$(varName$, varType$) + "[0])-1)"
+    END IF
     RETURN emit_expr$
   END IF
   IF LEFT$(e$, 8) = "size_of(" THEN
@@ -2493,7 +2499,103 @@ FUNCTION emit_hoists$(used$, dimmed$)
       rest$ = ""
     END IF
   WEND
+  ' Dyn-array decls (CGEN-DYN-ARRAY): a name DIM'd as both a scalar and a 1D integer
+  ' array (##dynNames$) becomes one dyn pointer + ubound, so the two DIMs no longer
+  ' emit conflicting C declarations (the scalar DIM emits nothing, the array DIM
+  ' calloc's). Byte-neutral on the selfhost tools (they DIM no arrays -> ##dynNames$
+  ' empty). Mirrors the Rust CEmitter's dyn-pointer scheme.
+  rest$ = dimmed$
+  WHILE LEN(rest$) > 0
+    nlpos = INSTR(rest$, CHR$(10))
+    IF nlpos = 1 THEN
+      rest$ = MID$(rest$, 2, LEN(rest$) - 1)
+    ELSEIF nlpos > 1 THEN
+      entry$ = LEFT$(rest$, nlpos - 1)
+      rest$ = MID$(rest$, nlpos + 1, LEN(rest$) - nlpos)
+      IF INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
+        IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
+          out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
+        END IF
+      END IF
+    ELSE
+      rest$ = ""
+    END IF
+  WEND
   emit_hoists$ = out$
+END FUNCTION
+
+' Scan the whole IR for dyn-array names: a name DIM'd as BOTH a scalar (`dim X:t`)
+' AND a 1-D integer array (`dim X:integer[..]`, no comma) needs the dyn-pointer
+' scheme (a scalar decl + a fixed-array decl for the same C name is a cc
+' "redefinition"). Returns a `:name:` set. Program-wide (mirrors the Rust CEmitter);
+' byte-neutral on the selfhost tools, which DIM no arrays.
+FUNCTION scan_dyn$(s$)
+  DIM sc$
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM r$
+  DIM nm$
+  DIM cp
+  DIM bp
+  DIM ty$
+  DIM sub$
+  sc$ = ""
+  res$ = ""
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 4) = "dim " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      IF INSTR(r$, "[") = 0 THEN
+        nm$ = r$
+        cp = INSTR(nm$, ":")
+        IF cp > 0 THEN
+          nm$ = LEFT$(nm$, cp - 1)
+        END IF
+        sc$ = sc$ + ":" + nm$ + ":"
+      END IF
+    END IF
+  WEND
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 4) = "dim " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      bp = INSTR(r$, "[")
+      IF bp > 0 THEN
+        nm$ = LEFT$(r$, bp - 1)
+        ty$ = ""
+        cp = INSTR(nm$, ":")
+        IF cp > 0 THEN
+          ty$ = MID$(nm$, cp + 1, LEN(nm$) - cp)
+          nm$ = LEFT$(nm$, cp - 1)
+        END IF
+        sub$ = MID$(r$, bp + 1, LEN(r$) - bp)
+        IF INSTR(sub$, ",") = 0 THEN
+          IF ty$ = "integer" THEN
+            IF INSTR(sc$, ":" + nm$ + ":") > 0 THEN
+              IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+                res$ = res$ + ":" + nm$ + ":"
+              END IF
+            END IF
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  scan_dyn$ = res$
 END FUNCTION
 
 ' Replace every occurrence of `n$` in `h$` with `r$` (cgen.x has no built-in).
@@ -2711,7 +2813,9 @@ FUNCTION emit_stmt$(s$)
         varType$ = "integer"
       END IF
       cExpr$ = emit_expr$(arrSize$)
-      IF varType$ = "string" THEN
+      IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
+        emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+      ELSEIF varType$ = "string" THEN
         emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + "[(" + cExpr$ + ") + 1];" + CHR$(10) + "    for (int _i = 0; _i < (" + cExpr$ + ") + 1; _i++) " + c_var_name$(varName$, varType$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
       ELSE
         emit_stmt$ = "    intptr_t " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + ";"
@@ -2725,7 +2829,9 @@ FUNCTION emit_stmt$(s$)
         varName$ = rest$
         varType$ = "integer"
       END IF
-      IF varType$ = "string" THEN
+      IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
+        emit_stmt$ = ""
+      ELSEIF varType$ = "string" THEN
         emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");"
       ELSEIF varType$ = "float" THEN
         emit_stmt$ = "    double " + c_var_name$(varName$, varType$) + " = 0.0;"

@@ -1413,6 +1413,55 @@ fn cemitter_and_cgen_agree_on_nested_function() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Dyn arrays (CGEN-DYN-ARRAY): a name DIM'd as BOTH a scalar and a 1-D integer
+/// array (the scalar DIM is typically a frontend artifact; the name is used only as
+/// an array) must lower to ONE dyn pointer, not a scalar decl plus a fixed-array decl
+/// for the same C name (which cc rejects as a "redefinition"). cgen.x now emits
+/// `intptr_t* xb_var_a = 0; intptr_t xb_ub_a = -1;` (hoisted), the scalar DIM emits
+/// nothing, and the 1-D array DIM `calloc`s + sets the ubound — mirroring the Rust
+/// CEmitter's dyn-pointer scheme. Flipped acharmap/aunicode/aviewbmp faithful.
+#[test]
+fn cemitter_and_cgen_agree_on_dyn_array() {
+    let tmp = std::env::temp_dir().join("xb_sync_dynarr");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"dd\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM a\n\
+               DIM a[3]\n\
+               a[0] = 10\n\
+               a[1] = 20\n\
+               a[2] = 30\n\
+               PRINT a[0] + a[1] + a[2]\n\
+               PRINT UBOUND(a)\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse dyn-array program")
+        .lower_ir()
+        .expect("lower dyn-array program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "dynarr_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "dynarr_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret dyn-array program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // sum = 60; UBOUND of the [3] array = 3 (reads xb_ub_a, not sizeof of a pointer).
+    assert_eq!(interp_out, "60\n3\n", "dyn-array reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled the dyn array");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled the dyn array (scalar+1D-array redefinition)");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
