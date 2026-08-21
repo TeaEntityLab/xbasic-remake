@@ -17,6 +17,21 @@ pub(crate) fn function_id(program: &IrProgram, target: &str) -> i32 {
     }
     0
 }
+/// Narrow a bitwise/logical operand to i32. XBasic bit ops (`AND`/`OR`/`XOR`/`NOT`
+/// and the logical forms) are 32-bit; a literal that overflows i32 (e.g. the
+/// decimal `2147483648` = 2^31) is typed Giant, so narrow it to the low 32 bits —
+/// matching the C backends' int arithmetic — instead of erroring.
+fn bit_operand(v: &RuntimeValue) -> Result<i32, RuntimeError> {
+    match v {
+        RuntimeValue::Integer(n) => Ok(*n),
+        RuntimeValue::Giant(g) => Ok(*g as i32),
+        _ => Err(RuntimeError::TypeMismatch {
+            expected: ValueType::Integer,
+            actual: v.value_type(),
+        }),
+    }
+}
+
 pub(crate) fn eval(
     program: &IrProgram,
     expr: &IrExpr,
@@ -58,13 +73,7 @@ pub(crate) fn eval_expr(
         }
         IrExprKind::Not(inner) => {
             let v = eval(program, inner, state, output)?;
-            let RuntimeValue::Integer(n) = v else {
-                return Err(RuntimeError::TypeMismatch {
-                    expected: ValueType::Integer,
-                    actual: v.value_type(),
-                });
-            };
-            RuntimeValue::Integer(!n)
+            RuntimeValue::Integer(!bit_operand(&v)?)
         }
         IrExprKind::Unary { op, operand } => {
             let v = eval(program, operand, state, output)?;
@@ -91,12 +100,8 @@ pub(crate) fn eval_expr(
         IrExprKind::Boolean { op, left, right } => {
             let l = eval(program, left, state, output)?;
             let r = eval(program, right, state, output)?;
-            let (RuntimeValue::Integer(a), RuntimeValue::Integer(b)) = (l, r) else {
-                return Err(RuntimeError::TypeMismatch {
-                    expected: ValueType::Integer,
-                    actual: ValueType::String,
-                });
-            };
+            let a = bit_operand(&l)?;
+            let b = bit_operand(&r)?;
             RuntimeValue::Integer(match op {
                 BooleanOp::And => a & b,
                 BooleanOp::Or => a | b,
@@ -106,12 +111,8 @@ pub(crate) fn eval_expr(
         IrExprKind::Logical { op, left, right } => {
             let l = eval(program, left, state, output)?;
             let r = eval(program, right, state, output)?;
-            let (RuntimeValue::Integer(a), RuntimeValue::Integer(b)) = (l, r) else {
-                return Err(RuntimeError::TypeMismatch {
-                    expected: ValueType::Integer,
-                    actual: ValueType::String,
-                });
-            };
+            let a = bit_operand(&l)?;
+            let b = bit_operand(&r)?;
             let ta = a != 0;
             let tb = b != 0;
             RuntimeValue::Integer(match op {

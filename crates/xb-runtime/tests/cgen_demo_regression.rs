@@ -1089,3 +1089,35 @@ END FUNCTION
         "z = -2147483648 must evaluate (not error) in the interpreter: {interp:?}"
     );
 }
+
+/// Locks bitwise/logical ops with a Giant operand. A large decimal mask like
+/// `2147483648` (2^31) overflows i32 so it is typed Giant; the interp's `AND`/`OR`/
+/// `XOR`/`NOT`/logical handlers previously required both operands be Integer and
+/// errored on Giant ("expected Integer, got String"), while the C backends did the
+/// 32-bit bitwise op. `bit_operand` now narrows Giant to the low 32 bits so the
+/// interpreter matches cgen. Guards `&H80000000`-class masks written in decimal.
+#[test]
+fn cgen_matches_interpreter_on_bitwise_giant_operand() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tDIM x
+\tx = 5
+\tPRINT x OR 2147483648
+\tPRINT x AND 2147483648
+\tPRINT NOT 2147483648
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_bitwise_giant");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "bwgiant", &tmp);
+    assert_eq!(
+        native, interp,
+        "bitwise-with-Giant cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert!(
+        interp.contains("-2147483643") && !interp.to_lowercase().contains("error"),
+        "bitwise op with a Giant mask must evaluate (not error) in the interpreter: {interp:?}"
+    );
+}
