@@ -548,6 +548,7 @@ PRINT ""
 ##undimmed$ = ""
 ##dynStr$ = ""
 ##scalarSeen$ = ""
+##fwdScalars$ = ""
 ##curFnArrays$ = ""
 ##inFuncScope = 0
 ##selectState = 0
@@ -725,6 +726,7 @@ WHILE pos <= LEN(src$)
           dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
           ##gosubRetCount$ = ""
           ##scalarSeen$ = ""
+          ##fwdScalars$ = ""
           ##curFnArrays$ = fn_array_dims$(src$, pos)
           ##inFuncScope = 1
           nestBlocks$ = ""
@@ -761,8 +763,12 @@ WHILE pos <= LEN(src$)
             IF INSTR(stmt$, "[") = 0 THEN
               IF dim_name$(stmt$) = funcName$ OR INSTR(##scalarSeen$, ":" + dim_name$(stmt$) + ":") > 0 THEN
                 cCode$ = ""
-              ELSE
-                IF INSTR(cCode$, " xb_var_") > 0 OR INSTR(cCode$, " xb_str_") > 0 THEN
+              ELSEIF INSTR(cCode$, " xb_var_") > 0 OR INSTR(cCode$, " xb_str_") > 0 THEN
+                IF INSTR(usedSyms$, CHR$(10) + dim_name$(stmt$) + "|") > 0 THEN
+                  ##fwdScalars$ = ##fwdScalars$ + ":" + dim_name$(stmt$) + ":"
+                  ##scalarSeen$ = ##scalarSeen$ + ":" + dim_name$(stmt$) + ":"
+                  cCode$ = ""
+                ELSE
                   ##scalarSeen$ = ##scalarSeen$ + ":" + dim_name$(stmt$) + ":"
                 END IF
               END IF
@@ -2286,9 +2292,34 @@ FUNCTION add_sym$(acc$, nm$, ty$)
   IF INSTR(nm$, "[") > 0 THEN
     RETURN add_sym$
   END IF
-  IF INSTR(acc$, CHR$(10) + nm$ + "|") > 0 THEN
-    RETURN add_sym$
-  END IF
+  DIM want$
+  DIM rest2$
+  DIM e2$
+  DIM nl2
+  DIM b2
+  DIM en2$
+  DIM et2$
+  want$ = c_var_name$(nm$, ty$)
+  rest2$ = acc$
+  WHILE LEN(rest2$) > 0
+    nl2 = INSTR(rest2$, CHR$(10))
+    IF nl2 = 1 THEN
+      rest2$ = MID$(rest2$, 2, LEN(rest2$) - 1)
+    ELSEIF nl2 > 1 THEN
+      e2$ = LEFT$(rest2$, nl2 - 1)
+      rest2$ = MID$(rest2$, nl2 + 1, LEN(rest2$) - nl2)
+      b2 = INSTR(e2$, "|")
+      IF b2 > 0 THEN
+        en2$ = LEFT$(e2$, b2 - 1)
+        et2$ = MID$(e2$, b2 + 1, LEN(e2$) - b2)
+        IF c_var_name$(en2$, et2$) = want$ THEN
+          RETURN add_sym$
+        END IF
+      END IF
+    ELSE
+      rest2$ = ""
+    END IF
+  WEND
   add_sym$ = acc$ + nm$ + "|" + ty$ + CHR$(10)
 END FUNCTION
 
@@ -2523,7 +2554,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
       IF bar > 0 THEN
         nm$ = LEFT$(entry$, bar - 1)
         ty$ = MID$(entry$, bar + 1, LEN(entry$) - bar)
-        IF INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
+        IF INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 THEN
           out$ = out$ + "    " + c_type$(ty$) + " " + c_var_name$(nm$, ty$) + " = " + c_default$(ty$) + ";" + CHR$(10)
         END IF
       END IF

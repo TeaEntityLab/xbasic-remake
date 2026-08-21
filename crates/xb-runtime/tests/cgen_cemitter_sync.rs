@@ -1608,6 +1608,51 @@ fn cemitter_and_cgen_agree_on_cross_function_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Forward-referenced scalar (CGEN-FWDREF): a scalar USED before its DIM (e.g.
+/// xgrids' `IF list$ = 0` at IR line 2080, DIM'd at 2202). cgen.x emits scalar decls
+/// at the DIM site (not hoisted to function entry like Rust), so the earlier use
+/// referenced an undeclared name -> cc error. Now a scalar whose name is already in
+/// `usedSyms$` at its DIM is hoisted to the function top (##fwdScalars$) and its DIM
+/// site is skipped, matching the interpreter (the pre-DIM read sees the default).
+#[test]
+fn cemitter_and_cgen_agree_on_forward_referenced_scalar() {
+    let tmp = std::env::temp_dir().join("xb_sync_fwdref");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"fwd\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               IF x = 0 THEN PRINT \"zero\"\n\
+               DIM x\n\
+               x = 7\n\
+               PRINT x\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse forward-ref program")
+        .lower_ir()
+        .expect("lower forward-ref program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "fwdref_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "fwdref_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret forward-ref program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // Pre-DIM read of `x` sees the default 0 (-> "zero"), then x = 7.
+    assert_eq!(interp_out, "zero\n7\n", "forward-ref scalar output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled the forward-ref scalar");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled the forward-ref scalar");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// String dyn arrays (CGEN-DYN-ARRAY): a `string` array DIM'd more than once (a
 /// REDIM, e.g. awindow's `text$[]` menu-label array) would emit two fixed
 /// `char* X$[n]` declarations -> cc "redefinition". cgen.x now lowers such a name to
