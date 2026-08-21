@@ -2550,6 +2550,9 @@ FUNCTION scan_dyn$(s$)
   DIM bp
   DIM ty$
   DIM sub$
+  DIM nSym$
+  DIM nBy$
+  DIM before$
   sc$ = ""
   res$ = ""
   p = 1
@@ -2571,6 +2574,32 @@ FUNCTION scan_dyn$(s$)
         sc$ = sc$ + ":" + nm$ + ":"
       END IF
     END IF
+  WEND
+  ' Also treat a name USED as a bare scalar (`symbol(X)` NOT inside `byref(`) as a
+  ' "scalar" facet. Then an array indexed after an `IF X == 0` null-check and used
+  ' before its DIM (the nested-fn `Sub[]` dispatch array) becomes ONE dyn pointer
+  ' (0 before calloc, non-0 after) rather than a scalar+`_arr` split — the single
+  ' pointer matches the interpreter's single-slot semantics and the null check, and
+  ' avoids the case-B regression. Needles use CHR$(40) for `(` to dodge the arg
+  ' splitter's string-literal blind spot (CGEN-ARGSPLIT-STRLIT).
+  nSym$ = "symbol" + CHR$(40)
+  nBy$ = "byref" + CHR$(40)
+  p = INSTR(s$, nSym$)
+  WHILE p > 0
+    before$ = ""
+    IF p > 6 THEN
+      before$ = MID$(s$, p - 6, 6)
+    END IF
+    IF before$ <> nBy$ THEN
+      le = INSTR(MID$(s$, p + 7, LEN(s$) - p - 6), ":")
+      IF le > 0 THEN
+        nm$ = MID$(s$, p + 7, le - 1)
+        IF INSTR(sc$, ":" + nm$ + ":") = 0 THEN
+          sc$ = sc$ + ":" + nm$ + ":"
+        END IF
+      END IF
+    END IF
+    p = INSTR(s$, nSym$, p + 7)
   WEND
   p = 1
   WHILE p <= LEN(s$)

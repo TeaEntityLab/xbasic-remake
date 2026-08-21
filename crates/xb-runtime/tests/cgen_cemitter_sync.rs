@@ -1462,6 +1462,54 @@ fn cemitter_and_cgen_agree_on_dyn_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Scalar-used dyn array (CGEN-DYN-ARRAY, extended): a name used as a bare scalar
+/// (`IF dsp == 0`, a null/allocated check) AND indexed as an array (`dsp[i]`), often
+/// used *before* its DIM, must lower to ONE dyn pointer — 0 before the DIM's calloc,
+/// non-0 after — matching the interpreter's single-slot semantics. (An earlier
+/// attempt to split it into a scalar facet + `_arr` array facet regressed, because
+/// the always-0 scalar facet broke the null check.) cgen.x now folds a
+/// bare-scalar-used array name into the single dyn-pointer scheme.
+#[test]
+fn cemitter_and_cgen_agree_on_scalar_used_dyn_array() {
+    let tmp = std::env::temp_dir().join("xb_sync_sudyn");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"du\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               IF dsp == 0 THEN PRINT \"dsp-is-zero\"\n\
+               DIM dsp[3]\n\
+               dsp[0] = 10\n\
+               dsp[1] = 20\n\
+               dsp[2] = 30\n\
+               PRINT dsp[0] + dsp[1] + dsp[2]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse scalar-used-dyn program")
+        .lower_ir()
+        .expect("lower scalar-used-dyn program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "sudyn_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "sudyn_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret scalar-used-dyn program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // dsp is 0 before its DIM (prints), then indexed; sum = 60.
+    assert_eq!(interp_out, "dsp-is-zero\n60\n", "scalar-used-dyn reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled the scalar-used dyn array");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled the scalar-used dyn array");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Function-name self-DIM (CGEN-SELFHOST-PARITY): a function whose body DIMs its own
 /// name (the return value — `FUNCTION Main() ... DIM Main`) made cgen.x emit a scalar
 /// decl for `xb_var_Main` from the signature AND again from the `dim` statement -> cc
