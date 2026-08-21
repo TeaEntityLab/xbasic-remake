@@ -11,7 +11,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         IrItem::Print { items, separators } => {
             crate::c_emit_select::emit_print(items, separators, out, indent);
         }
-        IrItem::Dim { symbol, size, is_array, extra_dims, .. } => {
+        IrItem::Dim { symbol, size, is_array, extra_dims, redim, .. } => {
             // A `Dim` of a name that is already a function parameter is a no-op
             // in C (the param is already declared); emitting it would be a
             // redefinition. The interpreter's execute_dim would reset the slot,
@@ -65,6 +65,38 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             let dyn_scalar = crate::c_emit::is_dyn_scalar(&symbol.name);
             out.push_str(&ind);
             match size {
+                Some(sz) if dyn_array && *redim => {
+                    // Content-preserving REDIM: realloc keeps existing elements
+                    // and the grown tail is default-filled, matching the interp's
+                    // execute_dim resize (slot.rs). (First DIM is redim=false →
+                    // the calloc arm below.) Block-scoped so `_oldub` never clashes.
+                    let id = crate::c_emit::array_ident(&symbol.name);
+                    out.push_str("{ intptr_t _oldub = xb_ub_");
+                    out.push_str(&id);
+                    out.push_str("; xb_ub_");
+                    out.push_str(&id);
+                    out.push_str(" = (");
+                    emit_expr(sz, out);
+                    out.push_str("); ");
+                    crate::c_emit::emit_array_var_name(symbol, out);
+                    out.push_str(" = realloc(");
+                    crate::c_emit::emit_array_var_name(symbol, out);
+                    out.push_str(", (size_t)(xb_ub_");
+                    out.push_str(&id);
+                    out.push_str(" + 1) * sizeof(*");
+                    crate::c_emit::emit_array_var_name(symbol, out);
+                    out.push_str(")); for (intptr_t _i = _oldub + 1; _i <= xb_ub_");
+                    out.push_str(&id);
+                    out.push_str("; _i++) ");
+                    crate::c_emit::emit_array_var_name(symbol, out);
+                    out.push_str("[_i] = ");
+                    out.push_str(if symbol.value_type == ValueType::String {
+                        "xb_str(\"\")"
+                    } else {
+                        "0"
+                    });
+                    out.push_str("; }\n");
+                }
                 Some(sz) if dyn_array => {
                     // Late/repeated `DIM`: the pointer + xb_ub_ var are hoisted;
                     // the `Dim` site (re)allocates, matching the interpreter's

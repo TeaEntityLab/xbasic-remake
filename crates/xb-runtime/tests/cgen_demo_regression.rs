@@ -395,6 +395,39 @@ END FUNCTION
     );
 }
 
+/// Content-preserving local `REDIM` (CGEN-REDIM): resizing a dyn array must keep
+/// existing elements and default-fill the grown tail, matching the interpreter's
+/// `execute_dim` (slot.rs). cgen previously re-`calloc`d (zeroing everything);
+/// it now `realloc`s. (Golden IR doesn't serialize the `redim` flag, so frozen
+/// goldens stay on the calloc path — byte-neutral.)
+#[test]
+fn cgen_matches_interpreter_on_local_redim() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tDIM a[2]
+\ta[0] = 5
+\ta[1] = 6
+\tREDIM a[4]
+\ta[4] = 9
+\tPRINT \"ub=\"; UBOUND(a[])
+\tPRINT \"a0=\"; a[0]; \" a1=\"; a[1]; \" a4=\"; a[4]
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_localredim_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "localredim", &tmp);
+    assert_eq!(
+        native, interp,
+        "local REDIM cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert!(
+        interp.contains("a0=5 a1=6 a4=9"),
+        "REDIM must preserve existing elements: {interp:?}"
+    );
+}
+
 /// XBSourceLib core libraries that now C-compile and match the interpreter
 /// (MIG-SEMANTICS): extends the byte-faithfulness gate beyond the demo corpus to
 /// legacy core libs. `msc` exercises the full XBasic type-suffix sanitization
