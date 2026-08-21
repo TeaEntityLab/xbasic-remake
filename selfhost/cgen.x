@@ -1544,6 +1544,17 @@ FUNCTION emit_expr$(e$)
       emit_expr$ = "xb_eof()"
       RETURN emit_expr$
     END IF
+    IF fn$ = "SBYTEAT" OR fn$ = "UBYTEAT" OR fn$ = "SSHORTAT" OR fn$ = "USHORTAT" OR fn$ = "SLONGAT" OR fn$ = "ULONGAT" OR fn$ = "XLONGAT" OR fn$ = "GIANTAT" OR fn$ = "SUBADDRAT" OR fn$ = "GOADDRAT" THEN
+      ' *AT memory reads: the interpreter has no real memory and returns 0
+      ' (builtin.rs); emit the zero-default (also sidesteps the 1-arg call vs
+      ' 2-arg xb_*at helper mismatch). Mirrors the Rust CEmitter.
+      emit_expr$ = "0"
+      RETURN emit_expr$
+    END IF
+    IF fn$ = "SINGLEAT" OR fn$ = "DOUBLEAT" THEN
+      emit_expr$ = "0.0"
+      RETURN emit_expr$
+    END IF
     IF fn$ = "CHR$" THEN
       DIM chrDepth
       DIM chrI
