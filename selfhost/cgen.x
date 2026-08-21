@@ -1347,7 +1347,7 @@ FUNCTION emit_expr$(e$)
 
   IF LEFT$(e$, 8) = "integer(" THEN
     t$ = MID$(e$, 9, LEN(e$) - 9)
-    emit_expr$ = t$
+    emit_expr$ = strip_zeros$(t$)
     RETURN emit_expr$
   END IF
 
@@ -2475,6 +2475,40 @@ FUNCTION sanitize_ident$(n$)
   r$ = replace$(r$, "&", "_l")
   r$ = replace$(r$, "%", "_h")
   sanitize_ident$ = r$
+END FUNCTION
+
+' Strip leading zeros from a decimal integer literal (keeping one digit + any
+' sign), so `08`/`09` are not emitted as invalid C octal constants.
+FUNCTION strip_zeros$(n$)
+  DIM neg$
+  DIM d$
+  DIM i
+  ' Only DECIMAL leading zeros are the C-octal hazard. Leave hex (`0x..`/`0X..`)
+  ' and anything else (empty) exactly as-is.
+  IF INSTR(n$, "x") > 0 THEN
+    strip_zeros$ = n$
+    RETURN strip_zeros$
+  END IF
+  IF INSTR(n$, "X") > 0 THEN
+    strip_zeros$ = n$
+    RETURN strip_zeros$
+  END IF
+  neg$ = ""
+  d$ = n$
+  IF LEFT$(d$, 1) = "-" THEN
+    neg$ = "-"
+    d$ = MID$(d$, 2, LEN(d$) - 1)
+  END IF
+  IF LEN(d$) = 0 THEN
+    strip_zeros$ = n$
+    RETURN strip_zeros$
+  END IF
+  i = 1
+  WHILE i < LEN(d$) AND ASC(MID$(d$, i, 1)) = 48
+    i = i + 1
+  WEND
+  d$ = MID$(d$, i, LEN(d$) - i + 1)
+  strip_zeros$ = neg$ + d$
 END FUNCTION
 
 FUNCTION emit_stmt$(s$)

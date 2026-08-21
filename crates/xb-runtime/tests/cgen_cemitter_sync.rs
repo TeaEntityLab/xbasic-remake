@@ -1079,6 +1079,53 @@ fn cemitter_and_cgen_agree_on_unknown_string_call() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Leading-zero decimal literal (CGEN-SELFHOST-PARITY): a decimal literal with a
+/// leading zero (`08`, `09`) was emitted verbatim into C, where `08` is an invalid
+/// octal constant ("invalid digit '8' in octal constant" — atrim). cgen.x now strips
+/// leading zeros from decimal integer literals (`strip_zeros$`), keeping hex (`0x..`)
+/// untouched (stripping those to `x1F` was the first-attempt bug that broke the
+/// positive-corpus sync — hex literals abound there). Byte-neutral on the selfhost
+/// tools (no leading-zero decimals) and the v0.1 corpus (hex preserved).
+#[test]
+fn cemitter_and_cgen_agree_on_leading_zero_literal() {
+    let tmp = std::env::temp_dir().join("xb_sync_octal");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM a[20]\n\
+               a[08] = 5\n\
+               a[09] = 6\n\
+               PRINT a[8] + a[9]\n\
+               PRINT 0x1F\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse leading-zero program")
+        .lower_ir()
+        .expect("lower leading-zero program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "oct_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "oct_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret leading-zero program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // a[8]=5 + a[9]=6 = 11; 0x1F = 31 (hex preserved).
+    assert_eq!(interp_out, "11\n31\n", "leading-zero/hex reference output");
+    assert_eq!(rust_out, self_out, "cgen.x leading-zero literal differs from CEmitter");
+    assert_eq!(rust_out, interp_out, "leading-zero literal differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
