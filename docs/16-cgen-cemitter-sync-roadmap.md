@@ -118,6 +118,16 @@ and **file mode 2**: the AT reads are interp-divergent *by design* (the interpre
 real memory and returns 0, while the C backends dereference real addresses), so a clean
 deterministic cross-backend fixture is genuinely hard — tracked, low priority.
 
+Unary `+` (`pos`) and `SIZE(TYPE)` (`size_of_type`) — the last IR tokens with no
+positive-corpus coverage — are now locked by
+`cemitter_and_cgen_agree_on_unary_pos_and_sizeof_type` (all three backends agree). Verifying
+them surfaced one genuine **interp-vs-C divergence** (not a cgen.x drift): `SIZE(var)`
+(`size_of`) on a scalar integer returns **4** in the interpreter (logical XLONG size) but
+**8** in *both* C backends (`sizeof(intptr_t)` storage). The two C generators agree with each
+other, so it is not a sync break; it stems from the C backend storing every `integer` as an
+8-byte `intptr_t` vs XBasic's 4-byte XLONG. Reconciling is deep, bootstrap-entangled work
+(cgen.x itself uses `SIZE(var)` internally), so it is deferred — tracked here, low priority.
+
 ### CG-BYTESTRING — byte-accurate strings in both C generators ✅ done `[2026-08-18]`
 Both C generators previously represented strings as C `char*` null-terminated (`xb_len` =
 `strlen`, `xb_concat`/`xb_left`/… `strlen`-based, `xb_chr` NUL-terminating), so `CHR$(0)`,

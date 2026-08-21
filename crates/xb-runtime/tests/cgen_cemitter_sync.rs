@@ -388,6 +388,55 @@ fn cemitter_and_cgen_agree_on_builtin_assign() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// CG-BODY-COVER: unary `+` (`pos`) and `SIZE(TYPE)` (`size_of_type`) were the last
+/// IR tokens with no positive-corpus coverage. Both are faithful across all three
+/// backends, so this locks that agreement. NB: `SIZE(var)` (`size_of`) is
+/// deliberately excluded — the interpreter's 4-byte XLONG logical size diverges
+/// from the C backends' 8-byte `intptr_t` storage (a representation difference,
+/// tracked in docs/16; cgen.x and the Rust CEmitter still agree with each other).
+#[test]
+fn cemitter_and_cgen_agree_on_unary_pos_and_sizeof_type() {
+    let tmp = std::env::temp_dir().join("xb_sync_pos_sizeof");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM x\n\
+               x = 7\n\
+               PRINT +x\n\
+               PRINT SIZE(XLONG)\n\
+               PRINT SIZE(DOUBLE)\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse pos/sizeof program")
+        .lower_ir()
+        .expect("lower pos/sizeof program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    assert!(
+        ir.contains("pos(") && ir.contains("size_of_type"),
+        "fixture must exercise unary pos + SizeOfType; IR was:\n{ir}"
+    );
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "pz_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "pz_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret pos/sizeof program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // +7 = 7; SIZE(XLONG) = 4; SIZE(DOUBLE) = 8 — all three backends agree.
+    assert_eq!(interp_out, "7\n4\n8\n", "interpreter reference");
+    assert_eq!(rust_out, interp_out, "CEmitter diverged on unary pos / SizeOfType");
+    assert_eq!(self_out, interp_out, "cgen.x diverged on unary pos / SizeOfType");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
