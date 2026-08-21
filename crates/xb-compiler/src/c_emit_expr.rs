@@ -317,6 +317,14 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(", ");
                 emit_byref_addr(&args[4], out);
                 out.push(')');
+            } else if name == "XuiGetNextCallback" && args.len() >= 2 {
+                // Headless: deliver one synthetic CloseWindow (sets @grid+@message$),
+                // then FALSE — terminates the demo's message loop (mirrors interp).
+                out.push_str("xb_gui_next_callback(");
+                emit_byref_addr(&args[0], out);
+                out.push_str(", ");
+                emit_byref_addr(&args[1], out);
+                out.push(')');
             } else if name == "XstQuickSort" && args.len() == 5 {
                 emit_quicksort_call(args, out);
             } else if name == "XstCopyArray" && args.len() == 2 {

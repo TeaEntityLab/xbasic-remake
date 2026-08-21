@@ -39,13 +39,20 @@ pub(crate) fn emit_select_case(
         } else {
             out.push_str("    else if (");
         }
+        let is_str = selector.value_type == ValueType::String;
         let conds: Vec<String> = case
             .conditions
             .iter()
             .map(|c| {
                 let mut s = String::new();
                 emit_expr(c, &mut s);
-                format!("_sel == {s}")
+                if is_str {
+                    // String selector: compare by content, never pointer identity
+                    // (mirrors interp + the Comparison arm's xb_scmp).
+                    format!("xb_scmp(_sel, {s}) == 0")
+                } else {
+                    format!("_sel == {s}")
+                }
             })
             .collect();
         out.push_str(&conds.join(" || "));

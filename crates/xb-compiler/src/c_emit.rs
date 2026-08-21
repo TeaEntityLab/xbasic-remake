@@ -778,6 +778,9 @@ impl CEmitter {
         if body.contains("xb_copyarray(") {
             crate::c_runtime::emit_copyarray_runtime(&mut out);
         }
+        if body.contains("xb_gui_next_callback(") {
+            crate::c_runtime::emit_gui_runtime(&mut out);
+        }
         out.push_str(&body);
         out
     }

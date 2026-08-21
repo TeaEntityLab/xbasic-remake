@@ -179,6 +179,9 @@ pub struct ExecutionState {
     pub(crate) error_code: i32,
     pub(crate) files: Vec<Option<std::fs::File>>,
     pub(crate) label_addresses: std::collections::HashMap<String, usize>,
+    /// Headless GUI runtime: whether a synthetic `CloseWindow` callback has been
+    /// delivered (so `XuiGetNextCallback` terminates the demo's event loop once).
+    pub(crate) gui_close_sent: bool,
 }
 impl ExecutionState {
     pub const fn metadata(&self) -> &ProgramMetadata {

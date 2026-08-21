@@ -314,6 +314,9 @@ pub(crate) fn call_function(
         }
         "XstQuickSort" => return xst_quicksort(program, args, state, output),
         "XstCopyArray" => return xst_copyarray(program, args, state, output),
+        "XuiGetNextCallback" if args.len() >= 2 => {
+            return gui_next_callback(args, state);
+        }
         _ => {}
     }
     if is_builtin(name) {
@@ -394,6 +397,7 @@ pub(crate) fn call_function(
         error_code: state.error_code,
         files: Vec::new(),
         label_addresses: std::collections::HashMap::new(),
+        gui_close_sent: state.gui_close_sent,
     };
     let result = match exec_items(program, body, body, 0, &mut sub, output)? {
         Flow::Return(Some(v)) => Ok(v),
@@ -569,6 +573,26 @@ fn xst_copyarray(
         slot.dims = vec![len];
     }
     Ok(RuntimeValue::Integer(0))
+}
+
+/// Headless `XuiGetNextCallback(@grid, @message$, …)`: the real Xgr/Xui libraries
+/// (winit + softbuffer, docs/12) are not linked, so rather than block on a display
+/// event loop, deliver a single synthetic `CloseWindow` — the demos' loops `QUIT`
+/// on it — then FALSE. This lets every GUI demo run to completion + become
+/// differential-testable (interp==cgen). Writes exactly `@grid` (nonzero handle)
+/// and `@message$` (mirrors cgen's `xb_gui_next_callback`); all other Xgr*/Xui*
+/// keep the existing unknown-callee stub (`$`→"", else 0), already faithful.
+fn gui_next_callback(
+    args: &[IrExpr],
+    state: &mut ExecutionState,
+) -> Result<RuntimeValue, RuntimeError> {
+    if state.gui_close_sent {
+        return Ok(RuntimeValue::Integer(0));
+    }
+    state.gui_close_sent = true;
+    xst_write_back(&args[0], RuntimeValue::Integer(1), state);
+    xst_write_back(&args[1], RuntimeValue::String(b"CloseWindow".to_vec()), state);
+    Ok(RuntimeValue::Integer(-1))
 }
 
 fn find_function<'a>(program: &'a IrProgram, name: &str) -> Result<FuncInfo<'a>, RuntimeError> {
