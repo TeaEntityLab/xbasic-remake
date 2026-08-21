@@ -2030,7 +2030,9 @@ FUNCTION emit_expr$(e$)
       varType$ = "integer"
       varName$ = t$
     END IF
-    IF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
+    IF INSTR(##undimmed$, ":" + varName$ + ":") > 0 THEN
+      emit_expr$ = "(-1)"
+    ELSEIF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
@@ -2718,6 +2720,20 @@ FUNCTION scan_undimmed$(s$)
       END IF
     END IF
     p = INSTR(s$, nAsn$, p + 13)
+  WEND
+  nAcc$ = "array_ubound" + CHR$(40)
+  p = INSTR(s$, nAcc$)
+  WHILE p > 0
+    e = INSTR(MID$(s$, p + 13, LEN(s$) - p - 12), ":")
+    IF e > 0 THEN
+      nm$ = MID$(s$, p + 13, e - 1)
+      IF INSTR(ad$, ":" + nm$ + ":") = 0 THEN
+        IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+          res$ = res$ + ":" + nm$ + ":"
+        END IF
+      END IF
+    END IF
+    p = INSTR(s$, nAcc$, p + 13)
   WEND
   scan_undimmed$ = res$
 END FUNCTION

@@ -1528,6 +1528,7 @@ fn cemitter_and_cgen_agree_on_undimmed_array() {
                x = 0\n\
                IF x THEN slots[2] = 99\n\
                PRINT slots[0]\n\
+               PRINT UBOUND(slots)\n\
                PRINT \"done\"\n\
                END FUNCTION\n";
     let prog = FrontendUnit::parse(src)
@@ -1548,8 +1549,8 @@ fn cemitter_and_cgen_agree_on_undimmed_array() {
         .expect("interpret undimmed program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    // Un-DIMmed read -> default 0; the guarded (never-taken) undimmed write is a no-op.
-    assert_eq!(interp_out, "0\ndone\n", "undimmed-array reference output");
+    // Un-DIMmed read -> default 0; UBOUND of a non-array -> -1; guarded write is a no-op.
+    assert_eq!(interp_out, "0\n-1\ndone\n", "undimmed-array reference output");
     assert_eq!(rust_out, interp_out, "CEmitter mishandled the undimmed array");
     assert_eq!(self_out, interp_out, "cgen.x mishandled the undimmed array");
     let _ = fs::remove_dir_all(&tmp);
