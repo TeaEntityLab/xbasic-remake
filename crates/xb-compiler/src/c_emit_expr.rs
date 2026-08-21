@@ -492,11 +492,14 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
 
 fn emit_symbol_ref(s: &IrSymbol, out: &mut String) {
     if crate::c_emit::is_descriptor_param(&s.name) {
-        // A bare descriptor-array-param name evaluates to its base buffer address
-        // `(intptr_t)(*xb_var_x_d)` (memory-address ops like `addr = bmp`; the
-        // consuming `*AT` builtins are stubbed 0/no-op, so faithful — docs/18).
-        out.push_str("(intptr_t)");
-        crate::c_emit::emit_array_var_name(s, out);
+        // A bare descriptor-array-param name reads the slot's SCALAR field, which
+        // for a by-ref array param is the type default (the array lives in
+        // `slot.array`; `read_slot` returns `slot.value` = default) — so `IFZ a[]`
+        // (lowered to `a == 0`) tests the empty scalar, and `addr = a` (memory-op,
+        // stubbed consumer) reads 0. Emitting the default matches the interpreter
+        // (helpers.rs `read_slot`); the data pointer is reached via `a[i]`/UBOUND
+        // (docs/18).
+        emit_default(s.value_type, out);
         return;
     }
     emit_var_name(s, out);
