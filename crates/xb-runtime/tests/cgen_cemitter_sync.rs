@@ -525,6 +525,64 @@ fn cemitter_and_cgen_agree_on_float_arith() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Multi-dimensional arrays (CGEN-MULTIDIM): the self-hosted cgen.x previously
+/// emitted invalid C for any `DIM a[d0,d1]` — it fed the whole comma-separated
+/// dim/index list to `emit_expr$` as ONE expression (`xb_var_a[(3),integer(3) + 1]`),
+/// which cc rejects (`expected ']'`). Fixed via `emit_msub$`: a paren-depth-aware
+/// split (like `emit_args$`, so a call index `Add(1, 2)` isn't split on its inner
+/// comma) that emits one native C bracket per dimension — Dim `a[(d0)+1][(d1)+1]`,
+/// access/assign `a[i][j]` — matching the interpreter's row-major `a[i,j]`. A single
+/// dimension reproduces the historical 1-D emission byte-for-byte (selfhost/v0.1 are
+/// all 1-D, so sync + the bootstrap fixed point are unaffected). cgen.x's native
+/// multi-dim C differs byte-wise from CEmitter's flattened `a[i*(d1+1)+j]` (a CG-BYTES
+/// gap), so this is a BEHAVIORAL lock across all three backends, not byte-identity.
+#[test]
+fn cemitter_and_cgen_agree_on_multidim_array() {
+    let tmp = std::env::temp_dir().join("xb_sync_multidim");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    // 2-D and 3-D integer arrays; one index is a 2-arg call (`Add(1, 2)`) to
+    // exercise the paren-aware comma split (a naive split would break on it).
+    let src = "VERSION \"0.1\"\n\
+               DECLARE FUNCTION Add (x, y)\n\
+               FUNCTION Main\n\
+               DIM a[9, 9]\n\
+               DIM c[2, 3, 4]\n\
+               a[Add(1, 2), 3] = 7\n\
+               a[2, 1] = 9\n\
+               c[1, 2, 3] = 42\n\
+               PRINT a[3, 3] + a[2, 1]\n\
+               PRINT c[1, 2, 3]\n\
+               END FUNCTION\n\
+               FUNCTION Add (x, y)\n\
+               RETURN x + y\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse multidim program")
+        .lower_ir()
+        .expect("lower multidim program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "md_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "md_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret multidim program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "16\n42\n", "multidim reference output");
+    assert_eq!(rust_out, self_out, "cgen.x multi-dim differs from CEmitter (sync drift)");
+    assert_eq!(rust_out, interp_out, "multi-dim differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly

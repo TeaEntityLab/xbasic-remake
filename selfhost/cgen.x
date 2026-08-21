@@ -1864,7 +1864,7 @@ FUNCTION emit_expr$(e$)
       IF RIGHT$(t$, 1) = "]" THEN
         t$ = LEFT$(t$, LEN(t$) - 1)
       END IF
-      emit_expr$ = c_var_name$(varName$, varType$) + "[" + emit_expr$(t$) + "]"
+      emit_expr$ = c_var_name$(varName$, varType$) + emit_msub$(t$, 0)
     ELSE
       emit_expr$ = "0"
     END IF
@@ -2015,6 +2015,51 @@ FUNCTION emit_args$(a$)
   emit_args$ = parts$
 END FUNCTION
 
+' Emit one or more C subscripts for an array Dim/access/assign. `a$` is the raw
+' comma-separated dim/index list from the IR (`d0,d1` or `i0,i1`); commas inside
+' parens (a call index like `Add(1, 2)`) are skipped via a paren-depth counter,
+' exactly like emit_args$. Each top-level part becomes a native C bracket:
+' isDim <> 0 -> `[(EXPR) + 1]` (element count = declared size + 1); else `[EXPR]`.
+' A single part reproduces the historical 1-D emission byte-for-byte (selfhost /
+' v0.1 are all 1-D); 2+ parts emit a native C multi-dim array `a[i][j]`, matching
+' the interpreter's row-major `a[i,j]` semantics.
+FUNCTION emit_msub$(a$, isDim)
+  DIM i
+  DIM ch
+  DIM depth
+  DIM start
+  DIM out$
+  DIM part$
+  out$ = ""
+  i = 1
+  start = 1
+  depth = 0
+  WHILE i <= LEN(a$)
+    ch = ASC(MID$(a$, i, 1))
+    IF ch = 40 THEN
+      depth = depth + 1
+    ELSEIF ch = 41 THEN
+      depth = depth - 1
+    ELSEIF ch = 44 AND depth = 0 THEN
+      part$ = trim_spaces$(MID$(a$, start, i - start))
+      IF isDim <> 0 THEN
+        out$ = out$ + "[(" + emit_expr$(part$) + ") + 1]"
+      ELSE
+        out$ = out$ + "[" + emit_expr$(part$) + "]"
+      END IF
+      start = i + 1
+    END IF
+    i = i + 1
+  WEND
+  part$ = trim_spaces$(MID$(a$, start, LEN(a$) - start + 1))
+  IF isDim <> 0 THEN
+    out$ = out$ + "[(" + emit_expr$(part$) + ") + 1]"
+  ELSE
+    out$ = out$ + "[" + emit_expr$(part$) + "]"
+  END IF
+  emit_msub$ = out$
+END FUNCTION
+
 FUNCTION emit_params$(params$)
   DIM result$
   DIM rest$
@@ -2150,7 +2195,7 @@ FUNCTION emit_stmt$(s$)
       IF varType$ = "string" THEN
         emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + "[(" + cExpr$ + ") + 1];" + CHR$(10) + "    for (int _i = 0; _i < (" + cExpr$ + ") + 1; _i++) " + c_var_name$(varName$, varType$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
       ELSE
-        emit_stmt$ = "    intptr_t " + c_var_name$(varName$, varType$) + "[(" + cExpr$ + ") + 1];"
+        emit_stmt$ = "    intptr_t " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + ";"
       END IF
     ELSE
       colonPos = INSTR(rest$, ":")
@@ -2189,7 +2234,7 @@ FUNCTION emit_stmt$(s$)
     spacePos = INSTR(tmp$, "= ")
     right$ = MID$(tmp$, spacePos + 2, LEN(tmp$) - spacePos - 1)
     c2$ = emit_expr$(right$)
-    emit_stmt$ = "    " + c_var_name$(varName$, varType$) + "[" + emit_expr$(cExpr$) + "] = " + c2$ + ";"
+    emit_stmt$ = "    " + c_var_name$(varName$, varType$) + emit_msub$(cExpr$, 0) + " = " + c2$ + ";"
     RETURN emit_stmt$
   END IF
   IF LEFT$(s$, 10) = "mid_assign" THEN
