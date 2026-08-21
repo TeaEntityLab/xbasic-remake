@@ -506,3 +506,50 @@ fn cgen_matches_interpreter_on_xbsourcelib() {
         failures.join("\n")
     );
 }
+
+/// By-ref array descriptor (CGEN-BYREF-REDIM, docs/18): a `@array[]` param the
+/// callee `REDIM`s must be a `(T** data, intptr_t* ub)` descriptor so the resize
+/// + writes reach the caller; `XstQuickSort(@a[], @n[], …)` sorts `a[]` in place
+/// and fills/resizes the index array `@n[]` through it. Both duplicated in the
+/// interpreter (`call.rs`/`xst.rs`) and the gated C runtimes; this locks
+/// interp==cgen for the whole descriptor path (params, REDIM realloc, UBOUND,
+/// descriptor call-site, XstQuickSort permutation).
+#[test]
+fn cgen_matches_interpreter_on_byref_array_descriptor() {
+    let source = "\
+VERSION \"0.1\"
+DECLARE FUNCTION Grow (@a[], newsize)
+FUNCTION Main
+\tDIM a[2]
+\ta[0] = 5 : a[1] = 6 : a[2] = 7
+\tGrow(@a[], 5)
+\tPRINT \"ub=\"; UBOUND(a[])
+\tFOR i = 0 TO UBOUND(a[]) : PRINT \"a\"; i; \"=\"; a[i] : NEXT
+\tDIM v[3]
+\tv[0] = 30 : v[1] = 10 : v[2] = 20 : v[3] = 40
+\tDIM idx[1]
+\tXstQuickSort(@v[], @idx[], 0, 3, 0)
+\tFOR i = 0 TO 3 : PRINT \"v\"; i; \"=\"; v[i]; \" idx=\"; idx[i] : NEXT
+END FUNCTION
+FUNCTION Grow (@a[], newsize)
+\tREDIM a[newsize]
+\ta[newsize] = 99
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_byref_array_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "byrefarray", &tmp);
+    assert_eq!(
+        native, interp,
+        "by-ref array descriptor cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert!(
+        interp.contains("ub=5") && interp.contains("a5=99") && interp.contains("a1=6"),
+        "REDIM-through-@a[] must resize the caller's array + preserve content: {interp:?}"
+    );
+    assert!(
+        interp.contains("v0=10 idx=1") && interp.contains("v3=40 idx=3"),
+        "XstQuickSort must sort @v[] + fill the @idx[] permutation: {interp:?}"
+    );
+}

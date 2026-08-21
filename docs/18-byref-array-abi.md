@@ -1,17 +1,16 @@
 # 18 — By-ref array ABI (`CGEN-BYREF-REDIM`) — turnkey implementation guide
 
-**Status (2026-08-21):** IMPLEMENTED + VERIFIED on branch
-`wip/cgen-byref-array-descriptor` (commit `625ce19`) — **`xbsourcelib` is now
-FAITHFUL** (`cgen_demo_regression` 9/10: `fgr`/`vgr`/`msc`/`ary` sort + copy for
-real via `XstQuickSort`/`XstCopyArray`), all 8 libs compile, 5 isolated repros
-byte-identical. **Sole remaining blocker: `qbtoxb` (curated) SIGSEGVs** on its
-pathological shared-string-array `SWAP` + keyword-table + computed-`GOSUB`
-patterns over descriptors (it was only *accidentally* faithful before, via
-plain-pointer arrays + an EOF early-exit). Reverted from `main` to keep it green
-(193/0); the working code lives on the branch so the next pass only needs to
-pinpoint + fix the `qbtoxb` crash, not re-derive the descriptor. This unblocks
-`RT-XST` `XstQuickSort` (14) + `XstCopyArray` (2) + general `REDIM`-through-
-`@array[]` for the core libs (`fgr`/`vgr`/`msc` + 5 `ary`/merge variants).
+**Status (2026-08-21): ✅ DONE — LANDED on `main`** (merge `be03117`). The full
+by-ref array descriptor (`CGEN-BYREF-REDIM`) is implemented, verified, and green:
+**`cgen_demo_regression` 10/10**, **`cgen_cemitter_sync` 5/5** (byte-identity with
+`cgen.x` preserved — the descriptor is a no-op on the self-host + v0.1 corpus),
+**full suite 193/0**, **demo/lib differential 74 faithful / 0 diverge / 0
+compile-fail**. `xbsourcelib` (`fgr`/`vgr`/`msc`/`ary` + merge variants) now sorts
+and copies arrays for real via `XstQuickSort`/`XstCopyArray`; `REDIM`-through-
+`@array[]` works. The final `qbtoxb` blocker was fixed (`d13ee91`): a bare
+descriptor-array Symbol reads the slot's scalar default (matching interp
+`read_slot`), not the data-pointer address, so `IFZ a[]` no longer `xb_len`s a
+pointer. **RT-XST `XstQuickSort` (14) + `XstCopyArray` (2) are now COMPLETE.**
 
 ### What the verified implementation covers (branch `625ce19`)
 - `collect_descriptor_params` fixpoint — **resize-seeded** (`REDIM`/`DIM`-with-size
