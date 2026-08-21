@@ -9,7 +9,7 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-21** (all backends, post-array-ABI). `cargo
-> test --workspace --exclude xb-ide` = **231 passed / 0 failed**; `cgen_cemitter_sync`
+> test --workspace --exclude xb-ide` = **232 passed / 0 failed**; `cgen_cemitter_sync`
 > **27/27** (byte-identity intact; +float-arith +multidim +hoist +entry +unknown-call +bare-return +dedup +arg-count +inline-helper +escaped-quote +type-suffix-sanitize +typed-unknown-default +leading-zero +EOF-arg +repeated-gosub +computed-goto-prologue +version-offbyone +AT-stub-0 +composite-dot-sanitize +binary-literal); +4 interp Giant-context fixes; cgen.x self-hosted-generator fixes lifting **self-hosted demo faithfulness 1→67** (true cgen.x differential, real bootstrap cc flags; the computed-GOTO-prologue fix replaced an earlier rewrite-to-return hack, matching Rust; the binary-literal fix flipped arotate — a long-standing "diverge" that was a `0b..` miscompile, not a loop hang); native bootstrap fixed point **intact**; LLVM
 > **105/0**. C-backend demo sweep: **114/114 compile, 111 byte-faithful, diverge=0,
 > 0 compile-fails** — every testable demo matches the interpreter; the 3 remaining
