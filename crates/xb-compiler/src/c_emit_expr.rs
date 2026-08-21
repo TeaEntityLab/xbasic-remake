@@ -210,6 +210,14 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                     }
                     out.push(')');
                 }
+            } else if name == "ASC" {
+                // The interpreter's ASC reads only `args[0]` (byte 0 of the
+                // string) and ignores an optional 2nd position arg; `xb_asc` is
+                // 1-arg. Emit just the string so `ASC(line$, 1)` (core libs
+                // CreateHelp/xcol) compiles and matches the interpreter.
+                out.push_str("xb_asc(");
+                emit_expr(&args[0], out);
+                out.push(')');
             } else if name == "INSTR" {
                 if args.len() == 2 {
                     out.push_str("xb_instr2");

@@ -810,3 +810,36 @@ END FUNCTION
         "an unset shared var read in an IF condition must default to 0: {interp:?}"
     );
 }
+
+/// Locks the 2-arg `ASC(s$, n)` fix: the interpreter's ASC reads only `args[0]`
+/// (byte 0), ignoring an optional position arg, and the C runtime `xb_asc` is
+/// 1-arg — but the emitter passed all args, so `ASC(line$, 1)` (core libs
+/// CreateHelp/xcol) emitted `xb_asc(s, 1)` and failed `cc` with "too many
+/// arguments". The emitter now drops ASC's extra args, matching the interpreter.
+#[test]
+fn cgen_matches_interpreter_on_asc_two_arg() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tline$ = \"Colon\"
+\tIF ASC (line$, 1) = 67 THEN
+\t\tPRINT \"C-first\"
+\tELSE
+\t\tPRINT \"other\"
+\tEND IF
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_asc2_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "asc2", &tmp);
+    assert_eq!(
+        native, interp,
+        "2-arg ASC cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert_eq!(
+        interp.trim(),
+        "C-first",
+        "`ASC(line$, 1)` must read the first byte (67='C'): {interp:?}"
+    );
+}
