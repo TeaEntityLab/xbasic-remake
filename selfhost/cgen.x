@@ -44,6 +44,8 @@ DIM fullBody$
 DIM hoists$
 DIM firstFunc$
 DIM firstParams$
+DIM emittedFuncs$
+DIM skipFunc
 
 src$ = ""
 WHILE EOF() = 0
@@ -662,46 +664,57 @@ WHILE pos <= LEN(src$)
       rest$ = MID$(stmt$, 10, LEN(stmt$) - 9)
       parenPos = INSTR(rest$, "(")
       funcName$ = LEFT$(rest$, parenPos - 1)
-      IF funcName$ = "Main" THEN
-        hasMain = 1
+      IF INSTR(emittedFuncs$, ":" + funcName$ + ":") > 0 THEN
+        skipFunc = 1
+      ELSE
+        skipFunc = 0
+        emittedFuncs$ = emittedFuncs$ + ":" + funcName$ + ":"
+        IF funcName$ = "Main" THEN
+          hasMain = 1
+        END IF
+        afterParen$ = MID$(rest$, parenPos + 1, LEN(rest$) - parenPos)
+        closeParen = INSTR(afterParen$, ")")
+        params$ = LEFT$(afterParen$, closeParen - 1)
+        IF LEN(firstFunc$) = 0 THEN
+          firstFunc$ = funcName$
+          firstParams$ = params$
+        END IF
+        retType$ = MID$(afterParen$, closeParen + 5, LEN(afterParen$) - closeParen - 4)
+        PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(" + emit_params$(params$) + ") {"
+        PRINT "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";"
+        funcBody$ = ""
+        usedSyms$ = CHR$(10)
+        dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
       END IF
-      afterParen$ = MID$(rest$, parenPos + 1, LEN(rest$) - parenPos)
-      closeParen = INSTR(afterParen$, ")")
-      params$ = LEFT$(afterParen$, closeParen - 1)
-      IF LEN(firstFunc$) = 0 THEN
-        firstFunc$ = funcName$
-        firstParams$ = params$
-      END IF
-      retType$ = MID$(afterParen$, closeParen + 5, LEN(afterParen$) - closeParen - 4)
-      PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(" + emit_params$(params$) + ") {"
-      PRINT "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";"
-      funcBody$ = ""
-      usedSyms$ = CHR$(10)
-      dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
     ELSEIF stmt$ = "end function" THEN
       inFunc = 0
-      IF INSTR(funcBody$, "&&") = 0 THEN
-        funcBody$ = replace$(funcBody$, "if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;", "return 0;")
-      END IF
-      hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
-      fullBody$ = hoists$ + funcBody$
-      IF LEN(fullBody$) > 0 THEN
-        PRINT LEFT$(fullBody$, LEN(fullBody$) - 1)
-      END IF
-      PRINT "    return " + c_var_name$(funcName$, retType$) + ";"
-      PRINT "}"
-    ELSE
-      cCode$ = emit_stmt$(stmt$)
-      IF inFunc = 1 THEN
-        usedSyms$ = scan_used$(stmt$, usedSyms$)
-        IF LEFT$(stmt$, 4) = "dim " THEN
-          dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
-        ELSEIF LEFT$(stmt$, 6) = "redim " THEN
-          dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
+      IF skipFunc = 0 THEN
+        IF INSTR(funcBody$, "&&") = 0 THEN
+          funcBody$ = replace$(funcBody$, "if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;", "return 0;")
         END IF
-        funcBody$ = funcBody$ + cCode$ + CHR$(10)
-      ELSE
-        mainBody$ = mainBody$ + cCode$ + CHR$(10)
+        hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
+        fullBody$ = hoists$ + funcBody$
+        IF LEN(fullBody$) > 0 THEN
+          PRINT LEFT$(fullBody$, LEN(fullBody$) - 1)
+        END IF
+        PRINT "    return " + c_var_name$(funcName$, retType$) + ";"
+        PRINT "}"
+      END IF
+      skipFunc = 0
+    ELSE
+      IF skipFunc = 0 THEN
+        cCode$ = emit_stmt$(stmt$)
+        IF inFunc = 1 THEN
+          usedSyms$ = scan_used$(stmt$, usedSyms$)
+          IF LEFT$(stmt$, 4) = "dim " THEN
+            dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
+          ELSEIF LEFT$(stmt$, 6) = "redim " THEN
+            dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
+          END IF
+          funcBody$ = funcBody$ + cCode$ + CHR$(10)
+        ELSE
+          mainBody$ = mainBody$ + cCode$ + CHR$(10)
+        END IF
       END IF
     END IF
   END IF

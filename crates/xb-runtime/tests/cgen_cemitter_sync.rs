@@ -797,6 +797,56 @@ fn cemitter_and_cgen_agree_on_bare_return_no_gosub() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Function dedup, first-wins (CGEN-SELFHOST-PARITY): a name defined twice (e.g.
+/// `INTERNAL FUNCTION InitProgram` + a later `FUNCTION InitProgram`, common in the
+/// xst-importing demos) yields two `function InitProgram` IR items. The interpreter
+/// and the Rust CEmitter keep the FIRST (`find_function` / `emit_functions` dedup);
+/// cgen.x emitted BOTH C definitions -> "redefinition of 'xb_user_InitProgram'" cc
+/// error (15 demos). cgen.x now tracks emitted function names (`emittedFuncs$`) and
+/// skips a re-definition (first-wins). Byte-neutral on the selfhost tools (no
+/// duplicate function names there).
+#[test]
+fn cemitter_and_cgen_agree_on_duplicate_function() {
+    let tmp = std::env::temp_dir().join("xb_sync_dup_fn");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               DECLARE FUNCTION Foo ()\n\
+               FUNCTION Main\n\
+               PRINT Foo()\n\
+               END FUNCTION\n\
+               FUNCTION Foo ()\n\
+               RETURN 1\n\
+               END FUNCTION\n\
+               FUNCTION Foo ()\n\
+               RETURN 2\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse duplicate-function program")
+        .lower_ir()
+        .expect("lower duplicate-function program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "df_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "df_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret duplicate-function program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "1\n", "duplicate-function first-wins reference output");
+    assert_eq!(rust_out, self_out, "cgen.x function dedup differs from CEmitter");
+    assert_eq!(rust_out, interp_out, "function dedup differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
