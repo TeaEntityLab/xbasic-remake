@@ -145,6 +145,52 @@ sections below or the named sibling docs; ✅-done items are omitted.
 Micro-residual documented in place: `FUNCADDRESS` (the builtin) returns `0` — no corpus
 program uses it (§2 RT-FUNCPTR).
 
+### CGEN-NESTED-FN design — the largest remaining cc-fail cluster (19 demos) `[2026-08-22]`
+
+> **Investigated, not yet implemented.** The 19 `function definition is not allowed
+> here` cc-fails are all **single-level** nested functions (verified: 0 demos nest
+> deeper than one level). A nested `INTERNAL FUNCTION` (e.g. `Callback`/`CreateWindow`
+> inside `XitMain`) captures the parent's locals and is invoked via a computed GOSUB
+> through a dispatch array (`gosub_expr Sub[message]`). C forbids nested function
+> definitions, so cgen.x's streaming emitter — which `PRINT`s a `xb_user_<name>(...)  {`
+> for every `function ` token — emits an illegal nested def.
+
+**Rust's scheme (the reference to mirror), from `awindow`'s `xb_user_XitMain`:**
+1. Every nested function's **locals + its own name (retval) are hoisted into the
+>    parent**'s declaration block (`intptr_t xb_var_Callback = 0;` etc. at the top of
+>    `xb_user_XitMain`).
+2. Each nested body becomes a **labeled block** `xb_label_<name>:` placed **after** the
+>    parent's main body (and after the parent's own return-dispatch, so normal flow
+>    never falls into it) but before the parent's final `return`.
+3. `funcaddr(NestedFn)` lowers to `((intptr_t)&&xb_label_<name>)` (address-of-label),
+>    NOT a function pointer — that value is what the `Sub[]` dispatch array holds.
+4. The nested block ends with the gosub-return dispatch
+>    (`if (xb_gosub_sp > xb_gosub_base) goto *xb_gosub_stack[--xb_gosub_sp]; return …;`);
+>    Rust uses a **per-function `xb_gosub_base = xb_gosub_sp`** so a nested block's bare
+>    RETURN unwinds to its GOSUB caller, not the outermost frame.
+
+**cgen.x changes required (a dedicated pass, byte-neutral on selfhost — the self-host
+tools nest no functions, so the whole path is a no-op there and the bootstrap fixed
+point is protected by the sync gate regardless):**
+- Track a single-level **nest flag** + a **separate `nestBlocks$` buffer**. A `function `
+>   token while already `inFunc` starts a nested block (record the name in a
+>   `nestFns$` set; append `xb_label_<name>:` to `nestBlocks$`) instead of `PRINT`ing a
+>   new C signature. Its statements append to `nestBlocks$`, and its locals/DIMs still
+>   feed the **parent's** `usedSyms$`/`dimmedSyms$` so `emit_hoists$` declares them at the
+>   parent top.
+- A nested `end function` appends the gosub-return dispatch and clears the nest flag
+>   (staying `inFunc`); the parent's `end function` emits
+>   `hoists + parentBody + <return-dispatch> + nestBlocks$ + return + }`.
+- `emit_expr$`'s `funcaddr(` arm checks `nestFns$`: a nested-fn arg → `((intptr_t)&&xb_label_<name>)`.
+- Adopt the per-function `xb_gosub_base` (replacing the bare `xb_gosub_sp > 0` guard) so
+>   nested-block RETURNs unwind correctly — verify byte-neutral on the self-host corpus
+>   (its GOSUB use is a single top-level frame, base 0).
+
+Verify against `awindow`/`abuffer` (2 nested fns each, simplest). Several nested-fn
+demos are also multiply-blocked (SHARED arrays, dual-dim), so this unblocks a *layer*
+for all 19 and flips the subset whose only remaining blocker is nesting.
+
+
 ### CGEN-SHARED-ARR design — qbtoxb, the last demo compile-fail `[2026-08-20]`
 
 > **RESOLVED `[2026-08-20]` — qbtoxb compiles + is byte-faithful (114/114).** The
