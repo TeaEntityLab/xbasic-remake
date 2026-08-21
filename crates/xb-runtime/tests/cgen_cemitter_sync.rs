@@ -1555,6 +1555,52 @@ fn cemitter_and_cgen_agree_on_undimmed_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// String dyn arrays (CGEN-DYN-ARRAY): a `string` array DIM'd more than once (a
+/// REDIM, e.g. awindow's `text$[]` menu-label array) would emit two fixed
+/// `char* X$[n]` declarations -> cc "redefinition". cgen.x now lowers such a name to
+/// ONE dyn `char**` pointer (calloc + empty-string init per DIM), mirroring the Rust
+/// CEmitter. Flipped aedit/atcursor/adrawing/agrids faithful.
+#[test]
+fn cemitter_and_cgen_agree_on_string_dyn_array() {
+    let tmp = std::env::temp_dir().join("xb_sync_strdyn");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"sd\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM names$[2]\n\
+               names$[0] = \"aa\"\n\
+               DIM names$[3]\n\
+               names$[0] = \"x\"\n\
+               names$[1] = \"y\"\n\
+               PRINT names$[0] + names$[1]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse string-dyn program")
+        .lower_ir()
+        .expect("lower string-dyn program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "strdyn_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "strdyn_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret string-dyn program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // REDIM'd string array holds "x","y" after the second DIM -> concat "xy".
+    assert_eq!(interp_out, "xy\n", "string-dyn reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled the string dyn array");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled the string dyn array (char** redefinition)");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Function-name self-DIM (CGEN-SELFHOST-PARITY): a function whose body DIMs its own
 /// name (the return value — `FUNCTION Main() ... DIM Main`) made cgen.x emit a scalar
 /// decl for `xb_var_Main` from the signature AND again from the `dim` statement -> cc

@@ -546,6 +546,7 @@ PRINT ""
 ##sharedDecls$ = ""
 ##dynNames$ = ""
 ##undimmed$ = ""
+##dynStr$ = ""
 ##selectState = 0
 ##selectExpr$ = ""
 ##selectBraces = 0
@@ -614,6 +615,7 @@ PRINT ""
 
 ##dynNames$ = scan_dyn$(src$)
 ##undimmed$ = scan_undimmed$(src$)
+##dynStr$ = scan_dynstr$(src$)
 hasMain = 0
 inFunc = 0
 inNest = 0
@@ -2028,7 +2030,9 @@ FUNCTION emit_expr$(e$)
       varType$ = "integer"
       varName$ = t$
     END IF
-    IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
+    IF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
+      emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
+    ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSE
       emit_expr$ = "(int)(sizeof(" + c_var_name$(varName$, varType$) + ")/sizeof(" + c_var_name$(varName$, varType$) + "[0])-1)"
@@ -2527,7 +2531,11 @@ FUNCTION emit_hoists$(used$, dimmed$)
     ELSEIF nlpos > 1 THEN
       entry$ = LEFT$(rest$, nlpos - 1)
       rest$ = MID$(rest$, nlpos + 1, LEN(rest$) - nlpos)
-      IF INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
+      IF INSTR(##dynStr$, ":" + entry$ + ":") > 0 THEN
+        IF INSTR(out$, " " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_") = 0 THEN
+          out$ = out$ + "    char** " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
+        END IF
+      ELSEIF INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
         IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
           out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
         END IF
@@ -2712,6 +2720,55 @@ FUNCTION scan_undimmed$(s$)
     p = INSTR(s$, nAsn$, p + 13)
   WEND
   scan_undimmed$ = res$
+END FUNCTION
+
+' Scan the IR for STRING dyn arrays: a `string` name array-DIM'd 2+ times (a REDIM /
+' repeated `dim X$:string[..]` in a function) would emit two fixed `char* X$[n]`
+' declarations -> cc "redefinition". Such a name lowers to ONE dyn `char**` pointer
+' (calloc per DIM), mirroring the Rust CEmitter (e.g. awindow's `text$[]` menu-label
+' array). Not scalar-used (no `_arr` split needed). Returns a `:name:` set.
+FUNCTION scan_dynstr$(s$)
+  DIM seen$
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM r$
+  DIM nm$
+  DIM bp
+  DIM e
+  seen$ = ""
+  res$ = ""
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 4) = "dim " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      bp = INSTR(r$, "[")
+      IF bp > 0 THEN
+        nm$ = LEFT$(r$, bp - 1)
+        e = INSTR(nm$, ":")
+        IF e > 0 THEN
+          IF MID$(nm$, e + 1, LEN(nm$) - e) = "string" THEN
+            nm$ = LEFT$(nm$, e - 1)
+            IF INSTR(seen$, ":" + nm$ + ":") > 0 THEN
+              IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+                res$ = res$ + ":" + nm$ + ":"
+              END IF
+            ELSE
+              seen$ = seen$ + ":" + nm$ + ":"
+            END IF
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  scan_dynstr$ = res$
 END FUNCTION
 
 ' Replace every occurrence of `n$` in `h$` with `r$` (cgen.x has no built-in).
@@ -2929,7 +2986,9 @@ FUNCTION emit_stmt$(s$)
         varType$ = "integer"
       END IF
       cExpr$ = emit_expr$(arrSize$)
-      IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
+      IF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
+        emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+      ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
         emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
       ELSEIF varType$ = "string" THEN
         emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + "[(" + cExpr$ + ") + 1];" + CHR$(10) + "    for (int _i = 0; _i < (" + cExpr$ + ") + 1; _i++) " + c_var_name$(varName$, varType$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
