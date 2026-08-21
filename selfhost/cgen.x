@@ -533,6 +533,7 @@ PRINT "}"
 PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 PRINT ""
 ##funcTypes$ = ""
+##funcArity$ = ""
 ##sharedDecls$ = ""
 ##selectState = 0
 ##selectExpr$ = ""
@@ -571,6 +572,9 @@ WHILE fwdPos <= LEN(src$)
       fwdRet$ = MID$(fwdAfter$, fwdClose + 5, LEN(fwdAfter$) - fwdClose - 4)
       PRINT c_type$(fwdRet$) + " xb_user_" + fwdName$ + "(" + emit_params$(fwdParams$) + ");"
       ##funcTypes$ = ##funcTypes$ + fwdName$ + ":" + fwdRet$ + ","
+      IF INSTR(##funcArity$, ":" + fwdName$ + "=") = 0 THEN
+        ##funcArity$ = ##funcArity$ + ":" + fwdName$ + "=" + param_count$(fwdParams$) + ":"
+      END IF
     ELSEIF LEFT$(fwdStmt$, 7) = "shared " THEN
       fwdRest$ = MID$(fwdStmt$, 8, LEN(fwdStmt$) - 7)
       fwdHash = INSTR(fwdRest$, "#")
@@ -1892,7 +1896,11 @@ FUNCTION emit_expr$(e$)
         RETURN emit_expr$
       END IF
     END IF
-    emit_expr$ = funcName$ + "(" + emittedArgs$ + ")"
+    IF INSTR(##funcTypes$, fn$ + ":") > 0 THEN
+      emit_expr$ = funcName$ + "(" + emit_args_n$(args$, VAL(arity_of$(fn$))) + ")"
+    ELSE
+      emit_expr$ = funcName$ + "(" + emittedArgs$ + ")"
+    END IF
     RETURN emit_expr$
   END IF
 
@@ -2293,6 +2301,99 @@ FUNCTION param_names$(p$)
     END IF
   WEND
   param_names$ = out$
+END FUNCTION
+
+' Number of parameters in a raw IR param list (0 for empty), as a decimal string.
+' A `$` function is used deliberately: cgen.x forward-references its functions, and
+' an integer-returning `name(args)` call before its definition would misparse as an
+' array access (`xb_var_name[...]`); the `$` suffix makes it unambiguously a call.
+FUNCTION param_count$(p$)
+  DIM names$
+  DIM i
+  DIM n
+  names$ = param_names$(p$)
+  n = 0
+  FOR i = 1 TO LEN(names$)
+    IF ASC(MID$(names$, i, 1)) = 10 THEN
+      n = n + 1
+    END IF
+  NEXT i
+  param_count$ = STR$(n)
+END FUNCTION
+
+' Declared parameter count of a user function (forward-pass table) as a decimal
+' string, or "-1" if unknown (a builtin / external - do not reconcile its arity).
+FUNCTION arity_of$(fn$)
+  DIM p
+  DIM rest$
+  DIM cp
+  p = INSTR(##funcArity$, ":" + fn$ + "=")
+  IF p = 0 THEN
+    arity_of$ = "-1"
+    RETURN arity_of$
+  END IF
+  rest$ = MID$(##funcArity$, p + LEN(fn$) + 2, LEN(##funcArity$) - p - LEN(fn$) - 1)
+  cp = INSTR(rest$, ":")
+  IF cp > 0 THEN
+    rest$ = LEFT$(rest$, cp - 1)
+  END IF
+  arity_of$ = rest$
+END FUNCTION
+
+' Emit a user call's args reconciled to the callee's declared arity `n`,
+' mirroring the interpreter (`params.zip(args)`: extra args dropped unevaluated)
+' and the Rust CEmitter's emit_call_args (missing padded with a zero-default).
+' Paren-aware split like emit_args$. A matching count reproduces emit_args$ exactly.
+FUNCTION emit_args_n$(a$, n)
+  DIM i
+  DIM ch
+  DIM depth
+  DIM start
+  DIM parts$
+  DIM arg$
+  DIM emitted
+  parts$ = ""
+  emitted = 0
+  IF LEN(a$) > 0 THEN
+    i = 1
+    start = 1
+    depth = 0
+    WHILE i <= LEN(a$)
+      ch = ASC(MID$(a$, i, 1))
+      IF ch = 40 THEN
+        depth = depth + 1
+      ELSEIF ch = 41 THEN
+        depth = depth - 1
+      ELSEIF ch = 44 AND depth = 0 THEN
+        arg$ = trim_spaces$(MID$(a$, start, i - start))
+        IF emitted < n THEN
+          IF LEN(parts$) > 0 THEN
+            parts$ = parts$ + ", "
+          END IF
+          parts$ = parts$ + emit_expr$(arg$)
+          emitted = emitted + 1
+        END IF
+        start = i + 1
+      END IF
+      i = i + 1
+    WEND
+    arg$ = trim_spaces$(MID$(a$, start, LEN(a$) - start + 1))
+    IF emitted < n THEN
+      IF LEN(parts$) > 0 THEN
+        parts$ = parts$ + ", "
+      END IF
+      parts$ = parts$ + emit_expr$(arg$)
+      emitted = emitted + 1
+    END IF
+  END IF
+  WHILE emitted < n
+    IF LEN(parts$) > 0 THEN
+      parts$ = parts$ + ", "
+    END IF
+    parts$ = parts$ + "0"
+    emitted = emitted + 1
+  WEND
+  emit_args_n$ = parts$
 END FUNCTION
 
 FUNCTION emit_hoists$(used$, dimmed$)
@@ -2749,7 +2850,11 @@ FUNCTION emit_stmt$(s$)
         RETURN emit_stmt$
       END IF
     END IF
-    emit_stmt$ = "    " + c_func_name$(fn$) + "(" + emit_args$(args$) + ");"
+    IF INSTR(##funcTypes$, fn$ + ":") > 0 THEN
+      emit_stmt$ = "    " + c_func_name$(fn$) + "(" + emit_args_n$(args$, VAL(arity_of$(fn$))) + ");"
+    ELSE
+      emit_stmt$ = "    " + c_func_name$(fn$) + "(" + emit_args$(args$) + ");"
+    END IF
     RETURN emit_stmt$
   END IF
 

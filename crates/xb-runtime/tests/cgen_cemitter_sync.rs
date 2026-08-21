@@ -847,6 +847,56 @@ fn cemitter_and_cgen_agree_on_duplicate_function() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Call-arity reconciliation (CGEN-SELFHOST-PARITY): a user call whose argument
+/// count differs from the callee's declared params. The interpreter binds
+/// `params.zip(args)` (extra args dropped unevaluated) and the Rust CEmitter's
+/// emit_call_args pads a missing arg with a zero-default; cgen.x passed all args
+/// verbatim -> "too many arguments to function call" cc error (15 xst-demos, after
+/// the dedup fix). cgen.x now records each function's declared arity in a
+/// forward-pass table (`##funcArity$`) and, for a user-function call, emits exactly
+/// that many args via emit_args_n$ (drop extras / pad with `0`). Byte-neutral on the
+/// selfhost tools (their calls all match arity, so emit_args_n$ == emit_args$).
+#[test]
+fn cemitter_and_cgen_agree_on_arg_count() {
+    let tmp = std::env::temp_dir().join("xb_sync_arg_count");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               DECLARE FUNCTION Add (x, y)\n\
+               FUNCTION Main\n\
+               PRINT Add(1, 2, 3, 4)\n\
+               PRINT Add(10)\n\
+               END FUNCTION\n\
+               FUNCTION Add (x, y)\n\
+               RETURN x + y\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse arg-count program")
+        .lower_ir()
+        .expect("lower arg-count program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "ac_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "ac_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret arg-count program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // Add(1,2,3,4) drops 3,4 -> 3; Add(10) pads y=0 -> 10.
+    assert_eq!(interp_out, "3\n10\n", "arg-count reconciliation reference output");
+    assert_eq!(rust_out, self_out, "cgen.x arg-count reconciliation differs from CEmitter");
+    assert_eq!(rust_out, interp_out, "arg-count reconciliation differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
