@@ -1896,7 +1896,11 @@ FUNCTION emit_expr$(e$)
       varType$ = "integer"
       varName$ = t$
     END IF
-    emit_expr$ = "(int)sizeof(" + c_var_name$(varName$, varType$) + ")"
+    IF varType$ = "integer" THEN
+      emit_expr$ = "(int)(sizeof(" + c_var_name$(varName$, varType$) + ")/sizeof(intptr_t)) * 4"
+    ELSE
+      emit_expr$ = "(int)(sizeof(" + c_var_name$(varName$, varType$) + ")/sizeof(intptr_t)) * 8"
+    END IF
     RETURN emit_expr$
   END IF
 

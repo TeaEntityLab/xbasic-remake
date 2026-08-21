@@ -465,16 +465,26 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             }
         }
         IrExprKind::SizeOf { symbol } => {
+            // SIZE reports the *logical* XBasic element size (XLONG integer = 4;
+            // GIANT/DOUBLE/STRING = 8), matching SizeOfType + the interpreter —
+            // NOT the C storage size (every scalar is an 8-byte intptr_t/double/
+            // char*). Emit element-count * logical size, so SIZE(x)=4 and
+            // SIZE(int a[3])=16 as in the interpreter (arithmetic is 32-bit XLONG).
+            let logical = match symbol.value_type {
+                ValueType::Integer => 4,
+                _ => 8,
+            };
             if crate::c_emit::is_descriptor_param(&symbol.name) {
                 out.push_str("(int)((*");
                 out.push_str(&crate::c_emit::descriptor_ub_ident(&symbol.name));
-                out.push_str(" + 1) * sizeof(**");
-                crate::c_emit::emit_descriptor_data_ptr(symbol, out);
-                out.push_str("))");
-            } else {
-                out.push_str("(int)sizeof(");
-                crate::c_emit::emit_array_var_name(symbol, out);
+                out.push_str(" + 1) * ");
+                out.push_str(&logical.to_string());
                 out.push(')');
+            } else {
+                out.push_str("(int)(sizeof(");
+                crate::c_emit::emit_array_var_name(symbol, out);
+                out.push_str(")/sizeof(intptr_t)) * ");
+                out.push_str(&logical.to_string());
             }
         }
         IrExprKind::SizeOfType { value_type } => {

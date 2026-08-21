@@ -388,15 +388,16 @@ fn cemitter_and_cgen_agree_on_builtin_assign() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
-/// CG-BODY-COVER: unary `+` (`pos`) and `SIZE(TYPE)` (`size_of_type`) were the last
-/// IR tokens with no positive-corpus coverage. Both are faithful across all three
-/// backends, so this locks that agreement. NB: `SIZE(var)` (`size_of`) is
-/// deliberately excluded — the interpreter's 4-byte XLONG logical size diverges
-/// from the C backends' 8-byte `intptr_t` storage (a representation difference,
-/// tracked in docs/16; cgen.x and the Rust CEmitter still agree with each other).
+/// CG-BODY-COVER: unary `+` (`pos`), `SIZE(TYPE)` (`size_of_type`), and `SIZE(var)`
+/// (`size_of`, scalar + array) — the last IR tokens without positive-corpus
+/// coverage. All are faithful across the three backends. `SIZE(var)` reports the
+/// *logical* XLONG element size (integer = 4), matching the interpreter and
+/// `SIZE(XLONG)`: the C backends previously emitted `sizeof(intptr_t)` = 8 — a bug,
+/// inconsistent with the 32-bit XLONG arithmetic they already perform — now fixed
+/// to element-count * logical size (`SIZE(x)=4`, `SIZE(int a[3])=16`).
 #[test]
-fn cemitter_and_cgen_agree_on_unary_pos_and_sizeof_type() {
-    let tmp = std::env::temp_dir().join("xb_sync_pos_sizeof");
+fn cemitter_and_cgen_agree_on_unary_pos_and_size() {
+    let tmp = std::env::temp_dir().join("xb_sync_pos_size");
     fs::create_dir_all(&tmp).expect("mkdir");
     let cgen_exe = build_native_cgen(&tmp);
 
@@ -407,33 +408,36 @@ fn cemitter_and_cgen_agree_on_unary_pos_and_sizeof_type() {
                PRINT +x\n\
                PRINT SIZE(XLONG)\n\
                PRINT SIZE(DOUBLE)\n\
+               PRINT SIZE(x)\n\
+               DIM a[3]\n\
+               PRINT SIZE(a)\n\
                END FUNCTION\n";
     let prog = FrontendUnit::parse(src)
-        .expect("parse pos/sizeof program")
+        .expect("parse pos/size program")
         .lower_ir()
-        .expect("lower pos/sizeof program");
+        .expect("lower pos/size program");
     let ir = TextIrEmitter::new().emit_program(&prog);
     assert!(
-        ir.contains("pos(") && ir.contains("size_of_type"),
-        "fixture must exercise unary pos + SizeOfType; IR was:\n{ir}"
+        ir.contains("pos(") && ir.contains("size_of_type") && ir.contains("size_of("),
+        "fixture must exercise unary pos + SizeOfType + SizeOf(var); IR was:\n{ir}"
     );
 
     let rust_c = CEmitter::new().emit_program(&prog);
-    let rust_out = compile_and_exec(&tmp, "pz_rust", rust_c.as_bytes(), None);
+    let rust_out = compile_and_exec(&tmp, "psz_rust", rust_c.as_bytes(), None);
 
     let self_c = cgen_emit(&cgen_exe, &ir);
-    let self_out = compile_and_exec(&tmp, "pz_self", &self_c, None);
+    let self_out = compile_and_exec(&tmp, "psz_self", &self_c, None);
 
     let mut interp = Vec::new();
     Interpreter::new()
         .execute_main_with_input(&prog, Vec::new(), &mut interp)
-        .expect("interpret pos/sizeof program");
+        .expect("interpret pos/size program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    // +7 = 7; SIZE(XLONG) = 4; SIZE(DOUBLE) = 8 — all three backends agree.
-    assert_eq!(interp_out, "7\n4\n8\n", "interpreter reference");
-    assert_eq!(rust_out, interp_out, "CEmitter diverged on unary pos / SizeOfType");
-    assert_eq!(self_out, interp_out, "cgen.x diverged on unary pos / SizeOfType");
+    // +7=7; SIZE(XLONG)=4; SIZE(DOUBLE)=8; SIZE(x:int)=4; SIZE(int a[3])=16 (4 elems x 4).
+    assert_eq!(interp_out, "7\n4\n8\n4\n16\n", "interpreter reference");
+    assert_eq!(rust_out, interp_out, "CEmitter diverged on unary pos / SIZE");
+    assert_eq!(self_out, interp_out, "cgen.x diverged on unary pos / SIZE");
     let _ = fs::remove_dir_all(&tmp);
 }
 
