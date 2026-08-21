@@ -272,6 +272,69 @@ fn cemitter_and_cgen_agree_on_high_byte_strings() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// CG-BODY-COVER: computed `GOTO <expr>` (`GotoExpr`) — the bootstrap-critical
+/// computed-jump path in `c_emit_goto.rs` — had no behavioral corpus coverage
+/// (`computed_gosub_test` exercises `GosubExpr`, but nothing exercised `GotoExpr`,
+/// and `GOADDRESS` was likewise never behaviorally run). A deterministic
+/// `GOADDRESS(label)` → `GOTO addr` selects a target by control flow, so the
+/// output is stable (which label ran) even though the raw address is not printed.
+/// This locks both C generators (and the interpreter) to the same computed-GOTO
+/// dispatch — the same machinery the self-hosted tools rely on.
+#[test]
+fn cemitter_and_cgen_agree_on_computed_goto() {
+    let tmp = std::env::temp_dir().join("xb_sync_cgoto");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM addr\n\
+               DIM sel\n\
+               sel = 2\n\
+               IF sel = 1 THEN\n\
+               addr = GOADDRESS(PathA)\n\
+               ELSE\n\
+               addr = GOADDRESS(PathB)\n\
+               END IF\n\
+               GOTO addr\n\
+               PathA:\n\
+               PRINT \"path A\"\n\
+               GOTO Done\n\
+               PathB:\n\
+               PRINT \"path B\"\n\
+               GOTO Done\n\
+               Done:\n\
+               PRINT \"done\"\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse computed-goto program")
+        .lower_ir()
+        .expect("lower computed-goto program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    assert!(
+        ir.contains("goto_expr"),
+        "fixture must exercise GotoExpr (computed GOTO); IR was:\n{ir}"
+    );
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "cgoto_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "cgoto_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret computed-goto program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // sel = 2 selects PathB by computed jump, then falls to Done.
+    assert_eq!(interp_out, "path B\ndone\n", "interpreter reference");
+    assert_eq!(rust_out, interp_out, "CEmitter computed-GOTO dispatch differs");
+    assert_eq!(self_out, interp_out, "cgen.x computed-GOTO dispatch differs");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly

@@ -2721,9 +2721,9 @@ FUNCTION emit_stmt$(s$)
     RETURN emit_stmt$
   END IF
 
-  IF LEFT$(s$, 9) = "goto_expr " THEN
+  IF LEFT$(s$, 10) = "goto_expr " THEN
     DIM gotoExpr$
-    gotoExpr$ = MID$(s$, 10, LEN(s$) - 9)
+    gotoExpr$ = MID$(s$, 11, LEN(s$) - 10)
     emit_stmt$ = "    goto *(void*)" + emit_expr$(gotoExpr$) + ";"
     RETURN emit_stmt$
   END IF
