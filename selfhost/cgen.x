@@ -1266,16 +1266,20 @@ FUNCTION first_expr$(s$)
   inQuote = 0
   WHILE p <= LEN(s$) AND depth > 0
     ch = ASC(MID$(s$, p, 1))
-    IF ch = 34 THEN
-      inQuote = 1 - inQuote
-    ELSEIF inQuote = 0 THEN
-      IF ch = 40 THEN
-        depth = depth + 1
-      ELSEIF ch = 41 THEN
-        depth = depth - 1
+    IF inQuote = 1 AND ch = 92 THEN
+      p = p + 2
+    ELSE
+      IF ch = 34 THEN
+        inQuote = 1 - inQuote
+      ELSEIF inQuote = 0 THEN
+        IF ch = 40 THEN
+          depth = depth + 1
+        ELSEIF ch = 41 THEN
+          depth = depth - 1
+        END IF
       END IF
+      p = p + 1
     END IF
-    p = p + 1
   WEND
   first_expr$ = LEFT$(s$, p - 1)
 END FUNCTION
