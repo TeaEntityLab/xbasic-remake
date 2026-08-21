@@ -1556,6 +1556,58 @@ fn cemitter_and_cgen_agree_on_undimmed_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Cross-function array scoping (CGEN-DYN-ARRAY): a dyn array DIM'd in one function
+/// and read (UBOUND/subscript) in a SEPARATE top-level function is a distinct
+/// undimmed local there (the interpreter scopes per-function), not shared storage.
+/// cgen.x's dyn scans are program-wide, so without per-function scoping it emitted the
+/// dyn `xb_ub_`/`xb_var_` names (declared only where DIM'd) -> undeclared-identifier cc
+/// error. Now folded to the undimmed default per function. Flipped awindow + anewlook
+/// faithful (`text$` DIM'd in XitMain, UBOUND'd in the separate XitMainCode).
+#[test]
+fn cemitter_and_cgen_agree_on_cross_function_array() {
+    let tmp = std::env::temp_dir().join("xb_sync_xfn");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"xfd\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Filler ()\n\
+               DIM s$[2]\n\
+               REDIM s$[4]\n\
+               s$[0] = \"a\"\n\
+               END FUNCTION\n\
+               FUNCTION Reader ()\n\
+               PRINT UBOUND(s$)\n\
+               END FUNCTION\n\
+               FUNCTION Main ()\n\
+               Filler()\n\
+               Reader()\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse cross-function program")
+        .lower_ir()
+        .expect("lower cross-function program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "xfn_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "xfn_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret cross-function program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // Reader's `s$` is a distinct undimmed local (DIM'd only in Filler) -> UBOUND -1.
+    assert_eq!(interp_out, "-1\n", "cross-function array reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled the cross-function array");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled the cross-function array");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// String dyn arrays (CGEN-DYN-ARRAY): a `string` array DIM'd more than once (a
 /// REDIM, e.g. awindow's `text$[]` menu-label array) would emit two fixed
 /// `char* X$[n]` declarations -> cc "redefinition". cgen.x now lowers such a name to

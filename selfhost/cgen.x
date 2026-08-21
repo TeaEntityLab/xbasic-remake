@@ -548,6 +548,8 @@ PRINT ""
 ##undimmed$ = ""
 ##dynStr$ = ""
 ##scalarSeen$ = ""
+##curFnArrays$ = ""
+##inFuncScope = 0
 ##selectState = 0
 ##selectExpr$ = ""
 ##selectBraces = 0
@@ -723,6 +725,8 @@ WHILE pos <= LEN(src$)
           dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
           ##gosubRetCount$ = ""
           ##scalarSeen$ = ""
+          ##curFnArrays$ = fn_array_dims$(src$, pos)
+          ##inFuncScope = 1
           nestBlocks$ = ""
           inNest = 0
         END IF
@@ -733,6 +737,7 @@ WHILE pos <= LEN(src$)
         inNest = 0
       ELSE
         inFunc = 0
+        ##inFuncScope = 0
         IF skipFunc = 0 THEN
           hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
           fullBody$ = hoists$ + computed_goto_prologue$(funcBody$ + nestBlocks$) + funcBody$
@@ -2008,7 +2013,7 @@ FUNCTION emit_expr$(e$)
       ELSE
         varType$ = "integer"
       END IF
-      IF INSTR(##undimmed$, ":" + varName$ + ":") > 0 THEN
+      IF INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1" THEN
         emit_expr$ = c_default$(varType$)
         RETURN emit_expr$
       END IF
@@ -2036,7 +2041,7 @@ FUNCTION emit_expr$(e$)
       varType$ = "integer"
       varName$ = t$
     END IF
-    IF INSTR(##undimmed$, ":" + varName$ + ":") > 0 THEN
+    IF INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1" THEN
       emit_expr$ = "(-1)"
     ELSEIF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
@@ -2555,6 +2560,76 @@ FUNCTION emit_hoists$(used$, dimmed$)
   emit_hoists$ = out$
 END FUNCTION
 
+' Pre-scan ONE top-level function's body (from `fromPos`, just past its `function `
+' line) for the names it DIMs as arrays (`dim X[`/`redim X[`), including any nested
+' functions' array DIMs (they share the parent's C scope). Depth-tracked so it stops
+' at the matching `end function`. Used to scope dyn-array handling per-function: a dyn
+' name used in a function that does NOT DIM it as an array here (a separate top-level
+' function's local, e.g. awindow's `text$` DIM'd in XitMain but UBOUND'd in the
+' separate XitMainCode) is a distinct undimmed local, matching the interpreter (and
+' the Rust CEmitter). Returns a `:name:` set.
+FUNCTION fn_array_dims$(s$, fromPos)
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM depth
+  DIM r$
+  DIM bp
+  DIM nm$
+  DIM cp
+  res$ = ""
+  p = fromPos
+  depth = 1
+  WHILE p <= LEN(s$) AND depth > 0
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 9) = "function " THEN
+      depth = depth + 1
+    ELSEIF ln$ = "end function" THEN
+      depth = depth - 1
+    ELSEIF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
+      bp = INSTR(r$, "[")
+      IF bp > 0 THEN
+        nm$ = LEFT$(r$, bp - 1)
+        cp = INSTR(nm$, ":")
+        IF cp > 0 THEN
+          nm$ = LEFT$(nm$, cp - 1)
+        END IF
+        IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+          res$ = res$ + ":" + nm$ + ":"
+        END IF
+      END IF
+    END IF
+  WEND
+  fn_array_dims$ = res$
+END FUNCTION
+
+' True when `n$` is a dyn-array name (##dynStr$/##dynNames$, program-wide) that is
+' NOT array-DIM'd in the CURRENT function (##curFnArrays$) while inside a function
+' (##inFuncScope). Such a use is a distinct undimmed local in this scope (the array
+' lives in another function), so callers fold it to the undimmed default instead of
+' emitting the dyn `xb_ub_`/`xb_var_` names that are only declared where it IS DIM'd.
+FUNCTION is_xfn_dyn$(n$)
+  is_xfn_dyn$ = ""
+  IF ##inFuncScope = 1 THEN
+    IF INSTR(##curFnArrays$, ":" + n$ + ":") = 0 THEN
+      IF INSTR(##dynStr$, ":" + n$ + ":") > 0 OR INSTR(##dynNames$, ":" + n$ + ":") > 0 THEN
+        is_xfn_dyn$ = "1"
+      END IF
+    END IF
+  END IF
+END FUNCTION
+
 ' Scan the whole IR for dyn-array names: a name DIM'd as BOTH a scalar (`dim X:t`)
 ' AND a 1-D integer array (`dim X:integer[..]`, no comma) needs the dyn-pointer
 ' scheme (a scalar decl + a fixed-array decl for the same C name is a cc
@@ -3056,7 +3131,7 @@ FUNCTION emit_stmt$(s$)
     spacePos = INSTR(tmp$, "= ")
     right$ = MID$(tmp$, spacePos + 2, LEN(tmp$) - spacePos - 1)
     c2$ = emit_expr$(right$)
-    IF INSTR(##undimmed$, ":" + varName$ + ":") > 0 THEN
+    IF INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1" THEN
       emit_stmt$ = "    (void)(" + c2$ + ");"
     ELSE
       emit_stmt$ = "    " + c_var_name$(varName$, varType$) + emit_msub$(cExpr$, 0) + " = " + c2$ + ";"
