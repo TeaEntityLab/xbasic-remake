@@ -537,6 +537,7 @@ PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 PRINT ""
 ##funcTypes$ = ""
 ##funcArity$ = ""
+##gosubRetCount$ = ""
 ##sharedDecls$ = ""
 ##selectState = 0
 ##selectExpr$ = ""
@@ -692,6 +693,7 @@ WHILE pos <= LEN(src$)
         funcBody$ = ""
         usedSyms$ = CHR$(10)
         dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
+        ##gosubRetCount$ = ""
       END IF
     ELSEIF stmt$ = "end function" THEN
       inFunc = 0
@@ -2515,6 +2517,29 @@ FUNCTION strip_zeros$(n$)
   strip_zeros$ = neg$ + d$
 END FUNCTION
 
+' Per-function unique suffix for a gosub-return label. `GOSUB Print` emits a
+' `xb_gosub_ret_Print:` label; N gosubs to the same target in one function would
+' emit N identical labels (C "redefinition of label"). First occurrence keeps the
+' bare name (byte-identical to the historical single-gosub case that the selfhost
+' tools use), repeats get `_2`, `_3`, ... `##gosubRetCount$` is reset per function.
+FUNCTION gosub_ret_suffix$(name$)
+  DIM p
+  DIM rest$
+  DIM cp
+  DIM cnt
+  p = INSTR(##gosubRetCount$, ":" + name$ + "=")
+  IF p = 0 THEN
+    ##gosubRetCount$ = ##gosubRetCount$ + ":" + name$ + "=1:"
+    gosub_ret_suffix$ = ""
+    RETURN gosub_ret_suffix$
+  END IF
+  rest$ = MID$(##gosubRetCount$, p + LEN(name$) + 2, LEN(##gosubRetCount$) - p - LEN(name$) - 1)
+  cp = INSTR(rest$, ":")
+  cnt = VAL(LEFT$(rest$, cp - 1))
+  ##gosubRetCount$ = replace$(##gosubRetCount$, ":" + name$ + "=" + STR$(cnt) + ":", ":" + name$ + "=" + STR$(cnt + 1) + ":")
+  gosub_ret_suffix$ = "_" + STR$(cnt + 1)
+END FUNCTION
+
 FUNCTION emit_stmt$(s$)
   DIM rest$
   DIM spacePos
@@ -3123,7 +3148,9 @@ FUNCTION emit_stmt$(s$)
   IF LEFT$(s$, 6) = "gosub " THEN
     DIM gosubName$
     gosubName$ = MID$(s$, 7, LEN(s$) - 6)
-    emit_stmt$ = "    xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_" + gosubName$ + "; goto xb_label_" + gosubName$ + ";" + CHR$(10) + "xb_gosub_ret_" + gosubName$ + ":"
+    DIM grSuf$
+    grSuf$ = gosub_ret_suffix$(gosubName$)
+    emit_stmt$ = "    xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_" + gosubName$ + grSuf$ + "; goto xb_label_" + gosubName$ + ";" + CHR$(10) + "xb_gosub_ret_" + gosubName$ + grSuf$ + ":"
     RETURN emit_stmt$
   END IF
 
@@ -3148,7 +3175,9 @@ FUNCTION emit_stmt$(s$)
   IF LEFT$(s$, 11) = "gosub_expr " THEN
     DIM gosubExpr$
     gosubExpr$ = MID$(s$, 12, LEN(s$) - 11)
-    emit_stmt$ = "    xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_expr; goto *(void*)" + emit_expr$(gosubExpr$) + "; xb_gosub_ret_expr: (void)0;"
+    DIM geSuf$
+    geSuf$ = gosub_ret_suffix$("expr")
+    emit_stmt$ = "    xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_expr" + geSuf$ + "; goto *(void*)" + emit_expr$(gosubExpr$) + "; xb_gosub_ret_expr" + geSuf$ + ": (void)0;"
     RETURN emit_stmt$
   END IF
 

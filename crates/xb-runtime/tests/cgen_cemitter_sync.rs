@@ -1172,6 +1172,54 @@ fn cemitter_and_cgen_agree_on_eof_arg() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Repeated GOSUB to the same target (CGEN-SELFHOST-PARITY): each `GOSUB Pr` emits
+/// a `xb_gosub_ret_Pr:` return label; two gosubs to `Pr` in one function emitted the
+/// label twice -> C "redefinition of label" (aback et al.). cgen.x now uniquifies
+/// repeats per function (`gosub_ret_suffix$`: first keeps the bare name, repeats get
+/// `_2`, `_3`), matching the Rust CEmitter. Byte-neutral on the selfhost tools (each
+/// GOSUB target is unique per function there — else the bootstrap would already fail).
+#[test]
+fn cemitter_and_cgen_agree_on_repeated_gosub() {
+    let tmp = std::env::temp_dir().join("xb_sync_gosub2");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               GOSUB Pr\n\
+               GOSUB Pr\n\
+               GOTO Done\n\
+               Pr:\n\
+               PRINT \"hi\"\n\
+               RETURN\n\
+               Done:\n\
+               PRINT \"end\"\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse repeated-gosub program")
+        .lower_ir()
+        .expect("lower repeated-gosub program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "gs_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "gs_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret repeated-gosub program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "hi\nhi\nend\n", "repeated-gosub reference output");
+    assert_eq!(rust_out, self_out, "cgen.x repeated-gosub labels differ from CEmitter");
+    assert_eq!(rust_out, interp_out, "repeated-gosub differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
