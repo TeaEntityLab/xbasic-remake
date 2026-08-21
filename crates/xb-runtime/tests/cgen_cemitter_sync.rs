@@ -1462,6 +1462,49 @@ fn cemitter_and_cgen_agree_on_dyn_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Function-name self-DIM (CGEN-SELFHOST-PARITY): a function whose body DIMs its own
+/// name (the return value — `FUNCTION Main() ... DIM Main`) made cgen.x emit a scalar
+/// decl for `xb_var_Main` from the signature AND again from the `dim` statement -> cc
+/// "redefinition of xb_var_Main" (the dominant dim_redef cluster, ~14 nested-fn demos
+/// where the callback function DIMs its own name). cgen.x now skips a scalar `dim
+/// <funcName>` inside that function (the return-value decl already declares it).
+#[test]
+fn cemitter_and_cgen_agree_on_function_name_self_dim() {
+    let tmp = std::env::temp_dir().join("xb_sync_selfdim");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"rv\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM Main\n\
+               Main = 42\n\
+               PRINT Main\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse self-dim program")
+        .lower_ir()
+        .expect("lower self-dim program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "selfdim_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "selfdim_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret self-dim program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "42\n", "self-dim reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled function-name self-DIM");
+    assert_eq!(self_out, interp_out, "cgen.x re-declared the return-value on a self-DIM");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly

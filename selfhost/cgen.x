@@ -745,6 +745,15 @@ WHILE pos <= LEN(src$)
     ELSE
       IF skipFunc = 0 THEN
         cCode$ = emit_stmt$(stmt$)
+        IF inFunc = 1 THEN
+          IF LEFT$(stmt$, 4) = "dim " THEN
+            IF INSTR(stmt$, "[") = 0 THEN
+              IF dim_name$(stmt$) = funcName$ THEN
+                cCode$ = ""
+              END IF
+            END IF
+          END IF
+        END IF
         IF inNest = 1 THEN
           usedSyms$ = scan_used$(stmt$, usedSyms$)
           IF LEFT$(stmt$, 4) = "dim " THEN
