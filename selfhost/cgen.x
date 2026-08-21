@@ -1901,7 +1901,11 @@ FUNCTION emit_expr$(e$)
     END IF
     IF INSTR(##funcTypes$, fn$ + ":") = 0 THEN
       IF funcName$ = "xb_user_" + fn$ THEN
-        emit_expr$ = "0"
+        IF RIGHT$(fn$, 1) = "$" THEN
+          emit_expr$ = "xb_str(" + CHR$(34) + CHR$(34) + ")"
+        ELSE
+          emit_expr$ = "0"
+        END IF
         RETURN emit_expr$
       END IF
     END IF

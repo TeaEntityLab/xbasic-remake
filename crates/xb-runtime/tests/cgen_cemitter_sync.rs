@@ -1035,6 +1035,50 @@ fn cemitter_and_cgen_agree_on_type_suffix_idents() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Unknown call in a STRING context (CGEN-SELFHOST-PARITY): the unknown-call drop
+/// must yield a type-appropriate default. A `$`-returning external (`XstGetName$`,
+/// `XstMergeStrings$`) assigned to a string var must drop to `xb_str("")` (empty),
+/// NOT the integer `0` — else the string var is a NULL `char*` and prints "(null)"
+/// (the amerge divergence). cgen.x now checks the call name's trailing `$` and emits
+/// `xb_str("")` for string-returning unknowns, `0` otherwise (matching the Rust
+/// CEmitter + the interpreter's typed stub). Byte-neutral (no unknown calls in the
+/// selfhost tools).
+#[test]
+fn cemitter_and_cgen_agree_on_unknown_string_call() {
+    let tmp = std::env::temp_dir().join("xb_sync_unk_str");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               s$ = XstGetName$(\"p\")\n\
+               PRINT \"[\" + s$ + \"]\"\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse unknown-string-call program")
+        .lower_ir()
+        .expect("lower unknown-string-call program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "us_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "us_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret unknown-string-call program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "[]\n", "unknown string-call reference output (empty, not null)");
+    assert_eq!(rust_out, self_out, "cgen.x unknown string-call default differs from CEmitter");
+    assert_eq!(rust_out, interp_out, "unknown string-call default differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
