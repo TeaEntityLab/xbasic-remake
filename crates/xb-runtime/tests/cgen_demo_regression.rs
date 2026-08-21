@@ -906,3 +906,80 @@ END FUNCTION
         "unary POS on a String is identity, so `+s$ + \"!\"` concatenates: {interp:?}"
     );
 }
+
+/// Locks CGEN-SHARED-ARR: a `SHARED a[]` array written in one function must be
+/// visible (same storage) in another. cgen emitted a per-function LOCAL, so each
+/// function saw its own uninitialized copy (interp keeps them in `state.shared`,
+/// one global). Now emitted as ONE heap global. Verified runnable end-to-end.
+#[test]
+fn cgen_matches_interpreter_on_shared_scalar_array_cross_function() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tSetup ()
+\tShow ()
+END FUNCTION
+FUNCTION Setup ()
+\tSHARED a[]
+\tREDIM a[1]
+\ta[0] = 7 : a[1] = 9
+END FUNCTION
+FUNCTION Show ()
+\tSHARED a[]
+\tPRINT a[0]; \"/\"; a[1]
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_shared_arr_scalar");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "sharrscl", &tmp);
+    assert_eq!(
+        native, interp,
+        "SHARED scalar array cross-function cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert_eq!(interp.trim(), "7/9", "a SHARED array must persist across functions: {interp:?}");
+}
+
+/// Locks CGEN-SHARED-ARR for a SHARED composite ARRAY (`SHARED Rec r[]`, member
+/// `.nm$`/`.id`) written in one function + read in another — the xst/kernel32
+/// pattern. Each member array is one heap global; the composite member WRITE
+/// (`r[i].nm = …`) resolves its String element type from `self.arrays` (mirrors
+/// the read fix), not the Integer `auto_symbol` default.
+#[test]
+fn cgen_matches_interpreter_on_shared_composite_array_cross_function() {
+    let source = "\
+VERSION \"0.1\"
+TYPE Rec
+\tXLONG .id
+\tSTRING .nm
+END TYPE
+FUNCTION Main
+\tSetup ()
+\tShow ()
+END FUNCTION
+FUNCTION Setup ()
+\tSHARED Rec r[]
+\tREDIM r[1]
+\tr[0].nm = \"alice\" : r[0].id = 7
+\tr[1].nm = \"bob\"   : r[1].id = 9
+END FUNCTION
+FUNCTION Show ()
+\tSHARED Rec r[]
+\tFOR i = 0 TO 1
+\t\tPRINT r[i].nm; \"=\"; r[i].id
+\tNEXT
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_shared_arr_composite");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "sharrcmp", &tmp);
+    assert_eq!(
+        native, interp,
+        "SHARED composite array cross-function cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert!(
+        interp.contains("alice=7") && interp.contains("bob=9"),
+        "a SHARED composite array's members must persist + type correctly across functions: {interp:?}"
+    );
+}

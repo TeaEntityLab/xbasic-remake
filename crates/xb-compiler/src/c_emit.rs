@@ -22,6 +22,15 @@ thread_local! {
     /// by-ref param is passed as a pointer (`&x`) to match the pointer param
     /// (CGEN-BYREF-WRITEBACK). Empty-ish for the corpus (no by-ref param).
     static DEFINED_PARAM_BYREF: RefCell<HashMap<String, Vec<bool>>> = RefCell::new(HashMap::new());
+    /// Module-shared arrays (`SHARED a[]`) → element type, program-wide, EXCLUDING
+    /// any that are dual-use (used as both scalar and array) anywhere — those keep
+    /// the status-quo per-function local emission to avoid a `_arr`-naming mismatch
+    /// between the global decl and dual-use access sites (CGEN-SHARED-ARR). The
+    /// interpreter keeps shared arrays in `state.shared` (one global); the C
+    /// backend must emit ONE heap global, not a per-function local, or
+    /// cross-function reads see an uninitialized copy. cgen.x/v0.1 use no SHARED
+    /// arrays → byte-neutral on the sync corpus.
+    static SHARED_ARRAYS: RefCell<HashMap<String, crate::ValueType>> = RefCell::new(HashMap::new());
     /// Per-function emit context: array names referenced but never `Dim`'d in the
     /// current function (auto-vivified — reads fold to the type default like the
     /// interpreter's missing-slot path), and the labels the current C function
@@ -151,6 +160,88 @@ fn set_defined_funcs(program: &IrProgram) {
             }
         }
     });
+    SHARED_ARRAYS.with(|s| {
+        let mut m = s.borrow_mut();
+        m.clear();
+        collect_shared_arrays(&program.items, &mut m);
+        // Gate: a shared array that is *dual-use* (scalar + array) in ANY function
+        // keeps the status-quo per-function local emission — its array facet gets
+        // an `_arr` C suffix at access sites (per-function context) that the ONE
+        // global decl cannot match (emit_globals has no such context). Only
+        // non-dual-use shared arrays become heap globals (CGEN-SHARED-ARR).
+        if !m.is_empty() {
+            let mut dual = std::collections::HashSet::new();
+            collect_program_dual_use(&program.items, &mut dual);
+            m.retain(|name, _| !dual.contains(name));
+        }
+    });
+}
+
+/// Recursively collect module-shared array names (`Dim { shared, is_array }`,
+/// i.e. `SHARED a[]`) → element type, across function bodies and nested blocks.
+fn collect_shared_arrays(items: &[IrItem], out: &mut HashMap<String, crate::ValueType>) {
+    for item in items {
+        match item {
+            IrItem::Dim { symbol, is_array: true, shared: true, .. } => {
+                out.entry(symbol.name.clone()).or_insert(symbol.value_type);
+            }
+            IrItem::Function { body, .. } => collect_shared_arrays(body, out),
+            IrItem::If { then_body, else_body, .. } => {
+                collect_shared_arrays(then_body, out);
+                if let Some(eb) = else_body {
+                    collect_shared_arrays(eb, out);
+                }
+            }
+            IrItem::While { body, .. }
+            | IrItem::For { body, .. }
+            | IrItem::DoLoop { body, .. } => collect_shared_arrays(body, out),
+            IrItem::SelectCase { cases, default, .. } => {
+                for c in cases {
+                    collect_shared_arrays(&c.body, out);
+                }
+                if let Some(d) = default {
+                    collect_shared_arrays(d, out);
+                }
+            }
+            IrItem::Compound(items) => collect_shared_arrays(items, out),
+            _ => {}
+        }
+    }
+}
+
+/// Union of dual-use names (used as both scalar and array) across every function
+/// body + the top level, for the CGEN-SHARED-ARR gate. Uses an empty forced-array
+/// set: a conservative over-approximation (over-detecting only excludes more
+/// shared arrays from the global treatment — always safe).
+fn collect_program_dual_use(items: &[IrItem], out: &mut HashSet<String>) {
+    let empty = HashSet::new();
+    for n in crate::c_emit_hoist::collect_dual_use(items, &empty) {
+        out.insert(n);
+    }
+    for item in items {
+        if let IrItem::Function { body, .. } = item {
+            for n in crate::c_emit_hoist::collect_dual_use(body, &empty) {
+                out.insert(n);
+            }
+        }
+    }
+}
+
+/// True if `name` is a (non-dual-use) module-shared array emitted as one heap
+/// global rather than a per-function local (CGEN-SHARED-ARR).
+pub(crate) fn is_shared_array(name: &str) -> bool {
+    SHARED_ARRAYS.with(|s| s.borrow().contains_key(name))
+}
+
+/// The shared arrays (name, element type), sorted by name for a deterministic
+/// global-declaration order.
+pub(crate) fn shared_arrays_sorted() -> Vec<(String, crate::ValueType)> {
+    SHARED_ARRAYS.with(|s| {
+        let mut v: Vec<(String, crate::ValueType)> =
+            s.borrow().iter().map(|(k, t)| (k.clone(), *t)).collect();
+        v.sort_by(|a, b| a.0.cmp(&b.0));
+        v
+    })
 }
 
 /// Record, per callee position, whether an `@arg` (`ByRef`) and/or a by-value arg
@@ -448,7 +539,10 @@ pub(crate) fn emit_byref_copy_out(out: &mut String, indent: usize) {
 /// the interpreter's missing-slot semantics; an *executed* write errors there,
 /// which only unreached code paths hit in interpreter-clean programs).
 pub(crate) fn is_undimmed_array(name: &str) -> bool {
-    FN_UNDIMMED_ARRAYS.with(|s| s.borrow().contains(name))
+    // A module-shared array is a global (emit_globals), available in any function
+    // even one that only reads it (no local `Dim`) — never "undimmed" (must not
+    // fold to defaults). CGEN-SHARED-ARR.
+    !is_shared_array(name) && FN_UNDIMMED_ARRAYS.with(|s| s.borrow().contains(name))
 }
 
 /// Whether `name` is used as both a scalar and an array in the current function
@@ -628,7 +722,9 @@ pub(crate) fn is_fn_param(name: &str) -> bool {
 /// An array whose `Dim` is late/repeated: declared at function top as a pointer
 /// (`<T>* xb_var_x = 0;` + `intptr_t xb_ub_x = -1;`), allocated at the `Dim`.
 pub(crate) fn is_dyn_array(name: &str) -> bool {
-    FN_DYN.with(|s| s.borrow().arrays.contains_key(name))
+    // A module-shared array is a heap global (dyn pointer), so it always takes the
+    // realloc/pointer path — never a stack fixed array (CGEN-SHARED-ARR).
+    is_shared_array(name) || FN_DYN.with(|s| s.borrow().arrays.contains_key(name))
 }
 
 /// A scalar whose `Dim` is late/repeated: declared at function top, reset at the
@@ -647,6 +743,11 @@ pub(crate) fn emit_dyn_decls(out: &mut String, indent: usize) {
     FN_DYN.with(|s| {
         let dyn_names = s.borrow();
         for (name, vt) in &dyn_names.arrays {
+            // A module-shared array is emitted ONCE as a global (emit_globals),
+            // never as a per-function local (CGEN-SHARED-ARR).
+            if is_shared_array(name) {
+                continue;
+            }
             let sym = IrSymbol { name: name.clone(), value_type: *vt };
             out.push_str(&ind);
             out.push_str(c_type(*vt));

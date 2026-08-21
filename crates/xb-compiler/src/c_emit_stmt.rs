@@ -29,6 +29,13 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             if crate::c_emit::is_fn_param(&symbol.name) {
                 return;
             }
+            // A module-shared array is a heap global (emit_globals, CGEN-SHARED-ARR).
+            // Its bare `SHARED a[]` declaration is a no-op — a per-function reset
+            // would clear data another function stored. A sized DIM/REDIM still
+            // (re)allocates the global via the dyn arms below (is_dyn_array=true).
+            if crate::c_emit::is_shared_array(&symbol.name) && size.is_none() {
+                return;
+            }
             // Multi-dim array (`DIM a[i,j,…]`): the interpreter flattens to a 1-D
             // store of ∏(dk+1) elements (slot.rs::new_array_nd). Allocate the same
             // flat count; `arr[i,j]` accesses compute the row-major offset. 1-D

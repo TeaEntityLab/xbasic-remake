@@ -177,7 +177,19 @@ impl Analyzer {
                 value: chr,
             });
         }
-        let target = self.auto_symbol(name);
+        // A composite member array (`library.name`) stores its element type in
+        // `self.arrays`, not `self.symbols` — `auto_symbol` would default the
+        // dotted leaf to Integer (no `$`) and the write would emit `xb_var_*` for a
+        // String member (mismatching the read/global `xb_str_*`). Mirror the read
+        // path (`array_access`): prefer the declared array element type.
+        let target = {
+            let vt = self
+                .arrays
+                .get(name)
+                .copied()
+                .unwrap_or_else(|| self.auto_symbol(name).value_type);
+            crate::checked::CheckedSymbol::new(name.to_owned(), vt)
+        };
         let index = self.expr(index)?;
         let value = self.expr(value)?;
         // Relaxed: allow any type assignment (XBasic implicit coercion)

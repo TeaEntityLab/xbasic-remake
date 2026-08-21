@@ -400,6 +400,23 @@ pub(crate) fn emit_globals(program: &IrProgram, out: &mut String) {
     }
     let mut seen = std::collections::HashSet::new();
     collect_shared(&program.items, &mut seen, out);
+    // Non-dual-use module-shared arrays (CGEN-SHARED-ARR): ONE heap global each —
+    // `T* data` (dyn pointer) + `intptr_t ub` — so a write in one function is seen
+    // by a read in another (the interpreter keeps them in `state.shared`). A
+    // per-function local gave each function its own uninitialized copy. Access and
+    // DIM/REDIM sites already name these via emit_array_var_name / _ub_ref (they
+    // are dyn + not undimmed for a shared array). Dual-use shared arrays are
+    // excluded by the gate (they keep the old local emission).
+    for (name, vt) in crate::c_emit::shared_arrays_sorted() {
+        let sym = crate::ir::IrSymbol { name: name.clone(), value_type: vt };
+        out.push_str(c_type(vt));
+        out.push_str("* ");
+        crate::c_emit::emit_array_var_name(&sym, out);
+        out.push_str(" = 0;\n");
+        out.push_str("intptr_t ");
+        crate::c_emit::emit_array_ub_ref(&name, out);
+        out.push_str(" = -1;\n");
+    }
     out.push('\n');
 }
 
