@@ -1220,6 +1220,52 @@ fn cemitter_and_cgen_agree_on_repeated_gosub() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Version directive off-by-one (CGEN-SELFHOST-PARITY): when the `version` line is
+/// not the first IR line (a `PROGRAM` name precedes it, as in every demo), cgen.x's
+/// extractor advanced its cursor by 10 instead of 9 — the `\nversion ` prefix is 9
+/// chars — stripping the version literal's first character (`3.0700` -> `.0700`). The
+/// interpreter does not expose VERSION$ at run time, so this is pinned on the emitted
+/// C: both generators must embed the un-stripped literal. Byte-neutral on the
+/// self-host corpus (cgen.x's own `VERSION "0.1"` is the first source line, so its IR
+/// `version` is line 1 and takes the correct first-line path).
+#[test]
+fn cemitter_and_cgen_agree_on_version_after_program_name() {
+    let tmp = std::env::temp_dir().join("xb_sync_ver");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"vtest\"\n\
+               VERSION \"3.0700\"\n\
+               FUNCTION Main\n\
+               PRINT \"hi\"\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse version program")
+        .lower_ir()
+        .expect("lower version program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    // Precondition: `version` is the 2nd IR line (a `program_name` precedes it),
+    // which is exactly the path that had the off-by-one.
+    assert!(
+        ir.lines().nth(1).map_or(false, |l| l.starts_with("version ")),
+        "test setup: version should be the 2nd IR line, got IR:\n{ir}"
+    );
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let self_c: String = cgen_emit(&cgen_exe, &ir).into_iter().map(|b| b as char).collect();
+
+    let needle = "xb_version_str = \"3.0700\"";
+    assert!(
+        rust_c.contains(needle),
+        "CEmitter stripped the version literal"
+    );
+    assert!(
+        self_c.contains(needle),
+        "cgen.x stripped the version literal (off-by-one advancing past the value)"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly

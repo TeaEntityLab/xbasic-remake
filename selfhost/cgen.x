@@ -67,7 +67,7 @@ END IF
 IF vPos = 0 THEN
   vPos = INSTR(src$, CHR$(10) + "version ")
   IF vPos > 0 THEN
-    vPos = vPos + 10
+    vPos = vPos + 9
   END IF
 END IF
 IF vPos > 0 THEN
