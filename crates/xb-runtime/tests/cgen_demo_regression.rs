@@ -1121,3 +1121,38 @@ END FUNCTION
         "bitwise op with a Giant mask must evaluate (not error) in the interpreter: {interp:?}"
     );
 }
+
+/// Locks control-flow truthiness of a Giant condition. `IF 2147483648 THEN` (the
+/// bare literal overflows i32 -> Giant) was skipped by the interp (its IF/WHILE/DO
+/// handlers matched only `Integer`, treating a Giant condition as neither-true-nor
+/// -false and skipping the branch), while the C backends took it (nonzero -> true).
+/// `cond_bool` now tests Integer/Giant against zero on the full value. Guards
+/// `IF <giant-flag>` / `WHILE <giant>` against interp-vs-cgen divergence.
+#[test]
+fn cgen_matches_interpreter_on_giant_condition() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tDIM x
+\tx = 5
+\tIF x < 2147483648 THEN
+\t\tPRINT \"less\"
+\tEND IF
+\tIF 2147483648 THEN
+\t\tPRINT \"truthy\"
+\tEND IF
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_giant_cond");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "giantcond", &tmp);
+    assert_eq!(
+        native, interp,
+        "Giant-condition cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert!(
+        interp.contains("truthy"),
+        "a nonzero Giant condition must be truthy in the interpreter: {interp:?}"
+    );
+}

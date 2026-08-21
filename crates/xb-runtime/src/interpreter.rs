@@ -83,6 +83,18 @@ pub(crate) enum Flow {
     GosubReturn,
 }
 
+/// Truthiness of a control-flow condition (`IF`/`WHILE`/`DO`). Integer and Giant
+/// are tested against zero on their *full* value (narrowing a Giant to i32 first
+/// would wrongly zero a multiple of 2^32), matching the C backends' `if (cond)`.
+/// Returns `None` for non-numeric values, preserving the prior skip behavior.
+fn cond_bool(v: &RuntimeValue) -> Option<bool> {
+    match v {
+        RuntimeValue::Integer(n) => Some(*n != 0),
+        RuntimeValue::Giant(g) => Some(*g != 0),
+        _ => None,
+    }
+}
+
 pub(crate) fn exec_items(
     program: &IrProgram,
     items: &[IrItem],
@@ -295,8 +307,8 @@ pub(crate) fn exec_items(
                 else_body,
             } => {
                 let cond = eval(program, condition, state, output)?;
-                if let RuntimeValue::Integer(v) = cond {
-                    if v != 0 {
+                if let Some(is_true) = cond_bool(&cond) {
+                    if is_true {
                         match exec_items(program, then_body, func_body, 0, state, output)? {
                             Flow::Return(r) => return Ok(Flow::Return(r)),
                             Flow::Break => return Ok(Flow::Break),
@@ -331,10 +343,8 @@ pub(crate) fn exec_items(
                 let mut pending_flow: Option<Flow> = None;
                 loop {
                     let cond = eval(program, condition, state, output)?;
-                    if let RuntimeValue::Integer(v) = cond {
-                        if v == 0 {
-                            break;
-                        }
+                    if cond_bool(&cond) == Some(false) {
+                        break;
                     }
                     match exec_items(program, body, func_body, 0, state, output)? {
                         Flow::Return(r) => return Ok(Flow::Return(r)),
@@ -364,8 +374,8 @@ pub(crate) fn exec_items(
                 loop {
                     if let Some((cond, is_while)) = pre_condition {
                         let v = eval(program, cond, state, output)?;
-                        if let RuntimeValue::Integer(n) = v {
-                            if (*is_while && n == 0) || (!*is_while && n != 0) {
+                        if let Some(t) = cond_bool(&v) {
+                            if (*is_while && !t) || (!*is_while && t) {
                                 break;
                             }
                         }
@@ -386,8 +396,8 @@ pub(crate) fn exec_items(
                     }
                     if let Some((cond, is_while)) = post_condition {
                         let v = eval(program, cond, state, output)?;
-                        if let RuntimeValue::Integer(n) = v {
-                            if (*is_while && n == 0) || (!*is_while && n != 0) {
+                        if let Some(t) = cond_bool(&v) {
+                            if (*is_while && !t) || (!*is_while && t) {
                                 break;
                             }
                         }
