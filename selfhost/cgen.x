@@ -2476,14 +2476,18 @@ FUNCTION replace$(h$, n$, r$)
   replace$ = out$
 END FUNCTION
 
-' Map the XBasic type-suffix chars that are illegal in a C identifier to a distinct
-' `_x`, mirroring the Rust CEmitter's sanitize_c_ident. `$` is left (a gcc/clang
-' identifier extension the runtime already relies on) and `.` is left (composites
-' are C structs, so `.` is member access). Byte-neutral on the selfhost tools (they
-' use no `#!@&%`-suffixed names).
+' Map the identifier chars that are illegal in a C identifier to a distinct suffix,
+' mirroring the Rust CEmitter's sanitize_c_ident. `.` (composite-member access, e.g.
+' `dog.name`) becomes `_` — this backend flattens composite members to distinct
+' locals rather than emitting C structs, so every declaration and use maps the same
+' way. The XBasic type suffixes `#!@&%` each map to a distinct `_x` (the type already
+' lives in the `xb_var_`/`xb_str_` prefix). `$` is left (a gcc/clang identifier
+' extension the runtime already relies on). Byte-neutral on the selfhost tools (they
+' use no `.`- or `#!@&%`-bearing names).
 FUNCTION sanitize_ident$(n$)
   DIM r$
-  r$ = replace$(n$, "#", "_d")
+  r$ = replace$(n$, ".", "_")
+  r$ = replace$(r$, "#", "_d")
   r$ = replace$(r$, "!", "_f")
   r$ = replace$(r$, "@", "_a")
   r$ = replace$(r$, "&", "_l")

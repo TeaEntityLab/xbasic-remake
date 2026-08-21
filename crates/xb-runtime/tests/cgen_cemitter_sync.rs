@@ -1266,6 +1266,55 @@ fn cemitter_and_cgen_agree_on_version_after_program_name() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Composite-member identifier sanitization (CGEN-SELFHOST-PARITY): a `TYPE`
+/// member access like `p.x` lowers to a symbol whose name contains a `.`, which is
+/// not a legal C identifier char. Both generators must map `.` -> `_` (Rust's
+/// sanitize_c_ident does `.replace('.', "_")`); cgen.x's sanitize_ident$ only handled
+/// the type-suffix chars, so composite-member params/locals emitted a raw `.`
+/// (`xb_var_p.x`) -> C syntax error (afuntype/qbtoxb cc-failed). The flattening is
+/// consistent across the declaration and every use, so behavior matches the interp.
+#[test]
+fn cemitter_and_cgen_agree_on_composite_member_idents() {
+    let tmp = std::env::temp_dir().join("xb_sync_composite");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"ctest\"\n\
+               VERSION \"0.1\"\n\
+               TYPE PT\n\
+               XLONG .x\n\
+               XLONG .y\n\
+               END TYPE\n\
+               FUNCTION Main\n\
+               PT p\n\
+               p.x = 3\n\
+               p.y = 4\n\
+               PRINT p.x + p.y\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse composite program")
+        .lower_ir()
+        .expect("lower composite program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "composite_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "composite_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret composite program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "7\n", "composite-member reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled composite-member idents");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled composite-member idents");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
