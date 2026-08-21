@@ -420,10 +420,14 @@ fn collect_shared(
                 collect_shared_expr(value, seen, out);
             }
             IrItem::If {
+                condition,
                 then_body,
                 else_body,
-                ..
             } => {
+                // The condition can be the ONLY reference to a read-only shared var
+                // (`IF ##XBSystem != …`), so it must be walked or the global is
+                // never declared (undeclared `xb_shared_*`).
+                collect_shared_expr(condition, seen, out);
                 collect_shared(then_body, seen, out);
                 if let Some(eb) = else_body {
                     collect_shared(eb, seen, out);

@@ -777,3 +777,36 @@ fn cgen_composite_member_array_read_compiles_kernel32() {
     );
     let _ = fs::remove_file(&c_path);
 }
+
+/// Locks the shared-global collection fix: `collect_shared` (c_runtime.rs) walked
+/// an `If`'s bodies but SKIPPED its condition, so a shared var referenced ONLY in
+/// a condition (`IF ##Flag != 0 …`) never got a `xb_shared_Flag` global declared —
+/// an undeclared-identifier cc failure. This unblocked core libs `MakeDistLinux`
+/// and `xutpde` (`IF ##XBSystem != …`). Runnable + faithful: an unset shared reads
+/// its default (0), matching the interpreter's permissive auto-declare.
+#[test]
+fn cgen_matches_interpreter_on_shared_var_in_if_condition() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tIF ##Flag != 0 THEN
+\t\tPRINT \"set\"
+\tELSE
+\t\tPRINT \"unset\"
+\tEND IF
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_shared_if_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "sharedif", &tmp);
+    assert_eq!(
+        native, interp,
+        "shared-var-in-IF-condition cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert_eq!(
+        interp.trim(),
+        "unset",
+        "an unset shared var read in an IF condition must default to 0: {interp:?}"
+    );
+}
