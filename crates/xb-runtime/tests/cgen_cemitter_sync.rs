@@ -335,6 +335,59 @@ fn cemitter_and_cgen_agree_on_computed_goto() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// CG-BODY-COVER: an *AT-write lvalue* (`XLONGAT(addr) = <expr>`, a `BuiltinAssign`)
+/// had no behavioral coverage, and cgen.x's dispatch never fired (`LEFT$(s$, 15)`
+/// vs the 14-char `"builtin_assign"`), so the self-hosted generator silently
+/// dropped the whole statement — skipping the value's side effects. Both C
+/// generators (and the interpreter) must no-op the memory write but still evaluate
+/// the value: a side-effecting `Side()` RHS makes the drop observable. Locks the
+/// `(void)(value)` contract across interp == CEmitter == cgen.x.
+#[test]
+fn cemitter_and_cgen_agree_on_builtin_assign() {
+    let tmp = std::env::temp_dir().join("xb_sync_builtin_assign");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM addr\n\
+               addr = 0\n\
+               XLONGAT(addr) = Side()\n\
+               PRINT \"done\"\n\
+               END FUNCTION\n\
+               FUNCTION Side()\n\
+               PRINT \"side effect\"\n\
+               RETURN 1\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse builtin-assign program")
+        .lower_ir()
+        .expect("lower builtin-assign program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    assert!(
+        ir.contains("builtin_assign"),
+        "fixture must exercise BuiltinAssign (AT-write lvalue); IR was:\n{ir}"
+    );
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "ba_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "ba_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret builtin-assign program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // The AT-write no-ops, but Side() (the value) must still run for its side effect.
+    assert_eq!(interp_out, "side effect\ndone\n", "interpreter reference");
+    assert_eq!(rust_out, interp_out, "CEmitter dropped the AT-write value side effect");
+    assert_eq!(self_out, interp_out, "cgen.x dropped the AT-write value side effect");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly

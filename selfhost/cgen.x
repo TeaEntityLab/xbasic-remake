@@ -2214,60 +2214,15 @@ FUNCTION emit_stmt$(s$)
     RETURN emit_stmt$
   END IF
 
-  IF LEFT$(s$, 15) = "builtin_assign" THEN
-    rest$ = MID$(s$, 17, LEN(s$) - 16)
+  IF LEFT$(s$, 15) = "builtin_assign " THEN
+    rest$ = MID$(s$, 16, LEN(s$) - 15)
     eqPos = INSTR(rest$, " = ")
-    right$ = LEFT$(rest$, eqPos - 1)
     start$ = MID$(rest$, eqPos + 3, LEN(rest$) - eqPos - 2)
-    sp = INSTR(right$, " ")
-    IF sp > 0 THEN
-      varName$ = LEFT$(right$, sp - 1)
-      tmp$ = MID$(right$, sp + 1, LEN(right$) - sp)
-    ELSE
-      varName$ = right$
-      tmp$ = ""
-    END IF
-    fn$ = ""
-    args$ = ""
-    spacePos = INSTR(tmp$, " ")
-    IF spacePos > 0 THEN
-      fn$ = LEFT$(tmp$, spacePos - 1)
-      args$ = MID$(tmp$, spacePos + 1, LEN(tmp$) - spacePos)
-    ELSE
-      fn$ = tmp$
-    END IF
-    varType$ = "int"
-    atIsFloat = 0
-    IF varName$ = "SBYTEAT" THEN
-      varType$ = "signed char"
-    ELSEIF varName$ = "UBYTEAT" THEN
-      varType$ = "unsigned char"
-    ELSEIF varName$ = "SSHORTAT" THEN
-      varType$ = "signed short"
-    ELSEIF varName$ = "USHORTAT" THEN
-      varType$ = "unsigned short"
-    ELSEIF varName$ = "SLONGAT" THEN
-      varType$ = "signed int"
-    ELSEIF varName$ = "ULONGAT" THEN
-      varType$ = "unsigned int"
-    ELSEIF varName$ = "XLONGAT" OR varName$ = "GIANTAT" OR varName$ = "SUBADDRAT" OR varName$ = "GOADDRAT" THEN
-      varType$ = "intptr_t"
-    ELSEIF varName$ = "SINGLEAT" THEN
-      varType$ = "float"
-      atIsFloat = 1
-    ELSEIF varName$ = "DOUBLEAT" THEN
-      varType$ = "double"
-      atIsFloat = 1
-    END IF
-    cExpr$ = emit_expr$(fn$)
-    IF args$ <> "" THEN
-      cExpr$ = cExpr$ + " + " + emit_expr$(args$)
-    END IF
-    tmp$ = emit_expr$(start$)
-    IF atIsFloat = 1 THEN
-      tmp$ = "(double)" + tmp$
-    END IF
-    emit_stmt$ = "    *(" + varType$ + "*)(" + cExpr$ + ") = " + tmp$ + ";"
+    ' *AT-write lvalue (parser restricts to is_at_builtin): the interpreter has
+    ' no real memory, so it no-ops the write and only evaluates the value for
+    ' side-effects/errors. Match the Rust CEmitter's (void)(value) — a real
+    ' *(T*)(addr)=v would dereference a stub address and crash.
+    emit_stmt$ = "    (void)(" + emit_expr$(start$) + ");"
     RETURN emit_stmt$
   END IF
 
