@@ -441,6 +441,44 @@ fn cemitter_and_cgen_agree_on_unary_pos_and_size() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// A bare i32-overflowing literal (`2147483648` = 2^31) is typed Giant on the
+/// *direct* analyzer path, but the text IR emits it as `integer(2147483648)` with
+/// no Giant marker, and `TextIrParser` re-types it Integer. So BOTH C generators,
+/// consuming the text IR, narrow it identically — this pins that they agree with
+/// each OTHER (the sync contract). (The interpreter uses the direct path and keeps
+/// the Giant, so it is intentionally not the reference here — that gap is the
+/// separate open GIANT-LITERAL sub-bug (1), a text-IR type-loss, not a sync break.)
+#[test]
+fn cemitter_and_cgen_agree_on_giant_literal() {
+    let tmp = std::env::temp_dir().join("xb_sync_giant_literal");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               PRINT 2147483648\n\
+               PRINT 2147483648 + 1\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse giant-literal program")
+        .lower_ir()
+        .expect("lower giant-literal program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    // Rust CEmitter via the TEXT IR path (parse -> emit), the same input cgen.x sees.
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "gl_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "gl_self", &self_c, None);
+
+    assert_eq!(
+        rust_out, self_out,
+        "CEmitter and cgen.x disagree on a Giant literal via the text IR (sync drift)"
+    );
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
