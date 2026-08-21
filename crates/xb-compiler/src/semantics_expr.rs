@@ -76,8 +76,18 @@ impl Analyzer {
     }
 
     fn array_access(&self, name: &str, index: &Expression, extra: &[Expression]) -> ExprResult {
-        let sym = self.auto_symbol(name);
-        let vt = sym.value_type;
+        // A composite member array (a dotted leaf name like `library.name`) stores
+        // its declared element type in `self.arrays`, NOT `self.symbols` — so
+        // `auto_symbol` would default it to Integer (the member `name` carries no
+        // `$`/`!`/`#` suffix). Prefer the declared array element type so e.g. a
+        // `SHARED DLL library[]` read `library[i].name` (String member) emits
+        // `xb_str_library_name`, not an undeclared `xb_var_library_name`.
+        let vt = self
+            .arrays
+            .get(name)
+            .copied()
+            .unwrap_or_else(|| self.auto_symbol(name).value_type);
+        let sym = CheckedSymbol::new(name.to_owned(), vt);
         let idx = self.expr(index)?;
         let extra_indices = extra
             .iter()

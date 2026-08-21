@@ -729,3 +729,51 @@ END FUNCTION
         "a `\"s\" + #foo$` concat must run without a spurious type mismatch: {interp:?}"
     );
 }
+
+/// Locks the composite-member array element-type fix. A composite *array* member
+/// (e.g. `SHARED DLL library[]`, member `name$`) stores its declared element type
+/// in `self.arrays`, NOT `self.symbols`, so `array_access`'s old `auto_symbol`
+/// default typed the dotted leaf `library.name` as Integer (no `$` suffix) and a
+/// read `library[i].name` emitted an **undeclared** `xb_var_library_name` instead
+/// of the String array `xb_str_library_name`, failing `cc`. `src/kernel32.x` — a
+/// non-runnable EXTERNAL-bottomed core lib — went from 1 cc error to clean.
+/// Compile-clean lock (the fix's contract is type-correct C emission); the
+/// composite array-member *runtime* slot registration is a separate tracked bug.
+#[test]
+fn cgen_composite_member_array_read_compiles_kernel32() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let src = fs::read_to_string(root.join("xbasic-6.4.5/src/linux/kernel32.x"))
+        .expect("read kernel32.x");
+    let prog = FrontendUnit::parse(&src)
+        .expect("parse kernel32")
+        .lower_ir()
+        .expect("lower kernel32");
+    let c_src = CEmitter::new().emit_program(&prog);
+    assert!(
+        c_src.contains("xb_str_library_name") && !c_src.contains("xb_var_library_name"),
+        "the String member `library[i].name` must emit `xb_str_library_name`, \
+         not an undeclared Integer `xb_var_library_name`"
+    );
+    let tmp = std::env::temp_dir().join("xb_cgen_kernel32_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let c_path = tmp.join("kernel32.c");
+    fs::write(&c_path, &c_src).expect("write C");
+    let cc = Command::new(common::cc::cc())
+        .args([
+            "-c",
+            "-O0",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+            "-o",
+            tmp.join("kernel32.o").to_str().unwrap(),
+            c_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("cc spawn");
+    assert!(
+        cc.status.success(),
+        "kernel32 emitted C must compile clean: {}",
+        String::from_utf8_lossy(&cc.stderr)
+    );
+    let _ = fs::remove_file(&c_path);
+}
