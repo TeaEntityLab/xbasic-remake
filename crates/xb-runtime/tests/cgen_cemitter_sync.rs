@@ -988,6 +988,53 @@ fn cemitter_and_cgen_agree_on_escaped_quote_concat() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Type-suffix chars in C identifiers (CGEN-SELFHOST-PARITY): a var whose XBasic
+/// name keeps a type suffix — `x#` (double), `n!` (single), `c%` (short) — was
+/// emitted with the literal suffix in the C identifier (`xb_var_x#`), which cc
+/// rejects (`#` starts a directive → "expected ';'"; adrawing's SHARED `RandomNSeed#`
+/// hit the same). cgen.x now maps `#!@&%`→`_d/_f/_a/_l/_h` (mirroring Rust's
+/// sanitize_c_ident) in c_var_name$ AND the three xb_shared_ sites; `$` is left (a
+/// gcc identifier extension the runtime relies on) and `.` is left (composite = C
+/// struct member). Byte-neutral on the selfhost tools (they use no `#!@&%` names).
+#[test]
+fn cemitter_and_cgen_agree_on_type_suffix_idents() {
+    let tmp = std::env::temp_dir().join("xb_sync_suffix");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               x# = 3.5\n\
+               n! = 2.0\n\
+               c% = 7\n\
+               PRINT x# + n!\n\
+               PRINT c%\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse type-suffix program")
+        .lower_ir()
+        .expect("lower type-suffix program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "sfx_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "sfx_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret type-suffix program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "5.5\n7\n", "type-suffix reference output");
+    assert_eq!(rust_out, self_out, "cgen.x type-suffix identifier differs from CEmitter");
+    assert_eq!(rust_out, interp_out, "type-suffix identifier differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly

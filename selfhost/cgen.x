@@ -596,7 +596,7 @@ WHILE fwdPos <= LEN(src$)
         END IF
         IF INSTR(##sharedDecls$, ":" + fwdSName$ + ":") = 0 THEN
           ##sharedDecls$ = ##sharedDecls$ + ":" + fwdSName$ + ":"
-          PRINT c_type$(fwdSType$) + " xb_shared_" + fwdSName$ + " = 0;"
+          PRINT c_type$(fwdSType$) + " xb_shared_" + sanitize_ident$(fwdSName$) + " = 0;"
         END IF
       END IF
     END IF
@@ -754,10 +754,12 @@ FUNCTION c_type$(t$)
 END FUNCTION
 
 FUNCTION c_var_name$(n$, t$)
+  DIM sn$
+  sn$ = sanitize_ident$(n$)
   IF t$ = "string" THEN
-    c_var_name$ = "xb_str_" + n$
+    c_var_name$ = "xb_str_" + sn$
   ELSE
-    c_var_name$ = "xb_var_" + n$
+    c_var_name$ = "xb_var_" + sn$
   END IF
 END FUNCTION
 
@@ -2027,7 +2029,7 @@ FUNCTION emit_expr$(e$)
     ELSE
       varName$ = t$
     END IF
-    emit_expr$ = "xb_shared_" + varName$
+    emit_expr$ = "xb_shared_" + sanitize_ident$(varName$)
     RETURN emit_expr$
   END IF
 
@@ -2456,6 +2458,21 @@ FUNCTION replace$(h$, n$, r$)
   replace$ = out$
 END FUNCTION
 
+' Map the XBasic type-suffix chars that are illegal in a C identifier to a distinct
+' `_x`, mirroring the Rust CEmitter's sanitize_c_ident. `$` is left (a gcc/clang
+' identifier extension the runtime already relies on) and `.` is left (composites
+' are C structs, so `.` is member access). Byte-neutral on the selfhost tools (they
+' use no `#!@&%`-suffixed names).
+FUNCTION sanitize_ident$(n$)
+  DIM r$
+  r$ = replace$(n$, "#", "_d")
+  r$ = replace$(r$, "!", "_f")
+  r$ = replace$(r$, "@", "_a")
+  r$ = replace$(r$, "&", "_l")
+  r$ = replace$(r$, "%", "_h")
+  sanitize_ident$ = r$
+END FUNCTION
+
 FUNCTION emit_stmt$(s$)
   DIM rest$
   DIM spacePos
@@ -2524,7 +2541,7 @@ FUNCTION emit_stmt$(s$)
       eqPos = INSTR(rest$, "= ")
       IF eqPos > 0 THEN
         expr$ = MID$(rest$, eqPos + 2, LEN(rest$) - eqPos - 1)
-        emit_stmt$ = "    xb_shared_" + varName$ + " = " + emit_expr$(expr$) + ";"
+        emit_stmt$ = "    xb_shared_" + sanitize_ident$(varName$) + " = " + emit_expr$(expr$) + ";"
         RETURN emit_stmt$
       END IF
     END IF
