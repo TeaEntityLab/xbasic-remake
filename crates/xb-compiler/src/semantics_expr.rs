@@ -342,7 +342,7 @@ impl Analyzer {
                     ValueType::Integer,
                 ));
             }
-            if let Expression::Identifier { name: var_name, .. } = &args[0] {
+            if let Expression::Identifier { name: var_name, suffix } = &args[0] {
                 let type_map = [
                     ("XLONG", ValueType::Integer),
                     ("SBYTE", ValueType::Integer),
@@ -364,7 +364,15 @@ impl Analyzer {
                         ));
                     }
                 }
-                let sym = self.auto_symbol(var_name);
+                // Resolve the variable exactly like a normal read (via `symbol`,
+                // honoring the `$`/`!`/`#` suffix + slot-name/collision rules) so
+                // the SizeOf symbol's name AND type match its slot — otherwise
+                // `auto_symbol` drops the suffix and `SIZE(time$)` becomes an
+                // Integer `time`, emitting an undeclared `xb_var_time`.
+                let sym = match self.symbol(var_name, *suffix)?.kind {
+                    CheckedExprKind::Symbol(s) => s,
+                    _ => self.auto_symbol(var_name),
+                };
                 return Ok(CheckedExpr::new(
                     CheckedExprKind::SizeOf { symbol: sym },
                     ValueType::Integer,

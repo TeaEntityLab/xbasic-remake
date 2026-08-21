@@ -843,3 +843,34 @@ END FUNCTION
         "`ASC(line$, 1)` must read the first byte (67='C'): {interp:?}"
     );
 }
+
+/// Locks the `SIZE(var$)` typing fix: the SIZE handler destructured
+/// `Identifier { name, .. }`, dropping the type suffix, then called
+/// `auto_symbol(name)` — so `SIZE(time$)` typed the symbol Integer (bare `time`,
+/// last char not `$`) and emitted `sizeof(xb_var_time)`, an undeclared Integer
+/// (core lib xin). SIZE now resolves via `symbol(name, suffix)` (same as a normal
+/// read), so a String var reads `xb_str_*`. A scalar String's SIZE is 8 (pointer
+/// slot), matching the interpreter.
+#[test]
+fn cgen_matches_interpreter_on_size_of_string_var() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\ts$ = \"hello\"
+\tPRINT SIZE (s$); \"/\"; SIZE (XLONG)
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_size_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "sizestr", &tmp);
+    assert_eq!(
+        native, interp,
+        "SIZE(var$) cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert_eq!(
+        interp.trim(),
+        "8/4",
+        "SIZE of a scalar String is the 8-byte slot; SIZE(XLONG) is 4: {interp:?}"
+    );
+}
