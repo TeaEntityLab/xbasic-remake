@@ -663,6 +663,9 @@ impl CEmitter {
                 "static char* xb_str_n(const char* s, size_t n) { char* d = xb_alloc(n); memcpy(d, s, n); return d; }\n",
             );
         }
+        if body.contains("xb_xst_str_to_num(") {
+            crate::c_runtime::emit_xst_runtime(&mut out);
+        }
         out.push_str(&body);
         out
     }

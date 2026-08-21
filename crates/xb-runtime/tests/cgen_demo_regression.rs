@@ -352,6 +352,49 @@ END FUNCTION
     );
 }
 
+/// `XstStringToNumber` (RT-XST): a by-ref builtin that parses a number out of a
+/// string, writing `@afterOff`/`@rtype`/`@value$$` and returning specType. The
+/// parser is duplicated in the interp (`xst.rs`), the C runtime
+/// (`c_runtime.rs::emit_xst_runtime`), and `cgen.x`; this locks all paths
+/// byte-identical. Exercises the four `rtype` outcomes and the msc-wrapper
+/// extraction (GLOW for SLONG, DMAKE(GHIGH,GLOW) for the DOUBLE f64 bits).
+#[test]
+fn cgen_matches_interpreter_on_xst_string_to_number() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\ts$ = \"  42abc\"
+\te = XstStringToNumber(@s$, 0, @after, @rtype, @v$$)
+\tPRINT \"int e=\"; e; \" after=\"; after; \" rtype=\"; rtype; \" val=\"; GLOW(v$$)
+\ts2$ = \"-3.14e2 rest\"
+\te2 = XstStringToNumber(@s2$, 0, @a2, @rt2, @v2$$)
+\tPRINT \"flt e=\"; e2; \" rtype=\"; rt2; \" d=\"; DMAKE(GHIGH(v2$$), GLOW(v2$$))
+\ts3$ = \"0xFF\"
+\te3 = XstStringToNumber(@s3$, 0, @a3, @rt3, @v3$$)
+\tPRINT \"hex e=\"; e3; \" rtype=\"; rt3; \" val=\"; GLOW(v3$$)
+\ts4$ = \"5000000000\"
+\te4 = XstStringToNumber(@s4$, 0, @a4, @rt4, @v4$$)
+\tPRINT \"giant e=\"; e4; \" rtype=\"; rt4; \" v=\"; v4$$
+\ts5$ = \"xyz\"
+\te5 = XstStringToNumber(@s5$, 0, @a5, @rt5, @v5$$)
+\tPRINT \"err e=\"; e5; \" after=\"; a5; \" rtype=\"; rt5
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_xst_regression");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "xst", &tmp);
+    assert_eq!(
+        native, interp,
+        "XstStringToNumber cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    // The parse actually happened (guards against a mutual stub-0 regression).
+    assert!(
+        interp.contains("val=42") && interp.contains("d=-314") && interp.contains("rtype=14"),
+        "expected real parse results: {interp:?}"
+    );
+}
+
 /// XBSourceLib core libraries that now C-compile and match the interpreter
 /// (MIG-SEMANTICS): extends the byte-faithfulness gate beyond the demo corpus to
 /// legacy core libs. `msc` exercises the full XBasic type-suffix sanitization

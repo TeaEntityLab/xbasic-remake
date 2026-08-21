@@ -527,3 +527,41 @@ fn collect_shared_expr(e: &crate::ir::IrExpr, seen: &mut std::collections::HashS
         IrExprKind::ArrayUBound { .. } => {}
     }
 }
+
+/// `XstStringToNumber` C runtime — a byte-for-byte port of the interpreter's
+/// `xst::parse_number` (crates/xb-runtime/src/xst.rs). Gated: emitted only when
+/// the program calls `xb_xst_str_to_num(` (byte-neutral for the whole shared
+/// corpus, which never uses Xst). Also mirrored in `selfhost/cgen.x`.
+pub(crate) fn emit_xst_runtime(out: &mut String) {
+    out.push_str("static void xb_xst_int_result(int64_t val, intptr_t after, intptr_t* pa, intptr_t* pr, int64_t* pv) { int rt; if (val >= -2147483648LL && val <= 2147483647LL) rt = 6; else if (val >= 0 && val <= 4294967295LL) rt = 8; else rt = 12; *pa = after; *pr = (intptr_t)rt; *pv = val; }\n");
+    out.push_str("static int xb_xst_str_to_num(const char* s, intptr_t start, intptr_t* after, intptr_t* rtype, int64_t* value) {\n");
+    out.push_str("    int n = xb_len(s); intptr_t i = start; if (i < 0) i = 0; if (i > n) i = n;\n");
+    out.push_str("    while (i < n && ((unsigned char)s[i] <= ' ' || (unsigned char)s[i] >= 0x7f)) i++;\n");
+    out.push_str("    intptr_t bad = i; int neg = (i < n && s[i] == '-'); intptr_t sign_start = i;\n");
+    out.push_str("    if (i < n && (s[i] == '+' || s[i] == '-')) i++;\n");
+    out.push_str("    if (i + 1 < n && s[i] == '0') {\n");
+    out.push_str("        int c = s[i+1] | 0x20; int radix = 0, hex = 0;\n");
+    out.push_str("        if (c == 'x') { radix = 16; hex = 1; } else if (c == 'b') radix = 2; else if (c == 'o') radix = 8;\n");
+    out.push_str("        if (radix) {\n");
+    out.push_str("            intptr_t ds = i + 2, j = ds; int64_t val = 0;\n");
+    out.push_str("            while (j < n) { int d = -1; char ch = s[j];\n");
+    out.push_str("                if (hex) { if (ch >= '0' && ch <= '9') d = ch - '0'; else if ((ch|0x20) >= 'a' && (ch|0x20) <= 'f') d = (ch|0x20) - 'a' + 10; }\n");
+    out.push_str("                else { if (ch >= '0' && ch < '0' + radix) d = ch - '0'; }\n");
+    out.push_str("                if (d < 0) break; val = val * radix + d; j++; }\n");
+    out.push_str("            if (j == ds) { *after = bad; *rtype = 0; *value = 0; return -1; }\n");
+    out.push_str("            if (neg) val = -val; xb_xst_int_result(val, j, after, rtype, value); return 0;\n");
+    out.push_str("        }\n");
+    out.push_str("    }\n");
+    out.push_str("    intptr_t j = i, int_start = j;\n");
+    out.push_str("    while (j < n && s[j] >= '0' && s[j] <= '9') j++;\n");
+    out.push_str("    int has_int = j > int_start; int is_float = 0, has_frac = 0;\n");
+    out.push_str("    if (j < n && s[j] == '.') { is_float = 1; j++; intptr_t fs = j; while (j < n && s[j] >= '0' && s[j] <= '9') j++; has_frac = j > fs; }\n");
+    out.push_str("    if (!has_int && !has_frac) { *after = bad; *rtype = 0; *value = 0; return -1; }\n");
+    out.push_str("    if (j < n && (s[j]|0x20) == 'e') { intptr_t k = j + 1; if (k < n && (s[k]=='+'||s[k]=='-')) k++;\n");
+    out.push_str("        if (k < n && s[k] >= '0' && s[k] <= '9') { is_float = 1; j = k; while (j < n && s[j] >= '0' && s[j] <= '9') j++; } }\n");
+    out.push_str("    if (is_float) { char buf[64]; intptr_t len = j - sign_start; if (len > 63) len = 63; memcpy(buf, s + sign_start, (size_t)len); buf[len] = 0;\n");
+    out.push_str("        double f = strtod(buf, 0); int64_t bits; memcpy(&bits, &f, 8); *after = j; *rtype = 14; *value = bits; return 0; }\n");
+    out.push_str("    char buf[32]; intptr_t len = j - int_start; if (len > 31) len = 31; memcpy(buf, s + int_start, (size_t)len); buf[len] = 0;\n");
+    out.push_str("    int64_t mag = (int64_t)strtoll(buf, 0, 10); int64_t val = neg ? -mag : mag; xb_xst_int_result(val, j, after, rtype, value); return 0;\n");
+    out.push_str("}\n");
+}

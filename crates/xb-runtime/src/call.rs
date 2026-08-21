@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use xb_compiler::{IrExpr, IrItem, IrParam, IrProgram, ValueType};
+use xb_compiler::{IrExpr, IrExprKind, IrItem, IrParam, IrProgram, ValueType};
 type FuncInfo<'a> = (&'a str, &'a [IrParam], &'a [IrItem], ValueType);
 
 use crate::eval::eval;
@@ -304,6 +304,7 @@ pub(crate) fn call_function(
             return Ok(RuntimeValue::Integer(code));
         }
         "LIBRARY" => return Ok(RuntimeValue::Integer(0)),
+        "XstStringToNumber" => return xst_string_to_number(program, args, state, output),
         _ => {}
     }
     if is_builtin(name) {
@@ -431,6 +432,51 @@ pub(crate) fn call_function(
         }
     }
     result
+}
+
+/// `XstStringToNumber(s$, startOff, @afterOff, @rtype, @value$$)` — a by-ref
+/// builtin whose out-params (2..4) write back into the caller's lvalues, so it
+/// is dispatched here rather than through the by-value `eval_builtin` path.
+fn xst_string_to_number(
+    program: &IrProgram,
+    args: &[IrExpr],
+    state: &mut ExecutionState,
+    output: &mut Vec<String>,
+) -> Result<RuntimeValue, RuntimeError> {
+    let s = match eval(program, &args[0], state, output)? {
+        RuntimeValue::String(bytes) => bytes,
+        other => other.render().into_bytes(),
+    };
+    let start = match eval(program, &args[1], state, output)? {
+        RuntimeValue::Integer(n) => n.max(0) as usize,
+        RuntimeValue::Giant(n) => n.max(0) as usize,
+        _ => 0,
+    };
+    let r = crate::xst::parse_number(&s, start);
+    xst_write_back(&args[2], RuntimeValue::Integer(r.after), state);
+    xst_write_back(&args[3], RuntimeValue::Integer(r.rtype), state);
+    xst_write_back(&args[4], RuntimeValue::Giant(r.value), state);
+    Ok(RuntimeValue::Integer(r.spec_type))
+}
+
+/// Write `val` (coerced to the lvalue's declared type) into the caller's slot
+/// named by an `@arg` (`ByRef`) or a bare symbol / shared reference.
+fn xst_write_back(expr: &IrExpr, val: RuntimeValue, state: &mut ExecutionState) {
+    let target = match &expr.kind {
+        IrExprKind::ByRef(inner) => &inner.kind,
+        other => other,
+    };
+    let (name, vt, shared) = match target {
+        IrExprKind::Symbol(s) => (s.name.clone(), s.value_type, false),
+        IrExprKind::SharedVariable(s) => (s.name.clone(), s.value_type, true),
+        _ => return,
+    };
+    let coerced = crate::helpers::coerce_value(val, vt);
+    let table = if shared { &mut state.shared } else { &mut state.slots };
+    table
+        .entry(name)
+        .or_insert_with(|| TypedSlot::new(vt))
+        .set(coerced);
 }
 
 fn find_function<'a>(program: &'a IrProgram, name: &str) -> Result<FuncInfo<'a>, RuntimeError> {

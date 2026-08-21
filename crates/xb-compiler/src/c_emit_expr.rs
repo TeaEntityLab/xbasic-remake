@@ -303,6 +303,20 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                     emit_expr(arg, out);
                 }
                 out.push(')');
+            } else if name == "XstStringToNumber" && args.len() == 5 {
+                // By-ref builtin (mirrors interp xst.rs / call.rs): the last
+                // three args are `@`-out-params written through pointers.
+                out.push_str("xb_xst_str_to_num(");
+                emit_byref_value(&args[0], out);
+                out.push_str(", ");
+                emit_expr(&args[1], out);
+                out.push_str(", ");
+                emit_byref_addr(&args[2], out);
+                out.push_str(", ");
+                emit_byref_addr(&args[3], out);
+                out.push_str(", ");
+                emit_byref_addr(&args[4], out);
+                out.push(')');
             } else if name == "EXTS"
                 || name == "EXTU"
                 || name == "CLR"
@@ -471,6 +485,37 @@ pub(crate) fn emit_var_name(symbol: &IrSymbol, out: &mut String) {
     // `_`, `$` with `_s`, `!` with `_f`, `#` with `_d` to avoid collisions
     // (the type is already encoded in the xb_str_/xb_var_ prefix).
     out.push_str(&sanitize_c_ident(&symbol.name));
+}
+
+/// Emit the *value* of a (possibly `@`-wrapped) argument — used for a by-ref
+/// arg passed to a parameter that wants the value (e.g. XstStringToNumber's
+/// string `@s$`).
+pub(crate) fn emit_byref_value(expr: &IrExpr, out: &mut String) {
+    match &expr.kind {
+        IrExprKind::ByRef(inner) => emit_expr(inner, out),
+        _ => emit_expr(expr, out),
+    }
+}
+
+/// Emit the *address* of a (possibly `@`-wrapped) lvalue argument — used for a
+/// by-ref builtin out-param (XstStringToNumber's `@afterOff`/`@rtype`/`@value$$`).
+pub(crate) fn emit_byref_addr(expr: &IrExpr, out: &mut String) {
+    let inner = match &expr.kind {
+        IrExprKind::ByRef(b) => b.as_ref(),
+        _ => expr,
+    };
+    match &inner.kind {
+        IrExprKind::Symbol(s) => {
+            out.push('&');
+            emit_var_name(s, out);
+        }
+        IrExprKind::SharedVariable(s) => {
+            out.push_str("&xb_shared_");
+            out.push_str(&sanitize_c_ident(&s.name));
+        }
+        // Not an lvalue (shouldn't happen for an @out-param): pass null.
+        _ => out.push('0'),
+    }
 }
 
 /// Sanitize an XBasic name for use as a C identifier suffix (after a prefix

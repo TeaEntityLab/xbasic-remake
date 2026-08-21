@@ -19,6 +19,7 @@ mod is_builtin;
 mod rng;
 mod slot;
 mod time_helpers;
+mod xst;
 pub use exception::{Exception, Signal};
 pub use fault::{FaultHooks, HookStatus};
 pub use interpreter::{
