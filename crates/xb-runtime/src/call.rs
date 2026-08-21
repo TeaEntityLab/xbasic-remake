@@ -324,6 +324,19 @@ pub(crate) fn call_function(
         for arg in args {
             vals.push(eval(program, arg, state, output)?);
         }
+        // Coerce a Giant argument to i32 where the builtin's declared parameter is
+        // Integer (e.g. STR$/ABS), matching the C backends' parameter coercion
+        // instead of erroring. Giant/Float/String-parameter builtins (e.g. GHIGH,
+        // which legitimately take a Giant) are untouched.
+        if let Some(params) = xb_compiler::builtin_param_types(name) {
+            for (v, pt) in vals.iter_mut().zip(params) {
+                if *pt == xb_compiler::ValueType::Integer {
+                    if let RuntimeValue::Giant(g) = *v {
+                        *v = RuntimeValue::Integer(g as i32);
+                    }
+                }
+            }
+        }
         return crate::builtin::eval_builtin(name, &vals);
     }
     let (fname, params, body, return_type) = match find_function(program, name) {

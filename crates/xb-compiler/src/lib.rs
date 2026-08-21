@@ -50,6 +50,7 @@ mod text_ir_parser_select;
 mod text_ir_parser_tests;
 #[cfg(test)]
 mod text_ir_tests;
+pub use builtin::builtin_param_types;
 pub use c_emit::CEmitter;
 pub use checked::{
     ArithmeticOp, BooleanOp, CheckedExpr, CheckedExprKind, CheckedItem, CheckedParam,

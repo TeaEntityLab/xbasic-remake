@@ -1156,3 +1156,32 @@ END FUNCTION
         "a nonzero Giant condition must be truthy in the interpreter: {interp:?}"
     );
 }
+
+/// Locks Giant-argument coercion for Integer-parameter builtins. `STR$`/`ABS`
+/// declare Integer params; a Giant arg (e.g. `2147483648` = 2^31, which overflows
+/// i32) previously errored in the interp ("expected .., got Giant") while the C
+/// backends narrowed it (parameter coercion). The interp's builtin call path now
+/// narrows Giant->i32 for Integer params (via `xb_compiler::builtin_param_types`),
+/// matching cgen. Giant-accepting builtins (Giant params, e.g. GHIGH) are untouched.
+#[test]
+fn cgen_matches_interpreter_on_giant_arg_to_int_builtin() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tPRINT STR$(2147483648)
+\tPRINT ABS(2147483648)
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_giant_arg");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "giantarg", &tmp);
+    assert_eq!(
+        native, interp,
+        "Giant-arg-to-Integer-builtin cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert!(
+        !interp.to_lowercase().contains("error"),
+        "a Giant arg to an Integer-param builtin must coerce (not error) in the interpreter: {interp:?}"
+    );
+}

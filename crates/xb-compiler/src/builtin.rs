@@ -269,6 +269,14 @@ pub fn builtin_return_type(name: &str) -> Option<ValueType> {
     sig(name).map(|s| s.return_type)
 }
 
+/// Declared parameter types of a fixed-signature builtin (`None` for variadic /
+/// unknown builtins). Lets callers coerce arguments to the builtin's contract —
+/// e.g. the interpreter narrows a Giant argument to an Integer parameter, matching
+/// the C backends, instead of erroring.
+pub fn builtin_param_types(name: &str) -> Option<&'static [ValueType]> {
+    sig(name).map(|s| s.params)
+}
+
 pub fn is_zero_arg_builtin(name: &str) -> bool {
     sig(name).is_some_and(|s| s.params.is_empty())
 }
