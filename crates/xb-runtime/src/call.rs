@@ -312,6 +312,8 @@ pub(crate) fn call_function(
             };
             return Ok(RuntimeValue::String(crate::xst::back_to_bin(&s)));
         }
+        "XstQuickSort" => return xst_quicksort(program, args, state, output),
+        "XstCopyArray" => return xst_copyarray(program, args, state, output),
         _ => {}
     }
     if is_builtin(name) {
@@ -484,6 +486,89 @@ fn xst_write_back(expr: &IrExpr, val: RuntimeValue, state: &mut ExecutionState) 
         .entry(name)
         .or_insert_with(|| TypedSlot::new(vt))
         .set(coerced);
+}
+
+/// Resolve an `@array[]` (or bare array) argument to its caller slot name and
+/// whether it lives in the shared table.
+fn array_lvalue(expr: &IrExpr) -> (String, bool) {
+    let inner = match &expr.kind {
+        IrExprKind::ByRef(b) => &b.kind,
+        k => k,
+    };
+    match inner {
+        IrExprKind::Symbol(s) => (s.name.clone(), false),
+        IrExprKind::SharedVariable(s) => (s.name.clone(), true),
+        _ => (String::new(), false),
+    }
+}
+
+fn slot_array(state: &ExecutionState, name: &str, shared: bool) -> Vec<RuntimeValue> {
+    let tbl = if shared { &state.shared } else { &state.slots };
+    tbl.get(name).and_then(|s| s.array.clone()).unwrap_or_default()
+}
+
+/// `XstQuickSort(@a[], @n[], low, high, mode)` — stably sort `a[low..=high]` in
+/// place and, if `n[]` is a non-empty array, fill it with the permutation (resized
+/// to match `a[]`). Runs in the caller's state → the `@` arrays mutate directly.
+fn xst_quicksort(
+    program: &IrProgram,
+    args: &[IrExpr],
+    state: &mut ExecutionState,
+    output: &mut Vec<String>,
+) -> Result<RuntimeValue, RuntimeError> {
+    let idx_of = |v: RuntimeValue| -> usize {
+        match v {
+            RuntimeValue::Integer(n) => n.max(0) as usize,
+            RuntimeValue::Giant(n) => n.max(0) as usize,
+            RuntimeValue::Float(n) => n.max(0.0) as usize,
+            RuntimeValue::String(_) => 0,
+        }
+    };
+    let low = idx_of(eval(program, &args[2], state, output)?);
+    let high = idx_of(eval(program, &args[3], state, output)?);
+    let mode = match eval(program, &args[4], state, output)? {
+        RuntimeValue::Integer(n) => n as i64,
+        RuntimeValue::Giant(n) => n,
+        _ => 0,
+    };
+    let (a_name, a_shared) = array_lvalue(&args[0]);
+    let elems = slot_array(state, &a_name, a_shared);
+    let (sorted, perm) = crate::xst::quicksort(&elems, low, high, mode);
+    let sorted_len = sorted.len();
+    {
+        let tbl = if a_shared { &mut state.shared } else { &mut state.slots };
+        if let Some(slot) = tbl.get_mut(&a_name) {
+            slot.array = Some(sorted);
+        }
+    }
+    let (n_name, n_shared) = array_lvalue(&args[1]);
+    let tbl = if n_shared { &mut state.shared } else { &mut state.slots };
+    if let Some(slot) = tbl.get_mut(&n_name) {
+        if slot.array.as_ref().is_some_and(|a| !a.is_empty()) {
+            slot.array = Some(perm.iter().map(|&x| RuntimeValue::Integer(x as i32)).collect());
+            slot.dims = vec![sorted_len];
+        }
+    }
+    Ok(RuntimeValue::Integer(0))
+}
+
+/// `XstCopyArray(@src[], @dst[])` — resize `dst[]` to `src[]`'s length and copy.
+fn xst_copyarray(
+    _program: &IrProgram,
+    args: &[IrExpr],
+    state: &mut ExecutionState,
+    _output: &mut Vec<String>,
+) -> Result<RuntimeValue, RuntimeError> {
+    let (src_name, src_shared) = array_lvalue(&args[0]);
+    let (dst_name, dst_shared) = array_lvalue(&args[1]);
+    let src = slot_array(state, &src_name, src_shared);
+    let len = src.len();
+    let tbl = if dst_shared { &mut state.shared } else { &mut state.slots };
+    if let Some(slot) = tbl.get_mut(&dst_name) {
+        slot.array = Some(src);
+        slot.dims = vec![len];
+    }
+    Ok(RuntimeValue::Integer(0))
 }
 
 fn find_function<'a>(program: &'a IrProgram, name: &str) -> Result<FuncInfo<'a>, RuntimeError> {

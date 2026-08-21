@@ -347,9 +347,14 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
                 out.push_str("void");
             } else {
                 let byref = crate::c_emit::defined_param_byref(name).unwrap_or_default();
+                let descriptors = crate::c_emit::fn_descriptor_params(name);
                 for (i, p) in params.iter().enumerate() {
                     if i > 0 {
                         out.push_str(", ");
+                    }
+                    if p.is_array && descriptors.contains(&p.name) {
+                        crate::c_emit::emit_descriptor_param_decl(p, out);
+                        continue;
                     }
                     // Match emit_functions: a by-ref scalar sharing an array param's
                     // name stays a plain value param (Kittedy's `@adjacent`+`@adjacent[]`).
@@ -594,5 +599,58 @@ pub(crate) fn emit_back_to_bin_runtime(out: &mut String) {
     out.push_str("        } else { tmp[oi++]=s[i++]; }\n");
     out.push_str("    }\n");
     out.push_str("    char* r = xb_alloc((size_t)oi); memcpy(r, tmp, (size_t)oi); free(tmp); return r;\n");
+    out.push_str("}\n");
+}
+
+/// `XstQuickSort` C runtime — matches interp `xst::quicksort`. Array elements are
+/// 8-byte slots (i64/double/char*); reorder via 8-byte copies + an `et`-dispatched
+/// (0=int64,1=double,2=string) *stable* insertion sort (ties keep ascending
+/// original index). Resizes+fills the index array `n` via `nd`/`nub`.
+pub(crate) fn emit_quicksort_runtime(out: &mut String) {
+    out.push_str("static int xb_qs_gt(const uint64_t* a, int et, intptr_t i, intptr_t j, int decr, int ci) {\n");
+    out.push_str("    int c;\n");
+    out.push_str("    if (et == 1) { double x, y; memcpy(&x, &a[i], 8); memcpy(&y, &a[j], 8); c = (x > y) - (x < y); }\n");
+    out.push_str("    else if (et == 2) { const char* x = (const char*)a[i]; const char* y = (const char*)a[j];\n");
+    out.push_str("        int lx = xb_len(x), ly = xb_len(y), m = lx < ly ? lx : ly, r = 0;\n");
+    out.push_str("        for (int k = 0; k < m; k++) { unsigned char cx = (unsigned char)x[k], cy = (unsigned char)y[k]; if (ci) { if (cx>='A'&&cx<='Z') cx+=32; if (cy>='A'&&cy<='Z') cy+=32; } if (cx != cy) { r = cx < cy ? -1 : 1; break; } }\n");
+    out.push_str("        if (r == 0) r = (lx > ly) - (lx < ly); c = r; }\n");
+    out.push_str("    else { int64_t x = (int64_t)a[i], y = (int64_t)a[j]; c = (x > y) - (x < y); }\n");
+    out.push_str("    if (decr) c = -c;\n");
+    out.push_str("    return c > 0;\n");
+    out.push_str("}\n");
+    out.push_str("static int xb_quicksort(void* ap, int et, intptr_t alen, intptr_t** nd, intptr_t* nub, intptr_t low, intptr_t high, intptr_t mode) {\n");
+    out.push_str("    uint64_t* a = (uint64_t*)ap; int decr = (int)(mode & 1), ci = (int)(mode & 2);\n");
+    out.push_str("    if (low <= high && high < alen) {\n");
+    out.push_str("        intptr_t rng = high - low + 1;\n");
+    out.push_str("        intptr_t* idx = (intptr_t*)malloc((size_t)rng * sizeof(intptr_t));\n");
+    out.push_str("        for (intptr_t k = 0; k < rng; k++) idx[k] = low + k;\n");
+    out.push_str("        for (intptr_t k = 1; k < rng; k++) { intptr_t cur = idx[k]; intptr_t m = k - 1; while (m >= 0 && xb_qs_gt(a, et, idx[m], cur, decr, ci)) { idx[m+1] = idx[m]; m--; } idx[m+1] = cur; }\n");
+    out.push_str("        uint64_t* tmp = (uint64_t*)malloc((size_t)rng * 8);\n");
+    out.push_str("        for (intptr_t k = 0; k < rng; k++) tmp[k] = a[idx[k]];\n");
+    out.push_str("        for (intptr_t k = 0; k < rng; k++) a[low + k] = tmp[k];\n");
+    out.push_str("        if (nd && nub && *nub >= 0) {\n");
+    out.push_str("            *nd = (intptr_t*)realloc(*nd, (size_t)alen * sizeof(intptr_t)); *nub = alen - 1;\n");
+    out.push_str("            for (intptr_t k = 0; k < alen; k++) (*nd)[k] = k;\n");
+    out.push_str("            for (intptr_t k = 0; k < rng; k++) (*nd)[low + k] = idx[k];\n");
+    out.push_str("        }\n");
+    out.push_str("        free(idx); free(tmp);\n");
+    out.push_str("    }\n");
+    out.push_str("    return 0;\n");
+    out.push_str("}\n");
+}
+
+/// `XstCopyArray` C runtime — resize `*dst_d` to `srclen` and copy elements
+/// (8-byte slots; strings deep-copied via `xb_strdup`). Matches interp copyarray.
+pub(crate) fn emit_copyarray_runtime(out: &mut String) {
+    out.push_str("static int xb_copyarray(void* srcp, intptr_t srclen, int et, void** dst_d, intptr_t* dst_ub) {\n");
+    out.push_str("    if (!dst_d || !dst_ub) return 0;\n");
+    out.push_str("    uint64_t* src = (uint64_t*)srcp;\n");
+    out.push_str("    *dst_d = realloc(*dst_d, (size_t)(srclen < 1 ? 1 : srclen) * 8); *dst_ub = srclen - 1;\n");
+    out.push_str("    uint64_t* dst = (uint64_t*)*dst_d;\n");
+    out.push_str("    for (intptr_t k = 0; k < srclen; k++) {\n");
+    out.push_str("        if (et == 2) dst[k] = (uint64_t)(intptr_t)xb_strdup((const char*)src[k]);\n");
+    out.push_str("        else dst[k] = src[k];\n");
+    out.push_str("    }\n");
+    out.push_str("    return 0;\n");
     out.push_str("}\n");
 }

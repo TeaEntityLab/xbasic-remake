@@ -59,6 +59,15 @@ thread_local! {
     /// copy-out (`*x_ref = x;`) before every return, so writes reach the caller
     /// (CGEN-BYREF-WRITEBACK). Empty for the corpus (no by-ref param).
     static FN_BYREF_PARAMS: RefCell<Vec<(String, ValueType)>> = RefCell::new(Vec::new());
+    /// By-ref-array descriptor closure (docs/18): fn name → (descriptor params,
+    /// must-be-dyn locals). A descriptor param is emitted `(T** xb_var_x_d,
+    /// intptr_t* xb_ub_x)`. Populated once per `emit_program`; empty for the corpus.
+    static DESC_INFO: RefCell<HashMap<String, (HashSet<String>, HashMap<String, ValueType>)>> = RefCell::new(HashMap::new());
+    /// The current function's descriptor array params (subset of DESC_INFO).
+    static FN_DESC: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
+    /// Per-param descriptor flag per function (positional), so a call site passes
+    /// the descriptor form at a descriptor position.
+    static DEFINED_PARAM_DESC: RefCell<HashMap<String, Vec<bool>>> = RefCell::new(HashMap::new());
 }
 
 /// Record every user-defined function name for `program`. Called once per
@@ -123,6 +132,22 @@ fn set_defined_funcs(program: &IrProgram) {
                 // occurrence of a name wins.
                 id += 1;
                 ids.entry(name.clone()).or_insert(id);
+            }
+        }
+    });
+    DESC_INFO.with(|s| {
+        *s.borrow_mut() = crate::c_emit_hoist::collect_descriptor_params(program);
+    });
+    DEFINED_PARAM_DESC.with(|s| {
+        let mut m = s.borrow_mut();
+        m.clear();
+        let info = DESC_INFO.with(|r| r.borrow().clone());
+        for item in &program.items {
+            if let IrItem::Function { name, params, .. } = item {
+                m.entry(name.clone()).or_insert_with(|| {
+                    let d = info.get(name).map(|(x, _)| x.clone()).unwrap_or_default();
+                    params.iter().map(|p| p.is_array && d.contains(&p.name)).collect()
+                });
             }
         }
     });
@@ -308,8 +333,16 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
         dimmed.insert(p.name.clone());
     }
     let fn_has_gosub = crate::c_emit_hoist::has_gosub(items);
+    let (descriptors, descriptor_locals) =
+        DESC_INFO.with(|s| s.borrow().get(name).cloned().unwrap_or_default());
+    FN_DESC.with(|s| {
+        let mut set = s.borrow_mut();
+        set.clear();
+        set.extend(descriptors.iter().cloned());
+    });
     FN_DYN.with(|s| {
-        *s.borrow_mut() = crate::c_emit_hoist::collect_dyn_names(items, params, fn_has_gosub);
+        *s.borrow_mut() =
+            crate::c_emit_hoist::collect_dyn_names(items, params, fn_has_gosub, &descriptor_locals);
     });
     FN_UNDIMMED_ARRAYS.with(|s| {
         let mut set = s.borrow_mut();
@@ -327,7 +360,9 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
         set.extend(params.iter().map(|p| p.name.clone()));
     });
     FN_DUAL_USE.with(|s| {
-        let mut set = crate::c_emit_hoist::collect_dual_use(items);
+        let forced_array: HashSet<String> =
+            descriptors.iter().cloned().chain(descriptor_locals.keys().cloned()).collect();
+        let mut set = crate::c_emit_hoist::collect_dual_use(items, &forced_array);
         // A name used as both scalar and array splits into a scalar var + a
         // separate `_arr` array. A genuine dual-use PARAM (qbtoxb's `token[]`,
         // also read as a scalar `token = token[i]`) keeps this split: the array
@@ -422,13 +457,45 @@ pub(crate) fn is_dual_use(name: &str) -> bool {
     FN_DUAL_USE.with(|s| s.borrow().contains(name))
 }
 
-/// Emit the C name for a symbol used in ARRAY context. Identical to
-/// `emit_var_name` except a dual-use name gets an `_arr` suffix so its array
-/// storage is a distinct C variable from its scalar (`xb_var_hash_arr`).
-pub(crate) fn emit_array_var_name(symbol: &IrSymbol, out: &mut String) {
+/// True if `name` is a by-ref-array descriptor param of the current function —
+/// emitted `(T** xb_var_x_d, intptr_t* xb_ub_x)` with accesses `(*xb_var_x_d)[i]`,
+/// `UBOUND` `*xb_ub_x`, `REDIM` via realloc (docs/18).
+pub(crate) fn is_descriptor_param(name: &str) -> bool {
+    FN_DESC.with(|s| s.borrow().contains(name))
+}
+
+/// The raw C array name `xb_var_x`/`xb_str_x` (+`_arr` if dual-use), WITHOUT the
+/// descriptor deref — used to build the `_d` descriptor names + param decls.
+pub(crate) fn emit_raw_array_name(symbol: &IrSymbol, out: &mut String) {
     crate::c_emit_expr::emit_var_name(symbol, out);
     if is_dual_use(&symbol.name) {
         out.push_str("_arr");
+    }
+}
+
+/// Emit the C name for a symbol used in ARRAY context. A descriptor param derefs
+/// its data pointer `(*xb_var_x_d)`; a dual-use name gets an `_arr` suffix so its
+/// array storage is a distinct C variable from its scalar (`xb_var_hash_arr`).
+pub(crate) fn emit_array_var_name(symbol: &IrSymbol, out: &mut String) {
+    if is_descriptor_param(&symbol.name) {
+        out.push_str("(*");
+        crate::c_emit_expr::emit_var_name(symbol, out);
+        out.push_str("_d)");
+        return;
+    }
+    emit_raw_array_name(symbol, out);
+}
+
+/// Emit a reference to an array's ubound cell: `(*xb_ub_x)` for a descriptor param,
+/// else `xb_ub_<ident>` (a dyn local's tracked bound).
+pub(crate) fn emit_array_ub_ref(name: &str, out: &mut String) {
+    if is_descriptor_param(name) {
+        out.push_str("(*xb_ub_");
+        out.push_str(&crate::c_emit_expr::sanitize_c_ident(name));
+        out.push(')');
+    } else {
+        out.push_str("xb_ub_");
+        out.push_str(&array_ident(name));
     }
 }
 
@@ -441,6 +508,42 @@ pub(crate) fn array_ident(name: &str) -> String {
     } else {
         base
     }
+}
+
+/// The descriptor data-pointer name for a by-ref-array param: `xb_var_x_d` /
+/// `xb_str_x_d` (a `T**`). Raw (no deref) — for decls + call-site forwarding.
+pub(crate) fn emit_descriptor_data_ptr(symbol: &IrSymbol, out: &mut String) {
+    crate::c_emit_expr::emit_var_name(symbol, out);
+    out.push_str("_d");
+}
+
+/// The descriptor ubound identifier `xb_ub_<name>` (an `intptr_t*` param).
+pub(crate) fn descriptor_ub_ident(name: &str) -> String {
+    format!("xb_ub_{}", crate::c_emit_expr::sanitize_c_ident(name))
+}
+
+/// Emit the two C params for a descriptor by-ref array param `p`:
+/// `T **xb_var_p_d, intptr_t *xb_ub_p` (docs/18).
+pub(crate) fn emit_descriptor_param_decl(p: &crate::ir::IrParam, out: &mut String) {
+    let sym = IrSymbol { name: p.name.clone(), value_type: p.value_type };
+    out.push_str(c_type(p.value_type));
+    out.push_str(" **");
+    emit_descriptor_data_ptr(&sym, out);
+    out.push_str(", intptr_t *");
+    out.push_str(&descriptor_ub_ident(&p.name));
+}
+
+/// The descriptor array params of `name` (from the program analysis), keyed by
+/// function name — usable during signature/forward-decl emission before the
+/// per-function `FN_DESC` context is set.
+pub(crate) fn fn_descriptor_params(name: &str) -> HashSet<String> {
+    DESC_INFO.with(|s| s.borrow().get(name).map(|(d, _)| d.clone()).unwrap_or_default())
+}
+
+/// Per-param descriptor flags of a user-defined callee, so a call site passes the
+/// 2-arg descriptor at a descriptor position (docs/18).
+pub(crate) fn defined_param_descriptor(name: &str) -> Option<Vec<bool>> {
+    DEFINED_PARAM_DESC.with(|s| s.borrow().get(name).cloned())
 }
 
 /// The declared dimension-size expressions of a multi-dim array in the current
@@ -669,6 +772,12 @@ impl CEmitter {
         if body.contains("xb_back_to_bin(") {
             crate::c_runtime::emit_back_to_bin_runtime(&mut out);
         }
+        if body.contains("xb_quicksort(") {
+            crate::c_runtime::emit_quicksort_runtime(&mut out);
+        }
+        if body.contains("xb_copyarray(") {
+            crate::c_runtime::emit_copyarray_runtime(&mut out);
+        }
         out.push_str(&body);
         out
     }
@@ -701,9 +810,14 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
                 out.push_str("void");
             }
             let byref = defined_param_byref(name).unwrap_or_default();
+            let descriptors = fn_descriptor_params(name);
             for (i, p) in params.iter().enumerate() {
                 if i > 0 {
                     out.push_str(", ");
+                }
+                if p.is_array && descriptors.contains(&p.name) {
+                    emit_descriptor_param_decl(p, out);
+                    continue;
                 }
                 // A by-ref SCALAR whose base name is ALSO an array param (Kittedy's
                 // `@adjacent, @adjacent[]`) can't take the `_ref` scalar treatment:

@@ -2,7 +2,7 @@ use crate::c_emit::c_type;
 use crate::c_emit_expr::{emit_default, emit_expr, emit_var_name};
 use crate::c_emit_helpers::emit_c_function_name;
 use crate::c_emit_select::emit_body;
-use crate::ir::IrItem;
+use crate::ir::{IrExpr, IrItem, IrSymbol};
 use crate::ValueType;
 pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
     let ind = "    ".repeat(indent);
@@ -12,6 +12,16 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             crate::c_emit_select::emit_print(items, separators, out, indent);
         }
         IrItem::Dim { symbol, size, is_array, extra_dims, redim, .. } => {
+            if crate::c_emit::is_descriptor_param(&symbol.name) {
+                // DIM/REDIM of a descriptor by-ref array param resizes the caller's
+                // array through the descriptor (realloc + `*ub`). REDIM preserves
+                // existing content (zero the grown tail); DIM re-inits (zero all) —
+                // matching the interpreter (docs/18).
+                if let Some(sz) = size {
+                    emit_descriptor_redim(symbol, sz, *redim, &ind, out);
+                }
+                return;
+            }
             // A `Dim` of a name that is already a function parameter is a no-op
             // in C (the param is already declared); emitting it would be a
             // redefinition. The interpreter's execute_dim would reset the slot,
@@ -409,6 +419,18 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             }
         }
         IrItem::Call { name, args } => {
+            if name == "XstQuickSort" && args.len() == 5 {
+                out.push_str(&ind);
+                crate::c_emit_expr::emit_quicksort_call(args, out);
+                out.push_str(";\n");
+                return;
+            }
+            if name == "XstCopyArray" && args.len() == 2 {
+                out.push_str(&ind);
+                crate::c_emit_expr::emit_copyarray_call(args, out);
+                out.push_str(";\n");
+                return;
+            }
             if crate::c_emit::is_unknown_call(name) {
                 // Unknown callee: no-op (interp/LLVM stub yields a discarded
                 // zero-default, args skipped). Emitting nothing keeps undefined/
@@ -526,6 +548,49 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             out.push_str(";\n");
         }
     }
+}
+
+/// Emit a `DIM`/`REDIM` of a descriptor by-ref array param — realloc the caller's
+/// array through `*xb_var_x_d` and update `*xb_ub_x`. `REDIM` (`redim`) preserves
+/// existing elements + default-fills the grown tail; `DIM` re-initializes every
+/// element (matching the interpreter — docs/18).
+fn emit_descriptor_redim(symbol: &IrSymbol, sz: &IrExpr, redim: bool, ind: &str, out: &mut String) {
+    let ub = crate::c_emit::descriptor_ub_ident(&symbol.name);
+    let mut dp = String::new();
+    crate::c_emit::emit_descriptor_data_ptr(symbol, &mut dp);
+    let dflt = if symbol.value_type == ValueType::String {
+        "xb_str(\"\")"
+    } else {
+        "0"
+    };
+    out.push_str(ind);
+    out.push_str("{ ");
+    if redim {
+        out.push_str("intptr_t _oldub = *");
+        out.push_str(&ub);
+        out.push_str("; ");
+    }
+    out.push_str("*");
+    out.push_str(&ub);
+    out.push_str(" = (");
+    emit_expr(sz, out);
+    out.push_str("); *");
+    out.push_str(&dp);
+    out.push_str(" = realloc(*");
+    out.push_str(&dp);
+    out.push_str(", (size_t)(*");
+    out.push_str(&ub);
+    out.push_str(" + 1) * sizeof(**");
+    out.push_str(&dp);
+    out.push_str(")); for (intptr_t _i = ");
+    out.push_str(if redim { "_oldub + 1" } else { "0" });
+    out.push_str("; _i <= *");
+    out.push_str(&ub);
+    out.push_str("; _i++) (*");
+    out.push_str(&dp);
+    out.push_str(")[_i] = ");
+    out.push_str(dflt);
+    out.push_str("; }\n");
 }
 
 pub(crate) fn is_at_write_builtin(name: &str) -> bool {
