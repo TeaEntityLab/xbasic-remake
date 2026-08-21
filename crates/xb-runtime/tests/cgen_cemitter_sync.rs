@@ -583,6 +583,60 @@ fn cemitter_and_cgen_agree_on_multidim_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Undeclared-local hoisting (CGEN-SELFHOST-PARITY): XBasic auto-declares a scalar
+/// on first use. The Rust CEmitter hoists such locals (`c_emit_hoist.rs`), but the
+/// self-hosted cgen.x had NO hoisting, so a demo like `i = 5 : PRINT i` (no DIM)
+/// emitted an undeclared `xb_var_i` -> cc error; cgen.x compiled only the selfhost
+/// tools (which DIM every local). cgen.x now mirrors the hoist: it collects each
+/// `symbol(n:t)` read + `for`/`assign` target a function USES, subtracts the DIM/
+/// REDIM names + params + the return-value name, and emits `T xb_var_n = default;`
+/// at the prologue. Byte-neutral on the selfhost tools (0 undeclared locals there -
+/// nothing hoisted, sync + bootstrap fixed point intact). This locks the behavior
+/// across all three backends. (Loop var used only INSIDE the loop: the post-loop
+/// FOR counter value is a separate interp-vs-C gap that BOTH C backends share.)
+#[test]
+fn cemitter_and_cgen_agree_on_undeclared_local() {
+    let tmp = std::env::temp_dir().join("xb_sync_undecl_local");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               count = 5\n\
+               PRINT count\n\
+               FOR k = 0 TO 3\n\
+               PRINT k\n\
+               NEXT k\n\
+               msg$ = \"hi\"\n\
+               PRINT msg$\n\
+               doubled = count * 2\n\
+               PRINT doubled\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse undeclared-local program")
+        .lower_ir()
+        .expect("lower undeclared-local program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "ul_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "ul_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret undeclared-local program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "5\n0\n1\n2\n3\nhi\n10\n", "undeclared-local reference output");
+    assert_eq!(rust_out, self_out, "cgen.x undeclared-local hoisting differs from CEmitter");
+    assert_eq!(rust_out, interp_out, "undeclared-local hoisting differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly

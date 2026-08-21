@@ -37,6 +37,11 @@ DIM fwdSName$
 DIM fwdSAfter$
 DIM fwdSPos
 DIM fwdSType$
+DIM funcBody$
+DIM usedSyms$
+DIM dimmedSyms$
+DIM fullBody$
+DIM hoists$
 
 src$ = ""
 WHILE EOF() = 0
@@ -664,14 +669,28 @@ WHILE pos <= LEN(src$)
       retType$ = MID$(afterParen$, closeParen + 5, LEN(afterParen$) - closeParen - 4)
       PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(" + emit_params$(params$) + ") {"
       PRINT "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";"
+      funcBody$ = ""
+      usedSyms$ = CHR$(10)
+      dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
     ELSEIF stmt$ = "end function" THEN
       inFunc = 0
+      hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
+      fullBody$ = hoists$ + funcBody$
+      IF LEN(fullBody$) > 0 THEN
+        PRINT LEFT$(fullBody$, LEN(fullBody$) - 1)
+      END IF
       PRINT "    return " + c_var_name$(funcName$, retType$) + ";"
       PRINT "}"
     ELSE
       cCode$ = emit_stmt$(stmt$)
       IF inFunc = 1 THEN
-        PRINT cCode$
+        usedSyms$ = scan_used$(stmt$, usedSyms$)
+        IF LEFT$(stmt$, 4) = "dim " THEN
+          dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
+        ELSEIF LEFT$(stmt$, 6) = "redim " THEN
+          dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
+        END IF
+        funcBody$ = funcBody$ + cCode$ + CHR$(10)
       ELSE
         mainBody$ = mainBody$ + cCode$ + CHR$(10)
       END IF
@@ -2100,6 +2119,180 @@ FUNCTION emit_params$(params$)
     END IF
   WEND
   emit_params$ = result$
+END FUNCTION
+
+' --- Undeclared-local hoisting (CGEN-SELFHOST-PARITY) ---
+' XBasic auto-declares a scalar on first use; the selfhost tools always DIM
+' theirs, but real programs don't. These helpers collect every scalar a function
+' USES (`symbol(n:t)` reads, `for`/`assign` targets) minus what it DECLARES (DIM/
+' REDIM names, params, the return-value name), and emit a C declaration for the
+' remainder at the function prologue - mirroring the Rust CEmitter's
+' `emit_hoisted_scalars`. Byte-neutral on the selfhost tools (they have 0
+' undeclared locals, so nothing is hoisted); the sync suite gates that invariant.
+FUNCTION add_sym$(acc$, nm$, ty$)
+  add_sym$ = acc$
+  IF LEN(nm$) = 0 THEN
+    RETURN add_sym$
+  END IF
+  IF INSTR(nm$, ".") > 0 THEN
+    RETURN add_sym$
+  END IF
+  IF INSTR(nm$, "[") > 0 THEN
+    RETURN add_sym$
+  END IF
+  IF INSTR(acc$, CHR$(10) + nm$ + "|") > 0 THEN
+    RETURN add_sym$
+  END IF
+  add_sym$ = acc$ + nm$ + "|" + ty$ + CHR$(10)
+END FUNCTION
+
+FUNCTION scan_used$(s$, acc$)
+  DIM rest$
+  DIM p
+  DIM nm$
+  DIM ty$
+  DIM cp
+  DIM ep
+  DIM out$
+  DIM fpart$
+  out$ = acc$
+  rest$ = s$
+  p = INSTR(rest$, "symbol(")
+  WHILE p > 0
+    rest$ = MID$(rest$, p + 7, LEN(rest$) - p - 6)
+    cp = INSTR(rest$, ":")
+    ep = INSTR(rest$, ")")
+    IF cp > 0 THEN
+      IF ep > cp THEN
+        nm$ = LEFT$(rest$, cp - 1)
+        ty$ = MID$(rest$, cp + 1, ep - cp - 1)
+        out$ = add_sym$(out$, nm$, ty$)
+      END IF
+    END IF
+    p = INSTR(rest$, "symbol(")
+  WEND
+  IF LEFT$(s$, 4) = "for " THEN
+    fpart$ = MID$(s$, 5, LEN(s$) - 4)
+    ep = INSTR(fpart$, " = ")
+    IF ep > 0 THEN
+      fpart$ = LEFT$(fpart$, ep - 1)
+    END IF
+    cp = INSTR(fpart$, ":")
+    IF cp > 0 THEN
+      nm$ = trim_spaces$(LEFT$(fpart$, cp - 1))
+      ty$ = trim_spaces$(MID$(fpart$, cp + 1, LEN(fpart$) - cp))
+      out$ = add_sym$(out$, nm$, ty$)
+    END IF
+  END IF
+  IF LEFT$(s$, 7) = "assign " THEN
+    fpart$ = MID$(s$, 8, LEN(s$) - 7)
+    ep = INSTR(fpart$, " = ")
+    IF ep > 0 THEN
+      fpart$ = LEFT$(fpart$, ep - 1)
+    END IF
+    cp = INSTR(fpart$, ":")
+    IF cp > 0 THEN
+      nm$ = trim_spaces$(LEFT$(fpart$, cp - 1))
+      ty$ = trim_spaces$(MID$(fpart$, cp + 1, LEN(fpart$) - cp))
+      out$ = add_sym$(out$, nm$, ty$)
+    END IF
+  END IF
+  scan_used$ = out$
+END FUNCTION
+
+FUNCTION dim_name$(s$)
+  DIM r$
+  DIM p
+  r$ = s$
+  IF LEFT$(r$, 4) = "dim " THEN
+    r$ = MID$(r$, 5, LEN(r$) - 4)
+  ELSEIF LEFT$(r$, 6) = "redim " THEN
+    r$ = MID$(r$, 7, LEN(r$) - 6)
+  END IF
+  IF LEFT$(r$, 7) = "shared " THEN
+    r$ = MID$(r$, 8, LEN(r$) - 7)
+  END IF
+  p = INSTR(r$, ":")
+  IF p > 0 THEN
+    r$ = LEFT$(r$, p - 1)
+  END IF
+  p = INSTR(r$, "[")
+  IF p > 0 THEN
+    r$ = LEFT$(r$, p - 1)
+  END IF
+  dim_name$ = trim_spaces$(r$)
+END FUNCTION
+
+FUNCTION param_names$(p$)
+  DIM out$
+  DIM rest$
+  DIM cm
+  DIM one$
+  DIM cp
+  DIM nm$
+  out$ = ""
+  rest$ = p$
+  WHILE LEN(rest$) > 0
+    cm = INSTR(rest$, ",")
+    IF cm > 0 THEN
+      one$ = LEFT$(rest$, cm - 1)
+      rest$ = MID$(rest$, cm + 1, LEN(rest$) - cm)
+    ELSE
+      one$ = rest$
+      rest$ = ""
+    END IF
+    one$ = trim_spaces$(one$)
+    IF LEFT$(one$, 1) = "@" THEN
+      one$ = MID$(one$, 2, LEN(one$) - 1)
+    END IF
+    cp = INSTR(one$, ":")
+    IF cp > 0 THEN
+      nm$ = LEFT$(one$, cp - 1)
+    ELSE
+      nm$ = one$
+    END IF
+    cp = INSTR(nm$, "[")
+    IF cp > 0 THEN
+      nm$ = LEFT$(nm$, cp - 1)
+    END IF
+    nm$ = trim_spaces$(nm$)
+    IF LEN(nm$) > 0 THEN
+      out$ = out$ + nm$ + CHR$(10)
+    END IF
+  WEND
+  param_names$ = out$
+END FUNCTION
+
+FUNCTION emit_hoists$(used$, dimmed$)
+  DIM out$
+  DIM rest$
+  DIM nlpos
+  DIM entry$
+  DIM bar
+  DIM nm$
+  DIM ty$
+  out$ = ""
+  rest$ = used$
+  WHILE LEN(rest$) > 0
+    nlpos = INSTR(rest$, CHR$(10))
+    IF nlpos = 1 THEN
+      rest$ = MID$(rest$, 2, LEN(rest$) - 1)
+    ELSEIF nlpos > 1 THEN
+      entry$ = LEFT$(rest$, nlpos - 1)
+      rest$ = MID$(rest$, nlpos + 1, LEN(rest$) - nlpos)
+      bar = INSTR(entry$, "|")
+      IF bar > 0 THEN
+        nm$ = LEFT$(entry$, bar - 1)
+        ty$ = MID$(entry$, bar + 1, LEN(entry$) - bar)
+        IF INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
+          out$ = out$ + "    " + c_type$(ty$) + " " + c_var_name$(nm$, ty$) + " = " + c_default$(ty$) + ";" + CHR$(10)
+        END IF
+      END IF
+    ELSE
+      rest$ = ""
+    END IF
+  WEND
+  emit_hoists$ = out$
 END FUNCTION
 
 FUNCTION emit_stmt$(s$)
