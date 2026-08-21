@@ -1126,6 +1126,52 @@ fn cemitter_and_cgen_agree_on_leading_zero_literal() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// EOF builtin arg (CGEN-SELFHOST-PARITY): `EOF(handle)` maps to the 0-param C
+/// helper `xb_eof()`, but cgen.x passed the handle through -> `xb_eof(handle)` ->
+/// "too many arguments" cc error (awrite et al.). The interpreter ignores the arg
+/// and the Rust CEmitter drops it. cgen.x now special-cases `EOF` to emit `xb_eof()`
+/// (no args). Byte-neutral: cgen.x's own reader loop uses the 0-arg `EOF()`, which
+/// already emitted `xb_eof()`.
+#[test]
+fn cemitter_and_cgen_agree_on_eof_arg() {
+    let tmp = std::env::temp_dir().join("xb_sync_eof");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               IF EOF(1) THEN\n\
+               PRINT \"ateof\"\n\
+               ELSE\n\
+               PRINT \"noteof\"\n\
+               END IF\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse eof program")
+        .lower_ir()
+        .expect("lower eof program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "eof_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "eof_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret eof program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // Empty stdin -> at EOF.
+    assert_eq!(interp_out, "ateof\n", "EOF(handle) empty-stdin reference output");
+    assert_eq!(rust_out, self_out, "cgen.x EOF arg handling differs from CEmitter");
+    assert_eq!(rust_out, interp_out, "EOF arg handling differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly

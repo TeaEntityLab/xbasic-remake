@@ -1541,6 +1541,10 @@ FUNCTION emit_expr$(e$)
     emittedArgs$ = emit_args$(args$)
     DIM funcName$
     funcName$ = c_func_name$(fn$)
+    IF fn$ = "EOF" THEN
+      emit_expr$ = "xb_eof()"
+      RETURN emit_expr$
+    END IF
     IF fn$ = "CHR$" THEN
       DIM chrDepth
       DIM chrI
