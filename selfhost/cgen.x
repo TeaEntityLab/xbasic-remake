@@ -1870,6 +1870,12 @@ FUNCTION emit_expr$(e$)
         emittedArgs$ = emittedArgs$ + ", -99999"
       END IF
     END IF
+    IF INSTR(##funcTypes$, fn$ + ":") = 0 THEN
+      IF funcName$ = "xb_user_" + fn$ THEN
+        emit_expr$ = "0"
+        RETURN emit_expr$
+      END IF
+    END IF
     emit_expr$ = funcName$ + "(" + emittedArgs$ + ")"
     RETURN emit_expr$
   END IF
@@ -2699,6 +2705,12 @@ FUNCTION emit_stmt$(s$)
     ELSE
       fn$ = rest$
       args$ = ""
+    END IF
+    IF INSTR(##funcTypes$, fn$ + ":") = 0 THEN
+      IF c_func_name$(fn$) = "xb_user_" + fn$ THEN
+        emit_stmt$ = ""
+        RETURN emit_stmt$
+      END IF
     END IF
     emit_stmt$ = "    " + c_func_name$(fn$) + "(" + emit_args$(args$) + ");"
     RETURN emit_stmt$

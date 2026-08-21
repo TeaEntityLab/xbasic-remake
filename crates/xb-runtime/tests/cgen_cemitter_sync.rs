@@ -690,6 +690,62 @@ fn cemitter_and_cgen_agree_on_non_main_entry() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Unknown-call drop (CGEN-SELFHOST-PARITY gap 2): a call to a function that is
+/// neither user-defined nor a known builtin (external GUI/console `Xui*`/`Xgr*`/
+/// `Xst*`) must be a no-op as a statement and a zero-default as an expression -
+/// exactly what the interpreter/LLVM do (a stub yielding a discarded zero, args
+/// skipped) and what the Rust CEmitter emits (`is_unknown_call` -> nothing / `0`).
+/// cgen.x previously emitted a raw `xb_user_Xxx(...)` call -> undeclared-function
+/// cc error, blocking ~85 demos. cgen.x now drops an unknown statement call and
+/// zero-defaults an unknown expression call (predicate: not in `##funcTypes$` AND
+/// `c_func_name$` falls through to `xb_user_`). Byte-neutral on the selfhost tools
+/// + v0.1 corpus (they call only user functions / known builtins). This flipped the
+/// cgen.x demo differential from faithful=7 to faithful=42.
+#[test]
+fn cemitter_and_cgen_agree_on_unknown_call() {
+    let tmp = std::env::temp_dir().join("xb_sync_unknown_call");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    // XstUnknownThing / XstGetValue are undeclared externals; Known is a real
+    // user function that must still be called normally.
+    let src = "VERSION \"0.1\"\n\
+               DECLARE FUNCTION Known (n)\n\
+               FUNCTION Main\n\
+               XstUnknownThing(42)\n\
+               v = XstGetValue(1, 2)\n\
+               PRINT v\n\
+               PRINT Known(10)\n\
+               PRINT \"done\"\n\
+               END FUNCTION\n\
+               FUNCTION Known (n)\n\
+               RETURN n + 5\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse unknown-call program")
+        .lower_ir()
+        .expect("lower unknown-call program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "uk_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "uk_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret unknown-call program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "0\n15\ndone\n", "unknown-call reference output");
+    assert_eq!(rust_out, self_out, "cgen.x unknown-call handling differs from CEmitter");
+    assert_eq!(rust_out, interp_out, "unknown-call handling differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
