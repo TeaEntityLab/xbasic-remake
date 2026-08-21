@@ -73,16 +73,25 @@ impl Analyzer {
                 None
             }
         };
-        let sym_name = if is_array { &full_name } else { name };
-        let previous = self.symbols.insert(sym_name.to_owned(), vt);
+        let sym_name: String = if is_array {
+            full_name.clone()
+        } else {
+            // Collision-aware slot (matches reads via `symbol`/`slot_name`): a
+            // scalar `STRING imm$` colliding with `XLONG imm` must declare slot
+            // `imm$`, not bare `imm` — otherwise both DIM the same `imm`, flagging
+            // it dyn (2 DIMs of one name) and leaving one type facet undeclared
+            // in C (xdis `imm`/`imm$`). Non-colliding → bare name (byte-neutral).
+            self.slot_name(name, suffix)
+        };
+        let previous = self.symbols.insert(sym_name.clone(), vt);
         // REDIM legitimately re-declares an existing array; only DIM flags a dup.
         if !self.permissive && previous.is_some() && !redim {
             return Err(crate::checked::SemanticError::DuplicateSymbol {
-                name: sym_name.to_owned(),
+                name: sym_name.clone(),
             });
         }
         Ok(CheckedItem::Dim {
-            symbol: CheckedSymbol::new(sym_name.to_owned(), vt),
+            symbol: CheckedSymbol::new(sym_name, vt),
             size: checked_size,
             extra_dims: checked_extra_dims,
             is_array,

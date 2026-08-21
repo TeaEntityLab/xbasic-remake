@@ -983,3 +983,37 @@ END FUNCTION
         "a SHARED composite array's members must persist + type correctly across functions: {interp:?}"
     );
 }
+
+/// Locks the typed int/string VAR-SUFFIX-COLLISION DIM fix (xdis `imm`/`imm$`):
+/// `XLONG imm` + `STRING imm$` both lowered a *scalar* `Dim` to slot `imm`
+/// (`dim` used the bare name, not the collision-aware `slot_name` that reads
+/// use), so `imm` was DIM'd twice (int + string) → flagged dyn → the hoist
+/// declared only one type facet, leaving the other (`xb_str_imm`) undeclared in
+/// C. The scalar `Dim` now uses `slot_name`, so `imm$` declares slot `imm$`
+/// (`xb_str_imm_s`) distinct from `imm`'s `xb_var_imm`. Non-colliding DIMs keep
+/// the bare name (byte-neutral).
+#[test]
+fn cgen_matches_interpreter_on_typed_int_string_collision() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tXLONG imm
+\tSTRING imm$
+\timm = 5 : imm$ = \"hex\"
+\tPRINT imm; \"/\"; imm$
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_typed_collision");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "typedcol", &tmp);
+    assert_eq!(
+        native, interp,
+        "typed int/string collision cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert_eq!(
+        interp.trim(),
+        "5/hex",
+        "`XLONG imm` and `STRING imm$` are distinct slots: {interp:?}"
+    );
+}
