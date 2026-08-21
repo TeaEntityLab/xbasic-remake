@@ -8,13 +8,18 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
-> Last full re-verification: **2026-08-21** (all backends). `cargo test --workspace
-> --exclude xb-ide` = **193 passed / 0 failed**; `cgen_cemitter_sync` **5/5**;
-> native bootstrap fixed point **intact**; LLVM **105/0**. C-backend demo sweep:
-> **114/114 compile, 74 byte-faithful, diverge=0, 0 compile-fails** (up from
-> 3→55→97→113→114) — **every testable (non-GUI) demo now matches the interpreter**;
-> the 40 remaining are GUI programs that block on empty stdin (untestable, not
-> divergences). Recent: **expression-context side effects** now reach output — a
+> Last full re-verification: **2026-08-21** (all backends, post-array-ABI). `cargo
+> test --workspace --exclude xb-ide` = **194 passed / 0 failed**; `cgen_cemitter_sync`
+> **5/5** (byte-identity intact); native bootstrap fixed point **intact**; LLVM
+> **105/0**. C-backend demo sweep: **114/114 compile, 74 byte-faithful, diverge=0,
+> 0 compile-fails** — **every testable (non-GUI) demo matches the interpreter**; the
+> 40 remaining are GUI programs that block on empty stdin (untestable, not
+> divergences). **NEW (`be03117`): the by-ref array ABI (`CGEN-BYREF-REDIM`) landed**
+> — full `(T** data, intptr_t* ub)` descriptor + `XstQuickSort`/`XstCopyArray`, so
+> **`xbsourcelib` `fgr`/`vgr`/`msc`/`ary` now sort + copy arrays for real** and stay
+> byte-faithful (`cgen_demo_regression` 11/11). Every `Xst*` builtin the corpus uses
+> is now complete.
+> Recent: **expression-context side effects** now reach output — a
 > general interpreter `eval` bug (a function called in expression position
 > discarded its output sink) that flipped `XBMerge` (RT-ARGS) + unmasked/fixed
 > `atimer`/`qbtoxb` (`1975c75`); and a real **64-bit GIANT value type**
