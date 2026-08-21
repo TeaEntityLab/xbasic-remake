@@ -1058,3 +1058,34 @@ END FUNCTION
         "the scalar composite `host` must be independent of the SHARED `host[]` array: {interp:?}"
     );
 }
+
+/// Locks the interpreter's unary negation of an i32::MIN literal. `-2147483648`
+/// parses as `neg(2147483648)`, and `2147483648` (2^31) overflows i32 so it is
+/// typed Giant; `neg(Giant)` previously errored ("expected Integer, got Giant"),
+/// while the C backends produced i32::MIN. `neg` now wraps (two's complement) and
+/// the Giant->Integer assignment coercion narrows to i32::MIN, matching cgen.
+/// Guards MIN_INT / &H80000000 constants against interp-vs-cgen divergence.
+#[test]
+fn cgen_matches_interpreter_on_int_min_literal() {
+    let source = "\
+VERSION \"0.1\"
+FUNCTION Main
+\tDIM z
+\tz = -2147483648
+\tPRINT z
+\tPRINT ROTATEL(z, 1)
+END FUNCTION
+";
+    let tmp = std::env::temp_dir().join("xb_cgen_int_min");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let interp = interp_output(source);
+    let native = cgen_output(source, "intmin", &tmp);
+    assert_eq!(
+        native, interp,
+        "i32::MIN literal cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
+    );
+    assert!(
+        interp.contains("-2147483648") && !interp.to_lowercase().contains("error"),
+        "z = -2147483648 must evaluate (not error) in the interpreter: {interp:?}"
+    );
+}

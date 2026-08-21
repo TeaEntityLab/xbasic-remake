@@ -70,7 +70,13 @@ pub(crate) fn eval_expr(
             let v = eval(program, operand, state, output)?;
             match op {
                 xb_compiler::UnaryOp::Neg => match v {
-                    RuntimeValue::Integer(n) => RuntimeValue::Integer(-n),
+                    // wrapping_neg matches the C backends' two's-complement negation
+                    // (e.g. -i32::MIN wraps to i32::MIN, not a panic) and lets
+                    // `-2147483648` work: `2147483648` (2^31) overflows i32 so it is
+                    // typed Giant, and `neg(Giant)` must produce a Giant, which the
+                    // Giant->Integer assignment coercion then narrows to i32::MIN.
+                    RuntimeValue::Integer(n) => RuntimeValue::Integer(n.wrapping_neg()),
+                    RuntimeValue::Giant(n) => RuntimeValue::Giant(n.wrapping_neg()),
                     RuntimeValue::Float(f) => RuntimeValue::Float(-f),
                     _ => {
                         return Err(RuntimeError::TypeMismatch {
