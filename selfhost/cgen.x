@@ -545,6 +545,7 @@ PRINT ""
 ##gosubRetCount$ = ""
 ##sharedDecls$ = ""
 ##dynNames$ = ""
+##undimmed$ = ""
 ##selectState = 0
 ##selectExpr$ = ""
 ##selectBraces = 0
@@ -612,6 +613,7 @@ WEND
 PRINT ""
 
 ##dynNames$ = scan_dyn$(src$)
+##undimmed$ = scan_undimmed$(src$)
 hasMain = 0
 inFunc = 0
 inNest = 0
@@ -1998,6 +2000,10 @@ FUNCTION emit_expr$(e$)
       ELSE
         varType$ = "integer"
       END IF
+      IF INSTR(##undimmed$, ":" + varName$ + ":") > 0 THEN
+        emit_expr$ = c_default$(varType$)
+        RETURN emit_expr$
+      END IF
       t$ = MID$(t$, br + 1, LEN(t$) - br)
       IF RIGHT$(t$, 1) = "]" THEN
         t$ = LEFT$(t$, LEN(t$) - 1)
@@ -2636,6 +2642,78 @@ FUNCTION scan_dyn$(s$)
   scan_dyn$ = res$
 END FUNCTION
 
+' Scan the IR for UNDIMMED arrays: a name used as an array (`array_access(X:` /
+' `array_assign X:`) but never DIM'd as one (`dim X:t[`). The interpreter has no real
+' slot for it (an un-DIMmed read → type default; a write → no real store, evaluated
+' for side-effects only), so cgen.x folds accesses to the default and assigns to
+' `(void)(value)` — mirroring the Rust CEmitter (e.g. abuffer's `func[]` filled by a
+' stubbed Xui builtin). Returns a `:name:` set. Needles use CHR$(40) for `(`.
+FUNCTION scan_undimmed$(s$)
+  DIM ad$
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM r$
+  DIM nm$
+  DIM bp
+  DIM e
+  DIM nAcc$
+  DIM nAsn$
+  ad$ = ""
+  res$ = ""
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 4) = "dim " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      bp = INSTR(r$, "[")
+      IF bp > 0 THEN
+        nm$ = LEFT$(r$, bp - 1)
+        e = INSTR(nm$, ":")
+        IF e > 0 THEN
+          nm$ = LEFT$(nm$, e - 1)
+        END IF
+        ad$ = ad$ + ":" + nm$ + ":"
+      END IF
+    END IF
+  WEND
+  nAcc$ = "array_access" + CHR$(40)
+  nAsn$ = "array_assign "
+  p = INSTR(s$, nAcc$)
+  WHILE p > 0
+    e = INSTR(MID$(s$, p + 13, LEN(s$) - p - 12), ":")
+    IF e > 0 THEN
+      nm$ = MID$(s$, p + 13, e - 1)
+      IF INSTR(ad$, ":" + nm$ + ":") = 0 THEN
+        IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+          res$ = res$ + ":" + nm$ + ":"
+        END IF
+      END IF
+    END IF
+    p = INSTR(s$, nAcc$, p + 13)
+  WEND
+  p = INSTR(s$, nAsn$)
+  WHILE p > 0
+    e = INSTR(MID$(s$, p + 13, LEN(s$) - p - 12), ":")
+    IF e > 0 THEN
+      nm$ = MID$(s$, p + 13, e - 1)
+      IF INSTR(ad$, ":" + nm$ + ":") = 0 THEN
+        IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+          res$ = res$ + ":" + nm$ + ":"
+        END IF
+      END IF
+    END IF
+    p = INSTR(s$, nAsn$, p + 13)
+  WEND
+  scan_undimmed$ = res$
+END FUNCTION
+
 ' Replace every occurrence of `n$` in `h$` with `r$` (cgen.x has no built-in).
 FUNCTION replace$(h$, n$, r$)
   DIM out$
@@ -2897,7 +2975,11 @@ FUNCTION emit_stmt$(s$)
     spacePos = INSTR(tmp$, "= ")
     right$ = MID$(tmp$, spacePos + 2, LEN(tmp$) - spacePos - 1)
     c2$ = emit_expr$(right$)
-    emit_stmt$ = "    " + c_var_name$(varName$, varType$) + emit_msub$(cExpr$, 0) + " = " + c2$ + ";"
+    IF INSTR(##undimmed$, ":" + varName$ + ":") > 0 THEN
+      emit_stmt$ = "    (void)(" + c2$ + ");"
+    ELSE
+      emit_stmt$ = "    " + c_var_name$(varName$, varType$) + emit_msub$(cExpr$, 0) + " = " + c2$ + ";"
+    END IF
     RETURN emit_stmt$
   END IF
   IF LEFT$(s$, 10) = "mid_assign" THEN

@@ -1510,6 +1510,51 @@ fn cemitter_and_cgen_agree_on_scalar_used_dyn_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Undimmed arrays (CGEN-DYN-ARRAY): a name used as an array but never DIM'd (e.g.
+/// abuffer's `func[]`, filled by a stubbed Xui builtin) has no real slot in the
+/// interpreter — an un-DIMmed read yields the type default and a write is a no-op
+/// (evaluated for side-effects only). cgen.x folds an undimmed read to the default
+/// and an undimmed assign to `(void)(value)`, mirroring the Rust CEmitter. This was
+/// the key layer that unblocked the nested-fn demo cluster (10 flipped faithful).
+#[test]
+fn cemitter_and_cgen_agree_on_undimmed_array() {
+    let tmp = std::env::temp_dir().join("xb_sync_undim");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"ud\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               x = 0\n\
+               IF x THEN slots[2] = 99\n\
+               PRINT slots[0]\n\
+               PRINT \"done\"\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse undimmed program")
+        .lower_ir()
+        .expect("lower undimmed program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "undim_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "undim_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret undimmed program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    // Un-DIMmed read -> default 0; the guarded (never-taken) undimmed write is a no-op.
+    assert_eq!(interp_out, "0\ndone\n", "undimmed-array reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled the undimmed array");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled the undimmed array");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Function-name self-DIM (CGEN-SELFHOST-PARITY): a function whose body DIMs its own
 /// name (the return value — `FUNCTION Main() ... DIM Main`) made cgen.x emit a scalar
 /// decl for `xb_var_Main` from the signature AND again from the `dim` statement -> cc
