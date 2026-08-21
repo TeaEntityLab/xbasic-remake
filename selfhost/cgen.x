@@ -1116,6 +1116,10 @@ FUNCTION expr_type$(e$)
     END IF
     IF op$ = "+" AND (expr_type$(left$) = "string" OR expr_type$(right$) = "string") THEN
       expr_type$ = "string"
+    ELSEIF op$ = "\\" OR op$ = "mod" THEN
+      expr_type$ = "integer"
+    ELSEIF expr_type$(left$) = "float" OR expr_type$(right$) = "float" THEN
+      expr_type$ = "float"
     ELSE
       expr_type$ = "integer"
     END IF

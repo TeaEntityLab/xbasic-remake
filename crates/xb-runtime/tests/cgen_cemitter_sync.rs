@@ -479,6 +479,52 @@ fn cemitter_and_cgen_agree_on_giant_literal() {
     );
 }
 
+/// Float arithmetic must be typed Float (printed via `xb_print_float`), not Integer.
+/// cgen.x's `expr_type$` arith arm previously returned "integer" for every
+/// non-string-concat arith, so `1.0 / 3.0` went through `xb_print_int` and truncated
+/// to `0` instead of `0.3333333333333333` — a real cgen.x-vs-CEmitter drift (and
+/// interp gap). cgen.x now mirrors Rust's `infer_arith_type` (Float when either
+/// operand is Float; `\`/`mod` stay Integer). Locks all three backends.
+#[test]
+fn cemitter_and_cgen_agree_on_float_arith() {
+    let tmp = std::env::temp_dir().join("xb_sync_float_arith");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               PRINT 1.0 / 3.0\n\
+               PRINT 5.0 * 2.5\n\
+               PRINT 10.0 - 0.5\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse float-arith program")
+        .lower_ir()
+        .expect("lower float-arith program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let parsed = TextIrParser::parse(&ir).expect("parse text IR");
+    let rust_c = CEmitter::new().emit_program(&parsed);
+    let rust_out = compile_and_exec(&tmp, "fa_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "fa_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret float-arith program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert!(
+        interp_out.starts_with("0.333"),
+        "1.0 / 3.0 must be float 0.333..., not truncated to 0: {interp_out:?}"
+    );
+    assert_eq!(rust_out, self_out, "cgen.x float-arith typing differs from CEmitter");
+    assert_eq!(rust_out, interp_out, "float-arith typing differs from interpreter");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// The two generators must also agree on the self-hosting toolchain itself
 /// (compiler, lexer, parser, cgen), and both must match the interpreter (the
 /// semantic reference) on each tool's own input. This is the sync that directly
