@@ -84,6 +84,34 @@
 
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
+
+### cgen.x demo ceiling: 98/114 faithful, diverge=0 — the 15 cc-fails classified `[2026-08-22]`
+
+> The self-hosted `cgen.x` C generator is byte-faithful to the interpreter on **every
+> demo it compiles (98/114), with zero divergence**. The 15 remaining compile-fails are
+> **all multiply-blocked** (source-verified by grepping each demo for
+> `ANY`/`ATTACH`/`*AT`/`TYPE(`/socket markers). None flips with a single tractable fix;
+> each needs a coordinated multi-feature pass. **NB — corrected 2026-08-22:** these are
+> **not "fundamentally unimplementable."** Rust's CEmitter is faithful on several of
+> them, and neither Rust nor the interpreter implements the XBasic array-descriptor
+> memory model — they produce **degenerate** output (e.g. `PrintArray` no-ops by
+> early-returning before `XLONGAT` via `IFZ`/out-of-range `TYPE`). cgen.x could mirror
+> that; the difficulty is coordinating several features per demo, not a missing runtime.
+>
+> | group | demos | co-blockers (all needed together) |
+> |---|---|---|
+> | memory-model / ANY / ATTACH | aarray, aarray_ISNODE, gif, gifview, qbtoxb, zap (6) | byref-dual + 3-D arrays (`array[3,2,]`) + `ANY`-array `TYPE()` reflection + degenerate `*AT`/early-return flow (cgen.x's `xb_xlongat` is a real deref, same as Rust — faithfulness comes from early-returning before it) |
+> | network sockets | aclient, aserver (2) | a socket runtime (Xui socket wrappers → `undeclared xb_var_host_address`) |
+> | Xst runtime | asortie (1) | `XstQuickSort`/`XstCopyArray`/mem in cgen.x (done in Rust, `be03117`) |
+> | multi-dim SHARED + composite + grid | adatadim, aquick, arecord, atools, CursorEdit, Kittedy (6) | multi-dim SHARED 2-D calloc (the raw-`arith(` bug) + composite-record members + byref-dual + call-arity |
+>
+> **byref-dual `_arr` split — proven safe, 0-flip alone.** Gated to `##dynNames$ ∩
+> user-fn-param` (= `scan_byref_dual$`), which is EMPTY on all 99 faithful demos and the
+> self-host tools, so the split is byte-neutral there (verified: faithful=98 preserved,
+> sync 45/45, bootstrap OK). It is a *safe building block* of the group-4/group-1 passes,
+> but 0-flip on its own (every byref-dual demo needs its other co-blockers too), so it is
+> reverted from `main` until landed as part of a full per-demo pass.
+
 | ~~CGEN-ARRAYS~~ | C backend | ✅ **done** (2026-08-20): auto-vivified array hoisting + dynamic DIMs + undimmed-array folds | — | ✅ |
 | ~~CGEN-ARGC~~ | C backend | ✅ **done** (2026-08-20): arity reconciliation (drop extras, pad missing) via `DEFINED_SIGS` | — | ✅ |
 | ~~CGEN-BUILTINS~~ | C backend | ✅ **done** (2026-08-20): `INLINE$`, `EOF`, `RIGHT$`/`LEFT$` 1-arg, `STRING$` via `xb_string` | — | ✅ |
