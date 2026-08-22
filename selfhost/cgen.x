@@ -839,6 +839,8 @@ WHILE pos <= LEN(src$)
             firstParams$ = params$
           END IF
           retType$ = MID$(afterParen$, closeParen + 5, LEN(afterParen$) - closeParen - 4)
+          ##arrParams$ = arr_param_names$(params$)
+          ##curParams$ = param_names$(params$)
           PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(" + emit_params$(params$) + ") {"
           PRINT "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";"
           funcBody$ = ""
@@ -848,8 +850,6 @@ WHILE pos <= LEN(src$)
           ##scalarSeen$ = ""
           ##fwdScalars$ = ""
           ##curFnArrays$ = fn_array_dims$(src$, pos)
-          ##arrParams$ = arr_param_names$(params$)
-          ##curParams$ = param_names$(params$)
           ##inFuncScope = 1
           nestBlocks$ = ""
           inNest = 0
@@ -3124,7 +3124,9 @@ FUNCTION emit_hoists$(used$, dimmed$)
             ELSE
               out$ = out$ + "    intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
             END IF
-            out$ = out$ + "    " + c_type$(_dt$) + " xb_var_" + sanitize_ident$(entry$) + " = " + c_default$(_dt$) + ";" + CHR$(10)
+            IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) > 0 THEN
+              out$ = out$ + "    " + c_type$(_dt$) + " xb_var_" + sanitize_ident$(entry$) + " = " + c_default$(_dt$) + ";" + CHR$(10)
+            END IF
           END IF
         ELSE
           DIM _dt2$
@@ -3467,8 +3469,11 @@ FUNCTION scan_byref_dual$(s$)
                 res$ = res$ + ":" + _pnm$ + ":"
               END IF
             ' Condition 2: array param also used as scalar (symbol(name:...))
-            ' in the IR — needs _arr split even without ##dynNames$
-            ELSEIF INSTR(s$, "symbol(" + _pnm$ + ":") > 0 THEN
+            ' in the IR — needs _arr split even without ##dynNames$.
+            ' Only for non-string names (no $ suffix): string names like grid$
+            ' appear as byref(symbol(grid$:...)) in call args, which would
+            ' falsely match. String dual-use is handled by ##strDual$.
+            ELSEIF RIGHT$(_pnm$, 1) <> "$" AND INSTR(s$, "symbol(" + _pnm$ + ":") > 0 THEN
               IF INSTR(res$, ":" + _pnm$ + ":") = 0 THEN
                 res$ = res$ + ":" + _pnm$ + ":"
               END IF
@@ -3647,9 +3652,12 @@ END FUNCTION
 
 ' The C-name suffix for the ARRAY facet of a byref-dual name (`_arr`), else "".
 ' Array-context sites (dyn decl, calloc, access, assign, ubound) append bd$(X);
-' the scalar facet keeps base `xb_var_X`. Empty on the corpus -> byte-neutral.
 FUNCTION bd$(n$)
-  IF INSTR(##byrefDual$, ":" + n$ + ":") > 0 OR INSTR(##strDual$, ":" + n$ + ":") > 0 OR INSTR(##dualUse$, ":" + n$ + ":") > 0 THEN
+  ' of the current function (##arrParams$) — otherwise a local array in another
+  ' function with the same name as a byref-dual param gets wrongly suffixed.
+  IF INSTR(##strDual$, ":" + n$ + ":") > 0 OR INSTR(##dualUse$, ":" + n$ + ":") > 0 THEN
+    bd$ = "_arr"
+  ELSEIF INSTR(##byrefDual$, ":" + n$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + n$ + CHR$(10)) > 0 THEN
     bd$ = "_arr"
   ELSE
     bd$ = ""
