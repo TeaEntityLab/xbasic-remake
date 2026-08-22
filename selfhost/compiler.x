@@ -72,6 +72,10 @@ DIM dimType$
 DIM ifDepth
 DIM ifStack(64)
 DIM ifSP
+DIM singleLineIf
+DIM midTarget$
+DIM midStart$
+DIM midLen$
 DIM arrNames$(64)
 DIM arrSP
 DIM isArr
@@ -91,15 +95,31 @@ DIM subName$
 ##suffixType$ = ""
 nConst = 0
 
-src$ = ""
+DIM srcLines$(20000)
+nLines = 0
+totalLen = 0
 WHILE EOF() = 0
-  line$ = READLINE$()
+  nLines = nLines + 1
+  srcLines$(nLines) = READLINE$()
+  totalLen = totalLen + LEN(srcLines$(nLines))
   IF EOF() = 0 THEN
-    src$ = src$ + line$ + CHR$(10)
-  ELSE
-    src$ = src$ + line$
+    totalLen = totalLen + 1
   END IF
 WEND
+src$ = SPACE$(totalLen)
+srcPos = 1
+FOR i = 1 TO nLines
+  line$ = srcLines$(i)
+  lineLen = LEN(line$)
+  IF lineLen > 0 THEN
+    MID$(src$, srcPos, lineLen) = line$
+  END IF
+  srcPos = srcPos + lineLen
+  IF i < nLines THEN
+    MID$(src$, srcPos, 1) = CHR$(10)
+    srcPos = srcPos + 1
+  END IF
+NEXT i
 
 ntok = 0
 pos = 1
@@ -143,7 +163,7 @@ WHILE pos <= LEN(src$)
       tt$(ntok) = "symbol"
       tv$(ntok) = "$"
     END IF
-  ELSEIF (ch >= 65 AND ch <= 90) OR (ch >= 97 AND ch <= 122) THEN
+  ELSEIF (ch >= 65 AND ch <= 90) OR (ch >= 97 AND ch <= 122) OR ch = 95 THEN
     tok$ = ""
     done = 0
     WHILE done = 0
@@ -393,9 +413,27 @@ stmtState = 0
 ifDepth = 0
 ifSP = 0
 arrSP = 0
+singleLineIf = 0
+midLen$ = ""
 
 WHILE tpos <= ntok
   IF stmtState = 0 THEN
+    IF singleLineIf = 2 THEN
+      singleLineIf = 0
+      indent = indent - 1
+      prefix$ = ""
+      i = 1
+      WHILE i <= indent
+        prefix$ = prefix$ + "  "
+        i = i + 1
+      WEND
+      PRINT prefix$ + "end if"
+      ifDepth = ifStack(ifSP)
+      ifSP = ifSP - 1
+    END IF
+    IF singleLineIf = 1 THEN
+      singleLineIf = 2
+    END IF
     t$ = tt$(tpos)
     v$ = tv$(tpos)
     IF t$ = "newline" THEN
@@ -438,7 +476,7 @@ WHILE tpos <= ntok
       vt$ = "integer"
       bn$ = strip_suffix$(v$)
       vt$ = ##suffixType$
-      IF tpos <= ntok AND tt$(tpos) = "symbol" AND tv$(tpos) = "(" THEN
+      IF tpos <= ntok AND tt$(tpos) = "symbol" AND (tv$(tpos) = "(" OR tv$(tpos) = "[") THEN
         tpos = tpos + 1
         arrSP = arrSP + 1
         arrNames$(arrSP) = v$
@@ -633,6 +671,11 @@ WHILE tpos <= ntok
       exprStop$ = "newline"
     ELSEIF t$ = "ident" AND tpos + 1 <= ntok AND tt$(tpos + 1) = "symbol" AND tv$(tpos + 1) = ":" THEN
       tpos = tpos + 2
+    ELSEIF t$ = "ident" AND v$ = "MID$" AND tpos + 1 <= ntok AND tt$(tpos + 1) = "symbol" AND tv$(tpos + 1) = "(" THEN
+      ' MID$ assignment: MID$(target, start[, len]) = value
+      tpos = tpos + 2
+      stmtState = 18
+      exprStop$ = "COMMA_OR_RPAREN"
     ELSEIF t$ = "ident" THEN
       isArr = 0
       j = 1
@@ -643,7 +686,7 @@ WHILE tpos <= ntok
         END IF
         j = j + 1
       WEND
-      IF isArr = 1 AND tpos + 1 <= ntok AND tt$(tpos + 1) = "symbol" AND tv$(tpos + 1) = "(" THEN
+      IF isArr = 1 AND tpos + 1 <= ntok AND tt$(tpos + 1) = "symbol" AND (tv$(tpos + 1) = "(" OR tv$(tpos + 1) = "[") THEN
         arrName$ = v$
         tpos = tpos + 2
         stmtState = 8
@@ -853,7 +896,9 @@ WHILE tpos <= ntok
           isStop = 1
         ELSEIF exprStop$ = "STEP_OR_NL" AND t$ = "keyword" AND v$ = "STEP" THEN
           isStop = 1
-        ELSEIF exprStop$ = ")" AND t$ = "symbol" AND v$ = ")" AND parenDepth = 0 THEN
+        ELSEIF exprStop$ = ")" AND t$ = "symbol" AND (v$ = ")" OR v$ = "]") AND parenDepth = 0 THEN
+          isStop = 1
+        ELSEIF exprStop$ = "COMMA_OR_RPAREN" AND t$ = "symbol" AND (v$ = "," OR v$ = ")" OR v$ = "]") AND parenDepth = 0 THEN
           isStop = 1
         END IF
         IF isStop = 1 THEN
@@ -914,7 +959,7 @@ WHILE tpos <= ntok
           ELSEIF t$ = "ident" THEN
             iname$ = v$
             tpos = tpos + 1
-            IF tpos <= ntok AND tt$(tpos) = "symbol" AND tv$(tpos) = "(" THEN
+            IF tpos <= ntok AND tt$(tpos) = "symbol" AND (tv$(tpos) = "(" OR tv$(tpos) = "[") THEN
               isArr = 0
               j = 1
               WHILE j <= arrSP
@@ -987,7 +1032,7 @@ WHILE tpos <= ntok
             opStack$(spOp) = "NOT"
             opPrec(spOp) = 3
             tpos = tpos + 1
-          ELSEIF t$ = "symbol" AND v$ = ")" AND parenDepth > 0 THEN
+          ELSEIF t$ = "symbol" AND (v$ = ")" OR v$ = "]") AND parenDepth > 0 THEN
             popPrec = 0
             pendingOp$ = ")"
             tpos = tpos + 1
@@ -1062,7 +1107,7 @@ WHILE tpos <= ntok
             pendingOp$ = "^^"
             pendingPrec = prec
             tpos = tpos + 1
-          ELSEIF t$ = "symbol" AND v$ = ")" THEN
+          ELSEIF t$ = "symbol" AND (v$ = ")" OR v$ = "]") THEN
             popPrec = 0
             pendingOp$ = ")"
             tpos = tpos + 1
@@ -1107,6 +1152,10 @@ WHILE tpos <= ntok
       WEND
       PRINT prefix$ + "if " + eir$
       indent = indent + 1
+      ' Check for single-line IF (statement after THEN on same line)
+      IF tpos <= ntok AND NOT (tt$(tpos) = "newline") THEN
+        singleLineIf = 1
+      END IF
       stmtState = 0
     ELSEIF stmtState = 4 THEN
       prefix$ = ""
@@ -1244,6 +1293,43 @@ WHILE tpos <= ntok
       ELSE
         PRINT prefix$ + "loop until " + eir$
       END IF
+      stmtState = 0
+    ELSEIF stmtState = 18 THEN
+      midTarget$ = eir$
+      tpos = tpos + 1
+      stmtState = 19
+      exprStop$ = "COMMA_OR_RPAREN"
+    ELSEIF stmtState = 19 THEN
+      midStart$ = eir$
+      IF tpos <= ntok AND tt$(tpos) = "symbol" AND tv$(tpos) = "," THEN
+        tpos = tpos + 1
+        stmtState = 20
+        exprStop$ = ")"
+      ELSE
+        tpos = tpos + 1
+        tpos = tpos + 1
+        stmtState = 21
+        exprStop$ = "newline"
+      END IF
+    ELSEIF stmtState = 20 THEN
+      midLen$ = eir$
+      tpos = tpos + 1
+      tpos = tpos + 1
+      stmtState = 21
+      exprStop$ = "newline"
+    ELSEIF stmtState = 21 THEN
+      prefix$ = ""
+      i = 1
+      WHILE i <= indent
+        prefix$ = prefix$ + "  "
+        i = i + 1
+      WEND
+      IF midLen$ = "" THEN
+        PRINT prefix$ + "mid_assign " + midTarget$ + " | " + midStart$ + " | " + eir$
+      ELSE
+        PRINT prefix$ + "mid_assign " + midTarget$ + " | " + midStart$ + " | " + midLen$ + " | " + eir$
+      END IF
+      midLen$ = ""
       stmtState = 0
     END IF
   END IF

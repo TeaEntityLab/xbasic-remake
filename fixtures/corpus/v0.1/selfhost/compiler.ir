@@ -72,6 +72,10 @@ function Main() -> integer
   dim ifDepth:integer
   dim ifStack:integer[integer(64)]
   dim ifSP:integer
+  dim singleLineIf:integer
+  dim midTarget:string
+  dim midStart:string
+  dim midLen:string
   dim arrNames$:string[integer(64)]
   dim arrSP:integer
   dim isArr:integer
@@ -90,15 +94,31 @@ function Main() -> integer
   dim subName:string
   shared ##suffixType:string = string("")
   assign nConst:integer = integer(0)
-  assign src:string = string("")
+  dim srcLines$:string[integer(20000)]
+  assign nLines:integer = integer(0)
+  assign totalLen:integer = integer(0)
   while compare(call EOF() = integer(0))
-    assign line:string = call READLINE$()
+    assign nLines:integer = arith(symbol(nLines:integer) + integer(1))
+    array_assign srcLines$:string[symbol(nLines:integer)] = call READLINE$()
+    assign totalLen:integer = arith(symbol(totalLen:integer) + call LEN(array_access(srcLines$:string[symbol(nLines:integer)])))
     if compare(call EOF() = integer(0))
-      assign src:string = arith(arith(symbol(src:string) + symbol(line:string)) + call CHR$(integer(10)))
-    else
-      assign src:string = arith(symbol(src:string) + symbol(line:string))
+      assign totalLen:integer = arith(symbol(totalLen:integer) + integer(1))
     end if
   wend
+  assign src:string = call SPACE$(symbol(totalLen:integer))
+  assign srcPos:integer = integer(1)
+  for i:integer = integer(1) to symbol(nLines:integer)
+    assign line:string = array_access(srcLines$:string[symbol(i:integer)])
+    assign lineLen:integer = call LEN(symbol(line:string))
+    if compare(symbol(lineLen:integer) > integer(0))
+      mid_assign symbol(src:string) | symbol(srcPos:integer) | symbol(lineLen:integer) | symbol(line:string)
+    end if
+    assign srcPos:integer = arith(symbol(srcPos:integer) + symbol(lineLen:integer))
+    if compare(symbol(i:integer) < symbol(nLines:integer))
+      mid_assign symbol(src:string) | symbol(srcPos:integer) | integer(1) | call CHR$(integer(10))
+      assign srcPos:integer = arith(symbol(srcPos:integer) + integer(1))
+    end if
+  next
   assign ntok:integer = integer(0)
   assign pos:integer = integer(1)
   while compare(symbol(pos:integer) <= call LEN(symbol(src:string)))
@@ -145,7 +165,7 @@ function Main() -> integer
               array_assign tv$:string[symbol(ntok:integer)] = string("$")
             end if
           else
-            if or(and(compare(symbol(ch:integer) >= integer(65)) compare(symbol(ch:integer) <= integer(90))) and(compare(symbol(ch:integer) >= integer(97)) compare(symbol(ch:integer) <= integer(122))))
+            if or(or(and(compare(symbol(ch:integer) >= integer(65)) compare(symbol(ch:integer) <= integer(90))) and(compare(symbol(ch:integer) >= integer(97)) compare(symbol(ch:integer) <= integer(122)))) compare(symbol(ch:integer) = integer(95)))
               assign tok:string = string("")
               assign done:integer = integer(0)
               while compare(symbol(done:integer) = integer(0))
@@ -431,8 +451,26 @@ function Main() -> integer
   assign ifDepth:integer = integer(0)
   assign ifSP:integer = integer(0)
   assign arrSP:integer = integer(0)
+  assign singleLineIf:integer = integer(0)
+  assign midLen:string = string("")
   while compare(symbol(tpos:integer) <= symbol(ntok:integer))
     if compare(symbol(stmtState:integer) = integer(0))
+      if compare(symbol(singleLineIf:integer) = integer(2))
+        assign singleLineIf:integer = integer(0)
+        assign indent:integer = arith(symbol(indent:integer) - integer(1))
+        assign prefix:string = string("")
+        assign i:integer = integer(1)
+        while compare(symbol(i:integer) <= symbol(indent:integer))
+          assign prefix:string = arith(symbol(prefix:string) + string("  "))
+          assign i:integer = arith(symbol(i:integer) + integer(1))
+        wend
+        print arith(symbol(prefix:string) + string("end if"))
+        assign ifDepth:integer = array_access(ifStack:integer[symbol(ifSP:integer)])
+        assign ifSP:integer = arith(symbol(ifSP:integer) - integer(1))
+      end if
+      if compare(symbol(singleLineIf:integer) = integer(1))
+        assign singleLineIf:integer = integer(2)
+      end if
       assign t:string = array_access(tt$:string[symbol(tpos:integer)])
       assign v:string = array_access(tv$:string[symbol(tpos:integer)])
       if compare(symbol(t:string) = string("newline"))
@@ -480,7 +518,7 @@ function Main() -> integer
               assign vt:string = string("integer")
               assign bn:string = call strip_suffix(symbol(v:string))
               assign vt:string = shared(##suffixType:string)
-              if and(and(compare(symbol(tpos:integer) <= symbol(ntok:integer)) compare(array_access(tt$:string[symbol(tpos:integer)]) = string("symbol"))) compare(array_access(tv$:string[symbol(tpos:integer)]) = string("(")))
+              if and(and(compare(symbol(tpos:integer) <= symbol(ntok:integer)) compare(array_access(tt$:string[symbol(tpos:integer)]) = string("symbol"))) or(compare(array_access(tv$:string[symbol(tpos:integer)]) = string("(")) compare(array_access(tv$:string[symbol(tpos:integer)]) = string("["))))
                 assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                 assign arrSP:integer = arith(symbol(arrSP:integer) + integer(1))
                 array_assign arrNames$:string[symbol(arrSP:integer)] = symbol(v:string)
@@ -698,26 +736,44 @@ function Main() -> integer
                                                     if and(and(and(compare(symbol(t:string) = string("ident")) compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string(":")))
                                                       assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
                                                     else
-                                                      if compare(symbol(t:string) = string("ident"))
-                                                        assign isArr:integer = integer(0)
-                                                        assign j:integer = integer(1)
-                                                        while compare(symbol(j:integer) <= symbol(arrSP:integer))
-                                                          if compare(array_access(arrNames$:string[symbol(j:integer)]) = symbol(v:string))
-                                                            assign isArr:integer = integer(1)
-                                                            assign j:integer = arith(symbol(arrSP:integer) + integer(1))
-                                                          end if
-                                                          assign j:integer = arith(symbol(j:integer) + integer(1))
-                                                        wend
-                                                        if and(and(and(compare(symbol(isArr:integer) = integer(1)) compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("(")))
-                                                          assign arrName:string = symbol(v:string)
-                                                          assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
-                                                          assign stmtState:integer = integer(8)
-                                                          assign exprStop:string = string(")")
-                                                        else
-                                                          if and(and(compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("(")))
-                                                            assign stmtState:integer = integer(11)
-                                                            assign exprStop:string = string("newline")
+                                                      if and(and(and(and(compare(symbol(t:string) = string("ident")) compare(symbol(v:string) = string("MID$"))) compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("(")))
+                                                        assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
+                                                        assign stmtState:integer = integer(18)
+                                                        assign exprStop:string = string("COMMA_OR_RPAREN")
+                                                      else
+                                                        if compare(symbol(t:string) = string("ident"))
+                                                          assign isArr:integer = integer(0)
+                                                          assign j:integer = integer(1)
+                                                          while compare(symbol(j:integer) <= symbol(arrSP:integer))
+                                                            if compare(array_access(arrNames$:string[symbol(j:integer)]) = symbol(v:string))
+                                                              assign isArr:integer = integer(1)
+                                                              assign j:integer = arith(symbol(arrSP:integer) + integer(1))
+                                                            end if
+                                                            assign j:integer = arith(symbol(j:integer) + integer(1))
+                                                          wend
+                                                          if and(and(and(compare(symbol(isArr:integer) = integer(1)) compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("symbol"))) or(compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("(")) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("["))))
+                                                            assign arrName:string = symbol(v:string)
+                                                            assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
+                                                            assign stmtState:integer = integer(8)
+                                                            assign exprStop:string = string(")")
                                                           else
+                                                            if and(and(compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("(")))
+                                                              assign stmtState:integer = integer(11)
+                                                              assign exprStop:string = string("newline")
+                                                            else
+                                                              assign assignTarget:string = symbol(v:string)
+                                                              assign vt:string = string("integer")
+                                                              assign bn:string = call strip_suffix(symbol(v:string))
+                                                              assign vt:string = shared(##suffixType:string)
+                                                              assign assignType:string = symbol(vt:string)
+                                                              assign assignTarget:string = symbol(bn:string)
+                                                              assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
+                                                              assign stmtState:integer = integer(2)
+                                                              assign exprStop:string = string("newline")
+                                                            end if
+                                                          end if
+                                                        else
+                                                          if compare(symbol(t:string) = string("shared"))
                                                             assign assignTarget:string = symbol(v:string)
                                                             assign vt:string = string("integer")
                                                             assign bn:string = call strip_suffix(symbol(v:string))
@@ -725,23 +781,11 @@ function Main() -> integer
                                                             assign assignType:string = symbol(vt:string)
                                                             assign assignTarget:string = symbol(bn:string)
                                                             assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
-                                                            assign stmtState:integer = integer(2)
+                                                            assign stmtState:integer = integer(12)
                                                             assign exprStop:string = string("newline")
+                                                          else
+                                                            assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                                                           end if
-                                                        end if
-                                                      else
-                                                        if compare(symbol(t:string) = string("shared"))
-                                                          assign assignTarget:string = symbol(v:string)
-                                                          assign vt:string = string("integer")
-                                                          assign bn:string = call strip_suffix(symbol(v:string))
-                                                          assign vt:string = shared(##suffixType:string)
-                                                          assign assignType:string = symbol(vt:string)
-                                                          assign assignTarget:string = symbol(bn:string)
-                                                          assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
-                                                          assign stmtState:integer = integer(12)
-                                                          assign exprStop:string = string("newline")
-                                                        else
-                                                          assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                                                         end if
                                                       end if
                                                     end if
@@ -986,8 +1030,12 @@ function Main() -> integer
                     if and(and(compare(symbol(exprStop:string) = string("STEP_OR_NL")) compare(symbol(t:string) = string("keyword"))) compare(symbol(v:string) = string("STEP")))
                       assign isStop:integer = integer(1)
                     else
-                      if and(and(and(compare(symbol(exprStop:string) = string(")")) compare(symbol(t:string) = string("symbol"))) compare(symbol(v:string) = string(")"))) compare(symbol(parenDepth:integer) = integer(0)))
+                      if and(and(and(compare(symbol(exprStop:string) = string(")")) compare(symbol(t:string) = string("symbol"))) or(compare(symbol(v:string) = string(")")) compare(symbol(v:string) = string("]")))) compare(symbol(parenDepth:integer) = integer(0)))
                         assign isStop:integer = integer(1)
+                      else
+                        if and(and(and(compare(symbol(exprStop:string) = string("COMMA_OR_RPAREN")) compare(symbol(t:string) = string("symbol"))) or(or(compare(symbol(v:string) = string(",")) compare(symbol(v:string) = string(")"))) compare(symbol(v:string) = string("]")))) compare(symbol(parenDepth:integer) = integer(0)))
+                          assign isStop:integer = integer(1)
+                        end if
                       end if
                     end if
                   end if
@@ -1063,7 +1111,7 @@ function Main() -> integer
                     if compare(symbol(t:string) = string("ident"))
                       assign iname:string = symbol(v:string)
                       assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
-                      if and(and(compare(symbol(tpos:integer) <= symbol(ntok:integer)) compare(array_access(tt$:string[symbol(tpos:integer)]) = string("symbol"))) compare(array_access(tv$:string[symbol(tpos:integer)]) = string("(")))
+                      if and(and(compare(symbol(tpos:integer) <= symbol(ntok:integer)) compare(array_access(tt$:string[symbol(tpos:integer)]) = string("symbol"))) or(compare(array_access(tv$:string[symbol(tpos:integer)]) = string("(")) compare(array_access(tv$:string[symbol(tpos:integer)]) = string("["))))
                         assign isArr:integer = integer(0)
                         assign j:integer = integer(1)
                         while compare(symbol(j:integer) <= symbol(arrSP:integer))
@@ -1141,7 +1189,7 @@ function Main() -> integer
                               array_assign opPrec:integer[symbol(spOp:integer)] = integer(3)
                               assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                             else
-                              if and(and(compare(symbol(t:string) = string("symbol")) compare(symbol(v:string) = string(")"))) compare(symbol(parenDepth:integer) > integer(0)))
+                              if and(and(compare(symbol(t:string) = string("symbol")) or(compare(symbol(v:string) = string(")")) compare(symbol(v:string) = string("]")))) compare(symbol(parenDepth:integer) > integer(0)))
                                 assign popPrec:integer = integer(0)
                                 assign pendingOp:string = string(")")
                                 assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
@@ -1234,7 +1282,7 @@ function Main() -> integer
                                       assign pendingPrec:integer = symbol(prec:integer)
                                       assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                                     else
-                                      if and(compare(symbol(t:string) = string("symbol")) compare(symbol(v:string) = string(")")))
+                                      if and(compare(symbol(t:string) = string("symbol")) or(compare(symbol(v:string) = string(")")) compare(symbol(v:string) = string("]"))))
                                         assign popPrec:integer = integer(0)
                                         assign pendingOp:string = string(")")
                                         assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
@@ -1296,6 +1344,9 @@ function Main() -> integer
             wend
             print arith(arith(symbol(prefix:string) + string("if ")) + symbol(eir:string))
             assign indent:integer = arith(symbol(indent:integer) + integer(1))
+            if and(compare(symbol(tpos:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(tpos:integer)]) = string("newline"))))
+              assign singleLineIf:integer = integer(1)
+            end if
             assign stmtState:integer = integer(0)
           else
             if compare(symbol(stmtState:integer) = integer(4))
@@ -1449,6 +1500,51 @@ function Main() -> integer
                                         print arith(arith(symbol(prefix:string) + string("loop until ")) + symbol(eir:string))
                                       end if
                                       assign stmtState:integer = integer(0)
+                                    else
+                                      if compare(symbol(stmtState:integer) = integer(18))
+                                        assign midTarget:string = symbol(eir:string)
+                                        assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
+                                        assign stmtState:integer = integer(19)
+                                        assign exprStop:string = string("COMMA_OR_RPAREN")
+                                      else
+                                        if compare(symbol(stmtState:integer) = integer(19))
+                                          assign midStart:string = symbol(eir:string)
+                                          if and(and(compare(symbol(tpos:integer) <= symbol(ntok:integer)) compare(array_access(tt$:string[symbol(tpos:integer)]) = string("symbol"))) compare(array_access(tv$:string[symbol(tpos:integer)]) = string(",")))
+                                            assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
+                                            assign stmtState:integer = integer(20)
+                                            assign exprStop:string = string(")")
+                                          else
+                                            assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
+                                            assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
+                                            assign stmtState:integer = integer(21)
+                                            assign exprStop:string = string("newline")
+                                          end if
+                                        else
+                                          if compare(symbol(stmtState:integer) = integer(20))
+                                            assign midLen:string = symbol(eir:string)
+                                            assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
+                                            assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
+                                            assign stmtState:integer = integer(21)
+                                            assign exprStop:string = string("newline")
+                                          else
+                                            if compare(symbol(stmtState:integer) = integer(21))
+                                              assign prefix:string = string("")
+                                              assign i:integer = integer(1)
+                                              while compare(symbol(i:integer) <= symbol(indent:integer))
+                                                assign prefix:string = arith(symbol(prefix:string) + string("  "))
+                                                assign i:integer = arith(symbol(i:integer) + integer(1))
+                                              wend
+                                              if compare(symbol(midLen:string) = string(""))
+                                                print arith(arith(arith(arith(arith(arith(symbol(prefix:string) + string("mid_assign ")) + symbol(midTarget:string)) + string(" | ")) + symbol(midStart:string)) + string(" | ")) + symbol(eir:string))
+                                              else
+                                                print arith(arith(arith(arith(arith(arith(arith(arith(symbol(prefix:string) + string("mid_assign ")) + symbol(midTarget:string)) + string(" | ")) + symbol(midStart:string)) + string(" | ")) + symbol(midLen:string)) + string(" | ")) + symbol(eir:string))
+                                              end if
+                                              assign midLen:string = string("")
+                                              assign stmtState:integer = integer(0)
+                                            end if
+                                          end if
+                                        end if
+                                      end if
                                     end if
                                   end if
                                 end if
