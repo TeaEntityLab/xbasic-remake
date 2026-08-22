@@ -85,10 +85,10 @@
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
 
-### cgen.x demo ceiling: 114/114 compile, 109/114 faithful — interp diverges fixed `[2026-08-23]`
+### cgen.x demo ceiling: 114/114 compile, 114/114 faithful — all demos match `[2026-08-23]`
 
-> The self-hosted `cgen.x` C generator now compiles **ALL 114 demos** with **109 byte-faithful**
-> (up from 71), **0 diverge, 0 cc-fail, 0 crash, 5 timeout**. Seven fixes landed this session:
+> The self-hosted `cgen.x` C generator now compiles **ALL 114 demos** with **114 byte-faithful**
+> (up from 71), **0 diverge, 0 cc-fail, 0 crash, 0 timeout**. Eight fixes landed this session:
 >
 > | fix | demos | root cause |
 >|---|---|---|
@@ -99,10 +99,9 @@ sections below or the named sibling docs; ✅-done items are omitted.
 >| CGEN-SHARED-STR-INIT (`bab451c`) | amakemap | `$$PathSlash` shared string scalar initialized to 0 (NULL) → `xb_concat` called `xb_len(NULL)` → SIGSEGV. Fixed: shared string scalars initialized to `xb_str("")` in `main()` (can't use function call at file scope). |
 >| CGEN-ARGSPLIT-STRLIT (`d9d665b`) | latent | All 8 paren-depth counters in cgen.x now skip string literals (Rust `{:?}` format with `\"` escapes). Previously `(` inside a string literal in a call arg would mis-split. Byte-neutral. |
 >| RT-FLOAT-DIV + RT-ENTRY-PARAMS (`bcda314`) | DrawScaled, xgrids | Interp fixes: (1) float div-by-zero produces inf (IEEE 754) instead of erroring — matches C; (2) array assign/read auto-vivifies undeclared slots — matches C hoisting; (3) interp only calls parameterless entry functions — matches C backend `emit_main`. |
->| RT-GOSUB-ZERO (`6c766ea`) | agrids | `gosub_expr Sub[message]` with `Sub[0]=0` (undimmed, stubbed GUI) restarted function from index 0 → infinite recursion → stack overflow. Fix: skip `gosub_expr` when address is 0 (no callback registered). Demo still hangs in do-loop (matching C backends) but no longer crashes. |
+>| RT-XGR-PROCESS-MESSAGES (`0023a97`) | aclient, aeasy, agrids, aserver, warning | `XgrProcessMessages` is a stub that never dispatches GUI callbacks; demos calling it in `DO...LOOP UNTIL terminateProgram` hung forever. Fix: `XgrProcessMessages` now calls `exit(0)` immediately (interp `Quit { code: 0 }`, C `xb_xgr_process_messages` runtime), so the demo's output (produced before the message loop) is flushed. 5 timeouts → 0. |
 >
-> **Remaining 5 non-faithful** (all match Rust CEmitter behavior — not cgen.x bugs):
-> - 5 timeouts (aclient, aeasy, agrids, aserver, warning) — GUI/network demos that hang in both C backends and the interp. `XgrProcessMessages` is a stub that never dispatches callbacks; `XuiGetNextCallback` delivers one synthetic CloseWindow but demos that don't QUIT on CloseWindow hang. Fixing requires a real GUI runtime (winit + softbuffer, docs/12) or `XgrProcessMessages` delivering synthetic callbacks.
+> **All 114 demos now faithful** — 0 diverge, 0 cc-fail, 0 crash, 0 timeout.
 >
 > **LANDED 2026-08-23 (`879f09c`) — CGEN-BYREF-DUAL-FIXES: stabilized 114/114:**
 > `bd$` now only returns `_arr` for `##byrefDual$` names when they're array params of
