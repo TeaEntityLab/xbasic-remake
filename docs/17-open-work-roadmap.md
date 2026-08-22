@@ -88,8 +88,9 @@ sections below or the named sibling docs; ✅-done items are omitted.
 ### cgen.x demo ceiling: 100/114 faithful, diverge=0 — the 13 cc-fails classified `[2026-08-22]`
 
 > The self-hosted `cgen.x` C generator is byte-faithful to the interpreter on **every
-> demo it compiles (100/114), with zero divergence**. **aarray flipped 2026-08-22
-> (`b5bd930`)** — see the landed 3-fix note below — taking faithful 98→100. The 13
+> demo it compiles (100/114), with zero divergence**. **Both `aarray` and
+> `aarray_ISNODE` flipped 2026-08-22 (`b5bd930`)** — see the landed 3-fix note below —
+> taking faithful 98→100. The 13
 > remaining compile-fails are **all multiply-blocked** (source-verified by grepping each
 > demo for `ANY`/`ATTACH`/`*AT`/`TYPE(`/socket markers). None flips with a single fix;
 > each needs a coordinated multi-feature pass. These are **not "fundamentally
@@ -100,7 +101,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 >
 > | group | demos | co-blockers (all needed together) |
 > |---|---|---|
-> | memory-model / ANY / ATTACH | aarray_ISNODE, gif, gifview, qbtoxb, zap (5) | byref-dual + 3-D arrays + `ANY`-array `TYPE()` reflection + degenerate `*AT`/early-return flow (aarray, same family, is now DONE) |
+> | memory-model / ANY / ATTACH | gif, gifview, qbtoxb, zap (4) | byref-dual + 3-D arrays + `ANY`-array `TYPE()` reflection + degenerate `*AT`/early-return flow (aarray + aarray_ISNODE, same family, are now DONE) |
 > | network sockets | aclient, aserver (2) | a socket runtime (Xui socket wrappers → `undeclared xb_var_host_address`) |
 > | Xst runtime | asortie (1) | real `XstQuickSort`/`XstCopyArray` in cgen.x + by-ref-array descriptor for `@field3$[]` (done in Rust, `be03117`) |
 > | multi-dim SHARED + composite + grid | adatadim, aquick, arecord, atools, CursorEdit, Kittedy (6) | multi-dim SHARED 2-D calloc (raw-`arith(` bug) + composite-record members + byref-dual + call-arity |
