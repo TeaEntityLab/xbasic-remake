@@ -378,6 +378,38 @@ program uses it (§2 RT-FUNCPTR).
 > since removing it would be a no-op risk). `first_expr$` already had this fix
 > (inQuote flag). Byte-neutral: sync 46/46, bootstrap OK, all suites green.
 
+
+### ~~COMPILER-X-FIXES~~ — compiler.x underscore/bracket/single-line-IF/MID$-assign ✅ done `[2026-08-23, 7fd48f8]`
+
+> **FIXED** (`7fd48f8`): four bugs in `selfhost/compiler.x` prevented it from
+> processing `cgen.x` (5430 lines), causing an apparent OOM (exit 137 after 118s
+> with only 728 lines of IR). Root causes and fixes:
+>
+> 1. **Underscore identifiers**: tokenizer only allowed A-Z/a-z as identifier
+>    start, not `_` (ch=95). Identifiers like `_fdTab1` were split into `_`
+>    (symbol) + `fdTab1` (ident), causing parser infinite loops. Fix: add ch=95
+>    to identifier start check.
+> 2. **Bracket array syntax**: cgen.x uses `[]` for arrays (`DIM pNames$[32]`,
+>    `pNames$[i]`), but compiler.x only handled `()`. Fix: add `[]` support to
+>    DIM handler, array assignment, expression parser, and closing bracket
+>    handling.
+> 3. **Single-line IF**: `IF x=1 THEN y=10` was treated as multi-line IF,
+>    causing incorrect nesting. Fix: detect single-line IF in stmtState=3;
+>    two-phase `singleLineIf` flag (1→2) emits `end if` after body statement;
+>    must pop `ifStack` (not just decrement `ifDepth`).
+> 4. **MID$ assignment**: `MID$(s$,pos,len)=val` was parsed as
+>    `compare(call MID$(...) = val)` instead of `mid_assign`. Fix: detect MID$
+>    followed by `(` in statement parser; add `COMMA_OR_RPAREN` expression stop
+>    condition; multi-phase stmtState 18-21 to parse target/start/length/value.
+>
+> Also includes O(n²) `src$` concatenation fix (SPACE$ pre-allocation + MID$
+> in-place fill) and `@user[]` array reference skip.
+>
+> **Results**: compiler.x processes cgen.x in 0.09s (was: OOM after 118s);
+> native compiler IR matches Rust IR byte-for-byte for both compiler.x and
+> cgen.x (zero diff); `native_compiler_emits_cgen_ir_for_cgen` test un-ignored
+> and passes; `compiler_self_compilation_produces_identical_ir` passes; all
+> workspace tests pass (0 failed, 0 ignored).
 ### CGEN-NESTED-FN — IMPLEMENTED `[2026-08-22, 823008f]`
 
 > **DONE** (`823008f`, sync 28/28, bootstrap fixed point intact, no demo
