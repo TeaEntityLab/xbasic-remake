@@ -85,18 +85,22 @@
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
 
-### cgen.x demo ceiling: 114/114 compile, 0 runtime crashes — qbtoxb + arecurse fixed `[2026-08-23]`
+### cgen.x demo ceiling: 114/114 compile, 107/114 faithful — GUI headless runtime ported `[2026-08-23]`
 
-> The self-hosted `cgen.x` C generator now compiles **ALL 114 demos** and **all run cleanly**
-> (exit 0). Two runtime crashes fixed:
+> The self-hosted `cgen.x` C generator now compiles **ALL 114 demos** with **107 byte-faithful**
+> (up from 71), **0 diverge, 0 cc-fail, 0 crash**. Three fixes landed:
 >
 > | fix | demos | root cause |
 >|---|---|---|
->| CGEN-STRCMP-LEN (`5d73678`) | qbtoxb | `compare(string = integer(0))` emitted `xb_scmp(X, 0)` which calls `xb_len(0)` → SIGSEGV. Fixed: mixed string/numeric comparison now emits `(intptr_t)xb_len(X) == 0` matching Rust CEmitter. |
->| CGEN-MIXED-BYREF (`4e19a4f`) | arecurse | `byref(symbol(X))` to a function with mixed byref/byval calls always emitted `&X`. Fixed: `scan_mixed_byref$` pre-scans call sites; mixed functions emit value directly (no `&`) matching Rust CEmitter's call-site driven approach. |
+>| CGEN-STRCMP-LEN (`5d73678`) | qbtoxb | `compare(string = integer(0))` emitted `xb_scmp(X, 0)` → `xb_len(0)` → SIGSEGV. Fixed: mixed string/numeric comparison emits `(intptr_t)xb_len(X) == 0`. |
+>| CGEN-MIXED-BYREF (`4e19a4f`) | arecurse | `byref(symbol(X))` to mixed byref/byval functions always emitted `&X`. Fixed: `scan_mixed_byref$` pre-scans call sites; mixed functions emit value directly. |
+>| CGEN-GUI-HEADLESS (`5296fa9`) | 36 GUI demos | `XuiGetNextCallback` was stubbed to `0`, hanging event loops. Ported headless GUI runtime from Rust CEmitter: `xb_gui_next_callback` delivers one synthetic CloseWindow. Also fixed string SELECT CASE (used `==` pointer comparison instead of `xb_scmp`) and integer byref arg emission (fell through to `0` for plain integer byref). |
 >
-> **amakemap** crashes in both cgen.x and Rust CEmitter (exit 139) — not a cgen.x bug.
-> **qbtoxb** Rust CEmitter output has compile errors — cgen.x actually produces better output.
+> **Remaining 7 non-faithful** (all match Rust CEmitter behavior — not cgen.x bugs):
+> - 4 timeouts (aclient, aeasy, agrids, aserver, warning) — `XgrProcessMessages`-based GUI demos that hang in both C backends; interp doesn't call `Entry()` so exits cleanly
+> - 1 crash (amakemap) — crashes in both cgen.x and Rust CEmitter (demo issue)
+> - 1 cc-fail (adrawing) — pre-existing `double*` vs `double` type mismatch
+> - 1 timeout (amakemap) — same demo issue
 >
 > **LANDED 2026-08-23 (`879f09c`) — CGEN-BYREF-DUAL-FIXES: stabilized 114/114:**
 > `bd$` now only returns `_arr` for `##byrefDual$` names when they're array params of
