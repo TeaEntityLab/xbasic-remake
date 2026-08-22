@@ -34,15 +34,20 @@ pub(crate) fn emit_hoisted_scalars(
     if scalars.is_empty() {
         return;
     }
-    let mut dimmed: HashSet<String> = HashSet::new();
+    let mut dimmed: HashSet<(String, bool)> = HashSet::new();
     collect_dimmed(body, &mut dimmed);
-    let params: HashSet<&str> = params.iter().map(|p| p.name.as_str()).collect();
+    let params: HashSet<(&str, bool)> = params
+        .iter()
+        .map(|p| (p.name.as_str(), p.value_type == ValueType::String))
+        .collect();
     let ind = "    ".repeat(indent);
-    for ((name, _is_str), vt) in &scalars {
+    for ((name, is_str), vt) in &scalars {
         // Skip params (declared in the signature) and the function's own name —
         // EXCEPT a dual-use param, whose array facet took the `_arr` name in the
         // signature, so its scalar facet still needs this local declaration.
-        if (params.contains(name.as_str()) && !crate::c_emit::is_dual_use(name))
+        // Key by (name, is_str): a string param `addr$` must not suppress the
+        // integer local `addr` (different C variable: xb_str_addr vs xb_var_addr).
+        if (params.contains(&(name.as_str(), *is_str)) && !crate::c_emit::is_dual_use(name))
             || own_name == Some(name.as_str())
         {
             continue;
@@ -53,7 +58,7 @@ pub(crate) fn emit_hoisted_scalars(
         // hoists the name (pointer for a late/repeated-DIM array, or a reset
         // scalar), and it also has an inline `Dim`; hoisting again = C redefinition.
         if !crate::c_emit::is_dual_use(name)
-            && (dimmed.contains(name)
+            && (dimmed.contains(&(name.clone(), *is_str))
                 || crate::c_emit::is_dyn_array(name)
                 || crate::c_emit::is_dyn_scalar(name))
         {
@@ -245,11 +250,13 @@ fn walk_items(items: &[IrItem], scalars: &mut BTreeMap<(String, bool), ValueType
 /// Names dimensioned anywhere in `items` (recursing control flow, not nested
 /// functions) — scalars *and* arrays. Such names keep their inline `Dim`
 /// declaration and must not be hoisted (double declaration).
-fn collect_dimmed(items: &[IrItem], dimmed: &mut HashSet<String>) {
+/// Keyed by (name, is_string): a string `DIM addr$` must not suppress the
+/// integer scalar `addr` (different C variable).
+fn collect_dimmed(items: &[IrItem], dimmed: &mut HashSet<(String, bool)>) {
     for it in items {
         match it {
             IrItem::Dim { symbol, .. } => {
-                dimmed.insert(symbol.name.clone());
+                dimmed.insert((symbol.name.clone(), symbol.value_type == ValueType::String));
             }
             IrItem::If { then_body, else_body, .. } => {
                 collect_dimmed(then_body, dimmed);
