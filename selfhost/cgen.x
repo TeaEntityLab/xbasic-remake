@@ -563,6 +563,7 @@ PRINT ""
 ##undimmed$ = ""
 ##dynStr$ = ""
 ##strDual$ = ""
+##dualUse$ = ""
 ##arr2d$ = ""
 ##scalarSeen$ = ""
 ##fwdScalars$ = ""
@@ -578,6 +579,7 @@ PRINT ""
 ##dynNames$ = scan_dyn$(src$)
 ##byrefDual$ = scan_byref_dual$(src$)
 ##strDual$ = scan_str_dual$(src$)
+##dualUse$ = scan_dual_use$(src$)
 ' Forward declarations: pre-scan all lines for function signatures
 fwdPos = 1
 WHILE fwdPos <= LEN(src$)
@@ -685,6 +687,7 @@ PRINT ""
 ##undimmed$ = scan_undimmed$(src$)
 ##dynStr$ = scan_dynstr$(src$)
 ##strDual$ = scan_str_dual$(src$)
+##dualUse$ = scan_dual_use$(src$)
 ##arr2d$ = scan_arr2d$(src$)
 hasMain = 0
 inFunc = 0
@@ -2120,6 +2123,8 @@ FUNCTION emit_expr$(e$)
       END IF
       IF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0) THEN
         emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat2d$(t$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "]"
+      ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
+        emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
       ELSE
         emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + emit_msub$(t$, 0)
       END IF
@@ -2368,6 +2373,31 @@ FUNCTION emit_msub$(a$, isDim)
     out$ = out$ + "[" + emit_expr$(part$) + "]"
   END IF
   emit_msub$ = out$
+END FUNCTION
+
+' Extract the first top-level comma-separated part of `a$` (paren-depth aware).
+' Used to drop extra indices on 2-D+ access to a 1-D array (Rust CEmitter's
+' 1-D approximation: when the declared dim count != index count, only the first
+' index is emitted).
+FUNCTION first_comma_part$(a$)
+  DIM i
+  DIM ch
+  DIM depth
+  i = 1
+  depth = 0
+  WHILE i <= LEN(a$)
+    ch = ASC(MID$(a$, i, 1))
+    IF ch = 40 THEN
+      depth = depth + 1
+    ELSEIF ch = 41 THEN
+      depth = depth - 1
+    ELSEIF ch = 44 AND depth = 0 THEN
+      first_comma_part$ = trim_spaces$(LEFT$(a$, i - 1))
+      RETURN first_comma_part$
+    END IF
+    i = i + 1
+  WEND
+  first_comma_part$ = a$
 END FUNCTION
 
 ' Total element count for a multi-dim array Dim: the product `((d0)+1)*((d1)+1)*...`
@@ -2827,7 +2857,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
           out$ = out$ + "    char** " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
         END IF
       ELSEIF INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
-        IF INSTR(##byrefDual$, ":" + entry$ + ":") > 0 THEN
+        IF INSTR(##byrefDual$, ":" + entry$ + ":") > 0 OR INSTR(##dualUse$, ":" + entry$ + ":") > 0 THEN
           IF INSTR(out$, "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)) = 0 THEN
             IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
               out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
@@ -3106,11 +3136,115 @@ FUNCTION scan_byref_dual$(s$)
   scan_byref_dual$ = res$
 END FUNCTION
 
+' General dual-use (CGEN-DUALUSE): a name in ##dynNames$ (dual-DIM scalar+array)
+' that appears in BOTH `symbol(name:...)` (scalar context) AND `array_access(name:...`
+' (array context) in the IR. Such a name needs the _arr split: scalar facet
+' `xb_var_X` + array facet `xb_var_X_arr`, mirroring the Rust CEmitter's
+' collect_dual_use. Catches gif's `hash`/`raw` (DIM'd as both, used as both in
+' the same expression like hash[hash]). Filtered by ##dynNames$ so pure-array
+' names that are also scalar-read (handled by the dyn-pointer) are excluded.
+' EMPTY on selfhost tools (no array_access in their IR) -> byte-neutral.
+FUNCTION scan_dual_use$(s$)
+  DIM scalarSet$
+  DIM arraySet$
+  DIM res$
+  DIM p
+  DIM sp
+  DIM cp
+  DIM nm$
+  DIM nc$
+  scalarSet$ = ""
+  arraySet$ = ""
+  p = 1
+  WHILE p <= LEN(s$)
+    sp = INSTR(s$, "symbol" + CHR$(40), p)
+    IF sp = 0 THEN
+      p = LEN(s$) + 1
+    ELSE
+      IF sp + 7 <= LEN(s$) THEN
+        nc$ = MID$(s$, sp + 7, 1)
+        IF nc$ <> CHR$(34) THEN
+          cp = INSTR(s$, ":", sp + 7)
+          IF cp > 0 THEN
+            nm$ = MID$(s$, sp + 7, cp - sp - 7)
+            IF INSTR(scalarSet$, ":" + nm$ + ":") = 0 THEN
+              scalarSet$ = scalarSet$ + ":" + nm$ + ":"
+            END IF
+          END IF
+        END IF
+      END IF
+      p = sp + 1
+    END IF
+  WEND
+  p = 1
+  WHILE p <= LEN(s$)
+    sp = INSTR(s$, "array_access" + CHR$(40), p)
+    IF sp = 0 THEN
+      p = LEN(s$) + 1
+    ELSE
+      IF sp + 13 <= LEN(s$) THEN
+        nc$ = MID$(s$, sp + 13, 1)
+        IF nc$ <> CHR$(34) THEN
+          cp = INSTR(s$, ":", sp + 13)
+          IF cp > 0 THEN
+            nm$ = MID$(s$, sp + 13, cp - sp - 13)
+            IF INSTR(arraySet$, ":" + nm$ + ":") = 0 THEN
+              arraySet$ = arraySet$ + ":" + nm$ + ":"
+            END IF
+          END IF
+        END IF
+      END IF
+      p = sp + 1
+    END IF
+  WEND
+  p = 1
+  WHILE p <= LEN(s$)
+    sp = INSTR(s$, "array_assign ", p)
+    IF sp = 0 THEN
+      p = LEN(s$) + 1
+    ELSE
+      IF sp + 13 <= LEN(s$) THEN
+        nc$ = MID$(s$, sp + 13, 1)
+        IF nc$ <> CHR$(34) THEN
+          cp = INSTR(s$, ":", sp + 13)
+          IF cp > 0 THEN
+            nm$ = MID$(s$, sp + 13, cp - sp - 13)
+            IF INSTR(arraySet$, ":" + nm$ + ":") = 0 THEN
+              arraySet$ = arraySet$ + ":" + nm$ + ":"
+            END IF
+          END IF
+        END IF
+      END IF
+      p = sp + 1
+    END IF
+  WEND
+  res$ = ""
+  p = 1
+  WHILE p <= LEN(scalarSet$)
+    sp = INSTR(scalarSet$, ":", p + 1)
+    IF sp = 0 THEN
+      sp = LEN(scalarSet$) + 1
+    END IF
+    nm$ = MID$(scalarSet$, p + 1, sp - p - 1)
+    p = sp + 1
+    IF LEN(nm$) > 0 THEN
+      IF INSTR(arraySet$, ":" + nm$ + ":") > 0 THEN
+        IF INSTR(##dynNames$, ":" + nm$ + ":") > 0 THEN
+          IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+            res$ = res$ + ":" + nm$ + ":"
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  scan_dual_use$ = res$
+END FUNCTION
+
 ' The C-name suffix for the ARRAY facet of a byref-dual name (`_arr`), else "".
 ' Array-context sites (dyn decl, calloc, access, assign, ubound) append bd$(X);
 ' the scalar facet keeps base `xb_var_X`. Empty on the corpus -> byte-neutral.
 FUNCTION bd$(n$)
-  IF INSTR(##byrefDual$, ":" + n$ + ":") > 0 OR INSTR(##strDual$, ":" + n$ + ":") > 0 THEN
+  IF INSTR(##byrefDual$, ":" + n$ + ":") > 0 OR INSTR(##strDual$, ":" + n$ + ":") > 0 OR INSTR(##dualUse$, ":" + n$ + ":") > 0 THEN
     bd$ = "_arr"
   ELSE
     bd$ = ""
@@ -3775,6 +3909,8 @@ FUNCTION emit_stmt$(s$)
     ELSE
       IF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0) THEN
         emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat2d$(cExpr$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "] = " + c2$ + ";"
+      ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
+        emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_expr$(first_comma_part$(cExpr$)) + "] = " + c2$ + ";"
       ELSE
         emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + emit_msub$(cExpr$, 0) + " = " + c2$ + ";"
       END IF
