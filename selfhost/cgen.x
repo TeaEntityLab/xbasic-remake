@@ -3481,7 +3481,7 @@ FUNCTION emit_stmt$(s$)
           emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + "[(" + cExpr$ + ") + 1];" + CHR$(10) + "    for (int _i = 0; _i < (" + cExpr$ + ") + 1; _i++) " + c_var_name$(varName$, varType$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
         END IF
       ELSE
-        emit_stmt$ = "    intptr_t " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + ";"
+        emit_stmt$ = "    " + c_type$(varType$) + " " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + ";"
       END IF
     ELSE
       colonPos = INSTR(rest$, ":")

@@ -2153,3 +2153,48 @@ fn cemitter_and_cgen_helper_signatures_match() {
     );
     let _ = fs::remove_dir_all(&tmp);
 }
+
+/// Typed (non-integer) fixed array element type (CGEN-TYPED-ARRAY): a `#`/`!`
+/// (float) array `DIM a#[3]` must declare its C element type from the slot type
+/// (`double`), not a hardcoded `intptr_t`. cgen.x emitted `intptr_t xb_var_a_d[..]`
+/// so `a#[0] = 1.5` truncated to `1` (cgen.x printed `1`, interp/Rust `1.5`).
+/// cgen.x now uses `c_type$(varType$)` for the element type — `intptr_t` for an
+/// integer array (byte-identical to before; the corpus is all-integer) and
+/// `double` for a float array. Byte-neutral on the self-host corpus + bootstrap.
+#[test]
+fn cemitter_and_cgen_agree_on_typed_float_array() {
+    let tmp = std::env::temp_dir().join("xb_sync_typedarr");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"ta\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM a#[3]\n\
+               a#[0] = 1.5\n\
+               a#[1] = 2.25\n\
+               PRINT a#[0] + a#[1]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse typed float array program")
+        .lower_ir()
+        .expect("lower typed float array program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "ta_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "ta_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret typed float array program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "3.75\n", "typed float array reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled the typed float array");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled the typed float array (element type)");
+    let _ = fs::remove_dir_all(&tmp);
+}
