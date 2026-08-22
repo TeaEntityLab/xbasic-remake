@@ -2586,8 +2586,16 @@ FUNCTION emit_params$(params$)
   DIM colonPos
   DIM pName$
   DIM pType$
-
-  result$ = ""
+  DIM i
+  DIM j
+  DIM pCount
+  DIM pNames$[32]
+  DIM pTypes$[32]
+  DIM pIsStr[32]
+  DIM isDup
+  DIM baseName$
+  ' First pass: parse all parameters into arrays for dup detection
+  pCount = 0
   rest$ = params$
   WHILE LEN(rest$) > 0
     commaPos = INSTR(rest$, ",")
@@ -2605,22 +2613,50 @@ FUNCTION emit_params$(params$)
     IF LEN(param$) > 0 THEN
       colonPos = INSTR(param$, ":")
       IF colonPos > 0 THEN
-        pName$ = LEFT$(param$, colonPos - 1)
-        pType$ = MID$(param$, colonPos + 1, LEN(param$) - colonPos)
+        pNames$[pCount] = LEFT$(param$, colonPos - 1)
+        pTypes$[pCount] = MID$(param$, colonPos + 1, LEN(param$) - colonPos)
       ELSE
-        pName$ = param$
-        pType$ = "integer"
+        pNames$[pCount] = param$
+        pTypes$[pCount] = "integer"
       END IF
-      IF LEN(result$) > 0 THEN
-        result$ = result$ + ", "
+      pIsStr[pCount] = 0
+      IF INSTR(pTypes$[pCount], "string") > 0 THEN
+        pIsStr[pCount] = 1
       END IF
-      IF INSTR(##byrefDual$, ":" + pName$ + ":") > 0 THEN
-        result$ = result$ + c_type$(pType$) + "* " + c_var_name$(pName$, pType$) + bd$(pName$)
-      ELSE
-        result$ = result$ + c_type$(pType$) + " " + c_var_name$(pName$, pType$)
-      END IF
+      pCount = pCount + 1
     END IF
   WEND
+  ' Second pass: emit with original logic + duplicate detection
+  result$ = ""
+  FOR i = 0 TO pCount - 1
+    IF LEN(result$) > 0 THEN
+      result$ = result$ + ", "
+    END IF
+    pName$ = pNames$[i]
+    pType$ = pTypes$[i]
+    ' Build base C name
+    IF INSTR(##byrefDual$, ":" + pName$ + ":") > 0 THEN
+      baseName$ = c_var_name$(pName$, pType$) + bd$(pName$)
+    ELSE
+      baseName$ = c_var_name$(pName$, pType$)
+    END IF
+    ' Check for duplicate (later param with same name and same string-ness)
+    isDup = 0
+    FOR j = i + 1 TO pCount - 1
+      IF pNames$[j] = pName$ AND pIsStr[j] = pIsStr[i] THEN
+        isDup = 1
+      END IF
+    NEXT j
+    IF isDup = 1 THEN
+      baseName$ = baseName$ + "__dup" + STR$(i)
+    END IF
+    ' Emit
+    IF INSTR(##byrefDual$, ":" + pName$ + ":") > 0 THEN
+      result$ = result$ + c_type$(pType$) + "* " + baseName$
+    ELSE
+      result$ = result$ + c_type$(pType$) + " " + baseName$
+    END IF
+  NEXT i
   emit_params$ = result$
 END FUNCTION
 
