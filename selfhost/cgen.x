@@ -562,6 +562,7 @@ PRINT ""
 ##byrefDual$ = ""
 ##undimmed$ = ""
 ##dynStr$ = ""
+##strDual$ = ""
 ##arr2d$ = ""
 ##scalarSeen$ = ""
 ##fwdScalars$ = ""
@@ -576,6 +577,7 @@ PRINT ""
 ##sharedArrays$ = scan_shared_arr$(src$)
 ##dynNames$ = scan_dyn$(src$)
 ##byrefDual$ = scan_byref_dual$(src$)
+##strDual$ = scan_str_dual$(src$)
 ' Forward declarations: pre-scan all lines for function signatures
 fwdPos = 1
 WHILE fwdPos <= LEN(src$)
@@ -682,6 +684,7 @@ PRINT ""
 ##byrefDual$ = scan_byref_dual$(src$)
 ##undimmed$ = scan_undimmed$(src$)
 ##dynStr$ = scan_dynstr$(src$)
+##strDual$ = scan_str_dual$(src$)
 ##arr2d$ = scan_arr2d$(src$)
 hasMain = 0
 inFunc = 0
@@ -2147,6 +2150,8 @@ FUNCTION emit_expr$(e$)
       ELSE
         emit_expr$ = "(-1)"
       END IF
+    ELSEIF INSTR(##strDual$, ":" + varName$ + ":") > 0 THEN
+      emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$) + bd$(varName$)
     ELSEIF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
@@ -2816,7 +2821,11 @@ FUNCTION emit_hoists$(used$, dimmed$)
     ELSEIF nlpos > 1 THEN
       entry$ = LEFT$(rest$, nlpos - 1)
       rest$ = MID$(rest$, nlpos + 1, LEN(rest$) - nlpos)
-      IF INSTR(##dynStr$, ":" + entry$ + ":") > 0 THEN
+      IF INSTR(##strDual$, ":" + entry$ + ":") > 0 THEN
+        IF INSTR(out$, "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** ") = 0 THEN
+          out$ = out$ + "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** " + c_var_name$(entry$, "string") + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
+        END IF
+      ELSEIF INSTR(##dynStr$, ":" + entry$ + ":") > 0 THEN
         IF INSTR(out$, " " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_") = 0 THEN
           out$ = out$ + "    char** " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
         END IF
@@ -2913,7 +2922,7 @@ FUNCTION is_xfn_dyn$(n$)
   is_xfn_dyn$ = ""
   IF ##inFuncScope = 1 THEN
     IF INSTR(##curFnArrays$, ":" + n$ + ":") = 0 THEN
-      IF INSTR(##dynStr$, ":" + n$ + ":") > 0 OR INSTR(##dynNames$, ":" + n$ + ":") > 0 THEN
+      IF INSTR(##dynStr$, ":" + n$ + ":") > 0 OR INSTR(##dynNames$, ":" + n$ + ":") > 0 OR INSTR(##strDual$, ":" + n$ + ":") > 0 THEN
         is_xfn_dyn$ = "1"
       END IF
     END IF
@@ -3104,7 +3113,7 @@ END FUNCTION
 ' Array-context sites (dyn decl, calloc, access, assign, ubound) append bd$(X);
 ' the scalar facet keeps base `xb_var_X`. Empty on the corpus -> byte-neutral.
 FUNCTION bd$(n$)
-  IF INSTR(##byrefDual$, ":" + n$ + ":") > 0 THEN
+  IF INSTR(##byrefDual$, ":" + n$ + ":") > 0 OR INSTR(##strDual$, ":" + n$ + ":") > 0 THEN
     bd$ = "_arr"
   ELSE
     bd$ = ""
@@ -3244,6 +3253,72 @@ FUNCTION scan_dynstr$(s$)
     END IF
   WEND
   scan_dynstr$ = res$
+END FUNCTION
+
+' STRING scalar+array dual-use (CGEN-STRDUAL): a name DIM'd as BOTH a scalar
+' string (`dim X:string`) AND a string array (`dim X:string[N]`) — the string
+' analog of the integer ##dynNames$ / byref-dual `_arr` split. The interpreter
+' treats X as one variable that becomes an array after the re-DIM; C needs two
+' facets: a scalar `char* xb_str_X` and a heap array `char** xb_str_X_arr`. The
+' array-context sites get the `_arr` suffix (via bd$); scalar uses stay bare.
+' EMPTY on all faithful demos + selfhost tools (they never scalar+array a string)
+' -> byte-neutral. Returns a `:name:` set.
+FUNCTION scan_str_dual$(s$)
+  DIM scal$
+  DIM arr$
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM r$
+  DIM nm$
+  DIM bp
+  DIM e
+  scal$ = ""
+  arr$ = ""
+  res$ = ""
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 4) = "dim " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      bp = INSTR(r$, "[")
+      IF bp > 0 THEN
+        nm$ = LEFT$(r$, bp - 1)
+        e = INSTR(nm$, ":")
+        IF e > 0 THEN
+          IF MID$(nm$, e + 1, LEN(nm$) - e) = "string" THEN
+            nm$ = LEFT$(nm$, e - 1)
+            IF INSTR(scal$, ":" + nm$ + ":") > 0 AND INSTR(res$, ":" + nm$ + ":") = 0 THEN
+              res$ = res$ + ":" + nm$ + ":"
+            END IF
+            IF INSTR(arr$, ":" + nm$ + ":") = 0 THEN
+              arr$ = arr$ + ":" + nm$ + ":"
+            END IF
+          END IF
+        END IF
+      ELSE
+        e = INSTR(r$, ":")
+        IF e > 0 THEN
+          IF MID$(r$, e + 1, LEN(r$) - e) = "string" THEN
+            nm$ = LEFT$(r$, e - 1)
+            IF INSTR(arr$, ":" + nm$ + ":") > 0 AND INSTR(res$, ":" + nm$ + ":") = 0 THEN
+              res$ = res$ + ":" + nm$ + ":"
+            END IF
+            IF INSTR(scal$, ":" + nm$ + ":") = 0 THEN
+              scal$ = scal$ + ":" + nm$ + ":"
+            END IF
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  scan_str_dual$ = res$
 END FUNCTION
 
 ' Collect names DIM'd as a SHARED array (`dim shared X:t[...]`) into a `:X:` set.
@@ -3632,7 +3707,13 @@ FUNCTION emit_stmt$(s$)
         varType$ = "integer"
       END IF
       cExpr$ = emit_expr$(arrSize$)
-      IF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
+      IF INSTR(##strDual$, ":" + varName$ + ":") > 0 THEN
+        IF INSTR(arrSize$, ",") > 0 THEN
+          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + bd$(varName$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+        ELSE
+          emit_stmt$ = "    " + c_var_name$(varName$, "string") + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + bd$(varName$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
+        END IF
+      ELSEIF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
         IF INSTR(arrSize$, ",") > 0 THEN
           emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
@@ -3662,7 +3743,7 @@ FUNCTION emit_stmt$(s$)
         varName$ = rest$
         varType$ = "integer"
       END IF
-      IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
+      IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 THEN
         emit_stmt$ = ""
       ELSEIF varType$ = "string" THEN
         emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");"

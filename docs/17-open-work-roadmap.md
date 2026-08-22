@@ -85,12 +85,12 @@
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
 
-### cgen.x demo ceiling: 101/114 faithful, diverge=0 — the 12 cc-fails classified `[2026-08-22]`
+### cgen.x demo ceiling: 102/114 faithful, diverge=0 — the 11 cc-fails classified `[2026-08-22]`
 
 > The self-hosted `cgen.x` C generator is byte-faithful to the interpreter on **every
-> demo it compiles (101/114), with zero divergence**. **`aarray`, `aarray_ISNODE`
-> (`b5bd930`) and `zap` (`248ff59`) flipped 2026-08-22** — see the landed-fix notes below
-> — taking faithful 98→101. The 12
+> demo it compiles (102/114), with zero divergence**. **`aarray`, `aarray_ISNODE`
+> (`b5bd930`), `zap` (`248ff59`) and `atools` (str-dual) flipped 2026-08-22** — see the
+> landed-fix notes below — taking faithful 98→102. The 11
 > remaining compile-fails are **all multiply-blocked** (source-verified by grepping each
 > demo for `ANY`/`ATTACH`/`*AT`/`TYPE(`/socket markers). None flips with a single fix;
 > each needs a coordinated multi-feature pass. These are **not "fundamentally
@@ -104,7 +104,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > | memory-model / ANY / ATTACH | gif, gifview, qbtoxb (3) | byref-dual + 3-D arrays + `ANY`-array `TYPE()` reflection + degenerate `*AT`/early-return flow (aarray, aarray_ISNODE, zap — same family — are now DONE) |
 > | network sockets | aclient, aserver (2) | a socket runtime (Xui socket wrappers → `undeclared xb_var_host_address`) |
 > | Xst runtime | asortie (1) | real `XstQuickSort`/`XstCopyArray` in cgen.x + by-ref-array descriptor for `@field3$[]` (done in Rust, `be03117`) |
-> | multi-dim SHARED + composite + grid | adatadim, aquick, arecord, atools, CursorEdit, Kittedy (6) | multi-dim SHARED 2-D calloc (raw-`arith(` bug) + composite-record members + byref-dual + call-arity |
+> | multi-dim SHARED + composite + grid | adatadim, aquick, arecord, CursorEdit, Kittedy (5) | multi-dim SHARED 2-D calloc (raw-`arith(` bug) + composite-record members + byref-dual + call-arity (atools is now DONE via CGEN-STRDUAL) |
 >
 > **LANDED 2026-08-22 (`b5bd930`) — the 3-fix pass that flipped aarray (98→100):**
 > (1) **byref-dual `_arr` split**, gated to `scan_byref_dual$` = `##dynNames$ ∩
@@ -130,9 +130,20 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > param `intptr_t* xb_var_X_arr` re-DIM'd via `calloc` set `xb_ub_X_arr` with no decl (the
 > hoist's param-skip dropped it) → emit `intptr_t xb_ub_X_arr = -1;`. Locked by adding
 > `aarray`/`aarray_ISNODE`/`zap` to `cgen_demo_regression`'s `DEMOS`; sync 46/46,
-> bootstrap OK, differential faithful 100→101/0, suite 250→251/0. **Remaining atools/
-> aquick blocker: string scalar+array dual-use** (the `##dynNames$` split for strings —
-> a separate feature).
+> bootstrap OK, differential faithful 100→101/0, suite 250→251/0.
+>
+> **LANDED 2026-08-22 (CGEN-STRDUAL) — flipped atools (101→102):** the string analog
+> of the integer `##dynNames$`/byref-dual `_arr` split, for a name DIM'd as **both** a
+> scalar string (`dim X:string`) and a string array (`dim X:string[N]`). (1) `scan_str_dual$`
+> → `##strDual$` (EMPTY on all faithful demos + selfhost tools → byte-neutral). (2) Hoist
+> a scalar facet `char* xb_str_X` + heap array facet `char** xb_str_X_arr` + `xb_ub_X_arr`;
+> scalar uses stay bare, array access/assign/DIM/UBOUND take the `_arr` suffix (via the
+> extended `bd$`). (3) `is_xfn_dyn$` folds a str-dual name **not** DIM'd as an array in the
+> current function to the type default — matching the interpreter's per-function scoping
+> (atools's `text$` is dual-use in `CreateGrids` but undimmed in `MenuBar`). Locked by
+> adding `atools` to `DEMOS`; sync 46/46, bootstrap OK, differential faithful 101→102/0.
+> **Remaining aquick blocker: cross-function string-array scoping** (grid$/image$ DIM'd
+> in one function, used in another — distinct from dual-use).
 
 | ~~CGEN-ARRAYS~~ | C backend | ✅ **done** (2026-08-20): auto-vivified array hoisting + dynamic DIMs + undimmed-array folds | — | ✅ |
 | ~~CGEN-ARGC~~ | C backend | ✅ **done** (2026-08-20): arity reconciliation (drop extras, pad missing) via `DEFINED_SIGS` | — | ✅ |

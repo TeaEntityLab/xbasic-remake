@@ -42,6 +42,7 @@ const DEMOS: &[(&str, &str)] = &[
     ("aarray", "cross-function gosub_base + array by-ref dual-use"),
     ("aarray_ISNODE", "int→ptr by-ref array call arg + gosub_base"),
     ("zap", "$$-const array assign + byref-dual param local DIM ub-hoist"),
+    ("atools", "string scalar+array dual-use (CGEN-STRDUAL) + cross-fn fold"),
 ];
 
 /// Interpreter reference output for `source` on empty stdin.
