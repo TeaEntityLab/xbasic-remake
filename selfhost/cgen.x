@@ -569,6 +569,8 @@ PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 ##curFnArrays$ = ""
 ##curParams$ = ""
 ##arrParams$ = ""
+##funcMixed$ = ","
+##curCallFn$ = ""
 ##inFuncScope = 0
 ##selectState = 0
 ##selectExpr$ = ""
@@ -731,6 +733,8 @@ WHILE shRefPos > 0
   END IF
   shRefPos = INSTR(src$, shPat$, shNameStart)
 WEND
+
+##funcMixed$ = scan_mixed_byref$(src$)
 PRINT ""
 
 ##dynNames$ = scan_dyn$(src$)
@@ -1756,7 +1760,9 @@ FUNCTION emit_expr$(e$)
       args$ = ""
     END IF
     DIM emittedArgs$
+    ##curCallFn$ = fn$
     emittedArgs$ = emit_args$(args$)
+    ##curCallFn$ = ""
     DIM funcName$
     funcName$ = c_func_name$(fn$)
     IF fn$ = "EOF" THEN
@@ -2173,7 +2179,9 @@ FUNCTION emit_expr$(e$)
       END IF
     END IF
     IF INSTR(##funcTypes$, "," + fn$ + ":") > 0 THEN
+      ##curCallFn$ = fn$
       emit_expr$ = funcName$ + "(" + emit_args_n$(args$, VAL(arity_of$(fn$))) + ")"
+      ##curCallFn$ = ""
     ELSE
       emit_expr$ = funcName$ + "(" + emittedArgs$ + ")"
     END IF
@@ -2360,6 +2368,16 @@ FUNCTION emit_expr$(e$)
       ELSE
         varName$ = t$
         varType$ = "integer"
+      END IF
+      ' Mixed-function check: if callee has mixed byref/byval calls,
+      ' emit value directly (no &) to match Rust CEmitter (c_emit.rs:659-680).
+      IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
+        IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
+          emit_expr$ = c_var_name$(varName$, "string")
+        ELSE
+          emit_expr$ = c_var_name$(varName$, "integer")
+        END IF
+        RETURN emit_expr$
       END IF
       IF INSTR(##byrefDual$, ":" + varName$ + ":") > 0 THEN
         IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
@@ -3248,6 +3266,90 @@ END FUNCTION
 ' scheme (a scalar decl + a fixed-array decl for the same C name is a cc
 ' "redefinition"). Returns a `:name:` set. Program-wide (mirrors the Rust CEmitter);
 ' byte-neutral on the selfhost tools, which DIM no arrays.
+' Scan call sites: returns ",FN,FN," for functions with mixed byref/byval calls.
+' A function is "mixed" if any call passes a non-byref arg at any position.
+' For mixed functions, byref args are emitted as values (no &) to match
+' the Rust CEmitter's call-site driven approach (c_emit.rs:115-131).
+FUNCTION scan_mixed_byref$(s$)
+  DIM msPat$
+  DIM msSP
+  DIM msCP
+  DIM msNS
+  DIM msPP
+  DIM msFN$
+  DIM msD
+  DIM msI2
+  DIM msC2
+  DIM msAA$
+  DIM msAP
+  DIM msAS
+  DIM msAD
+  DIM msAC
+  DIM msOneArg$
+  DIM msHasByval
+  DIM msRes$
+  msPat$ = "call "
+  msSP = 1
+  msRes$ = ","
+  WHILE msSP <= LEN(s$)
+    msCP = INSTR(s$, msPat$, msSP)
+    IF msCP = 0 THEN
+      EXIT WHILE
+    END IF
+    msNS = msCP + 5
+    msPP = INSTR(s$, CHR$(40), msNS)
+    IF msPP = 0 THEN
+      msSP = msNS
+    ELSE
+      msFN$ = MID$(s$, msNS, msPP - msNS)
+      msD = 1
+      msI2 = msPP + 1
+      WHILE msI2 <= LEN(s$) AND msD > 0
+        msC2 = ASC(MID$(s$, msI2, 1))
+        IF msC2 = 40 THEN
+          msD = msD + 1
+        ELSEIF msC2 = 41 THEN
+          msD = msD - 1
+        END IF
+        msI2 = msI2 + 1
+      WEND
+      msAA$ = MID$(s$, msPP + 1, msI2 - msPP - 2)
+      IF LEN(msAA$) > 0 THEN
+        msAP = 1
+        msAS = 1
+        msAD = 0
+        msHasByval = 0
+        WHILE msAP <= LEN(msAA$)
+          msAC = ASC(MID$(msAA$, msAP, 1))
+          IF msAC = 40 THEN
+            msAD = msAD + 1
+          ELSEIF msAC = 41 THEN
+            msAD = msAD - 1
+          ELSEIF msAC = 44 AND msAD = 0 THEN
+            msOneArg$ = MID$(msAA$, msAS, msAP - msAS)
+            IF LEFT$(msOneArg$, 6) <> "byref" + CHR$(40) THEN
+              msHasByval = 1
+            END IF
+            msAS = msAP + 1
+          END IF
+          msAP = msAP + 1
+        WEND
+        msOneArg$ = MID$(msAA$, msAS, LEN(msAA$) - msAS + 1)
+        IF LEFT$(msOneArg$, 6) <> "byref" + CHR$(40) THEN
+          msHasByval = 1
+        END IF
+        IF msHasByval = 1 THEN
+          IF INSTR(msRes$, "," + msFN$ + ",") = 0 THEN
+            msRes$ = msRes$ + msFN$ + ","
+          END IF
+        END IF
+      END IF
+      msSP = msI2
+    END IF
+  WEND
+  scan_mixed_byref$ = msRes$
+END FUNCTION
+
 FUNCTION scan_dyn$(s$)
   DIM sc$
   DIM res$
@@ -4872,9 +4974,13 @@ FUNCTION emit_stmt$(s$)
       END IF
     END IF
     IF INSTR(##funcTypes$, "," + fn$ + ":") > 0 THEN
+      ##curCallFn$ = fn$
       emit_stmt$ = "    " + c_func_name$(fn$) + "(" + emit_args_n$(args$, VAL(arity_of$(fn$))) + ");"
+      ##curCallFn$ = ""
     ELSE
+      ##curCallFn$ = fn$
       emit_stmt$ = "    " + c_func_name$(fn$) + "(" + emit_args$(args$) + ");"
+      ##curCallFn$ = ""
     END IF
     RETURN emit_stmt$
   END IF
