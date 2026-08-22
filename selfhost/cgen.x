@@ -2496,7 +2496,20 @@ FUNCTION emit_args$(a$)
   depth = 0
   WHILE i <= LEN(a$)
     ch = ASC(MID$(a$, i, 1))
-    IF ch = 40 THEN
+    IF ch = 34 THEN
+      ' Skip string literal (Rust {:?} format: "..." with \" escapes)
+      i = i + 1
+      WHILE i <= LEN(a$)
+        ch = ASC(MID$(a$, i, 1))
+        IF ch = 92 THEN
+          i = i + 2
+        ELSEIF ch = 34 THEN
+          EXIT WHILE
+        ELSE
+          i = i + 1
+        END IF
+      WEND
+    ELSEIF ch = 40 THEN
       depth = depth + 1
     ELSEIF ch = 41 THEN
       depth = depth - 1
@@ -2545,7 +2558,19 @@ FUNCTION emit_msub$(a$, isDim)
   depth = 0
   WHILE i <= LEN(a$)
     ch = ASC(MID$(a$, i, 1))
-    IF ch = 40 THEN
+    IF ch = 34 THEN
+      i = i + 1
+      WHILE i <= LEN(a$)
+        ch = ASC(MID$(a$, i, 1))
+        IF ch = 92 THEN
+          i = i + 2
+        ELSEIF ch = 34 THEN
+          EXIT WHILE
+        ELSE
+          i = i + 1
+        END IF
+      WEND
+    ELSEIF ch = 40 THEN
       depth = depth + 1
     ELSEIF ch = 41 THEN
       depth = depth - 1
@@ -2581,7 +2606,19 @@ FUNCTION first_comma_part$(a$)
   depth = 0
   WHILE i <= LEN(a$)
     ch = ASC(MID$(a$, i, 1))
-    IF ch = 40 THEN
+    IF ch = 34 THEN
+      i = i + 1
+      WHILE i <= LEN(a$)
+        ch = ASC(MID$(a$, i, 1))
+        IF ch = 92 THEN
+          i = i + 2
+        ELSEIF ch = 34 THEN
+          EXIT WHILE
+        ELSE
+          i = i + 1
+        END IF
+      WEND
+    ELSEIF ch = 40 THEN
       depth = depth + 1
     ELSEIF ch = 41 THEN
       depth = depth - 1
@@ -2611,7 +2648,19 @@ FUNCTION emit_mtotal$(a$)
   depth = 0
   WHILE i <= LEN(a$)
     ch = ASC(MID$(a$, i, 1))
-    IF ch = 40 THEN
+    IF ch = 34 THEN
+      i = i + 1
+      WHILE i <= LEN(a$)
+        ch = ASC(MID$(a$, i, 1))
+        IF ch = 92 THEN
+          i = i + 2
+        ELSEIF ch = 34 THEN
+          EXIT WHILE
+        ELSE
+          i = i + 1
+        END IF
+      WEND
+    ELSEIF ch = 40 THEN
       depth = depth + 1
     ELSEIF ch = 41 THEN
       depth = depth - 1
@@ -2652,7 +2701,19 @@ FUNCTION emit_flat2d$(a$, d1v$)
   i0$ = ""
   WHILE i <= LEN(a$)
     ch = ASC(MID$(a$, i, 1))
-    IF ch = 40 THEN
+    IF ch = 34 THEN
+      i = i + 1
+      WHILE i <= LEN(a$)
+        ch = ASC(MID$(a$, i, 1))
+        IF ch = 92 THEN
+          i = i + 2
+        ELSEIF ch = 34 THEN
+          EXIT WHILE
+        ELSE
+          i = i + 1
+        END IF
+      WEND
+    ELSEIF ch = 40 THEN
       depth = depth + 1
     ELSEIF ch = 41 THEN
       depth = depth - 1
@@ -2683,7 +2744,19 @@ FUNCTION emit_d1$(a$)
   found = 0
   WHILE i <= LEN(a$)
     ch = ASC(MID$(a$, i, 1))
-    IF ch = 40 THEN
+    IF ch = 34 THEN
+      i = i + 1
+      WHILE i <= LEN(a$)
+        ch = ASC(MID$(a$, i, 1))
+        IF ch = 92 THEN
+          i = i + 2
+        ELSEIF ch = 34 THEN
+          EXIT WHILE
+        ELSE
+          i = i + 1
+        END IF
+      WEND
+    ELSEIF ch = 40 THEN
       depth = depth + 1
     ELSEIF ch = 41 THEN
       depth = depth - 1
@@ -3112,7 +3185,19 @@ FUNCTION emit_args_n$(a$, n)
     depth = 0
     WHILE i <= LEN(a$)
       ch = ASC(MID$(a$, i, 1))
-      IF ch = 40 THEN
+      IF ch = 34 THEN
+        i = i + 1
+        WHILE i <= LEN(a$)
+          ch = ASC(MID$(a$, i, 1))
+          IF ch = 92 THEN
+            i = i + 2
+          ELSEIF ch = 34 THEN
+            EXIT WHILE
+          ELSE
+            i = i + 1
+          END IF
+        WEND
+      ELSEIF ch = 40 THEN
         depth = depth + 1
       ELSEIF ch = 41 THEN
         depth = depth - 1
@@ -3709,7 +3794,19 @@ FUNCTION scan_dyn$(s$)
         ci = 1
         WHILE ci <= LEN(sub$)
           cch = ASC(MID$(sub$, ci, 1))
-          IF cch = 40 THEN
+          IF cch = 34 THEN
+            ci = ci + 1
+            WHILE ci <= LEN(sub$)
+              cch = ASC(MID$(sub$, ci, 1))
+              IF cch = 92 THEN
+                ci = ci + 2
+              ELSEIF cch = 34 THEN
+                EXIT WHILE
+              ELSE
+                ci = ci + 1
+              END IF
+            WEND
+          ELSEIF cch = 40 THEN
             cdepth = cdepth + 1
           ELSEIF cch = 41 THEN
             cdepth = cdepth - 1
