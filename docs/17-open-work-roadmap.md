@@ -85,18 +85,18 @@
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
 
-### cgen.x demo ceiling: 114/114 compile, diverge=0 — qbtoxb compiles but crashes `[2026-08-23]`
+### cgen.x demo ceiling: 114/114 compile, 0 runtime crashes — qbtoxb + arecurse fixed `[2026-08-23]`
 
-> The self-hosted `cgen.x` C generator now compiles **ALL 114 demos** (up from 102),
-> with **zero divergence** on every demo both paths complete. **qbtoxb** — the last
-> compile-fail — now compiles (`739c022`) but crashes at runtime (SIGSEGV) because the
-> by-ref array descriptor system (`(T** data, intptr_t* ub)`) is not yet ported to cgen.x.
-> The Rust CEmitter passes both the data pointer and ubound by reference; cgen.x passes
-> a scalar address, causing a null-pointer dereference when the callee treats it as an array.
+> The self-hosted `cgen.x` C generator now compiles **ALL 114 demos** and **all run cleanly**
+> (exit 0). Two runtime crashes fixed:
 >
-> | group | demos | co-blockers |
+> | fix | demos | root cause |
 >|---|---|---|
-> | byref-array descriptor | qbtoxb (1) | Port Rust's `(T** data, intptr_t* ub)` descriptor to cgen.x: call-site passes `&xb_var_X_arr, &xb_ub_X_arr`; callee-side `XstLoadStringArray` populates the array through the descriptor; `token:integer[]` byref param read as scalar needs `xb_var_token = xb_var_token_arr[i]` array-to-scalar copy |
+>| CGEN-STRCMP-LEN (`5d73678`) | qbtoxb | `compare(string = integer(0))` emitted `xb_scmp(X, 0)` which calls `xb_len(0)` → SIGSEGV. Fixed: mixed string/numeric comparison now emits `(intptr_t)xb_len(X) == 0` matching Rust CEmitter. |
+>| CGEN-MIXED-BYREF (`4e19a4f`) | arecurse | `byref(symbol(X))` to a function with mixed byref/byval calls always emitted `&X`. Fixed: `scan_mixed_byref$` pre-scans call sites; mixed functions emit value directly (no `&`) matching Rust CEmitter's call-site driven approach. |
+>
+> **amakemap** crashes in both cgen.x and Rust CEmitter (exit 139) — not a cgen.x bug.
+> **qbtoxb** Rust CEmitter output has compile errors — cgen.x actually produces better output.
 >
 > **LANDED 2026-08-23 (`879f09c`) — CGEN-BYREF-DUAL-FIXES: stabilized 114/114:**
 > `bd$` now only returns `_arr` for `##byrefDual$` names when they're array params of
