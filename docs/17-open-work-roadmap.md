@@ -180,6 +180,28 @@ program uses it (§2 RT-FUNCPTR).
 > and by-ref-array-params **must land together** (a per-function classifier that knows
 > when a name is a param vs a local counter); neither flips a demo alone. Reverted to
 > the clean `faithful=98, diverge=0` state (`f3a3d1e`).
+>
+> **A fifth attempt (2026-08-22) extended the split to 2-D and re-confirmed the same
+> entanglement, then reverted.** `scan_dyn$` (the `##dynNames$` 1-D dyn-pointer scan)
+> was relaxed to also route **2-D** dual-DIM integer arrays (depth-aware ≤1 top-level
+> comma; 3-D+ stays native), wiring the already-present but dead 2-D dyn branches
+> (`emit_mtotal$` calloc + `emit_flat2d$` row-major access + `xb_d1_`). Verified
+> byte-neutral on the corpus (sync 45/45, bootstrap fixed-point held) and it fixed a
+> **real** error in **real** demos — `aarray`/`aarray_ISNODE` (which DIM `array` as a
+> 2-D dual-DIM) went from the scalar-vs-array `redefinition of xb_var_array` cc-error
+> to compiling. But it needed a companion `##curParams$` skip (don't emit a dyn-decl
+> for a name that is a **parameter** of the current function — `array` is a by-ref
+> array param of `PrintArray`, so the dyn-decl redefines the param). That param-skip
+> **re-introduced the by-ref-array-param regression**: it made `aarray` compile but
+> diverge (its `PrintArray(array[])` needs the callee-side dimension **descriptor**
+> that CGEN-BYREF-ARRAY provides — empty output without it) *and* regressed a
+> previously-faithful demo (a callee that legitimately array-uses a dyn-array param
+> lost its decl). Net **faithful 98→97, diverge 0→2** — reverted. **Conclusion: 2-D
+> dual-DIM, case-B, and multi-dim SHARED all terminate at the same shared blocker —
+> the by-ref-array-param dimension-descriptor system (Rust's `collect_desc_info`).
+> That descriptor port is the single highest-leverage unblocker and must be done as a
+> coordinated pass that mirrors Rust exactly (the naive param handling regresses
+> real code, as three prior reverts and this one show).**
 
 ### CGEN-BYREF-ARRAY — DIM'd-array by-ref is synthetic; do NOT "fix" it `[2026-08-22]`
 
