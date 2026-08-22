@@ -85,22 +85,22 @@
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
 
-### cgen.x demo ceiling: 114/114 compile, 107/114 faithful — GUI headless runtime ported `[2026-08-23]`
+### cgen.x demo ceiling: 114/114 compile, 107/114 faithful — byref-writeback + shared-string init `[2026-08-23]`
 
 > The self-hosted `cgen.x` C generator now compiles **ALL 114 demos** with **107 byte-faithful**
-> (up from 71), **0 diverge, 0 cc-fail, 0 crash**. Three fixes landed:
+> (up from 71), **0 diverge, 0 cc-fail, 0 crash, 5 timeout**. Five fixes landed this session:
 >
 > | fix | demos | root cause |
 >|---|---|---|
 >| CGEN-STRCMP-LEN (`5d73678`) | qbtoxb | `compare(string = integer(0))` emitted `xb_scmp(X, 0)` → `xb_len(0)` → SIGSEGV. Fixed: mixed string/numeric comparison emits `(intptr_t)xb_len(X) == 0`. |
 >| CGEN-MIXED-BYREF (`4e19a4f`) | arecurse | `byref(symbol(X))` to mixed byref/byval functions always emitted `&X`. Fixed: `scan_mixed_byref$` pre-scans call sites; mixed functions emit value directly. |
 >| CGEN-GUI-HEADLESS (`5296fa9`) | 36 GUI demos | `XuiGetNextCallback` was stubbed to `0`, hanging event loops. Ported headless GUI runtime from Rust CEmitter: `xb_gui_next_callback` delivers one synthetic CloseWindow. Also fixed string SELECT CASE (used `==` pointer comparison instead of `xb_scmp`) and integer byref arg emission (fell through to `0` for plain integer byref). |
+>| CGEN-BYREF-WRITEBACK (`a6b3565`) | adrawing | `RandomN(float)` declared byval in IR but called with byref at all sites → `double*` vs `double` cc error. Fixed: `scan_byref_wb$` detects all-byref functions; `emit_params$` emits `T *X_ref` pointer params with copy-in/copy-out. |
+>| CGEN-SHARED-STR-INIT (`bab451c`) | amakemap | `$$PathSlash` shared string scalar initialized to 0 (NULL) → `xb_concat` called `xb_len(NULL)` → SIGSEGV. Fixed: shared string scalars initialized to `xb_str("")` in `main()` (can't use function call at file scope). |
 >
 > **Remaining 7 non-faithful** (all match Rust CEmitter behavior — not cgen.x bugs):
-> - 4 timeouts (aclient, aeasy, agrids, aserver, warning) — `XgrProcessMessages`-based GUI demos that hang in both C backends; interp doesn't call `Entry()` so exits cleanly
-> - 1 crash (amakemap) — crashes in both cgen.x and Rust CEmitter (demo issue)
-> - 1 cc-fail (adrawing) — pre-existing `double*` vs `double` type mismatch
-> - 1 timeout (amakemap) — same demo issue
+> - 5 timeouts (aclient, aeasy, agrids, aserver, warning) — GUI/network demos that hang in both C backends and the interp
+> - 2 diverges (DrawScaled, xgrids) — both exit 0 in C backends vs interp exit 1 (runtime errors: division by zero, unknown slot func); Rust CEmitter also exits 0
 >
 > **LANDED 2026-08-23 (`879f09c`) — CGEN-BYREF-DUAL-FIXES: stabilized 114/114:**
 > `bd$` now only returns `_arr` for `##byrefDual$` names when they're array params of
@@ -213,7 +213,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~CGEN-NESTED-DIM~~ | C backend | ✅ **done** (2026-08-20): a sized array DIM inside an `IF`/`FOR`/`WHILE`/`SELECT` body is a block-scoped VLA that later out-of-block uses can't see (qbtoxb `REDIM #line[]` inside an `IF`, indexed after); such names now force to dyn (function-hoisted), structural so it round-trips text IR (frozen v0.1 golden unchanged) | `qbtoxb` | ✅ |
 | ~~CGEN-SHARED-ARR~~ (C) | C backend | ✅ **done** (2026-08-21) — see the detailed CGEN-SHARED-ARR row below: non-dual-use `SHARED` arrays (scalar + composite-member) now emit one heap global and cross functions correctly. **LLVM still per-function** (LLVM-SHARED-ARR, next row). | ary-class AOT | ✅ (C) |
 | CGEN-SHARED-ARR-SELFHOST | self-hosted cgen.x | **1-D LANDED (2026-08-22):** cgen.x now mirrors Rust's shared heap-global scheme for **1-D** shared arrays — a file-scope `T* xb_var_g = 0; intptr_t xb_ub_g = -1;` global (forward-decl via new `scan_shared_arr$`/`##sharedArrays$`), `calloc` at the sized `dim shared g:t[N]`, `xb_var_g[i]` access shared across functions — plus a scan that declares undeclared `shared(##X:t)` scalars as `xb_shared_X = 0` (matching Rust). Flipped **amemory + amakemap** faithful; locked by `cemitter_and_cgen_agree_on_shared_array_cross_function`. **STILL PENDING: multi-dim** shared arrays (`SHARED g[3,3]` → flattened `i*(d1+1)+j`, NOT native `[i][j]`, since the store is a `T*`) — blocks CursorEdit + Kittedy (`SHARED tbGridNum[]`/`squareInfo.grid[]`), which also need composite-member-shared + dup-params. Original gap (now 1-D-fixed): cgen.x sent `dim shared g:t[N]` through the local `dim ` handler which never stripped `shared ` (emitted `xb_var_shared`, cc "redefinition"). Selfhost tools use only shared *scalars* (`##`), so the sync suite never exercised shared arrays. | ary-class self-hosted AOT | infra (1-D ✅) |
-| CGEN-SELFHOST-PARITY | self-hosted cgen.x | **The demo sweep/differential measure the Rust `CEmitter` (`--compile`), not cgen.x.** cgen.x's *true* demo faithfulness (build native cgen from cgen.x → IR→cgen→cc→run vs interp, 114 demos) was **faithful=1** — cgen.x was a **minimal self-hosting seed**. Now **faithful=106, diverge=2, cc-fail=0, timeout=6** (2026-08-23: +CGEN-STRCMP-LEN fixing qbtoxb crash, +CGEN-MIXED-BYREF fixing arecurse crash, +CGEN-GUI-HEADLESS porting XuiGetNextCallback headless runtime + string SELECT CASE + integer byref fix, flipping 36 GUI demos from timeout to faithful, +CGEN-BYREF-WRITEBACK fixing adrawing cc-fail via all-byref scalar pointer params with copy-in/copy-out). The 2 diverges (DrawScaled, xgrids) and 6 timeouts (aclient/aeasy/agrids/aserver/warning/amakemap) all match Rust CEmitter behavior — not cgen.x bugs. Sync 46/46, all suites green. The remaining major blocker is the byref-array descriptor system (CGEN-DUALUSE / docs/18) — a GIANT coordinated pass. | `cgen.x` self-host | ◑ 106/114 |
+| CGEN-SELFHOST-PARITY | self-hosted cgen.x | **The demo sweep/differential measure the Rust `CEmitter` (`--compile`), not cgen.x.** cgen.x's *true* demo faithfulness (build native cgen from cgen.x → IR→cgen→cc→run vs interp, 114 demos) was **faithful=1** — cgen.x was a **minimal self-hosting seed**. Now **faithful=107, diverge=2, cc-fail=0, crash=0, timeout=5** (2026-08-23: +CGEN-STRCMP-LEN fixing qbtoxb crash, +CGEN-MIXED-BYREF fixing arecurse crash, +CGEN-GUI-HEADLESS porting XuiGetNextCallback headless runtime + string SELECT CASE + integer byref fix, flipping 36 GUI demos from timeout to faithful, +CGEN-BYREF-WRITEBACK fixing adrawing cc-fail via all-byref scalar pointer params with copy-in/copy-out, +CGEN-SHARED-STR-INIT fixing amakemap crash via shared string scalar init to xb_str("") in main()). The 2 diverges (DrawScaled, xgrids) and 5 timeouts (aclient/aeasy/agrids/aserver/warning) all match Rust CEmitter behavior — not cgen.x bugs. Sync 46/46, all suites green. The remaining major blocker is the byref-array descriptor system (CGEN-DUALUSE / docs/18) — a GIANT coordinated pass. | `cgen.x` self-host | ◑ 107/114 |
 | LLVM-SHARED-ARR | LLVM | `SHARED` *arrays* still per-function (only `##` scalars are globals now) | `ary`/`ary1` AOT parity | feature |
 | LLVM-ANY | LLVM | `ANY array[]` polymorphism (monomorphize or tagged elements) | `aarray_ISNODE` | feature |
 | LLVM-BYREF-REDIM | LLVM | REDIM-through-`@array[]` needs `{data,dims}` heap descriptors shared by pointer | general by-ref parity | feature |
