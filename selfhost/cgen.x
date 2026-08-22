@@ -574,6 +574,7 @@ PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 ##inFuncScope = 0
 ##selectState = 0
 ##selectExpr$ = ""
+##selectIsString = 0
 ##selectBraces = 0
 ##selectExitCount = 0
 ##selectExitStack$ = ""
@@ -626,6 +627,14 @@ IF LEN(##xstArrays$) > 0 THEN
   PRINT "        if (et == 2) dst[k] = (uint64_t)(intptr_t)xb_strdup((const char*)src[k]);"
   PRINT "        else dst[k] = src[k];"
   PRINT "    }"
+  PRINT "    return 0;"
+  PRINT "}"
+  PRINT ""
+END IF
+IF INSTR(src$, "XuiGetNextCallback") > 0 THEN
+  PRINT "static int xb_gui_close_sent = 0;"
+  PRINT "static int xb_gui_next_callback(intptr_t* grid, char** msg) {"
+  PRINT "    if (!xb_gui_close_sent) { xb_gui_close_sent = 1; *grid = 1; *msg = xb_from_cstr(" + CHR$(34) + "CloseWindow" + CHR$(34) + "); return -1; }"
   PRINT "    return 0;"
   PRINT "}"
   PRINT ""
@@ -1259,6 +1268,8 @@ FUNCTION c_func_name$(n$)
     c_func_name$ = "xb_subaddrat"
   ELSEIF n$ = "GOADDRAT" THEN
     c_func_name$ = "xb_goaddrat"
+  ELSEIF n$ = "XuiGetNextCallback" THEN
+    c_func_name$ = "xb_gui_next_callback"
   ELSE
     c_func_name$ = "xb_user_" + n$
   END IF
@@ -1787,6 +1798,13 @@ FUNCTION emit_expr$(e$)
       ' and the lowered type constants ($$SBYTE..$$DCOMPLEX) are all 0, so a 0 stub
       ' (unknown-call default) wrongly falls through. Same class as the *AT stub.
       emit_expr$ = "1"
+      RETURN emit_expr$
+    END IF
+    IF fn$ = "XuiGetNextCallback" THEN
+      ' Headless GUI runtime: deliver one synthetic CloseWindow, then FALSE.
+      ' Only the first 2 byref args (grid, message$) are passed; the rest are
+      ' dropped, matching the Rust CEmitter (c_emit_expr.rs:336-343).
+      emit_expr$ = "xb_gui_next_callback(" + emit_args_n$(args$, 2) + ")"
       RETURN emit_expr$
     END IF
     IF fn$ = "CHR$" THEN
@@ -2388,6 +2406,9 @@ FUNCTION emit_expr$(e$)
         RETURN emit_expr$
       ELSEIF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
         emit_expr$ = "&" + c_var_name$(varName$, "string")
+        RETURN emit_expr$
+      ELSE
+        emit_expr$ = "&" + c_var_name$(varName$, "integer")
         RETURN emit_expr$
       END IF
     END IF
@@ -5014,6 +5035,11 @@ FUNCTION emit_stmt$(s$)
     cExpr$ = emit_expr$(rest$)
     ##selectState = 1
     ##selectExpr$ = cExpr$
+    IF INSTR(rest$, ":string") > 0 OR INSTR(rest$, "$:") > 0 OR INSTR(rest$, "$,") > 0 OR INSTR(rest$, "$)") > 0 THEN
+      ##selectIsString = 1
+    ELSE
+      ##selectIsString = 0
+    END IF
     ##selectBraces = 0
     ##selectExitCount = ##selectExitCount + 1
     ##selectExitStack$ = ##selectExitStack$ + CHR$(##selectExitCount) + ","
@@ -5045,7 +5071,11 @@ FUNCTION emit_stmt$(s$)
         IF LEN(caseConds$) > 0 THEN
           caseConds$ = caseConds$ + " || "
         END IF
-        caseConds$ = caseConds$ + "(" + ##selectExpr$ + " == " + emit_expr$(caseArg$) + ")"
+        IF ##selectIsString = 1 THEN
+          caseConds$ = caseConds$ + "(xb_scmp(" + ##selectExpr$ + ", " + emit_expr$(caseArg$) + ") == 0)"
+        ELSE
+          caseConds$ = caseConds$ + "(" + ##selectExpr$ + " == " + emit_expr$(caseArg$) + ")"
+        END IF
         caseStart = casePos + 1
       END IF
       casePos = casePos + 1
@@ -5055,7 +5085,11 @@ FUNCTION emit_stmt$(s$)
       IF LEN(caseConds$) > 0 THEN
         caseConds$ = caseConds$ + " || "
       END IF
-      caseConds$ = caseConds$ + "(" + ##selectExpr$ + " == " + emit_expr$(caseLast$) + ")"
+      IF ##selectIsString = 1 THEN
+        caseConds$ = caseConds$ + "(xb_scmp(" + ##selectExpr$ + ", " + emit_expr$(caseLast$) + ") == 0)"
+      ELSE
+        caseConds$ = caseConds$ + "(" + ##selectExpr$ + " == " + emit_expr$(caseLast$) + ")"
+      END IF
     END IF
     IF ##selectState = 1 THEN
       emit_stmt$ = "    if (" + caseConds$ + ") { _matched = 1;"
@@ -5076,6 +5110,7 @@ FUNCTION emit_stmt$(s$)
   IF s$ = "end_select" THEN
     ##selectState = 0
     ##selectExpr$ = ""
+    ##selectIsString = 0
     ##selectBraces = 0
     DIM selId
     selId = 0
