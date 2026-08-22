@@ -516,16 +516,23 @@ pub(crate) fn exec_items(
                         actual: val.value_type(),
                     });
                 };
-                match exec_items(program, func_body, func_body, addr as usize, state, output)? {
-                    Flow::Return(r) => return Ok(Flow::Return(r)),
-                    Flow::Goto(label) => {
-                        if let Some(&pos) = label_map.get(label.as_str()) {
-                            idx = pos;
-                            continue;
+                // Address 0 = no subroutine registered (undimmed Sub[] or
+                // unregistered message). Skip — matches the C backend where
+                // XgrProcessMessages is a stub that never dispatches.
+                if addr == 0 {
+                    // no-op
+                } else {
+                    match exec_items(program, func_body, func_body, addr as usize, state, output)? {
+                        Flow::Return(r) => return Ok(Flow::Return(r)),
+                        Flow::Goto(label) => {
+                            if let Some(&pos) = label_map.get(label.as_str()) {
+                                idx = pos;
+                                continue;
+                            }
+                            return Ok(Flow::Goto(label));
                         }
-                        return Ok(Flow::Goto(label));
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
             IrItem::GotoExpr(expr) => {
