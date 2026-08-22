@@ -1594,8 +1594,14 @@ FUNCTION emit_expr$(e$)
       op$ = r$
       right$ = ""
     END IF
-    IF expr_type$(left$) = "string" OR expr_type$(right$) = "string" THEN
+    IF expr_type$(left$) = "string" AND expr_type$(right$) = "string" THEN
       emit_expr$ = "(-(xb_scmp(" + emit_expr$(left$) + ", " + emit_expr$(right$) + ") " + c_cmp_op$(op$) + " 0))"
+    ELSEIF expr_type$(left$) = "string" OR expr_type$(right$) = "string" THEN
+      IF expr_type$(left$) = "string" THEN
+        emit_expr$ = "-((intptr_t)xb_len(" + emit_expr$(left$) + ") " + c_cmp_op$(op$) + " " + emit_expr$(right$) + ")"
+      ELSE
+        emit_expr$ = "-(" + emit_expr$(left$) + " " + c_cmp_op$(op$) + " (intptr_t)xb_len(" + emit_expr$(right$) + "))"
+      END IF
     ELSE
       emit_expr$ = "-(" + emit_expr$(left$) + " " + c_cmp_op$(op$) + " " + emit_expr$(right$) + ")"
     END IF
