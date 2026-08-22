@@ -46,6 +46,7 @@ DIM shRefType$
 DIM shPat$
 DIM shRP$
 DIM funcBody$
+DIM fwdDeclsBuf$
 DIM usedSyms$
 DIM dimmedSyms$
 DIM fullBody$
@@ -571,6 +572,9 @@ PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 ##arrParams$ = ""
 ##funcMixed$ = ","
 ##curCallFn$ = ""
+##byrefWB$ = ","
+##curFnName$ = ""
+##byrefWBCopy$ = ""
 ##inFuncScope = 0
 ##selectState = 0
 ##selectExpr$ = ""
@@ -669,7 +673,8 @@ WHILE fwdPos <= LEN(src$)
       fwdClose = INSTR(fwdAfter$, ")")
       fwdParams$ = LEFT$(fwdAfter$, fwdClose - 1)
       fwdRet$ = MID$(fwdAfter$, fwdClose + 5, LEN(fwdAfter$) - fwdClose - 4)
-      PRINT c_type$(fwdRet$) + " xb_user_" + fwdName$ + "(" + emit_params$(fwdParams$) + ");"
+      ##curFnName$ = fwdName$
+      fwdDeclsBuf$ = fwdDeclsBuf$ + fwdName$ + CHR$(9) + fwdParams$ + CHR$(9) + fwdRet$ + CHR$(10)
       ##funcTypes$ = ##funcTypes$ + fwdName$ + ":" + fwdRet$ + ","
       ##funcIds$ = ##funcIds$ + fwdName$ + ":"
       IF INSTR(##funcArity$, ":" + fwdName$ + "=") = 0 THEN
@@ -744,7 +749,27 @@ WHILE shRefPos > 0
 WEND
 
 ##funcMixed$ = scan_mixed_byref$(src$)
-PRINT ""
+##byrefWB$ = scan_byref_wb$(src$)
+' Emit deferred forward declarations (now that ##byrefWB$ is set for pointer params)
+DIM _fdName$
+DIM _fdParams$
+DIM _fdRet$
+DIM _fdLine$
+DIM _fdTab1
+DIM _fdTab2
+DIM _fdRest$
+WHILE LEN(fwdDeclsBuf$) > 0
+  _fdTab1 = INSTR(fwdDeclsBuf$, CHR$(9))
+  _fdTab2 = INSTR(fwdDeclsBuf$, CHR$(9), _fdTab1 + 1)
+  _fdLine$ = MID$(fwdDeclsBuf$, 1, INSTR(fwdDeclsBuf$, CHR$(10)) - 1)
+  _fdName$ = LEFT$(_fdLine$, _fdTab1 - 1)
+  _fdParams$ = MID$(_fdLine$, _fdTab1 + 1, _fdTab2 - _fdTab1 - 1)
+  _fdRet$ = MID$(_fdLine$, _fdTab2 + 1, LEN(_fdLine$) - _fdTab2)
+  ##curFnName$ = _fdName$
+  PRINT c_type$(_fdRet$) + " xb_user_" + _fdName$ + "(" + emit_params$(_fdParams$) + ");"
+  _fdRest$ = MID$(fwdDeclsBuf$, INSTR(fwdDeclsBuf$, CHR$(10)) + 1, LEN(fwdDeclsBuf$) - INSTR(fwdDeclsBuf$, CHR$(10)))
+  fwdDeclsBuf$ = _fdRest$
+WEND
 
 ##dynNames$ = scan_dyn$(src$)
 ##byrefDual$ = scan_byref_dual$(src$)
@@ -854,8 +879,15 @@ WHILE pos <= LEN(src$)
           retType$ = MID$(afterParen$, closeParen + 5, LEN(afterParen$) - closeParen - 4)
           ##arrParams$ = arr_param_names$(params$)
           ##curParams$ = param_names$(params$)
+          ##curFnName$ = funcName$
           PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(" + emit_params$(params$) + ") {"
           PRINT "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";"
+          ' CGEN-BYREF-WRITEBACK: copy-in prologue for all-byref scalar params
+          DIM _wbIn$
+          _wbIn$ = gen_byref_cio$(params$)
+          IF LEN(_wbIn$) > 0 THEN
+            PRINT LEFT$(_wbIn$, LEN(_wbIn$) - 1)
+          END IF
           funcBody$ = ""
           usedSyms$ = CHR$(10)
           dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
@@ -883,6 +915,9 @@ WHILE pos <= LEN(src$)
           END IF
           IF LEN(fullBody$) > 0 THEN
             PRINT LEFT$(fullBody$, LEN(fullBody$) - 1)
+          END IF
+          IF LEN(##byrefWBCopy$) > 0 THEN
+            PRINT LEFT$(##byrefWBCopy$, LEN(##byrefWBCopy$) - 1)
           END IF
           PRINT "    return " + c_var_name$(funcName$, retType$) + ";"
           PRINT "}"
@@ -2721,6 +2756,9 @@ FUNCTION emit_params$(params$)
     ' Emit: array params and byref-dual/str-dual ARRAY params get pointer
     IF _isArrParam = 1 THEN
       result$ = result$ + c_type$(pType$) + "* " + baseName$
+    ELSEIF INSTR(##byrefWB$, "," + ##curFnName$ + ",") > 0 THEN
+      ' CGEN-BYREF-WRITEBACK: all-byref scalar param → pointer with _ref suffix
+      result$ = result$ + c_type$(pType$) + "* " + baseName$ + "_ref"
     ELSE
       result$ = result$ + c_type$(pType$) + " " + baseName$
     END IF
@@ -3369,6 +3407,154 @@ FUNCTION scan_mixed_byref$(s$)
     END IF
   WEND
   scan_mixed_byref$ = msRes$
+END FUNCTION
+
+' CGEN-BYREF-WRITEBACK: scan for user-defined functions where ALL calls pass ALL
+' args as byref (and the function is NOT in ##funcMixed$). Returns ",FN," for each.
+' Such functions get pointer params (T *X_ref) with copy-in/copy-out.
+FUNCTION scan_byref_wb$(s$)
+  DIM wbPat$
+  DIM wbSP
+  DIM wbCP
+  DIM wbNS
+  DIM wbPP
+  DIM wbFN$
+  DIM wbD
+  DIM wbI2
+  DIM wbC2
+  DIM wbAA$
+  DIM wbAP
+  DIM wbAS
+  DIM wbAD
+  DIM wbAC
+  DIM wbOneArg$
+  DIM wbHasByval
+  DIM wbRes$
+  wbPat$ = "call "
+  wbSP = 1
+  wbRes$ = ","
+  WHILE wbSP <= LEN(s$)
+    wbCP = INSTR(s$, wbPat$, wbSP)
+    IF wbCP = 0 THEN
+      EXIT WHILE
+    END IF
+    wbNS = wbCP + 5
+    wbPP = INSTR(s$, CHR$(40), wbNS)
+    IF wbPP = 0 THEN
+      wbSP = wbNS
+    ELSE
+      wbFN$ = MID$(s$, wbNS, wbPP - wbNS)
+      ' Only user-defined functions (in ##funcTypes$)
+      IF INSTR(##funcTypes$, "," + wbFN$ + ":") > 0 THEN
+        wbD = 1
+        wbI2 = wbPP + 1
+        WHILE wbI2 <= LEN(s$) AND wbD > 0
+          wbC2 = ASC(MID$(s$, wbI2, 1))
+          IF wbC2 = 40 THEN
+            wbD = wbD + 1
+          ELSEIF wbC2 = 41 THEN
+            wbD = wbD - 1
+          END IF
+          wbI2 = wbI2 + 1
+        WEND
+        wbAA$ = MID$(s$, wbPP + 1, wbI2 - wbPP - 2)
+        IF LEN(wbAA$) > 0 THEN
+          wbAP = 1
+          wbAS = 1
+          wbAD = 0
+          wbHasByval = 0
+          WHILE wbAP <= LEN(wbAA$)
+            wbAC = ASC(MID$(wbAA$, wbAP, 1))
+            IF wbAC = 40 THEN
+              wbAD = wbAD + 1
+            ELSEIF wbAC = 41 THEN
+              wbAD = wbAD - 1
+            ELSEIF wbAC = 44 AND wbAD = 0 THEN
+              wbOneArg$ = MID$(wbAA$, wbAS, wbAP - wbAS)
+              IF LEFT$(wbOneArg$, 6) <> "byref" + CHR$(40) THEN
+                wbHasByval = 1
+              END IF
+              wbAS = wbAP + 1
+            END IF
+            wbAP = wbAP + 1
+          WEND
+          wbOneArg$ = MID$(wbAA$, wbAS, LEN(wbAA$) - wbAS + 1)
+          IF LEFT$(wbOneArg$, 6) <> "byref" + CHR$(40) THEN
+            wbHasByval = 1
+          END IF
+          IF wbHasByval = 0 THEN
+            IF INSTR(##funcMixed$, "," + wbFN$ + ",") = 0 THEN
+              IF INSTR(wbRes$, "," + wbFN$ + ",") = 0 THEN
+                wbRes$ = wbRes$ + wbFN$ + ","
+              END IF
+            END IF
+          END IF
+        END IF
+        wbSP = wbI2
+      ELSE
+        wbSP = wbNS
+      END IF
+    END IF
+  WEND
+  scan_byref_wb$ = wbRes$
+END FUNCTION
+
+' CGEN-BYREF-WRITEBACK: generate copy-in lines for the current function's
+' all-byref scalar params. Stores copy-out lines in ##byrefWBCopy$.
+' Returns copy-in lines (each ending with CHR$(10)), or "" if not a WB function.
+FUNCTION gen_byref_cio$(params$)
+  DIM gioIn$
+  DIM gioOut$
+  DIM gioRest$
+  DIM gioCm
+  DIM gioOne$
+  DIM gioCp
+  DIM gioNm$
+  DIM gioTy$
+  DIM gioArr$
+  DIM gioCName$
+  gioIn$ = ""
+  gioOut$ = ""
+  IF INSTR(##byrefWB$, "," + ##curFnName$ + ",") = 0 THEN
+    ##byrefWBCopy$ = ""
+    gen_byref_cio$ = ""
+    RETURN gen_byref_cio$
+  END IF
+  gioArr$ = arr_param_names$(params$)
+  gioRest$ = params$
+  WHILE LEN(gioRest$) > 0
+    gioCm = INSTR(gioRest$, ",")
+    IF gioCm > 0 THEN
+      gioOne$ = LEFT$(gioRest$, gioCm - 1)
+      gioRest$ = MID$(gioRest$, gioCm + 1, LEN(gioRest$) - gioCm)
+    ELSE
+      gioOne$ = gioRest$
+      gioRest$ = ""
+    END IF
+    gioOne$ = trim_spaces$(gioOne$)
+    IF LEFT$(gioOne$, 1) = "@" THEN
+      gioOne$ = MID$(gioOne$, 2, LEN(gioOne$) - 1)
+    END IF
+    gioCp = INSTR(gioOne$, ":")
+    IF gioCp > 0 THEN
+      gioNm$ = LEFT$(gioOne$, gioCp - 1)
+      gioTy$ = MID$(gioOne$, gioCp + 1, LEN(gioOne$) - gioCp)
+    ELSE
+      gioNm$ = gioOne$
+      gioTy$ = "integer"
+    END IF
+    ' Skip array params (type contains [])
+    IF INSTR(gioTy$, "[]") = 0 THEN
+      ' Skip if name is in arr_param_names (array param without [] in type)
+      IF INSTR(gioArr$, gioNm$ + CHR$(10)) = 0 THEN
+        gioCName$ = c_var_name$(gioNm$, gioTy$)
+        gioIn$ = gioIn$ + "    " + c_type$(gioTy$) + " " + gioCName$ + " = *" + gioCName$ + "_ref;" + CHR$(10)
+        gioOut$ = gioOut$ + "    *" + gioCName$ + "_ref = " + gioCName$ + ";" + CHR$(10)
+      END IF
+    END IF
+  WEND
+  ##byrefWBCopy$ = gioOut$
+  gen_byref_cio$ = gioIn$
 END FUNCTION
 
 FUNCTION scan_dyn$(s$)
@@ -4883,12 +5069,12 @@ FUNCTION emit_stmt$(s$)
   IF LEFT$(s$, 7) = "return " THEN
     rest$ = MID$(s$, 8, LEN(s$) - 7)
     cExpr$ = emit_expr$(rest$)
-    emit_stmt$ = "    return " + cExpr$ + ";"
+    emit_stmt$ = ##byrefWBCopy$ + "    return " + cExpr$ + ";"
     RETURN emit_stmt$
   END IF
 
   IF s$ = "return" THEN
-    emit_stmt$ = "    return 0;"
+    emit_stmt$ = ##byrefWBCopy$ + "    return 0;"
     RETURN emit_stmt$
   END IF
 
