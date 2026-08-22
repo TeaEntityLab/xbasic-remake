@@ -644,6 +644,10 @@ IF INSTR(src$, "XuiGetNextCallback") > 0 THEN
   PRINT "}"
   PRINT ""
 END IF
+IF INSTR(src$, "XgrProcessMessages") > 0 THEN
+  PRINT "static void xb_xgr_process_messages(intptr_t mode) { (void)mode; exit(0); }"
+  PRINT ""
+END IF
 ' Forward declarations: pre-scan all lines for function signatures
 fwdPos = 1
 WHILE fwdPos <= LEN(src$)
@@ -1330,6 +1334,8 @@ FUNCTION c_func_name$(n$)
     c_func_name$ = "xb_goaddrat"
   ELSEIF n$ = "XuiGetNextCallback" THEN
     c_func_name$ = "xb_gui_next_callback"
+  ELSEIF n$ = "XgrProcessMessages" THEN
+    c_func_name$ = "xb_xgr_process_messages"
   ELSE
     c_func_name$ = "xb_user_" + n$
   END IF
@@ -5294,6 +5300,10 @@ FUNCTION emit_stmt$(s$)
         RETURN emit_stmt$
       END IF
       emit_stmt$ = ""
+      RETURN emit_stmt$
+    END IF
+    IF fn$ = "XgrProcessMessages" THEN
+      emit_stmt$ = "    xb_xgr_process_messages(" + emit_expr$(args$) + ");"
       RETURN emit_stmt$
     END IF
     IF INSTR(##funcTypes$, "," + fn$ + ":") = 0 THEN

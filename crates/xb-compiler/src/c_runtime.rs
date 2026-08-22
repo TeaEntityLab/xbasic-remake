@@ -687,3 +687,11 @@ pub(crate) fn emit_gui_runtime(out: &mut String) {
     out.push_str("    return 0;\n");
     out.push_str("}\n");
 }
+
+/// Headless `XgrProcessMessages` C runtime — mirrors the interp's `Quit { code: 0 }`:
+/// the real Xgr library processes GUI events and dispatches callbacks; without it
+/// the demo would hang forever. Terminate immediately (exit 0) so the demo's output
+/// (produced before the message loop) is flushed. Gated: emitted only when used.
+pub(crate) fn emit_xgr_process_messages_runtime(out: &mut String) {
+    out.push_str("static void xb_xgr_process_messages(intptr_t mode) { (void)mode; exit(0); }\n");
+}

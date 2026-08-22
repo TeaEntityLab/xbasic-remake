@@ -317,6 +317,14 @@ pub(crate) fn call_function(
         "XuiGetNextCallback" if args.len() >= 2 => {
             return gui_next_callback(args, state);
         }
+        "XgrProcessMessages" => {
+            // Headless: the real Xgr library processes GUI events and dispatches
+            // callbacks; without it the demo would hang forever in its event loop.
+            // Terminate immediately (exit 0) so the demo's output (produced before
+            // the loop) is flushed and becomes differential-testable. Mirrors the
+            // C backend's `xb_xgr_process_messages` which calls `exit(0)`.
+            return Err(RuntimeError::Quit { code: 0 });
+        }
         _ => {}
     }
     if is_builtin(name) {
