@@ -580,6 +580,7 @@ PRINT ""
 ##byrefDual$ = scan_byref_dual$(src$)
 ##strDual$ = scan_str_dual$(src$)
 ##dualUse$ = scan_dual_use$(src$)
+##arr2d$ = scan_arr2d$(src$)
 ' Forward declarations: pre-scan all lines for function signatures
 fwdPos = 1
 WHILE fwdPos <= LEN(src$)
@@ -653,6 +654,9 @@ WHILE fwdPos <= LEN(src$)
           IF INSTR(##sharedArrDecls$, ":" + fwdSName$ + ":") = 0 THEN
             ##sharedArrDecls$ = ##sharedArrDecls$ + ":" + fwdSName$ + ":"
             PRINT c_type$(fwdSType$) + "* " + c_var_name$(fwdSName$, fwdSType$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(fwdSName$) + " = -1;"
+            IF INSTR(##arr2d$, ":" + fwdSName$ + ":") > 0 THEN
+              PRINT "intptr_t xb_d1_" + sanitize_ident$(fwdSName$) + " = 0;"
+            END IF
           END IF
         END IF
       END IF
@@ -2080,6 +2084,27 @@ FUNCTION emit_expr$(e$)
         emittedArgs$ = emittedArgs$ + ", -99999"
       END IF
     END IF
+    IF fn$ = "RIGHT$" OR fn$ = "LEFT$" THEN
+      DIM rlCommas
+      DIM rlI
+      DIM rlDepth
+      DIM rlCh
+      rlCommas = 0
+      rlDepth = 0
+      FOR rlI = 1 TO LEN(args$)
+        rlCh = ASC(MID$(args$, rlI, 1))
+        IF rlCh = 40 THEN
+          rlDepth = rlDepth + 1
+        ELSEIF rlCh = 41 THEN
+          rlDepth = rlDepth - 1
+        ELSEIF rlCh = 44 AND rlDepth = 0 THEN
+          rlCommas = rlCommas + 1
+        END IF
+      NEXT rlI
+      IF rlCommas = 0 THEN
+        emittedArgs$ = emittedArgs$ + ", 0"
+      END IF
+    END IF
     IF INSTR(##funcTypes$, "," + fn$ + ":") = 0 THEN
       IF funcName$ = "xb_user_" + fn$ THEN
         IF RIGHT$(fn$, 1) = "$" THEN
@@ -2121,7 +2146,7 @@ FUNCTION emit_expr$(e$)
       IF RIGHT$(t$, 1) = "]" THEN
         t$ = LEFT$(t$, LEN(t$) - 1)
       END IF
-      IF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0) THEN
+      IF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0) THEN
         emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat2d$(t$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "]"
       ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
@@ -3814,11 +3839,15 @@ FUNCTION emit_stmt$(s$)
       END IF
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
         IF bracketPos > 0 THEN
-          cExpr$ = emit_expr$(arrSize$)
-          IF varType$ = "string" THEN
-            emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+          IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
+            emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, varType$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(" + c_type$(varType$) + ")); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
           ELSE
-            emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + c_type$(varType$) + ")); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+            cExpr$ = emit_expr$(arrSize$)
+            IF varType$ = "string" THEN
+              emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+            ELSE
+              emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + c_type$(varType$) + ")); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+            END IF
           END IF
         ELSE
           emit_stmt$ = ""
@@ -3907,7 +3936,7 @@ FUNCTION emit_stmt$(s$)
     IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
       emit_stmt$ = "    (void)(" + c2$ + ");"
     ELSE
-      IF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0) THEN
+      IF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0) THEN
         emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat2d$(cExpr$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "] = " + c2$ + ";"
       ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_expr$(first_comma_part$(cExpr$)) + "] = " + c2$ + ";"
