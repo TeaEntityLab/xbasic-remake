@@ -2825,6 +2825,8 @@ FUNCTION emit_hoists$(used$, dimmed$)
           IF INSTR(out$, "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)) = 0 THEN
             IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
               out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
+            ELSE
+              out$ = out$ + "    intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
             END IF
             out$ = out$ + "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)
           END IF
