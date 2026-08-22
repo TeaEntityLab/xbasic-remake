@@ -3132,7 +3132,7 @@ FUNCTION emit_stmt$(s$)
         varName$ = rest$
         varType$ = "integer"
       END IF
-      IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
+      IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
         emit_stmt$ = ""
       ELSEIF varType$ = "string" THEN
         emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");"

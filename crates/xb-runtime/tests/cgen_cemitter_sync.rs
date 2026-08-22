@@ -1699,6 +1699,53 @@ fn cemitter_and_cgen_agree_on_string_dyn_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Scalar string DIM of a string dyn array (CGEN-DYN-ARRAY): a string name DIM'd as a
+/// scalar (`AUTO array$[]` empty-bracket lowers to `dim array$:string`) AND as a 1-D
+/// string array 2+ times (`##dynStr$`) made cgen.x emit BOTH `char* xb_str_array$` (the
+/// scalar `dim` handler) AND `char** xb_str_array$ = 0` (the dyn-array hoist) -> cc
+/// "redefinition of xb_str_array$ with a different type". cgen.x now skips the scalar
+/// string `dim` for a name in `##dynStr$` (the char** dyn decl covers it), mirroring the
+/// existing `##dynNames$` integer handling. Flipped aprofile + adata faithful (90->92).
+#[test]
+fn cemitter_and_cgen_agree_on_scalar_dim_of_string_dyn_array() {
+    let tmp = std::env::temp_dir().join("xb_sync_scalardimstrdyn");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"sd\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               AUTO tags$[]\n\
+               DIM tags$[2]\n\
+               DIM tags$[3]\n\
+               tags$[0] = \"x\"\n\
+               tags$[1] = \"y\"\n\
+               PRINT tags$[0] + tags$[1]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse scalar-dim string-dyn program")
+        .lower_ir()
+        .expect("lower scalar-dim string-dyn program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "sdimstrdyn_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "sdimstrdyn_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret scalar-dim string-dyn program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "xy\n", "scalar-dim string-dyn reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled scalar-dim string dyn array");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled scalar-dim string dyn array (char*/char** redefinition)");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Function-name self-DIM (CGEN-SELFHOST-PARITY): a function whose body DIMs its own
 /// name (the return value — `FUNCTION Main() ... DIM Main`) made cgen.x emit a scalar
 /// decl for `xb_var_Main` from the signature AND again from the `dim` statement -> cc
