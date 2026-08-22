@@ -1798,6 +1798,50 @@ fn cemitter_and_cgen_agree_on_shared_array_cross_function() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Function-address id (CGEN-FUNCADDR): `&Func` / `funcaddr(Func)` is a synthetic
+/// 1-based id in program declaration order (interp eval.rs `function_id`; Rust/LLVM
+/// match), NOT a machine address. cgen.x folded it to 0 (no handler); it now returns
+/// the position of the name in `##funcIds$` (built by the forward-decl pass). Helper is
+/// the 2nd function -> 2. Byte-neutral on the selfhost tools (they emit 0 funcaddr).
+#[test]
+fn cemitter_and_cgen_agree_on_func_addr_id() {
+    let tmp = std::env::temp_dir().join("xb_sync_funcaddr");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"fa\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM a\n\
+               a = &Helper()\n\
+               PRINT a\n\
+               END FUNCTION\n\
+               FUNCTION Helper ()\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse funcaddr program")
+        .lower_ir()
+        .expect("lower funcaddr program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "funcaddr_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "funcaddr_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret funcaddr program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "2\n", "funcaddr reference id (Helper = 2nd function)");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled &func id");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled &func id (should be decl-order position)");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Function-name self-DIM (CGEN-SELFHOST-PARITY): a function whose body DIMs its own
 /// name (the return value — `FUNCTION Main() ... DIM Main`) made cgen.x emit a scalar
 /// decl for `xb_var_Main` from the signature AND again from the `dim` statement -> cc

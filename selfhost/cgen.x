@@ -550,6 +550,7 @@ PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 PRINT ""
 ##funcTypes$ = ""
 ##funcArity$ = ""
+##funcIds$ = ":"
 ##gosubRetCount$ = ""
 ##sharedDecls$ = ""
 ##sharedArrays$ = ""
@@ -599,6 +600,7 @@ WHILE fwdPos <= LEN(src$)
       fwdRet$ = MID$(fwdAfter$, fwdClose + 5, LEN(fwdAfter$) - fwdClose - 4)
       PRINT c_type$(fwdRet$) + " xb_user_" + fwdName$ + "(" + emit_params$(fwdParams$) + ");"
       ##funcTypes$ = ##funcTypes$ + fwdName$ + ":" + fwdRet$ + ","
+      ##funcIds$ = ##funcIds$ + fwdName$ + ":"
       IF INSTR(##funcArity$, ":" + fwdName$ + "=") = 0 THEN
         ##funcArity$ = ##funcArity$ + ":" + fwdName$ + "=" + param_count$(fwdParams$) + ":"
       END IF
@@ -2170,6 +2172,15 @@ FUNCTION emit_expr$(e$)
     RETURN emit_expr$
   END IF
 
+  IF LEFT$(e$, 9) = "funcaddr(" THEN
+    t$ = MID$(e$, 10, LEN(e$) - 9)
+    IF RIGHT$(t$, 1) = ")" THEN
+      t$ = LEFT$(t$, LEN(t$) - 1)
+    END IF
+    emit_expr$ = func_id_of$(t$)
+    RETURN emit_expr$
+  END IF
+
   IF LEFT$(e$, 7) = "shared(" THEN
     t$ = MID$(e$, 8, LEN(e$) - 7)
     IF RIGHT$(t$, 1) = ")" THEN
@@ -2991,6 +3002,37 @@ FUNCTION scan_shared_arr$(s$)
     END IF
   WEND
   scan_shared_arr$ = res$
+END FUNCTION
+
+' Function address id (CGEN-FUNCADDR): `&Func` / `funcaddr(Func)` is NOT a machine
+' address but a synthetic 1-based id in program declaration order, matching the interp
+' (eval.rs `function_id`), the Rust CEmitter, and LLVM. `##funcIds$` is the ordered
+' `:`-delimited name list built by the forward-decl pass (program declaration order);
+' return the 1-based position of `target$`, else "0" (unknown -> 0, like Rust's
+' is_unknown_call path). A `##` global so it is reachable from `emit_expr` (the local
+' `src$` is not). Byte-neutral on the selfhost tools (they emit 0 funcaddr).
+FUNCTION func_id_of$(target$)
+  DIM p
+  DIM colon
+  DIM seg$
+  DIM id
+  id = 0
+  func_id_of$ = "0"
+  p = 2
+  WHILE p <= LEN(##funcIds$)
+    colon = INSTR(##funcIds$, ":", p)
+    IF colon = 0 THEN
+      colon = LEN(##funcIds$) + 1
+    END IF
+    seg$ = MID$(##funcIds$, p, colon - p)
+    id = id + 1
+    IF seg$ = target$ THEN
+      func_id_of$ = STR$(id)
+      p = LEN(##funcIds$) + 1
+    ELSE
+      p = colon + 1
+    END IF
+  WEND
 END FUNCTION
 
 ' Replace every occurrence of `n$` in `h$` with `r$` (cgen.x has no built-in).
