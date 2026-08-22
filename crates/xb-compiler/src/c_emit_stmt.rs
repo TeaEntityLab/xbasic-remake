@@ -553,13 +553,16 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         IrItem::GosubExpr(expr) => {
             // Same per-site uniqueness for the computed-GOSUB return label (two
             // `GOSUB @x` in one function previously collided on `xb_gosub_ret_expr`).
+            // Guard with `if (_xb_ge)` so a 0 address (undimmed Sub[] / unregistered
+            // message) is a no-op instead of `goto *(void*)0` → SIGSEGV, matching the
+            // interpreter's RT-GOSUB-ZERO behavior.
             let suffix = crate::c_emit::gosub_ret_suffix(" expr");
             out.push_str(&ind);
-            out.push_str(&format!(
-                "xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_expr{suffix}; goto *(void*)"
-            ));
+            out.push_str("{ intptr_t _xb_ge = ");
             emit_expr(expr, out);
-            out.push_str(&format!("; xb_gosub_ret_expr{suffix}: (void)0;\n"));
+            out.push_str(&format!(
+                "; if (_xb_ge) {{ xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_expr{suffix}; goto *(void*)_xb_ge; }} xb_gosub_ret_expr{suffix}: (void)0; }}\n"
+            ));
         }
         IrItem::GotoExpr(expr) => {
             out.push_str(&ind);

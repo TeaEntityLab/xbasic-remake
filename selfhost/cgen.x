@@ -582,6 +582,7 @@ PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 ##selectIsString = 0
 ##selectBraces = 0
 ##selectExitCount = 0
+##nestFns$ = ""
 ##selectExitStack$ = ""
 ##sharedArrays$ = scan_shared_arr$(src$)
 ##dynNames$ = scan_dyn$(src$)
@@ -864,6 +865,7 @@ WHILE pos <= LEN(src$)
         ' and hoist its locals into the parent's shared C scope. Byte-neutral on the
         ' selfhost tools, which nest no functions.
         inNest = 1
+        ##nestFns$ = ##nestFns$ + "," + nfName$
         nestBlocks$ = nestBlocks$ + "xb_label_" + nfName$ + ":" + CHR$(10)
         nfAfter$ = MID$(rest$, parenPos + 1, LEN(rest$) - parenPos)
         nfClose = INSTR(nfAfter$, ")")
@@ -899,6 +901,7 @@ WHILE pos <= LEN(src$)
             PRINT LEFT$(_wbIn$, LEN(_wbIn$) - 1)
           END IF
           funcBody$ = ""
+          ##nestFns$ = ""
           usedSyms$ = CHR$(10)
           dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
           ##gosubRetCount$ = ""
@@ -934,6 +937,7 @@ WHILE pos <= LEN(src$)
         END IF
         skipFunc = 0
         nestBlocks$ = ""
+        ##nestFns$ = ""
       END IF
     ELSE
       IF skipFunc = 0 THEN
@@ -2389,7 +2393,11 @@ FUNCTION emit_expr$(e$)
     IF RIGHT$(labelName$, 1) = ")" THEN
       labelName$ = LEFT$(labelName$, LEN(labelName$) - 1)
     END IF
-    emit_expr$ = "((intptr_t)&&xb_label_" + labelName$ + ")"
+    IF INSTR(##nestFns$ + ",", "," + labelName$ + ",") > 0 THEN
+      emit_expr$ = "0"
+    ELSE
+      emit_expr$ = "((intptr_t)&&xb_label_" + labelName$ + ")"
+    END IF
     RETURN emit_expr$
   END IF
 
@@ -5566,7 +5574,7 @@ FUNCTION emit_stmt$(s$)
     gosubExpr$ = MID$(s$, 12, LEN(s$) - 11)
     DIM geSuf$
     geSuf$ = gosub_ret_suffix$("expr")
-    emit_stmt$ = "    xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_expr" + geSuf$ + "; goto *(void*)" + emit_expr$(gosubExpr$) + "; xb_gosub_ret_expr" + geSuf$ + ": (void)0;"
+    emit_stmt$ = "    { intptr_t _xb_ge = " + emit_expr$(gosubExpr$) + "; if (_xb_ge) { xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_expr" + geSuf$ + "; goto *(void*)_xb_ge; } xb_gosub_ret_expr" + geSuf$ + ": (void)0; }"
     RETURN emit_stmt$
   END IF
 
