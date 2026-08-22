@@ -137,6 +137,9 @@ PRINT "static int xb_len(const char* s) { return (int)*((size_t*)s - 1); }"
 PRINT "static char* xb_from_cstr(const char* s) { size_t n = strlen(s); char* d = xb_alloc(n); memcpy(d, s, n); return d; }"
 PRINT "static char* xb_strdup(const char* s) { int n = xb_len(s); char* d = xb_alloc((size_t)n); memcpy(d, s, (size_t)n); return d; }"
 PRINT "static char* xb_str(const char* s) { return xb_from_cstr(s); }"
+IF INSTR(src$, CHR$(92) + "0") > 0 THEN
+  PRINT "static char* xb_str_n(const char* s, size_t n) { char* d = xb_alloc(n); memcpy(d, s, n); return d; }"
+END IF
 PRINT "static char* xb_concat(const char* a, const char* b) {"
 PRINT "    int la = xb_len(a), lb = xb_len(b);"
 PRINT "    char* r = xb_alloc((size_t)(la + lb));"
@@ -1468,7 +1471,11 @@ FUNCTION emit_expr$(e$)
 
   IF LEFT$(e$, 7) = "string(" THEN
     t$ = MID$(e$, 9, LEN(e$) - 10)
-    emit_expr$ = "xb_str(" + CHR$(34) + t$ + CHR$(34) + ")"
+    IF INSTR(t$, CHR$(92) + "0") > 0 THEN
+      emit_expr$ = "xb_str_n(" + CHR$(34) + t$ + CHR$(34) + ", (int)sizeof(" + CHR$(34) + t$ + CHR$(34) + ") - 1)"
+    ELSE
+      emit_expr$ = "xb_str(" + CHR$(34) + t$ + CHR$(34) + ")"
+    END IF
     RETURN emit_expr$
   END IF
 
@@ -3629,7 +3636,7 @@ FUNCTION emit_stmt$(s$)
           printE$ = emit_expr$(printArg$)
           printT$ = expr_type$(printArg$)
           IF printT$ = "string" THEN
-            printParts$ = printParts$ + "    printf(" + CHR$(34) + "%s" + CHR$(34) + ", " + printE$ + ");" + CHR$(10)
+            printParts$ = printParts$ + "    { char* _pt = " + printE$ + "; fwrite(_pt, 1, (size_t)xb_len(_pt), stdout); }" + CHR$(10)
           ELSEIF printT$ = "float" THEN
             printParts$ = printParts$ + "    printf(" + CHR$(34) + "%g" + CHR$(34) + ", " + printE$ + ");" + CHR$(10)
           ELSE

@@ -2246,3 +2246,49 @@ fn cemitter_and_cgen_agree_on_ubound_of_string() {
     assert_eq!(self_out, interp_out, "cgen.x mishandled UBOUND of a string (byte length)");
     let _ = fs::remove_dir_all(&tmp);
 }
+
+/// Byte-accurate NUL strings (CGEN-NUL-STRING): a string literal with an embedded
+/// NUL (`"\0\0abc"`) must keep all 5 bytes, and a non-final PRINT item must emit
+/// every byte (not stop at a NUL). cgen.x emitted `xb_str("\0\0abc")` (strlen
+/// truncates → LEN 0) and `printf("%s", s)` for non-last items (stops at NUL →
+/// empty). Now it emits `xb_str_n("...", sizeof-1)` (conditionally, mirroring the
+/// Rust CEmitter's usage-gated helper) and `fwrite(_pt,1,xb_len(_pt),stdout)`.
+/// This flipped atrim (a byte-string trim demo) from a differential diverger to
+/// byte-faithful. Byte-neutral on the NUL-free corpus.
+#[test]
+fn cemitter_and_cgen_agree_on_nul_string() {
+    let tmp = std::env::temp_dir().join("xb_sync_nulstr");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"ns\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM s$\n\
+               s$ = \"\\0\\0abc\"\n\
+               PRINT LEN(s$)\n\
+               PRINT \"<\"; s$; \">\"\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse nul-string program")
+        .lower_ir()
+        .expect("lower nul-string program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "ns_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "ns_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret nul-string program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "5\n<\0\0abc>\n", "NUL-string reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled the NUL string");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled the NUL string (literal length + PRINT)");
+    let _ = fs::remove_dir_all(&tmp);
+}
