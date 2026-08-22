@@ -3687,7 +3687,7 @@ FUNCTION emit_stmt$(s$)
     tmp$ = MID$(rest$, bracketPos + 1, LEN(rest$) - bracketPos)
     bracketPos = INSTR(tmp$, "]")
     cExpr$ = LEFT$(tmp$, bracketPos - 1)
-    spacePos = INSTR(tmp$, "= ")
+    spacePos = INSTR(tmp$, "= ", bracketPos + 1)
     right$ = MID$(tmp$, spacePos + 2, LEN(tmp$) - spacePos - 1)
     c2$ = emit_expr$(right$)
     IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
