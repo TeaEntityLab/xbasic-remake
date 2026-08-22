@@ -550,7 +550,6 @@ PRINT "    r = xb_from_cstr(buf); }"
 PRINT "  xb_data_pos++; return r;"
 PRINT "}"
 PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
-PRINT ""
 ##funcTypes$ = ","
 ##funcArity$ = ""
 ##funcIds$ = ":"
@@ -581,6 +580,53 @@ PRINT ""
 ##strDual$ = scan_str_dual$(src$)
 ##dualUse$ = scan_dual_use$(src$)
 ##arr2d$ = scan_arr2d$(src$)
+##allStrArr$ = scan_all_strarr$(src$)
+##xstArrays$ = scan_xst_arrays$(src$)
+PRINT ""
+IF LEN(##xstArrays$) > 0 THEN
+  PRINT "static int xb_qs_gt(const uint64_t* a, int et, intptr_t i, intptr_t j, int decr, int ci) {"
+  PRINT "    int c;"
+  PRINT "    if (et == 1) { double x, y; memcpy(&x, &a[i], 8); memcpy(&y, &a[j], 8); c = (x > y) - (x < y); }"
+  PRINT "    else if (et == 2) { const char* x = (const char*)a[i]; const char* y = (const char*)a[j];"
+  PRINT "        int lx = xb_len(x), ly = xb_len(y), m = lx < ly ? lx : ly, r = 0;"
+  PRINT "        for (int k = 0; k < m; k++) { unsigned char cx = (unsigned char)x[k], cy = (unsigned char)y[k]; if (ci) { if (cx>='A'&&cx<='Z') cx+=32; if (cy>='A'&&cy<='Z') cy+=32; } if (cx != cy) { r = cx < cy ? -1 : 1; break; } }"
+  PRINT "        if (r == 0) r = (lx > ly) - (lx < ly); c = r; }"
+  PRINT "    else { int64_t x = (int64_t)a[i], y = (int64_t)a[j]; c = (x > y) - (x < y); }"
+  PRINT "    if (decr) c = -c;"
+  PRINT "    return c > 0;"
+  PRINT "}"
+  PRINT "static int xb_quicksort(void* ap, int et, intptr_t alen, intptr_t** nd, intptr_t* nub, intptr_t low, intptr_t high, intptr_t mode) {"
+  PRINT "    uint64_t* a = (uint64_t*)ap; int decr = (int)(mode & 1), ci = (int)(mode & 2);"
+  PRINT "    if (low <= high && high < alen) {"
+  PRINT "        intptr_t rng = high - low + 1;"
+  PRINT "        intptr_t* idx = (intptr_t*)malloc((size_t)rng * sizeof(intptr_t));"
+  PRINT "        for (intptr_t k = 0; k < rng; k++) idx[k] = low + k;"
+  PRINT "        for (intptr_t k = 1; k < rng; k++) { intptr_t cur = idx[k]; intptr_t m = k - 1; while (m >= 0 && xb_qs_gt(a, et, idx[m], cur, decr, ci)) { idx[m+1] = idx[m]; m--; } idx[m+1] = cur; }"
+  PRINT "        uint64_t* tmp = (uint64_t*)malloc((size_t)rng * 8);"
+  PRINT "        for (intptr_t k = 0; k < rng; k++) tmp[k] = a[idx[k]];"
+  PRINT "        for (intptr_t k = 0; k < rng; k++) a[low + k] = tmp[k];"
+  PRINT "        if (nd && nub && *nub >= 0) {"
+  PRINT "            *nd = (intptr_t*)realloc(*nd, (size_t)alen * sizeof(intptr_t)); *nub = alen - 1;"
+  PRINT "            for (intptr_t k = 0; k < alen; k++) (*nd)[k] = k;"
+  PRINT "            for (intptr_t k = 0; k < rng; k++) (*nd)[low + k] = idx[k];"
+  PRINT "        }"
+  PRINT "        free(idx); free(tmp);"
+  PRINT "    }"
+  PRINT "    return 0;"
+  PRINT "}"
+  PRINT "static int xb_copyarray(void* srcp, intptr_t srclen, int et, void** dst_d, intptr_t* dst_ub) {"
+  PRINT "    if (!dst_d || !dst_ub) return 0;"
+  PRINT "    uint64_t* src = (uint64_t*)srcp;"
+  PRINT "    *dst_d = realloc(*dst_d, (size_t)(srclen < 1 ? 1 : srclen) * 8); *dst_ub = srclen - 1;"
+  PRINT "    uint64_t* dst = (uint64_t*)*dst_d;"
+  PRINT "    for (intptr_t k = 0; k < srclen; k++) {"
+  PRINT "        if (et == 2) dst[k] = (uint64_t)(intptr_t)xb_strdup((const char*)src[k]);"
+  PRINT "        else dst[k] = src[k];"
+  PRINT "    }"
+  PRINT "    return 0;"
+  PRINT "}"
+  PRINT ""
+END IF
 ' Forward declarations: pre-scan all lines for function signatures
 fwdPos = 1
 WHILE fwdPos <= LEN(src$)
@@ -2146,7 +2192,7 @@ FUNCTION emit_expr$(e$)
       IF RIGHT$(t$, 1) = "]" THEN
         t$ = LEFT$(t$, LEN(t$) - 1)
       END IF
-      IF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0) THEN
+      IF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
         emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat2d$(t$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "]"
       ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
@@ -2182,6 +2228,8 @@ FUNCTION emit_expr$(e$)
       END IF
     ELSEIF INSTR(##strDual$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$) + bd$(varName$)
+    ELSEIF INSTR(##allStrArr$, ":" + varName$ + ":") > 0 AND INSTR(##strDual$, ":" + varName$ + ":") = 0 THEN
+      emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
@@ -2190,6 +2238,8 @@ FUNCTION emit_expr$(e$)
       ELSE
         emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$) + bd$(varName$)
       END IF
+    ELSEIF INSTR(##xstArrays$, ":" + varName$ + ":") > 0 AND INSTR(##dynNames$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 THEN
+      emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSE
       emit_expr$ = "(int)(sizeof(" + c_var_name$(varName$, varType$) + ")/sizeof(" + c_var_name$(varName$, varType$) + "[0])-1)"
     END IF
@@ -2672,6 +2722,41 @@ FUNCTION scan_used$(s$, acc$)
       out$ = add_sym$(out$, nm$, ty$)
     END IF
   END IF
+  rest$ = s$
+  p = INSTR(rest$, "array_access" + CHR$(40))
+  WHILE p > 0
+    rest$ = MID$(rest$, p + 13, LEN(rest$) - p - 12)
+    cp = INSTR(rest$, ":")
+    IF cp > 0 THEN
+      nm$ = LEFT$(rest$, cp - 1)
+      IF RIGHT$(nm$, 1) = "$" THEN
+        bp = INSTR(rest$, "[")
+        IF bp > cp THEN
+          ty$ = MID$(rest$, cp + 1, bp - cp - 1)
+        ELSE
+          ty$ = "string"
+        END IF
+        out$ = add_sym$(out$, nm$, ty$)
+      END IF
+    END IF
+    p = INSTR(rest$, "array_access" + CHR$(40))
+  WEND
+  IF LEFT$(s$, 12) = "array_assign " THEN
+    fpart$ = MID$(s$, 13, LEN(s$) - 12)
+    cp = INSTR(fpart$, ":")
+    IF cp > 0 THEN
+      nm$ = trim_spaces$(LEFT$(fpart$, cp - 1))
+      IF RIGHT$(nm$, 1) = "$" THEN
+        bp = INSTR(fpart$, "[")
+        IF bp > cp THEN
+          ty$ = MID$(fpart$, cp + 1, bp - cp - 1)
+        ELSE
+          ty$ = "string"
+        END IF
+        out$ = add_sym$(out$, nm$, ty$)
+      END IF
+    END IF
+  END IF
   scan_used$ = out$
 END FUNCTION
 
@@ -2853,7 +2938,17 @@ FUNCTION emit_hoists$(used$, dimmed$)
         nm$ = LEFT$(entry$, bar - 1)
         ty$ = MID$(entry$, bar + 1, LEN(entry$) - bar)
         IF INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 THEN
-          out$ = out$ + "    " + c_type$(ty$) + " " + c_var_name$(nm$, ty$) + " = " + c_default$(ty$) + ";" + CHR$(10)
+          IF INSTR(##allStrArr$, ":" + nm$ + ":") > 0 AND INSTR(##strDual$, ":" + nm$ + ":") = 0 AND RIGHT$(nm$, 1) = "$" THEN
+            IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
+              out$ = out$ + "    char** " + c_var_name$(nm$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
+            END IF
+          ELSEIF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 AND INSTR(##allStrArr$, ":" + nm$ + ":") = 0 AND INSTR(##dynNames$, ":" + nm$ + ":") = 0 THEN
+            IF INSTR(out$, " xb_var_" + sanitize_ident$(nm$) + " = 0; intptr_t xb_ub_") = 0 THEN
+              out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(nm$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
+            END IF
+          ELSE
+            out$ = out$ + "    " + c_type$(ty$) + " " + c_var_name$(nm$, ty$) + " = " + c_default$(ty$) + ";" + CHR$(10)
+          END IF
         END IF
       END IF
     ELSE
@@ -2877,6 +2972,10 @@ FUNCTION emit_hoists$(used$, dimmed$)
         IF INSTR(out$, "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** ") = 0 THEN
           out$ = out$ + "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** " + c_var_name$(entry$, "string") + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
         END IF
+      ELSEIF INSTR(##allStrArr$, ":" + entry$ + ":") > 0 AND INSTR(##dynStr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 THEN
+        IF INSTR(out$, "char** " + c_var_name$(entry$, "string") + " = 0;") = 0 THEN
+          out$ = out$ + "    char** " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
+        END IF
       ELSEIF INSTR(##dynStr$, ":" + entry$ + ":") > 0 THEN
         IF INSTR(out$, " " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_") = 0 THEN
           out$ = out$ + "    char** " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
@@ -2896,9 +2995,13 @@ FUNCTION emit_hoists$(used$, dimmed$)
             out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
           END IF
         END IF
+      ELSEIF INSTR(##xstArrays$, ":" + entry$ + ":") > 0 AND INSTR(##dynNames$, ":" + entry$ + ":") = 0 AND INSTR(##allStrArr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 THEN
+        IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
+          out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
+        END IF
       END IF
       IF INSTR(##arr2d$, ":" + entry$ + ":") > 0 THEN
-        IF INSTR(##dynStr$, ":" + entry$ + ":") > 0 OR INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
+        IF INSTR(##dynStr$, ":" + entry$ + ":") > 0 OR INSTR(##dynNames$, ":" + entry$ + ":") > 0 OR INSTR(##allStrArr$, ":" + entry$ + ":") > 0 THEN
           IF INSTR(out$, "xb_d1_" + sanitize_ident$(entry$) + bd$(entry$) + " = ") = 0 THEN
             out$ = out$ + "    intptr_t xb_d1_" + sanitize_ident$(entry$) + bd$(entry$) + " = 0;" + CHR$(10)
           END IF
@@ -3411,6 +3514,114 @@ FUNCTION scan_dynstr$(s$)
   scan_dynstr$ = res$
 END FUNCTION
 
+' All names DIM'd as a string array (`dim X:string[...]`), regardless of how
+' many times. Used to distinguish string arrays from scalar strings in
+' emit_hoists$ loop 1 when hoisting to functions where the array is used but
+' not DIM'd. Returns a `:name:` set.
+FUNCTION scan_all_strarr$(s$)
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM r$
+  DIM nm$
+  DIM bp
+  DIM e
+  res$ = ""
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 4) = "dim " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      bp = INSTR(r$, "[")
+      IF bp > 0 THEN
+        nm$ = LEFT$(r$, bp - 1)
+        e = INSTR(nm$, ":")
+        IF e > 0 THEN
+          IF MID$(nm$, e + 1, LEN(nm$) - e) = "string" THEN
+            nm$ = LEFT$(nm$, e - 1)
+            IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+              res$ = res$ + ":" + nm$ + ":"
+            END IF
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  scan_all_strarr$ = res$
+END FUNCTION
+' Scan IR for arrays passed to XstQuickSort/XstCopyArray at positions 0-1.
+' These arrays need to be dynamic (calloc'd) because the C runtime reallocs
+' the index array. Returns `:name:type:` entries.
+FUNCTION scan_xst_arrays$(s$)
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM args$
+  DIM sp
+  DIM depth
+  DIM i
+  DIM c
+  DIM startPos
+  DIM part$
+  DIM sym$
+  DIM nm$
+  DIM tp$
+  res$ = ""
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 18) = "call XstQuickSort(" OR LEFT$(ln$, 18) = "call XstCopyArray(" THEN
+      sp = INSTR(ln$, "(")
+      args$ = MID$(ln$, sp + 1, LEN(ln$) - sp - 1)
+      depth = 0
+      startPos = 1
+      FOR i = 1 TO LEN(args$)
+        c = ASC(MID$(args$, i, 1))
+        IF c = 40 THEN
+          depth = depth + 1
+        ELSEIF c = 41 THEN
+          depth = depth - 1
+        ELSEIF c = 44 AND depth = 0 THEN
+          part$ = trim_spaces$(MID$(args$, startPos, i - startPos))
+          sym$ = extract_byref_sym$(part$)
+          sp = INSTR(sym$, ":")
+          IF sp > 0 THEN
+            nm$ = LEFT$(sym$, sp - 1)
+            tp$ = MID$(sym$, sp + 1, LEN(sym$) - sp)
+            IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+              res$ = res$ + ":" + nm$ + ":" + tp$ + ":"
+            END IF
+          END IF
+          startPos = i + 1
+        END IF
+      NEXT i
+      part$ = trim_spaces$(MID$(args$, startPos, LEN(args$) - startPos + 1))
+      sym$ = extract_byref_sym$(part$)
+      sp = INSTR(sym$, ":")
+      IF sp > 0 THEN
+        nm$ = LEFT$(sym$, sp - 1)
+        tp$ = MID$(sym$, sp + 1, LEN(sym$) - sp)
+        IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+          res$ = res$ + ":" + nm$ + ":" + tp$ + ":"
+        END IF
+      END IF
+    END IF
+  WEND
+  scan_xst_arrays$ = res$
+END FUNCTION
+
 ' STRING scalar+array dual-use (CGEN-STRDUAL): a name DIM'd as BOTH a scalar
 ' string (`dim X:string`) AND a string array (`dim X:string[N]`) — the string
 ' analog of the integer ##dynNames$ / byref-dual `_arr` split. The interpreter
@@ -3653,6 +3864,25 @@ FUNCTION sanitize_ident$(n$)
   r$ = replace$(r$, "%", "_h")
   sanitize_ident$ = r$
 END FUNCTION
+' Extract name:type from a byref(symbol(X:type)) arg. Returns "name:type" or "".
+FUNCTION extract_byref_sym$(arg$)
+  DIM r$
+  DIM sp
+  DIM inner$
+  r$ = ""
+  IF LEFT$(arg$, 7) = "byref(s" AND INSTR(arg$, "symbol(") > 0 THEN
+    sp = INSTR(arg$, "symbol(")
+    inner$ = MID$(arg$, sp + 7, LEN(arg$) - sp - 7)
+    IF RIGHT$(inner$, 1) = ")" THEN
+      inner$ = LEFT$(inner$, LEN(inner$) - 1)
+    END IF
+    IF RIGHT$(inner$, 1) = ")" THEN
+      inner$ = LEFT$(inner$, LEN(inner$) - 1)
+    END IF
+    r$ = inner$
+  END IF
+  extract_byref_sym$ = r$
+END FUNCTION
 
 ' Strip leading zeros from a decimal integer literal (keeping one digit + any
 ' sign), so `08`/`09` are not emitted as invalid C octal constants.
@@ -3885,11 +4115,23 @@ FUNCTION emit_stmt$(s$)
         ELSE
           emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
         END IF
+      ELSEIF INSTR(##allStrArr$, ":" + varName$ + ":") > 0 AND varType$ = "string" THEN
+        IF INSTR(arrSize$, ",") > 0 THEN
+          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+        ELSE
+          emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+        END IF
       ELSEIF varType$ = "string" THEN
         IF INSTR(arrSize$, ",") > 0 THEN
           emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + ";" + CHR$(10) + "    for (intptr_t _i = 0; _i < " + emit_mtotal$(arrSize$) + "; _i++) ((char**)" + c_var_name$(varName$, varType$) + ")[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
         ELSE
           emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + "[(" + cExpr$ + ") + 1];" + CHR$(10) + "    for (int _i = 0; _i < (" + cExpr$ + ") + 1; _i++) " + c_var_name$(varName$, varType$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
+        END IF
+      ELSEIF INSTR(##xstArrays$, ":" + varName$ + ":") > 0 AND INSTR(##dynNames$, ":" + varName$ + ":") = 0 AND varType$ <> "string" THEN
+        IF INSTR(arrSize$, ",") > 0 THEN
+          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(intptr_t)); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+        ELSE
+          emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
         END IF
       ELSE
         emit_stmt$ = "    " + c_type$(varType$) + " " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + ";"
@@ -3936,7 +4178,7 @@ FUNCTION emit_stmt$(s$)
     IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
       emit_stmt$ = "    (void)(" + c2$ + ");"
     ELSE
-      IF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0) THEN
+      IF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
         emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat2d$(cExpr$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "] = " + c2$ + ";"
       ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_expr$(first_comma_part$(cExpr$)) + "] = " + c2$ + ";"
@@ -4205,6 +4447,88 @@ FUNCTION emit_stmt$(s$)
     ELSE
       fn$ = rest$
       args$ = ""
+    END IF
+    IF fn$ = "XstQuickSort" OR fn$ = "XstCopyArray" THEN
+      DIM xsParts$
+      DIM xsI
+      DIM xsCh
+      DIM xsDepth
+      DIM xsStart
+      DIM xsCount
+      DIM xsArgs$[16]
+      DIM xsSym$
+      DIM xsSp
+      DIM xsN0$
+      DIM xsT0$
+      DIM xsN1$
+      DIM xsT1$
+      DIM xsEt0$
+      DIM xsEt1$
+      xsN0$ = ""
+      xsT0$ = ""
+      xsN1$ = ""
+      xsT1$ = ""
+      xsDepth = 0
+      xsStart = 1
+      xsCount = 0
+      FOR xsI = 1 TO LEN(args$)
+        xsCh = ASC(MID$(args$, xsI, 1))
+        IF xsCh = 40 THEN
+          xsDepth = xsDepth + 1
+        ELSEIF xsCh = 41 THEN
+          xsDepth = xsDepth - 1
+        ELSEIF xsCh = 44 AND xsDepth = 0 THEN
+          xsArgs$[xsCount] = trim_spaces$(MID$(args$, xsStart, xsI - xsStart))
+          xsCount = xsCount + 1
+          xsStart = xsI + 1
+        END IF
+      NEXT xsI
+      xsArgs$[xsCount] = trim_spaces$(MID$(args$, xsStart, LEN(args$) - xsStart + 1))
+      xsCount = xsCount + 1
+      IF xsCount >= 1 THEN
+        xsSym$ = extract_byref_sym$(xsArgs$[0])
+        xsSp = INSTR(xsSym$, ":")
+        IF xsSp > 0 THEN
+          xsN0$ = LEFT$(xsSym$, xsSp - 1)
+          xsT0$ = MID$(xsSym$, xsSp + 1, LEN(xsSym$) - xsSp)
+        END IF
+      END IF
+      IF xsCount >= 2 THEN
+        xsSym$ = extract_byref_sym$(xsArgs$[1])
+        xsSp = INSTR(xsSym$, ":")
+        IF xsSp > 0 THEN
+          xsN1$ = LEFT$(xsSym$, xsSp - 1)
+          xsT1$ = MID$(xsSym$, xsSp + 1, LEN(xsSym$) - xsSp)
+        END IF
+      END IF
+      xsEt0$ = "0"
+      IF xsT0$ = "string" THEN xsEt0$ = "2"
+      IF xsT0$ = "float" THEN xsEt0$ = "1"
+      xsEt1$ = "0"
+      IF xsT1$ = "string" THEN xsEt1$ = "2"
+      IF xsT1$ = "float" THEN xsEt1$ = "1"
+      IF fn$ = "XstQuickSort" AND xsCount = 5 THEN
+        DIM xsLen0$
+        DIM xsIdxData$
+        DIM xsIdxUb$
+        xsLen0$ = "(xb_ub_" + sanitize_ident$(xsN0$) + " + 1)"
+        xsIdxData$ = "xb_var_" + sanitize_ident$(xsN1$)
+        xsIdxUb$ = "xb_ub_" + sanitize_ident$(xsN1$)
+        emit_stmt$ = "    xb_quicksort((void*)" + c_var_name$(xsN0$, xsT0$) + ", " + xsEt0$ + ", " + xsLen0$ + ", (intptr_t**)&" + xsIdxData$ + ", (intptr_t*)&" + xsIdxUb$ + ", (intptr_t)(" + emit_expr$(xsArgs$[2]) + "), (intptr_t)(" + emit_expr$(xsArgs$[3]) + "), (intptr_t)(" + emit_expr$(xsArgs$[4]) + "));"
+        RETURN emit_stmt$
+      END IF
+      IF fn$ = "XstCopyArray" AND xsCount = 2 THEN
+        DIM xsSrcLen$
+        DIM xsDstData$
+        DIM xsDstUb$
+        xsSrcLen$ = "(xb_ub_" + sanitize_ident$(xsN0$) + " + 1)"
+        xsDstData$ = c_var_name$(xsN1$, xsT1$)
+        xsDstUb$ = "xb_ub_" + sanitize_ident$(xsN1$)
+        emit_stmt$ = "    xb_copyarray((void*)" + c_var_name$(xsN0$, xsT0$) + ", " + xsSrcLen$ + ", " + xsEt0$ + ", (void**)&" + xsDstData$ + ", &" + xsDstUb$ + ");"
+        RETURN emit_stmt$
+      END IF
+      emit_stmt$ = ""
+      RETURN emit_stmt$
     END IF
     IF INSTR(##funcTypes$, "," + fn$ + ":") = 0 THEN
       IF c_func_name$(fn$) = "xb_user_" + fn$ THEN
