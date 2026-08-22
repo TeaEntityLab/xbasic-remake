@@ -85,12 +85,12 @@
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
 
-### cgen.x demo ceiling: 100/114 faithful, diverge=0 — the 13 cc-fails classified `[2026-08-22]`
+### cgen.x demo ceiling: 101/114 faithful, diverge=0 — the 12 cc-fails classified `[2026-08-22]`
 
 > The self-hosted `cgen.x` C generator is byte-faithful to the interpreter on **every
-> demo it compiles (100/114), with zero divergence**. **Both `aarray` and
-> `aarray_ISNODE` flipped 2026-08-22 (`b5bd930`)** — see the landed 3-fix note below —
-> taking faithful 98→100. The 13
+> demo it compiles (101/114), with zero divergence**. **`aarray`, `aarray_ISNODE`
+> (`b5bd930`) and `zap` (`248ff59`) flipped 2026-08-22** — see the landed-fix notes below
+> — taking faithful 98→101. The 12
 > remaining compile-fails are **all multiply-blocked** (source-verified by grepping each
 > demo for `ANY`/`ATTACH`/`*AT`/`TYPE(`/socket markers). None flips with a single fix;
 > each needs a coordinated multi-feature pass. These are **not "fundamentally
@@ -101,7 +101,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 >
 > | group | demos | co-blockers (all needed together) |
 > |---|---|---|
-> | memory-model / ANY / ATTACH | gif, gifview, qbtoxb, zap (4) | byref-dual + 3-D arrays + `ANY`-array `TYPE()` reflection + degenerate `*AT`/early-return flow (aarray + aarray_ISNODE, same family, are now DONE) |
+> | memory-model / ANY / ATTACH | gif, gifview, qbtoxb (3) | byref-dual + 3-D arrays + `ANY`-array `TYPE()` reflection + degenerate `*AT`/early-return flow (aarray, aarray_ISNODE, zap — same family — are now DONE) |
 > | network sockets | aclient, aserver (2) | a socket runtime (Xui socket wrappers → `undeclared xb_var_host_address`) |
 > | Xst runtime | asortie (1) | real `XstQuickSort`/`XstCopyArray` in cgen.x + by-ref-array descriptor for `@field3$[]` (done in Rust, `be03117`) |
 > | multi-dim SHARED + composite + grid | adatadim, aquick, arecord, atools, CursorEdit, Kittedy (6) | multi-dim SHARED 2-D calloc (raw-`arith(` bug) + composite-record members + byref-dual + call-arity |
@@ -121,6 +121,18 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > another function → jump-to-null crash). Locked by
 > `cemitter_and_cgen_agree_on_cross_function_gosub_return`; sync 45/45→46, differential
 > faithful 98→100/0, suite 250/0.
+>
+> **LANDED 2026-08-22 (`0127a1e`, `248ff59`) — the 2-fix pass that flipped zap (100→101):**
+> (1) **array_assign finds the assignment `=` after the index `]`** (was `INSTR(tmp$,
+> "= ")` from the start): a `$$`-constant index like `constant($$XuiColor:integer =
+> integer(0))` captured the `=` *inside* the constant, emitting malformed C; byte-neutral
+> for simple indices. (2) **local ub cell for byref-dual params DIM'd locally**: a by-ref
+> param `intptr_t* xb_var_X_arr` re-DIM'd via `calloc` set `xb_ub_X_arr` with no decl (the
+> hoist's param-skip dropped it) → emit `intptr_t xb_ub_X_arr = -1;`. Locked by adding
+> `aarray`/`aarray_ISNODE`/`zap` to `cgen_demo_regression`'s `DEMOS`; sync 46/46,
+> bootstrap OK, differential faithful 100→101/0, suite 250→251/0. **Remaining atools/
+> aquick blocker: string scalar+array dual-use** (the `##dynNames$` split for strings —
+> a separate feature).
 
 | ~~CGEN-ARRAYS~~ | C backend | ✅ **done** (2026-08-20): auto-vivified array hoisting + dynamic DIMs + undimmed-array folds | — | ✅ |
 | ~~CGEN-ARGC~~ | C backend | ✅ **done** (2026-08-20): arity reconciliation (drop extras, pad missing) via `DEFINED_SIGS` | — | ✅ |
