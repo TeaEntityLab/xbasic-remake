@@ -950,7 +950,10 @@ END FUNCTION
 FUNCTION c_var_name$(n$, t$)
   DIM sn$
   sn$ = sanitize_ident$(n$)
-  IF t$ = "string" THEN
+  ' A name ending with $ is always a string, regardless of the IR type parameter.
+  ' The IR can type xbasic$ as integer in some contexts (type collision), but the
+  ' $ suffix determines the C variable prefix.
+  IF t$ = "string" OR RIGHT$(n$, 1) = "$" THEN
     c_var_name$ = "xb_str_" + sn$
   ELSE
     c_var_name$ = "xb_var_" + sn$
@@ -2347,11 +2350,20 @@ FUNCTION emit_expr$(e$)
       colonPos = INSTR(t$, ":")
       IF colonPos > 0 THEN
         varName$ = LEFT$(t$, colonPos - 1)
+        varType$ = MID$(t$, colonPos + 1, LEN(t$) - colonPos)
       ELSE
         varName$ = t$
+        varType$ = "integer"
       END IF
       IF INSTR(##byrefDual$, ":" + varName$ + ":") > 0 THEN
-        emit_expr$ = "&" + c_var_name$(varName$, "integer")
+        IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
+          emit_expr$ = "&" + c_var_name$(varName$, "string")
+        ELSE
+          emit_expr$ = "&" + c_var_name$(varName$, "integer")
+        END IF
+        RETURN emit_expr$
+      ELSEIF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
+        emit_expr$ = "&" + c_var_name$(varName$, "string")
         RETURN emit_expr$
       END IF
     END IF
@@ -2643,8 +2655,10 @@ FUNCTION emit_params$(params$)
       _isArrParam = 1
       pType$ = LEFT$(pType$, LEN(pType$) - 2)
     END IF
-    ' Build base C name — byref-dual and str-dual params get _arr suffix
-    IF INSTR(##byrefDual$, ":" + pName$ + ":") > 0 OR INSTR(##strDual$, ":" + pName$ + ":") > 0 THEN
+    ' Build base C name — byref-dual and str-dual ARRAY params get _arr suffix.
+    ' A scalar param (e.g. line:string) must NOT get _arr even if the name is in
+    ' ##byrefDual$ from a different function's array param of the same name.
+    IF _isArrParam = 1 AND (INSTR(##byrefDual$, ":" + pName$ + ":") > 0 OR INSTR(##strDual$, ":" + pName$ + ":") > 0) THEN
       baseName$ = c_var_name$(pName$, pType$) + bd$(pName$)
     ELSE
       baseName$ = c_var_name$(pName$, pType$)
@@ -2659,8 +2673,8 @@ FUNCTION emit_params$(params$)
     IF isDup = 1 THEN
       baseName$ = baseName$ + "__dup" + STR$(i)
     END IF
-    ' Emit: array params, byref-dual, and str-dual params get pointer
-    IF _isArrParam = 1 OR INSTR(##byrefDual$, ":" + pName$ + ":") > 0 OR INSTR(##strDual$, ":" + pName$ + ":") > 0 THEN
+    ' Emit: array params and byref-dual/str-dual ARRAY params get pointer
+    IF _isArrParam = 1 THEN
       result$ = result$ + c_type$(pType$) + "* " + baseName$
     ELSE
       result$ = result$ + c_type$(pType$) + " " + baseName$
@@ -3119,6 +3133,19 @@ FUNCTION emit_hoists$(used$, dimmed$)
             out$ = out$ + "    " + c_type$(_dt2$) + "* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
           END IF
         END IF
+      ELSEIF INSTR(##byrefDual$, ":" + entry$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) > 0) THEN
+        ' Array param used as scalar but NOT in ##dynNames$ — emit scalar facet only.
+        ' The array facet comes from the parameter (xb_var_X_arr / xb_str_X$_arr).
+        ' Skip if entry$ is a scalar param of the current function (no redefinition).
+        IF RIGHT$(entry$, 1) = "$" THEN
+          IF INSTR(out$, "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + ");") = 0 THEN
+            out$ = out$ + "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
+          END IF
+        ELSE
+          IF INSTR(out$, "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;") = 0 THEN
+            out$ = out$ + "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)
+          END IF
+        END IF
       ELSEIF INSTR(##xstArrays$, ":" + entry$ + ":") > 0 AND INSTR(##dynNames$, ":" + entry$ + ":") = 0 AND INSTR(##allStrArr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 THEN
         IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
           out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
@@ -3397,20 +3424,53 @@ FUNCTION scan_byref_dual$(s$)
         IF cp2 > 0 THEN
           params$ = LEFT$(params$, cp2 - 1)
         END IF
-        names$ = param_names$(params$)
-        WHILE LEN(names$) > 0
-          nlp = INSTR(names$, CHR$(10))
-          IF nlp = 0 THEN
-            nm2$ = names$
-            names$ = ""
+        ' Parse each param: only ARRAY params (type contains []) that are in
+        ' ##dynNames$ qualify for byref-dual. A scalar param like line:string
+        ' must NOT trigger byref-dual even if the name is in ##dynNames$.
+        DIM _prest$
+        DIM _pcm
+        DIM _pone$
+        DIM _pcp
+        DIM _pnm$
+        DIM _pty$
+        _prest$ = params$
+        WHILE LEN(_prest$) > 0
+          _pcm = INSTR(_prest$, ",")
+          IF _pcm > 0 THEN
+            _pone$ = LEFT$(_prest$, _pcm - 1)
+            _prest$ = MID$(_prest$, _pcm + 1, LEN(_prest$) - _pcm)
           ELSE
-            nm2$ = LEFT$(names$, nlp - 1)
-            names$ = MID$(names$, nlp + 1, LEN(names$) - nlp)
+            _pone$ = _prest$
+            _prest$ = ""
           END IF
-          IF LEN(nm2$) > 0 THEN
-            IF INSTR(##dynNames$, ":" + nm2$ + ":") > 0 THEN
-              IF INSTR(res$, ":" + nm2$ + ":") = 0 THEN
-                res$ = res$ + ":" + nm2$ + ":"
+          _pone$ = trim_spaces$(_pone$)
+          IF LEFT$(_pone$, 1) = "@" THEN
+            _pone$ = MID$(_pone$, 2, LEN(_pone$) - 1)
+          END IF
+          _pcp = INSTR(_pone$, ":")
+          IF _pcp > 0 THEN
+            _pnm$ = LEFT$(_pone$, _pcp - 1)
+            _pty$ = MID$(_pone$, _pcp + 1, LEN(_pone$) - _pcp)
+          ELSE
+            _pnm$ = _pone$
+            _pty$ = ""
+          END IF
+          _pcp = INSTR(_pnm$, "[")
+          IF _pcp > 0 THEN
+            _pnm$ = LEFT$(_pnm$, _pcp - 1)
+          END IF
+          _pnm$ = trim_spaces$(_pnm$)
+          IF LEN(_pnm$) > 0 AND INSTR(_pty$, "[]") > 0 THEN
+            ' Condition 1: name is in ##dynNames$ (DIM'd as both scalar+array)
+            IF INSTR(##dynNames$, ":" + _pnm$ + ":") > 0 THEN
+              IF INSTR(res$, ":" + _pnm$ + ":") = 0 THEN
+                res$ = res$ + ":" + _pnm$ + ":"
+              END IF
+            ' Condition 2: array param also used as scalar (symbol(name:...))
+            ' in the IR — needs _arr split even without ##dynNames$
+            ELSEIF INSTR(s$, "symbol(" + _pnm$ + ":") > 0 THEN
+              IF INSTR(res$, ":" + _pnm$ + ":") = 0 THEN
+                res$ = res$ + ":" + _pnm$ + ":"
               END IF
             END IF
           END IF
@@ -4406,7 +4466,7 @@ FUNCTION emit_stmt$(s$)
         varName$ = rest$
         varType$ = "integer"
       END IF
-      IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
+      IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(##byrefDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
         emit_stmt$ = ""
       ELSEIF varType$ = "string" THEN
         emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");"
