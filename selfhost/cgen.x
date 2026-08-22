@@ -2982,17 +2982,21 @@ FUNCTION emit_hoists$(used$, dimmed$)
         END IF
       ELSEIF INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
         IF INSTR(##byrefDual$, ":" + entry$ + ":") > 0 OR INSTR(##dualUse$, ":" + entry$ + ":") > 0 THEN
-          IF INSTR(out$, "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)) = 0 THEN
+          DIM _dt$
+          _dt$ = dyn_type$(entry$)
+          IF INSTR(out$, "    " + c_type$(_dt$) + " xb_var_" + sanitize_ident$(entry$) + " = " + c_default$(_dt$) + ";" + CHR$(10)) = 0 THEN
             IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
-              out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
+              out$ = out$ + "    " + c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
             ELSE
               out$ = out$ + "    intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
             END IF
-            out$ = out$ + "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)
+            out$ = out$ + "    " + c_type$(_dt$) + " xb_var_" + sanitize_ident$(entry$) + " = " + c_default$(_dt$) + ";" + CHR$(10)
           END IF
         ELSE
+          DIM _dt2$
+          _dt2$ = dyn_type$(entry$)
           IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
-            out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
+            out$ = out$ + "    " + c_type$(_dt2$) + "* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
           END IF
         END IF
       ELSEIF INSTR(##xstArrays$, ":" + entry$ + ":") > 0 AND INSTR(##dynNames$, ":" + entry$ + ":") = 0 AND INSTR(##allStrArr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 THEN
@@ -3225,10 +3229,10 @@ FUNCTION scan_dyn$(s$)
           END IF
           ci = ci + 1
         WEND
-        IF ty$ = "integer" THEN
+        IF ty$ = "integer" OR ty$ = "float" THEN
           IF INSTR(sc$, ":" + nm$ + ":") > 0 THEN
             IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
-              res$ = res$ + ":" + nm$ + ":"
+              res$ = res$ + ":" + nm$ + ":" + ty$ + ":"
             END IF
           END IF
         END IF
@@ -3469,6 +3473,25 @@ FUNCTION bd$(n$)
     bd$ = "_arr"
   ELSE
     bd$ = ""
+  END IF
+END FUNCTION
+' Get the element type of a ##dynNames$ entry. ##dynNames$ entries are
+' :name:type: pairs. Returns "integer" if not found or type unknown.
+FUNCTION dyn_type$(n$)
+  DIM pos
+  DIM rest$
+  DIM cp
+  pos = INSTR(##dynNames$, ":" + n$ + ":")
+  IF pos = 0 THEN
+    dyn_type$ = "integer"
+    RETURN dyn_type$
+  END IF
+  rest$ = MID$(##dynNames$, pos + LEN(n$) + 2, LEN(##dynNames$) - pos - LEN(n$) - 1)
+  cp = INSTR(rest$, ":")
+  IF cp > 0 THEN
+    dyn_type$ = LEFT$(rest$, cp - 1)
+  ELSE
+    dyn_type$ = "integer"
   END IF
 END FUNCTION
 
@@ -4221,13 +4244,17 @@ FUNCTION emit_stmt$(s$)
               _d1cc = _d1cc + 1
             END IF
           NEXT _d1ci
+          DIM _dt3$
+          _dt3$ = c_type$(dyn_type$(varName$))
           IF _d1cc = 1 THEN
-            emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(intptr_t)); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+            emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(" + _dt3$ + ")); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
           ELSE
-            emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(intptr_t));"
+            emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(" + _dt3$ + "));"
           END IF
         ELSE
-          emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
+          DIM _dt4$
+          _dt4$ = c_type$(dyn_type$(varName$))
+          emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + _dt4$ + ")); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
         END IF
       ELSEIF INSTR(##allStrArr$, ":" + varName$ + ":") > 0 AND varType$ = "string" THEN
         IF INSTR(arrSize$, ",") > 0 THEN
