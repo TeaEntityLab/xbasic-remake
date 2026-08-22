@@ -37,6 +37,14 @@ DIM fwdSName$
 DIM fwdSAfter$
 DIM fwdSPos
 DIM fwdSType$
+DIM shRefPos
+DIM shNameStart
+DIM shColonP
+DIM shCloseP
+DIM shRefName$
+DIM shRefType$
+DIM shPat$
+DIM shRP$
 DIM funcBody$
 DIM usedSyms$
 DIM dimmedSyms$
@@ -544,6 +552,8 @@ PRINT ""
 ##funcArity$ = ""
 ##gosubRetCount$ = ""
 ##sharedDecls$ = ""
+##sharedArrays$ = ""
+##sharedArrDecls$ = ""
 ##dynNames$ = ""
 ##undimmed$ = ""
 ##dynStr$ = ""
@@ -556,6 +566,7 @@ PRINT ""
 ##selectBraces = 0
 ##selectExitCount = 0
 ##selectExitStack$ = ""
+##sharedArrays$ = scan_shared_arr$(src$)
 ' Forward declarations: pre-scan all lines for function signatures
 fwdPos = 1
 WHILE fwdPos <= LEN(src$)
@@ -612,8 +623,48 @@ WHILE fwdPos <= LEN(src$)
           PRINT c_type$(fwdSType$) + " xb_shared_" + sanitize_ident$(fwdSName$) + " = 0;"
         END IF
       END IF
+    ELSEIF LEFT$(fwdStmt$, 11) = "dim shared " THEN
+      fwdRest$ = MID$(fwdStmt$, 12, LEN(fwdStmt$) - 11)
+      fwdColon = INSTR(fwdRest$, ":")
+      IF fwdColon > 0 THEN
+        fwdSName$ = LEFT$(fwdRest$, fwdColon - 1)
+        fwdSAfter$ = MID$(fwdRest$, fwdColon + 1, LEN(fwdRest$) - fwdColon)
+        fwdSPos = INSTR(fwdSAfter$, "[")
+        IF fwdSPos > 0 THEN
+          fwdSType$ = LEFT$(fwdSAfter$, fwdSPos - 1)
+        ELSE
+          fwdSType$ = fwdSAfter$
+        END IF
+        IF INSTR(##sharedArrays$, ":" + fwdSName$ + ":") > 0 THEN
+          IF INSTR(##sharedArrDecls$, ":" + fwdSName$ + ":") = 0 THEN
+            ##sharedArrDecls$ = ##sharedArrDecls$ + ":" + fwdSName$ + ":"
+            PRINT c_type$(fwdSType$) + "* " + c_var_name$(fwdSName$, fwdSType$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(fwdSName$) + " = -1;"
+          END IF
+        END IF
+      END IF
     END IF
   END IF
+WEND
+' Undeclared shared scalars: a `shared(##X:type)` read with no `shared X:type`
+' declaration (interp defaults to 0). Rust emits `<type> xb_shared_X = 0;` at file
+' scope. Scan the IR text for such refs and emit the missing global (dedup via
+' ##sharedDecls$, so declared shareds are untouched).
+shPat$ = "shared(##"
+shRP$ = ")"
+shRefPos = INSTR(src$, shPat$)
+WHILE shRefPos > 0
+  shNameStart = shRefPos + 9
+  shColonP = INSTR(src$, ":", shNameStart)
+  shCloseP = INSTR(src$, shRP$, shNameStart)
+  IF shColonP > 0 AND shColonP < shCloseP THEN
+    shRefName$ = MID$(src$, shNameStart, shColonP - shNameStart)
+    shRefType$ = MID$(src$, shColonP + 1, shCloseP - shColonP - 1)
+    IF INSTR(##sharedDecls$, ":" + shRefName$ + ":") = 0 THEN
+      ##sharedDecls$ = ##sharedDecls$ + ":" + shRefName$ + ":"
+      PRINT c_type$(shRefType$) + " xb_shared_" + sanitize_ident$(shRefName$) + " = 0;"
+    END IF
+  END IF
+  shRefPos = INSTR(src$, shPat$, shNameStart)
 WEND
 PRINT ""
 
@@ -2019,7 +2070,7 @@ FUNCTION emit_expr$(e$)
       ELSE
         varType$ = "integer"
       END IF
-      IF INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1" THEN
+      IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
         emit_expr$ = c_default$(varType$)
         RETURN emit_expr$
       END IF
@@ -2047,7 +2098,9 @@ FUNCTION emit_expr$(e$)
       varType$ = "integer"
       varName$ = t$
     END IF
-    IF INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1" THEN
+    IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
+      emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
+    ELSEIF INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1" THEN
       emit_expr$ = "(-1)"
     ELSEIF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
@@ -2899,6 +2952,47 @@ FUNCTION scan_dynstr$(s$)
   scan_dynstr$ = res$
 END FUNCTION
 
+' Collect names DIM'd as a SHARED array (`dim shared X:t[...]`) into a `:X:` set.
+' Shared arrays lower to `dim shared X:t` (scalar form, from `SHARED X[]`) + a sized
+' `dim shared X:t[N]` (the actual DIM); the array-form is the reliable marker. Rust's
+' CEmitter hoists these to file-scope heap globals (`T* xb_var_X = 0; intptr_t xb_ub_X`)
+' shared across every function; cgen.x mirrors that (the selfhost corpus has none).
+FUNCTION scan_shared_arr$(s$)
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM r$
+  DIM nm$
+  DIM bp
+  DIM e
+  res$ = ""
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 11) = "dim shared " THEN
+      r$ = MID$(ln$, 12, LEN(ln$) - 11)
+      bp = INSTR(r$, "[")
+      IF bp > 0 THEN
+        nm$ = LEFT$(r$, bp - 1)
+        e = INSTR(nm$, ":")
+        IF e > 0 THEN
+          nm$ = LEFT$(nm$, e - 1)
+        END IF
+        IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+          res$ = res$ + ":" + nm$ + ":"
+        END IF
+      END IF
+    END IF
+  WEND
+  scan_shared_arr$ = res$
+END FUNCTION
+
 ' Replace every occurrence of `n$` in `h$` with `r$` (cgen.x has no built-in).
 FUNCTION replace$(h$, n$, r$)
   DIM out$
@@ -3102,6 +3196,37 @@ FUNCTION emit_stmt$(s$)
 
   IF LEFT$(s$, 3) = "dim" THEN
     rest$ = MID$(s$, 5, LEN(s$) - 4)
+    IF LEFT$(rest$, 7) = "shared " THEN
+      rest$ = MID$(rest$, 8, LEN(rest$) - 7)
+      bracketPos = INSTR(rest$, "[")
+      IF bracketPos > 0 THEN
+        varName$ = LEFT$(rest$, bracketPos - 1)
+        arrSize$ = MID$(rest$, bracketPos + 1, LEN(rest$) - bracketPos - 1)
+      ELSE
+        varName$ = rest$
+        arrSize$ = ""
+      END IF
+      colonPos = INSTR(varName$, ":")
+      IF colonPos > 0 THEN
+        varType$ = MID$(varName$, colonPos + 1, LEN(varName$) - colonPos)
+        varName$ = LEFT$(varName$, colonPos - 1)
+      ELSE
+        varType$ = "integer"
+      END IF
+      IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
+        IF bracketPos > 0 THEN
+          cExpr$ = emit_expr$(arrSize$)
+          IF varType$ = "string" THEN
+            emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+          ELSE
+            emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + c_type$(varType$) + ")); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+          END IF
+        ELSE
+          emit_stmt$ = ""
+        END IF
+        RETURN emit_stmt$
+      END IF
+    END IF
     bracketPos = INSTR(rest$, "[")
     IF bracketPos > 0 THEN
       varName$ = LEFT$(rest$, bracketPos - 1)
@@ -3162,7 +3287,7 @@ FUNCTION emit_stmt$(s$)
     spacePos = INSTR(tmp$, "= ")
     right$ = MID$(tmp$, spacePos + 2, LEN(tmp$) - spacePos - 1)
     c2$ = emit_expr$(right$)
-    IF INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1" THEN
+    IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
       emit_stmt$ = "    (void)(" + c2$ + ");"
     ELSE
       emit_stmt$ = "    " + c_var_name$(varName$, varType$) + emit_msub$(cExpr$, 0) + " = " + c2$ + ";"

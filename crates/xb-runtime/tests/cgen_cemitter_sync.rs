@@ -1746,6 +1746,58 @@ fn cemitter_and_cgen_agree_on_scalar_dim_of_string_dyn_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// SHARED arrays across functions (CGEN-SHARED-ARR-SELFHOST): `SHARED g[]` in two
+/// functions + `DIM g[N]` in one lowers to `dim shared g:integer` (per fn) + `dim
+/// shared g:integer[N]`. cgen.x sent these through the LOCAL dim handler which never
+/// stripped `shared ` (emitted `intptr_t xb_var_shared g[...]`, cc-fail) and had no
+/// cross-function heap-global path. Now cgen.x mirrors the Rust CEmitter: a file-scope
+/// `intptr_t* xb_var_g = 0; intptr_t xb_ub_g = -1;` global (forward-decl), calloc at the
+/// sized DIM, `xb_var_g[i]` access — shared across every function. Helper writing g[1]
+/// must be visible in Main (42, not the local-only 5). Selfhost corpus has no shared
+/// arrays, so this is byte-neutral there (sync stays green).
+#[test]
+fn cemitter_and_cgen_agree_on_shared_array_cross_function() {
+    let tmp = std::env::temp_dir().join("xb_sync_sharedarr");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"sa\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               SHARED g[]\n\
+               DIM g[3]\n\
+               g[1] = 5\n\
+               Helper()\n\
+               PRINT g[1]\n\
+               END FUNCTION\n\
+               FUNCTION Helper ()\n\
+               SHARED g[]\n\
+               g[1] = 42\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse shared-array program")
+        .lower_ir()
+        .expect("lower shared-array program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "sharr_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "sharr_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret shared-array program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "42\n", "shared-array cross-function reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled the shared array");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled the shared array (cross-function heap global)");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Function-name self-DIM (CGEN-SELFHOST-PARITY): a function whose body DIMs its own
 /// name (the return value — `FUNCTION Main() ... DIM Main`) made cgen.x emit a scalar
 /// decl for `xb_var_Main` from the signature AND again from the `dim` statement -> cc
