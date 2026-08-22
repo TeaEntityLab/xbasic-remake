@@ -2198,3 +2198,51 @@ fn cemitter_and_cgen_agree_on_typed_float_array() {
     assert_eq!(self_out, interp_out, "cgen.x mishandled the typed float array (element type)");
     let _ = fs::remove_dir_all(&tmp);
 }
+
+/// UBOUND of a scalar string (CGEN-UBOUND-STRING): `UBOUND(s$)` is the string's
+/// last byte offset — `LEN(s$) - 1` (interp eval.rs ArrayUBound string arm), the
+/// idiom `FOR i = 0 TO UBOUND(b$) : c = b${i}` uses to walk a byte string
+/// (aback's backslash-escape demo). cgen.x treated the string as an undimmed
+/// array and returned `-1`, so the byte loop ran zero times (empty output vs the
+/// interpreter's full table — aback went from a diverger to byte-faithful once
+/// fixed). cgen.x now emits `(xb_len(xb_str_s) - 1)`, matching the Rust CEmitter.
+#[test]
+fn cemitter_and_cgen_agree_on_ubound_of_string() {
+    let tmp = std::env::temp_dir().join("xb_sync_ubstr");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"ub\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM s$\n\
+               DIM i\n\
+               s$ = \"abc\"\n\
+               PRINT UBOUND(s$)\n\
+               FOR i = 0 TO UBOUND(s$)\n\
+               PRINT s${i}\n\
+               NEXT i\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse ubound-of-string program")
+        .lower_ir()
+        .expect("lower ubound-of-string program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "ub_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "ub_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret ubound-of-string program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "2\n97\n98\n99\n", "UBOUND-of-string reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled UBOUND of a string");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled UBOUND of a string (byte length)");
+    let _ = fs::remove_dir_all(&tmp);
+}

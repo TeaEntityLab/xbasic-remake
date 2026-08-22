@@ -2109,7 +2109,11 @@ FUNCTION emit_expr$(e$)
     IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1" THEN
-      emit_expr$ = "(-1)"
+      IF varType$ = "string" THEN
+        emit_expr$ = "(xb_len(" + c_var_name$(varName$, varType$) + ") - 1)"
+      ELSE
+        emit_expr$ = "(-1)"
+      END IF
     ELSEIF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
