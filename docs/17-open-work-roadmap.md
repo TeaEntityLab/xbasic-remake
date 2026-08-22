@@ -202,6 +202,34 @@ program uses it (§2 RT-FUNCPTR).
 > That descriptor port is the single highest-leverage unblocker and must be done as a
 > coordinated pass that mirrors Rust exactly (the naive param handling regresses
 > real code, as three prior reverts and this one show).**
+>
+> **BREAKTHROUGH (2026-08-22): the exact Rust reference mechanism — why 4 attempts
+> collided, and the one-line fix.** Studied the Rust CEmitter's *actual emitted C*
+> for the 5 byref demos (`aarray`/`aquick`/`arecord`/`atools`/`zap`) and confirmed
+> **all 5 are Rust-FAITHFUL** (real gaps, not synthetic). Rust does **not** use the
+> descriptor system for them — it uses the **dual-use `_arr` split**, and the piece
+> every cgen.x attempt missed is the **param/array-facet naming**:
+> - Rust names the **array facet AND the by-ref param** `xb_var_X_arr`; the **scalar
+>   facet** keeps the base name `xb_var_X`. Because the two facets have *different C
+>   names*, the scalar-facet decl never collides with the array param. **All 4 cgen.x
+>   case-B attempts left the param decl as the base name `xb_var_X`, so the scalar
+>   facet redefined the param — the exact cc-error that killed each attempt.**
+> - Concrete (aarray `PrintArray(array[])`, `array` is 2-D dual-use): Rust emits
+>   fwd `PrintArray(intptr_t *xb_var_array)`, def `PrintArray(intptr_t *xb_var_array_arr)`,
+>   local scalar `intptr_t xb_var_array = 0;`, array facet `xb_var_array_arr = calloc(…)`
+>   (2-D flattened), `UBOUND` → `sizeof(xb_var_array_arr)/…`, call-site
+>   `PrintArray(&xb_var_array)` (passes the **scalar facet's address**, a quirky but
+>   interp-faithful by-ref). cgen.x today emits the array decl as `xb_var_array`
+>   (collides, 458), `UBOUND` `sizeof(xb_var_array[0])` on a scalar (526/535 subscript
+>   error), and the call as `PrintArray(0)` (null → wrong).
+> - **The de-risked recipe:** redo the 4th-attempt case-B routing (`scan_dualuse$` +
+>   `dua$` + access/assign/ubound/calloc/hoist), and additionally (a) emit the **param
+>   decl** for a dual-use array param as `xb_var_X_arr` (array facet, in both the
+>   forward decl and the definition), (b) emit the **call-site** `@X[]`/array arg as
+>   `&xb_var_X` (scalar-facet address). Gate on the full differential (a naive rename
+>   regressed a faithful demo before — the pass must cover all 5 demos + not touch the
+>   read-only-array-param demos). This converts the "mysterious 4×-failure" into a
+>   known, bounded coordinated pass; still GIANT-adjacent, but no longer a mystery.
 
 ### CGEN-BYREF-ARRAY — DIM'd-array by-ref is synthetic; do NOT "fix" it `[2026-08-22]`
 
