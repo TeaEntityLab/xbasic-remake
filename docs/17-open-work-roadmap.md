@@ -364,16 +364,17 @@ program uses it (§2 RT-FUNCPTR).
 > exists).** cgen.x's own `byref(` gap (CGEN-EXPR-GAPS) is likewise a non-issue: its
 > demos need undimmed `&x`, which the pre-existing default already approximates.
 
-### CGEN-ARGSPLIT-STRLIT — call-arg splitter not string-literal-aware `[2026-08-22]`
+### ~~CGEN-ARGSPLIT-STRLIT~~ — call-arg splitter string-literal-aware ✅ done `[2026-08-23, d9d665b]`
 
-> **Latent bug** (worked around, not yet fixed). cgen.x's multi-arg call splitter
-> counts parens without skipping string literals, so a `(` inside a string-literal
-> argument mis-splits the args — e.g. `INSTR(s$, "symbol(", p + 7)` leaked a raw
-> `arith(` into the C (undeclared-function cc error). Same class as the earlier
-> `first_expr$` escaped-quote scanner bug. Workaround: build such needles with
-> concatenation + `CHR$(40)` for `(` (a string literal with `(` in a plain assignment
-> compiles fine; only multi-arg *calls* break). A proper fix makes the arg-splitter
-> skip string literals. Caught by `cemitter_and_cgen_agree_on_selfhost_tools`.
+> **FIXED** (`d9d665b`): all 8 paren-depth counters in cgen.x (`emit_args$`,
+> `emit_args_n$`, `emit_msub$`, `first_comma_part$`, `emit_mtotal$`,
+> `emit_flat2d$`, `emit_d1$`, `scan_dyn$`'s comma counter) now skip string
+> literals (Rust `{:?}` format: `"..."` with `\"` escapes) when counting
+> parens/commas. Previously, a `(` or `)` inside a string literal in a call
+> argument would mis-split the args, producing malformed C. The workaround of
+> using `CHR$(40)` instead of `"("` in call args is no longer needed (but kept
+> since removing it would be a no-op risk). `first_expr$` already had this fix
+> (inQuote flag). Byte-neutral: sync 46/46, bootstrap OK, all suites green.
 
 ### CGEN-NESTED-FN — IMPLEMENTED `[2026-08-22, 823008f]`
 
