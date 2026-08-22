@@ -165,6 +165,32 @@ program uses it (§2 RT-FUNCPTR).
 > retval-dim → Sub `_arr` → subscripted-value → string-dual-use → …), so this is a
 > **coordinated pass, not an increment** — incremental attempts regress or 0-flip.
 
+### CGEN-BYREF-ARRAY — DIM'd-array by-ref is synthetic; do NOT "fix" it `[2026-08-22]`
+
+> **Attempted a THIRD time and REVERTED** (`d7e2249` + cgen.x mirror, reset to
+> `e62d03f`). The prior two reverts are noted in the CGEN-BYREF-ARG row; this pass
+> pins down *why* the `emit_array_var_name` approach keeps regressing, so it is not
+> re-attempted a fourth time. **The bug is synthetic.** `emit_call_args` emits `&x`
+> for a by-ref array arg. For a synthetic `DIM a[3]; Fill(@a[]); arr[1]=42`, `a` is a
+> *dual-use DIM'd* array, so `&x` passes its 1-slot scalar half → `arr[1]` runs OOB →
+> `42/<garbage>` vs interp `5/42`. The bounded fix (route array params through
+> `emit_array_var_name`, gated `!is_undimmed_array`) makes that case correct AND is
+> byte-neutral on the corpus/faithful demos (Rust differential stayed 111/0, sync
+> 40→41/40, bootstrap fixed point held, cgen.x mirror gave br.x `5/42`). **BUT it
+> regresses real code:** `XBSourceLib/fgr/fgr.x` + `geo/geo.x` (both faithful,
+> gated by `tests/cgen_demo_regression.rs::cgen_matches_interpreter_on_xbsourcelib`)
+> pass by-ref arrays that are **undimmed dual-use / composite members / scalars**,
+> where the existing `&x` is exactly what the callee expects. The `!is_undimmed_array`
+> gate cut Rust fgr errors to 1 (a composite-member subtlety remained) and the cgen.x
+> `byref(` arm broke fgr with 20 cc errors. **Root insight: real byref-array usage in
+> this corpus is UNDIMMED (no `_arr` storage) — `&x` is correct; the DIM'd-array-byref
+> case that `emit_array_var_name` targets does not occur in real code (only in a
+> synthetic repro).** The full-workspace suite (not the demo differential — XBSourceLib
+> is not in `diff_cgenx.sh`) is what catches this; always run `cargo test --workspace`
+> before finalizing a byref change. **Do not reopen without a real failing demo (none
+> exists).** cgen.x's own `byref(` gap (CGEN-EXPR-GAPS) is likewise a non-issue: its
+> demos need undimmed `&x`, which the pre-existing default already approximates.
+
 ### CGEN-ARGSPLIT-STRLIT — call-arg splitter not string-literal-aware `[2026-08-22]`
 
 > **Latent bug** (worked around, not yet fixed). cgen.x's multi-arg call splitter
