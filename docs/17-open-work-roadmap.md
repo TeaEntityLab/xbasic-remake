@@ -150,9 +150,15 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > heap-hoisting: `grid$`/`image$` are DIM'd in `Entry` but array-*accessed* earlier via
 > the GOSUB-inlined SUBs `SwitchWindow`/`ReportCallback` (placed before the DIM), so the
 > mid-function stack decl `char* xb_str_grid$[N]` isn't in scope at the access — they must
-> hoist to `char** xb_str_grid$` + calloc (like `##dynStr$`). (b)'s byte-neutrality vs the
-> corpus (which has local string arrays) is unverified — the risky part; the string analog
-> of the integer byref/dyn work. Not a bounded fix.
+> hoist to `char** xb_str_grid$` + calloc (like `##dynStr$`). **(b) VERIFIED UNSAFE as a
+> cgen.x-only change (2026-08-22):** routing by-ref string arrays through `##dynStr$` (via
+> a `scan_str_byref$` = array-DIM'd ∩ `byref(symbol(X$:string))`) **breaks the bootstrap
+> fixed-point** — cgen.x's *own source* passes string arrays by-ref, so heap-hoisting them
+> changes cgen.x's self-emission (2nd-pass drift), and it didn't even flip aquick (the
+> forward-access needs the runtime DIM-before-access to hold, which the heap-null pointer
+> doesn't guarantee). A real pass must mirror the Rust CEmitter's mechanism in **both**
+> generators together (sync + bootstrap-locked), not a cgen.x-only edit. The string analog
+> of the integer byref/dyn work; not a bounded fix.
 
 | ~~CGEN-ARRAYS~~ | C backend | ✅ **done** (2026-08-20): auto-vivified array hoisting + dynamic DIMs + undimmed-array folds | — | ✅ |
 | ~~CGEN-ARGC~~ | C backend | ✅ **done** (2026-08-20): arity reconciliation (drop extras, pad missing) via `DEFINED_SIGS` | — | ✅ |
