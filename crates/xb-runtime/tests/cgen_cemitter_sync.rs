@@ -2292,3 +2292,99 @@ fn cemitter_and_cgen_agree_on_nul_string() {
     assert_eq!(self_out, interp_out, "cgen.x mishandled the NUL string (literal length + PRINT)");
     let _ = fs::remove_dir_all(&tmp);
 }
+
+/// i32 integer semantics (CGEN-SHIFT): XBasic INTEGER is i32, so a hex literal is
+/// a signed i32 bit pattern (`0xF8000000` = negative) and arithmetic results wrap
+/// at 32 bits. cgen.x stored the literal as a positive i64 and did NOT mask
+/// arithmetic results, so `0xF8000000 >> 8` gave the logical `0x00F80000` instead
+/// of the arithmetic `0xFFF80000` the interpreter/Rust produce. cgen.x now wraps
+/// hex/binary literals and integer arithmetic/bitwise/unary results in `(int32_t)`
+/// (byte-neutral for in-range values). This was acrc32's last divergence (its
+/// CRC-32 `crc >> 8` + final `crc XOR 0xFFFFFFFF`).
+#[test]
+fn cemitter_and_cgen_agree_on_i32_overflow() {
+    let tmp = std::env::temp_dir().join("xb_sync_i32");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"i3\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM x\n\
+               x = 0xF8000000\n\
+               PRINT HEX$(x >> 8)\n\
+               PRINT HEX$(x XOR 0xFFFFFFFF)\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse i32 program")
+        .lower_ir()
+        .expect("lower i32 program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "i3_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "i3_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret i32 program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "FFF80000\n7FFFFFF\n", "i32 arithmetic reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled i32 arithmetic");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled i32 arithmetic (literal + shift/xor mask)");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// DO ... LOOP UNTIL / WHILE (CGEN-DO-LOOP): a bare `DO` with a post-test `LOOP
+/// UNTIL/WHILE` must be a `do { } while(...)`. cgen.x emitted the bare `DO` as
+/// `while (1) {` and the `LOOP UNTIL c` as `} while(!c);`, forming
+/// `while(1){ } while(!c);` — an INFINITE empty loop (it hung acrc32's file-read
+/// loop). cgen.x now emits every DO-loop as `do { } while(...)`, with a pre-test
+/// `DO WHILE/UNTIL` lowered to a leading `if (...) break;`.
+#[test]
+fn cemitter_and_cgen_agree_on_do_loop_until() {
+    let tmp = std::env::temp_dir().join("xb_sync_doloop");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"dl\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM i\n\
+               i = 0\n\
+               DO\n\
+               i = i + 1\n\
+               PRINT i\n\
+               LOOP UNTIL i >= 3\n\
+               DO WHILE i < 6\n\
+               i = i + 1\n\
+               PRINT i\n\
+               LOOP\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse do-loop program")
+        .lower_ir()
+        .expect("lower do-loop program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "dl_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "dl_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret do-loop program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "1\n2\n3\n4\n5\n6\n", "DO-loop reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled DO-loop");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled DO ... LOOP UNTIL/WHILE");
+    let _ = fs::remove_dir_all(&tmp);
+}

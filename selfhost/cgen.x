@@ -1481,7 +1481,11 @@ FUNCTION emit_expr$(e$)
 
   IF LEFT$(e$, 8) = "integer(" THEN
     t$ = MID$(e$, 9, LEN(e$) - 9)
-    emit_expr$ = strip_zeros$(t$)
+    IF LEFT$(t$, 2) = "0x" OR LEFT$(t$, 2) = "0X" OR LEFT$(t$, 2) = "0b" OR LEFT$(t$, 2) = "0B" THEN
+      emit_expr$ = "(int32_t)(" + t$ + ")"
+    ELSE
+      emit_expr$ = strip_zeros$(t$)
+    END IF
     RETURN emit_expr$
   END IF
 
@@ -1561,6 +1565,9 @@ FUNCTION emit_expr$(e$)
     ELSE
       emit_expr$ = "(" + emit_expr$(left$) + " " + op$ + " " + emit_expr$(right$) + ")"
     END IF
+    IF expr_type$(e$) = "integer" AND op$ <> "**" THEN
+      emit_expr$ = "(int32_t)" + emit_expr$
+    END IF
     RETURN emit_expr$
   END IF
 
@@ -1569,7 +1576,7 @@ FUNCTION emit_expr$(e$)
     IF RIGHT$(t$, 1) = ")" THEN
       t$ = LEFT$(t$, LEN(t$) - 1)
     END IF
-    emit_expr$ = "(~" + emit_expr$(t$) + ")"
+    emit_expr$ = "(int32_t)(~" + emit_expr$(t$) + ")"
     RETURN emit_expr$
   END IF
 
@@ -1578,7 +1585,11 @@ FUNCTION emit_expr$(e$)
     IF RIGHT$(t$, 1) = ")" THEN
       t$ = LEFT$(t$, LEN(t$) - 1)
     END IF
-    emit_expr$ = "(-" + emit_expr$(t$) + ")"
+    IF expr_type$(t$) = "integer" THEN
+      emit_expr$ = "(int32_t)(-" + emit_expr$(t$) + ")"
+    ELSE
+      emit_expr$ = "(-" + emit_expr$(t$) + ")"
+    END IF
     RETURN emit_expr$
   END IF
 
@@ -1598,7 +1609,7 @@ FUNCTION emit_expr$(e$)
     END IF
     left$ = first_expr$(rest$)
     right$ = after_first$(rest$)
-    emit_expr$ = "((" + emit_expr$(left$) + ") & (" + emit_expr$(right$) + "))"
+    emit_expr$ = "(int32_t)((" + emit_expr$(left$) + ") & (" + emit_expr$(right$) + "))"
     RETURN emit_expr$
   END IF
 
@@ -1609,7 +1620,7 @@ FUNCTION emit_expr$(e$)
     END IF
     left$ = first_expr$(rest$)
     right$ = after_first$(rest$)
-    emit_expr$ = "((" + emit_expr$(left$) + ") | (" + emit_expr$(right$) + "))"
+    emit_expr$ = "(int32_t)((" + emit_expr$(left$) + ") | (" + emit_expr$(right$) + "))"
     RETURN emit_expr$
   END IF
 
@@ -1620,7 +1631,7 @@ FUNCTION emit_expr$(e$)
     END IF
     left$ = first_expr$(rest$)
     right$ = after_first$(rest$)
-    emit_expr$ = "((" + emit_expr$(left$) + ") ^ (" + emit_expr$(right$) + "))"
+    emit_expr$ = "(int32_t)((" + emit_expr$(left$) + ") ^ (" + emit_expr$(right$) + "))"
     RETURN emit_expr$
   END IF
 
@@ -3696,26 +3707,26 @@ FUNCTION emit_stmt$(s$)
     RETURN emit_stmt$
   END IF
   IF s$ = "do" THEN
-    emit_stmt$ = "    while (1) {"
+    emit_stmt$ = "    do {"
     RETURN emit_stmt$
   END IF
 
   IF LEFT$(s$, 9) = "do while " THEN
     rest$ = MID$(s$, 10, LEN(s$) - 9)
     cExpr$ = emit_expr$(rest$)
-    emit_stmt$ = "    while (" + cExpr$ + ") {"
+    emit_stmt$ = "    do {" + CHR$(10) + "    if (!(" + cExpr$ + ")) break;"
     RETURN emit_stmt$
   END IF
 
   IF LEFT$(s$, 9) = "do until " THEN
     rest$ = MID$(s$, 10, LEN(s$) - 9)
     cExpr$ = emit_expr$(rest$)
-    emit_stmt$ = "    while (!(" + cExpr$ + ")) {"
+    emit_stmt$ = "    do {" + CHR$(10) + "    if (" + cExpr$ + ") break;"
     RETURN emit_stmt$
   END IF
 
   IF s$ = "loop" THEN
-    emit_stmt$ = "    }"
+    emit_stmt$ = "    } while (1);"
     RETURN emit_stmt$
   END IF
 
