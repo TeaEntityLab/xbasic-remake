@@ -3156,6 +3156,41 @@ FUNCTION scan_dyn$(s$)
     END IF
     p = INSTR(s$, nSym$, p + 7)
   WEND
+  ' Also treat SWAP operands as scalar context: `swap X:type Y:type` uses both
+  ' X and Y as scalars. A name DIM'd as an array AND swapped (adatadim) becomes
+  ' dual-use, matching the Rust CEmitter's walk_items Swap arm.
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 5) = "swap " THEN
+      rest$ = MID$(ln$, 6, LEN(ln$) - 5)
+      sp = INSTR(rest$, " ")
+      WHILE sp > 0
+        part$ = LEFT$(rest$, sp - 1)
+        cp = INSTR(part$, ":")
+        IF cp > 0 THEN
+          part$ = LEFT$(part$, cp - 1)
+        END IF
+        IF INSTR(sc$, ":" + part$ + ":") = 0 THEN
+          sc$ = sc$ + ":" + part$ + ":"
+        END IF
+        rest$ = MID$(rest$, sp + 1, LEN(rest$) - sp)
+        sp = INSTR(rest$, " ")
+      WEND
+      cp = INSTR(rest$, ":")
+      IF cp > 0 THEN
+        rest$ = LEFT$(rest$, cp - 1)
+      END IF
+      IF INSTR(sc$, ":" + rest$ + ":") = 0 THEN
+        sc$ = sc$ + ":" + rest$ + ":"
+      END IF
+    END IF
+  WEND
   p = 1
   WHILE p <= LEN(s$)
     le = INSTR(s$, CHR$(10), p)
@@ -3190,12 +3225,10 @@ FUNCTION scan_dyn$(s$)
           END IF
           ci = ci + 1
         WEND
-        IF ncomma <= 1 THEN
-          IF ty$ = "integer" THEN
-            IF INSTR(sc$, ":" + nm$ + ":") > 0 THEN
-              IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
-                res$ = res$ + ":" + nm$ + ":"
-              END IF
+        IF ty$ = "integer" THEN
+          IF INSTR(sc$, ":" + nm$ + ":") > 0 THEN
+            IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+              res$ = res$ + ":" + nm$ + ":"
             END IF
           END IF
         END IF
@@ -3344,6 +3377,66 @@ FUNCTION scan_dual_use$(s$)
         END IF
       END IF
       p = sp + 1
+    END IF
+  WEND
+  ' Also treat SWAP operands as scalar context (matching Rust walk_items Swap arm):
+  ' `swap X:type Y:type` makes X and Y scalar-use. A name DIM'd as an array AND
+  ' swapped (adatadim) becomes dual-use even without array_access.
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 5) = "swap " THEN
+      rest$ = MID$(ln$, 6, LEN(ln$) - 5)
+      sp = INSTR(rest$, " ")
+      WHILE sp > 0
+        part$ = LEFT$(rest$, sp - 1)
+        cp = INSTR(part$, ":")
+        IF cp > 0 THEN
+          part$ = LEFT$(part$, cp - 1)
+        END IF
+        IF INSTR(scalarSet$, ":" + part$ + ":") = 0 THEN
+          scalarSet$ = scalarSet$ + ":" + part$ + ":"
+        END IF
+        rest$ = MID$(rest$, sp + 1, LEN(rest$) - sp)
+        sp = INSTR(rest$, " ")
+      WEND
+      cp = INSTR(rest$, ":")
+      IF cp > 0 THEN
+        rest$ = LEFT$(rest$, cp - 1)
+      END IF
+      IF INSTR(scalarSet$, ":" + rest$ + ":") = 0 THEN
+        scalarSet$ = scalarSet$ + ":" + rest$ + ":"
+      END IF
+    END IF
+  WEND
+  ' Also treat a sized array DIM as array context (matching Rust array_dims):
+  ' `dim X:type[N]` makes X array-use even without array_access (adatadim).
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 4) = "dim " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      bp = INSTR(r$, "[")
+      IF bp > 0 THEN
+        nm$ = LEFT$(r$, bp - 1)
+        cp = INSTR(nm$, ":")
+        IF cp > 0 THEN
+          nm$ = LEFT$(nm$, cp - 1)
+        END IF
+        IF INSTR(arraySet$, ":" + nm$ + ":") = 0 THEN
+          arraySet$ = arraySet$ + ":" + nm$ + ":"
+        END IF
+      END IF
     END IF
   WEND
   res$ = ""
@@ -4111,7 +4204,28 @@ FUNCTION emit_stmt$(s$)
         END IF
       ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
         IF INSTR(arrSize$, ",") > 0 THEN
-          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(intptr_t)); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+          DIM _d1nc
+          DIM _d1ci
+          DIM _d1cc
+          DIM _d1ch2
+          DIM _d1cd
+          _d1cc = 0
+          _d1cd = 0
+          FOR _d1ci = 1 TO LEN(arrSize$)
+            _d1ch2 = ASC(MID$(arrSize$, _d1ci, 1))
+            IF _d1ch2 = 40 THEN
+              _d1cd = _d1cd + 1
+            ELSEIF _d1ch2 = 41 THEN
+              _d1cd = _d1cd - 1
+            ELSEIF _d1ch2 = 44 AND _d1cd = 0 THEN
+              _d1cc = _d1cc + 1
+            END IF
+          NEXT _d1ci
+          IF _d1cc = 1 THEN
+            emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(intptr_t)); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+          ELSE
+            emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(intptr_t));"
+          END IF
         ELSE
           emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
         END IF
