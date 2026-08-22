@@ -568,6 +568,7 @@ PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 ##fwdScalars$ = ""
 ##curFnArrays$ = ""
 ##curParams$ = ""
+##arrParams$ = ""
 ##inFuncScope = 0
 ##selectState = 0
 ##selectExpr$ = ""
@@ -847,6 +848,7 @@ WHILE pos <= LEN(src$)
           ##scalarSeen$ = ""
           ##fwdScalars$ = ""
           ##curFnArrays$ = fn_array_dims$(src$, pos)
+          ##arrParams$ = arr_param_names$(params$)
           ##curParams$ = param_names$(params$)
           ##inFuncScope = 1
           nestBlocks$ = ""
@@ -2634,8 +2636,15 @@ FUNCTION emit_params$(params$)
     END IF
     pName$ = pNames$[i]
     pType$ = pTypes$[i]
-    ' Build base C name
-    IF INSTR(##byrefDual$, ":" + pName$ + ":") > 0 THEN
+    ' Strip [] suffix for array params and emit as pointer
+    DIM _isArrParam
+    _isArrParam = 0
+    IF RIGHT$(pType$, 2) = "[]" THEN
+      _isArrParam = 1
+      pType$ = LEFT$(pType$, LEN(pType$) - 2)
+    END IF
+    ' Build base C name — byref-dual and str-dual params get _arr suffix
+    IF INSTR(##byrefDual$, ":" + pName$ + ":") > 0 OR INSTR(##strDual$, ":" + pName$ + ":") > 0 THEN
       baseName$ = c_var_name$(pName$, pType$) + bd$(pName$)
     ELSE
       baseName$ = c_var_name$(pName$, pType$)
@@ -2650,8 +2659,8 @@ FUNCTION emit_params$(params$)
     IF isDup = 1 THEN
       baseName$ = baseName$ + "__dup" + STR$(i)
     END IF
-    ' Emit
-    IF INSTR(##byrefDual$, ":" + pName$ + ":") > 0 THEN
+    ' Emit: array params, byref-dual, and str-dual params get pointer
+    IF _isArrParam = 1 OR INSTR(##byrefDual$, ":" + pName$ + ":") > 0 OR INSTR(##strDual$, ":" + pName$ + ":") > 0 THEN
       result$ = result$ + c_type$(pType$) + "* " + baseName$
     ELSE
       result$ = result$ + c_type$(pType$) + " " + baseName$
@@ -2793,6 +2802,27 @@ FUNCTION scan_used$(s$, acc$)
       END IF
     END IF
   END IF
+  IF LEFT$(s$, 5) = "swap " THEN
+    fpart$ = MID$(s$, 6, LEN(s$) - 5)
+    sp = INSTR(fpart$, " ")
+    WHILE sp > 0
+      part$ = LEFT$(fpart$, sp - 1)
+      cp = INSTR(part$, ":")
+      IF cp > 0 THEN
+        nm$ = trim_spaces$(LEFT$(part$, cp - 1))
+        ty$ = trim_spaces$(MID$(part$, cp + 1, LEN(part$) - cp))
+        out$ = add_sym$(out$, nm$, ty$)
+      END IF
+      fpart$ = MID$(fpart$, sp + 1, LEN(fpart$) - sp)
+      sp = INSTR(fpart$, " ")
+    WEND
+    cp = INSTR(fpart$, ":")
+    IF cp > 0 THEN
+      nm$ = trim_spaces$(LEFT$(fpart$, cp - 1))
+      ty$ = trim_spaces$(MID$(fpart$, cp + 1, LEN(fpart$) - cp))
+      out$ = add_sym$(out$, nm$, ty$)
+    END IF
+  END IF
   scan_used$ = out$
 END FUNCTION
 
@@ -2857,6 +2887,50 @@ FUNCTION param_names$(p$)
     END IF
   WEND
   param_names$ = out$
+END FUNCTION
+' Extract names of ARRAY parameters (type contains []) from a raw IR param list.
+' Returns newline-delimited names, matching param_names$ format.
+FUNCTION arr_param_names$(p$)
+  DIM out$
+  DIM rest$
+  DIM cm
+  DIM one$
+  DIM cp
+  DIM nm$
+  DIM ty$
+  out$ = ""
+  rest$ = p$
+  WHILE LEN(rest$) > 0
+    cm = INSTR(rest$, ",")
+    IF cm > 0 THEN
+      one$ = LEFT$(rest$, cm - 1)
+      rest$ = MID$(rest$, cm + 1, LEN(rest$) - cm)
+    ELSE
+      one$ = rest$
+      rest$ = ""
+    END IF
+    one$ = trim_spaces$(one$)
+    IF LEFT$(one$, 1) = "@" THEN
+      one$ = MID$(one$, 2, LEN(one$) - 1)
+    END IF
+    cp = INSTR(one$, ":")
+    IF cp > 0 THEN
+      nm$ = LEFT$(one$, cp - 1)
+      ty$ = MID$(one$, cp + 1, LEN(one$) - cp)
+    ELSE
+      nm$ = one$
+      ty$ = ""
+    END IF
+    cp = INSTR(nm$, "[")
+    IF cp > 0 THEN
+      nm$ = LEFT$(nm$, cp - 1)
+    END IF
+    nm$ = trim_spaces$(nm$)
+    IF LEN(nm$) > 0 AND INSTR(ty$, "[]") > 0 THEN
+      out$ = out$ + nm$ + CHR$(10)
+    END IF
+  WEND
+  arr_param_names$ = out$
 END FUNCTION
 
 ' Number of parameters in a raw IR param list (0 for empty), as a decimal string.
@@ -3005,12 +3079,22 @@ FUNCTION emit_hoists$(used$, dimmed$)
       entry$ = LEFT$(rest$, nlpos - 1)
       rest$ = MID$(rest$, nlpos + 1, LEN(rest$) - nlpos)
       IF INSTR(##strDual$, ":" + entry$ + ":") > 0 THEN
-        IF INSTR(out$, "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** ") = 0 THEN
-          out$ = out$ + "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** " + c_var_name$(entry$, "string") + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
+        IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
+          IF INSTR(out$, "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** ") = 0 THEN
+            out$ = out$ + "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** " + c_var_name$(entry$, "string") + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
+          END IF
+        ELSE
+          IF INSTR(out$, "char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr") = 0 THEN
+            out$ = out$ + "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
+          END IF
         END IF
-      ELSEIF INSTR(##allStrArr$, ":" + entry$ + ":") > 0 AND INSTR(##dynStr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 THEN
+      ELSEIF INSTR(##allStrArr$, ":" + entry$ + ":") > 0 AND INSTR(##dynStr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
         IF INSTR(out$, "char** " + c_var_name$(entry$, "string") + " = 0;") = 0 THEN
           out$ = out$ + "    char** " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
+        END IF
+      ELSEIF INSTR(##allStrArr$, ":" + entry$ + ":") > 0 AND INSTR(##dynStr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 THEN
+        IF INSTR(out$, "intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;") = 0 THEN
+          out$ = out$ + "    intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
         END IF
       ELSEIF INSTR(##dynStr$, ":" + entry$ + ":") > 0 THEN
         IF INSTR(out$, " " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_") = 0 THEN
@@ -4322,7 +4406,7 @@ FUNCTION emit_stmt$(s$)
         varName$ = rest$
         varType$ = "integer"
       END IF
-      IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 THEN
+      IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
         emit_stmt$ = ""
       ELSEIF varType$ = "string" THEN
         emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");"
