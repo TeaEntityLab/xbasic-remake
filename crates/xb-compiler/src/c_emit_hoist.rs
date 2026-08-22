@@ -220,7 +220,14 @@ fn walk_items(items: &[IrItem], scalars: &mut BTreeMap<(String, bool), ValueType
             // here — the interpreter reads it as the 0 default). Walk them so
             // such scalars are hoisted; the declared `symbol` itself is an array,
             // handled by collect_dimmed.
-            IrItem::Dim { size, extra_dims, .. } => {
+            IrItem::Dim { symbol, size, is_array, extra_dims, .. } => {
+                // A scalar `DIM a` (no size, not an array) registers `a` as a
+                // scalar context so `collect_dual_use` finds it when `a` is also
+                // used as an array (DIM a + DIM a[3] → dual-use). The hoist
+                // excludes DIM'd names, so this doesn't double-declare.
+                if !*is_array && size.is_none() {
+                    note(symbol, scalars);
+                }
                 if let Some(sz) = size {
                     walk_expr(sz, scalars);
                 }

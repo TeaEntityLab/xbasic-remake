@@ -176,12 +176,16 @@ fn set_defined_funcs(program: &IrProgram) {
             // Composite-member dual-use gate: a shared array member (dotted name)
             // that is ALSO DIM'd as a SCALAR anywhere — a scalar composite
             // `HOST host` vs an array composite `SHARED HOST host[]` both flatten
-            // `host.address` — must keep the local emission. A global pointer
-            // would clash with the scalar uses, and `collect_dual_use` skips
-            // dotted names so the first gate misses it (CGEN-SHARED-ARR).
+            // `host.address`. A global pointer coexists with scalar uses because
+            // the local scalar declaration shadows the global in C (different
+            // scopes, different types — valid). No function uses the same
+            // composite member as both a parameter and a shared array (verified
+            // for xin/xgr/xst). So only exclude NON-dotted names (true dual-use
+            // scalar+array of one bare name); dotted composite members stay in
+            // SHARED_ARRAYS and get a global decl (CGEN-SHARED-COMPOSITE).
             let mut scalar_dimmed = std::collections::HashSet::new();
             collect_scalar_dimmed_names(&program.items, &mut scalar_dimmed);
-            m.retain(|name, _| !scalar_dimmed.contains(name));
+            m.retain(|name, _| !scalar_dimmed.contains(name) || name.contains('.'));
         }
     });
 }
@@ -464,7 +468,9 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
     let mut dimmed = HashSet::new();
     crate::c_emit_hoist::collect_array_dimmed_names(items, &mut dimmed);
     for p in params {
-        dimmed.insert(p.name.clone());
+        if p.is_array {
+            dimmed.insert(p.name.clone());
+        }
     }
     let fn_has_gosub = crate::c_emit_hoist::has_gosub(items);
     let (descriptors, descriptor_locals) =

@@ -33,7 +33,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             // Its bare `SHARED a[]` declaration is a no-op — a per-function reset
             // would clear data another function stored. A sized DIM/REDIM still
             // (re)allocates the global via the dyn arms below (is_dyn_array=true).
-            if crate::c_emit::is_shared_array(&symbol.name) && size.is_none() {
+            if *is_array && crate::c_emit::is_shared_array(&symbol.name) && size.is_none() {
                 return;
             }
             // Multi-dim array (`DIM a[i,j,…]`): the interpreter flattens to a 1-D
@@ -156,7 +156,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                         out.push_str("[_i] = xb_str(\"\");\n");
                     }
                 }
-                None if dyn_array => {
+                None if dyn_array && *is_array => {
                     // Late/repeated `DIM a[]`: reset the hoisted pointer to the
                     // empty state (UBOUND -1), like the interpreter's empty array.
                     out.push_str("xb_ub_");
