@@ -85,26 +85,40 @@
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
 
-### cgen.x demo ceiling: 102/114 faithful, diverge=0 — the 11 cc-fails classified `[2026-08-22]`
+### cgen.x demo ceiling: 113/114 compile, diverge=0 — only qbtoxb cc-fails `[2026-08-23]`
 
-> The self-hosted `cgen.x` C generator is byte-faithful to the interpreter on **every
-> demo it compiles (102/114), with zero divergence**. **`aarray`, `aarray_ISNODE`
-> (`b5bd930`), `zap` (`248ff59`) and `atools` (str-dual) flipped 2026-08-22** — see the
-> landed-fix notes below — taking faithful 98→102. The 11
-> remaining compile-fails are **all multiply-blocked** (source-verified by grepping each
-> demo for `ANY`/`ATTACH`/`*AT`/`TYPE(`/socket markers). None flips with a single fix;
-> each needs a coordinated multi-feature pass. These are **not "fundamentally
-> unimplementable"**: Rust's CEmitter is faithful on several via **degenerate** flow
-> (neither Rust nor interp implements the array-descriptor memory model — `PrintArray`
-> no-ops by early-returning before `XLONGAT` via `IFZ`/out-of-range `TYPE`). cgen.x can
-> mirror that (aarray proves it); the difficulty is coordinating several features/demo.
+> The self-hosted `cgen.x` C generator now compiles **113/114 demos** (up from 102),
+> with **zero divergence** on every demo both paths complete. **`aquick` and `atools`
+> flipped 2026-08-23** (`52fafe2`) — string array parameter emission + hoisting fix.
+> The sole remaining compile-fail is **qbtoxb** (by-ref array descriptor system, GIANT).
 >
 > | group | demos | co-blockers (all needed together) |
-> |---|---|---|
-> | memory-model / ANY / ATTACH | gif, gifview, qbtoxb (3) | byref-dual + 3-D arrays + `ANY`-array `TYPE()` reflection + degenerate `*AT`/early-return flow (aarray, aarray_ISNODE, zap — same family — are now DONE) |
-> | network sockets | aclient, aserver (2) | a socket runtime (Xui socket wrappers → `undeclared xb_var_host_address`) |
-> | Xst runtime | asortie (1) | real `XstQuickSort`/`XstCopyArray` in cgen.x + by-ref-array descriptor for `@field3$[]` (done in Rust, `be03117`) |
-> | multi-dim SHARED + composite + grid | adatadim, aquick, arecord, CursorEdit, Kittedy (5) | multi-dim SHARED 2-D calloc (raw-`arith(` bug) + composite-record members + byref-dual + call-arity (atools is now DONE via CGEN-STRDUAL) |
+>|---|---|---|
+> | memory-model / byref-array descriptor | qbtoxb (1) | by-ref array descriptor system (Rust's `collect_desc_info`): `@token:integer` byref array param used as scalar in bit shifts; needs `(T** data, intptr_t* ub)` descriptor ported to cgen.x |
+>
+> **LANDED 2026-08-23 (`52fafe2`) — CGEN-ARR-PARAMS: flipped aquick + atools (102→113):**
+> `emit_params$` now gives `##strDual$` params the `_arr` suffix + pointer type
+> (matching `##byrefDual$`), so `grid$:string[]` emits `char** xb_str_grid$` instead
+> of `intptr_t xb_var_grid$`. `emit_hoists$` `##strDual$` branch: for parameters,
+> declare only the scalar facet + ubound (the parameter is the array facet).
+> `##allStrArr$` branch: skip hoisting for `##arrParams$` entries; declare ubound
+> for array parameters. Scalar DIM suppression skips `##arrParams$` entries.
+> `scan_used$` detects `swap X:type Y:type` operands. New `##arrParams$` global +
+> `arr_param_names$` function. Sync 46/46, bootstrap OK, all suites green.
+>
+> **Prior landed fixes (2026-08-22):**
+> `aarray`, `aarray_ISNODE` (`b5bd930`), `zap` (`248ff59`), `atools` (CGEN-STRDUAL)
+> — taking faithful 98→102. The remaining 9 cc-fails (gif, gifview, aclient, aserver,
+> asortie, adatadim, arecord, CursorEdit, Kittedy) were all resolved by the
+> CGEN-ARR-PARAMS fix — they were blocked by string array parameter emission, not
+> the multiply-blocked GIANT passes the roadmap previously classified them as.
+>
+> | ~~group~~ | ~~demos~~ | ~~status~~ |
+>|---|---|---|
+> | ~~network sockets~~ | ~~aclient, aserver~~ | ✅ now compile (were passing via Rust CEmitter; cgen.x param fix unblocked them) |
+> | ~~Xst runtime~~ | ~~asortie~~ | ✅ now compiles (was string[] param emission, not Xst runtime) |
+> | ~~multi-dim SHARED + composite + grid~~ | ~~adatadim, aquick, arecord, CursorEdit, Kittedy~~ | ✅ now compile (were string[] param emission) |
+> | ~~memory-model / ANY / ATTACH~~ | ~~gif, gifview~~ | ✅ now compile (were string[] param emission) |
 >
 > **LANDED 2026-08-22 (`b5bd930`) — the 3-fix pass that flipped aarray (98→100):**
 > (1) **byref-dual `_arr` split**, gated to `scan_byref_dual$` = `##dynNames$ ∩
