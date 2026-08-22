@@ -575,6 +575,7 @@ PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 ##byrefWB$ = ","
 ##curFnName$ = ""
 ##byrefWBCopy$ = ""
+##sharedStrInits$ = ""
 ##inFuncScope = 0
 ##selectState = 0
 ##selectExpr$ = ""
@@ -699,6 +700,9 @@ WHILE fwdPos <= LEN(src$)
         IF INSTR(##sharedDecls$, ":" + fwdSName$ + ":") = 0 THEN
           ##sharedDecls$ = ##sharedDecls$ + ":" + fwdSName$ + ":"
           PRINT c_type$(fwdSType$) + " xb_shared_" + sanitize_ident$(fwdSName$) + " = 0;"
+          IF fwdSType$ = "string" THEN
+            ##sharedStrInits$ = ##sharedStrInits$ + sanitize_ident$(fwdSName$) + ","
+          END IF
         END IF
       END IF
     ELSEIF LEFT$(fwdStmt$, 11) = "dim shared " THEN
@@ -743,11 +747,13 @@ WHILE shRefPos > 0
     IF INSTR(##sharedDecls$, ":" + shRefName$ + ":") = 0 THEN
       ##sharedDecls$ = ##sharedDecls$ + ":" + shRefName$ + ":"
       PRINT c_type$(shRefType$) + " xb_shared_" + sanitize_ident$(shRefName$) + " = 0;"
+      IF shRefType$ = "string" THEN
+        ##sharedStrInits$ = ##sharedStrInits$ + sanitize_ident$(shRefName$) + ","
+      END IF
     END IF
   END IF
   shRefPos = INSTR(src$, shPat$, shNameStart)
 WEND
-
 ##funcMixed$ = scan_mixed_byref$(src$)
 ##byrefWB$ = scan_byref_wb$(src$)
 ' Emit deferred forward declarations (now that ##byrefWB$ is set for pointer params)
@@ -972,6 +978,25 @@ WEND
 PRINT "int main(void) {"
 IF LEN(mainBody$) > 0 THEN
   PRINT mainBody$
+END IF
+IF LEN(##sharedStrInits$) > 0 THEN
+  DIM _ssiRest$
+  DIM _ssiName$
+  DIM _ssiComma
+  _ssiRest$ = ##sharedStrInits$
+  WHILE LEN(_ssiRest$) > 0
+    _ssiComma = INSTR(_ssiRest$, ",")
+    IF _ssiComma > 0 THEN
+      _ssiName$ = LEFT$(_ssiRest$, _ssiComma - 1)
+      _ssiRest$ = MID$(_ssiRest$, _ssiComma + 1, LEN(_ssiRest$) - _ssiComma)
+    ELSE
+      _ssiName$ = _ssiRest$
+      _ssiRest$ = ""
+    END IF
+    IF LEN(_ssiName$) > 0 THEN
+      PRINT "    xb_shared_" + _ssiName$ + " = xb_str(" + CHR$(34) + CHR$(34) + ");"
+    END IF
+  WEND
 END IF
 IF hasMain = 1 THEN
   PRINT "    xb_user_Main();"
