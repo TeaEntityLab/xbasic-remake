@@ -1842,6 +1842,51 @@ fn cemitter_and_cgen_agree_on_func_addr_id() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Multi-dim string array DIM (CGEN-MULTIDIM): a fixed 2-D `string` array `DIM s$[m,n]`
+/// went through the 1-D string-DIM path (`emit_expr` on the whole `m,n` bracket) and
+/// emitted `char* s$[(m),integer(n) + 1]` — a bare comma -> cc "expected ']'" + the raw
+/// `integer(n)` leaking as an undeclared call. Integer 2-D (via `emit_msub$`) and 2-D
+/// *access* already worked. cgen.x now emits the native `char* s$[(m)+1][(n)+1]` (comma
+/// -> `emit_msub$`) with a flat-cast init `((char**)s$)[_i] = ""` over `emit_mtotal$`
+/// (the product), guarded so 1-D stays byte-identical (selfhost corpus is all 1-D).
+#[test]
+fn cemitter_and_cgen_agree_on_multidim_string_array() {
+    let tmp = std::env::temp_dir().join("xb_sync_mdstr");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"md\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM s$[2,1]\n\
+               s$[1,0] = \"hi\"\n\
+               s$[0,1] = \"yo\"\n\
+               PRINT s$[1,0] + s$[0,1]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse 2-D string program")
+        .lower_ir()
+        .expect("lower 2-D string program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "mdstr_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "mdstr_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret 2-D string program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "hiyo\n", "2-D string array reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled the 2-D string array");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled the 2-D string array DIM");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Function-name self-DIM (CGEN-SELFHOST-PARITY): a function whose body DIMs its own
 /// name (the return value — `FUNCTION Main() ... DIM Main`) made cgen.x emit a scalar
 /// decl for `xb_var_Main` from the signature AND again from the `dim` statement -> cc

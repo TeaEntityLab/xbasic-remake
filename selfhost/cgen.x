@@ -2295,6 +2295,45 @@ FUNCTION emit_msub$(a$, isDim)
   emit_msub$ = out$
 END FUNCTION
 
+' Total element count for a multi-dim array Dim: the product `((d0)+1)*((d1)+1)*...`
+' over the comma-separated dims (parens skipped like emit_msub$/emit_args$). Used to
+' flat-init a native 2-D `char*` array (`((char**)a)[_i] = ""`) since its storage is
+' contiguous. Single-dim callers keep the historical 1-D path (never reach here).
+FUNCTION emit_mtotal$(a$)
+  DIM i
+  DIM ch
+  DIM depth
+  DIM start
+  DIM out$
+  DIM part$
+  out$ = ""
+  i = 1
+  start = 1
+  depth = 0
+  WHILE i <= LEN(a$)
+    ch = ASC(MID$(a$, i, 1))
+    IF ch = 40 THEN
+      depth = depth + 1
+    ELSEIF ch = 41 THEN
+      depth = depth - 1
+    ELSEIF ch = 44 AND depth = 0 THEN
+      part$ = trim_spaces$(MID$(a$, start, i - start))
+      IF LEN(out$) > 0 THEN
+        out$ = out$ + " * "
+      END IF
+      out$ = out$ + "((" + emit_expr$(part$) + ") + 1)"
+      start = i + 1
+    END IF
+    i = i + 1
+  WEND
+  part$ = trim_spaces$(MID$(a$, start, LEN(a$) - start + 1))
+  IF LEN(out$) > 0 THEN
+    out$ = out$ + " * "
+  END IF
+  out$ = out$ + "((" + emit_expr$(part$) + ") + 1)"
+  emit_mtotal$ = out$
+END FUNCTION
+
 FUNCTION emit_params$(params$)
   DIM result$
   DIM rest$
@@ -3286,7 +3325,11 @@ FUNCTION emit_stmt$(s$)
       ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
         emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
       ELSEIF varType$ = "string" THEN
-        emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + "[(" + cExpr$ + ") + 1];" + CHR$(10) + "    for (int _i = 0; _i < (" + cExpr$ + ") + 1; _i++) " + c_var_name$(varName$, varType$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
+        IF INSTR(arrSize$, ",") > 0 THEN
+          emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + ";" + CHR$(10) + "    for (intptr_t _i = 0; _i < " + emit_mtotal$(arrSize$) + "; _i++) ((char**)" + c_var_name$(varName$, varType$) + ")[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
+        ELSE
+          emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + "[(" + cExpr$ + ") + 1];" + CHR$(10) + "    for (int _i = 0; _i < (" + cExpr$ + ") + 1; _i++) " + c_var_name$(varName$, varType$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
+        END IF
       ELSE
         emit_stmt$ = "    intptr_t " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + ";"
       END IF
