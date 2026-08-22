@@ -559,12 +559,14 @@ PRINT ""
 ##sharedArrays$ = ""
 ##sharedArrDecls$ = ""
 ##dynNames$ = ""
+##byrefDual$ = ""
 ##undimmed$ = ""
 ##dynStr$ = ""
 ##arr2d$ = ""
 ##scalarSeen$ = ""
 ##fwdScalars$ = ""
 ##curFnArrays$ = ""
+##curParams$ = ""
 ##inFuncScope = 0
 ##selectState = 0
 ##selectExpr$ = ""
@@ -572,6 +574,8 @@ PRINT ""
 ##selectExitCount = 0
 ##selectExitStack$ = ""
 ##sharedArrays$ = scan_shared_arr$(src$)
+##dynNames$ = scan_dyn$(src$)
+##byrefDual$ = scan_byref_dual$(src$)
 ' Forward declarations: pre-scan all lines for function signatures
 fwdPos = 1
 WHILE fwdPos <= LEN(src$)
@@ -675,6 +679,7 @@ WEND
 PRINT ""
 
 ##dynNames$ = scan_dyn$(src$)
+##byrefDual$ = scan_byref_dual$(src$)
 ##undimmed$ = scan_undimmed$(src$)
 ##dynStr$ = scan_dynstr$(src$)
 ##arr2d$ = scan_arr2d$(src$)
@@ -786,6 +791,7 @@ WHILE pos <= LEN(src$)
           ##scalarSeen$ = ""
           ##fwdScalars$ = ""
           ##curFnArrays$ = fn_array_dims$(src$, pos)
+          ##curParams$ = param_names$(params$)
           ##inFuncScope = 1
           nestBlocks$ = ""
           inNest = 0
@@ -793,7 +799,7 @@ WHILE pos <= LEN(src$)
       END IF
     ELSEIF stmt$ = "end function" THEN
       IF inNest = 1 THEN
-        nestBlocks$ = nestBlocks$ + "    if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;" + CHR$(10)
+        nestBlocks$ = nestBlocks$ + "    if (xb_gosub_sp > xb_gosub_base) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;" + CHR$(10)
         inNest = 0
       ELSE
         inFunc = 0
@@ -802,7 +808,7 @@ WHILE pos <= LEN(src$)
           hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
           fullBody$ = hoists$ + computed_goto_prologue$(funcBody$ + nestBlocks$) + funcBody$
           IF LEN(nestBlocks$) > 0 THEN
-            fullBody$ = fullBody$ + "    if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;" + CHR$(10) + nestBlocks$
+            fullBody$ = fullBody$ + "    if (xb_gosub_sp > xb_gosub_base) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;" + CHR$(10) + nestBlocks$
           END IF
           IF LEN(fullBody$) > 0 THEN
             PRINT LEFT$(fullBody$, LEN(fullBody$) - 1)
@@ -1701,6 +1707,15 @@ FUNCTION emit_expr$(e$)
       emit_expr$ = "0.0"
       RETURN emit_expr$
     END IF
+    IF fn$ = "TYPE" OR fn$ = "Type" THEN
+      ' TYPE(x): the interpreter returns the value's type number (non-zero for a
+      ' real value). cgen.x can't recover the IR-erased element type, but a non-zero
+      ' result mirrors the interp's control flow: demos test `type <> 0` before use
+      ' and the lowered type constants ($$SBYTE..$$DCOMPLEX) are all 0, so a 0 stub
+      ' (unknown-call default) wrongly falls through. Same class as the *AT stub.
+      emit_expr$ = "1"
+      RETURN emit_expr$
+    END IF
     IF fn$ = "CHR$" THEN
       DIM chrDepth
       DIM chrI
@@ -2101,9 +2116,9 @@ FUNCTION emit_expr$(e$)
         t$ = LEFT$(t$, LEN(t$) - 1)
       END IF
       IF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0) THEN
-        emit_expr$ = c_var_name$(varName$, varType$) + "[" + emit_flat2d$(t$, "xb_d1_" + sanitize_ident$(varName$)) + "]"
+        emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat2d$(t$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "]"
       ELSE
-        emit_expr$ = c_var_name$(varName$, varType$) + emit_msub$(t$, 0)
+        emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + emit_msub$(t$, 0)
       END IF
     ELSE
       emit_expr$ = "0"
@@ -2135,7 +2150,11 @@ FUNCTION emit_expr$(e$)
     ELSEIF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
-      emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
+      IF INSTR(##byrefDual$, ":" + varName$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
+        emit_expr$ = "(int)(sizeof(" + c_var_name$(varName$, varType$) + bd$(varName$) + ")/sizeof(" + c_var_name$(varName$, varType$) + bd$(varName$) + "[0])-1)"
+      ELSE
+        emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$) + bd$(varName$)
+      END IF
     ELSE
       emit_expr$ = "(int)(sizeof(" + c_var_name$(varName$, varType$) + ")/sizeof(" + c_var_name$(varName$, varType$) + "[0])-1)"
     END IF
@@ -2226,6 +2245,29 @@ FUNCTION emit_expr$(e$)
     END IF
     emit_expr$ = "xb_shared_" + sanitize_ident$(varName$)
     RETURN emit_expr$
+  END IF
+
+  IF LEFT$(e$, 6) = "byref(" THEN
+    t$ = MID$(e$, 7, LEN(e$) - 6)
+    IF RIGHT$(t$, 1) = ")" THEN
+      t$ = LEFT$(t$, LEN(t$) - 1)
+    END IF
+    IF LEFT$(t$, 7) = "symbol(" THEN
+      t$ = MID$(t$, 8, LEN(t$) - 7)
+      IF RIGHT$(t$, 1) = ")" THEN
+        t$ = LEFT$(t$, LEN(t$) - 1)
+      END IF
+      colonPos = INSTR(t$, ":")
+      IF colonPos > 0 THEN
+        varName$ = LEFT$(t$, colonPos - 1)
+      ELSE
+        varName$ = t$
+      END IF
+      IF INSTR(##byrefDual$, ":" + varName$ + ":") > 0 THEN
+        emit_expr$ = "&" + c_var_name$(varName$, "integer")
+        RETURN emit_expr$
+      END IF
+    END IF
   END IF
 
   emit_expr$ = "0"
@@ -2462,7 +2504,11 @@ FUNCTION emit_params$(params$)
       IF LEN(result$) > 0 THEN
         result$ = result$ + ", "
       END IF
-      result$ = result$ + c_type$(pType$) + " " + c_var_name$(pName$, pType$)
+      IF INSTR(##byrefDual$, ":" + pName$ + ":") > 0 THEN
+        result$ = result$ + c_type$(pType$) + "* " + c_var_name$(pName$, pType$) + bd$(pName$)
+      ELSE
+        result$ = result$ + c_type$(pType$) + " " + c_var_name$(pName$, pType$)
+      END IF
     END IF
   WEND
   emit_params$ = result$
@@ -2775,14 +2821,23 @@ FUNCTION emit_hoists$(used$, dimmed$)
           out$ = out$ + "    char** " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
         END IF
       ELSEIF INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
-        IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
-          out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
+        IF INSTR(##byrefDual$, ":" + entry$ + ":") > 0 THEN
+          IF INSTR(out$, "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)) = 0 THEN
+            IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
+              out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
+            END IF
+            out$ = out$ + "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)
+          END IF
+        ELSE
+          IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
+            out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
+          END IF
         END IF
       END IF
       IF INSTR(##arr2d$, ":" + entry$ + ":") > 0 THEN
         IF INSTR(##dynStr$, ":" + entry$ + ":") > 0 OR INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
-          IF INSTR(out$, "xb_d1_" + sanitize_ident$(entry$) + " = ") = 0 THEN
-            out$ = out$ + "    intptr_t xb_d1_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)
+          IF INSTR(out$, "xb_d1_" + sanitize_ident$(entry$) + bd$(entry$) + " = ") = 0 THEN
+            out$ = out$ + "    intptr_t xb_d1_" + sanitize_ident$(entry$) + bd$(entry$) + " = 0;" + CHR$(10)
           END IF
         END IF
       END IF
@@ -2883,6 +2938,10 @@ FUNCTION scan_dyn$(s$)
   DIM nSym$
   DIM nBy$
   DIM before$
+  DIM ci
+  DIM cch
+  DIM cdepth
+  DIM ncomma
   sc$ = ""
   res$ = ""
   p = 1
@@ -2951,7 +3010,21 @@ FUNCTION scan_dyn$(s$)
           nm$ = LEFT$(nm$, cp - 1)
         END IF
         sub$ = MID$(r$, bp + 1, LEN(r$) - bp)
-        IF INSTR(sub$, ",") = 0 THEN
+        ncomma = 0
+        cdepth = 0
+        ci = 1
+        WHILE ci <= LEN(sub$)
+          cch = ASC(MID$(sub$, ci, 1))
+          IF cch = 40 THEN
+            cdepth = cdepth + 1
+          ELSEIF cch = 41 THEN
+            cdepth = cdepth - 1
+          ELSEIF cch = 44 AND cdepth = 0 THEN
+            ncomma = ncomma + 1
+          END IF
+          ci = ci + 1
+        WEND
+        IF ncomma <= 1 THEN
           IF ty$ = "integer" THEN
             IF INSTR(sc$, ":" + nm$ + ":") > 0 THEN
               IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
@@ -2964,6 +3037,76 @@ FUNCTION scan_dyn$(s$)
     END IF
   WEND
   scan_dyn$ = res$
+END FUNCTION
+
+' Byref-dual names (CGEN-BYREF-DUAL): a name in ##dynNames$ (dual-DIM scalar+array)
+' that is ALSO a parameter of some user function. XBasic passes arrays by-ref, so such
+' a name needs the Rust CEmitter's dual-use split: an ARRAY facet `xb_var_X_arr` (the
+' by-ref param, a pointer) plus a distinct SCALAR facet `xb_var_X`. Without it the array
+' param decl `xb_var_X` collides with the scalar-facet hoist decl (a cc "redefinition").
+' The set (dynNames ∩ user-fn-param) is EMPTY on every faithful demo and the selfhost
+' tools (verified), so gating the split to it is byte-neutral there.
+FUNCTION scan_byref_dual$(s$)
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM fp
+  DIM cp2
+  DIM params$
+  DIM names$
+  DIM nlp
+  DIM nm2$
+  res$ = ""
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 9) = "function " THEN
+      fp = INSTR(ln$, "(")
+      IF fp > 0 THEN
+        params$ = MID$(ln$, fp + 1, LEN(ln$) - fp)
+        cp2 = INSTR(params$, ")")
+        IF cp2 > 0 THEN
+          params$ = LEFT$(params$, cp2 - 1)
+        END IF
+        names$ = param_names$(params$)
+        WHILE LEN(names$) > 0
+          nlp = INSTR(names$, CHR$(10))
+          IF nlp = 0 THEN
+            nm2$ = names$
+            names$ = ""
+          ELSE
+            nm2$ = LEFT$(names$, nlp - 1)
+            names$ = MID$(names$, nlp + 1, LEN(names$) - nlp)
+          END IF
+          IF LEN(nm2$) > 0 THEN
+            IF INSTR(##dynNames$, ":" + nm2$ + ":") > 0 THEN
+              IF INSTR(res$, ":" + nm2$ + ":") = 0 THEN
+                res$ = res$ + ":" + nm2$ + ":"
+              END IF
+            END IF
+          END IF
+        WEND
+      END IF
+    END IF
+  WEND
+  scan_byref_dual$ = res$
+END FUNCTION
+
+' The C-name suffix for the ARRAY facet of a byref-dual name (`_arr`), else "".
+' Array-context sites (dyn decl, calloc, access, assign, ubound) append bd$(X);
+' the scalar facet keeps base `xb_var_X`. Empty on the corpus -> byte-neutral.
+FUNCTION bd$(n$)
+  IF INSTR(##byrefDual$, ":" + n$ + ":") > 0 THEN
+    bd$ = "_arr"
+  ELSE
+    bd$ = ""
+  END IF
 END FUNCTION
 
 ' Scan the IR for UNDIMMED arrays: a name used as an array (`array_access(X:` /
@@ -3355,9 +3498,12 @@ END FUNCTION
 FUNCTION computed_goto_prologue$(body$)
   DIM p$
   p$ = ""
+  IF INSTR(body$, "xb_gosub_sp") > 0 THEN
+    p$ = "    int xb_gosub_base = xb_gosub_sp;" + CHR$(10)
+  END IF
   IF INSTR(body$, "goto *") > 0 THEN
     IF INSTR(body$, "&&xb_gosub_ret_") = 0 THEN
-      p$ = "    if (0) { void* _xb_la = &&_xb_cg_dummy; (void)_xb_la; _xb_cg_dummy: (void)0; }" + CHR$(10)
+      p$ = p$ + "    if (0) { void* _xb_la = &&_xb_cg_dummy; (void)_xb_la; _xb_cg_dummy: (void)0; }" + CHR$(10)
     END IF
   END IF
   computed_goto_prologue$ = p$
@@ -3492,9 +3638,9 @@ FUNCTION emit_stmt$(s$)
         END IF
       ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
         IF INSTR(arrSize$, ",") > 0 THEN
-          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(intptr_t)); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(intptr_t)); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
-          emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+          emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
         END IF
       ELSEIF varType$ = "string" THEN
         IF INSTR(arrSize$, ",") > 0 THEN
@@ -3548,9 +3694,9 @@ FUNCTION emit_stmt$(s$)
       emit_stmt$ = "    (void)(" + c2$ + ");"
     ELSE
       IF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0) THEN
-        emit_stmt$ = "    " + c_var_name$(varName$, varType$) + "[" + emit_flat2d$(cExpr$, "xb_d1_" + sanitize_ident$(varName$)) + "] = " + c2$ + ";"
+        emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat2d$(cExpr$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "] = " + c2$ + ";"
       ELSE
-        emit_stmt$ = "    " + c_var_name$(varName$, varType$) + emit_msub$(cExpr$, 0) + " = " + c2$ + ";"
+        emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + emit_msub$(cExpr$, 0) + " = " + c2$ + ";"
       END IF
     END IF
     RETURN emit_stmt$
@@ -4049,7 +4195,7 @@ FUNCTION emit_stmt$(s$)
   END IF
 
   IF s$ = "gosub_return" THEN
-    emit_stmt$ = "    if (xb_gosub_sp > 0) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;"
+    emit_stmt$ = "    if (xb_gosub_sp > xb_gosub_base) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;"
     RETURN emit_stmt$
   END IF
   IF LEFT$(s$, 11) = "gosub_expr " THEN
