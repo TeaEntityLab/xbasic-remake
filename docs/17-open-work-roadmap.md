@@ -142,8 +142,17 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > current function to the type default — matching the interpreter's per-function scoping
 > (atools's `text$` is dual-use in `CreateGrids` but undimmed in `MenuBar`). Locked by
 > adding `atools` to `DEMOS`; sync 46/46, bootstrap OK, differential faithful 101→102/0.
-> **Remaining aquick blocker: cross-function string-array scoping** (grid$/image$ DIM'd
-> in one function, used in another — distinct from dual-use).
+> **Remaining aquick blocker (precisely diagnosed 2026-08-22, needs a coordinated
+> 2-piece pass):** by-ref STRING array handling. (a) `emit_params$` must strip the `[]`
+> array marker from a param type and emit a pointer — `grid$:string[]` currently emits
+> `intptr_t xb_var_grid$` (wrong type + `xb_var_` prefix) instead of `char** xb_str_grid$`
+> (a narrow, correct fix, but 0-flip alone). (b) forward-referenced string arrays need
+> heap-hoisting: `grid$`/`image$` are DIM'd in `Entry` but array-*accessed* earlier via
+> the GOSUB-inlined SUBs `SwitchWindow`/`ReportCallback` (placed before the DIM), so the
+> mid-function stack decl `char* xb_str_grid$[N]` isn't in scope at the access — they must
+> hoist to `char** xb_str_grid$` + calloc (like `##dynStr$`). (b)'s byte-neutrality vs the
+> corpus (which has local string arrays) is unverified — the risky part; the string analog
+> of the integer byref/dyn work. Not a bounded fix.
 
 | ~~CGEN-ARRAYS~~ | C backend | ✅ **done** (2026-08-20): auto-vivified array hoisting + dynamic DIMs + undimmed-array folds | — | ✅ |
 | ~~CGEN-ARGC~~ | C backend | ✅ **done** (2026-08-20): arity reconciliation (drop extras, pad missing) via `DEFINED_SIGS` | — | ✅ |
