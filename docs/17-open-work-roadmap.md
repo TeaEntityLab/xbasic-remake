@@ -85,16 +85,26 @@
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
 
-### cgen.x demo ceiling: 113/114 compile, diverge=0 — only qbtoxb cc-fails `[2026-08-23]`
+### cgen.x demo ceiling: 114/114 compile, diverge=0 — qbtoxb compiles but crashes `[2026-08-23]`
 
-> The self-hosted `cgen.x` C generator now compiles **113/114 demos** (up from 102),
-> with **zero divergence** on every demo both paths complete. **`aquick` and `atools`
-> flipped 2026-08-23** (`52fafe2`) — string array parameter emission + hoisting fix.
-> The sole remaining compile-fail is **qbtoxb** (by-ref array descriptor system, GIANT).
+> The self-hosted `cgen.x` C generator now compiles **ALL 114 demos** (up from 102),
+> with **zero divergence** on every demo both paths complete. **qbtoxb** — the last
+> compile-fail — now compiles (`739c022`) but crashes at runtime (SIGSEGV) because the
+> by-ref array descriptor system (`(T** data, intptr_t* ub)`) is not yet ported to cgen.x.
+> The Rust CEmitter passes both the data pointer and ubound by reference; cgen.x passes
+> a scalar address, causing a null-pointer dereference when the callee treats it as an array.
 >
-> | group | demos | co-blockers (all needed together) |
+> | group | demos | co-blockers |
 >|---|---|---|
-> | memory-model / byref-array descriptor | qbtoxb (1) | by-ref array descriptor system (Rust's `collect_desc_info`): `@token:integer` byref array param used as scalar in bit shifts; needs `(T** data, intptr_t* ub)` descriptor ported to cgen.x |
+> | byref-array descriptor | qbtoxb (1) | Port Rust's `(T** data, intptr_t* ub)` descriptor to cgen.x: call-site passes `&xb_var_X_arr, &xb_ub_X_arr`; callee-side `XstLoadStringArray` populates the array through the descriptor; `token:integer[]` byref param read as scalar needs `xb_var_token = xb_var_token_arr[i]` array-to-scalar copy |
+>
+> **LANDED 2026-08-23 (`739c022`) — CGEN-BYREF-DUAL: qbtoxb compiles (113→114):**
+> `scan_byref_dual$` now checks parameter type (only `[]` params qualify) and adds
+> condition 2: array params used as scalar (`symbol(name:...)` in IR) even without
+> `##dynNames$`. `emit_params$` only applies `_arr` to actual array params. New
+> `##byrefDual$` hoisting branch emits scalar facet (type-aware: `intptr_t` for int,
+> `char*` for string `$` names). byref emission uses actual symbol type. `c_var_name$`
+> always uses `xb_str_` for `$` names. Sync 46/46, bootstrap OK, all suites green.
 >
 > **LANDED 2026-08-23 (`52fafe2`) — CGEN-ARR-PARAMS: flipped aquick + atools (102→113):**
 > `emit_params$` now gives `##strDual$` params the `_arr` suffix + pointer type
