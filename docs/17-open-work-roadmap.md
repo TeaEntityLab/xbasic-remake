@@ -98,13 +98,16 @@ sections below or the named sibling docs; ✅-done items are omitted.
 >|---|---|---|
 > | byref-array descriptor | qbtoxb (1) | Port Rust's `(T** data, intptr_t* ub)` descriptor to cgen.x: call-site passes `&xb_var_X_arr, &xb_ub_X_arr`; callee-side `XstLoadStringArray` populates the array through the descriptor; `token:integer[]` byref param read as scalar needs `xb_var_token = xb_var_token_arr[i]` array-to-scalar copy |
 >
+> **LANDED 2026-08-23 (`879f09c`) — CGEN-BYREF-DUAL-FIXES: stabilized 114/114:**
+> `bd$` now only returns `_arr` for `##byrefDual$` names when they're array params of
+> the current function (`##arrParams$` check) — previously global `##byrefDual$` caused
+> `bd$("grid$")` to return `_arr` in all functions, breaking atools/aquick. `##arrParams$`
+> and `##curParams$` now set BEFORE `emit_params$` call (was after). Scalar facet
+> emission in `##dynNames$` branch skipped for scalar params (no redefinition). Condition
+> 2 in `scan_byref_dual$` restricted to non-`$` names (string names appear as
+> `byref(symbol(grid$:...))` in call args, falsely matching `INSTR`). Sync 46/46, all suites green.
+>
 > **LANDED 2026-08-23 (`739c022`) — CGEN-BYREF-DUAL: qbtoxb compiles (113→114):**
-> `scan_byref_dual$` now checks parameter type (only `[]` params qualify) and adds
-> condition 2: array params used as scalar (`symbol(name:...)` in IR) even without
-> `##dynNames$`. `emit_params$` only applies `_arr` to actual array params. New
-> `##byrefDual$` hoisting branch emits scalar facet (type-aware: `intptr_t` for int,
-> `char*` for string `$` names). byref emission uses actual symbol type. `c_var_name$`
-> always uses `xb_str_` for `$` names. Sync 46/46, bootstrap OK, all suites green.
 >
 > **LANDED 2026-08-23 (`52fafe2`) — CGEN-ARR-PARAMS: flipped aquick + atools (102→113):**
 > `emit_params$` now gives `##strDual$` params the `_arr` suffix + pointer type
