@@ -551,7 +551,7 @@ PRINT "  xb_data_pos++; return r;"
 PRINT "}"
 PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 PRINT ""
-##funcTypes$ = ""
+##funcTypes$ = ","
 ##funcArity$ = ""
 ##funcIds$ = ":"
 ##gosubRetCount$ = ""
@@ -1278,9 +1278,9 @@ FUNCTION expr_type$(e$)
     ELSEIF fn$ = "CHR$" OR fn$ = "LEFT$" OR fn$ = "RIGHT$" OR fn$ = "MID$" OR fn$ = "STR$" OR fn$ = "READLINE$" OR fn$ = "UCASE$" OR fn$ = "LCASE$" OR fn$ = "TRIM$" OR fn$ = "LTRIM$" OR fn$ = "RTRIM$" OR fn$ = "SPACE$" OR fn$ = "HEX$" OR fn$ = "BIN$" OR fn$ = "OCT$" OR fn$ = "STRING$" OR fn$ = "STRING" OR fn$ = "INLINE$" OR fn$ = "TIME$" OR fn$ = "DATE$" OR fn$ = "HEXX$" OR fn$ = "RJUST$" OR fn$ = "LJUST$" OR fn$ = "CJUST$" OR fn$ = "RCLIP$" OR fn$ = "LCLIP$" OR fn$ = "STUFF$" OR fn$ = "VERSION$" OR fn$ = "SIGNED$" OR fn$ = "NULL$" OR fn$ = "ERROR$" OR fn$ = "OCTO$" OR fn$ = "BINB$" OR fn$ = "FORMAT$" OR fn$ = "CSIZE$" OR fn$ = "PROGRAM$" OR fn$ = "INFILE$" OR fn$ = "TAB" OR fn$ = "INKEY$" OR fn$ = "CSTRING$" THEN
       expr_type$ = "string"
     ELSE
-      ftPos = INSTR(##funcTypes$, fn$ + ":")
+      ftPos = INSTR(##funcTypes$, "," + fn$ + ":")
       IF ftPos > 0 THEN
-        ftStart = ftPos + LEN(fn$) + 1
+        ftStart = ftPos + 1 + LEN(fn$) + 1
         ftRest$ = MID$(##funcTypes$, ftStart, LEN(##funcTypes$) - ftStart + 1)
         ftEnd = INSTR(ftRest$, ",")
         IF ftEnd > 0 THEN
@@ -2077,7 +2077,7 @@ FUNCTION emit_expr$(e$)
         emittedArgs$ = emittedArgs$ + ", -99999"
       END IF
     END IF
-    IF INSTR(##funcTypes$, fn$ + ":") = 0 THEN
+    IF INSTR(##funcTypes$, "," + fn$ + ":") = 0 THEN
       IF funcName$ = "xb_user_" + fn$ THEN
         IF RIGHT$(fn$, 1) = "$" THEN
           emit_expr$ = "xb_str(" + CHR$(34) + CHR$(34) + ")"
@@ -2087,7 +2087,7 @@ FUNCTION emit_expr$(e$)
         RETURN emit_expr$
       END IF
     END IF
-    IF INSTR(##funcTypes$, fn$ + ":") > 0 THEN
+    IF INSTR(##funcTypes$, "," + fn$ + ":") > 0 THEN
       emit_expr$ = funcName$ + "(" + emit_args_n$(args$, VAL(arity_of$(fn$))) + ")"
     ELSE
       emit_expr$ = funcName$ + "(" + emittedArgs$ + ")"
@@ -2530,9 +2530,6 @@ END FUNCTION
 FUNCTION add_sym$(acc$, nm$, ty$)
   add_sym$ = acc$
   IF LEN(nm$) = 0 THEN
-    RETURN add_sym$
-  END IF
-  IF INSTR(nm$, ".") > 0 THEN
     RETURN add_sym$
   END IF
   IF INSTR(nm$, "[") > 0 THEN
@@ -4044,13 +4041,13 @@ FUNCTION emit_stmt$(s$)
       fn$ = rest$
       args$ = ""
     END IF
-    IF INSTR(##funcTypes$, fn$ + ":") = 0 THEN
+    IF INSTR(##funcTypes$, "," + fn$ + ":") = 0 THEN
       IF c_func_name$(fn$) = "xb_user_" + fn$ THEN
         emit_stmt$ = ""
         RETURN emit_stmt$
       END IF
     END IF
-    IF INSTR(##funcTypes$, fn$ + ":") > 0 THEN
+    IF INSTR(##funcTypes$, "," + fn$ + ":") > 0 THEN
       emit_stmt$ = "    " + c_func_name$(fn$) + "(" + emit_args_n$(args$, VAL(arity_of$(fn$))) + ");"
     ELSE
       emit_stmt$ = "    " + c_func_name$(fn$) + "(" + emit_args$(args$) + ");"
