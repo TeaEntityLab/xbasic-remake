@@ -164,6 +164,22 @@ program uses it (§2 RT-FUNCPTR).
 > integer. The nested-fn demos are a deep multiply-blocked chain (nested-fn →
 > retval-dim → Sub `_arr` → subscripted-value → string-dual-use → …), so this is a
 > **coordinated pass, not an increment** — incremental attempts regress or 0-flip.
+>
+> **A fourth attempt (2026-08-22) added a safe narrow classifier and confirmed the
+> entanglement concretely, then reverted.** `scan_dualuse$` = `##dynNames$` ∩
+> FOR-counter (a `dim X:integer[]` name also used as `for X:`) — verified empty on the
+> selfhost corpus (sync stayed 45/45, byte-neutral) and correctly catches zap's
+> `i`/`o`. The full `_arr` routing (hoist scalar+array facets, ubound, access, assign,
+> calloc via a `dua$(n$)` suffix helper) was implemented and made zap's array facet
+> emit cleanly. **But it is 0-flip**: zap's dual-use `i`/`o` are *also **by-ref array
+> parameters*** of `CommandLine(i:integer[], …)`, so the emitted scalar facet
+> `intptr_t xb_var_i = 0;` **redefines the parameter** `xb_var_i` (a hard cc error).
+> Every case-B cc-fail (zap, atools, aquick, arecord) is thus blocked *simultaneously*
+> by CGEN-BYREF-ARRAY (the twice-reverted by-ref-array-param feature) — the dual-use
+> name is a by-ref array param in the very function where it is also a counter. Case-B
+> and by-ref-array-params **must land together** (a per-function classifier that knows
+> when a name is a param vs a local counter); neither flips a demo alone. Reverted to
+> the clean `faithful=98, diverge=0` state (`f3a3d1e`).
 
 ### CGEN-BYREF-ARRAY — DIM'd-array by-ref is synthetic; do NOT "fix" it `[2026-08-22]`
 
