@@ -163,12 +163,12 @@ pub(crate) fn eval_expr(
             }
             let value = match state.slots.get(&symbol.name).or_else(|| state.shared.get(&symbol.name)) {
                 Some(slot) => {
-                    let off = slot.array_offset(&idxs).ok_or_else(|| {
-                        RuntimeError::ArrayIndexOutOfRange {
-                            index: idxs.first().copied().unwrap_or(0) as i32,
-                        }
-                    })?;
-                    slot.array_get(off)?
+                    match slot.array_offset(&idxs) {
+                        Some(off) => slot.array_get(off)?,
+                        // Slot exists but has no array (undimmed): read as
+                        // type default, matching the C backend's fold.
+                        None => RuntimeValue::default_for(symbol.value_type),
+                    }
                 }
                 // Undeclared array element reads as the type default (auto-declared).
                 None => RuntimeValue::default_for(symbol.value_type),

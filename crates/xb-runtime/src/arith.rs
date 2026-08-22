@@ -60,12 +60,7 @@ pub(crate) fn arith(
             ArithmeticOp::Add => a + b,
             ArithmeticOp::Sub => a - b,
             ArithmeticOp::Mul => a * b,
-            ArithmeticOp::Div => {
-                if *b == 0.0 {
-                    return Err(RuntimeError::DivisionByZero);
-                }
-                a / b
-            }
+            ArithmeticOp::Div => a / b,
             ArithmeticOp::IntegerDiv => (a / b).trunc(),
             ArithmeticOp::Mod => a % b,
             ArithmeticOp::Shl => (*a as i32).wrapping_shl(*b as i32 as u32) as f64,
@@ -76,12 +71,7 @@ pub(crate) fn arith(
             ArithmeticOp::Add => a + *b as f64,
             ArithmeticOp::Sub => a - *b as f64,
             ArithmeticOp::Mul => a * *b as f64,
-            ArithmeticOp::Div => {
-                if *b == 0 {
-                    return Err(RuntimeError::DivisionByZero);
-                }
-                a / *b as f64
-            }
+            ArithmeticOp::Div => a / *b as f64,
             ArithmeticOp::IntegerDiv => (a / *b as f64).trunc(),
             ArithmeticOp::Shl => (*a as i32).wrapping_shl(*b as u32) as f64,
             ArithmeticOp::Shr => (*a as i32).wrapping_shr(*b as u32) as f64,
@@ -92,12 +82,7 @@ pub(crate) fn arith(
             ArithmeticOp::Add => *a as f64 + b,
             ArithmeticOp::Sub => *a as f64 - b,
             ArithmeticOp::Mul => *a as f64 * b,
-            ArithmeticOp::Div => {
-                if *b == 0.0 {
-                    return Err(RuntimeError::DivisionByZero);
-                }
-                *a as f64 / b
-            }
+            ArithmeticOp::Div => *a as f64 / b,
             ArithmeticOp::IntegerDiv => (*a as f64 / b).trunc(),
             ArithmeticOp::Mod => *a as f64 % b,
             ArithmeticOp::Shl => a.wrapping_shl(*b as i32 as u32) as f64,

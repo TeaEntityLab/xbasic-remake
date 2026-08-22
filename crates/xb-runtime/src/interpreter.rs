@@ -44,7 +44,7 @@ impl Interpreter {
             &mut state,
             output,
         )?;
-        if let Some(main) = program.entry_or_first("Main") {
+        if let Some(main) = program.entry_or_first_callable("Main") {
             exec_items(program, main, main, 0, &mut state, output)?;
         }
         Ok(state)
@@ -68,7 +68,7 @@ impl Interpreter {
             &mut state,
             output,
         )?;
-        if let Some(main) = program.entry_or_first("Main") {
+        if let Some(main) = program.entry_or_first_callable("Main") {
             exec_items(program, main, main, 0, &mut state, output)?;
         }
         Ok(state)
@@ -223,19 +223,26 @@ pub(crate) fn exec_items(
                 }
                 let v =
                     crate::helpers::coerce_value(eval(program, value, state, output)?, target.value_type);
-                let slot = state
-                    .slots
-                    .get_mut(&target.name)
-                    .or_else(|| state.shared.get_mut(&target.name))
-                    .ok_or_else(|| RuntimeError::UnknownSlot {
-                        name: target.name.clone(),
-                    })?;
-                let off = slot.array_offset(&idxs).ok_or_else(|| {
-                    RuntimeError::ArrayIndexOutOfRange {
-                        index: idxs.first().copied().unwrap_or(0) as i32,
+                // Auto-vivify the slot if it doesn't exist in either local or
+                // shared scope (matches the C backend's hoist-all-used-symbols
+                // behavior; reads already auto-vivify via read_slot/ArrayAccess).
+                // If the slot has no array (undimmed), discard the write —
+                // matching the C backend's undimmed-array fold (write → discard).
+                if let Some(slot) = state.slots.get_mut(&target.name) {
+                    if let Some(off) = slot.array_offset(&idxs) {
+                        slot.array_set(off, v)?;
                     }
-                })?;
-                slot.array_set(off, v)?;
+                } else if let Some(slot) = state.shared.get_mut(&target.name) {
+                    if let Some(off) = slot.array_offset(&idxs) {
+                        slot.array_set(off, v)?;
+                    }
+                } else {
+                    let mut slot = TypedSlot::new(target.value_type);
+                    if let Some(off) = slot.array_offset(&idxs) {
+                        slot.array_set(off, v)?;
+                    }
+                    state.slots.insert(target.name.clone(), slot);
+                }
             }
             IrItem::MidAssign {
                 target,

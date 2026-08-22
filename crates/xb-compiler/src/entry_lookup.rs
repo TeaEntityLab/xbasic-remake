@@ -117,6 +117,26 @@ impl IrProgram {
             _ => None,
         })
     }
+
+    /// Like `entry_or_first` but only returns a function with no parameters,
+    /// matching the C backend's `emit_main` which only calls a parameterless
+    /// entry from `int main(void)`. A library file (e.g. xgrids) whose first
+    /// function takes parameters is not callable as an entry point.
+    pub fn entry_or_first_callable(&self, name: &str) -> Option<&[IrItem]> {
+        if let Ok(body) = self.entry(name) {
+            // Check if the named entry has params.
+            let has_params = self.items.iter().any(|item| {
+                matches!(item, IrItem::Function { name: n, params, .. } if n == name && !params.is_empty())
+            });
+            if !has_params {
+                return Some(body);
+            }
+        }
+        self.items.iter().find_map(|item| match item {
+            IrItem::Function { params, body, .. } if params.is_empty() => Some(body.as_slice()),
+            _ => None,
+        })
+    }
 }
 
 #[cfg(test)]
