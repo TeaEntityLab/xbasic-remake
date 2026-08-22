@@ -1887,6 +1887,56 @@ fn cemitter_and_cgen_agree_on_multidim_string_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// 2-D *dynamic* array (CGEN-MULTIDIM dyn): a name that is dyn (a comma-free 1-D DIM /
+/// scalar facet — `scan_dyn$` excludes multi-dim DIMs via the comma) AND also DIM'd
+/// multi-dim (`g[m,n]`) is stored as a flat 1-D heap block and accessed row-major
+/// `g[i*(d1+1)+j]`, mirroring the Rust CEmitter. cgen.x used to send the `m,n` bracket
+/// through the 1-D `emit_expr` path (`calloc((m),integer(n)+1)` — bare comma, cc-fail).
+/// Now: DIM captures the 2nd-dim count into `xb_d1_g` (hoisted), calloc's the
+/// `emit_mtotal$` product, and access/assign flatten via `emit_flat2d$`. Byte-neutral on
+/// the selfhost tools (all 1-D). Unblocks the calloc/access errors of the aarray/aquick/
+/// aarray_ISNODE 2-D cluster (those demos still need by-ref-array-params on top).
+#[test]
+fn cemitter_and_cgen_agree_on_2d_dyn_array() {
+    let tmp = std::env::temp_dir().join("xb_sync_2ddyn");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"dd\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               AUTO g[]\n\
+               DIM g[5]\n\
+               DIM g[3,2]\n\
+               g[1,1] = 7\n\
+               g[3,2] = 9\n\
+               PRINT g[1,1]\n\
+               PRINT g[3,2]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse 2-D dyn program")
+        .lower_ir()
+        .expect("lower 2-D dyn program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "dd_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "dd_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret 2-D dyn program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "7\n9\n", "2-D dyn array reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled the 2-D dyn array");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled the 2-D dyn array (flattened calloc/access)");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Function-name self-DIM (CGEN-SELFHOST-PARITY): a function whose body DIMs its own
 /// name (the return value — `FUNCTION Main() ... DIM Main`) made cgen.x emit a scalar
 /// decl for `xb_var_Main` from the signature AND again from the `dim` statement -> cc

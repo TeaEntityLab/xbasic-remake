@@ -558,6 +558,7 @@ PRINT ""
 ##dynNames$ = ""
 ##undimmed$ = ""
 ##dynStr$ = ""
+##arr2d$ = ""
 ##scalarSeen$ = ""
 ##fwdScalars$ = ""
 ##curFnArrays$ = ""
@@ -673,6 +674,7 @@ PRINT ""
 ##dynNames$ = scan_dyn$(src$)
 ##undimmed$ = scan_undimmed$(src$)
 ##dynStr$ = scan_dynstr$(src$)
+##arr2d$ = scan_arr2d$(src$)
 hasMain = 0
 inFunc = 0
 inNest = 0
@@ -2080,7 +2082,11 @@ FUNCTION emit_expr$(e$)
       IF RIGHT$(t$, 1) = "]" THEN
         t$ = LEFT$(t$, LEN(t$) - 1)
       END IF
-      emit_expr$ = c_var_name$(varName$, varType$) + emit_msub$(t$, 0)
+      IF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0) THEN
+        emit_expr$ = c_var_name$(varName$, varType$) + "[" + emit_flat2d$(t$, "xb_d1_" + sanitize_ident$(varName$)) + "]"
+      ELSE
+        emit_expr$ = c_var_name$(varName$, varType$) + emit_msub$(t$, 0)
+      END IF
     ELSE
       emit_expr$ = "0"
     END IF
@@ -2332,6 +2338,70 @@ FUNCTION emit_mtotal$(a$)
   END IF
   out$ = out$ + "((" + emit_expr$(part$) + ") + 1)"
   emit_mtotal$ = out$
+END FUNCTION
+
+' Row-major flat index for a 2-D dyn-array access/assign: given the raw `i0,i1` index
+' list and the runtime 2nd-dim var `d1v$` (`xb_d1_X`), emit `(i0) * (d1v + 1) + (i1)`
+' (splits on the first top-level comma; paren-depth aware). 2-D only — higher ranks are
+' rare and fall through to the caller's native path.
+FUNCTION emit_flat2d$(a$, d1v$)
+  DIM i
+  DIM ch
+  DIM depth
+  DIM start
+  DIM i0$
+  DIM i1$
+  DIM found
+  i = 1
+  start = 1
+  depth = 0
+  found = 0
+  i0$ = ""
+  WHILE i <= LEN(a$)
+    ch = ASC(MID$(a$, i, 1))
+    IF ch = 40 THEN
+      depth = depth + 1
+    ELSEIF ch = 41 THEN
+      depth = depth - 1
+    ELSEIF ch = 44 AND depth = 0 AND found = 0 THEN
+      i0$ = trim_spaces$(MID$(a$, start, i - start))
+      start = i + 1
+      found = 1
+    END IF
+    i = i + 1
+  WEND
+  i1$ = trim_spaces$(MID$(a$, start, LEN(a$) - start + 1))
+  emit_flat2d$ = "(" + emit_expr$(i0$) + ") * (" + d1v$ + " + 1) + (" + emit_expr$(i1$) + ")"
+END FUNCTION
+
+' The 2nd-dimension size expression of a multi-dim Dim's bracket (`a,b` -> emit b),
+' captured into `xb_d1_X` at the DIM for row-major flattening. 2-D (splits on the first
+' top-level comma); paren-depth aware.
+FUNCTION emit_d1$(a$)
+  DIM i
+  DIM ch
+  DIM depth
+  DIM start
+  DIM found
+  DIM p2$
+  i = 1
+  start = 1
+  depth = 0
+  found = 0
+  WHILE i <= LEN(a$)
+    ch = ASC(MID$(a$, i, 1))
+    IF ch = 40 THEN
+      depth = depth + 1
+    ELSEIF ch = 41 THEN
+      depth = depth - 1
+    ELSEIF ch = 44 AND depth = 0 AND found = 0 THEN
+      start = i + 1
+      found = 1
+    END IF
+    i = i + 1
+  WEND
+  p2$ = trim_spaces$(MID$(a$, start, LEN(a$) - start + 1))
+  emit_d1$ = emit_expr$(p2$)
 END FUNCTION
 
 FUNCTION emit_params$(params$)
@@ -2685,6 +2755,13 @@ FUNCTION emit_hoists$(used$, dimmed$)
       ELSEIF INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
         IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
           out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
+        END IF
+      END IF
+      IF INSTR(##arr2d$, ":" + entry$ + ":") > 0 THEN
+        IF INSTR(##dynStr$, ":" + entry$ + ":") > 0 OR INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
+          IF INSTR(out$, "xb_d1_" + sanitize_ident$(entry$) + " = ") = 0 THEN
+            out$ = out$ + "    intptr_t xb_d1_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)
+          END IF
         END IF
       END IF
     ELSE
@@ -3043,6 +3120,71 @@ FUNCTION scan_shared_arr$(s$)
   scan_shared_arr$ = res$
 END FUNCTION
 
+' Collect names DIM'd as a multi-dim array (`dim X:t[a,b...]`, a top-level comma in the
+' bracket) into a `:X:` set. Dyn (REDIM'd) multi-dim arrays are stored as a flat 1-D
+' heap block (`T* xb_var_X`) and accessed row-major `X[i*(d1+1)+j]`, mirroring the Rust
+' CEmitter; the 2nd-dim count `d1` is captured at the DIM into a runtime `xb_d1_X`.
+' Fixed multi-dim arrays keep native C `[i][j]`. Byte-neutral on the selfhost tools
+' (all their arrays are 1-D). `[`-depth + paren-depth aware so `X[Foo(1,2)]` is 1-D.
+FUNCTION scan_arr2d$(s$)
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM r$
+  DIM nm$
+  DIM bp
+  DIM e
+  DIM q
+  DIM ch2
+  DIM depth2
+  DIM hasComma
+  res$ = ""
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 4) = "dim " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      IF LEFT$(r$, 7) = "shared " THEN
+        r$ = MID$(r$, 8, LEN(r$) - 7)
+      END IF
+      bp = INSTR(r$, "[")
+      IF bp > 0 THEN
+        hasComma = 0
+        depth2 = 0
+        q = bp + 1
+        WHILE q <= LEN(r$)
+          ch2 = ASC(MID$(r$, q, 1))
+          IF ch2 = 40 THEN
+            depth2 = depth2 + 1
+          ELSEIF ch2 = 41 THEN
+            depth2 = depth2 - 1
+          ELSEIF ch2 = 44 AND depth2 = 0 THEN
+            hasComma = 1
+          END IF
+          q = q + 1
+        WEND
+        IF hasComma = 1 THEN
+          nm$ = LEFT$(r$, bp - 1)
+          e = INSTR(nm$, ":")
+          IF e > 0 THEN
+            nm$ = LEFT$(nm$, e - 1)
+          END IF
+          IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+            res$ = res$ + ":" + nm$ + ":"
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  scan_arr2d$ = res$
+END FUNCTION
+
 ' Function address id (CGEN-FUNCADDR): `&Func` / `funcaddr(Func)` is NOT a machine
 ' address but a synthetic 1-based id in program declaration order, matching the interp
 ' (eval.rs `function_id`), the Rust CEmitter, and LLVM. `##funcIds$` is the ordered
@@ -3321,9 +3463,17 @@ FUNCTION emit_stmt$(s$)
       END IF
       cExpr$ = emit_expr$(arrSize$)
       IF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
-        emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+        IF INSTR(arrSize$, ",") > 0 THEN
+          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+        ELSE
+          emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+        END IF
       ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
-        emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+        IF INSTR(arrSize$, ",") > 0 THEN
+          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(intptr_t)); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+        ELSE
+          emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+        END IF
       ELSEIF varType$ = "string" THEN
         IF INSTR(arrSize$, ",") > 0 THEN
           emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + ";" + CHR$(10) + "    for (intptr_t _i = 0; _i < " + emit_mtotal$(arrSize$) + "; _i++) ((char**)" + c_var_name$(varName$, varType$) + ")[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
@@ -3375,7 +3525,11 @@ FUNCTION emit_stmt$(s$)
     IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
       emit_stmt$ = "    (void)(" + c2$ + ");"
     ELSE
-      emit_stmt$ = "    " + c_var_name$(varName$, varType$) + emit_msub$(cExpr$, 0) + " = " + c2$ + ";"
+      IF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0) THEN
+        emit_stmt$ = "    " + c_var_name$(varName$, varType$) + "[" + emit_flat2d$(cExpr$, "xb_d1_" + sanitize_ident$(varName$)) + "] = " + c2$ + ";"
+      ELSE
+        emit_stmt$ = "    " + c_var_name$(varName$, varType$) + emit_msub$(cExpr$, 0) + " = " + c2$ + ";"
+      END IF
     END IF
     RETURN emit_stmt$
   END IF
