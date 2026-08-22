@@ -234,6 +234,65 @@ fn cemitter_and_cgen_agree_on_embedded_nul_strings() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// CGEN-GOSUB-SCOPE (per-function `xb_gosub_base`): a function's bare `RETURN`
+/// reached while a *caller's* GOSUB frame is still active must NOT pop the caller's
+/// frame. Without a per-function base, the callee's `RETURN` did
+/// `goto *xb_gosub_stack[0]` into the *caller's* label — a cross-function computed
+/// goto → jump-to-null crash. cgen.x now captures `int xb_gosub_base = xb_gosub_sp`
+/// at each gosub-using function's entry and pops only while `sp > base`. This fix
+/// (with the byref-dual `_arr` split + a non-zero `TYPE`) flipped `aarray`
+/// (differential faithful 98→100). The self-host corpus uses no GOSUB, so the
+/// byte-identity sync above never exercised it — this repro does.
+#[test]
+fn cemitter_and_cgen_agree_on_cross_function_gosub_return() {
+    let tmp = std::env::temp_dir().join("xb_sync_gosub");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    // Main GOSUBs L1 (frame active), L1 calls B(); B's bare RETURN is reached with
+    // Main's GOSUB frame on the stack. Pre-fix, B's RETURN cross-function-jumped and
+    // crashed; post-fix (base captured in B) it returns normally.
+    let src = "VERSION \"0.1\"\n\
+               DECLARE FUNCTION B ()\n\
+               FUNCTION Main\n\
+               GOSUB L1\n\
+               PRINT \"end\"\n\
+               RETURN\n\
+               L1:\n\
+               B ()\n\
+               PRINT \"L1\"\n\
+               RETURN\n\
+               END FUNCTION\n\
+               FUNCTION B ()\n\
+               RETURN\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse gosub program")
+        .lower_ir()
+        .expect("lower gosub program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "gosub_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "gosub_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret gosub program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "L1\nend\n", "interpreter reference");
+    assert_eq!(rust_out, interp_out, "CEmitter cross-function gosub-return");
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x cross-function gosub-return (per-function xb_gosub_base)"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// CG-BODY-COVER: true high bytes (`0x80`–`0xFF`) must survive concat / LEN / PRINT
 /// byte-for-byte through BOTH C generators. The interpreter's `Vec<String>` output
 /// sink is UTF-8-lossy for high bytes, so it is *not* the reference here — the

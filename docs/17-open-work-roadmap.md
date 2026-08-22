@@ -85,32 +85,41 @@
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
 
-### cgen.x demo ceiling: 98/114 faithful, diverge=0 — the 15 cc-fails classified `[2026-08-22]`
+### cgen.x demo ceiling: 100/114 faithful, diverge=0 — the 13 cc-fails classified `[2026-08-22]`
 
 > The self-hosted `cgen.x` C generator is byte-faithful to the interpreter on **every
-> demo it compiles (98/114), with zero divergence**. The 15 remaining compile-fails are
-> **all multiply-blocked** (source-verified by grepping each demo for
-> `ANY`/`ATTACH`/`*AT`/`TYPE(`/socket markers). None flips with a single tractable fix;
-> each needs a coordinated multi-feature pass. **NB — corrected 2026-08-22:** these are
-> **not "fundamentally unimplementable."** Rust's CEmitter is faithful on several of
-> them, and neither Rust nor the interpreter implements the XBasic array-descriptor
-> memory model — they produce **degenerate** output (e.g. `PrintArray` no-ops by
-> early-returning before `XLONGAT` via `IFZ`/out-of-range `TYPE`). cgen.x could mirror
-> that; the difficulty is coordinating several features per demo, not a missing runtime.
+> demo it compiles (100/114), with zero divergence**. **aarray flipped 2026-08-22
+> (`b5bd930`)** — see the landed 3-fix note below — taking faithful 98→100. The 13
+> remaining compile-fails are **all multiply-blocked** (source-verified by grepping each
+> demo for `ANY`/`ATTACH`/`*AT`/`TYPE(`/socket markers). None flips with a single fix;
+> each needs a coordinated multi-feature pass. These are **not "fundamentally
+> unimplementable"**: Rust's CEmitter is faithful on several via **degenerate** flow
+> (neither Rust nor interp implements the array-descriptor memory model — `PrintArray`
+> no-ops by early-returning before `XLONGAT` via `IFZ`/out-of-range `TYPE`). cgen.x can
+> mirror that (aarray proves it); the difficulty is coordinating several features/demo.
 >
 > | group | demos | co-blockers (all needed together) |
 > |---|---|---|
-> | memory-model / ANY / ATTACH | aarray, aarray_ISNODE, gif, gifview, qbtoxb, zap (6) | byref-dual + 3-D arrays (`array[3,2,]`) + `ANY`-array `TYPE()` reflection + degenerate `*AT`/early-return flow (cgen.x's `xb_xlongat` is a real deref, same as Rust — faithfulness comes from early-returning before it) |
+> | memory-model / ANY / ATTACH | aarray_ISNODE, gif, gifview, qbtoxb, zap (5) | byref-dual + 3-D arrays + `ANY`-array `TYPE()` reflection + degenerate `*AT`/early-return flow (aarray, same family, is now DONE) |
 > | network sockets | aclient, aserver (2) | a socket runtime (Xui socket wrappers → `undeclared xb_var_host_address`) |
-> | Xst runtime | asortie (1) | `XstQuickSort`/`XstCopyArray`/mem in cgen.x (done in Rust, `be03117`) |
-> | multi-dim SHARED + composite + grid | adatadim, aquick, arecord, atools, CursorEdit, Kittedy (6) | multi-dim SHARED 2-D calloc (the raw-`arith(` bug) + composite-record members + byref-dual + call-arity |
+> | Xst runtime | asortie (1) | real `XstQuickSort`/`XstCopyArray` in cgen.x + by-ref-array descriptor for `@field3$[]` (done in Rust, `be03117`) |
+> | multi-dim SHARED + composite + grid | adatadim, aquick, arecord, atools, CursorEdit, Kittedy (6) | multi-dim SHARED 2-D calloc (raw-`arith(` bug) + composite-record members + byref-dual + call-arity |
 >
-> **byref-dual `_arr` split — proven safe, 0-flip alone.** Gated to `##dynNames$ ∩
-> user-fn-param` (= `scan_byref_dual$`), which is EMPTY on all 99 faithful demos and the
-> self-host tools, so the split is byte-neutral there (verified: faithful=98 preserved,
-> sync 45/45, bootstrap OK). It is a *safe building block* of the group-4/group-1 passes,
-> but 0-flip on its own (every byref-dual demo needs its other co-blockers too), so it is
-> reverted from `main` until landed as part of a full per-demo pass.
+> **LANDED 2026-08-22 (`b5bd930`) — the 3-fix pass that flipped aarray (98→100):**
+> (1) **byref-dual `_arr` split**, gated to `scan_byref_dual$` = `##dynNames$ ∩
+> user-fn-param` (EMPTY on all faithful demos + selfhost tools → byte-neutral): array
+> facet `xb_var_X_arr` (the by-ref param pointer) + scalar facet `xb_var_X`, resolving
+> the param-vs-hoist redefinition. (2) **`TYPE(x)` → non-zero** (was unknown-call `0`):
+> interp returns the value's non-zero type number, and with the lowered type constants
+> all `0` a `0` stub wrongly fell through `IF type<>0 THEN RETURN`; same class as the
+> `*AT` stub; no faithful demo uses `TYPE`. (3) **per-function `xb_gosub_base`**
+> (CGEN-GOSUB-SCOPE — was in the Rust CEmitter, **missing in cgen.x**): each gosub-using
+> function captures `int xb_gosub_base = xb_gosub_sp` at entry and `RETURN` pops only
+> while `sp > base` (was `sp > 0`), fixing a cross-function gosub-stack corruption
+> (a callee's `RETURN` reached under a caller's active GOSUB did `goto *stack[0]` into
+> another function → jump-to-null crash). Locked by
+> `cemitter_and_cgen_agree_on_cross_function_gosub_return`; sync 45/45→46, differential
+> faithful 98→100/0, suite 250/0.
 
 | ~~CGEN-ARRAYS~~ | C backend | ✅ **done** (2026-08-20): auto-vivified array hoisting + dynamic DIMs + undimmed-array folds | — | ✅ |
 | ~~CGEN-ARGC~~ | C backend | ✅ **done** (2026-08-20): arity reconciliation (drop extras, pad missing) via `DEFINED_SIGS` | — | ✅ |
