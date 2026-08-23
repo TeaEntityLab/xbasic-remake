@@ -117,7 +117,7 @@ impl IrItem {
             } => Self::MidAssign {
                 target: IrExpr::lower(target),
                 start: IrExpr::lower(start),
-                length: length.as_ref().map(|e| IrExpr::lower(e)),
+                length: length.as_ref().map(IrExpr::lower),
                 value: IrExpr::lower(value),
             },
             CheckedItem::BuiltinAssign { name, args, value } => Self::BuiltinAssign {

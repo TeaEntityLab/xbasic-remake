@@ -77,7 +77,7 @@ pub(crate) fn eval_clr(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeErr
     let (w, o) = extract_width_offset(args);
     let mask = if w >= 32 { 0xFFFFFFFF } else { (1u32 << w) - 1 };
     Ok(RuntimeValue::Integer(
-        (*v as i32 & !((mask as i32) << o)) as i32,
+        *v & !((mask as i32) << o) ,
     ))
 }
 
@@ -106,7 +106,7 @@ pub(crate) fn eval_high0(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeE
     let bits = !(*v as u32);
     for i in (0..32).rev() {
         if bits & (1 << i) != 0 {
-            return Ok(RuntimeValue::Integer(i as i32));
+            return Ok(RuntimeValue::Integer(i));
         }
     }
     Ok(RuntimeValue::Integer(0))
@@ -119,7 +119,7 @@ pub(crate) fn eval_high1(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeE
     let bits = *v as u32;
     for i in (0..32).rev() {
         if bits & (1 << i) != 0 {
-            return Ok(RuntimeValue::Integer(i as i32));
+            return Ok(RuntimeValue::Integer(i));
         }
     }
     Ok(RuntimeValue::Integer(0))

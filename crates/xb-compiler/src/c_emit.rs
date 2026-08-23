@@ -67,7 +67,7 @@ thread_local! {
     /// emitted as `T* x_ref` with copy-in (`T x = *x_ref;`) at the top and
     /// copy-out (`*x_ref = x;`) before every return, so writes reach the caller
     /// (CGEN-BYREF-WRITEBACK). Empty for the corpus (no by-ref param).
-    static FN_BYREF_PARAMS: RefCell<Vec<(String, ValueType)>> = RefCell::new(Vec::new());
+    static FN_BYREF_PARAMS: RefCell<Vec<(String, ValueType)>> = const { RefCell::new(Vec::new()) };
     /// By-ref-array descriptor closure (docs/18): fn name → (descriptor params,
     /// must-be-dyn locals). A descriptor param is emitted `(T** xb_var_x_d,
     /// intptr_t* xb_ub_x)`. Populated once per `emit_program`; empty for the corpus.
@@ -570,11 +570,10 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
             // Exception: if the name also has a non-string array DIM (xgr's
             // `def:string` + `dim def:integer[80]`), the integer facet IS
             // genuinely dual-use — don't drop.
-            if !p.is_array && p.value_type == ValueType::String {
-                if array_dim_type(items, &p.name).is_none() {
+            if !p.is_array && p.value_type == ValueType::String
+                && array_dim_type(items, &p.name).is_none() {
                     set.remove(&p.name);
                 }
-            }
         }
         *s.borrow_mut() = set;
     });

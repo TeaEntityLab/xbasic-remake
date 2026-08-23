@@ -27,7 +27,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             if v.starts_with("0o") || v.starts_with("0O") {
                 // XBasic octal literal `0o666` → C octal `0666`.
                 let digits = &v[2..];
-                out.push_str("0");
+                out.push('0');
                 out.push_str(digits);
             } else if v.starts_with("0x") || v.starts_with("0X") || v.starts_with("0b") || v.starts_with("0B") {
                 // A hex/binary literal (0xEDB88320, 0xFFFFFFFF) is an i32 bit
@@ -295,7 +295,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 };
                 if args.len() == 2 {
                     out.push_str(base);
-                    out.push_str("2");
+                    out.push('2');
                 } else {
                     out.push_str(base);
                 }

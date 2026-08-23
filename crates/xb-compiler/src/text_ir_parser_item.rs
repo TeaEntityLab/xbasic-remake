@@ -326,7 +326,7 @@ pub(crate) fn parse_item(
         }
     }
     if let Some(rest) = content.strip_prefix("read ") {
-        return Ok(crate::text_ir_parser_data::parse_read(rest, l)?);
+        return crate::text_ir_parser_data::parse_read(rest, l);
     }
     if let Some(rest) = content.strip_prefix("restore") {
         return Ok(crate::text_ir_parser_data::parse_restore(rest));

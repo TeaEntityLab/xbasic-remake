@@ -97,7 +97,7 @@ pub(crate) fn call_function(
             // Mode values from xst.dec: 0=RD,1=WR,2=RW,3=WRNEW,4=RWNEW, plus
             // share bits 0x10/0x20/0x30 and 0x800 nonblock. All modes create a
             // missing file; NEW/WR modes start it fresh.
-            let write = matches!(mode, 1 | 2 | 3 | 4) || matches!(mode & 0x30, 0x20 | 0x30);
+            let write = matches!(mode, 1..=4) || matches!(mode & 0x30, 0x20 | 0x30);
             let read = matches!(mode, 0 | 2 | 4) || matches!(mode & 0x30, 0x10 | 0x30) || !write;
             let truncate = matches!(mode, 1 | 3 | 4);
             match std::fs::OpenOptions::new()

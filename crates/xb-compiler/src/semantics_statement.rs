@@ -86,8 +86,8 @@ impl Analyzer {
             Statement::Call { name, args } => self.call_stmt(name, args),
             Statement::ExitLoop => Ok(CheckedItem::ExitLoop),
             Statement::ExitSelect => Ok(CheckedItem::ExitSelect),
-            Statement::Inc { target, suffix, indices } => self.inc_dec(target, *suffix, true, &indices),
-            Statement::Dec { target, suffix, indices } => self.inc_dec(target, *suffix, false, &indices),
+            Statement::Inc { target, suffix, indices } => self.inc_dec(target, *suffix, true, indices),
+            Statement::Dec { target, suffix, indices } => self.inc_dec(target, *suffix, false, indices),
             Statement::Swap {
                 left,
                 left_suffix,

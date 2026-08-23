@@ -24,14 +24,14 @@ fn any(items: &[IrItem], pred: &impl Fn(&IrItem) -> bool) -> bool {
         pred(it)
             || match it {
                 IrItem::If { then_body, else_body, .. } => {
-                    any(then_body, pred) || else_body.as_deref().map_or(false, |b| any(b, pred))
+                    any(then_body, pred) || else_body.as_deref().is_some_and(|b| any(b, pred))
                 }
                 IrItem::While { body, .. }
                 | IrItem::For { body, .. }
                 | IrItem::DoLoop { body, .. } => any(body, pred),
                 IrItem::SelectCase { cases, default, .. } => {
                     cases.iter().any(|c| any(&c.body, pred))
-                        || default.as_deref().map_or(false, |b| any(b, pred))
+                        || default.as_deref().is_some_and(|b| any(b, pred))
                 }
                 IrItem::Compound(items) => any(items, pred),
                 _ => false,

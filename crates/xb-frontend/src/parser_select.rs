@@ -223,10 +223,7 @@ impl Parser {
                     else_body: else_body.take(),
                 }]);
             }
-            let mut out = match else_body {
-                Some(v) => v,
-                None => Vec::new(),
-            };
+            let mut out = else_body.unwrap_or_default();
             out.push(Statement::Label(exit_label));
             Statement::Compound(out)
         }

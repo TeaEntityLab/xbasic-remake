@@ -1,8 +1,8 @@
 use std::cell::{Cell, RefCell};
 
 thread_local! {
-    static SELECT_COUNTER: Cell<usize> = Cell::new(0);
-    static SELECT_STACK: RefCell<Vec<usize>> = RefCell::new(Vec::new());
+    static SELECT_COUNTER: Cell<usize> = const { Cell::new(0) };
+    static SELECT_STACK: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
 }
 
 use crate::c_emit::c_type;
@@ -181,7 +181,7 @@ pub(crate) fn emit_print(
     } else {
         emit_str_expr(&items[0], out);
     }
-    out.push_str(";");
+    out.push(';');
     for (i, expr) in items.iter().enumerate().skip(1) {
         if let PrintSep::Comma = separators[i - 1] {
             out.push_str(" _p = xb_concat(_p, xb_str(\"\\t\"));");

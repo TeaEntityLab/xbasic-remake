@@ -11,7 +11,7 @@ pub(crate) fn time_str() -> String {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
-    let secs = now.as_secs() as u64;
+    let secs = now.as_secs();
     let h = (secs / 3600) % 24;
     let m = (secs / 60) % 60;
     let s = secs % 60;
@@ -22,7 +22,7 @@ pub(crate) fn date_str() -> String {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
-    let secs = now.as_secs() as u64;
+    let secs = now.as_secs();
     let days = secs / 86400;
     let (y, m, d) = days_to_ymd(days as i64);
     format!("{y:04}-{m:02}-{d:02}")

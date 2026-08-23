@@ -201,7 +201,7 @@ impl Lexer<'_> {
             }
         }
         let suffix = self.type_suffix();
-        if suffix.is_none() && name.to_ascii_uppercase() == "REM" {
+        if suffix.is_none() && name.eq_ignore_ascii_case("REM") {
             self.skip_comment();
             if self.lookahead == Some('\n') {
                 self.advance();

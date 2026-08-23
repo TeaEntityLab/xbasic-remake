@@ -210,8 +210,7 @@ impl Analyzer {
         if let Some(&vt) = self.symbols.get(name) {
             return CheckedSymbol::new(name.to_owned(), vt);
         }
-        if name.ends_with('$') {
-            let base = &name[..name.len() - 1];
+        if let Some(base) = name.strip_suffix('$') {
             // Only use the base name if it's registered as String — the parser
             // strips `$` from non-array param names, so `display$` param is
             // stored as `display` (String). But `window$` (String) must NOT

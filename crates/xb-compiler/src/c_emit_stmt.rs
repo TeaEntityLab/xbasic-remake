@@ -268,7 +268,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             } else {
                 // Fallback: function call style
                 emit_c_function_name(name, out);
-                out.push_str("(");
+                out.push('(');
                 for (i, arg) in args.iter().enumerate() {
                     if i > 0 {
                         out.push_str(", ");
@@ -446,7 +446,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 if !args.is_empty() {
                     crate::c_emit_expr::emit_expr(&args[0], out);
                 } else {
-                    out.push_str("0");
+                    out.push('0');
                 }
                 out.push_str(");\n");
                 return;
@@ -593,7 +593,7 @@ fn emit_descriptor_redim(symbol: &IrSymbol, sz: &IrExpr, redim: bool, ind: &str,
         out.push_str(&ub);
         out.push_str("; ");
     }
-    out.push_str("*");
+    out.push('*');
     out.push_str(&ub);
     out.push_str(" = (");
     emit_expr(sz, out);

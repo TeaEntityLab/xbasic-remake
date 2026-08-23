@@ -299,7 +299,7 @@ impl Parser {
             }
             TokenKind::SystemVariable { name, suffix } => {
                 self.index += 1;
-                let full = full_name(name.clone(), suffix.clone());
+                let full = full_name(name.clone(), suffix);
                 if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
                     self.index += 1;
                     if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
@@ -453,7 +453,7 @@ impl Parser {
             // implements. The Identifier base resolves through the normal slot
             // rules (collision-aware), matching a plain `s$` read. A REAL `(`
             // stays a call (compiler.x paren-indexes string arrays).
-            let brace_call = self.tokens.get(self.index).map_or(false, |t| t.from_brace);
+            let brace_call = self.tokens.get(self.index).is_some_and(|t| t.from_brace);
             let full = full_name(name.clone(), suffix);
             if brace_call && full.ends_with('$') {
                 self.index += 1;
@@ -582,7 +582,7 @@ impl Parser {
                     // ASC(MID$(text$[l], n+1, 1)) at parse time. A REAL `(` is
                     // a call (legacy behavior).
                     let brace_call =
-                        self.tokens.get(self.index).map_or(false, |t| t.from_brace);
+                        self.tokens.get(self.index).is_some_and(|t| t.from_brace);
                     let args = self.parse_args()?;
                     if brace_call && full.ends_with('$') {
                         let elem = Expression::ArrayAccess {

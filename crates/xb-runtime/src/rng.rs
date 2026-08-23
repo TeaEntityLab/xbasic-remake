@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 thread_local! {
-    static RAND_STATE: Cell<u64> = Cell::new(0x853a49d51c4e0a8b);
+    static RAND_STATE: Cell<u64> = const { Cell::new(0x853a49d51c4e0a8b) };
 }
 
 pub(crate) fn next_rand() -> f64 {
