@@ -357,50 +357,62 @@ impl Analyzer {
         let left_vt = if left_indices.is_empty() {
             self.checked_symbol(left).map(|s| s.value_type).unwrap_or(ValueType::from_suffix(_left_suffix))
         } else {
-            ValueType::String
+            // Indexed side: element type of the referenced array.
+            self.auto_symbol(left).value_type
         };
         let right_vt = if right_indices.is_empty() {
             self.checked_symbol(right).map(|s| s.value_type).unwrap_or(ValueType::from_suffix(_right_suffix))
         } else {
-            ValueType::String
+            self.auto_symbol(right).value_type
         };
         let tmp_vt = left_vt;
         let tmp_sym = CheckedSymbol::new(tmp_name, tmp_vt);
         let mut items: Vec<CheckedItem> = Vec::new();
-        let left_read = self.array_access(left, &left_indices[0], &left_indices[1..])?;
-        let right_read = self.array_access(right, &right_indices[0], &right_indices[1..])?;
+        let left_read = if left_indices.is_empty() {
+            self.expr(&Expression::Identifier { name: left.to_owned(), suffix: None })?
+        } else {
+            self.array_access(left, &left_indices[0], &left_indices[1..])?
+        };
+        let right_read = if right_indices.is_empty() {
+            self.expr(&Expression::Identifier { name: right.to_owned(), suffix: None })?
+        } else {
+            self.array_access(right, &right_indices[0], &right_indices[1..])?
+        };
         // 1. tmp = L
         items.push(CheckedItem::Assignment {
             target: tmp_sym.clone(),
             value: left_read.clone(),
         });
         // 2. L = R
-        let l_index = self.expr(&left_indices[0])?;
-        let l_extra = left_indices[1..]
-            .iter()
-            .map(|e| self.expr(e))
-            .collect::<Result<Vec<_>, _>>()?;
-        items.push(CheckedItem::ArrayAssignment {
-            target: CheckedSymbol::new(left.to_owned(), left_vt),
-            index: l_index,
-            extra_indices: l_extra,
-            value: right_read.clone(),
-        });
-        // 3. R = tmp
-        let r_index = self.expr(&right_indices[0])?;
-        let r_extra = right_indices[1..]
-            .iter()
-            .map(|e| self.expr(e))
-            .collect::<Result<Vec<_>, _>>()?;
-        items.push(CheckedItem::ArrayAssignment {
-            target: CheckedSymbol::new(right.to_owned(), right_vt),
-            index: r_index,
-            extra_indices: r_extra,
-            value: CheckedExpr::new(
-                CheckedExprKind::Symbol(tmp_sym),
-                tmp_vt,
-            ),
-        });
+        if !left_indices.is_empty() {
+            let l_index = self.expr(&left_indices[0])?;
+            let l_extra = left_indices[1..]
+                .iter()
+                .map(|e| self.expr(e))
+                .collect::<Result<Vec<_>, _>>()?;
+            items.push(CheckedItem::ArrayAssignment {
+                target: CheckedSymbol::new(left.to_owned(), left_vt),
+                index: l_index,
+                extra_indices: l_extra,
+                value: right_read.clone(),
+            });
+        }
+        if !right_indices.is_empty() {
+            let r_index = self.expr(&right_indices[0])?;
+            let r_extra = right_indices[1..]
+                .iter()
+                .map(|e| self.expr(e))
+                .collect::<Result<Vec<_>, _>>()?;
+            items.push(CheckedItem::ArrayAssignment {
+                target: CheckedSymbol::new(right.to_owned(), right_vt),
+                index: r_index,
+                extra_indices: r_extra,
+                value: CheckedExpr::new(
+                    CheckedExprKind::Symbol(tmp_sym),
+                    tmp_vt,
+                ),
+            });
+        }
         Ok(CheckedItem::Compound(items))
     }
 }

@@ -1164,10 +1164,13 @@ impl Parser {
         loop {
             if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
                 self.index += 1;
-                indices.push(self.expression()?);
-                while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
-                    self.index += 1;
+                // Empty `[]` = whole-array reference (no index captured).
+                if !matches!(self.peek_kind(), TokenKind::Symbol(']')) {
                     indices.push(self.expression()?);
+                    while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                        self.index += 1;
+                        indices.push(self.expression()?);
+                    }
                 }
                 self.expect_symbol(']')?;
             } else if matches!(self.peek_kind(), TokenKind::Symbol('.')) {
@@ -1197,12 +1200,18 @@ impl Parser {
             let (target, suffix) = p.expect_name_or_keyword()?;
             let mut full = target;
             let mut indices: Vec<Expression> = Vec::new();
+            // Empty `[]` = whole-array reference: no index captured.
             while matches!(p.peek_kind(), TokenKind::Symbol('[')) {
                 p.index += 1;
-                indices.push(p.expression()?);
-                while matches!(p.peek_kind(), TokenKind::Symbol(',')) {
-                    p.index += 1;
+                if !matches!(p.peek_kind(), TokenKind::Symbol(']')) {
                     indices.push(p.expression()?);
+                    while matches!(p.peek_kind(), TokenKind::Symbol(',')) {
+                        p.index += 1;
+                        if matches!(p.peek_kind(), TokenKind::Symbol(']')) {
+                            break;
+                        }
+                        indices.push(p.expression()?);
+                    }
                 }
                 p.expect_symbol(']')?;
                 if !matches!(p.peek_kind(), TokenKind::Symbol('[')) {
