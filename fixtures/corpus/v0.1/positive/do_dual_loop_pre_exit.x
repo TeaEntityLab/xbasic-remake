@@ -1,0 +1,15 @@
+VERSION "0.1"
+FUNCTION Main
+DIM e
+DIM r
+DIM n
+e = 1
+r = 4
+n = 0
+DO UNTIL e
+ INC n
+ r = r - 1
+LOOP WHILE (r > 0)
+PRINT n
+PRINT r
+END FUNCTION

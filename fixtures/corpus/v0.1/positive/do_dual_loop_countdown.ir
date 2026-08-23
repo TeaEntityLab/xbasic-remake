@@ -1,0 +1,13 @@
+version 0.1
+function Main() -> integer
+  dim e:integer
+  dim r:integer
+  assign e:integer = integer(0)
+  assign r:integer = integer(4)
+  do until symbol(e:integer)
+    assign e:integer = integer(0)
+    assign r:integer = arith(symbol(r:integer) - integer(1))
+  loop while compare(symbol(r:integer) > integer(0))
+  print symbol(r:integer)
+  print symbol(e:integer)
+end function
