@@ -1190,42 +1190,42 @@ impl Parser {
         }
     }
     fn swap_stmt(&mut self) -> Result<Statement, ParseError> {
-        self.index += 1;
-        let (left, left_suffix) = self.expect_name_or_keyword()?;
-        // Skip optional array brackets (including multi-dim with commas)
-        if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
-            self.index += 1;
-            while !matches!(self.peek_kind(), TokenKind::Symbol(']')) && !self.at_eof() {
-                if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
-                    self.index += 1;
-                } else {
-                    let _ = self.expression();
+        // Parse one side: `name[subs...]` (subscripts are CAPTURED, not
+        // discarded - `SWAP text$[i], text$` must exchange the element with
+        // the scalar). Returns (name, suffix, indices).
+        fn side(p: &mut Parser) -> Result<(String, Option<TypeSuffix>, Vec<Expression>), ParseError> {
+            let (target, suffix) = p.expect_name_or_keyword()?;
+            let mut full = target;
+            let mut indices: Vec<Expression> = Vec::new();
+            while matches!(p.peek_kind(), TokenKind::Symbol('[')) {
+                p.index += 1;
+                indices.push(p.expression()?);
+                while matches!(p.peek_kind(), TokenKind::Symbol(',')) {
+                    p.index += 1;
+                    indices.push(p.expression()?);
+                }
+                p.expect_symbol(']')?;
+                if !matches!(p.peek_kind(), TokenKind::Symbol('[')) {
+                    break;
                 }
             }
-            self.expect_symbol(']')?;
+            Ok((full, suffix, indices))
         }
+        self.index += 1; // SWAP
+        let (left, left_suffix, left_indices) = side(self)?;
         self.expect_symbol(',')?;
-        let (right, right_suffix) = self.expect_name_or_keyword()?;
-        // Skip optional array brackets (including multi-dim with commas)
-        if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
-            self.index += 1;
-            while !matches!(self.peek_kind(), TokenKind::Symbol(']')) && !self.at_eof() {
-                if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
-                    self.index += 1;
-                } else {
-                    let _ = self.expression();
-                }
-            }
-            self.expect_symbol(']')?;
-        }
+        let (right, right_suffix, right_indices) = side(self)?;
         self.expect_line_end()?;
         Ok(Statement::Swap {
             left,
             left_suffix,
+            left_indices,
             right,
             right_suffix,
+            right_indices,
         })
     }
+
     pub(crate) fn while_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::While)?;
         let condition = self.expression()?;

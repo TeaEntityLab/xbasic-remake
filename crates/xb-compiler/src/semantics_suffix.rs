@@ -144,7 +144,7 @@ impl Analyzer {
             Statement::Inc { target, suffix, .. } | Statement::Dec { target, suffix, .. } => {
                 Self::note_var(target, *suffix, kinds);
             }
-            Statement::Swap { left, left_suffix, right, right_suffix } => {
+            Statement::Swap { left, left_suffix, right, right_suffix, .. } => {
                 Self::note_var(left, *left_suffix, kinds);
                 Self::note_var(right, *right_suffix, kinds);
             }

@@ -91,9 +91,11 @@ impl Analyzer {
             Statement::Swap {
                 left,
                 left_suffix,
+                ref left_indices,
                 right,
                 right_suffix,
-            } => self.swap_stmt(left, *left_suffix, right, *right_suffix),
+                ref right_indices,
+            } => self.swap_stmt(left, *left_suffix, right, *right_suffix, left_indices.as_slice(), right_indices.as_slice()),
             Statement::Function(function) => self.function(function),
             Statement::Program(name) => Ok(CheckedItem::ProgramName(name.clone())),
             Statement::Import(_)

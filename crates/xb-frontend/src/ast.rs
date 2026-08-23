@@ -112,8 +112,12 @@ pub enum Statement {
     Swap {
         left: String,
         left_suffix: Option<TypeSuffix>,
+        /// Subscripts captured from the LEFT operand's `[...]` groups, in order.
+        left_indices: Vec<Expression>,
         right: String,
         right_suffix: Option<TypeSuffix>,
+        /// Subscripts captured from the RIGHT operand's `[...]` groups, in order.
+        right_indices: Vec<Expression>,
     },
     Function(FunctionDecl),
     Import(String),
