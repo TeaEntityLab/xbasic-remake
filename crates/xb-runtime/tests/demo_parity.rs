@@ -1,26 +1,16 @@
-//! Demo corpus interp<->C parity: every demo that compiles+links standalone
-//! must produce byte-identical stdout between the interpreter and the
-//! compiled C binary (both with stdin=/dev/null, 10s timeout).
+//! Demo corpus interp<->C parity: every demo that compiles must produce
+//! byte-identical stdout between the interpreter and the compiled C binary
+//! (both with stdin=/dev/null, 10s timeout).
 //!
-//! The SKIP list is demos whose standalone link fails on undefined symbols
-//! (GUI/network/kernel32 functions that only resolve when linked against
-//! the prebuilt core-library objects — see checks/link-core-libs.sh).
+//! Demos link against the prebuilt core-library objects (built by
+//! checks/link-core-libs.sh into a temp dir) so GUI/kernel32 externals
+//! resolve. SKIP = network daemons that block waiting for connections.
 
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 /// Demos that fail standalone LINK (undefined external symbols).
-const SKIP: &[&str] = &[
-    "Kittedy",
-    "aarray_ISNODE",
-    "acgibin",
-    "aclient",
-    "aprofile",
-    "aserver",
-    "gif",
-    "gifview",
-    "qbtoxb",
-];
+const SKIP: &[&str] = &["aclient", "aserver"];
 
 fn repo_root() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -82,6 +72,25 @@ fn demo_interp_matches_compiled() {
         .collect();
     sources.sort();
 
+    // Build core-library objects once for linking GUI/kernel32 externals.
+    let lib_dir = tmp.join("xblibs");
+    let script = root.join("checks").join("link-core-libs.sh");
+    assert!(script.exists(), "link-core-libs.sh not found");
+    let build = Command::new("sh")
+        .arg(&script)
+        .arg(&lib_dir)
+        .output()
+        .expect("run link-core-libs.sh");
+    assert!(build.status.success(), "link-core-libs.sh failed");
+    let lib_objs = std::fs::read_dir(&lib_dir)
+        .expect("lib dir")
+        .filter_map(|e| {
+            let p = e.ok()?.path();
+            (p.extension()?.to_str()? == "o").then_some(p)
+        })
+        .collect::<Vec<_>>();
+    assert!(!lib_objs.is_empty(), "no library objects built");
+
     let mut checked = 0;
     for src in &sources {
         let name = src.file_stem().unwrap().to_str().unwrap().to_owned();
@@ -108,14 +117,28 @@ fn demo_interp_matches_compiled() {
         let c_file = tmp.join("demo.c");
         std::fs::write(&c_file, &emit.stdout).unwrap();
         let bin = tmp.join("demo_bin");
-        let cc = Command::new("cc")
-            .args(["-O1", "-w"])
+        let obj = tmp.join("demo.o");
+        let c_obj = Command::new("cc")
+            .args([
+                "-O1",
+                "-w",
+                "-Wno-incompatible-pointer-types",
+                "-Wno-int-conversion",
+                "-c",
+            ])
             .arg(&c_file)
             .arg("-o")
-            .arg(&bin)
+            .arg(&obj)
             .output()
             .expect("cc");
-        assert!(cc.status.success(), "{name}: cc/link failed");
+        assert!(c_obj.status.success(), "{name}: cc compile failed");
+        let mut link = Command::new("cc");
+        link.arg(&obj).arg("-o").arg(&bin);
+        for o in &lib_objs {
+            link.arg(o);
+        }
+        let linked = link.output().expect("link");
+        assert!(linked.status.success(), "{name}: link failed");
 
         let mut bin_cmd = Command::new(&bin);
         bin_cmd.current_dir(&tmp);
