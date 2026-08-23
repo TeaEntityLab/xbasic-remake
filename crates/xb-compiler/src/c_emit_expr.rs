@@ -166,9 +166,20 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             if expr.value_type == ValueType::Integer {
                 out.push_str("(int32_t)");
             }
-            out.push_str("(~");
-            emit_expr(inner, out);
-            out.push(')');
+            if inner.value_type == ValueType::String {
+                // NOT on a string = truthiness complement (desugared
+                // `SELECT CASE FALSE / CASE rows, text$[]` in xui's TextMessage).
+                // The interpreter's bit_operand errors on String, so there is no
+                // numeric-parity to preserve; `!ptr` matches how a bare string
+                // Symbol condition is emitted (`if (xb_str_x)`).
+                out.push_str("(-(!(");
+                emit_expr(inner, out);
+                out.push_str(")))");
+            } else {
+                out.push_str("(~");
+                emit_expr(inner, out);
+                out.push(')');
+            }
         }
         IrExprKind::Unary { op, operand } => {
             // Unary POS is identity in the interpreter (`Pos => v`, any type). On a
