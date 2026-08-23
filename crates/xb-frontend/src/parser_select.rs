@@ -1,6 +1,10 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use crate::ast::{BooleanOp, CaseClause, ComparisonOp, Expression, FunctionDecl, PrintSep, Statement};
 use crate::parser::Parser;
 use crate::token::{Keyword, TokenKind};
+
+static SELECT_TRUE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 impl Parser {
     pub(crate) fn select_case_stmt(&mut self) -> Result<Statement, crate::ParseError> {
@@ -151,21 +155,67 @@ impl Parser {
         cases: Vec<CaseClause>,
         default: Option<Vec<Statement>>,
     ) -> Statement {
+        // Generate a unique label for EXIT SELECT within the desugared IF chain.
+        // Without this, EXIT SELECT becomes exit_select in the IR with no enclosing
+        // select_case, so the C emitter uses select id 0 — a label in a different
+        // function (undeclared label cc error in xit/xcol).
+        let id = SELECT_TRUE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let exit_label = format!("_exit_sel_true_{id}");
+
+        // Replace EXIT SELECT in case bodies with GOTO <exit_label>.
+        fn replace_exit_select(stmts: &mut Vec<Statement>, label: &str) {
+            for s in stmts.iter_mut() {
+                match s {
+                    Statement::ExitSelect => {
+                        *s = Statement::Goto(Expression::Identifier {
+                            name: label.to_string(),
+                            suffix: None,
+                        });
+                    }
+                    Statement::If { then_body, else_body, .. } => {
+                        replace_exit_select(then_body, label);
+                        if let Some(eb) = else_body {
+                            replace_exit_select(eb, label);
+                        }
+                    }
+                    Statement::Compound(body) => replace_exit_select(body, label),
+                    Statement::For { body, .. } => replace_exit_select(body, label),
+                    Statement::While { body, .. } => replace_exit_select(body, label),
+                    Statement::DoLoop { body, .. } => replace_exit_select(body, label),
+                    Statement::SelectCase { cases, default, .. } => {
+                        for c in cases.iter_mut() {
+                            replace_exit_select(&mut c.body, label);
+                        }
+                        if let Some(d) = default {
+                            replace_exit_select(d, label);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         if all {
             // Every matching case runs; ALL mode has no CASE ELSE.
-            let mut out: Vec<Statement> = Vec::with_capacity(cases.len());
-            for c in &cases {
+            let mut out: Vec<Statement> = Vec::with_capacity(cases.len() + 1);
+            for mut c in cases {
+                replace_exit_select(&mut c.body, &exit_label);
                 out.push(Statement::If {
                     condition: Self::case_test(selector, truthy, &c.conditions),
-                    then_body: c.body.clone(),
+                    then_body: c.body,
                     else_body: None,
                 });
             }
+            out.push(Statement::Label(exit_label));
             Statement::Compound(out)
         } else {
             // First-match: nested IF/ELSE chain, innermost else = CASE ELSE.
-            let mut else_body: Option<Vec<Statement>> = default;
-            for c in cases.into_iter().rev() {
+            let mut else_body: Option<Vec<Statement>> = default.map(|mut d| {
+                replace_exit_select(&mut d, &exit_label);
+                d
+            });
+            for mut c in cases.into_iter().rev() {
+                replace_exit_select(&mut c.body, &exit_label);
                 let condition = Self::case_test(selector, truthy, &c.conditions);
                 else_body = Some(vec![Statement::If {
                     condition,
@@ -173,11 +223,12 @@ impl Parser {
                     else_body: else_body.take(),
                 }]);
             }
-            match else_body {
-                Some(mut v) if v.len() == 1 => v.pop().unwrap(),
-                Some(v) => Statement::Compound(v),
-                None => Statement::Compound(Vec::new()),
-            }
+            let mut out = match else_body {
+                Some(v) => v,
+                None => Vec::new(),
+            };
+            out.push(Statement::Label(exit_label));
+            Statement::Compound(out)
         }
     }
     pub(crate) fn starts_end_select(&self) -> bool {
