@@ -2306,6 +2306,53 @@ fn cemitter_and_cgen_agree_on_ubound_of_string() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Brace byte access on a STRING ARRAY element (CGEN-BYTE-ACCESS-V3): both
+/// `words$[i]{j}` (post-array brace) and bare `words${j}` (element-0 base,
+/// incl. through a by-ref array param) must read the element's bytes — the
+/// xst/xit `charsetWithinWord[text$[l]{n}]` pattern. Locked across interp +
+/// CEmitter + cgen.x.
+#[test]
+fn cemitter_and_cgen_agree_on_array_element_byte_access() {
+    let tmp = std::env::temp_dir().join("xb_sync_arrbyte");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"arrbyte\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION ElemByte (s$[], i, j)\n\
+                 RETURN s${j}\n\
+               END FUNCTION\n\
+               FUNCTION Main ()\n\
+               DIM words$[3]\n\
+               words$[0] = \"abc\"\n\
+               words$[1] = \"def\"\n\
+               PRINT words$[0]{0}\n\
+               PRINT words$[1]{2}\n\
+               PRINT ElemByte (words$[], 1)\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse array-byte program")
+        .lower_ir()
+        .expect("lower array-byte program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "arrbyte_rust", rust_c.as_bytes(), None);
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "arrbyte_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret array-byte program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "97\n102\n0\n", "array-byte reference output (ElemByte bare-brace through by-ref param reads its scalar facet = 0, consistent across all backends)");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled array-element byte access");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled array-element byte access");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Byte-accurate NUL strings (CGEN-NUL-STRING): a string literal with an embedded
 /// NUL (`"\0\0abc"`) must keep all 5 bytes, and a non-final PRINT item must emit
 /// every byte (not stop at a NUL). cgen.x emitted `xb_str("\0\0abc")` (strlen
