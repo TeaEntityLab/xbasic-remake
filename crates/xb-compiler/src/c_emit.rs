@@ -1132,7 +1132,14 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             emit_byref_copy_in(out, 1);
             crate::c_emit_hoist::emit_hoisted_scalars(body, params, Some(name), out, 1);
             emit_dyn_decls(out, 1);
-            if *return_type != ValueType::Integer {
+            // An Integer-returning function that references its own name as a
+            // variable (e.g. `Break = 0` in FUNCTION Break) needs the return
+            // variable declared and returned, not just `return 0;`. The v0.1
+            // corpus has no such function, so this is byte-neutral.
+            let own_name_used = *return_type == ValueType::Integer
+                && crate::c_emit_hoist::body_uses_name(body, name)
+                && !crate::c_emit_hoist::body_dims_name(body, name);
+            if *return_type != ValueType::Integer || own_name_used {
                 crate::c_emit_expr::emit_return_var_decl(name, *return_type, out);
             }
             // Isolate this function's GOSUB frames from a caller's: a function-level
@@ -1145,7 +1152,7 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             crate::c_emit_goto::emit_computed_goto_prologue(body, out, 1);
             emit_body(body, out, 1);
             emit_byref_copy_out(out, 1);
-            if *return_type != ValueType::Integer {
+            if *return_type != ValueType::Integer || own_name_used {
                 emit_fallback_return(name, *return_type, out);
             } else {
                 out.push_str("    return 0;\n");

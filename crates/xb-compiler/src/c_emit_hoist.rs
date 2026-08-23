@@ -265,6 +265,20 @@ fn walk_items(items: &[IrItem], scalars: &mut BTreeMap<(String, bool), ValueType
     }
 }
 
+/// True if `name` is referenced as a scalar (bare `Symbol`) anywhere in `items`.
+pub(crate) fn body_uses_name(items: &[IrItem], name: &str) -> bool {
+    let mut scalars = BTreeMap::new();
+    walk_items(items, &mut scalars);
+    scalars.keys().any(|(n, _)| n == name)
+}
+
+/// True if `name` is dimensioned (via `Dim`) anywhere in `items`.
+pub(crate) fn body_dims_name(items: &[IrItem], name: &str) -> bool {
+    let mut dimmed = HashSet::new();
+    collect_dimmed(items, &mut dimmed);
+    dimmed.iter().any(|(n, _)| n == name)
+}
+
 /// Names dimensioned anywhere in `items` (recursing control flow, not nested
 /// functions) — scalars *and* arrays. Such names keep their inline `Dim`
 /// declaration and must not be hoisted (double declaration).
