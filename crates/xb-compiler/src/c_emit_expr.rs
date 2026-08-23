@@ -24,7 +24,12 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
         IrExprKind::IntegerLiteral(v) => {
             // XBasic decimal literals like 08, 09 are invalid C octal constants.
             // Strip leading zeros (preserving "0" itself and 0x hex prefixes).
-            if v.starts_with("0x") || v.starts_with("0X") || v.starts_with("0b") || v.starts_with("0B") {
+            if v.starts_with("0o") || v.starts_with("0O") {
+                // XBasic octal literal `0o666` → C octal `0666`.
+                let digits = &v[2..];
+                out.push_str("0");
+                out.push_str(digits);
+            } else if v.starts_with("0x") || v.starts_with("0X") || v.starts_with("0b") || v.starts_with("0B") {
                 // A hex/binary literal (0xEDB88320, 0xFFFFFFFF) is an i32 bit
                 // pattern (XBasic INTEGER is i32) but in C it is `unsigned int`
                 // (positive). Cast to int32_t for the signed i32 value the
