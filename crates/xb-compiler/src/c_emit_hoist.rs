@@ -313,6 +313,56 @@ fn collect_dimmed(items: &[IrItem], dimmed: &mut HashSet<(String, bool)>) {
     }
 }
 
+/// Names passed as `@x` (ByRef Symbol) to a callee position that is a
+/// *descriptor-array* param — with the symbol's type. Such a call site emits
+/// the two-element descriptor forward `&x, &xb_ub_x`, so the caller must
+/// declare BOTH the raw array pointer and the ubound cell even when `x` has
+/// no `Dim` anywhere in the caller (xit RunJump's undeclared `text$` forwarded
+/// to TokenArrayToText). Recurses control flow, not nested functions.
+pub(crate) fn collect_descriptor_forwards(items: &[IrItem], out: &mut Vec<(String, ValueType)>) {
+    fn expr(e: &IrExpr, out: &mut Vec<(String, ValueType)>) {
+        if let IrExprKind::ByRef(inner) = &e.kind {
+            if let IrExprKind::Symbol(s) = &inner.kind {
+                out.push((s.name.clone(), s.value_type));
+            }
+        }
+    }
+    for it in items {
+        match it {
+            IrItem::Call { name, args } => {
+                let desc = crate::c_emit::defined_param_descriptor(name);
+                if let Some(pd) = desc {
+                    for (i, a) in args.iter().enumerate() {
+                        if !pd.get(i).copied().unwrap_or(false) {
+                            continue;
+                        }
+                        expr(a, out);
+                    }
+                }
+            }
+            IrItem::If { then_body, else_body, .. } => {
+                collect_descriptor_forwards(then_body, out);
+                if let Some(b) = else_body {
+                    collect_descriptor_forwards(b, out);
+                }
+            }
+            IrItem::While { body, .. }
+            | IrItem::For { body, .. }
+            | IrItem::DoLoop { body, .. } => collect_descriptor_forwards(body, out),
+            IrItem::SelectCase { cases, default, .. } => {
+                for c in cases {
+                    collect_descriptor_forwards(&c.body, out);
+                }
+                if let Some(d) = default {
+                    collect_descriptor_forwards(d, out);
+                }
+            }
+            IrItem::Compound(body) => collect_descriptor_forwards(body, out),
+            _ => {}
+        }
+    }
+}
+
 /// Array names *referenced* in `items` (subscript reads/writes, `UBOUND`) with the
 /// symbol's element type — the array analogue of the scalar walk above. Recurses
 /// control flow and nested expressions, not nested functions.

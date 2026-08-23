@@ -497,8 +497,26 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
         set.extend(descriptors.iter().cloned());
     });
     FN_DYN.with(|s| {
-        *s.borrow_mut() =
+        let mut dyn_names =
             crate::c_emit_hoist::collect_dyn_names(items, params, fn_has_gosub, &descriptor_locals);
+        // Descriptor-forward names (`@x[]` into a callee descriptor-array
+        // position): the call site emits `&x, &xb_ub_x`, so the caller needs
+        // the pointer+ubound pair declared even with no `Dim`. Adding to
+        // `arrays` also makes the scalar hoist skip the plain-scalar facet
+        // (no redefinition). Corpus has no such call → byte-neutral.
+        let mut fwd: Vec<(String, ValueType)> = Vec::new();
+        crate::c_emit_hoist::collect_descriptor_forwards(items, &mut fwd);
+        let param_names: HashSet<&str> = params.iter().map(|p| p.name.as_str()).collect();
+        for (n, vt) in fwd {
+            if dyn_names.arrays.contains_key(&n)
+                || param_names.contains(n.as_str())
+                || is_shared_array(&n)
+            {
+                continue;
+            }
+            dyn_names.arrays.entry(n).or_insert(vt);
+        }
+        *s.borrow_mut() = dyn_names;
     });
     FN_UNDIMMED_ARRAYS.with(|s| {
         let mut set = s.borrow_mut();
