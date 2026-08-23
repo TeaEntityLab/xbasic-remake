@@ -499,7 +499,7 @@ impl Parser {
 
     pub(crate) fn redim_stmt(&mut self) -> Result<Statement, crate::ParseError> {
         self.index += 1;
-        let (name, suffix) = self.expect_name_or_keyword()?;
+        let (name, suffix) = Self::shared_name_suffix(self.expect_name_or_keyword()?);
         let (size, is_array, extra_dims) = self.parse_array_size()?;
         self.expect_line_end()?;
         Ok(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: true, shared: false })

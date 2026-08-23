@@ -649,7 +649,12 @@ pub(crate) fn is_descriptor_param(name: &str) -> bool {
 /// descriptor deref — used to build the `_d` descriptor names + param decls.
 pub(crate) fn emit_raw_array_name(symbol: &IrSymbol, out: &mut String) {
     crate::c_emit_expr::emit_var_name(symbol, out);
-    if is_dual_use(&symbol.name) {
+    // A shared array global (composite member like `funcToken.tindex`) already
+    // has a global pointer decl without `_arr`. The per-function dual-use
+    // detection may flag it, but the global can't get `_arr` (no per-function
+    // context at global scope). Skip `_arr` for shared arrays — the local
+    // scalar shadows the global in C (different scopes, valid).
+    if is_dual_use(&symbol.name) && !is_shared_array(&symbol.name) {
         out.push_str("_arr");
     }
 }
@@ -684,7 +689,7 @@ pub(crate) fn emit_array_ub_ref(name: &str, out: &mut String) {
 /// for a dual-use name so it matches `emit_array_var_name`.
 pub(crate) fn array_ident(name: &str) -> String {
     let base = crate::c_emit_expr::sanitize_c_ident(name);
-    if is_dual_use(name) {
+    if is_dual_use(name) && !is_shared_array(name) {
         format!("{base}_arr")
     } else {
         base

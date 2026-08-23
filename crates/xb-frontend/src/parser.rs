@@ -300,7 +300,7 @@ impl Parser {
     /// `$`/`!`/`#` off such a name so the declared element type is correct
     /// (`STRING #xbasic$[]` / `DIM #xbasic$[]` -> String, not the default
     /// Integer). No-op when a suffix is already present or none is embedded.
-    fn shared_name_suffix(
+    pub(crate) fn shared_name_suffix(
         (name, suffix): (String, Option<TypeSuffix>),
     ) -> (String, Option<TypeSuffix>) {
         if suffix.is_some() {
