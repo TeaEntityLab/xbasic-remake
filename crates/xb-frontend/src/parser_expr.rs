@@ -529,9 +529,7 @@ impl Parser {
                     }
                 }
                 if matches!(self.peek_kind(), TokenKind::LBrace2) {
-                    // {expr} byte access after string array element: text$[l]{n}
-                    // → ArrayAccess with extra_indices (byte index into the string).
-                    // For non-string names, keep the bitfield FunctionCall behavior.
+                    // {{...}} bitfield after array access
                     self.index += 1;
                     let mut args = vec![self.expression()?];
                     while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
@@ -539,31 +537,11 @@ impl Parser {
                         args.push(self.expression()?);
                     }
                     self.expect_token_kind(TokenKind::RBrace2)?;
-                    if full.ends_with('$') {
-                        let mut ei = index_extra.clone();
-                        ei.extend(args);
-                        return Ok(Expression::ArrayAccess {
-                            name: full,
-                            index: Box::new(index),
-                            extra_indices: ei,
-                        });
-                    }
                     return Ok(Expression::FunctionCall { name: full, args });
                 }
                 if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
-                    // Single { } index or function call after array.
-                    // For string arrays, {expr} is byte access: text$[l]{n}
-                    // → ArrayAccess with extra_indices (the lexer maps { to ().
+                    // Single { } index or function call after array
                     let args = self.parse_args()?;
-                    if full.ends_with('$') {
-                        let mut ei = index_extra.clone();
-                        ei.extend(args);
-                        return Ok(Expression::ArrayAccess {
-                            name: full,
-                            index: Box::new(index),
-                            extra_indices: ei,
-                        });
-                    }
                     return Ok(Expression::FunctionCall { name: full, args });
                 }
                 Ok(Expression::ArrayAccess {
