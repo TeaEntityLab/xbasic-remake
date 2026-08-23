@@ -173,6 +173,7 @@ fn set_defined_funcs(program: &IrProgram) {
             let mut dual = std::collections::HashSet::new();
             collect_program_dual_use(&program.items, &mut dual);
             m.retain(|name, _| !dual.contains(name));
+
             // Composite-member dual-use gate: a shared array member (dotted name)
             // that is ALSO DIM'd as a SCALAR anywhere — a scalar composite
             // `HOST host` vs an array composite `SHARED HOST host[]` both flatten
