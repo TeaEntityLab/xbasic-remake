@@ -150,11 +150,19 @@ impl Keyword {
 pub struct Token {
     pub kind: TokenKind,
     pub pos: SourcePos,
+    /// True when this `(`/`)` came from an XBasic `{`/`}` (the lexer maps
+    /// single braces to parens). `{n}` on a string is BYTE access; `(` is a
+    /// call/index — the parser needs the distinction because both arrive as
+    /// parens.
+    pub from_brace: bool,
 }
 
 impl Token {
     pub const fn new(kind: TokenKind, pos: SourcePos) -> Self {
-        Self { kind, pos }
+        Self { kind, pos, from_brace: false }
+    }
+    pub const fn new_brace(kind: TokenKind, pos: SourcePos) -> Self {
+        Self { kind, pos, from_brace: true }
     }
 }
 

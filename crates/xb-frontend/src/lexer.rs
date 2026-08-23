@@ -203,12 +203,17 @@ impl<'a> Lexer<'a> {
             self.advance();
             return Token::new(TokenKind::RBrace2, pos);
         }
+        let mapped = matches!(ch, '{' | '}');
         let ch = match ch {
             '{' => '(',
             '}' => ')',
             c => c,
         };
-        Token::new(TokenKind::Symbol(ch), pos)
+        let tok = Token::new(TokenKind::Symbol(ch), pos);
+        if mapped {
+            return Token::new_brace(tok.kind, tok.pos);
+        }
+        tok
     }
 }
 

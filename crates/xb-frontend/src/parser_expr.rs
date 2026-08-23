@@ -407,6 +407,28 @@ impl Parser {
             _ => Err(self.expected("expression")),
         }
     }
+
+    /// Lower a brace-notation byte read `base{idx}` (the lexer maps `{` to `(`)
+    /// to `ASC(MID$(base, idx + 1, 1))` — the 0-based byte offset becomes a
+    /// 1-based MID$ start. Composed entirely of builtins every backend
+    /// implements (interpreter, Rust CEmitter, cgen.x, LLVM), so no new
+    /// IR/text-IR surface is created.
+    fn byte_read_desugar(base: Expression, idx: Expression) -> Expression {
+        let one = || Expression::IntegerLiteral("1".to_string());
+        let start = Expression::Arithmetic {
+            op: ArithmeticOp::Add,
+            left: Box::new(idx),
+            right: Box::new(one()),
+        };
+        let mid = Expression::FunctionCall {
+            name: "MID$".to_string(),
+            args: vec![base, start, one()],
+        };
+        Expression::FunctionCall {
+            name: "ASC".to_string(),
+            args: vec![mid],
+        }
+    }
     fn identifier_expr(
         &mut self,
         name: String,
@@ -540,8 +562,22 @@ impl Parser {
                     return Ok(Expression::FunctionCall { name: full, args });
                 }
                 if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
-                    // Single { } index or function call after array
+                    // `{expr}` after array access (brace-mapped paren) is a
+                    // BYTE read on the element: text$[l]{n} →
+                    // ASC(MID$(text$[l], n+1, 1)) at parse time. A REAL `(` is
+                    // a call (legacy behavior).
+                    let brace_call =
+                        self.tokens.get(self.index).map_or(false, |t| t.from_brace);
                     let args = self.parse_args()?;
+                    if brace_call && full.ends_with('$') {
+                        let elem = Expression::ArrayAccess {
+                            name: full,
+                            index: Box::new(index),
+                            extra_indices: index_extra,
+                        };
+                        let idx = args.into_iter().next().expect("brace arg");
+                        return Ok(Self::byte_read_desugar(elem, idx));
+                    }
                     return Ok(Expression::FunctionCall { name: full, args });
                 }
                 Ok(Expression::ArrayAccess {

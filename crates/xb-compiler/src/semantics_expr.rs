@@ -423,6 +423,53 @@ impl Analyzer {
             {
                 return self.string_byte_read(base, &args[0]);
             }
+            // `text${n}` on a STRING ARRAY: byte n of element 0 →
+            // ASC(MID$(text$[0], n+1, 1)) — same composition, element base.
+            if name.ends_with('$')
+                && self.checked_symbol(name).map(|s| s.value_type) == Ok(ValueType::String)
+                && !self.functions.contains_key(name)
+            {
+                let sym = self.auto_symbol(name);
+                let idx = self.expr(&args[0])?;
+                let one = CheckedExpr::new(
+                    CheckedExprKind::IntegerLiteral("1".to_owned()),
+                    ValueType::Integer,
+                );
+                let zero = CheckedExpr::new(
+                    CheckedExprKind::IntegerLiteral("0".to_owned()),
+                    ValueType::Integer,
+                );
+                let elem = CheckedExpr::new(
+                    CheckedExprKind::ArrayAccess {
+                        symbol: sym,
+                        index: Box::new(zero),
+                        extra_indices: Vec::new(),
+                    },
+                    ValueType::String,
+                );
+                let pos = CheckedExpr::new(
+                    CheckedExprKind::Arithmetic {
+                        op: ArithmeticOp::Add,
+                        left: Box::new(idx),
+                        right: Box::new(one.clone()),
+                    },
+                    ValueType::Integer,
+                );
+                let mid = CheckedExpr::new(
+                    CheckedExprKind::FunctionCall {
+                        name: "MID$".to_owned(),
+                        args: vec![elem, pos, one],
+                    },
+                    ValueType::String,
+                );
+                return Ok(CheckedExpr::new(
+                    CheckedExprKind::FunctionCall {
+                        name: "ASC".to_owned(),
+                        args: vec![mid],
+                    },
+                    ValueType::Integer,
+                ));
+            }
         }
         let (resolved_name, sig) = if let Some(s) = self.functions.get(name) {
             (name.to_owned(), s)
