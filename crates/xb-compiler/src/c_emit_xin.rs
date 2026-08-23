@@ -119,6 +119,10 @@ pub(crate) fn emit_xin_runtime(out: &mut String) {
     out.push_str("#include <netinet/in.h>\n");
     out.push_str("#include <arpa/inet.h>\n");
     out.push_str("#include <unistd.h>\n");
+    out.push_str("#include <signal.h>\n");
+    // Writes to a peer-closed socket must return an error (EPIPE), not kill
+    // the process with SIGPIPE — matches the Xin* error-return semantics.
+    out.push_str("__attribute__((constructor)) static void xb_xin_init(void) { signal(SIGPIPE, SIG_IGN); }\n");
 
     out.push_str("static char* xb_xin_empty(void) { return xb_str(\"\"); }\n");
     out.push_str(
