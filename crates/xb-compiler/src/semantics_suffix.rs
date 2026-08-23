@@ -141,7 +141,7 @@ impl Analyzer {
                     Self::scan_expr(a, kinds);
                 }
             }
-            Statement::Inc { target, suffix } | Statement::Dec { target, suffix } => {
+            Statement::Inc { target, suffix, .. } | Statement::Dec { target, suffix, .. } => {
                 Self::note_var(target, *suffix, kinds);
             }
             Statement::Swap { left, left_suffix, right, right_suffix } => {

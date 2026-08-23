@@ -100,10 +100,14 @@ pub enum Statement {
     Inc {
         target: String,
         suffix: Option<TypeSuffix>,
+        /// Subscripts captured from the statement's `[…]` groups, in order
+        /// (`INC arr[i].m` → `[i]`); empty for plain scalars.
+        indices: Vec<Expression>,
     },
     Dec {
         target: String,
         suffix: Option<TypeSuffix>,
+        indices: Vec<Expression>,
     },
     Swap {
         left: String,

@@ -75,7 +75,7 @@ impl Analyzer {
         ))
     }
 
-    fn array_access(&self, name: &str, index: &Expression, extra: &[Expression]) -> ExprResult {
+    pub(crate) fn array_access(&self, name: &str, index: &Expression, extra: &[Expression]) -> ExprResult {
         // A composite member array (a dotted leaf name like `library.name`) stores
         // its declared element type in `self.arrays`, NOT `self.symbols` — so
         // `auto_symbol` would default it to Integer (the member `name` carries no

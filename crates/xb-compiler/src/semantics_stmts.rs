@@ -261,6 +261,7 @@ impl Analyzer {
         name: &str,
         suffix: Option<TypeSuffix>,
         is_inc: bool,
+        indices: &[Expression],
     ) -> ItemResult {
         let target = if self.symbols.contains_key(name) {
             self.checked_symbol(name)?
@@ -268,6 +269,40 @@ impl Analyzer {
             let vt = ValueType::from_suffix(suffix);
             CheckedSymbol::new(name.to_owned(), vt)
         };
+        // An indexed target (`INC Ary_varData[pIndex].numElements`) reads and
+        // writes through the member-array element; a bare flattened name would
+        // increment the wrong (scalar) storage.
+        if !indices.is_empty() {
+            let read = self.array_access(name, &indices[0], &indices[1..])?;
+            let sym = match &read.kind {
+                CheckedExprKind::ArrayAccess { symbol, .. } => symbol.clone(),
+                _ => unreachable!("indexed INC/DEC read is an ArrayAccess"),
+            };
+            let one = CheckedExpr::new(
+                CheckedExprKind::IntegerLiteral("1".to_owned()),
+                ValueType::Integer,
+            );
+            let op = if is_inc { ArithmeticOp::Add } else { ArithmeticOp::Sub };
+            let value = CheckedExpr::new(
+                CheckedExprKind::Arithmetic {
+                    op,
+                    left: Box::new(read.clone()),
+                    right: Box::new(one),
+                },
+                ValueType::Integer,
+            );
+            let index = self.expr(&indices[0])?;
+            let extra_indices = indices[1..]
+                .iter()
+                .map(|e| self.expr(e))
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok(CheckedItem::ArrayAssignment {
+                target: sym,
+                index,
+                extra_indices,
+                value,
+            });
+        }
         let one = Expression::IntegerLiteral("1".to_string());
         let current = Expression::Identifier {
             name: name.to_owned(),

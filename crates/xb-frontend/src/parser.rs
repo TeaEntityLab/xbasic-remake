@@ -1156,22 +1156,21 @@ impl Parser {
     fn inc_dec_stmt(&mut self, is_inc: bool) -> Result<Statement, ParseError> {
         self.index += 1;
         let (target, suffix) = self.expect_name_or_keyword()?;
-        // Skip optional array brackets
-        if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
-            self.index += 1;
-            while !matches!(self.peek_kind(), TokenKind::Symbol(']')) && !self.at_eof() {
-                if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+        let mut full = target;
+        let mut indices: Vec<Expression> = Vec::new();
+        // Walk trailing `[sub]` / `.member` groups. Subscripts are CAPTURED
+        // (not discarded): `INC Ary_varData[pIndex].numElements` must increment
+        // the element, not a bare flattened member name.
+        loop {
+            if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+                self.index += 1;
+                indices.push(self.expression()?);
+                while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                     self.index += 1;
-                } else {
-                    let _ = self.expression();
+                    indices.push(self.expression()?);
                 }
-            }
-            self.expect_symbol(']')?;
-        }
-        // Handle dot member access
-        let target = if matches!(self.peek_kind(), TokenKind::Symbol('.')) {
-            let mut full = target;
-            while matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+                self.expect_symbol(']')?;
+            } else if matches!(self.peek_kind(), TokenKind::Symbol('.')) {
                 self.index += 1;
                 if let TokenKind::Identifier { name: member, .. } = self.peek_kind().clone() {
                     self.index += 1;
@@ -1179,16 +1178,15 @@ impl Parser {
                 } else {
                     break;
                 }
+            } else {
+                break;
             }
-            full
-        } else {
-            target
-        };
+        }
         self.expect_line_end()?;
         if is_inc {
-            Ok(Statement::Inc { target, suffix })
+            Ok(Statement::Inc { target: full, suffix, indices })
         } else {
-            Ok(Statement::Dec { target, suffix })
+            Ok(Statement::Dec { target: full, suffix, indices })
         }
     }
     fn swap_stmt(&mut self) -> Result<Statement, ParseError> {
