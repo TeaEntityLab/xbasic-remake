@@ -1198,7 +1198,7 @@ impl Parser {
         // the scalar). Returns (name, suffix, indices).
         fn side(p: &mut Parser) -> Result<(String, Option<TypeSuffix>, Vec<Expression>), ParseError> {
             let (target, suffix) = p.expect_name_or_keyword()?;
-            let mut full = target;
+            let full = target;
             let mut indices: Vec<Expression> = Vec::new();
             // Empty `[]` = whole-array reference: no index captured.
             while matches!(p.peek_kind(), TokenKind::Symbol('[')) {
