@@ -4,14 +4,16 @@
 //!
 //! Demos link against the prebuilt core-library objects (built by
 //! checks/link-core-libs.sh into a temp dir) so GUI/kernel32 externals
-//! resolve. Network daemons (aclient/aserver) block waiting for
-//! connections; their locked behavior is "times out with empty output".
+//! resolve. SKIPped: aclient/aserver — the C backend now implements the
+//! Xin* socket builtins for real while the interp keeps zero-stubs, so
+//! their outputs legitimately diverge; the compiled path is locked by
+//! xin_sockets.rs instead.
 
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 /// Demos that fail standalone LINK (undefined external symbols).
-const SKIP: &[&str] = &[];
+const SKIP: &[&str] = &["aclient", "aserver"];
 /// Sentinel for "process timed out" — compared like any other outcome.
 const TIMED_OUT: &[u8] = b"<TIMED_OUT>";
 

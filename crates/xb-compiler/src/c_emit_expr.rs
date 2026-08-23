@@ -408,6 +408,11 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push('(');
                 emit_expr(&args[0], out);
                 out.push_str(", 0)");
+            } else if name.starts_with("Xin")
+                && crate::c_emit_xin::emit_xin_call(name, args, out)
+            {
+                // RT-XIN-SOCKETS: real BSD-socket lowering (C backend only;
+                // interp keeps zero-stubs — no raw-address memory model).
             } else if crate::c_emit::is_unknown_call(name) {
                 // Unknown callee (non-builtin, undefined): mirror the interpreter's
                 // call_function stub (call.rs) and the LLVM backend (lib.rs) — yield

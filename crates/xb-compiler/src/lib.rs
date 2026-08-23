@@ -10,6 +10,7 @@ mod c_emit_logical;
 mod c_emit_select;
 mod c_emit_stmt;
 mod c_emit_str2;
+mod c_emit_xin;
 mod c_runtime;
 mod c_runtime_bit;
 mod c_runtime_math;

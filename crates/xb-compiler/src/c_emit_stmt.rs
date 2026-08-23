@@ -345,7 +345,27 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 }
             }
             emit_body(body, out, indent + 1);
+            let pre_is_some = pre_condition.is_some();
             match post_condition {
+                Some((cond, is_while)) if pre_is_some => {
+                    // `DO WHILE/UNTIL pre ... LOOP WHILE/UNTIL post`: C has no
+                    // dual-condition loop. Emitting `} while (post);` here would
+                    // detach the post condition into a separate empty statement
+                    // (the `while (pre) {` opener already consumed the brace).
+                    // Check it with a break instead.
+                    out.push_str(&ind);
+                    out.push_str("if (");
+                    if *is_while {
+                        out.push_str("!(");
+                        emit_expr(cond, out);
+                        out.push(')');
+                    } else {
+                        emit_expr(cond, out);
+                    }
+                    out.push_str(") break;\n");
+                    out.push_str(&ind);
+                    out.push_str("}\n");
+                }
                 Some((cond, is_while)) => {
                     out.push_str(&ind);
                     out.push_str("} while (");
