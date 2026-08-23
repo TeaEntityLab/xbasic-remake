@@ -681,7 +681,7 @@ pub(crate) fn emit_array_var_name(symbol: &IrSymbol, out: &mut String) {
     if is_descriptor_param(&symbol.name) {
         out.push_str("(*");
         crate::c_emit_expr::emit_var_name(symbol, out);
-        out.push_str("_d)");
+        out.push_str("_dd)");
         return;
     }
     emit_raw_array_name(symbol, out);
@@ -715,7 +715,7 @@ pub(crate) fn array_ident(name: &str) -> String {
 /// `xb_str_x_d` (a `T**`). Raw (no deref) — for decls + call-site forwarding.
 pub(crate) fn emit_descriptor_data_ptr(symbol: &IrSymbol, out: &mut String) {
     crate::c_emit_expr::emit_var_name(symbol, out);
-    out.push_str("_d");
+    out.push_str("_dd");
 }
 
 /// The descriptor ubound identifier `xb_ub_<name>` (an `intptr_t*` param).
