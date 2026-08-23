@@ -98,17 +98,25 @@ fn walk_expr(e: &IrExpr, scalars: &mut BTreeMap<(String, bool), ValueType>) {
     match &e.kind {
         IrExprKind::Symbol(s) => note(s, scalars),
         // `SharedVariable` reads a module-shared `xb_shared_` global, not a local.
-        // `ArrayAccess`/`ArrayUBound`/`SizeOf` name arrays (declared via `Dim`).
+        // `ArrayAccess`/`SizeOf` name arrays (declared via `Dim`).
         IrExprKind::SharedVariable(_)
         | IrExprKind::StringLiteral(_)
         | IrExprKind::IntegerLiteral(_)
         | IrExprKind::FloatLiteral(_)
         | IrExprKind::Constant { .. }
-        | IrExprKind::ArrayUBound { .. }
         | IrExprKind::SizeOf { .. }
         | IrExprKind::SizeOfType { .. }
         | IrExprKind::LabelAddress(_)
         | IrExprKind::FuncAddr(_) => {}
+        // `ArrayUBound` of a STRING scalar (`UBOUND(ARGV$[])`) is emitted as
+        // `xb_len(xb_str_ARGV_s) - 1` — a read of the scalar string variable.
+        // Note it so it gets hoisted (the variable is not DIM'd, so the dimmed
+        // skip won't fire). Non-string UBOUND is an array reference (skip).
+        IrExprKind::ArrayUBound { symbol } => {
+            if symbol.value_type == ValueType::String {
+                note(symbol, scalars);
+            }
+        }
         IrExprKind::ByRef(inner) | IrExprKind::Not(inner) => walk_expr(inner, scalars),
         IrExprKind::Unary { operand, .. } => walk_expr(operand, scalars),
         IrExprKind::Comparison { left, right, .. }
