@@ -84,3 +84,33 @@ fn xbsourcelib_interp_matches_compiled() {
     }
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// ary.x and ary1.0001.x crash at runtime (known composite-byref issue,
+/// docs/18) so they can't be parity-locked — but they must keep compiling
+/// cc-clean. This locks the emit+compile half of their pipeline.
+#[test]
+fn xbsourcelib_ary_compiles_clean() {
+    let root = repo_root();
+    let xb = root.join("target/release/xb");
+    let tmp = std::env::temp_dir().join("xbsrclib_ary");
+    let _ = std::fs::create_dir_all(&tmp);
+    for prog in ["XBSourceLib/ary/ary.x", "XBSourceLib/ary/ary1.0001.x"] {
+        let src = root.join(prog);
+        let emit = Command::new(&xb).arg("--emit-c").arg(&src).output().expect("emit");
+        let c_file = tmp.join("prog.c");
+        std::fs::write(&c_file, &emit.stdout).unwrap();
+        let cc = Command::new("cc")
+            .args(["-O0", "-w", "-c"])
+            .arg(&c_file)
+            .arg("-o")
+            .arg(tmp.join("prog.o"))
+            .output()
+            .expect("cc");
+        assert!(
+            cc.status.success(),
+            "{prog} no longer compiles cc-clean:\n{}",
+            String::from_utf8_lossy(&cc.stderr)
+        );
+    }
+    let _ = std::fs::remove_dir_all(&tmp);
+}
