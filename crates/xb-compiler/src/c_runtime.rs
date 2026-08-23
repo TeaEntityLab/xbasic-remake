@@ -11,7 +11,7 @@ pub(crate) fn emit_header(out: &mut String) {
     // header before the data (xb_len reads it) + a trailing NUL for legacy C-lib interop.
     // This makes CHR$(0)/embedded/high bytes byte-accurate through len/concat/print/compare.
     out.push_str("static char* xb_alloc(size_t n) { char* p = (char*)malloc(sizeof(size_t) + n + 1); *(size_t*)p = n; char* d = p + sizeof(size_t); d[n] = 0; return d; }\n");
-    out.push_str("static int xb_len(const char* s) { return (int)*((size_t*)s - 1); }\n");
+    out.push_str("static int xb_len(const char* s) { if (!s) return 0; return (int)*((size_t*)s - 1); }\n");
     out.push_str("static char* xb_from_cstr(const char* s) { size_t n = strlen(s); char* d = xb_alloc(n); memcpy(d, s, n); return d; }\n");
     out.push_str("static char* xb_strdup(const char* s) { int n = xb_len(s); char* d = xb_alloc((size_t)n); memcpy(d, s, (size_t)n); return d; }\n");
     out.push_str("static char* xb_str(const char* s) { return xb_from_cstr(s); }\n");
