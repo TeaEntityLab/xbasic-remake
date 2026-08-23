@@ -22,3 +22,34 @@ done
 echo "int main(void){return 0;}" > "$OUT/stub_main.c"
 cc "$OUT/stub_main.c" "$OUT"/*.o -o "$OUT/xblibs"
 echo "linked: $OUT/xblibs ($(nm -U "$OUT/xblibs" | grep -c '_xb_user_') xb_user_ symbols)"
+
+# Execute a cross-TU smoke: each lib's Version$ must return its source value.
+cat > "$OUT/smoke.c" <<'EOF'
+#include <stdio.h>
+char* xb_user_XcmVersion(void);
+char* xb_user_XstVersion(void);
+char* xb_user_XgrVersion(void);
+char* xb_user_XuiVersion(void);
+char* xb_user_XitVersion(void);
+char* xb_user_XmaVersion(void);
+char* xb_user_XxxXBasicVersion(void);
+static int fails = 0;
+static void chk(const char* n, char* v, const char* want) {
+    int ok = v && strcmp(v, want) == 0;
+    printf("%-28s = [%s] %s\n", n, v ? v : "(null)", ok ? "ok" : "FAIL");
+    if (!ok) fails++;
+}
+int main(void) {
+    chk("XcmVersion$ (xcm)", xb_user_XcmVersion(), "0.0007");
+    chk("XstVersion$ (xst)", xb_user_XstVersion(), "6.4.5");
+    chk("XgrVersion$ (xgr)", xb_user_XgrVersion(), "6.4.5");
+    chk("XuiVersion$ (xui)", xb_user_XuiVersion(), "6.4.5");
+    chk("XitVersion$ (xit)", xb_user_XitVersion(), "6.4.5");
+    chk("XmaVersion$ (xma)", xb_user_XmaVersion(), "6.4.5");
+    chk("XxxXBasicVersion$ (xcol)", xb_user_XxxXBasicVersion(), "6.4.5");
+    return fails;
+}
+EOF
+cc -include string.h "$OUT/smoke.c" "$OUT"/*.o -o "$OUT/smoke"
+"$OUT/smoke"
+echo "smoke: $([ $? -eq 0 ] && echo ALL OK || echo FAILURES)"
