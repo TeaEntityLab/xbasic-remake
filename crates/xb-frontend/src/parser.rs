@@ -1198,23 +1198,33 @@ impl Parser {
         // the scalar). Returns (name, suffix, indices).
         fn side(p: &mut Parser) -> Result<(String, Option<TypeSuffix>, Vec<Expression>), ParseError> {
             let (target, suffix) = p.expect_name_or_keyword()?;
-            let full = target;
+            let mut full = target;
             let mut indices: Vec<Expression> = Vec::new();
             // Empty `[]` = whole-array reference: no index captured.
-            while matches!(p.peek_kind(), TokenKind::Symbol('[')) {
-                p.index += 1;
-                if !matches!(p.peek_kind(), TokenKind::Symbol(']')) {
-                    indices.push(p.expression()?);
-                    while matches!(p.peek_kind(), TokenKind::Symbol(',')) {
-                        p.index += 1;
-                        if matches!(p.peek_kind(), TokenKind::Symbol(']')) {
-                            break;
-                        }
+            loop {
+                if matches!(p.peek_kind(), TokenKind::Symbol('[')) {
+                    p.index += 1;
+                    // Empty `[]` = whole-array reference.
+                    if !matches!(p.peek_kind(), TokenKind::Symbol(']')) {
                         indices.push(p.expression()?);
+                        while matches!(p.peek_kind(), TokenKind::Symbol(',')) {
+                            p.index += 1;
+                            if matches!(p.peek_kind(), TokenKind::Symbol(']')) {
+                                break;
+                            }
+                            indices.push(p.expression()?);
+                        }
                     }
-                }
-                p.expect_symbol(']')?;
-                if !matches!(p.peek_kind(), TokenKind::Symbol('[')) {
+                    p.expect_symbol(']')?;
+                } else if matches!(p.peek_kind(), TokenKind::Symbol('.')) {
+                    p.index += 1;
+                    if let TokenKind::Identifier { name: m, .. } = p.peek_kind().clone() {
+                        p.index += 1;
+                        full = format!("{full}.{m}");
+                    } else {
+                        break;
+                    }
+                } else {
                     break;
                 }
             }
