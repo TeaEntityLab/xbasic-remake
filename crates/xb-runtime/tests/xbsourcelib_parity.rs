@@ -12,6 +12,11 @@ const PROGRAMS: &[&str] = &[
     "XBSourceLib/utils/mergeTest01.x",
     "XBSourceLib/utils/mergeTest02.x",
     "XBSourceLib/utils/mergeTest03.x",
+    // GUI programs: both paths exit 0 silently without a display; parity
+    // still locks compile+link+run+exit behavior.
+    "XBSourceLib/fgr/fgr.x",
+    "XBSourceLib/vgr/vgr.x",
+    "XBSourceLib/vgr/vgrOld.x",
 ];
 
 fn repo_root() -> std::path::PathBuf {
