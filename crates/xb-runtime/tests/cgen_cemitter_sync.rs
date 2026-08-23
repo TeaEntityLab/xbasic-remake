@@ -2353,6 +2353,54 @@ fn cemitter_and_cgen_agree_on_array_element_byte_access() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// INC on a shared composite-array member (CGEN-SHARED-GLOBAL-V3 follow-up):
+/// `INC counters[0].hits` must read AND write through the member-array element
+/// — the INC/DEC parser previously discarded the `[0]` subscript, incrementing
+/// a bare flattened scalar instead. Locked across interp + CEmitter + cgen.x.
+#[test]
+fn cemitter_and_cgen_agree_on_inc_composite_member_element() {
+    let tmp = std::env::temp_dir().join("xb_sync_inccomp");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"inccomp\"\n\
+               VERSION \"0.1\"\n\
+               TYPE COUNTER\n\
+                 XLONG .hits\n\
+               END TYPE\n\
+               SHARED COUNTER counters[3]\n\
+               FUNCTION Main ()\n\
+               counters[0].hits = 5\n\
+               counters[1].hits = 10\n\
+               INC counters[0].hits\n\
+               INC counters[1].hits\n\
+               INC counters[1].hits\n\
+               PRINT counters[0].hits\n\
+               PRINT counters[1].hits\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse inc-composite program")
+        .lower_ir()
+        .expect("lower inc-composite program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "inccomp_rust", rust_c.as_bytes(), None);
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "inccomp_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret inc-composite program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "6\n12\n", "INC composite-member reference output");
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled INC on composite member");
+    assert_eq!(self_out, interp_out, "cgen.x mishandled INC on composite member");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Byte-accurate NUL strings (CGEN-NUL-STRING): a string literal with an embedded
 /// NUL (`"\0\0abc"`) must keep all 5 bytes, and a non-final PRINT item must emit
 /// every byte (not stop at a NUL). cgen.x emitted `xb_str("\0\0abc")` (strlen
