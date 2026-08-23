@@ -24,6 +24,6 @@ if [ "$FAILURES" != "0" ]; then
     exit 1
 fi
 
-TOTAL=$(grep -oE "[0-9]+ passed" "$OUT" | grep -oE "[0-9]+" | paste -sd+ - | bc)
+TOTAL=$(grep -oE "[0-9]+ passed" "$OUT" | grep -oE "[0-9]+" | awk "{s+=\$1} END {print s}")
 echo "=== ALL PASS ($TOTAL tests across $(grep -c 'test result:' "$OUT") binaries) ==="
 rm -f "$OUT"
