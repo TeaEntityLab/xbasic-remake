@@ -263,15 +263,30 @@ fn collect_scalar_dimmed_names(items: &[IrItem], out: &mut HashSet<String>) {
 /// shared arrays from the global treatment — always safe).
 fn collect_program_dual_use(items: &[IrItem], out: &mut HashSet<String>) {
     let empty = HashSet::new();
+    // Top-level (non-function) items.
     for n in crate::c_emit_hoist::collect_dual_use(items, &empty) {
         out.insert(n);
     }
+    // Per-function scan: detects dual-use *within* a single function.
     for item in items {
         if let IrItem::Function { body, .. } = item {
             for n in crate::c_emit_hoist::collect_dual_use(body, &empty) {
                 out.insert(n);
             }
         }
+    }
+    // Cross-function scan: a shared array used as a scalar in function A and
+    // as an array in function B is dual-use at the program level. Flatten all
+    // function bodies into one list so collect_dual_use sees both facets.
+    let mut all_body_refs: Vec<&IrItem> = Vec::new();
+    for item in items {
+        if let IrItem::Function { body, .. } = item {
+            all_body_refs.extend(body.iter());
+        }
+    }
+    let all_body_items: Vec<IrItem> = all_body_refs.iter().map(|r| (*r).clone()).collect();
+    for n in crate::c_emit_hoist::collect_dual_use(&all_body_items, &empty) {
+        out.insert(n);
     }
 }
 
