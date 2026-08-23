@@ -89,9 +89,12 @@ fn demo_interp_matches_compiled() {
             continue;
         }
 
-        // Interpreter output.
+        // Interpreter output. Run from the temp dir: some demos write
+        // side-effect files (astring.dat, *.map, *.lab) into the CWD.
+        let mut interp_cmd = Command::new(&xb);
+        interp_cmd.arg("--run").arg(src).current_dir(&tmp);
         let interp = run_timed(
-            Command::new(&xb).arg("--run").arg(src),
+            &mut interp_cmd,
             Duration::from_secs(10),
         )
         .unwrap_or_else(|| panic!("{name}: interp timed out"));
@@ -115,6 +118,7 @@ fn demo_interp_matches_compiled() {
         assert!(cc.status.success(), "{name}: cc/link failed");
 
         let mut bin_cmd = Command::new(&bin);
+        bin_cmd.current_dir(&tmp);
         let compiled = run_timed(
             &mut bin_cmd,
             Duration::from_secs(10),
