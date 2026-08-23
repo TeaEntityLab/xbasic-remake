@@ -448,7 +448,22 @@ impl Parser {
             return Ok(Expression::FunctionCall { name: full, args });
         }
         if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
-            let full = full_name(name, suffix);
+            // `{n}` on a string (brace-mapped paren) is a BYTE read: lower at
+            // parse time to ASC(MID$(base, n+1, 1)) — builtins every backend
+            // implements. The Identifier base resolves through the normal slot
+            // rules (collision-aware), matching a plain `s$` read. A REAL `(`
+            // stays a call (compiler.x paren-indexes string arrays).
+            let brace_call = self.tokens.get(self.index).map_or(false, |t| t.from_brace);
+            let full = full_name(name.clone(), suffix);
+            if brace_call && full.ends_with('$') {
+                self.index += 1;
+                let idx = self.expression()?;
+                if matches!(self.peek_kind(), TokenKind::Symbol(')')) {
+                    self.index += 1;
+                }
+                let base = Expression::Identifier { name: full.trim_end_matches('$').to_string(), suffix: Some(TypeSuffix::String) };
+                return Ok(Self::byte_read_desugar(base, idx));
+            }
             let args = self.parse_args()?;
             // Handle bitfield after function call: ABS(offset){8, 0}
             // { is mapped to ( by lexer, so we see ( after )
