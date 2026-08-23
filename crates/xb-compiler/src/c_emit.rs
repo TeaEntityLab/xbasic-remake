@@ -1056,6 +1056,17 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             if !seen.insert(name.clone()) {
                 continue;
             }
+            // Disambiguate duplicate labels (SUB name colliding with an explicit
+            // label of the same name) BEFORE establishing the context, so
+            // FN_LABELS sees the renamed set. No duplicates → the original body.
+            let disambiguated;
+            let body: &[IrItem] = match crate::c_emit_hoist::disambiguate_labels(body) {
+                Some(v) => {
+                    disambiguated = v;
+                    &disambiguated
+                }
+                None => body,
+            };
             // Establish the per-function context BEFORE the signature so a
             // dual-use array param is emitted with its `_arr` array name.
             set_fn_context(name, body, params);

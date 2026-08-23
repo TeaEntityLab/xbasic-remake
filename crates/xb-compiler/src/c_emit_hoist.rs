@@ -461,6 +461,188 @@ pub(crate) fn collect_labels(items: &[IrItem], labels: &mut HashSet<String>) {
     }
 }
 
+/// Disambiguate duplicate `Label` names within one function body.
+///
+/// XBasic allows a `SUB foo` (a gosub label) and an explicit `foo:` label in
+/// the same FUNCTION — xit's WizardCompErrors has `SUB ShowError` whose body
+/// ends with its own `ShowError:` label. Both lower to
+/// `IrItem::Label("ShowError")`, which the C backend emits as two identical C
+/// labels — a cc redefinition error.
+///
+/// Occurrence 0 of each name keeps its original name (so `GOSUB name`, which
+/// targets the SUB entry = first occurrence, is untouched). Later occurrences
+/// are renamed `<name>_dup<k>`. Every `Goto` targeting a duplicated name
+/// resolves FORWARD: the next occurrence strictly after the goto's position;
+/// with no forward occurrence, the first occurrence (original name).
+///
+/// Returns `None` when the body has no duplicate labels — callers keep using
+/// the original slice, so programs without duplicates emit byte-identically.
+pub(crate) fn disambiguate_labels(items: &[IrItem]) -> Option<Vec<IrItem>> {
+    // Flatten in emission order (depth-first pre-order matches emit_body).
+    fn flatten<'a>(items: &'a [IrItem], out: &mut Vec<&'a IrItem>) {
+        for it in items {
+            out.push(it);
+            match it {
+                IrItem::If { then_body, else_body, .. } => {
+                    flatten(then_body, out);
+                    if let Some(b) = else_body {
+                        flatten(b, out);
+                    }
+                }
+                IrItem::While { body, .. }
+                | IrItem::For { body, .. }
+                | IrItem::DoLoop { body, .. } => flatten(body, out),
+                IrItem::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        flatten(&c.body, out);
+                    }
+                    if let Some(d) = default {
+                        flatten(d, out);
+                    }
+                }
+                IrItem::Compound(body) => flatten(body, out),
+                _ => {}
+            }
+        }
+    }
+
+    let mut flat: Vec<&IrItem> = Vec::new();
+    flatten(items, &mut flat);
+
+    let mut occ: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (i, it) in flat.iter().enumerate() {
+        if let IrItem::Label(n) = it {
+            occ.entry(n.as_str()).or_default().push(i);
+        }
+    }
+    let dups: HashSet<&str> =
+        occ.iter().filter(|(_, v)| v.len() > 1).map(|(k, _)| *k).collect();
+    if dups.is_empty() {
+        return None;
+    }
+
+    // Rename later occurrences of each duplicated label.
+    let mut label_rename: HashMap<usize, String> = HashMap::new();
+    for (name, positions) in &occ {
+        if positions.len() == 1 {
+            continue;
+        }
+        for (k, &pos) in positions.iter().enumerate().skip(1) {
+            label_rename.insert(pos, format!("{name}_dup{k}"));
+        }
+    }
+    // Resolve each Goto to a duplicated name forward; fall back to the first
+    // occurrence (which keeps the original name).
+    let mut goto_target: HashMap<usize, String> = HashMap::new();
+    for (i, it) in flat.iter().enumerate() {
+        if let IrItem::Goto(n) = it {
+            if !dups.contains(n.as_str()) {
+                continue;
+            }
+            let target = occ[n.as_str()]
+                .iter()
+                .find(|&&p| p > i)
+                .map(|&p| label_rename.get(&p).cloned().unwrap_or_else(|| n.clone()))
+                .unwrap_or_else(|| n.clone());
+            goto_target.insert(i, target);
+        }
+    }
+
+    fn rebuild(
+        items: &[IrItem],
+        idx: &mut usize,
+        label_rename: &HashMap<usize, String>,
+        goto_target: &HashMap<usize, String>,
+        out: &mut Vec<IrItem>,
+    ) {
+        for it in items {
+            let i = *idx;
+            *idx += 1;
+            match it {
+                IrItem::Label(_) => match label_rename.get(&i) {
+                    Some(nn) => out.push(IrItem::Label(nn.clone())),
+                    None => out.push(it.clone()),
+                },
+                IrItem::Goto(_) => match goto_target.get(&i) {
+                    Some(nn) => out.push(IrItem::Goto(nn.clone())),
+                    None => out.push(it.clone()),
+                },
+                IrItem::If { condition, then_body, else_body } => {
+                    let mut tb = Vec::new();
+                    rebuild(then_body, idx, label_rename, goto_target, &mut tb);
+                    let eb = else_body.as_ref().map(|b| {
+                        let mut v = Vec::new();
+                        rebuild(b, idx, label_rename, goto_target, &mut v);
+                        v
+                    });
+                    out.push(IrItem::If {
+                        condition: condition.clone(),
+                        then_body: tb,
+                        else_body: eb,
+                    });
+                }
+                IrItem::While { condition, body } => {
+                    let mut b = Vec::new();
+                    rebuild(body, idx, label_rename, goto_target, &mut b);
+                    out.push(IrItem::While { condition: condition.clone(), body: b });
+                }
+                IrItem::DoLoop { pre_condition, post_condition, body } => {
+                    let mut b = Vec::new();
+                    rebuild(body, idx, label_rename, goto_target, &mut b);
+                    out.push(IrItem::DoLoop {
+                        pre_condition: pre_condition.clone(),
+                        post_condition: post_condition.clone(),
+                        body: b,
+                    });
+                }
+                IrItem::For { var, start, end, step, body } => {
+                    let mut b = Vec::new();
+                    rebuild(body, idx, label_rename, goto_target, &mut b);
+                    out.push(IrItem::For {
+                        var: var.clone(),
+                        start: start.clone(),
+                        end: end.clone(),
+                        step: step.clone(),
+                        body: b,
+                    });
+                }
+                IrItem::SelectCase { selector, cases, default } => {
+                    let mut cs = Vec::new();
+                    for c in cases {
+                        let mut b = Vec::new();
+                        rebuild(&c.body, idx, label_rename, goto_target, &mut b);
+                        cs.push(crate::ir::IrCaseClause {
+                            conditions: c.conditions.clone(),
+                            body: b,
+                        });
+                    }
+                    let d = default.as_ref().map(|b| {
+                        let mut v = Vec::new();
+                        rebuild(b, idx, label_rename, goto_target, &mut v);
+                        v
+                    });
+                    out.push(IrItem::SelectCase {
+                        selector: selector.clone(),
+                        cases: cs,
+                        default: d,
+                    });
+                }
+                IrItem::Compound(body) => {
+                    let mut b = Vec::new();
+                    rebuild(body, idx, label_rename, goto_target, &mut b);
+                    out.push(IrItem::Compound(b));
+                }
+                _ => out.push(it.clone()),
+            }
+        }
+    }
+
+    let mut out = Vec::with_capacity(items.len());
+    let mut idx = 0usize;
+    rebuild(items, &mut idx, &label_rename, &goto_target, &mut out);
+    Some(out)
+}
+
 /// Multi-dim array shapes `Dim`'d in `items` (a function body): name → its
 /// declared dimension-size expressions `[size, extra_dims…]`. Only arrays with
 /// `extra_dims` (genuinely multi-dim) are recorded; a 1-D array is absent, so
