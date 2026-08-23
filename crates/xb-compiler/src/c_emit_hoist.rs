@@ -63,6 +63,13 @@ pub(crate) fn emit_hoisted_scalars(
         // though it is dimmed / dyn. Otherwise the dynamic-name system already
         // hoists the name (pointer for a late/repeated-DIM array, or a reset
         // scalar), and it also has an inline `Dim`; hoisting again = C redefinition.
+        // A program-global SHARED array (top-level declared, retained in
+        // SHARED_ARRAYS even when dual-use) must never get a local scalar
+        // facet here: its one storage is the file-scope pair, and a local
+        // shadow breaks DIM-site writes through it (ary.x nameBufferIndex).
+        if crate::c_emit::is_shared_array(name) {
+            continue;
+        }
         if !crate::c_emit::is_dual_use(name)
             && (dimmed.contains(&(name.clone(), *is_str))
                 || crate::c_emit::is_dyn_array(name)

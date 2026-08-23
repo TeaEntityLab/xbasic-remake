@@ -172,7 +172,16 @@ fn set_defined_funcs(program: &IrProgram) {
         if !m.is_empty() {
             let mut dual = std::collections::HashSet::new();
             collect_program_dual_use(&program.items, &mut dual);
-            m.retain(|name, _| !dual.contains(name));
+            // A module-TOP-LEVEL shared array has exactly one storage location;
+            // keep it global even when dual-use (scalar-facet reads via byref
+            // handoffs must hit the same storage the DIM allocated).
+            let mut top_level: HashSet<String> = HashSet::new();
+            for item in &program.items {
+                if let IrItem::Dim { symbol, is_array: true, shared: true, .. } = item {
+                    top_level.insert(symbol.name.clone());
+                }
+            }
+            m.retain(|name, _| !dual.contains(name) || top_level.contains(name));
 
             // Composite-member dual-use gate: a shared array member (dotted name)
             // that is ALSO DIM'd as a SCALAR anywhere — a scalar composite
