@@ -901,6 +901,7 @@ pub(crate) fn emit_dyn_decls(out: &mut String, indent: usize) {
             out.push_str(" = -1;\n");
         }
         for (name, vt) in &dyn_names.scalars {
+            if is_shared_array(name) { continue; }
             out.push_str(&ind);
             out.push_str(c_type(*vt));
             out.push(' ');
