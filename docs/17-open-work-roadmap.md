@@ -85,6 +85,17 @@
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
 
+### Full-corpus CI parity locks `[2026-08-24]`
+
+> Every `.x` program in the repo is now regression-locked in CI: `demo_parity`
+> (114/114 demos interp↔C byte-identical; daemons via timeout sentinel; links
+> core-lib objects), `xbsourcelib_parity` (11 programs byte parity + ary/ary1
+> compile-lock), `multi_lib_integration` (15 libs cc-clean + link + execute).
+> Suite 257/0 across 32 binaries. Also this session: SWAP `side()` dot-member
+> fix (`c9ddb5a`), clippy cleanup, XBSourceLib classification (mergeOut/
+> mergeTest03 are vgr copies; ary crashes root-caused to composite-byref
+> string corruption, docs/18).
+
 ### cgen.x demo ceiling: 114/114 compile, 114/114 faithful — all demos match `[2026-08-23]`
 
 > The self-hosted `cgen.x` C generator now compiles **ALL 114 demos** with **114 byte-faithful**
@@ -238,7 +249,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~RT-ARGS~~ | runtime | ✅ **resolved** (2026-08-21, `1975c75`): not a runtime gap — `XBMerge`'s empty output was a general interpreter bug (expression-context function calls discarded their output sink; `GetArguments` printed the usage prompt but `eval` swallowed it). `eval`/`eval_expr` now thread the real output; C backend mirrors (expr INLINE\$ prompt + string-vs-num comparison by length). XBMerge byte-faithful; XBSourceLib 10→11/13 | `XBMerge` | ✅ |
 | ~~CORE-LIBS-LINK~~ | C backend | ✅ **done** (2026-08-23): all 15 core libraries link into one binary via `XB_WEAK_SYMBOLS=1` library mode (`checks/link-core-libs.sh`) and execute cross-TU (7 libs' Version$ return exact source values) — reproducible, byte-neutral by default. | all core libs | ✅ |
 | SHARED-SCALAR | all four paths | `SHARED` *keyword* scalars stay per-function (locked approximation; `##` is the shared form). True legacy semantics = golden + all-backend coordinated change (experiment reverted: rewrites a frozen v0.1 golden) | full legacy `SHARED` fidelity | decision |
-| SWAP-SUBSCRIPTS | frontend + all backends | `SWAP a[i], b[j]` (and composite-member swaps) **discard subscripts** in `swap_stmt` (skips `[...]` groups) - same class as INC/DEC (`22ef2df`). xit TextToTokenArray's `SWAP text$[i], text$` silently no-ops, likely contributing to its remaining miscompiles. Fix: capture indices per side (like INC/DEC `indices`), semantics lowers via temp + two ArrayAssignments (`CheckedItem::Compound` exists), C emitter already emits inline temp exchanges for scalar swaps. Interp Swap needs indexed element support for parity. Bounded: mirrors landed INC/DEC pattern. | xit RTRIM path | partial |
+| ~~SWAP-SUBSCRIPTS~~ | frontend + all backends | ✅ **done**: subscripts captured per side (INC/DEC pattern) and this session (2026-08-24, `c9ddb5a`) `side()` now also follows `.member` chains after `[subscript]` in any order (`SWAP entries[idx].flags, entries[idx+1].flags` parsed as bare `entries` before). Verified: `SWAP a[0], a[1]` and composite INC+SWAP byte-identical interp↔C; suite 257/0. | xit RTRIM path | done | `SWAP a[i], b[j]` (and composite-member swaps) **discard subscripts** in `swap_stmt` (skips `[...]` groups) - same class as INC/DEC (`22ef2df`). xit TextToTokenArray's `SWAP text$[i], text$` silently no-ops, likely contributing to its remaining miscompiles. Fix: capture indices per side (like INC/DEC `indices`), semantics lowers via temp + two ArrayAssignments (`CheckedItem::Compound` exists), C emitter already emits inline temp exchanges for scalar swaps. Interp Swap needs indexed element support for parity. Bounded: mirrors landed INC/DEC pattern. | xit RTRIM path | partial |
 | MODULE-DIM-SCOPE | C backend | Module-level `DIM arr[size]` emits into `main()` as a stack array, but named `FUNCTION Main()` referencing it cannot see `main()` locals (C scoping). Repro: TYPE + SHARED composite array + INC/DEC on members + module DIM + SWAP in Main(). Fix: emit top-level Dim items as file-scope declarations (`static intptr_t arr[N+1];`) so all functions share them. Bounded emitter change in emit_main. | Programs with module-level DIMs + named functions | partial |
 | ~~GUI-HEADLESS~~ | C backend + interp | ✅ **done** (2026-08-21, `0b42cf1`): headless Xgr/Xui runtime — `XuiGetNextCallback` delivers one synthetic `CloseWindow` (demos' loops `QUIT` on it) so the ~37 message-loop GUI demos run to completion + are differential-faithful (interp==cgen), instead of hanging on a display event loop. All other Xgr*/Xui* keep the unknown-callee stub (`$`→"", else 0). Also fixed string `SELECT CASE` (pointer→`xb_scmp` content compare — what let `CloseWindow` match its CASE). Byte-neutral on self-host/v0.1 (sync 5/5). **Demo sweep 74→111 faithful, diverge=0, compile-fail=0.** | ~37 GUI demos | ✅ |
 | GUI-RUNTIME | platform | *real* Xgr/Xui runtime (winit + softbuffer per docs/12) — actual window/display, beyond the headless differential stub | live rendering for 43 GUI demos + 3 init overflows + `DrawScaled` + 19 GTK | platform (large) |
