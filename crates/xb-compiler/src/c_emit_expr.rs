@@ -429,6 +429,18 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 // Auto-vivified (never-`Dim`'d) array: the interpreter reads the
                 // type default for any index (eval.rs missing-slot arm); emit it.
                 emit_default(symbol.value_type, out);
+            } else if symbol.value_type == ValueType::String && !extra_indices.is_empty() {
+                // Byte access on a string array element: text$[l]{n}
+                // → xb_str_text_s_arr[l][n] (char** indexed by l → char*, then [n] → char)
+                crate::c_emit::emit_array_var_name(symbol, out);
+                out.push('[');
+                crate::c_emit::emit_array_subscript(&symbol.name, index, &[], out);
+                out.push(']');
+                for ei in extra_indices {
+                    out.push('[');
+                    emit_expr(ei, out);
+                    out.push(']');
+                }
             } else {
                 crate::c_emit::emit_array_var_name(symbol, out);
                 out.push('[');

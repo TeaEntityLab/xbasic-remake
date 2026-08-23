@@ -93,13 +93,20 @@ impl Analyzer {
             .iter()
             .map(|e| self.expr(e))
             .collect::<Result<Vec<_>, _>>()?;
+        // Byte access on a string (text$[l]{n}) returns an Integer (the byte
+        // value), not String. extra_indices on a String array = byte access.
+        let result_vt = if vt == ValueType::String && !extra_indices.is_empty() {
+            ValueType::Integer
+        } else {
+            vt
+        };
         Ok(CheckedExpr::new(
             CheckedExprKind::ArrayAccess {
                 symbol: sym,
                 index: Box::new(idx),
                 extra_indices,
             },
-            vt,
+            result_vt,
         ))
     }
 
@@ -299,6 +306,21 @@ impl Analyzer {
             let sym = self.auto_symbol(name);
             let vt = sym.value_type;
             let index = self.expr(&args[0])?;
+            // `text${n}` (lexer maps { to () on a string array is byte access:
+            // element 0 of the array, then byte n of that string → Integer.
+            // `text$[n]` (parsed as ArrayAccess, not FunctionCall) is regular
+            // array access → String. Only FunctionCall reaching here is from {}.
+            if vt == ValueType::String {
+                let zero = CheckedExpr::new(CheckedExprKind::IntegerLiteral("0".to_owned()), ValueType::Integer);
+                return Ok(CheckedExpr::new(
+                    CheckedExprKind::ArrayAccess {
+                        symbol: sym,
+                        index: Box::new(zero),
+                        extra_indices: vec![index],
+                    },
+                    ValueType::Integer,
+                ));
+            }
             return Ok(CheckedExpr::new(
                 CheckedExprKind::ArrayAccess {
                     symbol: sym,
