@@ -518,8 +518,13 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
             // single scalar C decl that must NOT split. A non-string scalar
             // param with a real `ArrayAccess` (xcol's `GOSUB @mode[mode]`)
             // IS genuinely dual-use and must split into scalar + _arr.
+            // Exception: if the name also has a non-string array DIM (xgr's
+            // `def:string` + `dim def:integer[80]`), the integer facet IS
+            // genuinely dual-use — don't drop.
             if !p.is_array && p.value_type == ValueType::String {
-                set.remove(&p.name);
+                if array_dim_type(items, &p.name).is_none() {
+                    set.remove(&p.name);
+                }
             }
         }
         *s.borrow_mut() = set;
@@ -541,7 +546,12 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
                     && dual_set.contains(&p.name)
                     && !array_param_names.contains(&p.name)
                 {
-                    dyn_names.arrays.entry(p.name.clone()).or_insert(p.value_type);
+                    // Use the array DIM's type, not the param's type: a STRING
+                    // param (xgr's `def:string`) with a separate INTEGER array
+                    // DIM (`def:integer[80]`) needs `intptr_t *xb_var_def_arr`,
+                    // not `char** xb_str_def_arr`.
+                    let arr_vt = array_dim_type(items, &p.name).unwrap_or(p.value_type);
+                    dyn_names.arrays.entry(p.name.clone()).or_insert(arr_vt);
                 }
             }
         });
@@ -877,6 +887,49 @@ pub(crate) fn gosub_ret_suffix(name: &str) -> String {
             format!("_{n}")
         }
     })
+}
+
+/// Find the value type of a non-string array DIM for `name` in `items`
+/// (recursing control flow). Returns `None` if no such DIM exists.
+/// Used to detect whether a STRING param's name also has a separate INTEGER
+/// array DIM (xgr's `def:string` + `dim def:integer[80]`).
+fn array_dim_type(items: &[IrItem], name: &str) -> Option<ValueType> {
+    fn search(items: &[IrItem], name: &str) -> Option<ValueType> {
+        for it in items {
+            match it {
+                IrItem::Dim { symbol, size, is_array, .. }
+                    if (*is_array || size.is_some())
+                        && symbol.name == name
+                        && symbol.value_type != ValueType::String =>
+                {
+                    return Some(symbol.value_type);
+                }
+                IrItem::If { then_body, else_body, .. } => {
+                    if let Some(v) = search(then_body, name) { return Some(v); }
+                    if let Some(b) = else_body {
+                        if let Some(v) = search(b, name) { return Some(v); }
+                    }
+                }
+                IrItem::While { body, .. }
+                | IrItem::For { body, .. }
+                | IrItem::DoLoop { body, .. }
+                | IrItem::Compound(body) => {
+                    if let Some(v) = search(body, name) { return Some(v); }
+                }
+                IrItem::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        if let Some(v) = search(&c.body, name) { return Some(v); }
+                    }
+                    if let Some(b) = default {
+                        if let Some(v) = search(b, name) { return Some(v); }
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+    search(items, name)
 }
 
 /// A called name that is neither a user-defined function, a recognized builtin,
