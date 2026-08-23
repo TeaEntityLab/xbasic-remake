@@ -201,15 +201,32 @@ impl Analyzer {
     /// when the bare name is not in the symbol table. This matches how the
     /// interpreter's slot table distinguishes `field3` from `field3$`.
     pub(crate) fn auto_symbol(&self, name: &str) -> CheckedSymbol {
-        let vt = self
-            .symbols
-            .get(name)
-            .copied()
-            .unwrap_or_else(|| match name.chars().last() {
-                Some('$') => ValueType::String,
-                Some('!') | Some('#') => ValueType::Float,
-                _ => ValueType::Integer,
-            });
+        // The parser strips the `$` suffix from non-array param names, storing
+        // `display$` as `display` (String) in the symbol table. When auto_symbol
+        // is called with the original `display$` name (e.g. from UBOUND), the
+        // direct lookup fails. Try the base name (without `$`) so the symbol
+        // resolves to the param's entry — keeping the C name consistent
+        // (`xb_str_display` not `xb_str_display_s`).
+        if let Some(&vt) = self.symbols.get(name) {
+            return CheckedSymbol::new(name.to_owned(), vt);
+        }
+        if name.ends_with('$') {
+            let base = &name[..name.len() - 1];
+            // Only use the base name if it's registered as String — the parser
+            // strips `$` from non-array param names, so `display$` param is
+            // stored as `display` (String). But `window$` (String) must NOT
+            // resolve to `window` (Integer) — different variables.
+            if let Some(&vt) = self.symbols.get(base) {
+                if vt == ValueType::String {
+                    return CheckedSymbol::new(base.to_owned(), vt);
+                }
+            }
+        }
+        let vt = match name.chars().last() {
+            Some('$') => ValueType::String,
+            Some('!') | Some('#') => ValueType::Float,
+            _ => ValueType::Integer,
+        };
         CheckedSymbol::new(name.to_owned(), vt)
     }
 }
