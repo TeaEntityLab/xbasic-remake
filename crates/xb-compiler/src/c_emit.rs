@@ -172,6 +172,13 @@ fn set_defined_funcs(program: &IrProgram) {
         if !m.is_empty() {
             let mut dual = std::collections::HashSet::new();
             collect_program_dual_use(&program.items, &mut dual);
+            if std::env::var_os("XB_DEBUG_SHARED").is_some() {
+                for (k, v) in m.iter() {
+                    if k.contains("varData") || k.contains("nameList") {
+                        eprintln!("IN-SHARED {} {:?} dual={}", k, v, dual.contains(k));
+                    }
+                }
+            }
             // A module-TOP-LEVEL shared array has exactly one storage location;
             // keep it global even when dual-use (scalar-facet reads via byref
             // handoffs must hit the same storage the DIM allocated).
@@ -181,7 +188,7 @@ fn set_defined_funcs(program: &IrProgram) {
                     top_level.insert(symbol.name.clone());
                 }
             }
-            m.retain(|name, _| !dual.contains(name) || top_level.contains(name));
+            m.retain(|name, _| !dual.contains(name) || top_level.contains(name) || name.contains('.'));
 
             // Composite-member dual-use gate: a shared array member (dotted name)
             // that is ALSO DIM'd as a SCALAR anywhere — a scalar composite
