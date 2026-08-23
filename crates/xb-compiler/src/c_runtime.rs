@@ -407,12 +407,19 @@ pub(crate) fn emit_globals(program: &IrProgram, out: &mut String) {
     // DIM/REDIM sites already name these via emit_array_var_name / _ub_ref (they
     // are dyn + not undimmed for a shared array). Dual-use shared arrays are
     // excluded by the gate (they keep the old local emission).
+    let weak = crate::c_emit::weak_symbols_enabled();
     for (name, vt) in crate::c_emit::shared_arrays_sorted() {
         let sym = crate::ir::IrSymbol { name: name.clone(), value_type: vt };
+        if weak {
+            out.push_str("__attribute__((weak)) ");
+        }
         out.push_str(c_type(vt));
         out.push_str("* ");
         crate::c_emit::emit_array_var_name(&sym, out);
         out.push_str(" = 0;\n");
+        if weak {
+            out.push_str("__attribute__((weak)) ");
+        }
         out.push_str("intptr_t ");
         crate::c_emit::emit_array_ub_ref(&name, out);
         out.push_str(" = -1;\n");
@@ -429,6 +436,9 @@ fn collect_shared(
         match item {
             IrItem::SharedAssignment { target, value } => {
                 if seen.insert(target.name.clone()) {
+                    if crate::c_emit::weak_symbols_enabled() {
+                        out.push_str("__attribute__((weak)) ");
+                    }
                     out.push_str(c_type(target.value_type));
                     out.push_str(" xb_shared_");
                     out.push_str(&sanitize_c_name(&target.name));
@@ -514,6 +524,9 @@ fn collect_shared_expr(e: &crate::ir::IrExpr, seen: &mut std::collections::HashS
     match &e.kind {
         IrExprKind::SharedVariable(s) => {
             if seen.insert(s.name.clone()) {
+                if crate::c_emit::weak_symbols_enabled() {
+                    out.push_str("__attribute__((weak)) ");
+                }
                 out.push_str(c_type(s.value_type));
                 out.push_str(" xb_shared_");
                 out.push_str(&sanitize_c_name(&s.name));

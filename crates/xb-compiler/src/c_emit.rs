@@ -1015,7 +1015,9 @@ impl CEmitter {
         emit_globals(program, &mut body);
         emit_forward_decls(program, &mut body);
         emit_functions(program, &mut body);
-        emit_main(program, &mut body);
+        if !weak_symbols_enabled() {
+            emit_main(program, &mut body);
+        }
         let mut out = String::new();
         emit_version_global(program, &mut out);
         emit_program_name_global(program, &mut out);
@@ -1088,6 +1090,9 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             // Establish the per-function context BEFORE the signature so a
             // dual-use array param is emitted with its `_arr` array name.
             set_fn_context(name, body, params);
+            if weak_symbols_enabled() {
+                out.push_str("__attribute__((weak)) ");
+            }
             out.push_str(c_type(*return_type));
             out.push_str(" xb_user_");
             out.push_str(name);
@@ -1294,6 +1299,20 @@ fn emit_fallback_return(name: &str, return_type: ValueType, out: &mut String) {
     }
     out.push_str(ret_name);
     out.push_str(";\n");
+}
+
+
+/// Library-mode emission (env `XB_WEAK_SYMBOLS` set): function definitions and
+/// file-scope globals get `__attribute__((weak))` and `main` is omitted, so the
+/// per-library C outputs link together into one binary (the original XBasic
+/// build links xit/xst/xgr/... objects side by side). Duplicate strong symbols
+/// across libraries — INTERNAL functions defined in several libs, shared tables
+/// like `charsetSymbol` — otherwise fail the link with 128 duplicates. Weak +
+/// first-definition-wins mirrors the emitter's own first-wins function dedup.
+/// Unset by default: emitted bytes are identical, so every sync/bootstrap/demo
+/// suite is untouched.
+pub(crate) fn weak_symbols_enabled() -> bool {
+    std::env::var_os("XB_WEAK_SYMBOLS").is_some()
 }
 
 pub(crate) fn c_type(vt: ValueType) -> &'static str {
