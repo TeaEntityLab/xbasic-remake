@@ -512,11 +512,38 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
         // that must NOT split. So drop non-array params from the set. The corpus
         // has no dual-use array param, so this stays byte-neutral there.
         for p in params {
-            if !p.is_array {
+            // Only drop STRING non-array params: a scalar string param with
+            // `path${i}`/`UBOUND(path$)` byte-ops looks array-ish but is a
+            // single scalar C decl that must NOT split. A non-string scalar
+            // param with a real `ArrayAccess` (xcol's `GOSUB @mode[mode]`)
+            // IS genuinely dual-use and must split into scalar + _arr.
+            if !p.is_array && p.value_type == ValueType::String {
                 set.remove(&p.name);
             }
         }
         *s.borrow_mut() = set;
+    });
+    // A dual-use SCALAR param (xcol's `mode` used as `GOSUB @mode[mode]`) needs
+    // its array facet (`_arr`) declared as a dyn array. The scalar facet is the
+    // param itself; the array facet is a local heap pointer + ubound cell.
+    // But if the same name also has an ARRAY param (Kittedy's `adjacent` has
+    // both `adjacent:integer` and `adjacent:integer[]`), the array facet is
+    // already declared in the signature — skip the injection.
+    let array_param_names: HashSet<String> =
+        params.iter().filter(|p| p.is_array).map(|p| p.name.clone()).collect();
+    FN_DUAL_USE.with(|dual| {
+        let dual_set = dual.borrow();
+        FN_DYN.with(|dyn_s| {
+            let mut dyn_names = dyn_s.borrow_mut();
+            for p in params {
+                if !p.is_array
+                    && dual_set.contains(&p.name)
+                    && !array_param_names.contains(&p.name)
+                {
+                    dyn_names.arrays.entry(p.name.clone()).or_insert(p.value_type);
+                }
+            }
+        });
     });
     FN_ARRAY_DIMS.with(|s| {
         let mut m = s.borrow_mut();

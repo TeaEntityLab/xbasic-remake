@@ -36,18 +36,24 @@ pub(crate) fn emit_hoisted_scalars(
     }
     let mut dimmed: HashSet<(String, bool)> = HashSet::new();
     collect_dimmed(body, &mut dimmed);
+    let array_params: HashSet<&str> = params.iter().filter(|p| p.is_array).map(|p| p.name.as_str()).collect();
     let params: HashSet<(&str, bool)> = params
         .iter()
         .map(|p| (p.name.as_str(), p.value_type == ValueType::String))
         .collect();
     let ind = "    ".repeat(indent);
     for ((name, is_str), vt) in &scalars {
-        // Skip params (declared in the signature) and the function's own name —
-        // EXCEPT a dual-use param, whose array facet took the `_arr` name in the
-        // signature, so its scalar facet still needs this local declaration.
+        // Skip params (declared in the signature) and the function's own name.
         // Key by (name, is_str): a string param `addr$` must not suppress the
         // integer local `addr` (different C variable: xb_str_addr vs xb_var_addr).
-        if (params.contains(&(name.as_str(), *is_str)) && !crate::c_emit::is_dual_use(name))
+        // A dual-use ARRAY param took the `_arr` name in the signature, so its
+        // scalar facet still needs this local declaration — don't skip it.
+        // A dual-use SCALAR param (xcol's `mode` used as `mode[mode]`) has its
+        // scalar facet in the signature already — skip it; only the `_arr` facet
+        // is hoisted by emit_dyn_decls.
+        let is_array_param = array_params.contains(name.as_str());
+        if (params.contains(&(name.as_str(), *is_str))
+            && (!crate::c_emit::is_dual_use(name) || !is_array_param))
             || own_name == Some(name.as_str())
         {
             continue;
