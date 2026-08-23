@@ -4,13 +4,16 @@
 //!
 //! Demos link against the prebuilt core-library objects (built by
 //! checks/link-core-libs.sh into a temp dir) so GUI/kernel32 externals
-//! resolve. SKIP = network daemons that block waiting for connections.
+//! resolve. Network daemons (aclient/aserver) block waiting for
+//! connections; their locked behavior is "times out with empty output".
 
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 /// Demos that fail standalone LINK (undefined external symbols).
-const SKIP: &[&str] = &["aclient", "aserver"];
+const SKIP: &[&str] = &[];
+/// Sentinel for "process timed out" — compared like any other outcome.
+const TIMED_OUT: &[u8] = b"<TIMED_OUT>";
 
 fn repo_root() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -21,38 +24,45 @@ fn repo_root() -> std::path::PathBuf {
         .to_path_buf()
 }
 
-/// Run with a timeout; None = timed out.
+/// Run with a timeout. Reader thread + channel so a child that holds
+/// stdout open without writing (network daemons) can't block the deadline.
 fn run_timed(cmd: &mut Command, timeout: Duration) -> Option<Vec<u8>> {
     use std::io::Read;
+    use std::sync::mpsc;
     let mut child = cmd
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .spawn()
         .expect("spawn");
-    let deadline = Instant::now() + timeout;
-    let mut out = Vec::new();
-    loop {
-        if let Some(mut pipe) = child.stdout.take() {
-            let mut buf = [0u8; 65536];
+    let mut pipe = child.stdout.take().expect("stdout");
+    let (tx, rx) = mpsc::channel::<Vec<u8>>();
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 65536];
+        let mut out = Vec::new();
+        loop {
             match pipe.read(&mut buf) {
-                Ok(0) => break,
+                Ok(0) | Err(_) => break,
                 Ok(n) => out.extend_from_slice(&buf[..n]),
-                Err(_) => break,
             }
         }
-        if Instant::now() > deadline {
-            let _ = child.kill();
-            let _ = child.wait();
-            return None;
+        let _ = tx.send(out);
+    });
+    let deadline = Instant::now() + timeout;
+    let collected = loop {
+        match rx.recv_timeout(Duration::from_millis(50)) {
+            Ok(out) => break out,
+            Err(mpsc::RecvTimeoutError::Disconnected) => break Vec::new(),
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                if Instant::now() > deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return None;
+                }
+            }
         }
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) => std::thread::sleep(Duration::from_millis(10)),
-            Err(_) => return None,
-        }
-    }
+    };
     let _ = child.wait();
-    Some(out)
+    Some(collected)
 }
 
 #[test]
@@ -106,7 +116,7 @@ fn demo_interp_matches_compiled() {
             &mut interp_cmd,
             Duration::from_secs(10),
         )
-        .unwrap_or_else(|| panic!("{name}: interp timed out"));
+        .unwrap_or(TIMED_OUT.to_vec());
 
         // Emit C, compile, link, run.
         let emit = Command::new(&xb)
@@ -146,7 +156,7 @@ fn demo_interp_matches_compiled() {
             &mut bin_cmd,
             Duration::from_secs(10),
         )
-        .unwrap_or_else(|| panic!("{name}: compiled binary timed out"));
+        .unwrap_or(TIMED_OUT.to_vec());
         let _ = std::fs::remove_file(&bin);
 
         assert_eq!(
