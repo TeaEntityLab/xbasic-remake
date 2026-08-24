@@ -561,6 +561,7 @@ PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 ##dynNames$ = ""
 ##byrefDual$ = ""
 ##undimmed$ = ""
+##fileScopeDecls$ = ""
 ##dynStr$ = ""
 ##strDual$ = ""
 ##dualUse$ = ""
@@ -976,6 +977,18 @@ WHILE pos <= LEN(src$)
           END IF
           funcBody$ = funcBody$ + cCode$ + CHR$(10)
         ELSE
+          ' MODULE-DIM-SCOPE: a top-level fixed-size non-string array DIM
+          ' becomes a file-scope static declaration so named functions can
+          ' see it (C main() locals are invisible to called functions).
+          ' Requires the DIM to precede the function in the IR (source order).
+          IF LEFT$(stmt$, 4) = "dim " THEN
+            IF INSTR(stmt$, "[") > 0 AND INSTR(stmt$, "[]") = 0 AND INSTR(stmt$, ":string") = 0 AND INSTR(stmt$, "shared") = 0 THEN
+              IF LEN(cCode$) > 0 THEN
+                PRINT "static " + cCode$
+                cCode$ = ""
+              END IF
+            END IF
+          END IF
           mainBody$ = mainBody$ + cCode$ + CHR$(10)
         END IF
       END IF
