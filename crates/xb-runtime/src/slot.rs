@@ -172,7 +172,10 @@ pub struct ExecutionState {
     pub(crate) metadata: ProgramMetadata,
     pub(crate) slots: BTreeMap<String, TypedSlot>,
     pub(crate) shared: BTreeMap<String, TypedSlot>,
-    pub(crate) input: Vec<String>,
+    pub(crate) input: Vec<Vec<u8>>,
+    /// A kernel32 WriteFile left a partial (LF-free) line open; the next
+    /// PRINT appends to it instead of starting a new output line.
+    pub(crate) line_pending: bool,
     pub(crate) input_pos: usize,
     pub(crate) data_segment: Vec<DataEntry>,
     pub(crate) data_pos: usize,

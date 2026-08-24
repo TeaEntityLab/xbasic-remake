@@ -95,7 +95,7 @@ pub(crate) fn call_function(
             if state.input_pos < state.input.len() {
                 let line = state.input[state.input_pos].clone();
                 state.input_pos += 1;
-                return Ok(RuntimeValue::from_string(line));
+                return Ok(RuntimeValue::String(line));
             }
             return Ok(RuntimeValue::from_str(""));
         }
@@ -110,7 +110,7 @@ pub(crate) fn call_function(
             if state.input_pos < state.input.len() {
                 let line = state.input[state.input_pos].clone();
                 state.input_pos += 1;
-                return Ok(RuntimeValue::from_string(line));
+                return Ok(RuntimeValue::String(line));
             }
             return Ok(RuntimeValue::from_str(""));
         }
@@ -479,6 +479,7 @@ pub(crate) fn call_function(
         slots: local,
         shared: state.shared.clone(),
         input: state.input.clone(),
+        line_pending: state.line_pending,
         input_pos: state.input_pos,
         data_segment: Vec::new(),
         data_pos: 0,
@@ -630,17 +631,36 @@ fn kernel32_write_file(
         // Stream semantics: complete lines become entries; a trailing partial
         // line splices into the last entry so a following PRINT continues the
         // same C output line (the harness joins entries with LF).
-        let text = String::from_utf8_lossy(&data[..n]).into_owned();
+        let text: String = data[..n].iter().map(|&b| b as char).collect();
         let mut parts = text.split('\n').peekable();
         while let Some(part) = parts.next() {
             if parts.peek().is_some() {
-                output.push(part.to_string());
+                if state.line_pending {
+                    if let Some(last) = output.last_mut() {
+                        last.push_str(part);
+                    }
+                    state.line_pending = false;
+                } else {
+                    output.push(part.to_string());
+                }
             } else if part.is_empty() {
-                // Data ended with LF: nothing pending.
+                // Data ended with LF: the line is complete.
+                state.line_pending = false;
+            } else if state.line_pending {
+                if let Some(last) = output.last_mut() {
+                    last.push_str(part);
+                } else {
+                    output.push(part.to_string());
+                }
+                state.line_pending = true;
             } else if let Some(last) = output.last_mut() {
+                // A previous PRINT ended without LF? Not representable; a
+                // partial write after a complete PRINT starts a fresh line.
                 last.push_str(part);
+                state.line_pending = true;
             } else {
                 output.push(part.to_string());
+                state.line_pending = true;
             }
         }
     }
@@ -676,7 +696,7 @@ fn kernel32_read_file(
         if !rest.is_empty() {
             rest.push(b'\n');
         }
-        rest.extend_from_slice(&state.input[state.input_pos].as_bytes());
+        rest.extend_from_slice(&state.input[state.input_pos]);
         state.input_pos += 1;
     }
     rest.truncate(bytes);

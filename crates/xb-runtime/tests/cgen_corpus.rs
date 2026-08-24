@@ -93,7 +93,7 @@ fn cgen_compiles_all_selfhost_tools() {
 
         // Run Rust-hosted interpreter with same input
         let mut interp_out = Vec::new();
-        let input_lines: Vec<String> = input.lines().map(String::from).collect();
+        let input_lines: Vec<Vec<u8>> = common::byte_lines(input.as_bytes());
         Interpreter::new()
             .execute_main_with_input(&prog, input_lines, &mut interp_out)
             .expect("execute");
@@ -225,7 +225,7 @@ fn cgen_compiles_itself() {
 
     // Compare with Rust-hosted interpreter
     let mut interp_out = Vec::new();
-    let input_lines: Vec<String> = comp_in.lines().map(String::from).collect();
+    let input_lines: Vec<Vec<u8>> = common::byte_lines(comp_in.as_bytes());
     Interpreter::new()
         .execute_main_with_input(&comp_prog, input_lines, &mut interp_out)
         .expect("execute");

@@ -78,6 +78,51 @@ fn cgen_emit(cgen_exe: &Path, ir: &str) -> Vec<u8> {
     out.stdout
 }
 
+/// Compile C source bytes to a native exe, run it with optional raw stdin,
+/// and return stdout bytes verbatim (no char-decode round trip).
+fn compile_and_exec_bytes(
+    tmp: &Path,
+    name: &str,
+    c: &[u8],
+    input: Option<&[u8]>,
+) -> Vec<u8> {
+    let c_path = tmp.join(format!("{name}.c"));
+    let exe = tmp.join(name);
+    fs::write(&c_path, c).expect("write c");
+    let cc = Command::new(common::cc::cc())
+        .args(["-o", exe.to_str().unwrap(), c_path.to_str().unwrap()])
+        .output()
+        .expect("run cc");
+    assert!(
+        cc.status.success(),
+        "cc {name} failed: {}",
+        String::from_utf8_lossy(&cc.stderr)
+    );
+    let mut cmd = Command::new(common::exe_path(&exe));
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.stdin(if input.is_some() {
+        Stdio::piped()
+    } else {
+        Stdio::null()
+    });
+    let mut child = cmd.spawn().expect("spawn native exe");
+    if let Some(inp) = input {
+        child
+            .stdin
+            .take()
+            .expect("native stdin")
+            .write_all(inp)
+            .expect("write input");
+    }
+    let out = child.wait_with_output().expect("wait native exe");
+    assert!(
+        out.status.success(),
+        "native {name} failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    out.stdout
+}
+
 /// Compile C source bytes to a native exe, run it with optional stdin, and
 /// return stdout decoded byte-faithfully (matching how the goldens were made).
 fn compile_and_exec(tmp: &Path, name: &str, c: &[u8], input: Option<&str>) -> String {
@@ -277,9 +322,8 @@ fn cemitter_and_cgen_agree_on_rank_three_flat_array() {
 /// RT-KERNEL32 (CGEN-KERNEL32): `GetStdHandle`/`WriteFile`/`ReadFile` — the
 /// Win32-CGI stdio subset — must behave identically through the interpreter
 /// and BOTH C generators. The legacy `&x` argument prefix lowers to a plain
-/// symbol, so out-params take addresses positionally. Write data ends with
-/// LF: the interpreter's line-oriented output channel cannot represent a
-/// trailing partial write (RT-IO-BYTES).
+/// symbol, so out-params take addresses positionally. (Trailing partial
+/// writes are covered by `cemitter_and_cgen_agree_on_kernel32_partial_write`.)
 #[test]
 fn cemitter_and_cgen_agree_on_kernel32_stdio() {
     let tmp = std::env::temp_dir().join("xb_sync_kernel32");
@@ -310,7 +354,7 @@ fn cemitter_and_cgen_agree_on_kernel32_stdio() {
         .expect("lower kernel32 program");
     let mut interp = Vec::new();
     Interpreter::new()
-        .execute_main_with_input(&prog, vec!["POSTDATA-123".to_string()], &mut interp)
+        .execute_main_with_input(&prog, vec![b"POSTDATA-123".to_vec()], &mut interp)
         .expect("run interp kernel32");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
     let rust_c = CEmitter::new().emit_program(&prog);
@@ -322,6 +366,65 @@ fn cemitter_and_cgen_agree_on_kernel32_stdio() {
     assert_eq!(interp_out, expected, "interpreter reference");
     assert_eq!(rust_out, expected, "Rust CEmitter kernel32 output");
     assert_eq!(self_out, expected, "cgen.x kernel32 output");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// RT-IO-BYTES closed: (1) a kernel32 WriteFile WITHOUT a trailing LF must
+/// splice into the output stream so a following PRINT continues the same C
+/// output line; (2) high-byte stdin must reach INLINE$ byte-faithfully
+/// (LEN counts raw bytes, first byte accessible via `{}` byte access).
+#[test]
+fn cemitter_and_cgen_agree_on_kernel32_partial_write() {
+    let tmp = std::env::temp_dir().join("xb_sync_k32_partial");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+    let src = "PROGRAM \"pw\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               ##h = GetStdHandle (-11)\n\
+               part$ = \"AB\" + CHR$ (255) + \"C\"\n\
+               sent = 0\n\
+               WriteFile (##h, &part$, LEN (part$), &sent, 0)\n\
+               PRINT \"X\"\n\
+               PRINT sent\n\
+               ##hin = GetStdHandle (-10)\n\
+               buf$ = CHR$ (0, 32)\n\
+               got = 0\n\
+               ReadFile (##hin, &buf$, 32, &got, 0)\n\
+               PRINT got\n\
+               PRINT buf${0}\n\
+               END FUNCTION\n\
+               END PROGRAM\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse partial-write program")
+        .lower_ir()
+        .expect("lower partial-write program");
+    let stdin_bytes: Vec<Vec<u8>> = vec![vec![b'A', 0xff, b'B']];
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, stdin_bytes, &mut interp)
+        .expect("run interp partial write");
+    let interp_out: Vec<u8> = interp
+        .into_iter()
+        .flat_map(|l| {
+            // Output entries are byte-faithful: chars 0-255 map 1:1 to bytes.
+            let mut b = l.chars().map(|c| c as u8).collect::<Vec<u8>>();
+            b.push(b'\n');
+            b
+        })
+        .collect();
+    let rust_c = CEmitter::new().emit_program(&prog);
+    // LF-free stdin: the interp input channel is line-based (a trailing LF
+    // is not representable — the one remaining RT-IO-BYTES boundary).
+    let raw_stdin: &[u8] = &[b'A', 0xff, b'B'];
+    let rust_out = compile_and_exec_bytes(&tmp, "pw_rust", rust_c.as_bytes(), Some(raw_stdin));
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec_bytes(&tmp, "pw_self", &self_c, Some(raw_stdin));
+    let expected = b"AB\xffCX\n4\n3\n65\n".to_vec();
+    assert_eq!(interp_out, expected, "interpreter reference (bytes)");
+    assert_eq!(rust_out, expected, "Rust CEmitter partial-write output");
+    assert_eq!(self_out, expected, "cgen.x partial-write output");
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2423,7 +2526,7 @@ fn cemitter_and_cgen_agree_on_selfhost_tools() {
         } else {
             ir.clone()
         };
-        let input_lines: Vec<String> = input.lines().map(String::from).collect();
+        let input_lines: Vec<Vec<u8>> = common::byte_lines(input.as_bytes());
 
         let rust_c = CEmitter::new().emit_program(&prog);
         let rust_out = compile_and_exec(

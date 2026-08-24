@@ -65,11 +65,10 @@ fn compile_and_run_mode(
     let mut lines = Vec::new();
     let input_path = source_path.with_extension("in");
     let state = if input_path.exists() {
-        let input: Vec<String> = fs::read_to_string(&input_path)
-            .map_err(|error| format!("cannot read {}: {error}", input_path.display()))?
-            .lines()
-            .map(|l| l.to_string())
-            .collect();
+        let input: Vec<Vec<u8>> = byte_lines(
+            &fs::read(&input_path)
+                .map_err(|error| format!("cannot read {}: {error}", input_path.display()))?,
+        );
         Interpreter::new()
             .execute_main_with_input(&program, input, &mut lines)
             .map_err(|error| format!("cannot execute {}: {error}", source_path.display()))?
@@ -104,4 +103,20 @@ pub fn check_selfhost(
         assert_eq!(state.metadata().version(), Some("0.0001"));
     }
     Ok(())
+}
+
+/// Byte-faithful input lines with `str::lines()` semantics: split on LF,
+/// strip a trailing CR per line, and drop the single trailing empty line
+/// produced by a final newline (empty input -> no lines).
+pub(crate) fn byte_lines(bytes: &[u8]) -> Vec<Vec<u8>> {
+    let mut lines: Vec<Vec<u8>> = bytes.split(|b| *b == b'\n').map(|c| c.to_vec()).collect();
+    for l in &mut lines {
+        if l.last() == Some(&b'\r') {
+            l.pop();
+        }
+    }
+    if bytes.ends_with(b"\n") || bytes.is_empty() {
+        lines.pop();
+    }
+    lines
 }

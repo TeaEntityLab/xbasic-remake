@@ -105,7 +105,7 @@ fn cgen_x_self_hosting_pipeline() {
 
     // Step 6: Compare with Rust-hosted interpreter output
     let mut interp_out = Vec::new();
-    let input_lines: Vec<String> = compiler_in.lines().map(String::from).collect();
+    let input_lines: Vec<Vec<u8>> = common::byte_lines(compiler_in.as_bytes());
     Interpreter::new()
         .execute_main_with_input(&compiler_program, input_lines, &mut interp_out)
         .expect("execute");

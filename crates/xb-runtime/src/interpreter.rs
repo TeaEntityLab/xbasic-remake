@@ -52,7 +52,7 @@ impl Interpreter {
     pub fn execute_main_with_input(
         &self,
         program: &IrProgram,
-        input: Vec<String>,
+        input: Vec<Vec<u8>>,
         output: &mut Vec<String>,
     ) -> Result<ExecutionState, RuntimeError> {
         let mut state = ExecutionState {

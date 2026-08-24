@@ -255,8 +255,12 @@ fn run_path(path: &Path, input_path: Option<&Path>) -> Result<String, CliError> 
     let unit = FrontendUnit::parse(&source)?;
     let program = unit.lower_ir()?;
     let mut lines = Vec::new();
-    let input: Vec<String> = match input_path {
-        Some(inp) => read_source(inp)?.lines().map(|l| l.to_string()).collect(),
+    let input: Vec<Vec<u8>> = match input_path {
+        Some(inp) => std::fs::read(inp)
+            .map_err(|e| CliError::Read { path: inp.display().to_string(), source: e })?
+            .split(|b| *b == b'\n')
+            .map(|c| c.to_vec())
+            .collect(),
         None => read_stdin_lines(),
     };
     match Interpreter::new().execute_main_with_input(&program, input, &mut lines) {
@@ -269,28 +273,25 @@ fn run_path(path: &Path, input_path: Option<&Path>) -> Result<String, CliError> 
 /// Read piped stdin as `--run` input lines when no `--with-input` file is given.
 /// A terminal stdin is skipped (returns empty) so no-input/interactive runs never
 /// block; non-UTF-8 stdin is treated as empty (see RT-BYTESTRING in docs/17).
-fn read_stdin_lines() -> Vec<String> {
+fn read_stdin_lines() -> Vec<Vec<u8>> {
     use std::io::{IsTerminal, Read};
     let stdin = std::io::stdin();
     if stdin.is_terminal() {
         return Vec::new();
     }
-    // RT-IO-BYTES (partial): read raw bytes — `read_to_string` drops the
-    // WHOLE input when any line contains invalid UTF-8. Lines are split on
-    // LF and lossy-converted per line, so high-byte lines survive (full
-    // byte fidelity needs the Vec<u8> string-model refactor; the C backend
-    // is already byte-faithful).
+    // RT-IO-BYTES: raw bytes, split on LF — the interp string model holds
+    // bytes, so stdin is byte-faithful end-to-end (matches the C backend).
     let mut bytes = Vec::new();
     if stdin.lock().read_to_end(&mut bytes).is_err() {
         return Vec::new();
     }
     let mut lines = Vec::new();
     for chunk in bytes.split(|b| *b == b'\n') {
-        let mut line = chunk;
+        let mut line = chunk.to_vec();
         if line.last() == Some(&b'\r') {
-            line = &line[..line.len() - 1];
+            line.pop();
         }
-        lines.push(String::from_utf8_lossy(line).into_owned());
+        lines.push(line);
     }
     // A trailing newline yields one empty trailing chunk — `str::lines`
     // semantics drop it.

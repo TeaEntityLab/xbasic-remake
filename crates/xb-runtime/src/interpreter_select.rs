@@ -96,7 +96,16 @@ pub(crate) fn exec_print(
         }
         line.push_str(&eval(program, expr, state, output)?.render_faithful());
     }
-    output.push(line);
+    if state.line_pending {
+        if let Some(last) = output.last_mut() {
+            last.push_str(&line);
+        } else {
+            output.push(line);
+        }
+        state.line_pending = false;
+    } else {
+        output.push(line);
+    }
     Ok(())
 }
 

@@ -54,17 +54,9 @@ fn self_rebuild_compiler_x_produces_identical_ir_and_output() {
 
     // Stage-2 execution: run the parsed IrProgram through the interpreter
     let input = if compiler_in.exists() {
-        fs::read_to_string(&compiler_in)
-            .expect("read compiler.in")
-            .lines()
-            .map(|l| l.to_string())
-            .collect::<Vec<_>>()
+        common::byte_lines(&fs::read(&compiler_in).expect("read compiler.in"))
     } else {
-        fs::read_to_string(&compiler_x)
-            .expect("read compiler.x as input")
-            .lines()
-            .map(|l| l.to_string())
-            .collect::<Vec<_>>()
+        common::byte_lines(&fs::read(&compiler_x).expect("read compiler.x as input"))
     };
     let mut stage2_lines = Vec::new();
     Interpreter::new()
@@ -105,18 +97,10 @@ fn self_rebuild_all_selfhost_corpus_identical() {
         assert_eq!(stage1_ir, stage2_ir, "{stem}: IR mismatch");
 
         // Stage-2 execution
-        let input: Vec<String> = if in_path.exists() {
-            fs::read_to_string(&in_path)
-                .unwrap_or_else(|e| panic!("{stem}: read .in failed: {e}"))
-                .lines()
-                .map(|l| l.to_string())
-                .collect()
+        let input: Vec<Vec<u8>> = if in_path.exists() {
+            common::byte_lines(&fs::read(&in_path).unwrap_or_else(|e| panic!("{stem}: read .in failed: {e}")))
         } else {
-            fs::read_to_string(&x_path)
-                .unwrap_or_else(|e| panic!("{stem}: read .x failed: {e}"))
-                .lines()
-                .map(|l| l.to_string())
-                .collect()
+            common::byte_lines(&fs::read(&x_path).unwrap_or_else(|e| panic!("{stem}: read .x failed: {e}")))
         };
         let mut stage2_lines = Vec::new();
         Interpreter::new()
