@@ -570,6 +570,7 @@ PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 ##arrDimsSeen$ = ""
 ##fwdScalars$ = ""
 ##curFnArrays$ = ""
+##curFnShapes$ = ""
 ##curParams$ = ""
 ##arrParams$ = ""
 ##funcMixed$ = ","
@@ -911,6 +912,7 @@ WHILE pos <= LEN(src$)
           ##arrDimsSeen$ = ""
           ##fwdScalars$ = ""
           ##curFnArrays$ = fn_array_dims$(src$, pos)
+          ##curFnShapes$ = fn_array_shapes$(src$, pos)
           ##inFuncScope = 1
           nestBlocks$ = ""
           inNest = 0
@@ -923,6 +925,7 @@ WHILE pos <= LEN(src$)
       ELSE
         inFunc = 0
         ##inFuncScope = 0
+        ##curFnShapes$ = ""
         IF skipFunc = 0 THEN
           hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
           fullBody$ = hoists$ + computed_goto_prologue$(funcBody$ + nestBlocks$) + funcBody$
@@ -1644,6 +1647,9 @@ FUNCTION emit_expr$(e$)
   DIM args$
   DIM parenPos
   DIM br
+  DIM _ndShape$
+  DIM _ndRank
+  DIM _ndIdxRank
 
   IF LEFT$(e$, 7) = "string(" THEN
     t$ = MID$(e$, 9, LEN(e$) - 10)
@@ -2323,7 +2329,16 @@ FUNCTION emit_expr$(e$)
       IF RIGHT$(t$, 1) = "]" THEN
         t$ = LEFT$(t$, LEN(t$) - 1)
       END IF
-      IF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+      _ndShape$ = shape_of$(varName$)
+      _ndRank = top_part_count(_ndShape$)
+      _ndIdxRank = top_part_count(t$)
+      IF _ndRank >= 3 AND INSTR(t$, ",") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+        IF _ndRank = _ndIdxRank THEN
+          emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat_nd$(t$, _ndShape$) + "]"
+        ELSE
+          emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
+        END IF
+      ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
         emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat2d$(t$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "]"
       ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_expr$ = c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
@@ -2764,6 +2779,120 @@ FUNCTION emit_flat2d$(a$, d1v$)
   WEND
   i1$ = trim_spaces$(MID$(a$, start, LEN(a$) - start + 1))
   emit_flat2d$ = "(" + emit_expr$(i0$) + ") * (" + d1v$ + " + 1) + (" + emit_expr$(i1$) + ")"
+END FUNCTION
+
+' Count top-level comma-separated expressions (paren/string aware).
+FUNCTION top_part_count(a$)
+  DIM i
+  DIM ch
+  DIM depth
+  DIM n
+  IF LEN(a$) = 0 THEN
+    top_part_count = 0
+    RETURN top_part_count
+  END IF
+  i = 1
+  depth = 0
+  n = 1
+  WHILE i <= LEN(a$)
+    ch = ASC(MID$(a$, i, 1))
+    IF ch = 34 THEN
+      i = i + 1
+      WHILE i <= LEN(a$)
+        ch = ASC(MID$(a$, i, 1))
+        IF ch = 92 THEN
+          i = i + 2
+        ELSEIF ch = 34 THEN
+          EXIT WHILE
+        ELSE
+          i = i + 1
+        END IF
+      WEND
+    ELSEIF ch = 40 THEN
+      depth = depth + 1
+    ELSEIF ch = 41 THEN
+      depth = depth - 1
+    ELSEIF ch = 44 AND depth = 0 THEN
+      n = n + 1
+    END IF
+    i = i + 1
+  WEND
+  top_part_count = n
+END FUNCTION
+
+' Return one 1-based top-level comma-separated expression.
+FUNCTION top_part$(a$, want)
+  DIM i
+  DIM ch
+  DIM depth
+  DIM start
+  DIM part
+  DIM found$
+  i = 1
+  depth = 0
+  start = 1
+  part = 1
+  found$ = ""
+  WHILE i <= LEN(a$)
+    ch = ASC(MID$(a$, i, 1))
+    IF ch = 34 THEN
+      i = i + 1
+      WHILE i <= LEN(a$)
+        ch = ASC(MID$(a$, i, 1))
+        IF ch = 92 THEN
+          i = i + 2
+        ELSEIF ch = 34 THEN
+          EXIT WHILE
+        ELSE
+          i = i + 1
+        END IF
+      WEND
+    ELSEIF ch = 40 THEN
+      depth = depth + 1
+    ELSEIF ch = 41 THEN
+      depth = depth - 1
+    ELSEIF ch = 44 AND depth = 0 THEN
+      IF part = want THEN
+        found$ = trim_spaces$(MID$(a$, start, i - start))
+        i = LEN(a$) + 1
+      ELSE
+        part = part + 1
+        start = i + 1
+      END IF
+    END IF
+    i = i + 1
+  WEND
+  IF LEN(found$) = 0 AND part = want THEN
+    found$ = trim_spaces$(MID$(a$, start, LEN(a$) - start + 1))
+  END IF
+  top_part$ = found$
+END FUNCTION
+
+' General row-major flat offset. Shape and access ranks must match.
+' Mirrors Rust: sum(ik * product((dm)+1 for m>k)).
+FUNCTION emit_flat_nd$(indices$, dims$)
+  DIM ni
+  DIM nd
+  DIM k
+  DIM j
+  DIM out$
+  ni = top_part_count(indices$)
+  nd = top_part_count(dims$)
+  IF ni <> nd OR ni = 0 THEN
+    emit_flat_nd$ = emit_expr$(first_comma_part$(indices$))
+    RETURN emit_flat_nd$
+  END IF
+  out$ = ""
+  FOR k = 1 TO ni
+    IF LEN(out$) > 0 THEN
+      out$ = out$ + " + "
+    END IF
+    out$ = out$ + "(" + emit_expr$(top_part$(indices$, k)) + ")"
+    FOR j = k + 1 TO nd
+      out$ = out$ + " * ((" + emit_expr$(top_part$(dims$, j)) + ")+1)"
+    NEXT j
+  NEXT k
+  emit_flat_nd$ = "(" + out$ + ")"
 END FUNCTION
 
 ' The 2nd-dimension size expression of a multi-dim Dim's bracket (`a,b` -> emit b),
@@ -3450,6 +3579,81 @@ FUNCTION fn_array_dims$(s$, fromPos)
     END IF
   WEND
   fn_array_dims$ = res$
+END FUNCTION
+
+' Current-function multi-dimensional shapes as newline-delimited
+' `name|raw-dim-list` entries. Used only for rank 3+ flat arrays; rank-2
+' keeps the historical xb_d1_ path byte-for-byte.
+FUNCTION fn_array_shapes$(s$, fromPos)
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM depth
+  DIM r$
+  DIM bp
+  DIM rb
+  DIM nm$
+  DIM cp
+  DIM dims$
+  res$ = ""
+  p = fromPos
+  depth = 1
+  WHILE p <= LEN(s$) AND depth > 0
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 9) = "function " THEN
+      depth = depth + 1
+    ELSEIF ln$ = "end function" THEN
+      depth = depth - 1
+    ELSEIF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
+      IF LEFT$(r$, 7) = "shared " THEN
+        r$ = MID$(r$, 8, LEN(r$) - 7)
+      END IF
+      bp = INSTR(r$, "[")
+      rb = INSTR(r$, "]", bp + 1)
+      IF bp > 0 AND rb > bp THEN
+        dims$ = MID$(r$, bp + 1, rb - bp - 1)
+        IF top_part_count(dims$) > 1 THEN
+          nm$ = LEFT$(r$, bp - 1)
+          cp = INSTR(nm$, ":")
+          IF cp > 0 THEN
+            nm$ = LEFT$(nm$, cp - 1)
+          END IF
+          IF INSTR(res$, CHR$(10) + nm$ + "|") = 0 THEN
+            res$ = res$ + CHR$(10) + nm$ + "|" + dims$ + CHR$(10)
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  fn_array_shapes$ = res$
+END FUNCTION
+
+FUNCTION shape_of$(n$)
+  DIM p
+  DIM start
+  DIM e
+  p = INSTR(##curFnShapes$, CHR$(10) + n$ + "|")
+  IF p = 0 THEN
+    shape_of$ = ""
+    RETURN shape_of$
+  END IF
+  start = p + LEN(n$) + 2
+  e = INSTR(##curFnShapes$, CHR$(10), start)
+  IF e = 0 THEN
+    e = LEN(##curFnShapes$) + 1
+  END IF
+  shape_of$ = MID$(##curFnShapes$, start, e - start)
 END FUNCTION
 
 ' True when `n$` is a dyn-array name (##dynStr$/##dynNames$, program-wide) that is
@@ -4782,6 +4986,9 @@ FUNCTION emit_stmt$(s$)
   DIM atIsFloat
   DIM sp
   DIM expr$
+  DIM _ndShape$
+  DIM _ndRank
+  DIM _ndIdxRank
 
   IF LEFT$(s$, 8) = "function" THEN
     emit_stmt$ = ""
@@ -4982,7 +5189,16 @@ FUNCTION emit_stmt$(s$)
     IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
       emit_stmt$ = "    (void)(" + c2$ + ");"
     ELSE
-      IF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+      _ndShape$ = shape_of$(varName$)
+      _ndRank = top_part_count(_ndShape$)
+      _ndIdxRank = top_part_count(cExpr$)
+      IF _ndRank >= 3 AND INSTR(cExpr$, ",") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+        IF _ndRank = _ndIdxRank THEN
+          emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat_nd$(cExpr$, _ndShape$) + "] = " + c2$ + ";"
+        ELSE
+          emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_expr$(first_comma_part$(cExpr$)) + "] = " + c2$ + ";"
+        END IF
+      ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
         emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat2d$(cExpr$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "] = " + c2$ + ";"
       ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_expr$(first_comma_part$(cExpr$)) + "] = " + c2$ + ";"

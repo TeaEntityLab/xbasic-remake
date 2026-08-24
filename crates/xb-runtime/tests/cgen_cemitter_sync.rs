@@ -190,6 +190,46 @@ fn cemitter_and_cgen_agree_on_positive_corpus() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// CGEN-NDIM: rank-3 *flat-storage* array access/assignment must flatten
+/// row-major through both generators. cgen.x historically passed the third
+/// index through to C's comma operator because `emit_flat2d$` consumed only
+/// two indices. A 1-D DIM plus a multi-dimensional DIM forces the same flat
+/// representation as adatadim's dual-use arrays.
+#[test]
+fn cemitter_and_cgen_agree_on_rank_three_flat_array() {
+    let tmp = std::env::temp_dir().join("xb_sync_rank3_flat");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               AUTO cube[]\n\
+               DIM cube[5]\n\
+               DIM cube[1,2,3]\n\
+               cube[1,2,3] = 123\n\
+               cube[0,1,2] = 12\n\
+               PRINT cube[1,2,3]\n\
+               PRINT cube[0,1,2]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse rank-3 flat program")
+        .lower_ir()
+        .expect("lower rank-3 flat program");
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("run interp rank-3 flat");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "rank3_flat_rust", rust_c.as_bytes(), None);
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "rank3_flat_self", &self_c, None);
+    assert_eq!(interp_out, "123\n12\n", "interpreter reference");
+    assert_eq!(rust_out, interp_out, "Rust CEmitter rank-3 flat output");
+    assert_eq!(self_out, interp_out, "cgen.x rank-3 flat output");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// CG-BYTESTRING: `CHR$(0)`, embedded, and high bytes must survive concat / LEN /
 /// PRINT byte-for-byte through BOTH C generators and match the interpreter. The
 /// pre-fix C `char*` null-terminated representation truncated at the first NUL;
