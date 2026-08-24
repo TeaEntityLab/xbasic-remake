@@ -363,6 +363,27 @@ pub(crate) fn call_function(
         "XuiGetNextCallback" if args.len() >= 2 => {
             return gui_next_callback(args, state);
         }
+        "GetStdHandle" if args.len() == 1 => {
+            // RT-KERNEL32: Win32-CGI stdio handles. -10 stdin, -11 stdout,
+            // -12 stderr; anything else is invalid (-1).
+            let dev = match eval(program, &args[0], state, output)? {
+                RuntimeValue::Integer(v) => v,
+                other => other.render().parse::<i32>().unwrap_or(0),
+            };
+            let h = match dev {
+                -10 => 0,
+                -11 => 1,
+                -12 => 2,
+                _ => -1,
+            };
+            return Ok(RuntimeValue::Integer(h));
+        }
+        "WriteFile" if args.len() == 5 => {
+            return kernel32_write_file(program, args, state, output);
+        }
+        "ReadFile" if args.len() == 5 => {
+            return kernel32_read_file(program, args, state, output);
+        }
         "XgrProcessMessages" => {
             // Headless: the real Xgr library processes GUI events and dispatches
             // callbacks; without it the demo would hang forever in its event loop.
@@ -576,6 +597,93 @@ fn array_lvalue(expr: &IrExpr) -> (String, bool) {
 fn slot_array(state: &ExecutionState, name: &str, shared: bool) -> Vec<RuntimeValue> {
     let tbl = if shared { &state.shared } else { &state.slots };
     tbl.get(name).and_then(|s| s.array.clone()).unwrap_or_default()
+}
+
+/// RT-KERNEL32 `WriteFile(h, &buf$, bytes, &written, _)`: write up to `bytes`
+/// of the buffer string to the handle's stream (0 stdin-invalid, 1 stdout,
+/// 2 stderr), store the byte count through the out-param (a bare `&sym`
+/// lowers to a plain symbol), return 1 on full success.
+fn kernel32_write_file(
+    program: &IrProgram,
+    args: &[IrExpr],
+    state: &mut ExecutionState,
+    output: &mut Vec<String>,
+) -> Result<RuntimeValue, RuntimeError> {
+    let handle = match eval(program, &args[0], state, output)? {
+        RuntimeValue::Integer(v) => v,
+        _ => -1,
+    };
+    let data = match eval(program, &args[1], state, output)? {
+        RuntimeValue::String(b) => b,
+        other => other.render().into_bytes(),
+    };
+    let bytes = match eval(program, &args[2], state, output)? {
+        RuntimeValue::Integer(v) => v.max(0) as usize,
+        _ => 0,
+    };
+    let n = bytes.min(data.len());
+    if handle != 1 && handle != 2 {
+        xst_write_back(&args[3], RuntimeValue::Integer(0), state);
+        return Ok(RuntimeValue::Integer(0));
+    }
+    if n > 0 {
+        // Stream semantics: complete lines become entries; a trailing partial
+        // line splices into the last entry so a following PRINT continues the
+        // same C output line (the harness joins entries with LF).
+        let text = String::from_utf8_lossy(&data[..n]).into_owned();
+        let mut parts = text.split('\n').peekable();
+        while let Some(part) = parts.next() {
+            if parts.peek().is_some() {
+                output.push(part.to_string());
+            } else if part.is_empty() {
+                // Data ended with LF: nothing pending.
+            } else if let Some(last) = output.last_mut() {
+                last.push_str(part);
+            } else {
+                output.push(part.to_string());
+            }
+        }
+    }
+    xst_write_back(&args[3], RuntimeValue::Integer(n as i32), state);
+    Ok(RuntimeValue::Integer(if n == bytes { 1 } else { 0 }))
+}
+
+/// RT-KERNEL32 `ReadFile(h, &buf$, bytes, &read, _)`: read up to `bytes` bytes
+/// from stdin (the interp's remaining unread input lines joined with LF),
+/// replace the buffer string with exactly those bytes, store the count, and
+/// return 1 when any bytes were read.
+fn kernel32_read_file(
+    program: &IrProgram,
+    args: &[IrExpr],
+    state: &mut ExecutionState,
+    output: &mut Vec<String>,
+) -> Result<RuntimeValue, RuntimeError> {
+    let handle = match eval(program, &args[0], state, output)? {
+        RuntimeValue::Integer(v) => v,
+        _ => -1,
+    };
+    let bytes = match eval(program, &args[2], state, output)? {
+        RuntimeValue::Integer(v) => v.max(0) as usize,
+        _ => 0,
+    };
+    if handle != 0 || bytes == 0 {
+        xst_write_back(&args[3], RuntimeValue::Integer(0), state);
+        return Ok(RuntimeValue::Integer(0));
+    }
+    // Consume ALL remaining input (a CGI POST body), then truncate to `bytes`.
+    let mut rest: Vec<u8> = Vec::new();
+    while state.input_pos < state.input.len() {
+        if !rest.is_empty() {
+            rest.push(b'\n');
+        }
+        rest.extend_from_slice(&state.input[state.input_pos].as_bytes());
+        state.input_pos += 1;
+    }
+    rest.truncate(bytes);
+    let n = rest.len();
+    xst_write_back(&args[1], RuntimeValue::String(rest), state);
+    xst_write_back(&args[3], RuntimeValue::Integer(n as i32), state);
+    Ok(RuntimeValue::Integer(if n > 0 { 1 } else { 0 }))
 }
 
 /// `XstQuickSort(@a[], @n[], low, high, mode)` — stably sort `a[low..=high]` in

@@ -1074,6 +1074,9 @@ impl CEmitter {
         if body.contains("xb_gui_next_callback(") {
             crate::c_runtime::emit_gui_runtime(&mut out);
         }
+        if body.contains("xb_write_file(") || body.contains("xb_read_file(") || body.contains("xb_getstdhandle(") {
+            crate::c_runtime::emit_kernel32_runtime(&mut out);
+        }
         if body.contains("xb_xin_") {
             crate::c_emit_xin::emit_xin_runtime(&mut out);
         }

@@ -357,6 +357,39 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(", ");
                 emit_byref_addr(&args[1], out);
                 out.push(')');
+            } else if name == "GetStdHandle" && args.len() == 1 {
+                // RT-KERNEL32: Win32-CGI stdio handles (-10 stdin, -11 stdout,
+                // -12 stderr; else -1). Mirrors interp call.rs.
+                out.push_str("xb_getstdhandle(");
+                emit_expr(&args[0], out);
+                out.push(')');
+            } else if name == "WriteFile" && args.len() == 5 {
+                // RT-KERNEL32 `WriteFile(h, &buf$, bytes, &written, _)`: the
+                // legacy `&x` prefix lowers to a PLAIN symbol (no byref), so
+                // the buffer passes as its char* value and the count out-param
+                // takes its address positionally (mirrors interp call.rs).
+                out.push_str("xb_write_file(");
+                emit_expr(&args[0], out);
+                out.push_str(", ");
+                emit_byref_value(&args[1], out);
+                out.push_str(", ");
+                emit_expr(&args[2], out);
+                out.push_str(", ");
+                emit_byref_addr(&args[3], out);
+                out.push_str(", 0)");
+            } else if name == "ReadFile" && args.len() == 5 {
+                // RT-KERNEL32 `ReadFile(h, &buf$, bytes, &read, _)`: the buffer
+                // is replaced through its char** address (helper xb_allocs the
+                // exact byte count read).
+                out.push_str("xb_read_file(");
+                emit_expr(&args[0], out);
+                out.push_str(", ");
+                emit_byref_addr(&args[1], out);
+                out.push_str(", ");
+                emit_expr(&args[2], out);
+                out.push_str(", ");
+                emit_byref_addr(&args[3], out);
+                out.push_str(", 0)");
             } else if name == "XstQuickSort" && args.len() == 5 {
                 emit_quicksort_call(args, out);
             } else if name == "XstCopyArray" && args.len() == 2 {

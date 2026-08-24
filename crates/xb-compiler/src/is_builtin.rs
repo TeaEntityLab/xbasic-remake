@@ -166,5 +166,8 @@ pub fn is_builtin(name: &str) -> bool {
             | "DOUBLEAT"
             | "SUBADDRAT"
             | "GOADDRAT"
+            | "GetStdHandle"
+            | "WriteFile"
+            | "ReadFile"
     )
 }

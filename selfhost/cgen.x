@@ -692,6 +692,31 @@ IF INSTR(src$, "XuiGetNextCallback") > 0 THEN
   PRINT "}"
   PRINT ""
 END IF
+IF INSTR(src$, "GetStdHandle") > 0 OR INSTR(src$, "WriteFile") > 0 OR INSTR(src$, "ReadFile") > 0 THEN
+  PRINT "static int xb_getstdhandle(int dev) { if (dev == -10) return 0; if (dev == -11) return 1; if (dev == -12) return 2; return -1; }"
+  PRINT "static int xb_write_file(int h, const char* buf, int bytes, int* written, void* ov) {"
+  PRINT "    (void)ov; if (written) *written = 0;"
+  PRINT "    if (h != 1 && h != 2) return 0;"
+  PRINT "    if (!buf || bytes <= 0) return bytes == 0 ? 1 : 0;"
+  PRINT "    FILE* f = (h == 1) ? stdout : stderr;"
+  PRINT "    size_t n = fwrite(buf, 1, (size_t)bytes, f);"
+  PRINT "    if (h == 1) fflush(stdout);"
+  PRINT "    if (written) *written = (int)n;"
+  PRINT "    return (int)n == bytes ? 1 : 0;"
+  PRINT "}"
+  PRINT "static int xb_read_file(int h, char** buf, int bytes, int* read, void* ov) {"
+  PRINT "    (void)ov; if (read) *read = 0;"
+  PRINT "    if (h != 0 || !buf || bytes <= 0) return 0;"
+  PRINT "    char* tmp = (char*)malloc((size_t)bytes);"
+  PRINT "    if (!tmp) return 0;"
+  PRINT "    size_t n = fread(tmp, 1, (size_t)bytes, stdin);"
+  PRINT "    char* d = xb_alloc(n); if (n) memcpy(d, tmp, n);"
+  PRINT "    free(tmp); *buf = d;"
+  PRINT "    if (read) *read = (int)n;"
+  PRINT "    return n > 0 ? 1 : 0;"
+  PRINT "}"
+  PRINT ""
+END IF
 IF INSTR(src$, "XgrProcessMessages") > 0 THEN
   PRINT "static void xb_xgr_process_messages(intptr_t mode) { (void)mode; exit(0); }"
   PRINT ""
@@ -1968,6 +1993,60 @@ FUNCTION emit_expr$(e$)
       ' Only the first 2 byref args (grid, message$) are passed; the rest are
       ' dropped, matching the Rust CEmitter (c_emit_expr.rs:336-343).
       emit_expr$ = "xb_gui_next_callback(" + emit_args_n$(args$, 2) + ")"
+      RETURN emit_expr$
+    END IF
+    IF fn$ = "GetStdHandle" THEN
+      ' RT-KERNEL32: Win32-CGI stdio handles (-10 stdin, -11 stdout, -12 stderr).
+      emit_expr$ = "xb_getstdhandle(" + emit_expr$(first_comma_part$(args$)) + ")"
+      RETURN emit_expr$
+    END IF
+    IF (fn$ = "WriteFile" OR fn$ = "ReadFile") THEN
+      ' RT-KERNEL32 `WriteFile/ReadFile(h, &buf$, bytes, &written, _)`: the
+      ' legacy `&x` prefix lowers to a PLAIN symbol, so out-params take their
+      ' addresses positionally (mirrors interp call.rs + Rust c_emit_expr).
+      DIM _k32h$
+      DIM _k32buf$
+      DIM _k32bytes$
+      DIM _k32out$
+      DIM _k32bn$
+      DIM _k32bt$
+      DIM _k32colon
+      _k32h$ = top_part$(args$, 1)
+      _k32buf$ = top_part$(args$, 2)
+      _k32bytes$ = top_part$(args$, 3)
+      _k32out$ = top_part$(args$, 4)
+      _k32bn$ = _k32out$
+      _k32bt$ = "integer"
+      IF LEFT$(_k32out$, 7) = "symbol(" AND RIGHT$(_k32out$, 1) = ")" THEN
+        _k32bn$ = MID$(_k32out$, 8, LEN(_k32out$) - 8)
+        _k32colon = INSTR(_k32bn$, ":")
+        IF _k32colon > 0 THEN
+          _k32bt$ = MID$(_k32bn$, _k32colon + 1, LEN(_k32bn$) - _k32colon)
+          _k32bn$ = LEFT$(_k32bn$, _k32colon - 1)
+        ELSE
+          _k32bt$ = "integer"
+        END IF
+      END IF
+      IF fn$ = "WriteFile" THEN
+        emit_expr$ = "xb_write_file(" + emit_expr$(_k32h$) + ", " + emit_expr$(_k32buf$) + ", " + emit_expr$(_k32bytes$) + ", &" + c_var_name$(_k32bn$, _k32bt$) + ", 0)"
+      ELSE
+        ' ReadFile's buffer is replaced through its char** address.
+        DIM _k32rbn$
+        DIM _k32rbt$
+        _k32rbn$ = _k32buf$
+        _k32rbt$ = "string"
+        IF LEFT$(_k32buf$, 7) = "symbol(" AND RIGHT$(_k32buf$, 1) = ")" THEN
+          _k32rbn$ = MID$(_k32buf$, 8, LEN(_k32buf$) - 8)
+          _k32colon = INSTR(_k32rbn$, ":")
+          IF _k32colon > 0 THEN
+            _k32rbt$ = MID$(_k32rbn$, _k32colon + 1, LEN(_k32rbn$) - _k32colon)
+            _k32rbn$ = LEFT$(_k32rbn$, _k32colon - 1)
+          ELSE
+            _k32rbt$ = "string"
+          END IF
+        END IF
+        emit_expr$ = "xb_read_file(" + emit_expr$(_k32h$) + ", &" + c_var_name$(_k32rbn$, _k32rbt$) + ", " + emit_expr$(_k32bytes$) + ", &" + c_var_name$(_k32bn$, _k32bt$) + ", 0)"
+      END IF
       RETURN emit_expr$
     END IF
     IF fn$ = "CHR$" THEN
@@ -5611,6 +5690,19 @@ FUNCTION emit_stmt$(s$)
         RETURN emit_stmt$
       END IF
       emit_stmt$ = ""
+      RETURN emit_stmt$
+    END IF
+    IF fn$ = "WriteFile" OR fn$ = "ReadFile" THEN
+      ' RT-KERNEL32 statement-position call: reuse the expression arm.
+      DIM k32Expr$
+      DIM k32Save$
+      k32Save$ = MID$(s$, 6, LEN(s$) - 5)
+      k32Expr$ = emit_expr$("call " + k32Save$)
+      IF LEN(k32Expr$) > 0 THEN
+        emit_stmt$ = "    " + k32Expr$ + ";"
+      ELSE
+        emit_stmt$ = ""
+      END IF
       RETURN emit_stmt$
     END IF
     IF fn$ = "XgrProcessMessages" THEN

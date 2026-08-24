@@ -471,6 +471,36 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 out.push_str(");\n");
                 return;
             }
+            if name == "WriteFile" && args.len() == 5 {
+                out.push_str(&ind);
+                crate::c_emit_expr::emit_expr(
+                    &crate::ir::IrExpr {
+                        kind: crate::ir::IrExprKind::FunctionCall {
+                            name: name.clone(),
+                            args: args.to_vec(),
+                        },
+                        value_type: ValueType::Integer,
+                    },
+                    out,
+                );
+                out.push_str(";\n");
+                return;
+            }
+            if name == "ReadFile" && args.len() == 5 {
+                out.push_str(&ind);
+                crate::c_emit_expr::emit_expr(
+                    &crate::ir::IrExpr {
+                        kind: crate::ir::IrExprKind::FunctionCall {
+                            name: name.clone(),
+                            args: args.to_vec(),
+                        },
+                        value_type: ValueType::Integer,
+                    },
+                    out,
+                );
+                out.push_str(";\n");
+                return;
+            }
             if crate::c_emit::is_unknown_call(name) {
                 // Unknown callee: no-op (interp/LLVM stub yields a discarded
                 // zero-default, args skipped). Emitting nothing keeps undefined/

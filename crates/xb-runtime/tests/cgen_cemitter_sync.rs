@@ -274,6 +274,57 @@ fn cemitter_and_cgen_agree_on_rank_three_flat_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// RT-KERNEL32 (CGEN-KERNEL32): `GetStdHandle`/`WriteFile`/`ReadFile` — the
+/// Win32-CGI stdio subset — must behave identically through the interpreter
+/// and BOTH C generators. The legacy `&x` argument prefix lowers to a plain
+/// symbol, so out-params take addresses positionally. Write data ends with
+/// LF: the interpreter's line-oriented output channel cannot represent a
+/// trailing partial write (RT-IO-BYTES).
+#[test]
+fn cemitter_and_cgen_agree_on_kernel32_stdio() {
+    let tmp = std::env::temp_dir().join("xb_sync_kernel32");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+    let src = "PROGRAM \"k32\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               ##h = GetStdHandle (-11)\n\
+               out$ = \"hello-k32\" + CHR$ (10)\n\
+               n = LEN (out$)\n\
+               sent = 0\n\
+               WriteFile (##h, &out$, n, &sent, 0)\n\
+               PRINT sent\n\
+               ##hin = GetStdHandle (-10)\n\
+               buf$ = CHR$ (0, 32)\n\
+               got = 0\n\
+               ReadFile (##hin, &buf$, 32, &got, 0)\n\
+               PRINT got\n\
+               PRINT LEFT$ (buf$, got)\n\
+               bad = GetStdHandle (7)\n\
+               PRINT bad\n\
+               END FUNCTION\n\
+               END PROGRAM\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse kernel32 program")
+        .lower_ir()
+        .expect("lower kernel32 program");
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, vec!["POSTDATA-123".to_string()], &mut interp)
+        .expect("run interp kernel32");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "k32_rust", rust_c.as_bytes(), Some("POSTDATA-123"));
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "k32_self", &self_c, Some("POSTDATA-123"));
+    let expected = "hello-k32\n10\n12\nPOSTDATA-123\n-1\n";
+    assert_eq!(interp_out, expected, "interpreter reference");
+    assert_eq!(rust_out, expected, "Rust CEmitter kernel32 output");
+    assert_eq!(self_out, expected, "cgen.x kernel32 output");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// CGEN-DIM-DEDUP: an identical repeated native array DIM is one C
 /// declaration (Kittedy's duplicate `shuffle[uBlocks]`), but repeated DIM of
 /// a heap-backed/dynamic array is executable and resets/re-sizes the slot.

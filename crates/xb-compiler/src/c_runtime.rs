@@ -739,6 +739,34 @@ pub(crate) fn emit_gui_runtime(out: &mut String) {
     out.push_str("}\n");
 }
 
+/// RT-KERNEL32 Win32-CGI stdio — mirrors interp call.rs kernel32_* helpers.
+/// Handles: 0 stdin, 1 stdout, 2 stderr (GetStdHandle -10/-11/-12). Gated:
+/// emitted only when a program calls WriteFile/ReadFile.
+pub(crate) fn emit_kernel32_runtime(out: &mut String) {
+    out.push_str("static int xb_getstdhandle(int dev) { if (dev == -10) return 0; if (dev == -11) return 1; if (dev == -12) return 2; return -1; }\n");
+    out.push_str("static int xb_write_file(int h, const char* buf, int bytes, int* written, void* ov) {\n");
+    out.push_str("    (void)ov; if (written) *written = 0;\n");
+    out.push_str("    if (h != 1 && h != 2) return 0;\n");
+    out.push_str("    if (!buf || bytes <= 0) return bytes == 0 ? 1 : 0;\n");
+    out.push_str("    FILE* f = (h == 1) ? stdout : stderr;\n");
+    out.push_str("    size_t n = fwrite(buf, 1, (size_t)bytes, f);\n");
+    out.push_str("    if (h == 1) fflush(stdout);\n");
+    out.push_str("    if (written) *written = (int)n;\n");
+    out.push_str("    return (int)n == bytes ? 1 : 0;\n");
+    out.push_str("}\n");
+    out.push_str("static int xb_read_file(int h, char** buf, int bytes, int* read, void* ov) {\n");
+    out.push_str("    (void)ov; if (read) *read = 0;\n");
+    out.push_str("    if (h != 0 || !buf || bytes <= 0) return 0;\n");
+    out.push_str("    char* tmp = (char*)malloc((size_t)bytes);\n");
+    out.push_str("    if (!tmp) return 0;\n");
+    out.push_str("    size_t n = fread(tmp, 1, (size_t)bytes, stdin);\n");
+    out.push_str("    char* d = xb_alloc(n); if (n) memcpy(d, tmp, n);\n");
+    out.push_str("    free(tmp); *buf = d;\n");
+    out.push_str("    if (read) *read = (int)n;\n");
+    out.push_str("    return n > 0 ? 1 : 0;\n");
+    out.push_str("}\n");
+}
+
 /// Headless `XgrProcessMessages` C runtime — mirrors the interp's `Quit { code: 0 }`:
 /// the real Xgr library processes GUI events and dispatches callbacks; without it
 /// the demo would hang forever. Terminate immediately (exit 0) so the demo's output
