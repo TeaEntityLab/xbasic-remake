@@ -37,6 +37,10 @@ thread_local! {
     /// will actually contain (a `LabelAddress`/`goto` to any other name would be
     /// an undeclared C label; the interpreter yields 0 / errors only if executed).
     static FN_UNDIMMED_ARRAYS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
+    /// MODULE-DIM-SCOPE: names hoisted to file scope by `emit_module_dims` —
+    /// count as "dimmed" in every function context so accesses don't fold to
+    /// undimmed-array defaults.
+    static HOISTED_MODULE_DIMS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
     static FN_LABELS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
     /// Per-function GOSUB return-label occurrence counts: the first `GOSUB X` keeps
     /// the historical `xb_gosub_ret_X` (byte-identity with cgen.x on the shared
@@ -499,6 +503,7 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
     // an undimmed array (dual-use composite member `px3D.shape[i].x`).
     let mut dimmed = HashSet::new();
     crate::c_emit_hoist::collect_array_dimmed_names(items, &mut dimmed);
+    HOISTED_MODULE_DIMS.with(|h| dimmed.extend(h.borrow().iter().cloned()));
     for p in params {
         if p.is_array {
             dimmed.insert(p.name.clone());
@@ -1030,6 +1035,7 @@ impl CEmitter {
         let mut body = String::new();
         emit_globals(program, &mut body);
         emit_forward_decls(program, &mut body);
+        emit_module_dims(program, &mut body);
         emit_functions(program, &mut body);
         if !weak_symbols_enabled() {
             emit_main(program, &mut body);
@@ -1215,15 +1221,80 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
     }
 }
 
+/// MODULE-DIM-SCOPE: a top-level array DIM eligible for file-scope hoisting —
+/// fixed-size, non-string (string elements need `xb_str("")` runtime init),
+/// non-shared (already global), non-dyn (calloc must stay at the DIM site).
+fn hoistable_module_dim(item: &IrItem) -> bool {
+    match item {
+        IrItem::Dim { symbol, size, is_array, extra_dims, .. } => {
+            let sized = size.is_some() && !extra_dims.is_empty() || (size.is_some() && extra_dims.is_empty());
+            sized
+                && (*is_array || size.is_some())
+                && symbol.value_type != ValueType::String
+                && !is_shared_array(&symbol.name)
+                && !is_dyn_array(&symbol.name)
+        }
+        _ => false,
+    }
+}
+
+/// Emit file-scope `static` declarations for hoistable module-level array
+/// DIMs when the program defines any function: C `main()` locals are invisible
+/// to called functions, so module-level arrays referenced across functions
+/// must live at file scope. Behaviorally transparent (same storage, zero-init).
+fn emit_module_dims(program: &IrProgram, out: &mut String) {
+    let has_fn = program
+        .items
+        .iter()
+        .any(|i| matches!(i, IrItem::Function { .. }));
+    HOISTED_MODULE_DIMS.with(|s| s.borrow_mut().clear());
+    if !has_fn {
+        return;
+    }
+    HOISTED_MODULE_DIMS.with(|s| {
+        let mut set = s.borrow_mut();
+        for item in &program.items {
+            if let IrItem::Dim { symbol, .. } = item {
+                if hoistable_module_dim(item) {
+                    set.insert(symbol.name.clone());
+                }
+            }
+        }
+    });
+    for item in &program.items {
+        if let IrItem::Dim { symbol, size, extra_dims, .. } = item {
+            if !hoistable_module_dim(item) {
+                continue;
+            }
+            let mut dims = Vec::new();
+            if let Some(sz) = size {
+                dims.push(sz.clone());
+            }
+            dims.extend(extra_dims.iter().cloned());
+            out.push_str("static ");
+            out.push_str(c_type(symbol.value_type));
+            out.push(' ');
+            emit_array_var_name(symbol, out);
+            out.push('[');
+            emit_flat_size(&dims, out);
+            out.push_str("];\n");
+        }
+    }
+}
+
 fn emit_main(program: &IrProgram, out: &mut String) {
     let top: Vec<&IrItem> = program
         .items
         .iter()
         .filter(|i| {
-            !matches!(
+            if matches!(
                 i,
                 IrItem::Function { .. } | IrItem::Version(_) | IrItem::ProgramName(_)
-            )
+            ) {
+                return false;
+            }
+            // MODULE-DIM-SCOPE: hoisted to file scope (emit_module_dims).
+            !hoistable_module_dim(i)
         })
         .collect();
     // Entry point: mirror IrProgram::entry_or_first("Main") / the interpreter's
