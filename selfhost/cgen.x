@@ -567,6 +567,7 @@ PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
 ##dualUse$ = ""
 ##arr2d$ = ""
 ##scalarSeen$ = ""
+##arrDimsSeen$ = ""
 ##fwdScalars$ = ""
 ##curFnArrays$ = ""
 ##curParams$ = ""
@@ -907,6 +908,7 @@ WHILE pos <= LEN(src$)
           dimmedSyms$ = CHR$(10) + funcName$ + CHR$(10) + param_names$(params$)
           ##gosubRetCount$ = ""
           ##scalarSeen$ = ""
+          ##arrDimsSeen$ = ""
           ##fwdScalars$ = ""
           ##curFnArrays$ = fn_array_dims$(src$, pos)
           ##inFuncScope = 1
@@ -945,6 +947,15 @@ WHILE pos <= LEN(src$)
         cCode$ = emit_stmt$(stmt$)
         IF inFunc = 1 THEN
           IF LEFT$(stmt$, 4) = "dim " THEN
+            IF INSTR(stmt$, "[") > 0 THEN
+              ' CGEN-DIM-DEDUP: a repeated array DIM redeclares the same C
+              ' array (Kittedy DIMs `shuffle[uBlocks]` twice). First wins.
+              IF INSTR(##arrDimsSeen$, ":" + dim_name$(stmt$) + ":") > 0 THEN
+                cCode$ = ""
+              ELSE
+                ##arrDimsSeen$ = ##arrDimsSeen$ + ":" + dim_name$(stmt$) + ":"
+              END IF
+            END IF
             IF INSTR(stmt$, "[") = 0 THEN
               IF dim_name$(stmt$) = funcName$ OR INSTR(##scalarSeen$, ":" + dim_name$(stmt$) + ":") > 0 THEN
                 cCode$ = ""
