@@ -275,12 +275,29 @@ fn read_stdin_lines() -> Vec<String> {
     if stdin.is_terminal() {
         return Vec::new();
     }
-    let mut buf = String::new();
-    if stdin.lock().read_to_string(&mut buf).is_ok() {
-        buf.lines().map(|l| l.to_string()).collect()
-    } else {
-        Vec::new()
+    // RT-IO-BYTES (partial): read raw bytes — `read_to_string` drops the
+    // WHOLE input when any line contains invalid UTF-8. Lines are split on
+    // LF and lossy-converted per line, so high-byte lines survive (full
+    // byte fidelity needs the Vec<u8> string-model refactor; the C backend
+    // is already byte-faithful).
+    let mut bytes = Vec::new();
+    if stdin.lock().read_to_end(&mut bytes).is_err() {
+        return Vec::new();
     }
+    let mut lines = Vec::new();
+    for chunk in bytes.split(|b| *b == b'\n') {
+        let mut line = chunk;
+        if line.last() == Some(&b'\r') {
+            line = &line[..line.len() - 1];
+        }
+        lines.push(String::from_utf8_lossy(line).into_owned());
+    }
+    // A trailing newline yields one empty trailing chunk — `str::lines`
+    // semantics drop it.
+    if lines.last().is_some_and(|l| l.is_empty()) {
+        lines.pop();
+    }
+    lines
 }
 
 fn read_source(path: &Path) -> Result<String, CliError> {
