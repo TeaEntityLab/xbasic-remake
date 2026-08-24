@@ -11,7 +11,7 @@ use crate::semantics::{Analyzer, CompositeLayout, ExprResult, ItemResult, ValueT
 /// would raise a spurious type mismatch. Mirrors `auto_symbol`. A plain
 /// `Identifier` never reaches here with `suffix: None` *and* a trailing `$`/`!`/`#`
 /// (the lexer separates those), so inspecting the last char is safe.
-fn ref_value_type(name: &str, suffix: Option<xb_frontend::TypeSuffix>) -> ValueType {
+pub(crate) fn ref_value_type(name: &str, suffix: Option<xb_frontend::TypeSuffix>) -> ValueType {
     match suffix {
         Some(_) => ValueType::from_suffix(suffix),
         None => match name.chars().last() {
@@ -549,6 +549,11 @@ impl Analyzer {
     fn symbol(&self, name: &str, suffix: Option<xb_frontend::TypeSuffix>) -> ExprResult {
         let full = xb_frontend::full_name(name.to_owned(), suffix);
         let suffix_vt = ref_value_type(name, suffix);
+        // Single-`#` SharedName reads of shared-written names go to the shared
+        // slot (checked first; a local DIM of the same name keeps the local).
+        if let Some(shared) = self.shared_read_symbol(name, suffix) {
+            return shared;
+        }
         if !name.contains('.') && self.collisions.contains(name) {
             return Ok(CheckedExpr::new(
                 CheckedExprKind::Symbol(CheckedSymbol::new(self.slot_name(name, suffix), suffix_vt)),
@@ -599,6 +604,28 @@ impl Analyzer {
             }
         }
     }
+
+    /// A single-`#` SharedName READ resolves through the shared slot when the
+    /// name is written via `#name = value` anywhere in the program — legacy
+    /// `#x` IS the shared scalar form. A local DIM of the same name keeps the
+    /// local slot (decl+read pairing, e.g. acgibin's `XLONG #hStdOut` when no
+    /// shared write exists). Only fires for bare names (no suffix split).
+    fn shared_read_symbol(
+        &self,
+        name: &str,
+        suffix: Option<xb_frontend::TypeSuffix>,
+    ) -> Option<ExprResult> {
+        if suffix.is_some() || !self.shared_writes.contains(name) {
+            return None;
+        }
+        // A local declaration of this exact name pairs with the read: keep
+        // the local slot (fall through to the normal symbol path).
+        if self.symbols.contains_key(name) || self.arrays.contains_key(name) {
+            return None;
+        }
+        Some(self.shared_variable(name, None))
+    }
+
     fn byref_symbol(&self, name: &str, suffix: Option<xb_frontend::TypeSuffix>) -> ExprResult {
         // Bare `@x` reads as x's value; the ByRef marker is applied only at call
         // sites (see `call_arg`), where write-back into the caller is meaningful.

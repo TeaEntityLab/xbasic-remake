@@ -23,6 +23,9 @@ impl Analyzer {
             permissive: self.permissive,
             collisions: Self::scan_body_collisions(&inlined),
             shared_arrays: BTreeSet::new(),
+            // Shared-write names are program-wide (pre-scanned); carry them so
+            // single-`#` reads inside this function resolve to the shared slot.
+            shared_writes: self.shared_writes.clone(),
         };
         // Register params. A composite param flattens into member slots/params
         // (struct-of-arrays), matching how composite call-args are flattened so

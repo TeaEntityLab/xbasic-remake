@@ -62,6 +62,12 @@ pub struct Analyzer {
     /// `REDIM` of a `SHARED` array (or composite array) resizes the shared storage
     /// instead of shadowing it with a fresh local (`REDIM`-of-shared).
     pub(crate) shared_arrays: BTreeSet<String>,
+    /// Names written via `#name = value` (SharedAssignment) ANYWHERE in the
+    /// program, pre-scanned before statement checking. A single-`#` READ of
+    /// such a name resolves through the shared slot (legacy `#x` is the
+    /// shared scalar form) instead of a fresh local — fixing the write/read
+    /// split that left cross-function shared scalars at their type default.
+    pub(crate) shared_writes: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,6 +93,11 @@ impl Analyzer {
     }
 
     fn program(&mut self, program: &Program) -> Result<CheckedProgram, SemanticError> {
+        // Pre-scan: every `#name = value` target (SharedAssignment) in the
+        // program, so single-`#` READS can resolve through the shared slot
+        // regardless of statement order (the write may live in a later
+        // function than the read).
+        Self::scan_shared_writes(&program.statements, &mut self.shared_writes);
         // Pre-register all function signatures so call order doesn't matter.
         for statement in &program.statements {
             if let Statement::Function(f) = statement {
@@ -138,6 +149,38 @@ impl Analyzer {
         }
         Ok(CheckedProgram { items, data_values })
     }
+    /// Recursively collect SharedAssignment (`#name = value`) target names —
+    /// functions, control flow, and compound statements included.
+    fn scan_shared_writes(statements: &[Statement], out: &mut BTreeSet<String>) {
+        for s in statements {
+            match s {
+                Statement::SharedAssignment { name, .. } => {
+                    out.insert(name.clone());
+                }
+                Statement::Function(f) => Self::scan_shared_writes(&f.body, out),
+                Statement::If { then_body, else_body, .. } => {
+                    Self::scan_shared_writes(then_body, out);
+                    if let Some(eb) = else_body {
+                        Self::scan_shared_writes(eb, out);
+                    }
+                }
+                Statement::While { body, .. }
+                | Statement::DoLoop { body, .. }
+                | Statement::For { body, .. } => Self::scan_shared_writes(body, out),
+                Statement::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        Self::scan_shared_writes(&c.body, out);
+                    }
+                    if let Some(d) = default {
+                        Self::scan_shared_writes(d, out);
+                    }
+                }
+                Statement::Compound(inner) => Self::scan_shared_writes(inner, out),
+                _ => {}
+            }
+        }
+    }
+
 
     /// Register a composite TYPE layout (members with types and byte sizes).
     pub(crate) fn register_type(&mut self, name: &str, members: &[TypeMember]) {

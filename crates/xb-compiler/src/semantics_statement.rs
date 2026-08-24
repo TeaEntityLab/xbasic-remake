@@ -1,5 +1,7 @@
 use xb_frontend::{Expression, Statement, TypeSuffix};
 
+use crate::semantics_expr::ref_value_type;
+
 use crate::semantics::{
     Analyzer, CheckedExpr, CheckedItem, CheckedSymbol, CompositeLayout, ItemResult, Scope,
     SemanticError, ValueType,
@@ -235,7 +237,11 @@ impl Analyzer {
         name: &str,
         s: Option<TypeSuffix>,
     ) -> Result<ValueType, SemanticError> {
-        let req = ValueType::from_suffix(s);
+        // A single-`#` SharedName embeds its type suffix in the name
+        // (`#formData$` lexes to name "formData$", suffix None) — infer the
+        // declared type from the trailing char so the shared slot and its
+        // shared-read sites agree (`ref_value_type`, same rule as reads).
+        let req = ref_value_type(name, s);
         let declared = *self.shared.entry(name.to_owned()).or_insert(req);
         // Relaxed: always return declared type
         Ok(declared)

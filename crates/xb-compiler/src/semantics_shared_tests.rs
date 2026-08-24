@@ -155,3 +155,64 @@ fn preserves_string_shared_variable_type_from_suffix() {
             if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::SharedVariable(reference), value_type: ValueType::String } if reference.name == "XBDir")
     ));
 }
+
+#[test]
+fn single_hash_read_of_shared_written_name_resolves_shared() {
+    // `#h = 7` in one function; `PRINT #h` in another. Legacy `#x` IS the
+    // shared scalar form, so the read must resolve through the shared slot
+    // (previously it read a fresh local default — the acgibin CGI blocker).
+    let program = parse_program(
+        "FUNCTION Init\n#h = 7\nEND FUNCTION\nFUNCTION Main\nPRINT #h\nEND FUNCTION\n",
+    )
+    .unwrap();
+    let checked = Analyzer::analyze(&program).unwrap();
+    let main_body = match &checked.items[1] {
+        CheckedItem::Function { body, .. } => body,
+        _ => panic!("expected Main function"),
+    };
+    assert!(matches!(
+        &main_body[0],
+        CheckedItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::SharedVariable(reference), value_type: ValueType::Integer } if reference.name == "h")
+    ));
+}
+
+#[test]
+fn single_hash_read_with_local_dim_stays_local() {
+    // A local DIM of the same name pairs with the read: the local slot wins
+    // even when a shared write exists elsewhere.
+    let program = parse_program(
+        "FUNCTION Init\n#h = 7\nEND FUNCTION\nFUNCTION Main\nDIM h\nPRINT h\nEND FUNCTION\n",
+    )
+    .unwrap();
+    let checked = Analyzer::analyze(&program).unwrap();
+    let main_body = match &checked.items[1] {
+        CheckedItem::Function { body, .. } => body,
+        _ => panic!("expected Main function"),
+    };
+    assert!(matches!(
+        &main_body[1],
+        CheckedItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::Symbol(reference), value_type: ValueType::Integer } if reference.name == "h")
+    ));
+}
+
+#[test]
+fn shared_write_of_suffixed_shared_name_types_from_name() {
+    // `#formData$` lexes to SharedName("formData$") with suffix None; the
+    // shared slot must type String from the embedded `$` so the shared read
+    // and a string concat agree (the acgibin type-mismatch fix).
+    let program =
+        parse_program("FUNCTION Main\n#formData$ = \"x\"\nPRINT #formData$\nEND FUNCTION\n")
+            .unwrap();
+    let checked = Analyzer::analyze(&program).unwrap();
+    let main_body = match &checked.items[0] {
+        CheckedItem::Function { body, .. } => body,
+        _ => panic!("expected Main function"),
+    };
+    assert!(matches!(
+        &main_body[1],
+        CheckedItem::Print { items, .. }
+            if items.len() == 1 && matches!(&items[0], CheckedExpr { kind: CheckedExprKind::SharedVariable(reference), value_type: ValueType::String } if reference.name == "formData$")
+    ));
+}
