@@ -6,6 +6,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("#include <ctype.h>\n");
     out.push_str("#include <time.h>\n");
     out.push_str("#include <stdint.h>\n");
+    out.push_str("#ifndef _WIN32\n#include <fcntl.h>\n#include <unistd.h>\n#endif\n");
 
     // Byte-strings: a string is a char* to its data with a size_t length in an 8-byte
     // header before the data (xb_len reads it) + a trailing NUL for legacy C-lib interop.
@@ -225,12 +226,28 @@ pub(crate) fn emit_header(out: &mut String) {
     );
     out.push_str("static FILE* xb_files[256]; static int xb_file_count = 3;\n");
     out.push_str("static int xb_open(const char* name, int mode) {\n");
+    out.push_str("    int nonblock = (mode & 0x0800) != 0;\n");
+    out.push_str("    int base = mode & ~0x0800;\n");
     out.push_str("    FILE* f = NULL;\n");
-    out.push_str("    if (mode == 0) f = fopen(name, \"rb\");\n");
-    out.push_str("    else if (mode == 1 || mode == 3) f = fopen(name, \"w+b\");\n");
-    out.push_str("    else if (mode == 2) { f = fopen(name, \"r+b\"); if (!f) f = fopen(name, \"w+b\"); }\n");
-    out.push_str("    else if (mode == 4) f = fopen(name, \"w+b\");\n");
+    out.push_str("#ifdef _WIN32\n");
+    out.push_str("    (void)nonblock;\n");
+    out.push_str("    if (base == 0 || base == 0x10) f = fopen(name, \"rb\");\n");
+    out.push_str("    else if (base == 1 || base == 3 || base == 4) f = fopen(name, \"w+b\");\n");
+    out.push_str("    else if (base == 2 || base == 0x20 || base == 0x30) { f = fopen(name, \"r+b\"); if (!f) f = fopen(name, \"w+b\"); }\n");
     out.push_str("    else f = fopen(name, \"rb\");\n");
+    out.push_str("#else\n");
+    out.push_str("    int flags, access;\n");
+    out.push_str("    if (base == 0 || base == 0x10) { flags = O_RDONLY; access = 0; }\n");
+    out.push_str("    else if (base == 1 || base == 3) { flags = O_WRONLY | O_CREAT | O_TRUNC; access = 1; }\n");
+    out.push_str("    else if (base == 2) { flags = O_RDWR | O_CREAT; access = 2; }\n");
+    out.push_str("    else if (base == 4) { flags = O_RDWR | O_CREAT | O_TRUNC; access = 2; }\n");
+    out.push_str("    else if (base == 0x20) { flags = O_WRONLY | O_CREAT; access = 1; }\n");
+    out.push_str("    else if (base == 0x30) { flags = O_RDWR | O_CREAT; access = 2; }\n");
+    out.push_str("    else { flags = O_RDONLY; access = 0; }\n");
+    out.push_str("    if (nonblock) flags |= O_NONBLOCK;\n");
+    out.push_str("    int fd = open(name, flags, 0666);\n");
+    out.push_str("    if (fd >= 0) { f = fdopen(fd, access == 0 ? \"rb\" : (access == 1 ? \"wb\" : \"r+b\")); if (!f) close(fd); }\n");
+    out.push_str("#endif\n");
     out.push_str("    if (!f) return -1;\n");
     out.push_str("    int fn = xb_file_count++;\n");
     out.push_str("    xb_files[fn] = f;\n");

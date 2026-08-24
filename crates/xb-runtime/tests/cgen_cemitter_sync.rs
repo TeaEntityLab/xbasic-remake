@@ -361,6 +361,137 @@ fn cemitter_and_cgen_agree_on_record_file_io() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// OPEN mode decoding: the documented base values (0..4, 0x10/0x20/0x30)
+/// select access/create/truncate semantics, while 0x800 NONBLOCK is orthogonal.
+/// Unsupported bases fall back to read-only existing-file behavior. Each path
+/// uses absolute backend-private files so execution is isolated without chdir.
+#[test]
+fn cemitter_and_cgen_agree_on_open_mode_matrix() {
+    let tmp = std::env::temp_dir().join("xb_sync_open_modes");
+    let interp_dir = tmp.join("interp");
+    let rust_dir = tmp.join("rust");
+    let self_dir = tmp.join("self");
+    for dir in [&interp_dir, &rust_dir, &self_dir] {
+        fs::create_dir_all(dir).expect("mkdir OPEN mode dir");
+    }
+    let cgen_exe = build_native_cgen(&tmp);
+    let run = |dir: &Path, tag: &str, cgen: Option<&Path>| -> String {
+        let p = |name: &str| dir.join(format!("{tag}_{name}"));
+        for name in ["rd", "wr", "rw", "wrnew", "rwnew", "rdshare", "wrshare", "rwshare", "nbwr", "nbrw", "invalid"] {
+            fs::write(p(name), b"abc").expect("seed OPEN mode file");
+        }
+        let q = |path: &Path| path.to_string_lossy().replace('\\', "\\\\");
+        let src = format!(
+            "VERSION \"1\"\nFUNCTION Main\n\
+             f = OPEN(\"{}\", 0) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 1) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 2) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 3) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 4) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x10) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x20) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x30) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x801) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x802) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x123) : PRINT LOF(f) : CLOSE(f)\n\
+             PRINT OPEN(\"{}\", 0)\n\
+             PRINT OPEN(\"{}\", 0x10)\n\
+             f = OPEN(\"{}\", 0x20) : PRINT f : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x30) : PRINT f : CLOSE(f)\n\
+             END FUNCTION\n",
+            q(&p("rd")), q(&p("wr")), q(&p("rw")), q(&p("wrnew")), q(&p("rwnew")),
+            q(&p("rdshare")), q(&p("wrshare")), q(&p("rwshare")), q(&p("nbwr")),
+            q(&p("nbrw")), q(&p("invalid")), q(&p("missing_rd")), q(&p("missing_rdshare")),
+            q(&p("create_wrshare")), q(&p("create_rwshare")),
+        );
+        let prog = FrontendUnit::parse(&src).expect("parse OPEN mode matrix").lower_ir().expect("lower OPEN mode matrix");
+        if let Some(cgen_exe) = cgen {
+            let ir = TextIrEmitter::new().emit_program(&prog);
+            let c = cgen_emit(cgen_exe, &ir);
+            compile_and_exec(&tmp, &format!("open_{tag}"), &c, None)
+        } else if tag == "rust" {
+            let c = CEmitter::new().emit_program(&prog);
+            compile_and_exec(&tmp, "open_rust", c.as_bytes(), None)
+        } else {
+            let mut output = Vec::new();
+            Interpreter::new().execute_main_with_input(&prog, Vec::new(), &mut output).expect("interpret OPEN mode matrix");
+            output.into_iter().map(|line| format!("{line}\n")).collect()
+        }
+    };
+    let interp_out = run(&interp_dir, "interp", None);
+    let rust_out = run(&rust_dir, "rust", None);
+    let self_out = run(&self_dir, "self", Some(&cgen_exe));
+    // Handles are monotonic; missing read-only opens do not consume handles.
+    let expected = "3\n0\n3\n0\n0\n3\n3\n3\n0\n3\n3\n-1\n-1\n14\n15\n";
+    assert_eq!(interp_out, expected, "interpreter OPEN matrix reference");
+    assert_eq!(rust_out, interp_out, "Rust CEmitter OPEN mode matrix");
+    assert_eq!(self_out, interp_out, "cgen.x OPEN mode matrix");
+    assert!(!interp_dir.join("interp_missing_rd").exists());
+    assert!(!rust_dir.join("rust_missing_rd").exists());
+    assert!(!self_dir.join("self_missing_rd").exists());
+    assert!(interp_dir.join("interp_create_wrshare").exists());
+    assert!(rust_dir.join("rust_create_wrshare").exists());
+    assert!(self_dir.join("self_create_wrshare").exists());
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+#[cfg(unix)]
+fn run_c_with_timeout(tmp: &Path, name: &str, c: &[u8], timeout: std::time::Duration) -> String {
+    let c_path = tmp.join(format!("{name}.c"));
+    let exe = tmp.join(name);
+    fs::write(&c_path, c).expect("write C");
+    let cc = Command::new(common::cc::cc()).args(["-o", exe.to_str().unwrap(), c_path.to_str().unwrap()]).output().expect("cc");
+    assert!(cc.status.success(), "cc {name}: {}", String::from_utf8_lossy(&cc.stderr));
+    let mut child = Command::new(common::exe_path(&exe)).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("spawn");
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        if child.try_wait().expect("try_wait").is_some() {
+            let out = child.wait_with_output().expect("collect output");
+            assert!(out.status.success(), "{name}: {}", String::from_utf8_lossy(&out.stderr));
+            return out.stdout.iter().map(|&b| b as char).collect();
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("{name} blocked opening a FIFO with $$NONBLOCK");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+}
+
+/// NONBLOCK must reach Unix `open(2)`, not merely be stripped before mode
+/// decoding. Opening a FIFO for read with no writer would block forever without
+/// O_NONBLOCK; both generated-C runtimes must return immediately.
+#[cfg(unix)]
+#[test]
+fn cemitter_and_cgen_apply_nonblock_to_fifo() {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    let tmp = std::env::temp_dir().join("xb_sync_open_nonblock_fifo");
+    fs::create_dir_all(&tmp).expect("mkdir fifo test");
+    let cgen_exe = build_native_cgen(&tmp);
+    let check = |tag: &str, cgen: Option<&Path>| {
+        let fifo = tmp.join(format!("{tag}.fifo"));
+        let c_fifo = CString::new(fifo.as_os_str().as_bytes()).unwrap();
+        let rc = unsafe { libc::mkfifo(c_fifo.as_ptr(), 0o600) };
+        assert_eq!(rc, 0, "mkfifo {tag}: {}", std::io::Error::last_os_error());
+        let path = fifo.to_string_lossy().replace('\\', "\\\\");
+        let src = format!("VERSION \"1\"\nFUNCTION Main\nf = OPEN(\"{path}\", 0x800)\nPRINT f\nCLOSE(f)\nEND FUNCTION\n");
+        let prog = FrontendUnit::parse(&src).expect("parse FIFO OPEN").lower_ir().expect("lower FIFO OPEN");
+        let c = if let Some(cgen_exe) = cgen {
+            cgen_emit(cgen_exe, &TextIrEmitter::new().emit_program(&prog))
+        } else {
+            CEmitter::new().emit_program(&prog).into_bytes()
+        };
+        let out = run_c_with_timeout(&tmp, &format!("fifo_{tag}"), &c, std::time::Duration::from_secs(3));
+        assert_eq!(out, "3\n");
+        let _ = fs::remove_file(fifo);
+    };
+    check("rust", None);
+    check("self", Some(&cgen_exe));
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// CG-BYTESTRING: `CHR$(0)`, embedded, and high bytes must survive concat / LEN /
 /// PRINT byte-for-byte through BOTH C generators and match the interpreter. The
 /// pre-fix C `char*` null-terminated representation truncated at the first NUL;

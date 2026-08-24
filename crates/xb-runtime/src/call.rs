@@ -28,6 +28,61 @@ fn function_name_by_id(program: &IrProgram, id: i32) -> Option<String> {
     None
 }
 
+const OPEN_NONBLOCK: i32 = 0x0800;
+
+/// Decoded OPEN mode. The NONBLOCK bit is orthogonal; after removing it, only
+/// the documented base values are recognized. Unknown bases deliberately fall
+/// back to read-only existing-file behavior, matching historical OPEN failure
+/// handling without accidentally inheriting share bits.
+struct OpenMode {
+    read: bool,
+    write: bool,
+    create: bool,
+    truncate: bool,
+    nonblock: bool,
+}
+
+fn decode_open_mode(mode: i32) -> OpenMode {
+    let nonblock = mode & OPEN_NONBLOCK != 0;
+    let base = mode & !OPEN_NONBLOCK;
+    let (read, write, create, truncate) = match base {
+        0 | 0x10 => (true, false, false, false),
+        1 | 3 => (false, true, true, true),
+        2 => (true, true, true, false),
+        4 => (true, true, true, true),
+        0x20 => (false, true, true, false),
+        0x30 => (true, true, true, false),
+        _ => (true, false, false, false),
+    };
+    OpenMode {
+        read,
+        write,
+        create,
+        truncate,
+        nonblock,
+    }
+}
+
+fn open_file(name: &str, mode: i32) -> std::io::Result<std::fs::File> {
+    let mode = decode_open_mode(mode);
+    let mut options = std::fs::OpenOptions::new();
+    options
+        .read(mode.read)
+        .write(mode.write)
+        .create(mode.create)
+        .truncate(mode.truncate);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        if mode.nonblock {
+            options.custom_flags(libc::O_NONBLOCK);
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = mode.nonblock;
+    options.open(name)
+}
+
 pub(crate) fn call_function(
     program: &IrProgram,
     name: &str,
@@ -94,19 +149,10 @@ pub(crate) fn call_function(
                     actual: arg1.value_type(),
                 });
             };
-            // Mode values from xst.dec: 0=RD,1=WR,2=RW,3=WRNEW,4=RWNEW, plus
-            // share bits 0x10/0x20/0x30 and 0x800 nonblock. All modes create a
-            // missing file; NEW/WR modes start it fresh.
-            let write = matches!(mode, 1..=4) || matches!(mode & 0x30, 0x20 | 0x30);
-            let read = matches!(mode, 0 | 2 | 4) || matches!(mode & 0x30, 0x10 | 0x30) || !write;
-            let truncate = matches!(mode, 1 | 3 | 4);
-            match std::fs::OpenOptions::new()
-                .read(read)
-                .write(write)
-                .create(write)
-                .truncate(truncate)
-                .open(&name)
-            {
+            // xst.dec bases: RD/WR/RW/WRNEW/RWNEW + RD/WR/RW share modes;
+            // NONBLOCK is orthogonal. Share locking itself is platform-specific
+            // and intentionally not claimed here; access/create/truncate is exact.
+            match open_file(&name, mode) {
                 Ok(f) => {
                     let fn_num = state.files.len() + 3;
                     state.files.push(Some(f));
@@ -637,4 +683,32 @@ fn find_function<'a>(program: &'a IrProgram, name: &str) -> Result<FuncInfo<'a>,
 
 fn is_builtin(name: &str) -> bool {
     crate::is_builtin::is_builtin(name)
+}
+
+#[cfg(test)]
+mod open_mode_tests {
+    use super::*;
+
+    #[test]
+    fn decoder_masks_only_nonblock_and_falls_back_to_read_only() {
+        let write_nb = decode_open_mode(0x801);
+        assert!(!write_nb.read && write_nb.write && write_nb.create && write_nb.truncate);
+        assert!(write_nb.nonblock);
+        let invalid = decode_open_mode(0x123);
+        assert!(invalid.read && !invalid.write && !invalid.create && !invalid.truncate);
+        assert!(!invalid.nonblock);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn nonblock_bit_reaches_the_unix_file_descriptor() {
+        use std::os::fd::AsRawFd;
+        let path = std::env::temp_dir().join(format!("xb_open_nonblock_{}", std::process::id()));
+        let file = open_file(path.to_str().unwrap(), 0x801).expect("OPEN WR|NONBLOCK");
+        let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFL) };
+        assert!(flags >= 0);
+        assert_ne!(flags & libc::O_NONBLOCK, 0);
+        drop(file);
+        let _ = std::fs::remove_file(path);
+    }
 }
