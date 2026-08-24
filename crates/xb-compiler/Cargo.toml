@@ -9,9 +9,10 @@ license = "GPL-2.0-or-later"
 
 [features]
 default = []
-llvm = ["dep:inkwell"]
+llvm = ["dep:inkwell", "dep:libc"]
 
 [dependencies]
 thiserror.workspace = true
 xb-frontend.workspace = true
 inkwell = { workspace = true, optional = true }
+libc = { workspace = true, optional = true }

@@ -273,10 +273,10 @@ pub mod llvm_backend {
         /// at every call site: lowered as a pointer to a `{data, dims}` descriptor the
         /// callee reads (read-only sharing; REDIM write-back is not yet modeled).
         byref_array_params: HashMap<String, std::collections::HashSet<usize>>,
-        /// File runtime (`OPEN`/`CLOSE`/`LOF`): libc `fopen`/`fclose`/`fseek`/`ftell` plus a
-        /// fixed handle table mapping an XBasic file number (table index + 3) to its `FILE*`,
-        /// mirroring the interpreter's `files` list (`OpenOptions`, `files.len() + 3`).
-        fopen: FunctionValue<'ctx>,
+        /// File runtime: an `xb_file_open_mode(name, mode) -> FILE*` helper normalizes
+        /// documented OPEN base/share/NONBLOCK modes, then the existing `FILE*` table keeps
+        /// CLOSE/LOF/record I/O ABI-stable.
+        file_open_mode: FunctionValue<'ctx>,
         fclose: FunctionValue<'ctx>,
         fseek: FunctionValue<'ctx>,
         ftell: FunctionValue<'ctx>,
@@ -288,8 +288,6 @@ pub mod llvm_backend {
         file_eof: FunctionValue<'ctx>,
         /// Global `[FILE_SLOTS x ptr]` of open `FILE*` (index = handle − 3).
         file_table: PointerValue<'ctx>,
-        /// Global `i32` next-handle counter (monotonic, matches `files.len()`).
-        file_count: PointerValue<'ctx>,
     }
 
     impl<'ctx> Emit<'ctx> {
@@ -329,9 +327,27 @@ pub mod llvm_backend {
                 None,
             );
             let printf = module.add_function("printf", i32t.fn_type(&[ptr.into()], true), None);
-            // File runtime: libc file primitives + a fixed FILE* handle table.
+            // File runtime: normalize OPEN modes in one helper, returning FILE* so the
+            // existing fclose/fseek/ftell/fread/fwrite handle table remains unchanged.
+            #[cfg(not(unix))]
             let fopen =
                 module.add_function("fopen", ptr.fn_type(&[ptr.into(), ptr.into()], false), None);
+            #[cfg(unix)]
+            let open_fd = module.add_function(
+                "open",
+                i32t.fn_type(&[ptr.into(), i32t.into()], true),
+                None,
+            );
+            #[cfg(unix)]
+            let fdopen =
+                module.add_function("fdopen", ptr.fn_type(&[i32t.into(), ptr.into()], false), None);
+            #[cfg(unix)]
+            let close_fd = module.add_function("close", i32t.fn_type(&[i32t.into()], false), None);
+            let file_open_mode = module.add_function(
+                "xb_file_open_mode",
+                i32t.fn_type(&[ptr.into(), i32t.into()], false),
+                None,
+            );
             let fclose = module.add_function("fclose", i32t.fn_type(&[ptr.into()], false), None);
             let fseek = module.add_function(
                 "fseek",
@@ -368,6 +384,190 @@ pub mod llvm_backend {
             let nl = g(&builder, "\n", "nl")?;
             let tab = g(&builder, "\t", "tab")?;
             let fmt_g = g(&builder, "%g", "fmtg")?;
+            // `xb_file_open_mode`: strip only NONBLOCK (0x800), exact-match documented bases,
+            // and fall back to read-only existing-file semantics for unsupported values.
+            // The helper also owns handle registration, so failed opens never consume a handle.
+            {
+                let entry = ctx.append_basic_block(file_open_mode, "entry");
+                let finish = ctx.append_basic_block(file_open_mode, "finish");
+                let success = ctx.append_basic_block(file_open_mode, "success");
+                let failure = ctx.append_basic_block(file_open_mode, "failure");
+                builder.position_at_end(entry);
+                let name = file_open_mode.get_nth_param(0).unwrap().into_pointer_value();
+                let mode = file_open_mode.get_nth_param(1).unwrap().into_int_value();
+                let fp_slot = builder.build_alloca(ptr, "ofp").map_err(Self::err)?;
+                builder.build_store(fp_slot, ptr.const_null()).map_err(Self::err)?;
+                let nonblock = builder
+                    .build_int_compare(
+                        IntPredicate::NE,
+                        builder
+                            .build_and(mode, i32t.const_int(0x0800, false), "onb")
+                            .map_err(Self::err)?,
+                        i32t.const_zero(),
+                        "hasnb",
+                    )
+                    .map_err(Self::err)?;
+                let base = builder
+                    .build_and(mode, i32t.const_int((!0x0800u32) as u64, false), "obase")
+                    .map_err(Self::err)?;
+                let eq = |m: u64, n: &str| -> Result<IntValue<'ctx>, CompileError> {
+                    builder
+                        .build_int_compare(IntPredicate::EQ, base, i32t.const_int(m, false), n)
+                        .map_err(Self::err)
+                };
+                let rd = builder.build_or(eq(0, "ord")?, eq(0x10, "ordshare")?, "isrd").map_err(Self::err)?;
+                let wr_trunc = builder.build_or(eq(1, "owr")?, eq(3, "owrnew")?, "owrtr").map_err(Self::err)?;
+                let rw_preserve = builder.build_or(eq(2, "orw")?, eq(0x30, "orwshare")?, "orwp").map_err(Self::err)?;
+                let rw_trunc = eq(4, "orwnew")?;
+                let wr_preserve = eq(0x20, "owrshare")?;
+                let valid_a = builder.build_or(rd, wr_trunc, "ovalida").map_err(Self::err)?;
+                let valid_b = builder.build_or(rw_preserve, rw_trunc, "ovalidb").map_err(Self::err)?;
+                let valid = builder
+                    .build_or(builder.build_or(valid_a, valid_b, "ovalidab").map_err(Self::err)?, wr_preserve, "ovalid")
+                    .map_err(Self::err)?;
+                let read_only = builder.build_or(rd, builder.build_not(valid, "oinvalid").map_err(Self::err)?, "oreadonly").map_err(Self::err)?;
+                let rdwr = builder.build_or(rw_preserve, rw_trunc, "ordwr").map_err(Self::err)?;
+                let trunc = builder.build_or(wr_trunc, rw_trunc, "otrunc").map_err(Self::err)?;
+                let preserve_writable = builder.build_or(rw_preserve, wr_preserve, "opreserve").map_err(Self::err)?;
+                let create = builder.build_or(trunc, preserve_writable, "ocreate").map_err(Self::err)?;
+                #[cfg(unix)]
+                {
+                    let mut flags = builder
+                        .build_select(
+                            rdwr,
+                            i32t.const_int(libc::O_RDWR as u64, true),
+                            i32t.const_int(libc::O_WRONLY as u64, true),
+                            "ofacc",
+                        )
+                        .map_err(Self::err)?
+                        .into_int_value();
+                    flags = builder
+                        .build_select(read_only, i32t.const_int(libc::O_RDONLY as u64, true), flags, "ofrd")
+                        .map_err(Self::err)?
+                        .into_int_value();
+                    flags = builder
+                        .build_select(
+                            create,
+                            builder.build_or(flags, i32t.const_int(libc::O_CREAT as u64, true), "ofcr").map_err(Self::err)?,
+                            flags,
+                            "ofscreate",
+                        )
+                        .map_err(Self::err)?
+                        .into_int_value();
+                    flags = builder
+                        .build_select(
+                            trunc,
+                            builder.build_or(flags, i32t.const_int(libc::O_TRUNC as u64, true), "oftr").map_err(Self::err)?,
+                            flags,
+                            "ofstrunc",
+                        )
+                        .map_err(Self::err)?
+                        .into_int_value();
+                    flags = builder
+                        .build_select(
+                            nonblock,
+                            builder.build_or(flags, i32t.const_int(libc::O_NONBLOCK as u64, true), "ofnb").map_err(Self::err)?,
+                            flags,
+                            "ofsnb",
+                        )
+                        .map_err(Self::err)?
+                        .into_int_value();
+                    let fd = builder
+                        .build_call(open_fd, &[name.into(), flags.into(), i32t.const_int(0o666, false).into()], "openfd")
+                        .map_err(Self::err)?
+                        .try_as_basic_value()
+                        .basic()
+                        .ok_or_else(|| CompileError::Llvm("open returned void".into()))?
+                        .into_int_value();
+                    let fd_ok = builder.build_int_compare(IntPredicate::SGE, fd, i32t.const_zero(), "fdok").map_err(Self::err)?;
+                    let wrap = ctx.append_basic_block(file_open_mode, "wrap");
+                    builder.build_conditional_branch(fd_ok, wrap, finish).map_err(Self::err)?;
+                    builder.position_at_end(wrap);
+                    let rw_mode = builder
+                        .build_select(rdwr, g(&builder, "r+b", "omrw")?, g(&builder, "wb", "omwr")?, "omsel")
+                        .map_err(Self::err)?
+                        .into_pointer_value();
+                    let mode_ptr = builder
+                        .build_select(read_only, g(&builder, "rb", "omrd")?, rw_mode, "omode")
+                        .map_err(Self::err)?
+                        .into_pointer_value();
+                    let fp = builder
+                        .build_call(fdopen, &[fd.into(), mode_ptr.into()], "fdopen")
+                        .map_err(Self::err)?
+                        .try_as_basic_value()
+                        .basic()
+                        .ok_or_else(|| CompileError::Llvm("fdopen returned void".into()))?
+                        .into_pointer_value();
+                    let fp_null = builder.build_is_null(fp, "fpnull").map_err(Self::err)?;
+                    let wrap_failed = ctx.append_basic_block(file_open_mode, "wrap_failed");
+                    let wrap_ok = ctx.append_basic_block(file_open_mode, "wrap_ok");
+                    builder.build_conditional_branch(fp_null, wrap_failed, wrap_ok).map_err(Self::err)?;
+                    builder.position_at_end(wrap_failed);
+                    builder.build_call(close_fd, &[fd.into()], "closefd").map_err(Self::err)?;
+                    builder.build_unconditional_branch(finish).map_err(Self::err)?;
+                    builder.position_at_end(wrap_ok);
+                    builder.build_store(fp_slot, fp).map_err(Self::err)?;
+                    builder.build_unconditional_branch(finish).map_err(Self::err)?;
+                }
+                #[cfg(not(unix))]
+                {
+                    let _ = nonblock;
+                    let direct = builder
+                        .build_select(
+                            read_only,
+                            g(&builder, "rb", "omrd")?,
+                            builder
+                                .build_select(trunc, g(&builder, "w+b", "omtr")?, g(&builder, "r+b", "ompr")?, "omode1")
+                                .map_err(Self::err)?,
+                            "omode2",
+                        )
+                        .map_err(Self::err)?
+                        .into_pointer_value();
+                    let first = builder
+                        .build_call(fopen, &[name.into(), direct.into()], "fopen")
+                        .map_err(Self::err)?
+                        .try_as_basic_value()
+                        .basic()
+                        .ok_or_else(|| CompileError::Llvm("fopen returned void".into()))?
+                        .into_pointer_value();
+                    let missing = builder.build_is_null(first, "fmissing").map_err(Self::err)?;
+                    let retry = builder.build_and(preserve_writable, missing, "fretry").map_err(Self::err)?;
+                    let retry_bb = ctx.append_basic_block(file_open_mode, "retry");
+                    let keep_bb = ctx.append_basic_block(file_open_mode, "keep");
+                    builder.build_conditional_branch(retry, retry_bb, keep_bb).map_err(Self::err)?;
+                    builder.position_at_end(retry_bb);
+                    let second = builder
+                        .build_call(fopen, &[name.into(), g(&builder, "w+b", "omcreate")?.into()], "fcreate")
+                        .map_err(Self::err)?
+                        .try_as_basic_value()
+                        .basic()
+                        .ok_or_else(|| CompileError::Llvm("fopen returned void".into()))?
+                        .into_pointer_value();
+                    builder.build_store(fp_slot, second).map_err(Self::err)?;
+                    builder.build_unconditional_branch(finish).map_err(Self::err)?;
+                    builder.position_at_end(keep_bb);
+                    builder.build_store(fp_slot, first).map_err(Self::err)?;
+                    builder.build_unconditional_branch(finish).map_err(Self::err)?;
+                }
+                builder.position_at_end(finish);
+                let fp = builder.build_load(ptr, fp_slot, "ofinal").map_err(Self::err)?.into_pointer_value();
+                let is_null = builder.build_is_null(fp, "ofnull").map_err(Self::err)?;
+                builder.build_conditional_branch(is_null, failure, success).map_err(Self::err)?;
+                builder.position_at_end(failure);
+                builder.build_return(Some(&i32t.const_int((-1i64) as u64, true))).map_err(Self::err)?;
+                builder.position_at_end(success);
+                let idx = builder.build_load(i32t, file_count, "fidx").map_err(Self::err)?.into_int_value();
+                let slot = unsafe {
+                    builder
+                        .build_in_bounds_gep(file_arr_ty, file_table, &[i32t.const_zero(), idx], "fslot")
+                        .map_err(Self::err)?
+                };
+                builder.build_store(slot, fp).map_err(Self::err)?;
+                let idx1 = builder.build_int_add(idx, i32t.const_int(1, false), "fidx1").map_err(Self::err)?;
+                builder.build_store(file_count, idx1).map_err(Self::err)?;
+                let handle = builder.build_int_add(idx, i32t.const_int(3, false), "fh").map_err(Self::err)?;
+                builder.build_return(Some(&handle)).map_err(Self::err)?;
+            }
             let fmt_hex = g(&builder, "%X", "fmthex")?;
             // Runtime helper `xb_file_eof(handle) -> i32`: 1 when the file is at EOF or the
             // handle is invalid/closed, else 0. A dedicated function so its null/range-guard
@@ -439,7 +639,7 @@ pub mod llvm_backend {
                 sm: None,
                 byref_params: HashMap::new(),
                 byref_array_params: HashMap::new(),
-                fopen,
+                file_open_mode,
                 fclose,
                 fseek,
                 ftell,
@@ -448,7 +648,6 @@ pub mod llvm_backend {
                 fflush,
                 file_eof,
                 file_table,
-                file_count,
                 vars: HashMap::new(),
                 shared: HashMap::new(),
                 funcs: HashMap::new(),
@@ -680,6 +879,7 @@ pub mod llvm_backend {
                 let init: BasicValueEnum = match vt {
                     ValueType::String => self.ptr.const_null().into(),
                     ValueType::Float => self.f64t.const_zero().into(),
+                    ValueType::Giant => self.i64t.const_zero().into(),
                     ValueType::Integer => self.i32t.const_zero().into(),
                 };
                 g.set_initializer(&init);
@@ -2780,77 +2980,23 @@ pub mod llvm_backend {
             self.builder.position_at_end(dbb);
             Ok(self.builder.build_load(self.ptr, result, "fnr").map_err(Self::err)?)
         }
-        /// `OPEN(name$, mode)`: open a real file via libc `fopen`, register its `FILE*` in the
-        /// handle table, and return an XBasic file number (table index + 3, mirroring the
-        /// interpreter's `files.len() + 3`); −1 on failure. `mode` follows xst.dec (0=RD, 1=WR,
-        /// 2=RW, 3=WRNEW, 4=RWNEW). Handle numbers are monotonic, matching the interpreter.
+        /// `OPEN(name$, mode)`: normalized documented modes (0..4, share bases
+        /// 0x10/0x20/0x30, optional 0x800 NONBLOCK) are handled by the runtime
+        /// helper. It returns an XBasic handle or -1 and does not consume a handle
+        /// on failure, matching the interpreter and generated-C backends.
         fn file_open(&self, args: &[IrExpr]) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
             let Some(BasicValueEnum::PointerValue(name)) = self.eval_value(&args[0])? else {
                 return Ok(None);
             };
             let mode = self.eval_int(&args[1])?;
-            let eq = |m: u64, n: &str| -> Result<IntValue<'ctx>, CompileError> {
-                self.builder
-                    .build_int_compare(IntPredicate::EQ, mode, self.i32t.const_int(m, false), n)
-                    .map_err(Self::err)
-            };
-            // truncate = mode ∈ {1,3,4}; read+write = mode ∈ {2,4}. `fopen` string:
-            //   read-only → "rb"; truncate → "wb"; RW no-trunc → "r+b"; RW trunc → "w+b".
-            let trunc = {
-                let a = self.builder.build_or(eq(1, "m1")?, eq(3, "m3")?, "t13").map_err(Self::err)?;
-                self.builder.build_or(a, eq(4, "m4")?, "trunc").map_err(Self::err)?
-            };
-            let plus = self.builder.build_or(eq(2, "m2")?, eq(4, "m4b")?, "plus").map_err(Self::err)?;
-            let sel = self
+            let handle = self
                 .builder
-                .build_select(trunc, self.fmt_g("wb")?, self.fmt_g("rb")?, "ms1")
-                .map_err(Self::err)?
-                .into_pointer_value();
-            let nt = self.builder.build_not(trunc, "nt").map_err(Self::err)?;
-            let pnt = self.builder.build_and(plus, nt, "pnt").map_err(Self::err)?;
-            let sel = self
-                .builder
-                .build_select(pnt, self.fmt_g("r+b")?, sel, "ms2")
-                .map_err(Self::err)?
-                .into_pointer_value();
-            let pt = self.builder.build_and(plus, trunc, "pt").map_err(Self::err)?;
-            let sel = self
-                .builder
-                .build_select(pt, self.fmt_g("w+b")?, sel, "ms3")
-                .map_err(Self::err)?
-                .into_pointer_value();
-            let fp = self
-                .builder
-                .build_call(self.fopen, &[name.into(), sel.into()], "fopen")
+                .build_call(self.file_open_mode, &[name.into(), mode.into()], "xbopen")
                 .map_err(Self::err)?
                 .try_as_basic_value()
                 .basic()
-                .ok_or_else(|| CompileError::Llvm("fopen returned void".into()))?
-                .into_pointer_value();
-            let is_null = self.builder.build_is_null(fp, "fnull").map_err(Self::err)?;
-            // Register: table[count] = fp; count += 1; handle = count + 3.
-            let idx = self
-                .builder
-                .build_load(self.i32t, self.file_count, "fidx")
-                .map_err(Self::err)?
-                .into_int_value();
-            let slot = unsafe {
-                self.builder
-                    .build_in_bounds_gep(
-                        self.ptr.array_type(256),
-                        self.file_table,
-                        &[self.i32t.const_zero(), idx],
-                        "fslot",
-                    )
-                    .map_err(Self::err)?
-            };
-            self.builder.build_store(slot, fp).map_err(Self::err)?;
-            let idx1 = self.builder.build_int_add(idx, self.i32t.const_int(1, false), "fidx1").map_err(Self::err)?;
-            self.builder.build_store(self.file_count, idx1).map_err(Self::err)?;
-            let handle = self.builder.build_int_add(idx, self.i32t.const_int(3, false), "fh").map_err(Self::err)?;
-            let neg1 = self.i32t.const_int((-1i64) as u64, true);
-            let res = self.builder.build_select(is_null, neg1, handle, "fres").map_err(Self::err)?;
-            Ok(Some(res))
+                .ok_or_else(|| CompileError::Llvm("xb_file_open_mode returned void".into()))?;
+            Ok(Some(handle))
         }
 
         /// `FILE*` slot pointer for handle `h` (table index `h − 3`).
@@ -5236,6 +5382,110 @@ mod tests {
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
         let _ = std::fs::remove_file(dir.join("xb_lock_ftest.dat"));
+    }
+
+    #[cfg(feature = "llvm")]
+    fn run_llvm_source_in(source: &str, dir: &std::path::Path, stem: &str) -> std::process::Output {
+        use std::io::Write;
+        let unit = FrontendUnit::parse(source).expect("parse LLVM test source");
+        let obj = llvm_backend::LlvmBackend.compile(&unit).expect("compile LLVM test source");
+        let objp = dir.join(format!("{stem}.o"));
+        let exep = dir.join(format!("{stem}.bin"));
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = std::process::Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = std::process::Command::new(&exep).current_dir(dir).output().unwrap();
+        let _ = std::fs::remove_file(objp);
+        let _ = std::fs::remove_file(exep);
+        run
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_open_mode_matrix() {
+        let root = std::env::temp_dir().join(format!("xb_llvm_open_modes_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let p = |name: &str| root.join(name);
+        for name in ["rd", "wr", "rw", "wrnew", "rwnew", "rdshare", "wrshare", "rwshare", "nbwr", "nbrw", "invalid"] {
+            std::fs::write(p(name), b"abc").unwrap();
+        }
+        let q = |path: &std::path::Path| path.to_string_lossy().replace('\\', "\\\\");
+        let source = format!(
+            "VERSION \"1\"\nFUNCTION Main\n\
+             f = OPEN(\"{}\", 0) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 1) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 2) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 3) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 4) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x10) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x20) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x30) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x801) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x802) : PRINT LOF(f) : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x123) : PRINT LOF(f) : CLOSE(f)\n\
+             PRINT OPEN(\"{}\", 0)\n\
+             PRINT OPEN(\"{}\", 0x10)\n\
+             f = OPEN(\"{}\", 0x20) : PRINT f : CLOSE(f)\n\
+             f = OPEN(\"{}\", 0x30) : PRINT f : CLOSE(f)\n\
+             END FUNCTION\n",
+            q(&p("rd")), q(&p("wr")), q(&p("rw")), q(&p("wrnew")), q(&p("rwnew")),
+            q(&p("rdshare")), q(&p("wrshare")), q(&p("rwshare")), q(&p("nbwr")),
+            q(&p("nbrw")), q(&p("invalid")), q(&p("missing_rd")), q(&p("missing_rdshare")),
+            q(&p("create_wrshare")), q(&p("create_rwshare")),
+        );
+        let run = run_llvm_source_in(&source, &root, "open_modes");
+        assert!(run.status.success(), "run: {}", String::from_utf8_lossy(&run.stderr));
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "3\n0\n3\n0\n0\n3\n3\n3\n0\n3\n3\n-1\n-1\n14\n15\n");
+        assert!(!p("missing_rd").exists());
+        assert!(!p("missing_rdshare").exists());
+        assert!(p("create_wrshare").exists());
+        assert!(p("create_rwshare").exists());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(all(feature = "llvm", unix))]
+    #[test]
+    fn llvm_backend_open_nonblock_fifo_returns() {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+        use std::time::{Duration, Instant};
+        let root = std::env::temp_dir().join(format!("xb_llvm_fifo_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let fifo = root.join("input.fifo");
+        let c_fifo = CString::new(fifo.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(c_fifo.as_ptr(), 0o600) }, 0);
+        let path = fifo.to_string_lossy().replace('\\', "\\\\");
+        let source = format!("VERSION \"1\"\nFUNCTION Main\nf = OPEN(\"{path}\", 0x800)\nPRINT f\nCLOSE(f)\nEND FUNCTION\n");
+        // Compile/link separately so the parent can enforce a hard runtime deadline.
+        let unit = FrontendUnit::parse(&source).unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let objp = root.join("fifo.o");
+        let exep = root.join("fifo.bin");
+        std::fs::write(&objp, obj.as_bytes()).unwrap();
+        let link = std::process::Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let mut child = std::process::Command::new(&exep)
+            .current_dir(&root)
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            if child.try_wait().unwrap().is_some() {
+                break;
+            }
+            if Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("LLVM OPEN blocked on FIFO despite NONBLOCK");
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let out = child.wait_with_output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&out.stdout), "3\n");
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[cfg(feature = "llvm")]
