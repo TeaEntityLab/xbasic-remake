@@ -284,6 +284,11 @@ pub mod llvm_backend {
         fwrite: FunctionValue<'ctx>,
         fread: FunctionValue<'ctx>,
         fflush: FunctionValue<'ctx>,
+        /// RT-KERNEL32 stdio: `xb_getstdhandle` / `xb_write_file` / `xb_read_file`
+        /// (mirrors the generated-C runtimes; handles 0=stdin 1=stdout 2=stderr).
+        getstdhandle: FunctionValue<'ctx>,
+        write_file: FunctionValue<'ctx>,
+        read_file: FunctionValue<'ctx>,
         /// Runtime helper `xb_file_eof(handle) -> i32` (EOF or invalid/closed handle → 1).
         file_eof: FunctionValue<'ctx>,
         /// Global `[FILE_SLOTS x ptr]` of open `FILE*` (index = handle − 3).
@@ -338,6 +343,8 @@ pub mod llvm_backend {
                 i32t.fn_type(&[ptr.into(), i32t.into()], true),
                 None,
             );
+            #[cfg(not(unix))]
+            let open_fd = fopen; // non-unix helper bodies don't run (see below)
             #[cfg(unix)]
             let fdopen =
                 module.add_function("fdopen", ptr.fn_type(&[i32t.into(), ptr.into()], false), None);
@@ -367,6 +374,22 @@ pub mod llvm_backend {
             );
             let fflush = module.add_function("fflush", i32t.fn_type(&[ptr.into()], false), None);
             let feof = module.add_function("feof", i32t.fn_type(&[ptr.into()], false), None);
+            // RT-KERNEL32 stdio helpers — same contract as the generated-C runtimes:
+            // handles 0=stdin 1=stdout 2=stderr; WriteFile writes min(bytes, LEN) and
+            // stores the count; ReadFile replaces the buffer with exactly the bytes
+            // read and stores the count.
+            let getstdhandle =
+                module.add_function("xb_getstdhandle", i32t.fn_type(&[i32t.into()], false), None);
+            let write_file = module.add_function(
+                "xb_write_file",
+                i32t.fn_type(&[i32t.into(), ptr.into(), i32t.into(), ptr.into(), ptr.into()], false),
+                None,
+            );
+            let read_file = module.add_function(
+                "xb_read_file",
+                i32t.fn_type(&[i32t.into(), ptr.into(), i32t.into(), ptr.into(), ptr.into()], false),
+                None,
+            );
             let file_arr_ty = ptr.array_type(256);
             let file_table_g = module.add_global(file_arr_ty, None, "xb_files");
             file_table_g.set_initializer(&file_arr_ty.const_zero());
@@ -636,6 +659,220 @@ pub mod llvm_backend {
                 builder.position_at_end(iseof);
                 builder.build_return(Some(&i32t.const_int(1, false))).map_err(Self::err)?;
             }
+            // RT-KERNEL32 stdio helpers — the same contract as the generated-C
+            // runtimes (c_runtime.rs emit_kernel32_runtime). `xb_getstdhandle`:
+            // -10/-11/-12 -> 0/1/2, else -1. `xb_write_file(h, buf, bytes, &written, _)`:
+            // write `bytes` to stdout, store the count, return 1 on full write.
+            // `xb_read_file(h, &buf, bytes, &read, _)`: read up to `bytes` from stdin,
+            // replace *buf with a fresh byte-string of exactly the bytes read, store
+            // the count, return 1 when anything was read. Uses the FILE* streams so
+            // output ordering with printf/putchar holds.
+            {
+                let entry = ctx.append_basic_block(getstdhandle, "entry");
+                builder.position_at_end(entry);
+                let dev = getstdhandle.get_nth_param(0).unwrap().into_int_value();
+                let m = |v: i64, n: &str| -> Result<IntValue<'ctx>, CompileError> {
+                    builder
+                        .build_int_compare(IntPredicate::EQ, dev, i32t.const_int(v as u64, true), n)
+                        .map_err(Self::err)
+                };
+                let din = m(-10, "din")?;
+                let dout = m(-11, "dout")?;
+                let derr = m(-12, "derr")?;
+                let r0 = builder
+                    .build_select(din, i32t.const_zero(), i32t.const_int((-1i64) as u64, true), "rin")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let r1 = builder
+                    .build_select(dout, i32t.const_int(1, false), r0, "rout")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let r2 = builder
+                    .build_select(derr, i32t.const_int(2, false), r1, "rerr")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                builder.build_return(Some(&r2)).map_err(Self::err)?;
+            }
+            {
+                let entry = ctx.append_basic_block(write_file, "entry");
+                builder.position_at_end(entry);
+                let h = write_file.get_nth_param(0).unwrap().into_int_value();
+                let buf = write_file.get_nth_param(1).unwrap().into_pointer_value();
+                let bytes = write_file.get_nth_param(2).unwrap().into_int_value();
+                let written = write_file.get_nth_param(3).unwrap().into_pointer_value();
+                // `written` is already the caller's i32 slot address (a plain symbol
+                // lowers to its alloca) — no extra deref.
+                let wslot = written;
+                builder.build_store(wslot, i32t.const_zero()).map_err(Self::err)?;
+                let is_out = builder
+                    .build_int_compare(IntPredicate::EQ, h, i32t.const_int(1, false), "wisout")
+                    .map_err(Self::err)?;
+                let bpos = builder
+                    .build_int_compare(IntPredicate::SGT, bytes, i32t.const_zero(), "wbpos")
+                    .map_err(Self::err)?;
+                let go = builder.build_and(is_out, bpos, "wgo").map_err(Self::err)?;
+                let body = ctx.append_basic_block(write_file, "wbody");
+                let done = ctx.append_basic_block(write_file, "wdone");
+                builder.build_conditional_branch(go, body, done).map_err(Self::err)?;
+                builder.position_at_end(done);
+                builder.build_return(Some(&i32t.const_zero())).map_err(Self::err)?;
+                builder.position_at_end(body);
+                // Portable stdio: open(2)+fdopen on /dev/stdout — avoids
+                // platform-specific `stdout` symbol shapes (ELF data symbol vs
+                // Mach-O macro) and reuses the OPEN runtime declarations.
+                let outpath = builder
+                    .build_global_string_ptr("/dev/stdout", "wdev")
+                    .map_err(Self::err)?
+                    .as_pointer_value();
+                let wfd = builder
+                    .build_call(open_fd, &[outpath.into(), i32t.const_int(1, false).into()], "wofd")
+                    .map_err(Self::err)?
+                    .try_as_basic_value()
+                    .basic()
+                    .ok_or_else(|| CompileError::Llvm("open returned void".into()))?
+                    .into_int_value();
+                let wmode = builder
+                    .build_global_string_ptr("w", "wmode")
+                    .map_err(Self::err)?
+                    .as_pointer_value();
+                let outfp = builder
+                    .build_call(fdopen, &[wfd.into(), wmode.into()], "woutfp")
+                    .map_err(Self::err)?
+                    .try_as_basic_value()
+                    .basic()
+                    .ok_or_else(|| CompileError::Llvm("fdopen returned void".into()))?
+                    .into_pointer_value();
+                let b64 = builder.build_int_s_extend(bytes, i64t, "wb64").map_err(Self::err)?;
+                let one = i64t.const_int(1, false);
+                let n = builder
+                    .build_call(fwrite, &[buf.into(), one.into(), b64.into(), outfp.into()], "wn")
+                    .map_err(Self::err)?
+                    .try_as_basic_value()
+                    .basic()
+                    .ok_or_else(|| CompileError::Llvm("fwrite returned void".into()))?
+                    .into_int_value();
+                builder.build_call(fflush, &[outfp.into()], "wflush").map_err(Self::err)?;
+                let n32 = builder.build_int_truncate(n, i32t, "wn32").map_err(Self::err)?;
+                builder.build_store(wslot, n32).map_err(Self::err)?;
+                let full = builder
+                    .build_int_compare(IntPredicate::EQ, n32, bytes, "wfull")
+                    .map_err(Self::err)?;
+                let res = builder
+                    .build_select(full, i32t.const_int(1, false), i32t.const_zero(), "wres")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                builder.build_return(Some(&res)).map_err(Self::err)?;
+            }
+            {
+                let entry = ctx.append_basic_block(read_file, "entry");
+                builder.position_at_end(entry);
+                let h = read_file.get_nth_param(0).unwrap().into_int_value();
+                let bufpp = read_file.get_nth_param(1).unwrap().into_pointer_value();
+                let bytes = read_file.get_nth_param(2).unwrap().into_int_value();
+                let readp = read_file.get_nth_param(3).unwrap().into_pointer_value();
+                // Same: `readp` is already the caller's i32 slot address.
+                let rslot = readp;
+                builder.build_store(rslot, i32t.const_zero()).map_err(Self::err)?;
+                let is_in = builder
+                    .build_int_compare(IntPredicate::EQ, h, i32t.const_zero(), "risin")
+                    .map_err(Self::err)?;
+                let bpos = builder
+                    .build_int_compare(IntPredicate::SGT, bytes, i32t.const_zero(), "rbpos")
+                    .map_err(Self::err)?;
+                let go = builder.build_and(is_in, bpos, "rgo").map_err(Self::err)?;
+                let body = ctx.append_basic_block(read_file, "rbody");
+                let done = ctx.append_basic_block(read_file, "rdone");
+                builder.build_conditional_branch(go, body, done).map_err(Self::err)?;
+                builder.position_at_end(done);
+                builder.build_return(Some(&i32t.const_zero())).map_err(Self::err)?;
+                builder.position_at_end(body);
+                let inpath = builder
+                    .build_global_string_ptr("/dev/stdin", "rdev")
+                    .map_err(Self::err)?
+                    .as_pointer_value();
+                let rfd = builder
+                    .build_call(open_fd, &[inpath.into(), i32t.const_zero().into()], "rofd")
+                    .map_err(Self::err)?
+                    .try_as_basic_value()
+                    .basic()
+                    .ok_or_else(|| CompileError::Llvm("open returned void".into()))?
+                    .into_int_value();
+                let rmode = builder
+                    .build_global_string_ptr("r", "rmode")
+                    .map_err(Self::err)?
+                    .as_pointer_value();
+                let infp = builder
+                    .build_call(fdopen, &[rfd.into(), rmode.into()], "rinfp")
+                    .map_err(Self::err)?
+                    .try_as_basic_value()
+                    .basic()
+                    .ok_or_else(|| CompileError::Llvm("fdopen returned void".into()))?
+                    .into_pointer_value();
+                let b64 = builder.build_int_s_extend(bytes, i64t, "rb64").map_err(Self::err)?;
+                let one = i64t.const_int(1, false);
+                let tmp = builder
+                    .build_call(calloc, &[b64.into(), one.into()], "rtmp")
+                    .map_err(Self::err)?
+                    .try_as_basic_value()
+                    .basic()
+                    .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                    .into_pointer_value();
+                let n = builder
+                    .build_call(fread, &[tmp.into(), one.into(), b64.into(), infp.into()], "rn")
+                    .map_err(Self::err)?
+                    .try_as_basic_value()
+                    .basic()
+                    .ok_or_else(|| CompileError::Llvm("fread returned void".into()))?
+                    .into_int_value();
+                // Fresh byte-string of exactly `n` bytes: 8-byte length prefix at
+                // base[0..8], data at base+8 (same layout as str_new, inlined —
+                // Emit::new has no `self`).
+                let total = builder
+                    .build_int_add(n, i64t.const_int(9, false), "rtot")
+                    .map_err(Self::err)?;
+                let base = builder
+                    .build_call(calloc, &[total.into(), one.into()], "rbase")
+                    .map_err(Self::err)?
+                    .try_as_basic_value()
+                    .basic()
+                    .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                    .into_pointer_value();
+                let nslot = builder.build_alloca(i64t, "rnslot").map_err(Self::err)?;
+                builder.build_store(nslot, n).map_err(Self::err)?;
+                builder
+                    .build_call(memcpy, &[base.into(), nslot.into(), i64t.const_int(8, false).into()], "rlenw")
+                    .map_err(Self::err)?;
+                let data = unsafe {
+                    builder
+                        .build_in_bounds_gep(ctx.i8_type(), base, &[i64t.const_int(8, false)], "rdata")
+                        .map_err(Self::err)?
+                };
+                let has = builder
+                    .build_int_compare(IntPredicate::UGT, n, i64t.const_zero(), "rhas")
+                    .map_err(Self::err)?;
+                let cp = ctx.append_basic_block(read_file, "rcp");
+                let nocp = ctx.append_basic_block(read_file, "rnocp");
+                builder.build_conditional_branch(has, cp, nocp).map_err(Self::err)?;
+                builder.position_at_end(cp);
+                builder
+                    .build_call(memcpy, &[data.into(), tmp.into(), n.into()], "rmc")
+                    .map_err(Self::err)?;
+                builder.build_unconditional_branch(nocp).map_err(Self::err)?;
+                builder.position_at_end(nocp);
+                // *buf = dst: `bufpp` is already the caller's char* slot address
+                // (char**) — store the new pointer directly.
+                builder.build_store(bufpp, data).map_err(Self::err)?;
+                let n32 = builder.build_int_truncate(n, i32t, "rn32").map_err(Self::err)?;
+                builder.build_store(rslot, n32).map_err(Self::err)?;
+                let any = builder
+                    .build_int_compare(IntPredicate::UGT, n32, i32t.const_zero(), "rany")
+                    .map_err(Self::err)?;
+                let res = builder
+                    .build_select(any, i32t.const_int(1, false), i32t.const_zero(), "rres")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                builder.build_return(Some(&res)).map_err(Self::err)?;
+            }
             builder.position_at_end(main_entry);
             Ok(Self {
                 ctx,
@@ -669,6 +906,9 @@ pub mod llvm_backend {
                 fwrite,
                 fread,
                 fflush,
+                getstdhandle,
+                write_file,
+                read_file,
                 file_eof,
                 file_table,
                 vars: HashMap::new(),
@@ -1536,11 +1776,15 @@ pub mod llvm_backend {
                     }
                 }
                 IrItem::Call { name, args } => {
+                    eprintln!("TRACE arm reached {}", name);
                     if let Some(&f) = self.funcs.get(name) {
                         if let Some(argv) = self.eval_args(f, args)? {
                             self.builder.build_call(f, &argv, "call").map_err(Self::err)?;
                         }
-                    } else if matches!(name.as_str(), "__WRITE_RECORD" | "__READ_RECORD") {
+                    } else if matches!(
+                        name.as_str(),
+                        "__WRITE_RECORD" | "__READ_RECORD" | "WriteFile" | "ReadFile"
+                    ) {
                         // Side-effecting file builtins used as statements (`WRITE`/`READ [n], arr[]`
                         // lower to these). Other statement builtins are pure or unimplemented, so
                         // are correctly ignored here; CLOSE is intentionally a no-op (the file
@@ -3022,6 +3266,21 @@ pub mod llvm_backend {
             Ok(Some(handle))
         }
 
+        /// Address of a variable's storage slot for a positional out-param: a plain
+        /// `Symbol` or `ByRef(Symbol)` yields the caller's alloca (the legacy `&x`
+        /// prefix parses as a plain symbol). Returns `None` for anything else.
+        fn symbol_slot_addr(&self, expr: &IrExpr) -> Result<Option<PointerValue<'ctx>>, CompileError> {
+            let sym = match &expr.kind {
+                IrExprKind::Symbol(s) => Some(s),
+                IrExprKind::ByRef(inner) => match &inner.kind {
+                    IrExprKind::Symbol(s) => Some(s),
+                    _ => None,
+                },
+                _ => None,
+            };
+            Ok(sym.and_then(|s| self.vars.get(&s.name).map(|(slot, _)| *slot)))
+        }
+
         /// `FILE*` slot pointer for handle `h` (table index `h − 3`).
         fn file_slot(&self, h: IntValue<'ctx>) -> Result<PointerValue<'ctx>, CompileError> {
             let idx = self.builder.build_int_sub(h, self.i32t.const_int(3, false), "fsidx").map_err(Self::err)?;
@@ -3158,6 +3417,71 @@ pub mod llvm_backend {
                 ("LOF", 1) => self.file_lof(args),
                 ("__WRITE_RECORD", 2) => self.file_write(args),
                 ("__READ_RECORD", 2) => self.file_read(args),
+                ("GetStdHandle", 1) => {
+                    let dev = self.eval_int(&args[0])?;
+                    Ok(Some(
+                        self.builder
+                            .build_call(self.getstdhandle, &[dev.into()], "gsh")
+                            .map_err(Self::err)?
+                            .try_as_basic_value()
+                            .basic()
+                            .ok_or_else(|| CompileError::Llvm("xb_getstdhandle returned void".into()))?,
+                    ))
+                }
+                ("WriteFile", 5) => {
+                    eprintln!("TRACE eval_builtin WriteFile");
+                    let h = self.eval_int(&args[0])?;
+                    let Some(BasicValueEnum::PointerValue(buf)) = self.eval_value(&args[1])? else {
+                        return Ok(None);
+                    };
+                    let bytes = self.eval_int(&args[2])?;
+                    // `sent` is a plain symbol: take its slot ADDRESS (the out-param
+                    // is positional), not the loaded value.
+                    let Some(written) = self.symbol_slot_addr(&args[3])? else {
+                        return Ok(None);
+                    };
+                    let nul = self.ptr.const_null();
+                    Ok(Some(
+                        self.builder
+                            .build_call(
+                                self.write_file,
+                                &[h.into(), buf.into(), bytes.into(), written.into(), nul.into()],
+                                "wf",
+                            )
+                            .map_err(Self::err)?
+                            .try_as_basic_value()
+                            .basic()
+                            .ok_or_else(|| CompileError::Llvm("xb_write_file returned void".into()))?,
+                    ))
+                }
+                ("ReadFile", 5) => {
+                    // RT-KERNEL32: the buffer is replaced through its char** slot
+                    // address; the count out-param takes the caller's i32 slot address.
+                    let h = self.eval_int(&args[0])?;
+                    // `&buf$` parses as a plain symbol (legacy noise prefix), so take
+                    // the caller's char* slot ADDRESS positionally — same rule as the
+                    // C runtimes' emit_byref_addr.
+                    let Some(bufpp) = self.symbol_slot_addr(&args[1])? else {
+                        return Ok(None);
+                    };
+                    let bytes = self.eval_int(&args[2])?;
+                    let Some(read) = self.symbol_slot_addr(&args[3])? else {
+                        return Ok(None);
+                    };
+                    let nul = self.ptr.const_null();
+                    Ok(Some(
+                        self.builder
+                            .build_call(
+                                self.read_file,
+                                &[h.into(), bufpp.into(), bytes.into(), read.into(), nul.into()],
+                                "rf",
+                            )
+                            .map_err(Self::err)?
+                            .try_as_basic_value()
+                            .basic()
+                            .ok_or_else(|| CompileError::Llvm("xb_read_file returned void".into()))?,
+                    ))
+                }
                 ("EOF", 1) => {
                     let h = self.eval_int(&args[0])?;
                     Ok(Some(
@@ -5841,4 +6165,54 @@ mod tests {
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_kernel32_stdio() {
+        use std::io::Write as _;
+        use std::process::Command;
+        // RT-KERNEL32 through the LLVM backend: GetStdHandle/WriteFile/ReadFile
+        // with the same golden as the interp/Rust-C/cgen three-way test.
+        let src = "PROGRAM \"k32l\"\n\
+                   VERSION \"0.1\"\n\
+                   FUNCTION Main ()\n\
+                   h = 1\n\
+                   out$ = \"hello-k32\" + CHR$ (10)\n\
+                   n = LEN (out$)\n\
+                   sent = 0\n\
+                   WriteFile (h, &out$, n, &sent, 0)\n\
+                   PRINT sent\n\
+                   ##hin = GetStdHandle (-10)\n\
+                   buf$ = CHR$ (0, 32)\n\
+                   got = 0\n\
+                   ReadFile (##hin, &buf$, 32, &got, 0)\n\
+                   PRINT got\n\
+                   PRINT LEFT$ (buf$, got)\n\
+                   bad = GetStdHandle (7)\n\
+                   PRINT bad\n\
+                   END FUNCTION\n\
+                   END PROGRAM\n";
+        let unit = FrontendUnit::parse(src).expect("parse kernel32 LLVM program");
+        let obj = llvm_backend::LlvmBackend.compile(&unit).expect("compile kernel32 LLVM program");
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_k32.o");
+        let exep = dir.join("xb_llvm_k32.bin");
+        std::fs::write(&objp, obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let mut child = Command::new(&exep)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.as_mut().unwrap().write_all(b"POSTDATA-123").unwrap();
+        let run = child.wait_with_output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "hello-k32\n10\n12\nPOSTDATA-123\n-1\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+
+
+
+
 }
