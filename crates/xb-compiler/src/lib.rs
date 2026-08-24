@@ -551,6 +551,29 @@ pub mod llvm_backend {
                 }
                 builder.position_at_end(finish);
                 let fp = builder.build_load(ptr, fp_slot, "ofinal").map_err(Self::err)?.into_pointer_value();
+                // Table exhaustion returns -1 without consuming a handle, matching
+                // failed-open semantics and the generated-C backends.
+                let table_full = builder
+                    .build_int_compare(
+                        IntPredicate::SGE,
+                        builder
+                            .build_load(i32t, file_count, "fcount")
+                            .map_err(Self::err)?
+                            .into_int_value(),
+                        i32t.const_int(256u64, false),
+                        "tblfull",
+                    )
+                    .map_err(Self::err)?;
+                let full = ctx.append_basic_block(file_open_mode, "tblfull");
+                let open_ok = ctx.append_basic_block(file_open_mode, "openok");
+                builder
+                    .build_conditional_branch(table_full, full, open_ok)
+                    .map_err(Self::err)?;
+                builder.position_at_end(full);
+                builder
+                    .build_return(Some(&i32t.const_int((-1i64) as u64, true)))
+                    .map_err(Self::err)?;
+                builder.position_at_end(open_ok);
                 let is_null = builder.build_is_null(fp, "ofnull").map_err(Self::err)?;
                 builder.build_conditional_branch(is_null, failure, success).map_err(Self::err)?;
                 builder.position_at_end(failure);
@@ -5485,6 +5508,34 @@ mod tests {
         }
         let out = child.wait_with_output().unwrap();
         assert_eq!(String::from_utf8_lossy(&out.stdout), "3\n");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_file_table_exhaustion_returns_negative_one() {
+        use std::io::Write;
+        use std::process::Command;
+        // The FILE* table holds 256 slots; handles start at 3, so open #254 is the
+        // last one that fits. Exhaustion must return -1 WITHOUT consuming a slot
+        // (matching failed-open semantics) instead of writing out of bounds.
+        let root = std::env::temp_dir().join(format!("xb_llvm_tbl_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("t.dat").to_string_lossy().replace('\\', "\\\\");
+        let src = format!("VERSION \"1\"\nFUNCTION Main\nDIM i\nDIM h\nFOR i = 1 TO 254\nh = OPEN(\"{path}\", 0x20)\nIF h < 0 THEN PRINT \"early\"\nNEXT i\nPRINT OPEN(\"{path}\", 0x20)\nPRINT OPEN(\"{path}\", 0x20)\nPRINT OPEN(\"{path}\", 0x20)\nEND FUNCTION\n");
+        let unit = FrontendUnit::parse(&src).unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let objp = root.join("tbl.o");
+        let exep = root.join("tbl.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).current_dir(&root).output().unwrap();
+        assert!(run.status.success(), "run: {}", String::from_utf8_lossy(&run.stderr));
+        // 254 loop opens + 2 more exactly fill the 256-slot table (handles 3..258);
+        // the 257th open must return -1 instead of writing past the table.
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "257\n258\n-1\n");
         let _ = std::fs::remove_dir_all(root);
     }
 
