@@ -438,8 +438,12 @@ PRINT "}"
 PRINT "static FILE* xb_files[256];"
 PRINT "static int xb_file_count = 3;"
 PRINT "static int xb_open(const char* name, int mode) {"
-PRINT "    const char* opts = (mode == 0) ? " + CHR$(34) + "rb" + CHR$(34) + " : (mode == 1 || mode == 2) ? " + CHR$(34) + "r+b" + CHR$(34) + " : (mode == 3) ? " + CHR$(34) + "wb" + CHR$(34) + " : (mode == 4) ? " + CHR$(34) + "w+b" + CHR$(34) + " : " + CHR$(34) + "rb" + CHR$(34) + ";"
-PRINT "    FILE* f = fopen(name, opts);"
+PRINT "    FILE* f = NULL;"
+PRINT "    if (mode == 0) f = fopen(name, \"rb\");"
+PRINT "    else if (mode == 1 || mode == 3) f = fopen(name, \"w+b\");"
+PRINT "    else if (mode == 2) { f = fopen(name, \"r+b\"); if (!f) f = fopen(name, \"w+b\"); }"
+PRINT "    else if (mode == 4) f = fopen(name, \"w+b\");"
+PRINT "    else f = fopen(name, \"rb\");"
 PRINT "    if (!f) return -1;"
 PRINT "    int fn = xb_file_count++;"
 PRINT "    xb_files[fn] = f;"
@@ -475,6 +479,25 @@ PRINT "    if (!fgets(buf, sizeof(buf), xb_files[fn])) return xb_str(" + CHR$(34
 PRINT "    int len = (int)strlen(buf);"
 PRINT "    if (len > 0 && buf[len-1] == " + CHR$(39) + CHR$(92) + "n" + CHR$(39) + ") buf[len-1] = 0;"
 PRINT "    return xb_from_cstr(buf);"
+PRINT "}"
+PRINT "static int xb_write_record(int fn, int count) {"
+PRINT "    if (fn < 3 || fn >= xb_file_count || !xb_files[fn] || count < 0) return -1;"
+PRINT "    if (count == 0) return 0;"
+PRINT "    unsigned char* buf = (unsigned char*)calloc((size_t)count, 1);"
+PRINT "    if (!buf) return -1;"
+PRINT "    size_t put = fwrite(buf, 1, (size_t)count, xb_files[fn]);"
+PRINT "    free(buf);"
+PRINT "    if (fflush(xb_files[fn]) != 0) return -1;"
+PRINT "    return put == (size_t)count ? count : -1;"
+PRINT "}"
+PRINT "static int xb_read_record(int fn, int count) {"
+PRINT "    if (fn < 3 || fn >= xb_file_count || !xb_files[fn] || count < 0) return -1;"
+PRINT "    if (count == 0) return 0;"
+PRINT "    unsigned char* buf = (unsigned char*)malloc((size_t)count);"
+PRINT "    if (!buf) return -1;"
+PRINT "    size_t got = fread(buf, 1, (size_t)count, xb_files[fn]);"
+PRINT "    free(buf);"
+PRINT "    return (int)got;"
 PRINT "}"
 PRINT "static char* xb_tab(int cur, int col) { if (col <= cur) return xb_str(" + CHR$(34) + CHR$(34) + "); int n = col - cur; char* r = xb_alloc((size_t)n); memset(r, ' ', (size_t)n); return r; }"
 PRINT "static char* xb_tab_0(int col) { return xb_tab(0, col); }"
@@ -951,12 +974,27 @@ WHILE pos <= LEN(src$)
         IF inFunc = 1 THEN
           IF LEFT$(stmt$, 4) = "dim " THEN
             IF INSTR(stmt$, "[") > 0 THEN
-              ' CGEN-DIM-DEDUP: a repeated array DIM redeclares the same C
-              ' array (Kittedy DIMs `shuffle[uBlocks]` twice). First wins.
-              IF INSTR(##arrDimsSeen$, ":" + dim_name$(stmt$) + ":") > 0 THEN
-                cCode$ = ""
-              ELSE
-                ##arrDimsSeen$ = ##arrDimsSeen$ + ":" + dim_name$(stmt$) + ":"
+              ' CGEN-DIM-DEDUP: suppress only an IDENTICAL repeated native
+              ' fixed-array declaration in this C function (Kittedy's two
+              ' `DIM shuffle[uBlocks]` lines). Heap-backed/dynamic/shared/
+              ' composite DIMs are executable resize/reset operations and must
+              ' keep running. Store the exact IR line, not just the name, so a
+              ' later DIM with a different bound/type is never hidden.
+              DIM _adName$
+              DIM _adSig$
+              DIM _adNative
+              _adName$ = dim_name$(stmt$)
+              _adSig$ = CHR$(10) + stmt$ + CHR$(10)
+              _adNative = 1
+              IF INSTR(##dynNames$, ":" + _adName$ + ":") > 0 OR INSTR(##dynStr$, ":" + _adName$ + ":") > 0 OR INSTR(##strDual$, ":" + _adName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + _adName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + _adName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + _adName$ + ":") > 0 THEN
+                _adNative = 0
+              END IF
+              IF _adNative = 1 THEN
+                IF INSTR(##arrDimsSeen$, _adSig$) > 0 THEN
+                  cCode$ = ""
+                ELSE
+                  ##arrDimsSeen$ = ##arrDimsSeen$ + _adSig$
+                END IF
               END IF
             END IF
             IF INSTR(stmt$, "[") = 0 THEN
@@ -1321,6 +1359,10 @@ FUNCTION c_func_name$(n$)
     c_func_name$ = "xb_seek"
   ELSEIF n$ = "INFILE$" THEN
     c_func_name$ = "xb_infile"
+  ELSEIF n$ = "__WRITE_RECORD" THEN
+    c_func_name$ = "xb_write_record"
+  ELSEIF n$ = "__READ_RECORD" THEN
+    c_func_name$ = "xb_read_record"
   ELSEIF n$ = "TAB" THEN
     c_func_name$ = "xb_tab_0"
   ELSEIF n$ = "ISDATA" THEN

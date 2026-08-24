@@ -169,6 +169,8 @@ pub(crate) fn emit_c_function_name(name: &str, out: &mut String) {
         "POF" => out.push_str("xb_pof"),
         "SEEK" => out.push_str("xb_seek"),
         "INFILE$" => out.push_str("xb_infile"),
+        "__WRITE_RECORD" => out.push_str("xb_write_record"),
+        "__READ_RECORD" => out.push_str("xb_read_record"),
         "ISDATA" => out.push_str("xb_isdata"),
         "INKEY$" => out.push_str("xb_inkey"),
         "WAITKEY" => out.push_str("xb_waitkey"),

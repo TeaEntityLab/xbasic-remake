@@ -677,10 +677,12 @@ impl Analyzer {
         // Composite record I/O: `WRITE/READ [f], compositearr[]` transfers
         // SIZE(arr) bytes. SIZE is byte_len*(UBOUND(member0)+1), evaluated at
         // runtime, so a READ after re-DIM transfers the smaller count.
-        if (name == "WRITE" || name == "READ") && args.len() == 2 {
+        let is_write = name.eq_ignore_ascii_case("WRITE");
+        let is_read = name.eq_ignore_ascii_case("READ");
+        if (is_write || is_read) && args.len() == 2 {
             if let Some(size) = self.composite_size(&args[1]) {
                 let file = self.expr(&args[0])?;
-                let record = if name == "WRITE" {
+                let record = if is_write {
                     "__WRITE_RECORD"
                 } else {
                     "__READ_RECORD"

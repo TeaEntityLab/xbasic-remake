@@ -118,6 +118,50 @@ fn compile_and_exec(tmp: &Path, name: &str, c: &[u8], input: Option<&str>) -> St
     out.stdout.iter().map(|&b| b as char).collect()
 }
 
+/// Compile under `tmp`, then execute from an isolated working directory.
+/// File-I/O programs must not see or mutate files from other test runs.
+fn compile_and_exec_in(
+    tmp: &Path,
+    run_dir: &Path,
+    name: &str,
+    c: &[u8],
+    input: Option<&str>,
+) -> String {
+    let c_path = tmp.join(format!("{name}.c"));
+    let exe = tmp.join(name);
+    fs::write(&c_path, c).expect("write c");
+    let cc = Command::new(common::cc::cc())
+        .args(["-o", exe.to_str().unwrap(), c_path.to_str().unwrap()])
+        .output()
+        .expect("run cc");
+    assert!(
+        cc.status.success(),
+        "cc {name} failed: {}",
+        String::from_utf8_lossy(&cc.stderr)
+    );
+    let mut cmd = Command::new(common::exe_path(&exe));
+    cmd.current_dir(run_dir)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() });
+    let mut child = cmd.spawn().expect("spawn native exe");
+    if let Some(inp) = input {
+        child
+            .stdin
+            .take()
+            .expect("native stdin")
+            .write_all(inp.as_bytes())
+            .expect("write input");
+    }
+    let out = child.wait_with_output().expect("wait native exe");
+    assert!(
+        out.status.success(),
+        "native {name} failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    out.stdout.iter().map(|&b| b as char).collect()
+}
+
 /// The Rust `CEmitter` and the self-hosted `cgen.x` must produce native
 /// executables whose output is byte-identical to each other AND to the golden
 /// `.out`, for every program in the positive corpus.
@@ -227,6 +271,93 @@ fn cemitter_and_cgen_agree_on_rank_three_flat_array() {
     assert_eq!(interp_out, "123\n12\n", "interpreter reference");
     assert_eq!(rust_out, interp_out, "Rust CEmitter rank-3 flat output");
     assert_eq!(self_out, interp_out, "cgen.x rank-3 flat output");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// CGEN-DIM-DEDUP: an identical repeated native array DIM is one C
+/// declaration (Kittedy's duplicate `shuffle[uBlocks]`), but repeated DIM of
+/// a heap-backed/dynamic array is executable and resets/re-sizes the slot.
+#[test]
+fn cemitter_and_cgen_agree_on_array_dim_dedup_boundary() {
+    let tmp = std::env::temp_dir().join("xb_sync_dim_dedup_boundary");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM fixed[2]\n\
+               DIM fixed[2]\n\
+               fixed[1] = 9\n\
+               DIM dyn\n\
+               DIM dyn[0]\n\
+               dyn[0] = 7\n\
+               DIM dyn[2]\n\
+               PRINT fixed[1]\n\
+               PRINT dyn[0]\n\
+               PRINT UBOUND(dyn[])\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse DIM dedup boundary program")
+        .lower_ir()
+        .expect("lower DIM dedup boundary program");
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("run interp DIM dedup boundary");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "dim_dedup_rust", rust_c.as_bytes(), None);
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "dim_dedup_self", &self_c, None);
+    assert_eq!(interp_out, "9\n0\n2\n", "interpreter reference");
+    assert_eq!(rust_out, interp_out, "Rust CEmitter DIM lifecycle");
+    assert_eq!(self_out, interp_out, "cgen.x DIM dedup/lifecycle boundary");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// Record file I/O: WRITE/READ `[handle], record[]` lower to the internal
+/// `__WRITE_RECORD` / `__READ_RECORD` calls. Both C generators must preserve
+/// their side effects: WR creates/truncates the file, write appends the logical
+/// record byte count and flushes, read advances by that count, and LOF/POF
+/// expose the resulting size/position. Payload bytes are intentionally zeroed
+/// and discarded, matching the interpreter's bounded placeholder semantics.
+#[test]
+fn cemitter_and_cgen_agree_on_record_file_io() {
+    let tmp = std::env::temp_dir().join("xb_sync_record_io");
+    let rust_dir = tmp.join("rust");
+    let self_dir = tmp.join("self");
+    fs::create_dir_all(&rust_dir).expect("mkdir rust record dir");
+    fs::create_dir_all(&self_dir).expect("mkdir self record dir");
+    let cgen_exe = build_native_cgen(&tmp);
+    let src = "VERSION \"1\"\n\
+               TYPE REC\n\
+               INT .x\n\
+               END TYPE\n\
+               FUNCTION Main\n\
+               REC r[]\n\
+               DIM r[0]\n\
+               f = OPEN(\"record.dat\", $$WR)\n\
+               IF f > 2 THEN WRITE [f], r[]\n\
+               CLOSE(f)\n\
+               g = OPEN(\"record.dat\", $$RD)\n\
+               PRINT LOF(g)\n\
+               IF g > 2 THEN READ [g], r[]\n\
+               PRINT POF(g)\n\
+               CLOSE(g)\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse record I/O program")
+        .lower_ir()
+        .expect("lower record I/O program");
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec_in(&tmp, &rust_dir, "record_rust", rust_c.as_bytes(), None);
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec_in(&tmp, &self_dir, "record_self", &self_c, None);
+    assert_eq!(rust_out, "4\n4\n", "Rust record I/O reference");
+    assert_eq!(self_out, rust_out, "cgen.x record I/O side effects");
+    assert_eq!(fs::metadata(rust_dir.join("record.dat")).unwrap().len(), 4);
+    assert_eq!(fs::metadata(self_dir.join("record.dat")).unwrap().len(), 4);
     let _ = fs::remove_dir_all(&tmp);
 }
 

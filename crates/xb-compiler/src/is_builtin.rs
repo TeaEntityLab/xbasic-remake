@@ -142,6 +142,8 @@ pub fn is_builtin(name: &str) -> bool {
             | "POF"
             | "SEEK"
             | "INFILE$"
+            | "__WRITE_RECORD"
+            | "__READ_RECORD"
             | "ISDATA"
             | "INKEY$"
             | "WAITKEY"
