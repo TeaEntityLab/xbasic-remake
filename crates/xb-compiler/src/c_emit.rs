@@ -159,7 +159,10 @@ fn set_defined_funcs(program: &IrProgram) {
             if let IrItem::Function { name, params, .. } = item {
                 m.entry(name.clone()).or_insert_with(|| {
                     let d = info.get(name).map(|(x, _)| x.clone()).unwrap_or_default();
-                    params.iter().map(|p| p.is_array && d.contains(&p.name)).collect()
+                    params
+                        .iter()
+                        .map(|p| p.is_array && d.contains(&p.name))
+                        .collect()
                 });
             }
         }
@@ -188,11 +191,19 @@ fn set_defined_funcs(program: &IrProgram) {
             // handoffs must hit the same storage the DIM allocated).
             let mut top_level: HashSet<String> = HashSet::new();
             for item in &program.items {
-                if let IrItem::Dim { symbol, is_array: true, shared: true, .. } = item {
+                if let IrItem::Dim {
+                    symbol,
+                    is_array: true,
+                    shared: true,
+                    ..
+                } = item
+                {
                     top_level.insert(symbol.name.clone());
                 }
             }
-            m.retain(|name, _| !dual.contains(name) || top_level.contains(name) || name.contains('.'));
+            m.retain(|name, _| {
+                !dual.contains(name) || top_level.contains(name) || name.contains('.')
+            });
 
             // Composite-member dual-use gate: a shared array member (dotted name)
             // that is ALSO DIM'd as a SCALAR anywhere — a scalar composite
@@ -216,19 +227,28 @@ fn set_defined_funcs(program: &IrProgram) {
 fn collect_shared_arrays(items: &[IrItem], out: &mut HashMap<String, crate::ValueType>) {
     for item in items {
         match item {
-            IrItem::Dim { symbol, is_array: true, shared: true, .. } => {
+            IrItem::Dim {
+                symbol,
+                is_array: true,
+                shared: true,
+                ..
+            } => {
                 out.entry(symbol.name.clone()).or_insert(symbol.value_type);
             }
             IrItem::Function { body, .. } => collect_shared_arrays(body, out),
-            IrItem::If { then_body, else_body, .. } => {
+            IrItem::If {
+                then_body,
+                else_body,
+                ..
+            } => {
                 collect_shared_arrays(then_body, out);
                 if let Some(eb) = else_body {
                     collect_shared_arrays(eb, out);
                 }
             }
-            IrItem::While { body, .. }
-            | IrItem::For { body, .. }
-            | IrItem::DoLoop { body, .. } => collect_shared_arrays(body, out),
+            IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
+                collect_shared_arrays(body, out)
+            }
             IrItem::SelectCase { cases, default, .. } => {
                 for c in cases {
                     collect_shared_arrays(&c.body, out);
@@ -254,20 +274,33 @@ fn collect_scalar_dimmed_names(items: &[IrItem], out: &mut HashSet<String>) {
             // they must NOT suppress other functions' auto-local hoisting of
             // the same name (xui's `window` is SHARED in one function and a
             // plain auto-local in several others).
-            IrItem::Dim { symbol, is_array: false, shared: true, .. } => {}
-            IrItem::Dim { symbol, is_array: false, .. } => {
+            IrItem::Dim {
+                symbol,
+                is_array: false,
+                shared: true,
+                ..
+            } => {}
+            IrItem::Dim {
+                symbol,
+                is_array: false,
+                ..
+            } => {
                 out.insert(symbol.name.clone());
             }
             IrItem::Function { body, .. } => collect_scalar_dimmed_names(body, out),
-            IrItem::If { then_body, else_body, .. } => {
+            IrItem::If {
+                then_body,
+                else_body,
+                ..
+            } => {
                 collect_scalar_dimmed_names(then_body, out);
                 if let Some(eb) = else_body {
                     collect_scalar_dimmed_names(eb, out);
                 }
             }
-            IrItem::While { body, .. }
-            | IrItem::For { body, .. }
-            | IrItem::DoLoop { body, .. } => collect_scalar_dimmed_names(body, out),
+            IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
+                collect_scalar_dimmed_names(body, out)
+            }
             IrItem::SelectCase { cases, default, .. } => {
                 for c in cases {
                     collect_scalar_dimmed_names(&c.body, out);
@@ -369,7 +402,11 @@ fn collect_callsite_byref(items: &[IrItem], m: &mut HashMap<String, Vec<(bool, b
                 walk_expr(left, m);
                 walk_expr(right, m);
             }
-            K::ArrayAccess { index, extra_indices, .. } => {
+            K::ArrayAccess {
+                index,
+                extra_indices,
+                ..
+            } => {
                 walk_expr(index, m);
                 for x in extra_indices {
                     walk_expr(x, m);
@@ -391,7 +428,9 @@ fn collect_callsite_byref(items: &[IrItem], m: &mut HashMap<String, Vec<(bool, b
                     walk_expr(e, m);
                 }
             }
-            IrItem::Dim { size, extra_dims, .. } => {
+            IrItem::Dim {
+                size, extra_dims, ..
+            } => {
                 if let Some(s) = size {
                     walk_expr(s, m);
                 }
@@ -402,14 +441,24 @@ fn collect_callsite_byref(items: &[IrItem], m: &mut HashMap<String, Vec<(bool, b
             IrItem::Assignment { value, .. } | IrItem::SharedAssignment { value, .. } => {
                 walk_expr(value, m);
             }
-            IrItem::ArrayAssignment { index, extra_indices, value, .. } => {
+            IrItem::ArrayAssignment {
+                index,
+                extra_indices,
+                value,
+                ..
+            } => {
                 walk_expr(index, m);
                 for x in extra_indices {
                     walk_expr(x, m);
                 }
                 walk_expr(value, m);
             }
-            IrItem::MidAssign { target, start, length, value } => {
+            IrItem::MidAssign {
+                target,
+                start,
+                length,
+                value,
+            } => {
                 walk_expr(target, m);
                 walk_expr(start, m);
                 if let Some(l) = length {
@@ -423,7 +472,11 @@ fn collect_callsite_byref(items: &[IrItem], m: &mut HashMap<String, Vec<(bool, b
                 }
                 walk_expr(value, m);
             }
-            IrItem::If { condition, then_body, else_body } => {
+            IrItem::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
                 walk_expr(condition, m);
                 collect_callsite_byref(then_body, m);
                 if let Some(e) = else_body {
@@ -434,7 +487,11 @@ fn collect_callsite_byref(items: &[IrItem], m: &mut HashMap<String, Vec<(bool, b
                 walk_expr(condition, m);
                 collect_callsite_byref(body, m);
             }
-            IrItem::DoLoop { pre_condition, post_condition, body } => {
+            IrItem::DoLoop {
+                pre_condition,
+                post_condition,
+                body,
+            } => {
                 if let Some((e, _)) = pre_condition {
                     walk_expr(e, m);
                 }
@@ -443,7 +500,13 @@ fn collect_callsite_byref(items: &[IrItem], m: &mut HashMap<String, Vec<(bool, b
                 }
                 collect_callsite_byref(body, m);
             }
-            IrItem::For { start, end, step, body, .. } => {
+            IrItem::For {
+                start,
+                end,
+                step,
+                body,
+                ..
+            } => {
                 walk_expr(start, m);
                 walk_expr(end, m);
                 if let Some(s) = step {
@@ -457,7 +520,11 @@ fn collect_callsite_byref(items: &[IrItem], m: &mut HashMap<String, Vec<(bool, b
                     walk_expr(v, m);
                 }
             }
-            IrItem::SelectCase { selector, cases, default } => {
+            IrItem::SelectCase {
+                selector,
+                cases,
+                default,
+            } => {
                 walk_expr(selector, m);
                 for c in cases {
                     for cond in &c.conditions {
@@ -560,8 +627,11 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
         set.extend(params.iter().map(|p| p.name.clone()));
     });
     FN_DUAL_USE.with(|s| {
-        let forced_array: HashSet<String> =
-            descriptors.iter().cloned().chain(descriptor_locals.keys().cloned()).collect();
+        let forced_array: HashSet<String> = descriptors
+            .iter()
+            .cloned()
+            .chain(descriptor_locals.keys().cloned())
+            .collect();
         let mut set = crate::c_emit_hoist::collect_dual_use(items, &forced_array);
         // A name used as both scalar and array splits into a scalar var + a
         // separate `_arr` array. A genuine dual-use PARAM (qbtoxb's `token[]`,
@@ -580,10 +650,12 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
             // Exception: if the name also has a non-string array DIM (xgr's
             // `def:string` + `dim def:integer[80]`), the integer facet IS
             // genuinely dual-use — don't drop.
-            if !p.is_array && p.value_type == ValueType::String
-                && array_dim_type(items, &p.name).is_none() {
-                    set.remove(&p.name);
-                }
+            if !p.is_array
+                && p.value_type == ValueType::String
+                && array_dim_type(items, &p.name).is_none()
+            {
+                set.remove(&p.name);
+            }
         }
         *s.borrow_mut() = set;
     });
@@ -593,16 +665,17 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
     // But if the same name also has an ARRAY param (Kittedy's `adjacent` has
     // both `adjacent:integer` and `adjacent:integer[]`), the array facet is
     // already declared in the signature — skip the injection.
-    let array_param_names: HashSet<String> =
-        params.iter().filter(|p| p.is_array).map(|p| p.name.clone()).collect();
+    let array_param_names: HashSet<String> = params
+        .iter()
+        .filter(|p| p.is_array)
+        .map(|p| p.name.clone())
+        .collect();
     FN_DUAL_USE.with(|dual| {
         let dual_set = dual.borrow();
         FN_DYN.with(|dyn_s| {
             let mut dyn_names = dyn_s.borrow_mut();
             for p in params {
-                if !p.is_array
-                    && dual_set.contains(&p.name)
-                    && !array_param_names.contains(&p.name)
+                if !p.is_array && dual_set.contains(&p.name) && !array_param_names.contains(&p.name)
                 {
                     // Use the array DIM's type, not the param's type: a STRING
                     // param (xgr's `def:string`) with a separate INTEGER array
@@ -649,7 +722,10 @@ pub(crate) fn emit_byref_copy_in(out: &mut String, indent: usize) {
     let ind = "    ".repeat(indent);
     FN_BYREF_PARAMS.with(|s| {
         for (name, vt) in s.borrow().iter() {
-            let sym = IrSymbol { name: name.clone(), value_type: *vt };
+            let sym = IrSymbol {
+                name: name.clone(),
+                value_type: *vt,
+            };
             out.push_str(&ind);
             out.push_str(c_type(*vt));
             out.push(' ');
@@ -668,7 +744,10 @@ pub(crate) fn emit_byref_copy_out(out: &mut String, indent: usize) {
     let ind = "    ".repeat(indent);
     FN_BYREF_PARAMS.with(|s| {
         for (name, vt) in s.borrow().iter() {
-            let sym = IrSymbol { name: name.clone(), value_type: *vt };
+            let sym = IrSymbol {
+                name: name.clone(),
+                value_type: *vt,
+            };
             out.push_str(&ind);
             out.push('*');
             crate::c_emit_expr::emit_var_name(&sym, out);
@@ -769,7 +848,10 @@ pub(crate) fn descriptor_ub_ident(name: &str) -> String {
 /// Emit the two C params for a descriptor by-ref array param `p`:
 /// `T **xb_var_p_d, intptr_t *xb_ub_p` (docs/18).
 pub(crate) fn emit_descriptor_param_decl(p: &crate::ir::IrParam, out: &mut String) {
-    let sym = IrSymbol { name: p.name.clone(), value_type: p.value_type };
+    let sym = IrSymbol {
+        name: p.name.clone(),
+        value_type: p.value_type,
+    };
     out.push_str(c_type(p.value_type));
     out.push_str(" **");
     emit_descriptor_data_ptr(&sym, out);
@@ -781,7 +863,12 @@ pub(crate) fn emit_descriptor_param_decl(p: &crate::ir::IrParam, out: &mut Strin
 /// function name — usable during signature/forward-decl emission before the
 /// per-function `FN_DESC` context is set.
 pub(crate) fn fn_descriptor_params(name: &str) -> HashSet<String> {
-    DESC_INFO.with(|s| s.borrow().get(name).map(|(d, _)| d.clone()).unwrap_or_default())
+    DESC_INFO.with(|s| {
+        s.borrow()
+            .get(name)
+            .map(|(d, _)| d.clone())
+            .unwrap_or_default()
+    })
 }
 
 /// Per-param descriptor flags of a user-defined callee, so a call site passes the
@@ -898,7 +985,10 @@ pub(crate) fn emit_dyn_decls(out: &mut String, indent: usize) {
             if is_shared_array(name) {
                 continue;
             }
-            let sym = IrSymbol { name: name.clone(), value_type: *vt };
+            let sym = IrSymbol {
+                name: name.clone(),
+                value_type: *vt,
+            };
             out.push_str(&ind);
             out.push_str(c_type(*vt));
             out.push_str(" *");
@@ -910,12 +1000,17 @@ pub(crate) fn emit_dyn_decls(out: &mut String, indent: usize) {
             out.push_str(" = -1;\n");
         }
         for (name, vt) in &dyn_names.scalars {
-            if is_shared_array(name) { continue; }
+            if is_shared_array(name) {
+                continue;
+            }
             out.push_str(&ind);
             out.push_str(c_type(*vt));
             out.push(' ');
             emit_var_name(
-                &IrSymbol { name: name.clone(), value_type: *vt },
+                &IrSymbol {
+                    name: name.clone(),
+                    value_type: *vt,
+                },
                 out,
             );
             out.push_str(" = ");
@@ -961,31 +1056,49 @@ fn array_dim_type(items: &[IrItem], name: &str) -> Option<ValueType> {
     fn search(items: &[IrItem], name: &str) -> Option<ValueType> {
         for it in items {
             match it {
-                IrItem::Dim { symbol, size, is_array, .. }
-                    if (*is_array || size.is_some())
-                        && symbol.name == name
-                        && symbol.value_type != ValueType::String =>
+                IrItem::Dim {
+                    symbol,
+                    size,
+                    is_array,
+                    ..
+                } if (*is_array || size.is_some())
+                    && symbol.name == name
+                    && symbol.value_type != ValueType::String =>
                 {
                     return Some(symbol.value_type);
                 }
-                IrItem::If { then_body, else_body, .. } => {
-                    if let Some(v) = search(then_body, name) { return Some(v); }
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
+                    if let Some(v) = search(then_body, name) {
+                        return Some(v);
+                    }
                     if let Some(b) = else_body {
-                        if let Some(v) = search(b, name) { return Some(v); }
+                        if let Some(v) = search(b, name) {
+                            return Some(v);
+                        }
                     }
                 }
                 IrItem::While { body, .. }
                 | IrItem::For { body, .. }
                 | IrItem::DoLoop { body, .. }
                 | IrItem::Compound(body) => {
-                    if let Some(v) = search(body, name) { return Some(v); }
+                    if let Some(v) = search(body, name) {
+                        return Some(v);
+                    }
                 }
                 IrItem::SelectCase { cases, default, .. } => {
                     for c in cases {
-                        if let Some(v) = search(&c.body, name) { return Some(v); }
+                        if let Some(v) = search(&c.body, name) {
+                            return Some(v);
+                        }
                     }
                     if let Some(b) = default {
-                        if let Some(v) = search(b, name) { return Some(v); }
+                        if let Some(v) = search(b, name) {
+                            return Some(v);
+                        }
                     }
                 }
                 _ => {}
@@ -1079,7 +1192,10 @@ impl CEmitter {
         if body.contains("xb_gui_next_callback(") {
             crate::c_runtime::emit_gui_runtime(&mut out);
         }
-        if body.contains("xb_write_file(") || body.contains("xb_read_file(") || body.contains("xb_getstdhandle(") {
+        if body.contains("xb_write_file(")
+            || body.contains("xb_read_file(")
+            || body.contains("xb_getstdhandle(")
+        {
             crate::c_runtime::emit_kernel32_runtime(&mut out);
         }
         if body.contains("xb_xin_") {
@@ -1188,10 +1304,9 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
                 // name AND same string-ness (`v0` Integer and `v0` String map to
                 // xb_var_v0 vs xb_str_v0, distinct, so must NOT be renamed).
                 let p_str = p.value_type == crate::ValueType::String;
-                if params[i + 1..]
-                    .iter()
-                    .any(|q| q.name == p.name && (q.value_type == crate::ValueType::String) == p_str)
-                {
+                if params[i + 1..].iter().any(|q| {
+                    q.name == p.name && (q.value_type == crate::ValueType::String) == p_str
+                }) {
                     out.push_str(&format!("__dup{i}"));
                 }
             }
@@ -1234,8 +1349,15 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
 /// non-shared (already global), non-dyn (calloc must stay at the DIM site).
 fn hoistable_module_dim(item: &IrItem) -> bool {
     match item {
-        IrItem::Dim { symbol, size, is_array, extra_dims, .. } => {
-            let sized = size.is_some() && !extra_dims.is_empty() || (size.is_some() && extra_dims.is_empty());
+        IrItem::Dim {
+            symbol,
+            size,
+            is_array,
+            extra_dims,
+            ..
+        } => {
+            let sized = size.is_some() && !extra_dims.is_empty()
+                || (size.is_some() && extra_dims.is_empty());
             sized
                 && (*is_array || size.is_some())
                 && symbol.value_type != ValueType::String
@@ -1270,7 +1392,13 @@ fn emit_module_dims(program: &IrProgram, out: &mut String) {
         }
     });
     for item in &program.items {
-        if let IrItem::Dim { symbol, size, extra_dims, .. } = item {
+        if let IrItem::Dim {
+            symbol,
+            size,
+            extra_dims,
+            ..
+        } = item
+        {
             if !hoistable_module_dim(item) {
                 continue;
             }
@@ -1405,7 +1533,6 @@ fn emit_fallback_return(name: &str, return_type: ValueType, out: &mut String) {
     out.push_str(ret_name);
     out.push_str(";\n");
 }
-
 
 /// Library-mode emission (env `XB_WEAK_SYMBOLS` set): function definitions and
 /// file-scope globals get `__attribute__((weak))` and `main` is omitted, so the

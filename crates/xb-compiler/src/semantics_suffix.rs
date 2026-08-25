@@ -42,7 +42,11 @@ impl Analyzer {
             .collect()
     }
 
-    fn note_var(base: &str, suffix: Option<TypeSuffix>, kinds: &mut BTreeMap<String, (bool, bool)>) {
+    fn note_var(
+        base: &str,
+        suffix: Option<TypeSuffix>,
+        kinds: &mut BTreeMap<String, (bool, bool)>,
+    ) {
         if base.contains('.') {
             return;
         }
@@ -61,7 +65,13 @@ impl Analyzer {
                     Self::scan_expr(e, kinds);
                 }
             }
-            Statement::Dim { name, suffix, size, is_array, .. } => {
+            Statement::Dim {
+                name,
+                suffix,
+                size,
+                is_array,
+                ..
+            } => {
                 if size.is_none() && !*is_array {
                     Self::note_var(name, *suffix, kinds);
                 }
@@ -69,7 +79,11 @@ impl Analyzer {
                     Self::scan_expr(e, kinds);
                 }
             }
-            Statement::Assignment { target, suffix, value } => {
+            Statement::Assignment {
+                target,
+                suffix,
+                value,
+            } => {
                 Self::note_var(target, *suffix, kinds);
                 Self::scan_expr(value, kinds);
             }
@@ -77,7 +91,12 @@ impl Analyzer {
                 Self::scan_expr(index, kinds);
                 Self::scan_expr(value, kinds);
             }
-            Statement::MidAssign { target, start, length, value } => {
+            Statement::MidAssign {
+                target,
+                start,
+                length,
+                value,
+            } => {
                 Self::scan_expr(target, kinds);
                 Self::scan_expr(start, kinds);
                 if let Some(l) = length {
@@ -92,7 +111,11 @@ impl Analyzer {
                 Self::scan_expr(value, kinds);
             }
             Statement::SharedAssignment { value, .. } => Self::scan_expr(value, kinds),
-            Statement::If { condition, then_body, else_body } => {
+            Statement::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
                 Self::scan_expr(condition, kinds);
                 for st in then_body {
                     Self::scan_stmt(st, kinds);
@@ -109,7 +132,11 @@ impl Analyzer {
                     Self::scan_stmt(st, kinds);
                 }
             }
-            Statement::DoLoop { pre_condition, post_condition, body } => {
+            Statement::DoLoop {
+                pre_condition,
+                post_condition,
+                body,
+            } => {
                 if let Some((e, _)) = pre_condition {
                     Self::scan_expr(e, kinds);
                 }
@@ -120,7 +147,13 @@ impl Analyzer {
                     Self::scan_stmt(st, kinds);
                 }
             }
-            Statement::For { var, start, end, step, body } => {
+            Statement::For {
+                var,
+                start,
+                end,
+                step,
+                body,
+            } => {
                 Self::note_var(var, None, kinds);
                 Self::scan_expr(start, kinds);
                 Self::scan_expr(end, kinds);
@@ -144,7 +177,13 @@ impl Analyzer {
             Statement::Inc { target, suffix, .. } | Statement::Dec { target, suffix, .. } => {
                 Self::note_var(target, *suffix, kinds);
             }
-            Statement::Swap { left, left_suffix, right, right_suffix, .. } => {
+            Statement::Swap {
+                left,
+                left_suffix,
+                right,
+                right_suffix,
+                ..
+            } => {
                 Self::note_var(left, *left_suffix, kinds);
                 Self::note_var(right, *right_suffix, kinds);
             }
@@ -153,7 +192,11 @@ impl Analyzer {
                     Self::scan_stmt(st, kinds);
                 }
             }
-            Statement::SelectCase { selector, cases, default } => {
+            Statement::SelectCase {
+                selector,
+                cases,
+                default,
+            } => {
                 Self::scan_expr(selector, kinds);
                 for c in cases {
                     for cond in &c.conditions {

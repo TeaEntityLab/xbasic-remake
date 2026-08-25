@@ -14,7 +14,10 @@ fn stage0_ir(source: &str) -> String {
 fn stage1_ir(compiler_source: &str, target_source: &str) -> String {
     let unit = FrontendUnit::parse(compiler_source).unwrap();
     let program = unit.lower_ir().unwrap();
-    let input: Vec<Vec<u8>> = target_source.lines().map(|l| l.as_bytes().to_vec()).collect();
+    let input: Vec<Vec<u8>> = target_source
+        .lines()
+        .map(|l| l.as_bytes().to_vec())
+        .collect();
     let mut output = Vec::new();
     Interpreter::new()
         .execute_main_with_input(&program, input, &mut output)

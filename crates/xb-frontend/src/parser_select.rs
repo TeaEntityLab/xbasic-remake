@@ -1,6 +1,8 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::ast::{BooleanOp, CaseClause, ComparisonOp, Expression, FunctionDecl, PrintSep, Statement};
+use crate::ast::{
+    BooleanOp, CaseClause, ComparisonOp, Expression, FunctionDecl, PrintSep, Statement,
+};
 use crate::parser::Parser;
 use crate::token::{Keyword, TokenKind};
 
@@ -172,7 +174,11 @@ impl Parser {
                             suffix: None,
                         });
                     }
-                    Statement::If { then_body, else_body, .. } => {
+                    Statement::If {
+                        then_body,
+                        else_body,
+                        ..
+                    } => {
                         replace_exit_select(then_body, label);
                         if let Some(eb) = else_body {
                             replace_exit_select(eb, label);
@@ -542,7 +548,15 @@ impl Parser {
             }
             return Ok(decl);
         }
-        Ok(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: false, shared: is_shared })
+        Ok(Statement::Dim {
+            name,
+            suffix,
+            size,
+            extra_dims,
+            is_array,
+            redim: false,
+            shared: is_shared,
+        })
     }
 
     pub(crate) fn redim_stmt(&mut self) -> Result<Statement, crate::ParseError> {
@@ -550,7 +564,15 @@ impl Parser {
         let (name, suffix) = Self::shared_name_suffix(self.expect_name_or_keyword()?);
         let (size, is_array, extra_dims) = self.parse_array_size()?;
         self.expect_line_end()?;
-        Ok(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: true, shared: false })
+        Ok(Statement::Dim {
+            name,
+            suffix,
+            size,
+            extra_dims,
+            is_array,
+            redim: true,
+            shared: false,
+        })
     }
 }
 

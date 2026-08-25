@@ -38,7 +38,10 @@ impl Analyzer {
                     }
                     _ => ValueType::Integer,
                 };
-                Ok(CheckedExpr::new(CheckedExprKind::IntegerLiteral(v.clone()), vt))
+                Ok(CheckedExpr::new(
+                    CheckedExprKind::IntegerLiteral(v.clone()),
+                    vt,
+                ))
             }
             Expression::FloatLiteral(v) => Ok(CheckedExpr::new(
                 CheckedExprKind::FloatLiteral(v.clone()),
@@ -59,9 +62,11 @@ impl Analyzer {
             Expression::Boolean { op, left, right } => self.boolean(*op, left, right),
             Expression::Logical { op, left, right } => self.logical(*op, left, right),
             Expression::FunctionCall { name, args } => self.function_call(name, args),
-            Expression::ArrayAccess { name, index, extra_indices } => {
-                self.array_access(name, index, extra_indices)
-            }
+            Expression::ArrayAccess {
+                name,
+                index,
+                extra_indices,
+            } => self.array_access(name, index, extra_indices),
             Expression::ArrayRef { name } => self.array_ref(name),
             Expression::FuncAddr(name) => self.func_addr(name),
         }
@@ -75,7 +80,12 @@ impl Analyzer {
         ))
     }
 
-    pub(crate) fn array_access(&self, name: &str, index: &Expression, extra: &[Expression]) -> ExprResult {
+    pub(crate) fn array_access(
+        &self,
+        name: &str,
+        index: &Expression,
+        extra: &[Expression],
+    ) -> ExprResult {
         // A composite member array (a dotted leaf name like `library.name`) stores
         // its declared element type in `self.arrays`, NOT `self.symbols` — so
         // `auto_symbol` would default it to Integer (the member `name` carries no
@@ -350,7 +360,11 @@ impl Analyzer {
                     ValueType::Integer,
                 ));
             }
-            if let Expression::Identifier { name: var_name, suffix } = &args[0] {
+            if let Expression::Identifier {
+                name: var_name,
+                suffix,
+            } = &args[0]
+            {
                 let type_map = [
                     ("XLONG", ValueType::Integer),
                     ("SBYTE", ValueType::Integer),
@@ -562,7 +576,10 @@ impl Analyzer {
         }
         if !name.contains('.') && self.collisions.contains(name) {
             return Ok(CheckedExpr::new(
-                CheckedExprKind::Symbol(CheckedSymbol::new(self.slot_name(name, suffix), suffix_vt)),
+                CheckedExprKind::Symbol(CheckedSymbol::new(
+                    self.slot_name(name, suffix),
+                    suffix_vt,
+                )),
                 suffix_vt,
             ));
         }
@@ -649,9 +666,7 @@ impl Analyzer {
         let suffix_vt = ref_value_type(name, suffix);
         let sym = match self.checked_symbol(name) {
             Ok(s) if s.value_type == suffix_vt || name.contains('.') => s,
-            Ok(_) => {
-                CheckedSymbol::new(xb_frontend::full_name(name.to_owned(), suffix), suffix_vt)
-            }
+            Ok(_) => CheckedSymbol::new(xb_frontend::full_name(name.to_owned(), suffix), suffix_vt),
             Err(_) => CheckedSymbol::new(name.to_owned(), suffix_vt),
         };
         Ok(CheckedExpr::new(CheckedExprKind::Symbol(sym), suffix_vt))

@@ -159,10 +159,18 @@ pub struct Token {
 
 impl Token {
     pub const fn new(kind: TokenKind, pos: SourcePos) -> Self {
-        Self { kind, pos, from_brace: false }
+        Self {
+            kind,
+            pos,
+            from_brace: false,
+        }
     }
     pub const fn new_brace(kind: TokenKind, pos: SourcePos) -> Self {
-        Self { kind, pos, from_brace: true }
+        Self {
+            kind,
+            pos,
+            from_brace: true,
+        }
     }
 }
 

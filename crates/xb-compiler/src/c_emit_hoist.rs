@@ -36,7 +36,11 @@ pub(crate) fn emit_hoisted_scalars(
     }
     let mut dimmed: HashSet<(String, bool)> = HashSet::new();
     collect_dimmed(body, &mut dimmed);
-    let array_params: HashSet<&str> = params.iter().filter(|p| p.is_array).map(|p| p.name.as_str()).collect();
+    let array_params: HashSet<&str> = params
+        .iter()
+        .filter(|p| p.is_array)
+        .map(|p| p.name.as_str())
+        .collect();
     let params: HashSet<(&str, bool)> = params
         .iter()
         .map(|p| (p.name.as_str(), p.value_type == ValueType::String))
@@ -98,7 +102,9 @@ fn note(sym: &IrSymbol, scalars: &mut BTreeMap<(String, bool), ValueType>) {
     // (`fillColour` — `xb_str_fillColour` and `xb_var_fillColour`) is two distinct
     // C variables, so both facets must be declared (name-only keying dropped one).
     let is_str = sym.value_type == ValueType::String;
-    scalars.entry((sym.name.clone(), is_str)).or_insert(sym.value_type);
+    scalars
+        .entry((sym.name.clone(), is_str))
+        .or_insert(sym.value_type);
 }
 
 fn walk_expr(e: &IrExpr, scalars: &mut BTreeMap<(String, bool), ValueType>) {
@@ -138,7 +144,11 @@ fn walk_expr(e: &IrExpr, scalars: &mut BTreeMap<(String, bool), ValueType>) {
                 walk_expr(a, scalars);
             }
         }
-        IrExprKind::ArrayAccess { index, extra_indices, .. } => {
+        IrExprKind::ArrayAccess {
+            index,
+            extra_indices,
+            ..
+        } => {
             walk_expr(index, scalars);
             for x in extra_indices {
                 walk_expr(x, scalars);
@@ -160,14 +170,24 @@ fn walk_items(items: &[IrItem], scalars: &mut BTreeMap<(String, bool), ValueType
                 walk_expr(value, scalars);
             }
             // `target` is an array; walk the indices and the value.
-            IrItem::ArrayAssignment { index, extra_indices, value, .. } => {
+            IrItem::ArrayAssignment {
+                index,
+                extra_indices,
+                value,
+                ..
+            } => {
                 walk_expr(index, scalars);
                 for x in extra_indices {
                     walk_expr(x, scalars);
                 }
                 walk_expr(value, scalars);
             }
-            IrItem::MidAssign { target, start, length, value } => {
+            IrItem::MidAssign {
+                target,
+                start,
+                length,
+                value,
+            } => {
                 walk_expr(target, scalars);
                 walk_expr(start, scalars);
                 if let Some(l) = length {
@@ -183,7 +203,11 @@ fn walk_items(items: &[IrItem], scalars: &mut BTreeMap<(String, bool), ValueType
             }
             // `target` is a shared `xb_shared_` global; only the value is local.
             IrItem::SharedAssignment { value, .. } => walk_expr(value, scalars),
-            IrItem::If { condition, then_body, else_body } => {
+            IrItem::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
                 walk_expr(condition, scalars);
                 walk_items(then_body, scalars);
                 if let Some(b) = else_body {
@@ -194,7 +218,11 @@ fn walk_items(items: &[IrItem], scalars: &mut BTreeMap<(String, bool), ValueType
                 walk_expr(condition, scalars);
                 walk_items(body, scalars);
             }
-            IrItem::DoLoop { pre_condition, post_condition, body } => {
+            IrItem::DoLoop {
+                pre_condition,
+                post_condition,
+                body,
+            } => {
                 if let Some((e, _)) = pre_condition {
                     walk_expr(e, scalars);
                 }
@@ -203,7 +231,13 @@ fn walk_items(items: &[IrItem], scalars: &mut BTreeMap<(String, bool), ValueType
                 }
                 walk_items(body, scalars);
             }
-            IrItem::For { var, start, end, step, body } => {
+            IrItem::For {
+                var,
+                start,
+                end,
+                step,
+                body,
+            } => {
                 note(var, scalars);
                 walk_expr(start, scalars);
                 walk_expr(end, scalars);
@@ -222,7 +256,11 @@ fn walk_items(items: &[IrItem], scalars: &mut BTreeMap<(String, bool), ValueType
                 note(left, scalars);
                 note(right, scalars);
             }
-            IrItem::SelectCase { selector, cases, default } => {
+            IrItem::SelectCase {
+                selector,
+                cases,
+                default,
+            } => {
                 walk_expr(selector, scalars);
                 for c in cases {
                     for cond in &c.conditions {
@@ -246,7 +284,14 @@ fn walk_items(items: &[IrItem], scalars: &mut BTreeMap<(String, bool), ValueType
             // here — the interpreter reads it as the 0 default). Walk them so
             // such scalars are hoisted; the declared `symbol` itself is an array,
             // handled by collect_dimmed.
-            IrItem::Dim { symbol, size, is_array, shared, extra_dims, .. } => {
+            IrItem::Dim {
+                symbol,
+                size,
+                is_array,
+                shared,
+                extra_dims,
+                ..
+            } => {
                 // A scalar `DIM a` (no size, not an array, not shared) registers
                 // `a` as a scalar context so `collect_dual_use` finds it when `a`
                 // is also used as an array (DIM a + DIM a[3] → dual-use). The
@@ -294,19 +339,28 @@ pub(crate) fn body_dims_name(items: &[IrItem], name: &str) -> bool {
 fn collect_dimmed(items: &[IrItem], dimmed: &mut HashSet<(String, bool)>) {
     for it in items {
         match it {
-            IrItem::Dim { symbol, shared: true, is_array: false, .. } => {}
+            IrItem::Dim {
+                symbol,
+                shared: true,
+                is_array: false,
+                ..
+            } => {}
             IrItem::Dim { symbol, .. } => {
                 dimmed.insert((symbol.name.clone(), symbol.value_type == ValueType::String));
             }
-            IrItem::If { then_body, else_body, .. } => {
+            IrItem::If {
+                then_body,
+                else_body,
+                ..
+            } => {
                 collect_dimmed(then_body, dimmed);
                 if let Some(b) = else_body {
                     collect_dimmed(b, dimmed);
                 }
             }
-            IrItem::While { body, .. }
-            | IrItem::For { body, .. }
-            | IrItem::DoLoop { body, .. } => collect_dimmed(body, dimmed),
+            IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
+                collect_dimmed(body, dimmed)
+            }
             IrItem::SelectCase { cases, default, .. } => {
                 for c in cases {
                     collect_dimmed(&c.body, dimmed);
@@ -348,15 +402,19 @@ pub(crate) fn collect_descriptor_forwards(items: &[IrItem], out: &mut Vec<(Strin
                     }
                 }
             }
-            IrItem::If { then_body, else_body, .. } => {
+            IrItem::If {
+                then_body,
+                else_body,
+                ..
+            } => {
                 collect_descriptor_forwards(then_body, out);
                 if let Some(b) = else_body {
                     collect_descriptor_forwards(b, out);
                 }
             }
-            IrItem::While { body, .. }
-            | IrItem::For { body, .. }
-            | IrItem::DoLoop { body, .. } => collect_descriptor_forwards(body, out),
+            IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
+                collect_descriptor_forwards(body, out)
+            }
             IrItem::SelectCase { cases, default, .. } => {
                 for c in cases {
                     collect_descriptor_forwards(&c.body, out);
@@ -377,7 +435,11 @@ pub(crate) fn collect_descriptor_forwards(items: &[IrItem], out: &mut Vec<(Strin
 pub(crate) fn collect_array_refs(items: &[IrItem], refs: &mut HashSet<String>) {
     fn expr(e: &IrExpr, refs: &mut HashSet<String>) {
         match &e.kind {
-            IrExprKind::ArrayAccess { symbol, index, extra_indices } => {
+            IrExprKind::ArrayAccess {
+                symbol,
+                index,
+                extra_indices,
+            } => {
                 refs.insert(symbol.name.clone());
                 expr(index, refs);
                 for x in extra_indices {
@@ -412,7 +474,12 @@ pub(crate) fn collect_array_refs(items: &[IrItem], refs: &mut HashSet<String>) {
                 }
             }
             IrItem::Assignment { value, .. } => expr(value, refs),
-            IrItem::ArrayAssignment { target, index, extra_indices, value } => {
+            IrItem::ArrayAssignment {
+                target,
+                index,
+                extra_indices,
+                value,
+            } => {
                 refs.insert(target.name.clone());
                 expr(index, refs);
                 for x in extra_indices {
@@ -420,7 +487,12 @@ pub(crate) fn collect_array_refs(items: &[IrItem], refs: &mut HashSet<String>) {
                 }
                 expr(value, refs);
             }
-            IrItem::MidAssign { target, start, length, value } => {
+            IrItem::MidAssign {
+                target,
+                start,
+                length,
+                value,
+            } => {
                 expr(target, refs);
                 expr(start, refs);
                 if let Some(l) = length {
@@ -435,7 +507,11 @@ pub(crate) fn collect_array_refs(items: &[IrItem], refs: &mut HashSet<String>) {
                 expr(value, refs);
             }
             IrItem::SharedAssignment { value, .. } => expr(value, refs),
-            IrItem::If { condition, then_body, else_body } => {
+            IrItem::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
                 expr(condition, refs);
                 collect_array_refs(then_body, refs);
                 if let Some(b) = else_body {
@@ -446,7 +522,11 @@ pub(crate) fn collect_array_refs(items: &[IrItem], refs: &mut HashSet<String>) {
                 expr(condition, refs);
                 collect_array_refs(body, refs);
             }
-            IrItem::DoLoop { pre_condition, post_condition, body } => {
+            IrItem::DoLoop {
+                pre_condition,
+                post_condition,
+                body,
+            } => {
                 if let Some((e, _)) = pre_condition {
                     expr(e, refs);
                 }
@@ -455,7 +535,13 @@ pub(crate) fn collect_array_refs(items: &[IrItem], refs: &mut HashSet<String>) {
                 }
                 collect_array_refs(body, refs);
             }
-            IrItem::For { start, end, step, body, .. } => {
+            IrItem::For {
+                start,
+                end,
+                step,
+                body,
+                ..
+            } => {
                 expr(start, refs);
                 expr(end, refs);
                 if let Some(s) = step {
@@ -469,7 +555,11 @@ pub(crate) fn collect_array_refs(items: &[IrItem], refs: &mut HashSet<String>) {
                     expr(a, refs);
                 }
             }
-            IrItem::SelectCase { selector, cases, default } => {
+            IrItem::SelectCase {
+                selector,
+                cases,
+                default,
+            } => {
                 expr(selector, refs);
                 for c in cases {
                     for cond in &c.conditions {
@@ -496,15 +586,19 @@ pub(crate) fn collect_labels(items: &[IrItem], labels: &mut HashSet<String>) {
             IrItem::Label(name) => {
                 labels.insert(name.clone());
             }
-            IrItem::If { then_body, else_body, .. } => {
+            IrItem::If {
+                then_body,
+                else_body,
+                ..
+            } => {
                 collect_labels(then_body, labels);
                 if let Some(b) = else_body {
                     collect_labels(b, labels);
                 }
             }
-            IrItem::While { body, .. }
-            | IrItem::For { body, .. }
-            | IrItem::DoLoop { body, .. } => collect_labels(body, labels),
+            IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
+                collect_labels(body, labels)
+            }
             IrItem::SelectCase { cases, default, .. } => {
                 for c in cases {
                     collect_labels(&c.body, labels);
@@ -541,7 +635,11 @@ pub(crate) fn disambiguate_labels(items: &[IrItem]) -> Option<Vec<IrItem>> {
         for it in items {
             out.push(it);
             match it {
-                IrItem::If { then_body, else_body, .. } => {
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     flatten(then_body, out);
                     if let Some(b) = else_body {
                         flatten(b, out);
@@ -573,8 +671,11 @@ pub(crate) fn disambiguate_labels(items: &[IrItem]) -> Option<Vec<IrItem>> {
             occ.entry(n.as_str()).or_default().push(i);
         }
     }
-    let dups: HashSet<&str> =
-        occ.iter().filter(|(_, v)| v.len() > 1).map(|(k, _)| *k).collect();
+    let dups: HashSet<&str> = occ
+        .iter()
+        .filter(|(_, v)| v.len() > 1)
+        .map(|(k, _)| *k)
+        .collect();
     if dups.is_empty() {
         return None;
     }
@@ -625,7 +726,11 @@ pub(crate) fn disambiguate_labels(items: &[IrItem]) -> Option<Vec<IrItem>> {
                     Some(nn) => out.push(IrItem::Goto(nn.clone())),
                     None => out.push(it.clone()),
                 },
-                IrItem::If { condition, then_body, else_body } => {
+                IrItem::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
                     let mut tb = Vec::new();
                     rebuild(then_body, idx, label_rename, goto_target, &mut tb);
                     let eb = else_body.as_ref().map(|b| {
@@ -642,9 +747,16 @@ pub(crate) fn disambiguate_labels(items: &[IrItem]) -> Option<Vec<IrItem>> {
                 IrItem::While { condition, body } => {
                     let mut b = Vec::new();
                     rebuild(body, idx, label_rename, goto_target, &mut b);
-                    out.push(IrItem::While { condition: condition.clone(), body: b });
+                    out.push(IrItem::While {
+                        condition: condition.clone(),
+                        body: b,
+                    });
                 }
-                IrItem::DoLoop { pre_condition, post_condition, body } => {
+                IrItem::DoLoop {
+                    pre_condition,
+                    post_condition,
+                    body,
+                } => {
                     let mut b = Vec::new();
                     rebuild(body, idx, label_rename, goto_target, &mut b);
                     out.push(IrItem::DoLoop {
@@ -653,7 +765,13 @@ pub(crate) fn disambiguate_labels(items: &[IrItem]) -> Option<Vec<IrItem>> {
                         body: b,
                     });
                 }
-                IrItem::For { var, start, end, step, body } => {
+                IrItem::For {
+                    var,
+                    start,
+                    end,
+                    step,
+                    body,
+                } => {
                     let mut b = Vec::new();
                     rebuild(body, idx, label_rename, goto_target, &mut b);
                     out.push(IrItem::For {
@@ -664,7 +782,11 @@ pub(crate) fn disambiguate_labels(items: &[IrItem]) -> Option<Vec<IrItem>> {
                         body: b,
                     });
                 }
-                IrItem::SelectCase { selector, cases, default } => {
+                IrItem::SelectCase {
+                    selector,
+                    cases,
+                    default,
+                } => {
                     let mut cs = Vec::new();
                     for c in cases {
                         let mut b = Vec::new();
@@ -709,21 +831,30 @@ pub(crate) fn disambiguate_labels(items: &[IrItem]) -> Option<Vec<IrItem>> {
 pub(crate) fn collect_array_dims(items: &[IrItem], out: &mut HashMap<String, Vec<IrExpr>>) {
     for it in items {
         match it {
-            IrItem::Dim { symbol, size: Some(sz), extra_dims, .. } if !extra_dims.is_empty() => {
+            IrItem::Dim {
+                symbol,
+                size: Some(sz),
+                extra_dims,
+                ..
+            } if !extra_dims.is_empty() => {
                 let mut dims = Vec::with_capacity(1 + extra_dims.len());
                 dims.push(sz.clone());
                 dims.extend(extra_dims.iter().cloned());
                 out.insert(symbol.name.clone(), dims);
             }
-            IrItem::If { then_body, else_body, .. } => {
+            IrItem::If {
+                then_body,
+                else_body,
+                ..
+            } => {
                 collect_array_dims(then_body, out);
                 if let Some(b) = else_body {
                     collect_array_dims(b, out);
                 }
             }
-            IrItem::While { body, .. }
-            | IrItem::For { body, .. }
-            | IrItem::DoLoop { body, .. } => collect_array_dims(body, out),
+            IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
+                collect_array_dims(body, out)
+            }
             IrItem::SelectCase { cases, default, .. } => {
                 for c in cases {
                     collect_array_dims(&c.body, out);
@@ -746,18 +877,27 @@ pub(crate) fn collect_array_dims(items: &[IrItem], out: &mut HashMap<String, Vec
 pub(crate) fn collect_array_dimmed_names(items: &[IrItem], out: &mut HashSet<String>) {
     for it in items {
         match it {
-            IrItem::Dim { symbol, size, is_array, .. } if *is_array || size.is_some() => {
+            IrItem::Dim {
+                symbol,
+                size,
+                is_array,
+                ..
+            } if *is_array || size.is_some() => {
                 out.insert(symbol.name.clone());
             }
-            IrItem::If { then_body, else_body, .. } => {
+            IrItem::If {
+                then_body,
+                else_body,
+                ..
+            } => {
                 collect_array_dimmed_names(then_body, out);
                 if let Some(b) = else_body {
                     collect_array_dimmed_names(b, out);
                 }
             }
-            IrItem::While { body, .. }
-            | IrItem::For { body, .. }
-            | IrItem::DoLoop { body, .. } => collect_array_dimmed_names(body, out),
+            IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
+                collect_array_dimmed_names(body, out)
+            }
             IrItem::SelectCase { cases, default, .. } => {
                 for c in cases {
                     collect_array_dimmed_names(&c.body, out);
@@ -779,18 +919,27 @@ pub(crate) fn collect_array_dimmed_names(items: &[IrItem], out: &mut HashSet<Str
 pub(crate) fn collect_resize_dimmed_names(items: &[IrItem], out: &mut HashSet<String>) {
     for it in items {
         match it {
-            IrItem::Dim { symbol, size, redim, .. } if *redim || size.is_some() => {
+            IrItem::Dim {
+                symbol,
+                size,
+                redim,
+                ..
+            } if *redim || size.is_some() => {
                 out.insert(symbol.name.clone());
             }
-            IrItem::If { then_body, else_body, .. } => {
+            IrItem::If {
+                then_body,
+                else_body,
+                ..
+            } => {
                 collect_resize_dimmed_names(then_body, out);
                 if let Some(b) = else_body {
                     collect_resize_dimmed_names(b, out);
                 }
             }
-            IrItem::While { body, .. }
-            | IrItem::For { body, .. }
-            | IrItem::DoLoop { body, .. } => collect_resize_dimmed_names(body, out),
+            IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
+                collect_resize_dimmed_names(body, out)
+            }
             IrItem::SelectCase { cases, default, .. } => {
                 for c in cases {
                     collect_resize_dimmed_names(&c.body, out);
@@ -821,10 +970,19 @@ pub(crate) fn collect_dual_use(items: &[IrItem], extra_array: &HashSet<String>) 
     fn array_dims(items: &[IrItem], out: &mut HashSet<String>) {
         for it in items {
             match it {
-                IrItem::Dim { symbol, size, is_array, .. } if *is_array || size.is_some() => {
+                IrItem::Dim {
+                    symbol,
+                    size,
+                    is_array,
+                    ..
+                } if *is_array || size.is_some() => {
                     out.insert(symbol.name.clone());
                 }
-                IrItem::If { then_body, else_body, .. } => {
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     array_dims(then_body, out);
                     if let Some(b) = else_body {
                         array_dims(b, out);
@@ -900,7 +1058,11 @@ impl DynWalk {
     fn expr(&mut self, e: &IrExpr) {
         match &e.kind {
             IrExprKind::Symbol(s) => self.touch(&s.name),
-            IrExprKind::ArrayAccess { symbol, index, extra_indices } => {
+            IrExprKind::ArrayAccess {
+                symbol,
+                index,
+                extra_indices,
+            } => {
                 self.touch(&symbol.name);
                 self.expr(index);
                 for x in extra_indices {
@@ -931,7 +1093,12 @@ impl DynWalk {
     fn items(&mut self, items: &[IrItem], nested: bool) {
         for it in items {
             match it {
-                IrItem::Dim { symbol, size, is_array, .. } => {
+                IrItem::Dim {
+                    symbol,
+                    size,
+                    is_array,
+                    ..
+                } => {
                     let e = self
                         .dim_info
                         .entry(symbol.name.clone())
@@ -955,7 +1122,12 @@ impl DynWalk {
                     self.touch(&target.name);
                     self.expr(value);
                 }
-                IrItem::ArrayAssignment { target, index, extra_indices, value } => {
+                IrItem::ArrayAssignment {
+                    target,
+                    index,
+                    extra_indices,
+                    value,
+                } => {
                     self.touch(&target.name);
                     self.expr(index);
                     for x in extra_indices {
@@ -963,7 +1135,12 @@ impl DynWalk {
                     }
                     self.expr(value);
                 }
-                IrItem::MidAssign { target, start, length, value } => {
+                IrItem::MidAssign {
+                    target,
+                    start,
+                    length,
+                    value,
+                } => {
                     self.expr(target);
                     self.expr(start);
                     if let Some(l) = length {
@@ -978,7 +1155,11 @@ impl DynWalk {
                     self.expr(value);
                 }
                 IrItem::SharedAssignment { value, .. } => self.expr(value),
-                IrItem::If { condition, then_body, else_body } => {
+                IrItem::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
                     self.expr(condition);
                     self.items(then_body, true);
                     if let Some(b) = else_body {
@@ -989,7 +1170,11 @@ impl DynWalk {
                     self.expr(condition);
                     self.items(body, true);
                 }
-                IrItem::DoLoop { pre_condition, post_condition, body } => {
+                IrItem::DoLoop {
+                    pre_condition,
+                    post_condition,
+                    body,
+                } => {
                     if let Some((e, _)) = pre_condition {
                         self.expr(e);
                     }
@@ -998,7 +1183,13 @@ impl DynWalk {
                         self.expr(e);
                     }
                 }
-                IrItem::For { var, start, end, step, body } => {
+                IrItem::For {
+                    var,
+                    start,
+                    end,
+                    step,
+                    body,
+                } => {
                     self.touch(&var.name);
                     self.expr(start);
                     self.expr(end);
@@ -1022,7 +1213,11 @@ impl DynWalk {
                         self.touch(&s.name);
                     }
                 }
-                IrItem::SelectCase { selector, cases, default } => {
+                IrItem::SelectCase {
+                    selector,
+                    cases,
+                    default,
+                } => {
                     self.expr(selector);
                     for c in cases {
                         for cond in &c.conditions {
@@ -1049,16 +1244,17 @@ impl DynWalk {
 pub(crate) fn has_gosub(items: &[IrItem]) -> bool {
     items.iter().any(|it| match it {
         IrItem::Gosub(_) | IrItem::GosubExpr(_) | IrItem::GosubReturn => true,
-        IrItem::If { then_body, else_body, .. } => {
-            has_gosub(then_body) || else_body.as_deref().is_some_and(has_gosub)
-        }
+        IrItem::If {
+            then_body,
+            else_body,
+            ..
+        } => has_gosub(then_body) || else_body.as_deref().is_some_and(has_gosub),
         IrItem::While { body, .. }
         | IrItem::For { body, .. }
         | IrItem::DoLoop { body, .. }
         | IrItem::Compound(body) => has_gosub(body),
         IrItem::SelectCase { cases, default, .. } => {
-            cases.iter().any(|c| has_gosub(&c.body))
-                || default.as_deref().is_some_and(has_gosub)
+            cases.iter().any(|c| has_gosub(&c.body)) || default.as_deref().is_some_and(has_gosub)
         }
         _ => false,
     })
@@ -1154,7 +1350,11 @@ fn collect_desc_info(
             }
         }
     }
-    fn expr(e: &IrExpr, ub: &mut HashSet<String>, edges: &mut Vec<(String, usize, String, ValueType)>) {
+    fn expr(
+        e: &IrExpr,
+        ub: &mut HashSet<String>,
+        edges: &mut Vec<(String, usize, String, ValueType)>,
+    ) {
         match &e.kind {
             IrExprKind::ArrayUBound { symbol } | IrExprKind::SizeOf { symbol } => {
                 ub.insert(symbol.name.clone());
@@ -1174,7 +1374,11 @@ fn collect_desc_info(
                 expr(left, ub, edges);
                 expr(right, ub, edges);
             }
-            IrExprKind::ArrayAccess { index, extra_indices, .. } => {
+            IrExprKind::ArrayAccess {
+                index,
+                extra_indices,
+                ..
+            } => {
                 expr(index, ub, edges);
                 for x in extra_indices {
                     expr(x, ub, edges);
@@ -1192,14 +1396,24 @@ fn collect_desc_info(
                 }
             }
             IrItem::Assignment { value, .. } => expr(value, ubound, edges),
-            IrItem::ArrayAssignment { index, extra_indices, value, .. } => {
+            IrItem::ArrayAssignment {
+                index,
+                extra_indices,
+                value,
+                ..
+            } => {
                 expr(index, ubound, edges);
                 for x in extra_indices {
                     expr(x, ubound, edges);
                 }
                 expr(value, ubound, edges);
             }
-            IrItem::MidAssign { target, start, length, value } => {
+            IrItem::MidAssign {
+                target,
+                start,
+                length,
+                value,
+            } => {
                 expr(target, ubound, edges);
                 expr(start, ubound, edges);
                 if let Some(l) = length {
@@ -1219,7 +1433,11 @@ fn collect_desc_info(
                     expr(e, ubound, edges);
                 }
             }
-            IrItem::If { condition, then_body, else_body } => {
+            IrItem::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
                 expr(condition, ubound, edges);
                 collect_desc_info(then_body, ubound, edges);
                 if let Some(b) = else_body {
@@ -1230,7 +1448,11 @@ fn collect_desc_info(
                 expr(condition, ubound, edges);
                 collect_desc_info(body, ubound, edges);
             }
-            IrItem::DoLoop { pre_condition, post_condition, body } => {
+            IrItem::DoLoop {
+                pre_condition,
+                post_condition,
+                body,
+            } => {
                 if let Some((e, _)) = pre_condition {
                     expr(e, ubound, edges);
                 }
@@ -1239,7 +1461,13 @@ fn collect_desc_info(
                 }
                 collect_desc_info(body, ubound, edges);
             }
-            IrItem::For { start, end, step, body, .. } => {
+            IrItem::For {
+                start,
+                end,
+                step,
+                body,
+                ..
+            } => {
                 expr(start, ubound, edges);
                 expr(end, ubound, edges);
                 if let Some(s) = step {
@@ -1248,7 +1476,11 @@ fn collect_desc_info(
                 collect_desc_info(body, ubound, edges);
             }
             IrItem::Return { value: Some(e) } => expr(e, ubound, edges),
-            IrItem::SelectCase { selector, cases, default } => {
+            IrItem::SelectCase {
+                selector,
+                cases,
+                default,
+            } => {
                 expr(selector, ubound, edges);
                 for c in cases {
                     for cond in &c.conditions {
@@ -1287,7 +1519,10 @@ pub(crate) fn collect_descriptor_params(
     let mut seen: HashSet<String> = HashSet::new();
 
     for it in &program.items {
-        let IrItem::Function { name, params, body, .. } = it else {
+        let IrItem::Function {
+            name, params, body, ..
+        } = it
+        else {
             continue;
         };
         if !seen.insert(name.clone()) {
@@ -1295,10 +1530,16 @@ pub(crate) fn collect_descriptor_params(
         }
         params_of.insert(
             name.clone(),
-            params.iter().map(|p| (p.name.clone(), p.is_array)).collect(),
+            params
+                .iter()
+                .map(|p| (p.name.clone(), p.is_array))
+                .collect(),
         );
-        let array_params: Vec<String> =
-            params.iter().filter(|p| p.is_array).map(|p| p.name.clone()).collect();
+        let array_params: Vec<String> = params
+            .iter()
+            .filter(|p| p.is_array)
+            .map(|p| p.name.clone())
+            .collect();
         let mut ubound = HashSet::new();
         let mut edges = Vec::new();
         collect_desc_info(body, &mut ubound, &mut edges);
@@ -1325,7 +1566,11 @@ pub(crate) fn collect_descriptor_params(
         if !d.is_empty() {
             desc.insert(name.clone(), d);
         }
-        fns.push(F { name: name.clone(), array_params, edges });
+        fns.push(F {
+            name: name.clone(),
+            array_params,
+            edges,
+        });
     }
 
     // Backward fixpoint: `@x[]` passed to a descriptor position makes `x` a

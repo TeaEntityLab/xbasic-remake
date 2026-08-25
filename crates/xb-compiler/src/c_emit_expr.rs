@@ -29,7 +29,11 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 let digits = &v[2..];
                 out.push('0');
                 out.push_str(digits);
-            } else if v.starts_with("0x") || v.starts_with("0X") || v.starts_with("0b") || v.starts_with("0B") {
+            } else if v.starts_with("0x")
+                || v.starts_with("0X")
+                || v.starts_with("0b")
+                || v.starts_with("0B")
+            {
                 // A hex/binary literal (0xEDB88320, 0xFFFFFFFF) is an i32 bit
                 // pattern (XBasic INTEGER is i32) but in C it is `unsigned int`
                 // (positive). Cast to int32_t for the signed i32 value the
@@ -441,9 +445,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push('(');
                 emit_expr(&args[0], out);
                 out.push_str(", 0)");
-            } else if name.starts_with("Xin")
-                && crate::c_emit_xin::emit_xin_call(name, args, out)
-            {
+            } else if name.starts_with("Xin") && crate::c_emit_xin::emit_xin_call(name, args, out) {
                 // RT-XIN-SOCKETS: real BSD-socket lowering (C backend only;
                 // interp keeps zero-stubs — no raw-address memory model).
             } else if crate::c_emit::is_unknown_call(name) {
@@ -473,7 +475,11 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push(')');
             }
         }
-        IrExprKind::ArrayAccess { symbol, index, extra_indices } => {
+        IrExprKind::ArrayAccess {
+            symbol,
+            index,
+            extra_indices,
+        } => {
             if crate::c_emit::is_undimmed_array(&symbol.name) {
                 // Auto-vivified (never-`Dim`'d) array: the interpreter reads the
                 // type default for any index (eval.rs missing-slot arm); emit it.
@@ -665,7 +671,9 @@ pub(crate) fn sanitize_c_ident(name: &str) -> String {
 pub(crate) fn emit_call_args(name: &str, args: &[IrExpr], out: &mut String) {
     let params = crate::c_emit::defined_params(name);
     let (take, pad) = match &params {
-        Some(p) if args.len() != p.len() => (args.len().min(p.len()), &p[args.len().min(p.len())..]),
+        Some(p) if args.len() != p.len() => {
+            (args.len().min(p.len()), &p[args.len().min(p.len())..])
+        }
         _ => (args.len(), &[][..]),
     };
     let param_arrays = crate::c_emit::defined_param_arrays(name);
@@ -818,7 +826,9 @@ pub(crate) fn emit_quicksort_call(args: &[IrExpr], out: &mut String) {
         None => out.push('0'),
     }
     out.push_str(", ");
-    out.push_str(array_et(a.map(|s| s.value_type).unwrap_or(ValueType::Integer)));
+    out.push_str(array_et(
+        a.map(|s| s.value_type).unwrap_or(ValueType::Integer),
+    ));
     out.push_str(", ");
     match a {
         Some(s) => emit_array_len(s, out),
@@ -861,7 +871,9 @@ pub(crate) fn emit_copyarray_call(args: &[IrExpr], out: &mut String) {
         None => out.push('0'),
     }
     out.push_str(", ");
-    out.push_str(array_et(src.map(|s| s.value_type).unwrap_or(ValueType::Integer)));
+    out.push_str(array_et(
+        src.map(|s| s.value_type).unwrap_or(ValueType::Integer),
+    ));
     out.push_str(", (void**)");
     match dst {
         Some(s) => {

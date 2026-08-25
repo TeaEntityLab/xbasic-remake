@@ -114,11 +114,8 @@ fn demo_interp_matches_compiled() {
         // side-effect files (astring.dat, *.map, *.lab) into the CWD.
         let mut interp_cmd = Command::new(&xb);
         interp_cmd.arg("--run").arg(src).current_dir(&tmp);
-        let interp = run_timed(
-            &mut interp_cmd,
-            Duration::from_secs(10),
-        )
-        .unwrap_or(TIMED_OUT.to_vec());
+        let interp =
+            run_timed(&mut interp_cmd, Duration::from_secs(10)).unwrap_or(TIMED_OUT.to_vec());
 
         // Emit C, compile, link, run.
         let emit = Command::new(&xb)
@@ -154,15 +151,13 @@ fn demo_interp_matches_compiled() {
 
         let mut bin_cmd = Command::new(&bin);
         bin_cmd.current_dir(&tmp);
-        let compiled = run_timed(
-            &mut bin_cmd,
-            Duration::from_secs(10),
-        )
-        .unwrap_or(TIMED_OUT.to_vec());
+        let compiled =
+            run_timed(&mut bin_cmd, Duration::from_secs(10)).unwrap_or(TIMED_OUT.to_vec());
         let _ = std::fs::remove_file(&bin);
 
         assert_eq!(
-            interp, compiled,
+            interp,
+            compiled,
             "{name}: output diverges:\n  interp:   {}\n  compiled: {}",
             String::from_utf8_lossy(&interp),
             String::from_utf8_lossy(&compiled),

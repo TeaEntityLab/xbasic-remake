@@ -907,7 +907,8 @@ fn print_output_is_byte_faithful_for_high_bytes() {
     // source byte — instead of a UTF-8-lossy decode that maps them to U+FFFD. The CLI
     // writes each such char back as a raw byte, so `--run` output matches the compiled
     // backends. Regression guard for RT-BYTESTRING (fixes `aback`/`acharmap` output).
-    let program = lower("VERSION \"1\"\nFUNCTION Main\nPRINT CHR$(200) + CHR$(255)\nEND FUNCTION\n");
+    let program =
+        lower("VERSION \"1\"\nFUNCTION Main\nPRINT CHR$(200) + CHR$(255)\nEND FUNCTION\n");
     let mut output = Vec::new();
     Interpreter::new()
         .execute_main(&program, &mut output)

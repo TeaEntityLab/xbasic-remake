@@ -11,7 +11,15 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         IrItem::Print { items, separators } => {
             crate::c_emit_select::emit_print(items, separators, out, indent);
         }
-        IrItem::Dim { symbol, size, is_array, extra_dims, redim, shared, .. } => {
+        IrItem::Dim {
+            symbol,
+            size,
+            is_array,
+            extra_dims,
+            redim,
+            shared,
+            ..
+        } => {
             if crate::c_emit::is_descriptor_param(&symbol.name) {
                 // DIM/REDIM of a descriptor by-ref array param resizes the caller's
                 // array through the descriptor (realloc + `*ub`). REDIM preserves

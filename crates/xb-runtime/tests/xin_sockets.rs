@@ -61,12 +61,21 @@ fn xin_sockets_xbasic_client_roundtrip() {
     let patched_src = raw.replace("0x2020", "0x2021");
     let server_src = tmp.join("aserver.x");
     std::fs::write(&server_src, patched_src).unwrap();
-    let emit = Command::new(&xb).arg("--emit-c").arg(&server_src).output().expect("emit");
+    let emit = Command::new(&xb)
+        .arg("--emit-c")
+        .arg(&server_src)
+        .output()
+        .expect("emit");
     let server_c = tmp.join("aserver.c");
     std::fs::write(&server_c, &emit.stdout).unwrap();
     let server_bin = tmp.join("aserver_bin");
     let cc = Command::new("cc")
-        .args(["-O1", "-w", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .args([
+            "-O1",
+            "-w",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+        ])
         .arg(&server_c)
         .arg("-o")
         .arg(&server_bin)
@@ -76,21 +85,42 @@ fn xin_sockets_xbasic_client_roundtrip() {
 
     // Compile the client.
     let client_src = tmp.join("xclient.x");
-    std::fs::write(&client_src, XCLIENT_X.replace("XEOF
-", "").replace("XEOF", "")).unwrap();
-    let emit = Command::new(&xb).arg("--emit-c").arg(&client_src).output().expect("emit");
+    std::fs::write(
+        &client_src,
+        XCLIENT_X
+            .replace(
+                "XEOF
+", "",
+            )
+            .replace("XEOF", ""),
+    )
+    .unwrap();
+    let emit = Command::new(&xb)
+        .arg("--emit-c")
+        .arg(&client_src)
+        .output()
+        .expect("emit");
     assert!(emit.status.success(), "emit failed for xclient");
     let client_c = tmp.join("xclient.c");
     std::fs::write(&client_c, &emit.stdout).unwrap();
     let client_bin = tmp.join("xclient_bin");
     let cc = Command::new("cc")
-        .args(["-O1", "-w", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .args([
+            "-O1",
+            "-w",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+        ])
         .arg(&client_c)
         .arg("-o")
         .arg(&client_bin)
         .output()
         .expect("cc");
-    assert!(cc.status.success(), "cc failed for xclient: {}", String::from_utf8_lossy(&cc.stderr));
+    assert!(
+        cc.status.success(),
+        "cc failed for xclient: {}",
+        String::from_utf8_lossy(&cc.stderr)
+    );
 
     // Run server, then client; capture the client's stdout.
     let mut server = Command::new(&server_bin)
@@ -139,11 +169,17 @@ fn xin_sockets_xbasic_client_roundtrip() {
         "write error=0 bytes=4",
         "read error=0 bytes=25",
     ] {
-        assert!(stdout.contains(expect), "missing {expect:?} in:
-{stdout}");
+        assert!(
+            stdout.contains(expect),
+            "missing {expect:?} in:
+{stdout}"
+        );
     }
-    assert!(stdout.contains("response=["), "no response in:
-{stdout}");
+    assert!(
+        stdout.contains("response=["),
+        "no response in:
+{stdout}"
+    );
     let _ = std::fs::remove_dir_all(&tmp);
 }
 

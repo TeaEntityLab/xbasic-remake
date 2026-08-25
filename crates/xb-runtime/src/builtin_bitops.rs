@@ -76,9 +76,7 @@ pub(crate) fn eval_clr(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeErr
     };
     let (w, o) = extract_width_offset(args);
     let mask = if w >= 32 { 0xFFFFFFFF } else { (1u32 << w) - 1 };
-    Ok(RuntimeValue::Integer(
-        *v & !((mask as i32) << o) ,
-    ))
+    Ok(RuntimeValue::Integer(*v & !((mask as i32) << o)))
 }
 
 pub(crate) fn eval_set(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {

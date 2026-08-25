@@ -33,7 +33,10 @@ pub(crate) fn coerce_value(value: RuntimeValue, target: ValueType) -> RuntimeVal
         }
         (ValueType::Float, RuntimeValue::Integer(i)) => RuntimeValue::Float(i as f64),
         (ValueType::Float, RuntimeValue::String(s)) => RuntimeValue::Float(
-            String::from_utf8_lossy(&s).trim().parse::<f64>().unwrap_or(0.0),
+            String::from_utf8_lossy(&s)
+                .trim()
+                .parse::<f64>()
+                .unwrap_or(0.0),
         ),
         (ValueType::Integer, RuntimeValue::Giant(g)) => RuntimeValue::Integer(g as i32),
         (ValueType::Float, RuntimeValue::Giant(g)) => RuntimeValue::Float(g as f64),
@@ -95,16 +98,28 @@ pub(crate) fn parse_integer(literal: &str) -> Result<i32, RuntimeError> {
 /// `int64_t` slot), and hex/binary/octal reinterpret the bit pattern.
 pub(crate) fn parse_giant(literal: &str) -> Result<i64, RuntimeError> {
     fn radixed(digits: &str, radix: u32) -> Result<i64, std::num::ParseIntError> {
-        i64::from_str_radix(digits, radix).or_else(|_| u64::from_str_radix(digits, radix).map(|u| u as i64))
+        i64::from_str_radix(digits, radix)
+            .or_else(|_| u64::from_str_radix(digits, radix).map(|u| u as i64))
     }
-    let parsed = if let Some(h) = literal.strip_prefix("0x").or_else(|| literal.strip_prefix("0X")) {
+    let parsed = if let Some(h) = literal
+        .strip_prefix("0x")
+        .or_else(|| literal.strip_prefix("0X"))
+    {
         radixed(h, 16)
-    } else if let Some(b) = literal.strip_prefix("0b").or_else(|| literal.strip_prefix("0B")) {
+    } else if let Some(b) = literal
+        .strip_prefix("0b")
+        .or_else(|| literal.strip_prefix("0B"))
+    {
         radixed(b, 2)
-    } else if let Some(o) = literal.strip_prefix("0o").or_else(|| literal.strip_prefix("0O")) {
+    } else if let Some(o) = literal
+        .strip_prefix("0o")
+        .or_else(|| literal.strip_prefix("0O"))
+    {
         radixed(o, 8)
     } else {
-        literal.parse::<i64>().or_else(|_| literal.parse::<u64>().map(|u| u as i64))
+        literal
+            .parse::<i64>()
+            .or_else(|_| literal.parse::<u64>().map(|u| u as i64))
     };
     parsed.map_err(|_| invalid_literal(literal, ValueType::Giant))
 }

@@ -163,7 +163,11 @@ impl Analyzer {
                     out.insert(name.clone());
                 }
                 Statement::Function(f) => Self::scan_shared_writes(&f.body, out),
-                Statement::If { then_body, else_body, .. } => {
+                Statement::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     Self::scan_shared_writes(then_body, out);
                     if let Some(eb) = else_body {
                         Self::scan_shared_writes(eb, out);
@@ -185,7 +189,6 @@ impl Analyzer {
             }
         }
     }
-
 
     /// Register a composite TYPE layout (members with types and byte sizes).
     pub(crate) fn register_type(&mut self, name: &str, members: &[TypeMember]) {

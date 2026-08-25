@@ -148,7 +148,10 @@ fn simple_codes_map_correctly() {
     assert_eq!(return_type_mismatch().diagnostic_code(), "XB-S015");
     assert_eq!(arithmetic_string_operand().diagnostic_code(), "XB-S016");
     assert_eq!(CompileError::LlvmDisabled.diagnostic_code(), "XB-B001");
-    assert_eq!(CompileError::Llvm(String::new()).diagnostic_code(), "XB-B002");
+    assert_eq!(
+        CompileError::Llvm(String::new()).diagnostic_code(),
+        "XB-B002"
+    );
 }
 
 #[test]

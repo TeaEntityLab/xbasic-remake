@@ -12,7 +12,9 @@ pub(crate) fn emit_header(out: &mut String) {
     // header before the data (xb_len reads it) + a trailing NUL for legacy C-lib interop.
     // This makes CHR$(0)/embedded/high bytes byte-accurate through len/concat/print/compare.
     out.push_str("static char* xb_alloc(size_t n) { char* p = (char*)malloc(sizeof(size_t) + n + 1); *(size_t*)p = n; char* d = p + sizeof(size_t); d[n] = 0; return d; }\n");
-    out.push_str("static int xb_len(const char* s) { if (!s) return 0; return (int)*((size_t*)s - 1); }\n");
+    out.push_str(
+        "static int xb_len(const char* s) { if (!s) return 0; return (int)*((size_t*)s - 1); }\n",
+    );
     out.push_str("static char* xb_from_cstr(const char* s) { size_t n = strlen(s); char* d = xb_alloc(n); memcpy(d, s, n); return d; }\n");
     out.push_str("static char* xb_strdup(const char* s) { int n = xb_len(s); char* d = xb_alloc((size_t)n); memcpy(d, s, (size_t)n); return d; }\n");
     out.push_str("static char* xb_str(const char* s) { return xb_from_cstr(s); }\n");
@@ -278,7 +280,9 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    return fseek(xb_files[fn], pos, SEEK_SET) == 0 ? pos : -1;\n");
     out.push_str("}\n");
     out.push_str("static int xb_write_record(int fn, int count) {\n");
-    out.push_str("    if (fn < 3 || fn >= xb_file_count || !xb_files[fn] || count < 0) return -1;\n");
+    out.push_str(
+        "    if (fn < 3 || fn >= xb_file_count || !xb_files[fn] || count < 0) return -1;\n",
+    );
     out.push_str("    if (count == 0) return 0;\n");
     out.push_str("    unsigned char* buf = (unsigned char*)calloc((size_t)count, 1);\n");
     out.push_str("    if (!buf) return -1;\n");
@@ -288,7 +292,9 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    return put == (size_t)count ? count : -1;\n");
     out.push_str("}\n");
     out.push_str("static int xb_read_record(int fn, int count) {\n");
-    out.push_str("    if (fn < 3 || fn >= xb_file_count || !xb_files[fn] || count < 0) return -1;\n");
+    out.push_str(
+        "    if (fn < 3 || fn >= xb_file_count || !xb_files[fn] || count < 0) return -1;\n",
+    );
     out.push_str("    if (count == 0) return 0;\n");
     out.push_str("    unsigned char* buf = (unsigned char*)malloc((size_t)count);\n");
     out.push_str("    if (!buf) return -1;\n");
@@ -297,9 +303,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    return (int)got;\n");
     out.push_str("}\n");
     out.push_str("static char* xb_infile(int fn) {\n");
-    out.push_str(
-        "    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return xb_str(\"\");\n",
-    );
+    out.push_str("    if (fn < 3 || fn >= xb_file_count || !xb_files[fn]) return xb_str(\"\");\n");
     out.push_str("    char buf[65536];\n");
     out.push_str("    if (!fgets(buf, sizeof(buf), xb_files[fn])) return xb_str(\"\");\n");
     out.push_str("    int len = (int)strlen(buf);\n");
@@ -447,7 +451,10 @@ pub(crate) fn emit_globals(program: &IrProgram, out: &mut String) {
     // excluded by the gate (they keep the old local emission).
     let weak = crate::c_emit::weak_symbols_enabled();
     for (name, vt) in crate::c_emit::shared_arrays_sorted() {
-        let sym = crate::ir::IrSymbol { name: name.clone(), value_type: vt };
+        let sym = crate::ir::IrSymbol {
+            name: name.clone(),
+            value_type: vt,
+        };
         if weak {
             out.push_str("__attribute__((weak)) ");
         }
@@ -484,7 +491,12 @@ fn collect_shared(
                 }
                 collect_shared_expr(value, seen, out);
             }
-            IrItem::Dim { symbol, is_array: false, shared: true, .. } => {
+            IrItem::Dim {
+                symbol,
+                is_array: false,
+                shared: true,
+                ..
+            } => {
                 if seen.insert(symbol.name.clone()) {
                     if crate::c_emit::weak_symbols_enabled() {
                         out.push_str("__attribute__((weak)) ");
@@ -509,11 +521,19 @@ fn collect_shared(
                     collect_shared(eb, seen, out);
                 }
             }
-            IrItem::While { condition, body, .. } => {
+            IrItem::While {
+                condition, body, ..
+            } => {
                 collect_shared_expr(condition, seen, out);
                 collect_shared(body, seen, out);
             }
-            IrItem::For { start, end, step, body, .. } => {
+            IrItem::For {
+                start,
+                end,
+                step,
+                body,
+                ..
+            } => {
                 collect_shared_expr(start, seen, out);
                 collect_shared_expr(end, seen, out);
                 if let Some(s) = step {
@@ -521,7 +541,12 @@ fn collect_shared(
                 }
                 collect_shared(body, seen, out);
             }
-            IrItem::DoLoop { pre_condition, post_condition, body, .. } => {
+            IrItem::DoLoop {
+                pre_condition,
+                post_condition,
+                body,
+                ..
+            } => {
                 if let Some((e, _)) = pre_condition {
                     collect_shared_expr(e, seen, out);
                 }
@@ -536,7 +561,12 @@ fn collect_shared(
                 }
             }
             IrItem::Assignment { value, .. } => collect_shared_expr(value, seen, out),
-            IrItem::ArrayAssignment { index, extra_indices, value, .. } => {
+            IrItem::ArrayAssignment {
+                index,
+                extra_indices,
+                value,
+                ..
+            } => {
                 collect_shared_expr(index, seen, out);
                 for x in extra_indices {
                     collect_shared_expr(x, seen, out);
@@ -551,7 +581,12 @@ fn collect_shared(
             IrItem::Return { value: Some(e) } => collect_shared_expr(e, seen, out),
             IrItem::Function { body, .. } => collect_shared(body, seen, out),
             IrItem::Compound(items) => collect_shared(items, seen, out),
-            IrItem::SelectCase { selector, cases, default, .. } => {
+            IrItem::SelectCase {
+                selector,
+                cases,
+                default,
+                ..
+            } => {
                 collect_shared_expr(selector, seen, out);
                 for c in cases {
                     for cond in &c.conditions {
@@ -568,7 +603,11 @@ fn collect_shared(
     }
 }
 
-fn collect_shared_expr(e: &crate::ir::IrExpr, seen: &mut std::collections::HashSet<String>, out: &mut String) {
+fn collect_shared_expr(
+    e: &crate::ir::IrExpr,
+    seen: &mut std::collections::HashSet<String>,
+    out: &mut String,
+) {
     use crate::ir::IrExprKind;
     match &e.kind {
         IrExprKind::SharedVariable(s) => {
@@ -582,9 +621,15 @@ fn collect_shared_expr(e: &crate::ir::IrExpr, seen: &mut std::collections::HashS
                 out.push_str(" = 0;\n");
             }
         }
-        IrExprKind::Symbol(_) | IrExprKind::StringLiteral(_) | IrExprKind::IntegerLiteral(_)
-        | IrExprKind::FloatLiteral(_) | IrExprKind::Constant { .. } | IrExprKind::LabelAddress(_)
-        | IrExprKind::FuncAddr(_) | IrExprKind::SizeOf { .. } | IrExprKind::SizeOfType { .. } => {}
+        IrExprKind::Symbol(_)
+        | IrExprKind::StringLiteral(_)
+        | IrExprKind::IntegerLiteral(_)
+        | IrExprKind::FloatLiteral(_)
+        | IrExprKind::Constant { .. }
+        | IrExprKind::LabelAddress(_)
+        | IrExprKind::FuncAddr(_)
+        | IrExprKind::SizeOf { .. }
+        | IrExprKind::SizeOfType { .. } => {}
         IrExprKind::ByRef(inner) => collect_shared_expr(inner, seen, out),
         IrExprKind::Comparison { left, right, .. } => {
             collect_shared_expr(left, seen, out);
@@ -606,7 +651,11 @@ fn collect_shared_expr(e: &crate::ir::IrExpr, seen: &mut std::collections::HashS
                 collect_shared_expr(a, seen, out);
             }
         }
-        IrExprKind::ArrayAccess { index, extra_indices, .. } => {
+        IrExprKind::ArrayAccess {
+            index,
+            extra_indices,
+            ..
+        } => {
             collect_shared_expr(index, seen, out);
             for x in extra_indices {
                 collect_shared_expr(x, seen, out);
@@ -623,9 +672,15 @@ fn collect_shared_expr(e: &crate::ir::IrExpr, seen: &mut std::collections::HashS
 pub(crate) fn emit_xst_runtime(out: &mut String) {
     out.push_str("static void xb_xst_int_result(int64_t val, intptr_t after, intptr_t* pa, intptr_t* pr, int64_t* pv) { int rt; if (val >= -2147483648LL && val <= 2147483647LL) rt = 6; else if (val >= 0 && val <= 4294967295LL) rt = 8; else rt = 12; *pa = after; *pr = (intptr_t)rt; *pv = val; }\n");
     out.push_str("static int xb_xst_str_to_num(const char* s, intptr_t start, intptr_t* after, intptr_t* rtype, int64_t* value) {\n");
-    out.push_str("    int n = xb_len(s); intptr_t i = start; if (i < 0) i = 0; if (i > n) i = n;\n");
-    out.push_str("    while (i < n && ((unsigned char)s[i] <= ' ' || (unsigned char)s[i] >= 0x7f)) i++;\n");
-    out.push_str("    intptr_t bad = i; int neg = (i < n && s[i] == '-'); intptr_t sign_start = i;\n");
+    out.push_str(
+        "    int n = xb_len(s); intptr_t i = start; if (i < 0) i = 0; if (i > n) i = n;\n",
+    );
+    out.push_str(
+        "    while (i < n && ((unsigned char)s[i] <= ' ' || (unsigned char)s[i] >= 0x7f)) i++;\n",
+    );
+    out.push_str(
+        "    intptr_t bad = i; int neg = (i < n && s[i] == '-'); intptr_t sign_start = i;\n",
+    );
     out.push_str("    if (i < n && (s[i] == '+' || s[i] == '-')) i++;\n");
     out.push_str("    if (i + 1 < n && s[i] == '0') {\n");
     out.push_str("        int c = s[i+1] | 0x20; int radix = 0, hex = 0;\n");
@@ -644,7 +699,9 @@ pub(crate) fn emit_xst_runtime(out: &mut String) {
     out.push_str("    while (j < n && s[j] >= '0' && s[j] <= '9') j++;\n");
     out.push_str("    int has_int = j > int_start; int is_float = 0, has_frac = 0;\n");
     out.push_str("    if (j < n && s[j] == '.') { is_float = 1; j++; intptr_t fs = j; while (j < n && s[j] >= '0' && s[j] <= '9') j++; has_frac = j > fs; }\n");
-    out.push_str("    if (!has_int && !has_frac) { *after = bad; *rtype = 0; *value = 0; return -1; }\n");
+    out.push_str(
+        "    if (!has_int && !has_frac) { *after = bad; *rtype = 0; *value = 0; return -1; }\n",
+    );
     out.push_str("    if (j < n && (s[j]|0x20) == 'e') { intptr_t k = j + 1; if (k < n && (s[k]=='+'||s[k]=='-')) k++;\n");
     out.push_str("        if (k < n && s[k] >= '0' && s[k] <= '9') { is_float = 1; j = k; while (j < n && s[j] >= '0' && s[j] <= '9') j++; } }\n");
     out.push_str("    if (is_float) { char buf[64]; intptr_t len = j - sign_start; if (len > 63) len = 63; memcpy(buf, s + sign_start, (size_t)len); buf[len] = 0;\n");
@@ -660,7 +717,9 @@ pub(crate) fn emit_xst_runtime(out: &mut String) {
 /// it's length-prefixed via `xb_alloc` (not a C string).
 pub(crate) fn emit_back_to_bin_runtime(out: &mut String) {
     out.push_str("static char* xb_back_to_bin(const char* s) {\n");
-    out.push_str("    int n = xb_len(s); char* tmp = (char*)malloc((size_t)n + 1); int oi = 0, i = 0;\n");
+    out.push_str(
+        "    int n = xb_len(s); char* tmp = (char*)malloc((size_t)n + 1); int oi = 0, i = 0;\n",
+    );
     out.push_str("    while (i < n) {\n");
     out.push_str("        if (s[i] == '\\\\' && i + 1 < n) {\n");
     out.push_str("            char c = s[i+1]; i += 2;\n");
@@ -681,7 +740,9 @@ pub(crate) fn emit_back_to_bin_runtime(out: &mut String) {
     out.push_str("            else tmp[oi++]=c;\n");
     out.push_str("        } else { tmp[oi++]=s[i++]; }\n");
     out.push_str("    }\n");
-    out.push_str("    char* r = xb_alloc((size_t)oi); memcpy(r, tmp, (size_t)oi); free(tmp); return r;\n");
+    out.push_str(
+        "    char* r = xb_alloc((size_t)oi); memcpy(r, tmp, (size_t)oi); free(tmp); return r;\n",
+    );
     out.push_str("}\n");
 }
 
@@ -697,12 +758,16 @@ pub(crate) fn emit_quicksort_runtime(out: &mut String) {
     out.push_str("        int lx = xb_len(x), ly = xb_len(y), m = lx < ly ? lx : ly, r = 0;\n");
     out.push_str("        for (int k = 0; k < m; k++) { unsigned char cx = (unsigned char)x[k], cy = (unsigned char)y[k]; if (ci) { if (cx>='A'&&cx<='Z') cx+=32; if (cy>='A'&&cy<='Z') cy+=32; } if (cx != cy) { r = cx < cy ? -1 : 1; break; } }\n");
     out.push_str("        if (r == 0) r = (lx > ly) - (lx < ly); c = r; }\n");
-    out.push_str("    else { int64_t x = (int64_t)a[i], y = (int64_t)a[j]; c = (x > y) - (x < y); }\n");
+    out.push_str(
+        "    else { int64_t x = (int64_t)a[i], y = (int64_t)a[j]; c = (x > y) - (x < y); }\n",
+    );
     out.push_str("    if (decr) c = -c;\n");
     out.push_str("    return c > 0;\n");
     out.push_str("}\n");
     out.push_str("static int xb_quicksort(void* ap, int et, intptr_t alen, intptr_t** nd, intptr_t* nub, intptr_t low, intptr_t high, intptr_t mode) {\n");
-    out.push_str("    uint64_t* a = (uint64_t*)ap; int decr = (int)(mode & 1), ci = (int)(mode & 2);\n");
+    out.push_str(
+        "    uint64_t* a = (uint64_t*)ap; int decr = (int)(mode & 1), ci = (int)(mode & 2);\n",
+    );
     out.push_str("    if (low <= high && high < alen) {\n");
     out.push_str("        intptr_t rng = high - low + 1;\n");
     out.push_str("        intptr_t* idx = (intptr_t*)malloc((size_t)rng * sizeof(intptr_t));\n");
@@ -731,7 +796,9 @@ pub(crate) fn emit_copyarray_runtime(out: &mut String) {
     out.push_str("    *dst_d = realloc(*dst_d, (size_t)(srclen < 1 ? 1 : srclen) * 8); *dst_ub = srclen - 1;\n");
     out.push_str("    uint64_t* dst = (uint64_t*)*dst_d;\n");
     out.push_str("    for (intptr_t k = 0; k < srclen; k++) {\n");
-    out.push_str("        if (et == 2) dst[k] = (uint64_t)(intptr_t)xb_strdup((const char*)src[k]);\n");
+    out.push_str(
+        "        if (et == 2) dst[k] = (uint64_t)(intptr_t)xb_strdup((const char*)src[k]);\n",
+    );
     out.push_str("        else dst[k] = src[k];\n");
     out.push_str("    }\n");
     out.push_str("    return 0;\n");
@@ -755,7 +822,9 @@ pub(crate) fn emit_gui_runtime(out: &mut String) {
 /// emitted only when a program calls WriteFile/ReadFile.
 pub(crate) fn emit_kernel32_runtime(out: &mut String) {
     out.push_str("static int xb_getstdhandle(int dev) { if (dev == -10) return 0; if (dev == -11) return 1; if (dev == -12) return 2; return -1; }\n");
-    out.push_str("static int xb_write_file(int h, const char* buf, int bytes, int* written, void* ov) {\n");
+    out.push_str(
+        "static int xb_write_file(int h, const char* buf, int bytes, int* written, void* ov) {\n",
+    );
     out.push_str("    (void)ov; if (written) *written = 0;\n");
     out.push_str("    if (h != 1 && h != 2) return 0;\n");
     out.push_str("    if (!buf || bytes <= 0) return bytes == 0 ? 1 : 0;\n");

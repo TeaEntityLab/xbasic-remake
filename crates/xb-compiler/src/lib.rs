@@ -19,11 +19,11 @@ mod diagnostic;
 #[cfg(test)]
 mod diagnostic_tests;
 mod entry_lookup;
-pub mod is_builtin;
 pub mod ir;
 mod ir_lower;
 #[cfg(test)]
 mod ir_tests;
+pub mod is_builtin;
 pub mod semantics;
 mod semantics_expr;
 mod semantics_function;
@@ -147,18 +147,18 @@ pub mod llvm_backend {
     use crate::checked::{ArithmeticOp, BooleanOp, ComparisonOp, LogicalOp, PrintSep};
     use crate::ir::{IrExpr, IrExprKind, IrItem, IrProgram};
     use crate::ValueType;
+    use inkwell::basic_block::BasicBlock;
+    use inkwell::builder::Builder;
     use inkwell::context::Context;
+    use inkwell::module::Module;
     use inkwell::targets::{
         CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine,
     };
-    use inkwell::builder::Builder;
-    use inkwell::module::Module;
+    use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, FloatType, IntType, PointerType};
     use inkwell::values::{
         BasicMetadataValueEnum, BasicValueEnum, FloatValue, FunctionValue, IntValue, PointerValue,
     };
     use inkwell::{AddressSpace, OptimizationLevel};
-    use inkwell::basic_block::BasicBlock;
-    use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, FloatType, IntType, PointerType};
     use inkwell::{FloatPredicate, IntPredicate};
     use std::collections::HashMap;
 
@@ -307,8 +307,11 @@ pub mod llvm_backend {
             let f64t = ctx.f64_type();
             let ptr = ctx.ptr_type(AddressSpace::default());
             let i64t = ctx.i64_type();
-            let calloc =
-                module.add_function("calloc", ptr.fn_type(&[i64t.into(), i64t.into()], false), None);
+            let calloc = module.add_function(
+                "calloc",
+                ptr.fn_type(&[i64t.into(), i64t.into()], false),
+                None,
+            );
             let strlen = module.add_function("strlen", i64t.fn_type(&[ptr.into()], false), None);
             let memcpy = module.add_function(
                 "memcpy",
@@ -338,16 +341,16 @@ pub mod llvm_backend {
             let fopen =
                 module.add_function("fopen", ptr.fn_type(&[ptr.into(), ptr.into()], false), None);
             #[cfg(unix)]
-            let open_fd = module.add_function(
-                "open",
-                i32t.fn_type(&[ptr.into(), i32t.into()], true),
-                None,
-            );
+            let open_fd =
+                module.add_function("open", i32t.fn_type(&[ptr.into(), i32t.into()], true), None);
             #[cfg(not(unix))]
             let open_fd = fopen; // non-unix helper bodies don't run (see below)
             #[cfg(unix)]
-            let fdopen =
-                module.add_function("fdopen", ptr.fn_type(&[i32t.into(), ptr.into()], false), None);
+            let fdopen = module.add_function(
+                "fdopen",
+                ptr.fn_type(&[i32t.into(), ptr.into()], false),
+                None,
+            );
             #[cfg(unix)]
             let close_fd = module.add_function("close", i32t.fn_type(&[i32t.into()], false), None);
             let file_open_mode = module.add_function(
@@ -382,12 +385,18 @@ pub mod llvm_backend {
                 module.add_function("xb_getstdhandle", i32t.fn_type(&[i32t.into()], false), None);
             let write_file = module.add_function(
                 "xb_write_file",
-                i32t.fn_type(&[i32t.into(), ptr.into(), i32t.into(), ptr.into(), ptr.into()], false),
+                i32t.fn_type(
+                    &[i32t.into(), ptr.into(), i32t.into(), ptr.into(), ptr.into()],
+                    false,
+                ),
                 None,
             );
             let read_file = module.add_function(
                 "xb_read_file",
-                i32t.fn_type(&[i32t.into(), ptr.into(), i32t.into(), ptr.into(), ptr.into()], false),
+                i32t.fn_type(
+                    &[i32t.into(), ptr.into(), i32t.into(), ptr.into(), ptr.into()],
+                    false,
+                ),
                 None,
             );
             let file_arr_ty = ptr.array_type(256);
@@ -400,9 +409,12 @@ pub mod llvm_backend {
             let main = module.add_function("main", i32t.fn_type(&[], false), None);
             let main_entry = ctx.append_basic_block(main, "entry");
             builder.position_at_end(main_entry);
-            let g = |b: &Builder<'ctx>, s: &str, n: &str| -> Result<PointerValue<'ctx>, CompileError> {
-                Ok(b.build_global_string_ptr(s, n).map_err(Self::err)?.as_pointer_value())
-            };
+            let g =
+                |b: &Builder<'ctx>, s: &str, n: &str| -> Result<PointerValue<'ctx>, CompileError> {
+                    Ok(b.build_global_string_ptr(s, n)
+                        .map_err(Self::err)?
+                        .as_pointer_value())
+                };
             let fmt_d = g(&builder, "%d", "fmtd")?;
             let nl = g(&builder, "\n", "nl")?;
             let tab = g(&builder, "\t", "tab")?;
@@ -416,10 +428,15 @@ pub mod llvm_backend {
                 let success = ctx.append_basic_block(file_open_mode, "success");
                 let failure = ctx.append_basic_block(file_open_mode, "failure");
                 builder.position_at_end(entry);
-                let name = file_open_mode.get_nth_param(0).unwrap().into_pointer_value();
+                let name = file_open_mode
+                    .get_nth_param(0)
+                    .unwrap()
+                    .into_pointer_value();
                 let mode = file_open_mode.get_nth_param(1).unwrap().into_int_value();
                 let fp_slot = builder.build_alloca(ptr, "ofp").map_err(Self::err)?;
-                builder.build_store(fp_slot, ptr.const_null()).map_err(Self::err)?;
+                builder
+                    .build_store(fp_slot, ptr.const_null())
+                    .map_err(Self::err)?;
                 let nonblock = builder
                     .build_int_compare(
                         IntPredicate::NE,
@@ -438,21 +455,51 @@ pub mod llvm_backend {
                         .build_int_compare(IntPredicate::EQ, base, i32t.const_int(m, false), n)
                         .map_err(Self::err)
                 };
-                let rd = builder.build_or(eq(0, "ord")?, eq(0x10, "ordshare")?, "isrd").map_err(Self::err)?;
-                let wr_trunc = builder.build_or(eq(1, "owr")?, eq(3, "owrnew")?, "owrtr").map_err(Self::err)?;
-                let rw_preserve = builder.build_or(eq(2, "orw")?, eq(0x30, "orwshare")?, "orwp").map_err(Self::err)?;
+                let rd = builder
+                    .build_or(eq(0, "ord")?, eq(0x10, "ordshare")?, "isrd")
+                    .map_err(Self::err)?;
+                let wr_trunc = builder
+                    .build_or(eq(1, "owr")?, eq(3, "owrnew")?, "owrtr")
+                    .map_err(Self::err)?;
+                let rw_preserve = builder
+                    .build_or(eq(2, "orw")?, eq(0x30, "orwshare")?, "orwp")
+                    .map_err(Self::err)?;
                 let rw_trunc = eq(4, "orwnew")?;
                 let wr_preserve = eq(0x20, "owrshare")?;
-                let valid_a = builder.build_or(rd, wr_trunc, "ovalida").map_err(Self::err)?;
-                let valid_b = builder.build_or(rw_preserve, rw_trunc, "ovalidb").map_err(Self::err)?;
-                let valid = builder
-                    .build_or(builder.build_or(valid_a, valid_b, "ovalidab").map_err(Self::err)?, wr_preserve, "ovalid")
+                let valid_a = builder
+                    .build_or(rd, wr_trunc, "ovalida")
                     .map_err(Self::err)?;
-                let read_only = builder.build_or(rd, builder.build_not(valid, "oinvalid").map_err(Self::err)?, "oreadonly").map_err(Self::err)?;
-                let rdwr = builder.build_or(rw_preserve, rw_trunc, "ordwr").map_err(Self::err)?;
-                let trunc = builder.build_or(wr_trunc, rw_trunc, "otrunc").map_err(Self::err)?;
-                let preserve_writable = builder.build_or(rw_preserve, wr_preserve, "opreserve").map_err(Self::err)?;
-                let create = builder.build_or(trunc, preserve_writable, "ocreate").map_err(Self::err)?;
+                let valid_b = builder
+                    .build_or(rw_preserve, rw_trunc, "ovalidb")
+                    .map_err(Self::err)?;
+                let valid = builder
+                    .build_or(
+                        builder
+                            .build_or(valid_a, valid_b, "ovalidab")
+                            .map_err(Self::err)?,
+                        wr_preserve,
+                        "ovalid",
+                    )
+                    .map_err(Self::err)?;
+                let read_only = builder
+                    .build_or(
+                        rd,
+                        builder.build_not(valid, "oinvalid").map_err(Self::err)?,
+                        "oreadonly",
+                    )
+                    .map_err(Self::err)?;
+                let rdwr = builder
+                    .build_or(rw_preserve, rw_trunc, "ordwr")
+                    .map_err(Self::err)?;
+                let trunc = builder
+                    .build_or(wr_trunc, rw_trunc, "otrunc")
+                    .map_err(Self::err)?;
+                let preserve_writable = builder
+                    .build_or(rw_preserve, wr_preserve, "opreserve")
+                    .map_err(Self::err)?;
+                let create = builder
+                    .build_or(trunc, preserve_writable, "ocreate")
+                    .map_err(Self::err)?;
                 #[cfg(unix)]
                 {
                     let mut flags = builder
@@ -465,13 +512,20 @@ pub mod llvm_backend {
                         .map_err(Self::err)?
                         .into_int_value();
                     flags = builder
-                        .build_select(read_only, i32t.const_int(libc::O_RDONLY as u64, true), flags, "ofrd")
+                        .build_select(
+                            read_only,
+                            i32t.const_int(libc::O_RDONLY as u64, true),
+                            flags,
+                            "ofrd",
+                        )
                         .map_err(Self::err)?
                         .into_int_value();
                     flags = builder
                         .build_select(
                             create,
-                            builder.build_or(flags, i32t.const_int(libc::O_CREAT as u64, true), "ofcr").map_err(Self::err)?,
+                            builder
+                                .build_or(flags, i32t.const_int(libc::O_CREAT as u64, true), "ofcr")
+                                .map_err(Self::err)?,
                             flags,
                             "ofscreate",
                         )
@@ -480,7 +534,9 @@ pub mod llvm_backend {
                     flags = builder
                         .build_select(
                             trunc,
-                            builder.build_or(flags, i32t.const_int(libc::O_TRUNC as u64, true), "oftr").map_err(Self::err)?,
+                            builder
+                                .build_or(flags, i32t.const_int(libc::O_TRUNC as u64, true), "oftr")
+                                .map_err(Self::err)?,
                             flags,
                             "ofstrunc",
                         )
@@ -489,25 +545,48 @@ pub mod llvm_backend {
                     flags = builder
                         .build_select(
                             nonblock,
-                            builder.build_or(flags, i32t.const_int(libc::O_NONBLOCK as u64, true), "ofnb").map_err(Self::err)?,
+                            builder
+                                .build_or(
+                                    flags,
+                                    i32t.const_int(libc::O_NONBLOCK as u64, true),
+                                    "ofnb",
+                                )
+                                .map_err(Self::err)?,
                             flags,
                             "ofsnb",
                         )
                         .map_err(Self::err)?
                         .into_int_value();
                     let fd = builder
-                        .build_call(open_fd, &[name.into(), flags.into(), i32t.const_int(0o666, false).into()], "openfd")
+                        .build_call(
+                            open_fd,
+                            &[
+                                name.into(),
+                                flags.into(),
+                                i32t.const_int(0o666, false).into(),
+                            ],
+                            "openfd",
+                        )
                         .map_err(Self::err)?
                         .try_as_basic_value()
                         .basic()
                         .ok_or_else(|| CompileError::Llvm("open returned void".into()))?
                         .into_int_value();
-                    let fd_ok = builder.build_int_compare(IntPredicate::SGE, fd, i32t.const_zero(), "fdok").map_err(Self::err)?;
+                    let fd_ok = builder
+                        .build_int_compare(IntPredicate::SGE, fd, i32t.const_zero(), "fdok")
+                        .map_err(Self::err)?;
                     let wrap = ctx.append_basic_block(file_open_mode, "wrap");
-                    builder.build_conditional_branch(fd_ok, wrap, finish).map_err(Self::err)?;
+                    builder
+                        .build_conditional_branch(fd_ok, wrap, finish)
+                        .map_err(Self::err)?;
                     builder.position_at_end(wrap);
                     let rw_mode = builder
-                        .build_select(rdwr, g(&builder, "r+b", "omrw")?, g(&builder, "wb", "omwr")?, "omsel")
+                        .build_select(
+                            rdwr,
+                            g(&builder, "r+b", "omrw")?,
+                            g(&builder, "wb", "omwr")?,
+                            "omsel",
+                        )
                         .map_err(Self::err)?
                         .into_pointer_value();
                     let mode_ptr = builder
@@ -524,13 +603,21 @@ pub mod llvm_backend {
                     let fp_null = builder.build_is_null(fp, "fpnull").map_err(Self::err)?;
                     let wrap_failed = ctx.append_basic_block(file_open_mode, "wrap_failed");
                     let wrap_ok = ctx.append_basic_block(file_open_mode, "wrap_ok");
-                    builder.build_conditional_branch(fp_null, wrap_failed, wrap_ok).map_err(Self::err)?;
+                    builder
+                        .build_conditional_branch(fp_null, wrap_failed, wrap_ok)
+                        .map_err(Self::err)?;
                     builder.position_at_end(wrap_failed);
-                    builder.build_call(close_fd, &[fd.into()], "closefd").map_err(Self::err)?;
-                    builder.build_unconditional_branch(finish).map_err(Self::err)?;
+                    builder
+                        .build_call(close_fd, &[fd.into()], "closefd")
+                        .map_err(Self::err)?;
+                    builder
+                        .build_unconditional_branch(finish)
+                        .map_err(Self::err)?;
                     builder.position_at_end(wrap_ok);
                     builder.build_store(fp_slot, fp).map_err(Self::err)?;
-                    builder.build_unconditional_branch(finish).map_err(Self::err)?;
+                    builder
+                        .build_unconditional_branch(finish)
+                        .map_err(Self::err)?;
                 }
                 #[cfg(not(unix))]
                 {
@@ -540,7 +627,12 @@ pub mod llvm_backend {
                             read_only,
                             g(&builder, "rb", "omrd")?,
                             builder
-                                .build_select(trunc, g(&builder, "w+b", "omtr")?, g(&builder, "r+b", "ompr")?, "omode1")
+                                .build_select(
+                                    trunc,
+                                    g(&builder, "w+b", "omtr")?,
+                                    g(&builder, "r+b", "ompr")?,
+                                    "omode1",
+                                )
                                 .map_err(Self::err)?,
                             "omode2",
                         )
@@ -553,27 +645,44 @@ pub mod llvm_backend {
                         .basic()
                         .ok_or_else(|| CompileError::Llvm("fopen returned void".into()))?
                         .into_pointer_value();
-                    let missing = builder.build_is_null(first, "fmissing").map_err(Self::err)?;
-                    let retry = builder.build_and(preserve_writable, missing, "fretry").map_err(Self::err)?;
+                    let missing = builder
+                        .build_is_null(first, "fmissing")
+                        .map_err(Self::err)?;
+                    let retry = builder
+                        .build_and(preserve_writable, missing, "fretry")
+                        .map_err(Self::err)?;
                     let retry_bb = ctx.append_basic_block(file_open_mode, "retry");
                     let keep_bb = ctx.append_basic_block(file_open_mode, "keep");
-                    builder.build_conditional_branch(retry, retry_bb, keep_bb).map_err(Self::err)?;
+                    builder
+                        .build_conditional_branch(retry, retry_bb, keep_bb)
+                        .map_err(Self::err)?;
                     builder.position_at_end(retry_bb);
                     let second = builder
-                        .build_call(fopen, &[name.into(), g(&builder, "w+b", "omcreate")?.into()], "fcreate")
+                        .build_call(
+                            fopen,
+                            &[name.into(), g(&builder, "w+b", "omcreate")?.into()],
+                            "fcreate",
+                        )
                         .map_err(Self::err)?
                         .try_as_basic_value()
                         .basic()
                         .ok_or_else(|| CompileError::Llvm("fopen returned void".into()))?
                         .into_pointer_value();
                     builder.build_store(fp_slot, second).map_err(Self::err)?;
-                    builder.build_unconditional_branch(finish).map_err(Self::err)?;
+                    builder
+                        .build_unconditional_branch(finish)
+                        .map_err(Self::err)?;
                     builder.position_at_end(keep_bb);
                     builder.build_store(fp_slot, first).map_err(Self::err)?;
-                    builder.build_unconditional_branch(finish).map_err(Self::err)?;
+                    builder
+                        .build_unconditional_branch(finish)
+                        .map_err(Self::err)?;
                 }
                 builder.position_at_end(finish);
-                let fp = builder.build_load(ptr, fp_slot, "ofinal").map_err(Self::err)?.into_pointer_value();
+                let fp = builder
+                    .build_load(ptr, fp_slot, "ofinal")
+                    .map_err(Self::err)?
+                    .into_pointer_value();
                 // Table exhaustion returns -1 without consuming a handle, matching
                 // failed-open semantics and the generated-C backends.
                 let table_full = builder
@@ -598,20 +707,36 @@ pub mod llvm_backend {
                     .map_err(Self::err)?;
                 builder.position_at_end(open_ok);
                 let is_null = builder.build_is_null(fp, "ofnull").map_err(Self::err)?;
-                builder.build_conditional_branch(is_null, failure, success).map_err(Self::err)?;
+                builder
+                    .build_conditional_branch(is_null, failure, success)
+                    .map_err(Self::err)?;
                 builder.position_at_end(failure);
-                builder.build_return(Some(&i32t.const_int((-1i64) as u64, true))).map_err(Self::err)?;
+                builder
+                    .build_return(Some(&i32t.const_int((-1i64) as u64, true)))
+                    .map_err(Self::err)?;
                 builder.position_at_end(success);
-                let idx = builder.build_load(i32t, file_count, "fidx").map_err(Self::err)?.into_int_value();
+                let idx = builder
+                    .build_load(i32t, file_count, "fidx")
+                    .map_err(Self::err)?
+                    .into_int_value();
                 let slot = unsafe {
                     builder
-                        .build_in_bounds_gep(file_arr_ty, file_table, &[i32t.const_zero(), idx], "fslot")
+                        .build_in_bounds_gep(
+                            file_arr_ty,
+                            file_table,
+                            &[i32t.const_zero(), idx],
+                            "fslot",
+                        )
                         .map_err(Self::err)?
                 };
                 builder.build_store(slot, fp).map_err(Self::err)?;
-                let idx1 = builder.build_int_add(idx, i32t.const_int(1, false), "fidx1").map_err(Self::err)?;
+                let idx1 = builder
+                    .build_int_add(idx, i32t.const_int(1, false), "fidx1")
+                    .map_err(Self::err)?;
                 builder.build_store(file_count, idx1).map_err(Self::err)?;
-                let handle = builder.build_int_add(idx, i32t.const_int(3, false), "fh").map_err(Self::err)?;
+                let handle = builder
+                    .build_int_add(idx, i32t.const_int(3, false), "fh")
+                    .map_err(Self::err)?;
                 builder.build_return(Some(&handle)).map_err(Self::err)?;
             }
             let fmt_hex = g(&builder, "%X", "fmthex")?;
@@ -627,21 +752,42 @@ pub mod llvm_backend {
                 let iseof = ctx.append_basic_block(file_eof, "iseof");
                 builder.position_at_end(entry);
                 let h = file_eof.get_nth_param(0).unwrap().into_int_value();
-                let idx = builder.build_int_sub(h, i32t.const_int(3, false), "eidx").map_err(Self::err)?;
-                let cnt = builder.build_load(i32t, file_count, "ecnt").map_err(Self::err)?.into_int_value();
-                let ge0 = builder.build_int_compare(IntPredicate::SGE, idx, i32t.const_zero(), "ege0").map_err(Self::err)?;
-                let ltc = builder.build_int_compare(IntPredicate::SLT, idx, cnt, "eltc").map_err(Self::err)?;
+                let idx = builder
+                    .build_int_sub(h, i32t.const_int(3, false), "eidx")
+                    .map_err(Self::err)?;
+                let cnt = builder
+                    .build_load(i32t, file_count, "ecnt")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let ge0 = builder
+                    .build_int_compare(IntPredicate::SGE, idx, i32t.const_zero(), "ege0")
+                    .map_err(Self::err)?;
+                let ltc = builder
+                    .build_int_compare(IntPredicate::SLT, idx, cnt, "eltc")
+                    .map_err(Self::err)?;
                 let valid = builder.build_and(ge0, ltc, "evalid").map_err(Self::err)?;
-                builder.build_conditional_branch(valid, chk, iseof).map_err(Self::err)?;
+                builder
+                    .build_conditional_branch(valid, chk, iseof)
+                    .map_err(Self::err)?;
                 builder.position_at_end(chk);
                 let slot = unsafe {
                     builder
-                        .build_in_bounds_gep(file_arr_ty, file_table, &[i32t.const_zero(), idx], "eslot")
+                        .build_in_bounds_gep(
+                            file_arr_ty,
+                            file_table,
+                            &[i32t.const_zero(), idx],
+                            "eslot",
+                        )
                         .map_err(Self::err)?
                 };
-                let fp = builder.build_load(ptr, slot, "efp").map_err(Self::err)?.into_pointer_value();
+                let fp = builder
+                    .build_load(ptr, slot, "efp")
+                    .map_err(Self::err)?
+                    .into_pointer_value();
                 let isnull = builder.build_is_null(fp, "enull").map_err(Self::err)?;
-                builder.build_conditional_branch(isnull, iseof, call_feof).map_err(Self::err)?;
+                builder
+                    .build_conditional_branch(isnull, iseof, call_feof)
+                    .map_err(Self::err)?;
                 builder.position_at_end(call_feof);
                 let e = builder
                     .build_call(feof, &[fp.into()], "feof")
@@ -650,14 +796,18 @@ pub mod llvm_backend {
                     .basic()
                     .ok_or_else(|| CompileError::Llvm("feof returned void".into()))?
                     .into_int_value();
-                let ne = builder.build_int_compare(IntPredicate::NE, e, i32t.const_zero(), "ene").map_err(Self::err)?;
+                let ne = builder
+                    .build_int_compare(IntPredicate::NE, e, i32t.const_zero(), "ene")
+                    .map_err(Self::err)?;
                 let r = builder
                     .build_select(ne, i32t.const_int(1, false), i32t.const_zero(), "eres")
                     .map_err(Self::err)?
                     .into_int_value();
                 builder.build_return(Some(&r)).map_err(Self::err)?;
                 builder.position_at_end(iseof);
-                builder.build_return(Some(&i32t.const_int(1, false))).map_err(Self::err)?;
+                builder
+                    .build_return(Some(&i32t.const_int(1, false)))
+                    .map_err(Self::err)?;
             }
             // RT-KERNEL32 stdio helpers — the same contract as the generated-C
             // runtimes (c_runtime.rs emit_kernel32_runtime). `xb_getstdhandle`:
@@ -680,7 +830,12 @@ pub mod llvm_backend {
                 let dout = m(-11, "dout")?;
                 let derr = m(-12, "derr")?;
                 let r0 = builder
-                    .build_select(din, i32t.const_zero(), i32t.const_int((-1i64) as u64, true), "rin")
+                    .build_select(
+                        din,
+                        i32t.const_zero(),
+                        i32t.const_int((-1i64) as u64, true),
+                        "rin",
+                    )
                     .map_err(Self::err)?
                     .into_int_value();
                 let r1 = builder
@@ -703,7 +858,9 @@ pub mod llvm_backend {
                 // `written` is already the caller's i32 slot address (a plain symbol
                 // lowers to its alloca) — no extra deref.
                 let wslot = written;
-                builder.build_store(wslot, i32t.const_zero()).map_err(Self::err)?;
+                builder
+                    .build_store(wslot, i32t.const_zero())
+                    .map_err(Self::err)?;
                 let is_out = builder
                     .build_int_compare(IntPredicate::EQ, h, i32t.const_int(1, false), "wisout")
                     .map_err(Self::err)?;
@@ -713,9 +870,13 @@ pub mod llvm_backend {
                 let go = builder.build_and(is_out, bpos, "wgo").map_err(Self::err)?;
                 let body = ctx.append_basic_block(write_file, "wbody");
                 let done = ctx.append_basic_block(write_file, "wdone");
-                builder.build_conditional_branch(go, body, done).map_err(Self::err)?;
+                builder
+                    .build_conditional_branch(go, body, done)
+                    .map_err(Self::err)?;
                 builder.position_at_end(done);
-                builder.build_return(Some(&i32t.const_zero())).map_err(Self::err)?;
+                builder
+                    .build_return(Some(&i32t.const_zero()))
+                    .map_err(Self::err)?;
                 builder.position_at_end(body);
                 // Portable stdio: open(2)+fdopen on /dev/stdout — avoids
                 // platform-specific `stdout` symbol shapes (ELF data symbol vs
@@ -725,7 +886,11 @@ pub mod llvm_backend {
                     .map_err(Self::err)?
                     .as_pointer_value();
                 let wfd = builder
-                    .build_call(open_fd, &[outpath.into(), i32t.const_int(1, false).into()], "wofd")
+                    .build_call(
+                        open_fd,
+                        &[outpath.into(), i32t.const_int(1, false).into()],
+                        "wofd",
+                    )
                     .map_err(Self::err)?
                     .try_as_basic_value()
                     .basic()
@@ -742,17 +907,27 @@ pub mod llvm_backend {
                     .basic()
                     .ok_or_else(|| CompileError::Llvm("fdopen returned void".into()))?
                     .into_pointer_value();
-                let b64 = builder.build_int_s_extend(bytes, i64t, "wb64").map_err(Self::err)?;
+                let b64 = builder
+                    .build_int_s_extend(bytes, i64t, "wb64")
+                    .map_err(Self::err)?;
                 let one = i64t.const_int(1, false);
                 let n = builder
-                    .build_call(fwrite, &[buf.into(), one.into(), b64.into(), outfp.into()], "wn")
+                    .build_call(
+                        fwrite,
+                        &[buf.into(), one.into(), b64.into(), outfp.into()],
+                        "wn",
+                    )
                     .map_err(Self::err)?
                     .try_as_basic_value()
                     .basic()
                     .ok_or_else(|| CompileError::Llvm("fwrite returned void".into()))?
                     .into_int_value();
-                builder.build_call(fflush, &[outfp.into()], "wflush").map_err(Self::err)?;
-                let n32 = builder.build_int_truncate(n, i32t, "wn32").map_err(Self::err)?;
+                builder
+                    .build_call(fflush, &[outfp.into()], "wflush")
+                    .map_err(Self::err)?;
+                let n32 = builder
+                    .build_int_truncate(n, i32t, "wn32")
+                    .map_err(Self::err)?;
                 builder.build_store(wslot, n32).map_err(Self::err)?;
                 let full = builder
                     .build_int_compare(IntPredicate::EQ, n32, bytes, "wfull")
@@ -772,7 +947,9 @@ pub mod llvm_backend {
                 let readp = read_file.get_nth_param(3).unwrap().into_pointer_value();
                 // Same: `readp` is already the caller's i32 slot address.
                 let rslot = readp;
-                builder.build_store(rslot, i32t.const_zero()).map_err(Self::err)?;
+                builder
+                    .build_store(rslot, i32t.const_zero())
+                    .map_err(Self::err)?;
                 let is_in = builder
                     .build_int_compare(IntPredicate::EQ, h, i32t.const_zero(), "risin")
                     .map_err(Self::err)?;
@@ -782,9 +959,13 @@ pub mod llvm_backend {
                 let go = builder.build_and(is_in, bpos, "rgo").map_err(Self::err)?;
                 let body = ctx.append_basic_block(read_file, "rbody");
                 let done = ctx.append_basic_block(read_file, "rdone");
-                builder.build_conditional_branch(go, body, done).map_err(Self::err)?;
+                builder
+                    .build_conditional_branch(go, body, done)
+                    .map_err(Self::err)?;
                 builder.position_at_end(done);
-                builder.build_return(Some(&i32t.const_zero())).map_err(Self::err)?;
+                builder
+                    .build_return(Some(&i32t.const_zero()))
+                    .map_err(Self::err)?;
                 builder.position_at_end(body);
                 let inpath = builder
                     .build_global_string_ptr("/dev/stdin", "rdev")
@@ -808,7 +989,9 @@ pub mod llvm_backend {
                     .basic()
                     .ok_or_else(|| CompileError::Llvm("fdopen returned void".into()))?
                     .into_pointer_value();
-                let b64 = builder.build_int_s_extend(bytes, i64t, "rb64").map_err(Self::err)?;
+                let b64 = builder
+                    .build_int_s_extend(bytes, i64t, "rb64")
+                    .map_err(Self::err)?;
                 let one = i64t.const_int(1, false);
                 let tmp = builder
                     .build_call(calloc, &[b64.into(), one.into()], "rtmp")
@@ -818,7 +1001,11 @@ pub mod llvm_backend {
                     .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
                     .into_pointer_value();
                 let n = builder
-                    .build_call(fread, &[tmp.into(), one.into(), b64.into(), infp.into()], "rn")
+                    .build_call(
+                        fread,
+                        &[tmp.into(), one.into(), b64.into(), infp.into()],
+                        "rn",
+                    )
                     .map_err(Self::err)?
                     .try_as_basic_value()
                     .basic()
@@ -840,11 +1027,20 @@ pub mod llvm_backend {
                 let nslot = builder.build_alloca(i64t, "rnslot").map_err(Self::err)?;
                 builder.build_store(nslot, n).map_err(Self::err)?;
                 builder
-                    .build_call(memcpy, &[base.into(), nslot.into(), i64t.const_int(8, false).into()], "rlenw")
+                    .build_call(
+                        memcpy,
+                        &[base.into(), nslot.into(), i64t.const_int(8, false).into()],
+                        "rlenw",
+                    )
                     .map_err(Self::err)?;
                 let data = unsafe {
                     builder
-                        .build_in_bounds_gep(ctx.i8_type(), base, &[i64t.const_int(8, false)], "rdata")
+                        .build_in_bounds_gep(
+                            ctx.i8_type(),
+                            base,
+                            &[i64t.const_int(8, false)],
+                            "rdata",
+                        )
                         .map_err(Self::err)?
                 };
                 let has = builder
@@ -852,17 +1048,23 @@ pub mod llvm_backend {
                     .map_err(Self::err)?;
                 let cp = ctx.append_basic_block(read_file, "rcp");
                 let nocp = ctx.append_basic_block(read_file, "rnocp");
-                builder.build_conditional_branch(has, cp, nocp).map_err(Self::err)?;
+                builder
+                    .build_conditional_branch(has, cp, nocp)
+                    .map_err(Self::err)?;
                 builder.position_at_end(cp);
                 builder
                     .build_call(memcpy, &[data.into(), tmp.into(), n.into()], "rmc")
                     .map_err(Self::err)?;
-                builder.build_unconditional_branch(nocp).map_err(Self::err)?;
+                builder
+                    .build_unconditional_branch(nocp)
+                    .map_err(Self::err)?;
                 builder.position_at_end(nocp);
                 // *buf = dst: `bufpp` is already the caller's char* slot address
                 // (char**) — store the new pointer directly.
                 builder.build_store(bufpp, data).map_err(Self::err)?;
-                let n32 = builder.build_int_truncate(n, i32t, "rn32").map_err(Self::err)?;
+                let n32 = builder
+                    .build_int_truncate(n, i32t, "rn32")
+                    .map_err(Self::err)?;
                 builder.build_store(rslot, n32).map_err(Self::err)?;
                 let any = builder
                     .build_int_compare(IntPredicate::UGT, n32, i32t.const_zero(), "rany")
@@ -981,7 +1183,11 @@ pub mod llvm_backend {
             let mut idxs: Vec<IntValue<'ctx>> = Vec::new();
             for e in std::iter::once(index).chain(extra_indices.iter()) {
                 let ik = self.eval_int(e)?;
-                idxs.push(self.builder.build_int_s_extend(ik, self.i64t, "ik").map_err(Self::err)?);
+                idxs.push(
+                    self.builder
+                        .build_int_s_extend(ik, self.i64t, "ik")
+                        .map_err(Self::err)?,
+                );
             }
             // off = 0; for each recorded dim k: off = off*count_k + idx_k (missing idx -> 0).
             let mut off = self.i64t.const_zero();
@@ -991,9 +1197,18 @@ pub mod llvm_backend {
                     .build_load(self.i64t, *cslot, "ck")
                     .map_err(Self::err)?
                     .into_int_value();
-                let ik = idxs.get(k).copied().unwrap_or_else(|| self.i64t.const_zero());
-                let m = self.builder.build_int_mul(off, ck, "offm").map_err(Self::err)?;
-                off = self.builder.build_int_add(m, ik, "offa").map_err(Self::err)?;
+                let ik = idxs
+                    .get(k)
+                    .copied()
+                    .unwrap_or_else(|| self.i64t.const_zero());
+                let m = self
+                    .builder
+                    .build_int_mul(off, ck, "offm")
+                    .map_err(Self::err)?;
+                off = self
+                    .builder
+                    .build_int_add(m, ik, "offa")
+                    .map_err(Self::err)?;
             }
             let ety = self.llvm_type(elem);
             let ep = unsafe {
@@ -1095,7 +1310,13 @@ pub mod llvm_backend {
         fn declare_functions(&mut self, items: &[IrItem]) {
             let entry = entry_name(items);
             for item in items {
-                if let IrItem::Function { name, params, return_type, .. } = item {
+                if let IrItem::Function {
+                    name,
+                    params,
+                    return_type,
+                    ..
+                } = item
+                {
                     if entry.as_deref() == Some(name.as_str()) {
                         continue;
                     }
@@ -1136,9 +1357,9 @@ pub mod llvm_backend {
                 std::collections::BTreeMap::new();
             collect_shared(items, &mut names);
             for (name, vt) in names {
-                let g = self
-                    .module
-                    .add_global(self.llvm_type(vt), None, &format!("xb_shared_{name}"));
+                let g =
+                    self.module
+                        .add_global(self.llvm_type(vt), None, &format!("xb_shared_{name}"));
                 let init: BasicValueEnum = match vt {
                     ValueType::String => self.ptr.const_null().into(),
                     ValueType::Float => self.f64t.const_zero().into(),
@@ -1154,7 +1375,13 @@ pub mod llvm_backend {
         fn emit_function_bodies(&mut self, items: &[IrItem]) -> Result<(), CompileError> {
             let entry = entry_name(items);
             for item in items {
-                if let IrItem::Function { name, params, return_type, body } = item {
+                if let IrItem::Function {
+                    name,
+                    params,
+                    return_type,
+                    body,
+                } = item
+                {
                     if entry.as_deref() == Some(name.as_str()) {
                         continue;
                     }
@@ -1180,18 +1407,24 @@ pub mod llvm_backend {
                                 let holder = self
                                     .builder
                                     .build_struct_gep(dty, desc, 0, "phdata")
-                                    .map_err(|_| CompileError::Llvm("param desc data gep".into()))?;
+                                    .map_err(|_| {
+                                        CompileError::Llvm("param desc data gep".into())
+                                    })?;
                                 let dims0 = self
                                     .builder
                                     .build_struct_gep(dty, desc, 1, "phdims")
-                                    .map_err(|_| CompileError::Llvm("param desc dims gep".into()))?;
-                                self.arrays.insert(p.name.clone(), (holder, p.value_type, vec![dims0]));
+                                    .map_err(|_| {
+                                    CompileError::Llvm("param desc dims gep".into())
+                                })?;
+                                self.arrays
+                                    .insert(p.name.clone(), (holder, p.value_type, vec![dims0]));
                             }
                         } else if refset.as_ref().is_some_and(|r| r.contains(&i)) {
                             // By-ref scalar param: the LLVM arg is a pointer to the caller's
                             // slot; use it directly so reads/writes share it.
                             if let Some(a) = arg {
-                                self.vars.insert(p.name.clone(), (a.into_pointer_value(), p.value_type));
+                                self.vars
+                                    .insert(p.name.clone(), (a.into_pointer_value(), p.value_type));
                             }
                         } else {
                             let slot = self.get_or_alloca(&p.name, p.value_type)?;
@@ -1256,7 +1489,9 @@ pub mod llvm_backend {
                 .and_then(|b| b.get_terminator())
                 .is_none();
             if open {
-                self.builder.build_unconditional_branch(bb).map_err(Self::err)?;
+                self.builder
+                    .build_unconditional_branch(bb)
+                    .map_err(Self::err)?;
             }
             Ok(())
         }
@@ -1267,7 +1502,12 @@ pub mod llvm_backend {
                 // A jump (SM GOTO/GOSUB/RETURN) or function return terminates the block;
                 // the remaining items are unreachable — stop so we never build past a
                 // terminator (invalid IR).
-                if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_some() {
+                if self
+                    .builder
+                    .get_insert_block()
+                    .and_then(|b| b.get_terminator())
+                    .is_some()
+                {
                     break;
                 }
             }
@@ -1325,11 +1565,15 @@ pub mod llvm_backend {
                     continue;
                 }
                 let holder = self.entry_alloca(self.ptr.into(), &name)?;
-                self.builder.build_store(holder, self.ptr.const_null()).map_err(Self::err)?;
+                self.builder
+                    .build_store(holder, self.ptr.const_null())
+                    .map_err(Self::err)?;
                 let mut shape = Vec::with_capacity(ndims);
                 for k in 0..ndims {
                     let s = self.entry_alloca(self.i64t.into(), &format!("{name}_d{k}"))?;
-                    self.builder.build_store(s, self.i64t.const_zero()).map_err(Self::err)?;
+                    self.builder
+                        .build_store(s, self.i64t.const_zero())
+                        .map_err(Self::err)?;
                     shape.push(s);
                 }
                 self.arrays.insert(name, (holder, elem, shape));
@@ -1351,23 +1595,45 @@ pub mod llvm_backend {
                     labels.insert(name.clone(), i as u64);
                 }
             }
-            let pc = self.builder.build_alloca(self.i32t, "pc").map_err(Self::err)?;
-            self.builder.build_store(pc, self.i32t.const_zero()).map_err(Self::err)?;
+            let pc = self
+                .builder
+                .build_alloca(self.i32t, "pc")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(pc, self.i32t.const_zero())
+                .map_err(Self::err)?;
             let retstack = self
                 .builder
                 .build_array_alloca(self.i32t, self.i32t.const_int(256, false), "retstack")
                 .map_err(Self::err)?;
-            let retsp = self.builder.build_alloca(self.i32t, "retsp").map_err(Self::err)?;
-            self.builder.build_store(retsp, self.i32t.const_zero()).map_err(Self::err)?;
+            let retsp = self
+                .builder
+                .build_alloca(self.i32t, "retsp")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(retsp, self.i32t.const_zero())
+                .map_err(Self::err)?;
             let dispatch = self.ctx.append_basic_block(self.cur_fn, "sm.dispatch");
             let exit = self.ctx.append_basic_block(self.cur_fn, "sm.exit");
             let blocks: Vec<BasicBlock<'ctx>> = (0..items.len())
-                .map(|i| self.ctx.append_basic_block(self.cur_fn, &format!("sm.pc{i}")))
+                .map(|i| {
+                    self.ctx
+                        .append_basic_block(self.cur_fn, &format!("sm.pc{i}"))
+                })
                 .collect();
             let saved = self.sm.take();
-            self.sm =
-                Some(SmCtx { dispatch, pc, retstack, retsp, labels, count: n, landings: Vec::new() });
-            self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+            self.sm = Some(SmCtx {
+                dispatch,
+                pc,
+                retstack,
+                retsp,
+                labels,
+                count: n,
+                landings: Vec::new(),
+            });
+            self.builder
+                .build_unconditional_branch(dispatch)
+                .map_err(Self::err)?;
             // Emit each top-level item; nested GOSUBs append landing blocks to `sm.landings`
             // and leave the builder on their landing so emission continues past them.
             for (i, it) in items.iter().enumerate() {
@@ -1382,14 +1648,20 @@ pub mod llvm_backend {
                     self.builder
                         .build_store(pc, self.i32t.const_int(i as u64 + 1, false))
                         .map_err(Self::err)?;
-                    self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+                    self.builder
+                        .build_unconditional_branch(dispatch)
+                        .map_err(Self::err)?;
                 }
             }
             // Build the dispatch switch now that every landing pc is known: a case per
             // top-level block (`0..n`) plus one per GOSUB landing (`count..`). An unknown pc
             // (e.g. `SM_EXIT_PC` from an empty RETURN) falls through to `exit`.
             self.builder.position_at_end(dispatch);
-            let pcv = self.builder.build_load(self.i32t, pc, "pcv").map_err(Self::err)?.into_int_value();
+            let pcv = self
+                .builder
+                .build_load(self.i32t, pc, "pcv")
+                .map_err(Self::err)?
+                .into_int_value();
             let landings = self.sm.as_ref().unwrap().landings.clone();
             let mut cases: Vec<(IntValue<'ctx>, BasicBlock<'ctx>)> = blocks
                 .iter()
@@ -1399,7 +1671,9 @@ pub mod llvm_backend {
             for (lpc, lb) in landings {
                 cases.push((self.i32t.const_int(lpc, false), lb));
             }
-            self.builder.build_switch(pcv, exit, &cases).map_err(Self::err)?;
+            self.builder
+                .build_switch(pcv, exit, &cases)
+                .map_err(Self::err)?;
             self.builder.position_at_end(exit);
             self.sm = saved;
             Ok(())
@@ -1407,7 +1681,12 @@ pub mod llvm_backend {
 
         fn emit_item(&mut self, item: &IrItem) -> Result<(), CompileError> {
             match item {
-                IrItem::Dim { symbol, is_array: false, shared: false, .. } => {
+                IrItem::Dim {
+                    symbol,
+                    is_array: false,
+                    shared: false,
+                    ..
+                } => {
                     let slot = self.get_or_alloca(&symbol.name, symbol.value_type)?;
                     let init: BasicValueEnum = match symbol.value_type {
                         ValueType::String => self.str_const(b"")?.into(),
@@ -1416,7 +1695,13 @@ pub mod llvm_backend {
                     };
                     self.builder.build_store(slot, init).map_err(Self::err)?;
                 }
-                IrItem::Dim { symbol, size, extra_dims, is_array: true, .. } => {
+                IrItem::Dim {
+                    symbol,
+                    size,
+                    extra_dims,
+                    is_array: true,
+                    ..
+                } => {
                     let elem = symbol.value_type;
                     let esz: u64 = match elem {
                         ValueType::Float | ValueType::String => 8,
@@ -1429,15 +1714,22 @@ pub mod llvm_backend {
                         let raw = self.eval_int(e)?;
                         let pos = self
                             .builder
-                            .build_int_compare(IntPredicate::SGT, raw, self.i32t.const_zero(), "pos")
+                            .build_int_compare(
+                                IntPredicate::SGT,
+                                raw,
+                                self.i32t.const_zero(),
+                                "pos",
+                            )
                             .map_err(Self::err)?;
                         let nn = self
                             .builder
                             .build_select(pos, raw, self.i32t.const_zero(), "max0")
                             .map_err(Self::err)?
                             .into_int_value();
-                        let nn64 =
-                            self.builder.build_int_s_extend(nn, self.i64t, "nn64").map_err(Self::err)?;
+                        let nn64 = self
+                            .builder
+                            .build_int_s_extend(nn, self.i64t, "nn64")
+                            .map_err(Self::err)?;
                         let cnt = self
                             .builder
                             .build_int_add(nn64, self.i64t.const_int(1, false), "cnt")
@@ -1452,7 +1744,10 @@ pub mod llvm_backend {
                         self.i64t.const_int(1, false)
                     };
                     for c in &counts {
-                        total = self.builder.build_int_mul(total, *c, "tot").map_err(Self::err)?;
+                        total = self
+                            .builder
+                            .build_int_mul(total, *c, "tot")
+                            .map_err(Self::err)?;
                     }
                     let buf = self
                         .builder
@@ -1482,8 +1777,10 @@ pub mod llvm_backend {
                         _ => {
                             let mut sh = Vec::with_capacity(counts.len());
                             for (k, c) in counts.iter().enumerate() {
-                                let s = self
-                                    .entry_alloca(self.i64t.into(), &format!("{}_d{k}", symbol.name))?;
+                                let s = self.entry_alloca(
+                                    self.i64t.into(),
+                                    &format!("{}_d{k}", symbol.name),
+                                )?;
                                 self.builder.build_store(s, *c).map_err(Self::err)?;
                                 sh.push(s);
                             }
@@ -1495,7 +1792,8 @@ pub mod llvm_backend {
                         None => self.entry_alloca(self.ptr.into(), &symbol.name)?,
                     };
                     self.builder.build_store(holder, buf).map_err(Self::err)?;
-                    self.arrays.insert(symbol.name.clone(), (holder, elem, shape));
+                    self.arrays
+                        .insert(symbol.name.clone(), (holder, elem, shape));
                 }
                 IrItem::Assignment { target, value } => {
                     if let Some(v) = self.eval_value(value)? {
@@ -1517,7 +1815,12 @@ pub mod llvm_backend {
                         self.builder.build_store(slot, v).map_err(Self::err)?;
                     }
                 }
-                IrItem::ArrayAssignment { target, index, extra_indices, value } => {
+                IrItem::ArrayAssignment {
+                    target,
+                    index,
+                    extra_indices,
+                    value,
+                } => {
                     if let (Some(v), Some((ep, elem))) = (
                         self.eval_value(value)?,
                         self.array_elem_ptr(&target.name, index, extra_indices)?,
@@ -1526,7 +1829,12 @@ pub mod llvm_backend {
                         self.builder.build_store(ep, v).map_err(Self::err)?;
                     }
                 }
-                IrItem::MidAssign { target, start, length, value } => {
+                IrItem::MidAssign {
+                    target,
+                    start,
+                    length,
+                    value,
+                } => {
                     self.mid_assign(target, start, length, value)?;
                 }
                 IrItem::Print { items, separators } => {
@@ -1558,7 +1866,11 @@ pub mod llvm_backend {
                         .build_call(self.printf, &[self.nl.into()], "")
                         .map_err(Self::err)?;
                 }
-                IrItem::If { condition, then_body, else_body } => {
+                IrItem::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
                     let cond = self.eval_bool(condition)?;
                     let then_bb = self.ctx.append_basic_block(self.cur_fn, "then");
                     let else_bb = self.ctx.append_basic_block(self.cur_fn, "else");
@@ -1591,7 +1903,11 @@ pub mod llvm_backend {
                     self.branch_to(header)?;
                     self.builder.position_at_end(exit);
                 }
-                IrItem::DoLoop { pre_condition, post_condition, body } => {
+                IrItem::DoLoop {
+                    pre_condition,
+                    post_condition,
+                    body,
+                } => {
                     // `loop { [pre-check→exit]; body; [post-check→exit] }` — mirrors the
                     // interpreter. A `WHILE` guard continues while its condition is nonzero; an
                     // `UNTIL` guard continues while it is zero (`is_while` is compile-time).
@@ -1630,20 +1946,30 @@ pub mod llvm_backend {
                                 let keep = if *is_while {
                                     c
                                 } else {
-                                    self.builder.build_not(c, "do.post.not").map_err(Self::err)?
+                                    self.builder
+                                        .build_not(c, "do.post.not")
+                                        .map_err(Self::err)?
                                 };
                                 self.builder
                                     .build_conditional_branch(keep, header, exit)
                                     .map_err(Self::err)?;
                             }
                             None => {
-                                self.builder.build_unconditional_branch(header).map_err(Self::err)?;
+                                self.builder
+                                    .build_unconditional_branch(header)
+                                    .map_err(Self::err)?;
                             }
                         }
                     }
                     self.builder.position_at_end(exit);
                 }
-                IrItem::For { var, start, end, step, body } => {
+                IrItem::For {
+                    var,
+                    start,
+                    end,
+                    step,
+                    body,
+                } => {
                     let slot = self.get_or_alloca(&var.name, ValueType::Integer)?;
                     let start_v = self.eval_int(start)?;
                     self.builder.build_store(slot, start_v).map_err(Self::err)?;
@@ -1654,13 +1980,17 @@ pub mod llvm_backend {
                     // dominates (entry allocas), so the loop stays correct across GOSUBs.
                     let end_slot = self.entry_alloca(self.i32t.into(), "for.end")?;
                     let end_v = self.eval_int(end)?;
-                    self.builder.build_store(end_slot, end_v).map_err(Self::err)?;
+                    self.builder
+                        .build_store(end_slot, end_v)
+                        .map_err(Self::err)?;
                     let step_slot = self.entry_alloca(self.i32t.into(), "for.step")?;
                     let step_v = match step {
                         Some(s) => self.eval_int(s)?,
                         None => self.i32t.const_int(1, true),
                     };
-                    self.builder.build_store(step_slot, step_v).map_err(Self::err)?;
+                    self.builder
+                        .build_store(step_slot, step_v)
+                        .map_err(Self::err)?;
                     let header = self.ctx.append_basic_block(self.cur_fn, "for.head");
                     let body_bb = self.ctx.append_basic_block(self.cur_fn, "for.body");
                     let exit = self.ctx.append_basic_block(self.cur_fn, "for.exit");
@@ -1707,7 +2037,12 @@ pub mod llvm_backend {
                     // Emit the increment + back-edge only if the body fell through; a
                     // RETURN/GOTO in the body terminates the block (the back-edge would be
                     // unreachable, and appending past a terminator is invalid IR).
-                    if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
+                    if self
+                        .builder
+                        .get_insert_block()
+                        .and_then(|b| b.get_terminator())
+                        .is_none()
+                    {
                         let cur2 = self
                             .builder
                             .build_load(self.i32t, slot, "for.cur2")
@@ -1728,13 +2063,19 @@ pub mod llvm_backend {
                     self.builder.position_at_end(exit);
                 }
                 IrItem::Compound(items) => self.emit_items(items)?,
-                IrItem::SelectCase { selector, cases, default } => {
+                IrItem::SelectCase {
+                    selector,
+                    cases,
+                    default,
+                } => {
                     // Equality chain matching exec_select_case (first matching CASE wins).
                     if let Some(sel) = self.eval_value(selector)? {
                         let done = self.ctx.append_basic_block(self.cur_fn, "select.done");
                         for case in cases {
                             for cond in &case.conditions {
-                                let Some(cv) = self.eval_value(cond)? else { continue };
+                                let Some(cv) = self.eval_value(cond)? else {
+                                    continue;
+                                };
                                 let eq = self.values_equal(sel, cv)?;
                                 let body_bb = self.ctx.append_basic_block(self.cur_fn, "case.body");
                                 let next_bb = self.ctx.append_basic_block(self.cur_fn, "case.next");
@@ -1779,7 +2120,9 @@ pub mod llvm_backend {
                     eprintln!("TRACE arm reached {}", name);
                     if let Some(&f) = self.funcs.get(name) {
                         if let Some(argv) = self.eval_args(f, args)? {
-                            self.builder.build_call(f, &argv, "call").map_err(Self::err)?;
+                            self.builder
+                                .build_call(f, &argv, "call")
+                                .map_err(Self::err)?;
                         }
                     } else if matches!(
                         name.as_str(),
@@ -1802,7 +2145,9 @@ pub mod llvm_backend {
                         self.builder
                             .build_store(pc, self.i32t.const_int(target, false))
                             .map_err(Self::err)?;
-                        self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+                        self.builder
+                            .build_unconditional_branch(dispatch)
+                            .map_err(Self::err)?;
                     }
                 }
                 IrItem::GotoExpr(expr) => {
@@ -1810,13 +2155,21 @@ pub mod llvm_backend {
                         let (dispatch, pc) = (ctx.dispatch, ctx.pc);
                         let target = self.eval_int(expr)?;
                         self.builder.build_store(pc, target).map_err(Self::err)?;
-                        self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+                        self.builder
+                            .build_unconditional_branch(dispatch)
+                            .map_err(Self::err)?;
                     }
                 }
                 IrItem::Gosub(name) => {
                     if self.sm.is_some() {
-                        let target =
-                            self.sm.as_ref().unwrap().labels.get(name).copied().unwrap_or(SM_EXIT_PC);
+                        let target = self
+                            .sm
+                            .as_ref()
+                            .unwrap()
+                            .labels
+                            .get(name)
+                            .copied()
+                            .unwrap_or(SM_EXIT_PC);
                         let tv = self.i32t.const_int(target, false);
                         self.sm_gosub(tv)?;
                     }
@@ -1856,14 +2209,20 @@ pub mod llvm_backend {
                                 .build_in_bounds_gep(self.i32t, retstack, &[newsp], "rslot")
                                 .map_err(Self::err)?
                         };
-                        let idx = self.builder.build_load(self.i32t, slot, "ridx").map_err(Self::err)?.into_int_value();
+                        let idx = self
+                            .builder
+                            .build_load(self.i32t, slot, "ridx")
+                            .map_err(Self::err)?
+                            .into_int_value();
                         let target = self
                             .builder
                             .build_select(ne, idx, self.i32t.const_int(SM_EXIT_PC, false), "rpc")
                             .map_err(Self::err)?
                             .into_int_value();
                         self.builder.build_store(pc, target).map_err(Self::err)?;
-                        self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+                        self.builder
+                            .build_unconditional_branch(dispatch)
+                            .map_err(Self::err)?;
                     } else {
                         // Outside a state machine (a bare `RETURN` — GosubReturn — reached
                         // with no GOSUB in flight, e.g. nested in an `IF` so the body was not
@@ -1884,7 +2243,11 @@ pub mod llvm_backend {
             retsp: PointerValue<'ctx>,
             v: u64,
         ) -> Result<(), CompileError> {
-            let sp = self.builder.build_load(self.i32t, retsp, "psp").map_err(Self::err)?.into_int_value();
+            let sp = self
+                .builder
+                .build_load(self.i32t, retsp, "psp")
+                .map_err(Self::err)?
+                .into_int_value();
             let slot = unsafe {
                 self.builder
                     .build_in_bounds_gep(self.i32t, retstack, &[sp], "pslot")
@@ -1893,7 +2256,10 @@ pub mod llvm_backend {
             self.builder
                 .build_store(slot, self.i32t.const_int(v, false))
                 .map_err(Self::err)?;
-            let sp1 = self.builder.build_int_add(sp, self.i32t.const_int(1, false), "psp1").map_err(Self::err)?;
+            let sp1 = self
+                .builder
+                .build_int_add(sp, self.i32t.const_int(1, false), "psp1")
+                .map_err(Self::err)?;
             self.builder.build_store(retsp, sp1).map_err(Self::err)?;
             Ok(())
         }
@@ -1904,7 +2270,10 @@ pub mod llvm_backend {
         /// the GOSUB (even nested) runs on RETURN.
         fn sm_new_landing(&mut self) -> Result<(u64, BasicBlock<'ctx>), CompileError> {
             let land = self.ctx.append_basic_block(self.cur_fn, "sm.land");
-            let ctx = self.sm.as_mut().expect("landing requires an active state machine");
+            let ctx = self
+                .sm
+                .as_mut()
+                .expect("landing requires an active state machine");
             let lpc = ctx.count + 1 + ctx.landings.len() as u64;
             ctx.landings.push((lpc, land));
             Ok((lpc, land))
@@ -1920,7 +2289,9 @@ pub mod llvm_backend {
             };
             self.sm_push(retstack, retsp, land_pc)?;
             self.builder.build_store(pc, target).map_err(Self::err)?;
-            self.builder.build_unconditional_branch(dispatch).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(dispatch)
+                .map_err(Self::err)?;
             self.builder.position_at_end(land);
             Ok(())
         }
@@ -1940,9 +2311,10 @@ pub mod llvm_backend {
             b: BasicValueEnum<'ctx>,
         ) -> Result<IntValue<'ctx>, CompileError> {
             match (a, b) {
-                (BasicValueEnum::IntValue(x), BasicValueEnum::IntValue(y)) => {
-                    self.builder.build_int_compare(IntPredicate::EQ, x, y, "seq").map_err(Self::err)
-                }
+                (BasicValueEnum::IntValue(x), BasicValueEnum::IntValue(y)) => self
+                    .builder
+                    .build_int_compare(IntPredicate::EQ, x, y, "seq")
+                    .map_err(Self::err),
                 (BasicValueEnum::FloatValue(x), BasicValueEnum::FloatValue(y)) => self
                     .builder
                     .build_float_compare(FloatPredicate::OEQ, x, y, "sfeq")
@@ -1990,8 +2362,10 @@ pub mod llvm_backend {
                         if let Some((holder, _elem, dims)) = self.arrays.get(&sym.name).cloned() {
                             let dty = self.arr_desc_ty();
                             let desc = self.entry_alloca(dty.into(), "adesc")?;
-                            let bufptr =
-                                self.builder.build_load(self.ptr, holder, "abuf").map_err(Self::err)?;
+                            let bufptr = self
+                                .builder
+                                .build_load(self.ptr, holder, "abuf")
+                                .map_err(Self::err)?;
                             let dptr = self
                                 .builder
                                 .build_struct_gep(dty, desc, 0, "addata")
@@ -2002,8 +2376,10 @@ pub mod llvm_backend {
                                 .build_struct_gep(dty, desc, 1, "addims")
                                 .map_err(|_| CompileError::Llvm("desc dims gep".into()))?;
                             for (k, cslot) in dims.iter().enumerate().take(4) {
-                                let cnt =
-                                    self.builder.build_load(self.i64t, *cslot, "acnt").map_err(Self::err)?;
+                                let cnt = self
+                                    .builder
+                                    .build_load(self.i64t, *cslot, "acnt")
+                                    .map_err(Self::err)?;
                                 let ep = unsafe {
                                     self.builder
                                         .build_in_bounds_gep(
@@ -2024,21 +2400,31 @@ pub mod llvm_backend {
                         None
                     }
                 }
-                IrExprKind::IntegerLiteral(v) => {
-                    Some(self.i32t.const_int(parse_int_literal(v) as u64, true).into())
-                }
+                IrExprKind::IntegerLiteral(v) => Some(
+                    self.i32t
+                        .const_int(parse_int_literal(v) as u64, true)
+                        .into(),
+                ),
                 IrExprKind::Constant { value, .. } => match expr.value_type {
                     // System / user `$$` constant: the IR carries its resolved value. Match the
                     // interpreter (`parse_integer`) for integers; support float/string too.
-                    ValueType::Float => {
-                        Some(self.f64t.const_float(value.parse::<f64>().unwrap_or(0.0)).into())
-                    }
+                    ValueType::Float => Some(
+                        self.f64t
+                            .const_float(value.parse::<f64>().unwrap_or(0.0))
+                            .into(),
+                    ),
                     ValueType::String => Some(self.str_const(value.as_bytes())?.into()),
-                    _ => Some(self.i32t.const_int(parse_int_literal(value) as u64, true).into()),
+                    _ => Some(
+                        self.i32t
+                            .const_int(parse_int_literal(value) as u64, true)
+                            .into(),
+                    ),
                 },
-                IrExprKind::FloatLiteral(v) => {
-                    Some(self.f64t.const_float(v.parse::<f64>().unwrap_or(0.0)).into())
-                }
+                IrExprKind::FloatLiteral(v) => Some(
+                    self.f64t
+                        .const_float(v.parse::<f64>().unwrap_or(0.0))
+                        .into(),
+                ),
                 IrExprKind::FuncAddr(name) => {
                     // `&func()`: the interpreter uses a synthetic id (the function's 1-based
                     // program-order index), not a real address; mirror it so `&f` compares and
@@ -2050,29 +2436,39 @@ pub mod llvm_backend {
                     // Unary negation / plus (e.g. `-1` lowers to `Neg(1)`); mirrors the
                     // interpreter. `Pos` is identity. A non-numeric operand yields nothing.
                     Some(BasicValueEnum::IntValue(iv)) => Some(match op {
-                        xb_frontend::UnaryOp::Neg => {
-                            self.builder.build_int_neg(iv, "uneg").map_err(Self::err)?.into()
-                        }
+                        xb_frontend::UnaryOp::Neg => self
+                            .builder
+                            .build_int_neg(iv, "uneg")
+                            .map_err(Self::err)?
+                            .into(),
                         xb_frontend::UnaryOp::Pos => iv.into(),
                     }),
                     Some(BasicValueEnum::FloatValue(fv)) => Some(match op {
-                        xb_frontend::UnaryOp::Neg => {
-                            self.builder.build_float_neg(fv, "ufneg").map_err(Self::err)?.into()
-                        }
+                        xb_frontend::UnaryOp::Neg => self
+                            .builder
+                            .build_float_neg(fv, "ufneg")
+                            .map_err(Self::err)?
+                            .into(),
                         xb_frontend::UnaryOp::Pos => fv.into(),
                     }),
                     _ => None,
                 },
                 IrExprKind::Symbol(sym) => match self.vars.get(&sym.name) {
-                    Some((slot, ValueType::String)) => {
-                        Some(self.builder.build_load(self.ptr, *slot, "ld").map_err(Self::err)?)
-                    }
-                    Some((slot, ValueType::Float)) => {
-                        Some(self.builder.build_load(self.f64t, *slot, "ld").map_err(Self::err)?)
-                    }
-                    Some((slot, _)) => {
-                        Some(self.builder.build_load(self.i32t, *slot, "ld").map_err(Self::err)?)
-                    }
+                    Some((slot, ValueType::String)) => Some(
+                        self.builder
+                            .build_load(self.ptr, *slot, "ld")
+                            .map_err(Self::err)?,
+                    ),
+                    Some((slot, ValueType::Float)) => Some(
+                        self.builder
+                            .build_load(self.f64t, *slot, "ld")
+                            .map_err(Self::err)?,
+                    ),
+                    Some((slot, _)) => Some(
+                        self.builder
+                            .build_load(self.i32t, *slot, "ld")
+                            .map_err(Self::err)?,
+                    ),
                     // Undefined variable: XBasic auto-vivifies to the type default (0 /
                     // 0.0 / "") on read; the interpreter does the same, so the backend
                     // must too rather than skip (which would drop the value from PRINT).
@@ -2083,15 +2479,21 @@ pub mod llvm_backend {
                     }),
                 },
                 IrExprKind::SharedVariable(sym) => match self.shared.get(&sym.name) {
-                    Some((slot, ValueType::String)) => {
-                        Some(self.builder.build_load(self.ptr, *slot, "shld").map_err(Self::err)?)
-                    }
-                    Some((slot, ValueType::Float)) => {
-                        Some(self.builder.build_load(self.f64t, *slot, "shld").map_err(Self::err)?)
-                    }
-                    Some((slot, _)) => {
-                        Some(self.builder.build_load(self.i32t, *slot, "shld").map_err(Self::err)?)
-                    }
+                    Some((slot, ValueType::String)) => Some(
+                        self.builder
+                            .build_load(self.ptr, *slot, "shld")
+                            .map_err(Self::err)?,
+                    ),
+                    Some((slot, ValueType::Float)) => Some(
+                        self.builder
+                            .build_load(self.f64t, *slot, "shld")
+                            .map_err(Self::err)?,
+                    ),
+                    Some((slot, _)) => Some(
+                        self.builder
+                            .build_load(self.i32t, *slot, "shld")
+                            .map_err(Self::err)?,
+                    ),
                     // A shared read before any shared write auto-vivifies to the type
                     // default, matching the interpreter (previously fell through to `_ =>
                     // None`, dropping the value from PRINT).
@@ -2116,7 +2518,10 @@ pub mod llvm_backend {
                         };
                         let la = self.str_len(a)?;
                         let lb = self.str_len(b)?;
-                        let total = self.builder.build_int_add(la, lb, "cclen").map_err(Self::err)?;
+                        let total = self
+                            .builder
+                            .build_int_add(la, lb, "cclen")
+                            .map_err(Self::err)?;
                         let buf = self.str_new(total)?;
                         self.builder
                             .build_call(self.memcpy, &[buf.into(), a.into(), la.into()], "cp1")
@@ -2202,8 +2607,11 @@ pub mod llvm_backend {
                     } else if ls || rs {
                         // string vs number: compare the string's byte length to the number, so
                         // `s$ == 0` (`IFZ s$`) tests emptiness — mirrors the interpreter.
-                        let (sexpr, nexpr, str_left) =
-                            if ls { (left, right, true) } else { (right, left, false) };
+                        let (sexpr, nexpr, str_left) = if ls {
+                            (left, right, true)
+                        } else {
+                            (right, left, false)
+                        };
                         let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(sexpr)? else {
                             return Ok(None);
                         };
@@ -2221,7 +2629,9 @@ pub mod llvm_backend {
                             ComparisonOp::LessEqual => IntPredicate::SLE,
                             ComparisonOp::GreaterEqual => IntPredicate::SGE,
                         };
-                        self.builder.build_int_compare(pred, a, b, "slcmp").map_err(Self::err)?
+                        self.builder
+                            .build_int_compare(pred, a, b, "slcmp")
+                            .map_err(Self::err)?
                     } else if left.value_type == ValueType::Float
                         || right.value_type == ValueType::Float
                     {
@@ -2235,7 +2645,9 @@ pub mod llvm_backend {
                             ComparisonOp::LessEqual => FloatPredicate::OLE,
                             ComparisonOp::GreaterEqual => FloatPredicate::OGE,
                         };
-                        self.builder.build_float_compare(pred, a, b, "fcmp").map_err(Self::err)?
+                        self.builder
+                            .build_float_compare(pred, a, b, "fcmp")
+                            .map_err(Self::err)?
                     } else {
                         let a = self.eval_int(left)?;
                         let b = self.eval_int(right)?;
@@ -2247,7 +2659,9 @@ pub mod llvm_backend {
                             ComparisonOp::LessEqual => IntPredicate::SLE,
                             ComparisonOp::GreaterEqual => IntPredicate::SGE,
                         };
-                        self.builder.build_int_compare(pred, a, b, "cmp").map_err(Self::err)?
+                        self.builder
+                            .build_int_compare(pred, a, b, "cmp")
+                            .map_err(Self::err)?
                     };
                     // XBasic truth is -1: sign-extend i1 (1 -> -1, 0 -> 0).
                     Some(
@@ -2289,16 +2703,18 @@ pub mod llvm_backend {
                         .try_as_basic_value()
                         .basic()
                 }
-                IrExprKind::ArrayAccess { symbol, index, extra_indices } => {
-                    match self.array_elem_ptr(&symbol.name, index, extra_indices)? {
-                        Some((ep, elem)) => Some(
-                            self.builder
-                                .build_load(self.llvm_type(elem), ep, "ai")
-                                .map_err(Self::err)?,
-                        ),
-                        None => None,
-                    }
-                }
+                IrExprKind::ArrayAccess {
+                    symbol,
+                    index,
+                    extra_indices,
+                } => match self.array_elem_ptr(&symbol.name, index, extra_indices)? {
+                    Some((ep, elem)) => Some(
+                        self.builder
+                            .build_load(self.llvm_type(elem), ep, "ai")
+                            .map_err(Self::err)?,
+                    ),
+                    None => None,
+                },
                 IrExprKind::ArrayUBound { symbol } => {
                     // Array: flat length − 1; string var: LEN − 1; else −1 (matches
                     // eval.rs ArrayUBound so `FOR i = 0 TO UBOUND(a)` iterates identically).
@@ -2314,13 +2730,21 @@ pub mod llvm_backend {
                                 .build_load(self.i64t, *cslot, "c")
                                 .map_err(Self::err)?
                                 .into_int_value();
-                            total = self.builder.build_int_mul(total, c, "t").map_err(Self::err)?;
+                            total = self
+                                .builder
+                                .build_int_mul(total, c, "t")
+                                .map_err(Self::err)?;
                         }
                         let m1 = self
                             .builder
                             .build_int_sub(total, self.i64t.const_int(1, false), "ub")
                             .map_err(Self::err)?;
-                        Some(self.builder.build_int_truncate(m1, self.i32t, "ub32").map_err(Self::err)?.into())
+                        Some(
+                            self.builder
+                                .build_int_truncate(m1, self.i32t, "ub32")
+                                .map_err(Self::err)?
+                                .into(),
+                        )
                     } else if let Some((slot, ValueType::String)) =
                         self.vars.get(&symbol.name).copied()
                     {
@@ -2334,7 +2758,12 @@ pub mod llvm_backend {
                             .builder
                             .build_int_sub(len, self.i64t.const_int(1, false), "ub")
                             .map_err(Self::err)?;
-                        Some(self.builder.build_int_truncate(m1, self.i32t, "ub32").map_err(Self::err)?.into())
+                        Some(
+                            self.builder
+                                .build_int_truncate(m1, self.i32t, "ub32")
+                                .map_err(Self::err)?
+                                .into(),
+                        )
                     } else {
                         Some(self.i32t.const_int((-1i32) as u64, true).into())
                     }
@@ -2353,8 +2782,14 @@ pub mod llvm_backend {
                     let a = self.eval_int(left)?;
                     let b = self.eval_int(right)?;
                     let zero = self.i32t.const_zero();
-                    let la = self.builder.build_int_compare(IntPredicate::NE, a, zero, "la").map_err(Self::err)?;
-                    let rb = self.builder.build_int_compare(IntPredicate::NE, b, zero, "lb").map_err(Self::err)?;
+                    let la = self
+                        .builder
+                        .build_int_compare(IntPredicate::NE, a, zero, "la")
+                        .map_err(Self::err)?;
+                    let rb = self
+                        .builder
+                        .build_int_compare(IntPredicate::NE, b, zero, "lb")
+                        .map_err(Self::err)?;
                     let r = match op {
                         LogicalOp::And => self.builder.build_and(la, rb, "land"),
                         LogicalOp::Or => self.builder.build_or(la, rb, "lor"),
@@ -2379,12 +2814,20 @@ pub mod llvm_backend {
                     .build_in_bounds_gep(self.i64t, s, &[neg1], "lenp")
                     .map_err(Self::err)?
             };
-            Ok(self.builder.build_load(self.i64t, lenp, "slen").map_err(Self::err)?.into_int_value())
+            Ok(self
+                .builder
+                .build_load(self.i64t, lenp, "slen")
+                .map_err(Self::err)?
+                .into_int_value())
         }
 
         /// `strcmp`-like i32 (<0/0/>0) for byte-strings: unsigned byte-lexicographic with a
         /// length tiebreak, matching Rust `Vec<u8>`/`str` ordering (shorter prefix is less).
-        fn str_cmp(&self, a: PointerValue<'ctx>, b: PointerValue<'ctx>) -> Result<IntValue<'ctx>, CompileError> {
+        fn str_cmp(
+            &self,
+            a: PointerValue<'ctx>,
+            b: PointerValue<'ctx>,
+        ) -> Result<IntValue<'ctx>, CompileError> {
             let la = self.str_len(a)?;
             let lb = self.str_len(b)?;
             let m = self.umin(la, lb)?;
@@ -2396,14 +2839,35 @@ pub mod llvm_backend {
                 .basic()
                 .ok_or_else(|| CompileError::Llvm("memcmp returned void".into()))?
                 .into_int_value();
-            let llt = self.builder.build_int_compare(IntPredicate::ULT, la, lb, "llt").map_err(Self::err)?;
-            let lgt = self.builder.build_int_compare(IntPredicate::UGT, la, lb, "lgt").map_err(Self::err)?;
+            let llt = self
+                .builder
+                .build_int_compare(IntPredicate::ULT, la, lb, "llt")
+                .map_err(Self::err)?;
+            let lgt = self
+                .builder
+                .build_int_compare(IntPredicate::UGT, la, lb, "lgt")
+                .map_err(Self::err)?;
             let neg1 = self.i32t.const_int((-1i64) as u64, true);
             let one = self.i32t.const_int(1, false);
-            let hi = self.builder.build_select(lgt, one, self.i32t.const_zero(), "lhi").map_err(Self::err)?.into_int_value();
-            let dif = self.builder.build_select(llt, neg1, hi, "ldif").map_err(Self::err)?.into_int_value();
-            let rnz = self.builder.build_int_compare(IntPredicate::NE, r, self.i32t.const_zero(), "rnz").map_err(Self::err)?;
-            Ok(self.builder.build_select(rnz, r, dif, "scmpsel").map_err(Self::err)?.into_int_value())
+            let hi = self
+                .builder
+                .build_select(lgt, one, self.i32t.const_zero(), "lhi")
+                .map_err(Self::err)?
+                .into_int_value();
+            let dif = self
+                .builder
+                .build_select(llt, neg1, hi, "ldif")
+                .map_err(Self::err)?
+                .into_int_value();
+            let rnz = self
+                .builder
+                .build_int_compare(IntPredicate::NE, r, self.i32t.const_zero(), "rnz")
+                .map_err(Self::err)?;
+            Ok(self
+                .builder
+                .build_select(rnz, r, dif, "scmpsel")
+                .map_err(Self::err)?
+                .into_int_value())
         }
 
         /// Allocate a zeroed byte-string of `len` bytes; returns the data pointer, with the
@@ -2428,7 +2892,12 @@ pub mod llvm_backend {
             self.builder.build_store(base, len).map_err(Self::err)?;
             let data = unsafe {
                 self.builder
-                    .build_in_bounds_gep(self.ctx.i8_type(), base, &[self.i64t.const_int(8, false)], "sdata")
+                    .build_in_bounds_gep(
+                        self.ctx.i8_type(),
+                        base,
+                        &[self.i64t.const_int(8, false)],
+                        "sdata",
+                    )
                     .map_err(Self::err)?
             };
             Ok(data)
@@ -2436,48 +2905,99 @@ pub mod llvm_backend {
 
         /// A private C format-string global (for `snprintf`); returns its data pointer.
         fn fmt_g(&self, s: &str) -> Result<PointerValue<'ctx>, CompileError> {
-            Ok(self.builder.build_global_string_ptr(s, "fmt").map_err(Self::err)?.as_pointer_value())
+            Ok(self
+                .builder
+                .build_global_string_ptr(s, "fmt")
+                .map_err(Self::err)?
+                .as_pointer_value())
         }
 
         /// `LJUST$`/`RJUST$`/`CJUST$`: place `s` in a space-padded field (mode 0=left, 1=right,
         /// 2=center). Left/right keep an over-long `s` whole (out length `max(len,w)`); center
         /// produces exactly `w`, truncating an over-long `s` to its first `w` bytes. Branchless
         /// (zero-length memsets are no-ops); `memcpy` preserves embedded NULs.
-        fn str_justify(&self, s_arg: &IrExpr, w_arg: &IrExpr, mode: u8) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+        fn str_justify(
+            &self,
+            s_arg: &IrExpr,
+            w_arg: &IrExpr,
+            mode: u8,
+        ) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
             let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(s_arg)? else {
                 return Ok(None);
             };
             let w = self.eval_int(w_arg)?;
-            let w64 = self.builder.build_int_s_extend(w, self.i64t, "w64").map_err(Self::err)?;
+            let w64 = self
+                .builder
+                .build_int_s_extend(w, self.i64t, "w64")
+                .map_err(Self::err)?;
             let slen = self.str_len(s)?;
             // Center (mode 2) produces exactly width `w`, truncating an over-long `s` to its
             // first `w` bytes (matches the interpreter's `s[..width]`); left/right keep the full
             // string when it is already >= `w` (no truncation), so out length is `max(len, w)`.
-            let sgtw = self.builder.build_int_compare(IntPredicate::SGT, slen, w64, "sgtw").map_err(Self::err)?;
+            let sgtw = self
+                .builder
+                .build_int_compare(IntPredicate::SGT, slen, w64, "sgtw")
+                .map_err(Self::err)?;
             let (copylen, outlen) = if mode == 2 {
                 (self.umin(slen, w64)?, w64)
             } else {
-                (slen, self.builder.build_select(sgtw, slen, w64, "outlen").map_err(Self::err)?.into_int_value())
+                (
+                    slen,
+                    self.builder
+                        .build_select(sgtw, slen, w64, "outlen")
+                        .map_err(Self::err)?
+                        .into_int_value(),
+                )
             };
             let r = self.str_new(outlen)?;
-            let pad = self.builder.build_int_sub(outlen, copylen, "pad").map_err(Self::err)?;
+            let pad = self
+                .builder
+                .build_int_sub(outlen, copylen, "pad")
+                .map_err(Self::err)?;
             let leftpad = match mode {
                 1 => pad,
-                2 => self.builder.build_int_signed_div(pad, self.i64t.const_int(2, false), "lp").map_err(Self::err)?,
+                2 => self
+                    .builder
+                    .build_int_signed_div(pad, self.i64t.const_int(2, false), "lp")
+                    .map_err(Self::err)?,
                 _ => self.i64t.const_zero(),
             };
             let space = self.i32t.const_int(b' ' as u64, false);
-            self.builder.build_call(self.memset, &[r.into(), space.into(), leftpad.into()], "ms1").map_err(Self::err)?;
+            self.builder
+                .build_call(
+                    self.memset,
+                    &[r.into(), space.into(), leftpad.into()],
+                    "ms1",
+                )
+                .map_err(Self::err)?;
             let dst = unsafe {
-                self.builder.build_in_bounds_gep(self.ctx.i8_type(), r, &[leftpad], "jdst").map_err(Self::err)?
+                self.builder
+                    .build_in_bounds_gep(self.ctx.i8_type(), r, &[leftpad], "jdst")
+                    .map_err(Self::err)?
             };
-            self.builder.build_call(self.memcpy, &[dst.into(), s.into(), copylen.into()], "jmc").map_err(Self::err)?;
-            let ls = self.builder.build_int_add(leftpad, copylen, "ls").map_err(Self::err)?;
-            let rightpad = self.builder.build_int_sub(outlen, ls, "rp").map_err(Self::err)?;
+            self.builder
+                .build_call(self.memcpy, &[dst.into(), s.into(), copylen.into()], "jmc")
+                .map_err(Self::err)?;
+            let ls = self
+                .builder
+                .build_int_add(leftpad, copylen, "ls")
+                .map_err(Self::err)?;
+            let rightpad = self
+                .builder
+                .build_int_sub(outlen, ls, "rp")
+                .map_err(Self::err)?;
             let rstart = unsafe {
-                self.builder.build_in_bounds_gep(self.ctx.i8_type(), r, &[ls], "jrs").map_err(Self::err)?
+                self.builder
+                    .build_in_bounds_gep(self.ctx.i8_type(), r, &[ls], "jrs")
+                    .map_err(Self::err)?
             };
-            self.builder.build_call(self.memset, &[rstart.into(), space.into(), rightpad.into()], "ms2").map_err(Self::err)?;
+            self.builder
+                .build_call(
+                    self.memset,
+                    &[rstart.into(), space.into(), rightpad.into()],
+                    "ms2",
+                )
+                .map_err(Self::err)?;
             Ok(Some(r.into()))
         }
 
@@ -2487,14 +3007,22 @@ pub mod llvm_backend {
             let mut raw: Vec<u8> = (bytes.len() as u64).to_le_bytes().to_vec();
             raw.extend_from_slice(bytes);
             raw.push(0);
-            let vals: Vec<_> = raw.iter().map(|b| i8t.const_int(*b as u64, false)).collect();
+            let vals: Vec<_> = raw
+                .iter()
+                .map(|b| i8t.const_int(*b as u64, false))
+                .collect();
             let arr = i8t.const_array(&vals);
             let g = self.module.add_global(arr.get_type(), None, "bsc");
             g.set_initializer(&arr);
             g.set_constant(true);
             let data = unsafe {
                 self.builder
-                    .build_in_bounds_gep(i8t, g.as_pointer_value(), &[self.i64t.const_int(8, false)], "scd")
+                    .build_in_bounds_gep(
+                        i8t,
+                        g.as_pointer_value(),
+                        &[self.i64t.const_int(8, false)],
+                        "scd",
+                    )
                     .map_err(Self::err)?
             };
             Ok(data)
@@ -2515,12 +3043,19 @@ pub mod llvm_backend {
         }
 
         /// `snprintf(fmt, iv)` into a scratch buffer, returned as a byte-string.
-        fn str_from_int(&self, fmt: PointerValue<'ctx>, iv: IntValue<'ctx>) -> Result<PointerValue<'ctx>, CompileError> {
+        fn str_from_int(
+            &self,
+            fmt: PointerValue<'ctx>,
+            iv: IntValue<'ctx>,
+        ) -> Result<PointerValue<'ctx>, CompileError> {
             let tmp = self
                 .builder
                 .build_call(
                     self.calloc,
-                    &[self.i64t.const_int(24, false).into(), self.i64t.const_int(1, false).into()],
+                    &[
+                        self.i64t.const_int(24, false).into(),
+                        self.i64t.const_int(1, false).into(),
+                    ],
                     "numbuf",
                 )
                 .map_err(Self::err)?
@@ -2531,7 +3066,12 @@ pub mod llvm_backend {
             self.builder
                 .build_call(
                     self.snprintf,
-                    &[tmp.into(), self.i64t.const_int(24, false).into(), fmt.into(), iv.into()],
+                    &[
+                        tmp.into(),
+                        self.i64t.const_int(24, false).into(),
+                        fmt.into(),
+                        iv.into(),
+                    ],
                     "num",
                 )
                 .map_err(Self::err)?;
@@ -2547,12 +3087,21 @@ pub mod llvm_backend {
             width: IntValue<'ctx>,
             iv: IntValue<'ctx>,
         ) -> Result<PointerValue<'ctx>, CompileError> {
-            let w64 = self.builder.build_int_s_extend(width, self.i64t, "w64").map_err(Self::err)?;
-            let size =
-                self.builder.build_int_add(w64, self.i64t.const_int(16, false), "hxsz").map_err(Self::err)?;
+            let w64 = self
+                .builder
+                .build_int_s_extend(width, self.i64t, "w64")
+                .map_err(Self::err)?;
+            let size = self
+                .builder
+                .build_int_add(w64, self.i64t.const_int(16, false), "hxsz")
+                .map_err(Self::err)?;
             let tmp = self
                 .builder
-                .build_call(self.calloc, &[size.into(), self.i64t.const_int(1, false).into()], "hxbuf")
+                .build_call(
+                    self.calloc,
+                    &[size.into(), self.i64t.const_int(1, false).into()],
+                    "hxbuf",
+                )
                 .map_err(Self::err)?
                 .try_as_basic_value()
                 .basic()
@@ -2579,46 +3128,87 @@ pub mod llvm_backend {
             let head = self.ctx.append_basic_block(self.cur_fn, "sp.head");
             let body = self.ctx.append_basic_block(self.cur_fn, "sp.body");
             let exit = self.ctx.append_basic_block(self.cur_fn, "sp.exit");
-            self.builder.build_conditional_branch(isnull, exit, go).map_err(Self::err)?;
+            self.builder
+                .build_conditional_branch(isnull, exit, go)
+                .map_err(Self::err)?;
             self.builder.position_at_end(go);
             let len = self.str_len(s)?;
-            let idx = self.builder.build_alloca(self.i64t, "pi").map_err(Self::err)?;
-            self.builder.build_store(idx, self.i64t.const_zero()).map_err(Self::err)?;
-            self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+            let idx = self
+                .builder
+                .build_alloca(self.i64t, "pi")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(idx, self.i64t.const_zero())
+                .map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(head)
+                .map_err(Self::err)?;
             self.builder.position_at_end(head);
-            let iv = self.builder.build_load(self.i64t, idx, "pv").map_err(Self::err)?.into_int_value();
+            let iv = self
+                .builder
+                .build_load(self.i64t, idx, "pv")
+                .map_err(Self::err)?
+                .into_int_value();
             let cont = self
                 .builder
                 .build_int_compare(IntPredicate::ULT, iv, len, "plt")
                 .map_err(Self::err)?;
-            self.builder.build_conditional_branch(cont, body, exit).map_err(Self::err)?;
+            self.builder
+                .build_conditional_branch(cont, body, exit)
+                .map_err(Self::err)?;
             self.builder.position_at_end(body);
             let ep = unsafe {
                 self.builder
                     .build_in_bounds_gep(self.ctx.i8_type(), s, &[iv], "pep")
                     .map_err(Self::err)?
             };
-            let c = self.builder.build_load(self.ctx.i8_type(), ep, "pc").map_err(Self::err)?.into_int_value();
-            let ci = self.builder.build_int_z_extend(c, self.i32t, "pci").map_err(Self::err)?;
-            self.builder.build_call(self.putchar, &[ci.into()], "pch").map_err(Self::err)?;
-            let next = self.builder.build_int_add(iv, self.i64t.const_int(1, false), "pn").map_err(Self::err)?;
+            let c = self
+                .builder
+                .build_load(self.ctx.i8_type(), ep, "pc")
+                .map_err(Self::err)?
+                .into_int_value();
+            let ci = self
+                .builder
+                .build_int_z_extend(c, self.i32t, "pci")
+                .map_err(Self::err)?;
+            self.builder
+                .build_call(self.putchar, &[ci.into()], "pch")
+                .map_err(Self::err)?;
+            let next = self
+                .builder
+                .build_int_add(iv, self.i64t.const_int(1, false), "pn")
+                .map_err(Self::err)?;
             self.builder.build_store(idx, next).map_err(Self::err)?;
-            self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(head)
+                .map_err(Self::err)?;
             self.builder.position_at_end(exit);
             Ok(())
         }
 
         /// Unsigned min (matches `usize::min`).
-        fn umin(&self, a: IntValue<'ctx>, b: IntValue<'ctx>) -> Result<IntValue<'ctx>, CompileError> {
+        fn umin(
+            &self,
+            a: IntValue<'ctx>,
+            b: IntValue<'ctx>,
+        ) -> Result<IntValue<'ctx>, CompileError> {
             let lt = self
                 .builder
                 .build_int_compare(IntPredicate::ULT, a, b, "ult")
                 .map_err(Self::err)?;
-            Ok(self.builder.build_select(lt, a, b, "umin").map_err(Self::err)?.into_int_value())
+            Ok(self
+                .builder
+                .build_select(lt, a, b, "umin")
+                .map_err(Self::err)?
+                .into_int_value())
         }
 
         /// Unsigned saturating subtract (matches `usize::saturating_sub`).
-        fn usub_sat(&self, x: IntValue<'ctx>, y: IntValue<'ctx>) -> Result<IntValue<'ctx>, CompileError> {
+        fn usub_sat(
+            &self,
+            x: IntValue<'ctx>,
+            y: IntValue<'ctx>,
+        ) -> Result<IntValue<'ctx>, CompileError> {
             let ge = self
                 .builder
                 .build_int_compare(IntPredicate::UGE, x, y, "uge")
@@ -2694,7 +3284,11 @@ pub mod llvm_backend {
                     .map_err(Self::err)?
             };
             self.builder
-                .build_call(self.memcpy, &[dstoff.into(), src.into(), copy.into()], "mmc")
+                .build_call(
+                    self.memcpy,
+                    &[dstoff.into(), src.into(), copy.into()],
+                    "mmc",
+                )
                 .map_err(Self::err)?;
             self.builder.build_store(slot, dst).map_err(Self::err)?;
             Ok(())
@@ -2721,12 +3315,19 @@ pub mod llvm_backend {
 
         /// `SPACE$(n)`: a byte-string of `n` spaces.
         fn str_space(&self, n: IntValue<'ctx>) -> Result<PointerValue<'ctx>, CompileError> {
-            let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
+            let n64 = self
+                .builder
+                .build_int_s_extend(n, self.i64t, "n64")
+                .map_err(Self::err)?;
             let buf = self.str_new(n64)?;
             self.builder
                 .build_call(
                     self.memset,
-                    &[buf.into(), self.i32t.const_int(b' ' as u64, false).into(), n64.into()],
+                    &[
+                        buf.into(),
+                        self.i32t.const_int(b' ' as u64, false).into(),
+                        n64.into(),
+                    ],
                     "ms",
                 )
                 .map_err(Self::err)?;
@@ -2751,26 +3352,56 @@ pub mod llvm_backend {
         }
 
         /// `UCASE$`/`LCASE$`: ASCII case fold each byte in a fresh copy.
-        fn str_case(&self, s: PointerValue<'ctx>, upper: bool) -> Result<PointerValue<'ctx>, CompileError> {
+        fn str_case(
+            &self,
+            s: PointerValue<'ctx>,
+            upper: bool,
+        ) -> Result<PointerValue<'ctx>, CompileError> {
             let len = self.str_len(s)?;
             let buf = self.str_copy(s, self.i64t.const_zero(), len)?;
             let i8t = self.ctx.i8_type();
-            let idx = self.builder.build_alloca(self.i64t, "ci").map_err(Self::err)?;
-            self.builder.build_store(idx, self.i64t.const_zero()).map_err(Self::err)?;
+            let idx = self
+                .builder
+                .build_alloca(self.i64t, "ci")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(idx, self.i64t.const_zero())
+                .map_err(Self::err)?;
             let head = self.ctx.append_basic_block(self.cur_fn, "case.head");
             let body = self.ctx.append_basic_block(self.cur_fn, "case.body");
             let exit = self.ctx.append_basic_block(self.cur_fn, "case.exit");
-            self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(head)
+                .map_err(Self::err)?;
             self.builder.position_at_end(head);
-            let iv = self.builder.build_load(self.i64t, idx, "i").map_err(Self::err)?.into_int_value();
-            let cont = self.builder.build_int_compare(IntPredicate::ULT, iv, len, "lt").map_err(Self::err)?;
-            self.builder.build_conditional_branch(cont, body, exit).map_err(Self::err)?;
+            let iv = self
+                .builder
+                .build_load(self.i64t, idx, "i")
+                .map_err(Self::err)?
+                .into_int_value();
+            let cont = self
+                .builder
+                .build_int_compare(IntPredicate::ULT, iv, len, "lt")
+                .map_err(Self::err)?;
+            self.builder
+                .build_conditional_branch(cont, body, exit)
+                .map_err(Self::err)?;
             self.builder.position_at_end(body);
             let ep = unsafe {
-                self.builder.build_in_bounds_gep(i8t, buf, &[iv], "cp").map_err(Self::err)?
+                self.builder
+                    .build_in_bounds_gep(i8t, buf, &[iv], "cp")
+                    .map_err(Self::err)?
             };
-            let c = self.builder.build_load(i8t, ep, "c").map_err(Self::err)?.into_int_value();
-            let (lo, hi, delta) = if upper { (b'a', b'z', -32i64) } else { (b'A', b'Z', 32i64) };
+            let c = self
+                .builder
+                .build_load(i8t, ep, "c")
+                .map_err(Self::err)?
+                .into_int_value();
+            let (lo, hi, delta) = if upper {
+                (b'a', b'z', -32i64)
+            } else {
+                (b'A', b'Z', 32i64)
+            };
             let ge = self
                 .builder
                 .build_int_compare(IntPredicate::UGE, c, i8t.const_int(lo as u64, false), "ge")
@@ -2784,42 +3415,90 @@ pub mod llvm_backend {
                 .builder
                 .build_int_add(c, i8t.const_int(delta as u64, true), "sh")
                 .map_err(Self::err)?;
-            let nc = self.builder.build_select(inr, sh, c, "nc").map_err(Self::err)?.into_int_value();
+            let nc = self
+                .builder
+                .build_select(inr, sh, c, "nc")
+                .map_err(Self::err)?
+                .into_int_value();
             self.builder.build_store(ep, nc).map_err(Self::err)?;
-            let next = self.builder.build_int_add(iv, self.i64t.const_int(1, false), "inc").map_err(Self::err)?;
+            let next = self
+                .builder
+                .build_int_add(iv, self.i64t.const_int(1, false), "inc")
+                .map_err(Self::err)?;
             self.builder.build_store(idx, next).map_err(Self::err)?;
-            self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(head)
+                .map_err(Self::err)?;
             self.builder.position_at_end(exit);
             Ok(buf)
         }
 
         /// `TRIM$`/`LTRIM$`/`RTRIM$`: strip ASCII whitespace (matches `byte_trim`).
-        fn str_trim(&self, s: PointerValue<'ctx>, left: bool, right: bool) -> Result<PointerValue<'ctx>, CompileError> {
+        fn str_trim(
+            &self,
+            s: PointerValue<'ctx>,
+            left: bool,
+            right: bool,
+        ) -> Result<PointerValue<'ctx>, CompileError> {
             let len = self.str_len(s)?;
             let i8t = self.ctx.i8_type();
-            let a = self.builder.build_alloca(self.i64t, "ta").map_err(Self::err)?;
-            self.builder.build_store(a, self.i64t.const_zero()).map_err(Self::err)?;
-            let b = self.builder.build_alloca(self.i64t, "tb").map_err(Self::err)?;
+            let a = self
+                .builder
+                .build_alloca(self.i64t, "ta")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(a, self.i64t.const_zero())
+                .map_err(Self::err)?;
+            let b = self
+                .builder
+                .build_alloca(self.i64t, "tb")
+                .map_err(Self::err)?;
             self.builder.build_store(b, len).map_err(Self::err)?;
             if left {
                 let head = self.ctx.append_basic_block(self.cur_fn, "lt.head");
                 let chk = self.ctx.append_basic_block(self.cur_fn, "lt.chk");
                 let adv = self.ctx.append_basic_block(self.cur_fn, "lt.adv");
                 let done = self.ctx.append_basic_block(self.cur_fn, "lt.done");
-                self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+                self.builder
+                    .build_unconditional_branch(head)
+                    .map_err(Self::err)?;
                 self.builder.position_at_end(head);
-                let av = self.builder.build_load(self.i64t, a, "av").map_err(Self::err)?.into_int_value();
-                let c1 = self.builder.build_int_compare(IntPredicate::ULT, av, len, "c1").map_err(Self::err)?;
-                self.builder.build_conditional_branch(c1, chk, done).map_err(Self::err)?;
+                let av = self
+                    .builder
+                    .build_load(self.i64t, a, "av")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let c1 = self
+                    .builder
+                    .build_int_compare(IntPredicate::ULT, av, len, "c1")
+                    .map_err(Self::err)?;
+                self.builder
+                    .build_conditional_branch(c1, chk, done)
+                    .map_err(Self::err)?;
                 self.builder.position_at_end(chk);
-                let ea = unsafe { self.builder.build_in_bounds_gep(i8t, s, &[av], "ea").map_err(Self::err)? };
-                let ca = self.builder.build_load(i8t, ea, "ca").map_err(Self::err)?.into_int_value();
+                let ea = unsafe {
+                    self.builder
+                        .build_in_bounds_gep(i8t, s, &[av], "ea")
+                        .map_err(Self::err)?
+                };
+                let ca = self
+                    .builder
+                    .build_load(i8t, ea, "ca")
+                    .map_err(Self::err)?
+                    .into_int_value();
                 let w = self.is_ws(ca)?;
-                self.builder.build_conditional_branch(w, adv, done).map_err(Self::err)?;
+                self.builder
+                    .build_conditional_branch(w, adv, done)
+                    .map_err(Self::err)?;
                 self.builder.position_at_end(adv);
-                let ap1 = self.builder.build_int_add(av, self.i64t.const_int(1, false), "ap1").map_err(Self::err)?;
+                let ap1 = self
+                    .builder
+                    .build_int_add(av, self.i64t.const_int(1, false), "ap1")
+                    .map_err(Self::err)?;
                 self.builder.build_store(a, ap1).map_err(Self::err)?;
-                self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+                self.builder
+                    .build_unconditional_branch(head)
+                    .map_err(Self::err)?;
                 self.builder.position_at_end(done);
             }
             if right {
@@ -2827,33 +3506,79 @@ pub mod llvm_backend {
                 let chk = self.ctx.append_basic_block(self.cur_fn, "rt.chk");
                 let adv = self.ctx.append_basic_block(self.cur_fn, "rt.adv");
                 let done = self.ctx.append_basic_block(self.cur_fn, "rt.done");
-                self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+                self.builder
+                    .build_unconditional_branch(head)
+                    .map_err(Self::err)?;
                 self.builder.position_at_end(head);
-                let bv = self.builder.build_load(self.i64t, b, "bv").map_err(Self::err)?.into_int_value();
-                let av = self.builder.build_load(self.i64t, a, "av2").map_err(Self::err)?.into_int_value();
-                let c2 = self.builder.build_int_compare(IntPredicate::UGT, bv, av, "c2").map_err(Self::err)?;
-                self.builder.build_conditional_branch(c2, chk, done).map_err(Self::err)?;
+                let bv = self
+                    .builder
+                    .build_load(self.i64t, b, "bv")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let av = self
+                    .builder
+                    .build_load(self.i64t, a, "av2")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let c2 = self
+                    .builder
+                    .build_int_compare(IntPredicate::UGT, bv, av, "c2")
+                    .map_err(Self::err)?;
+                self.builder
+                    .build_conditional_branch(c2, chk, done)
+                    .map_err(Self::err)?;
                 self.builder.position_at_end(chk);
-                let bm1 = self.builder.build_int_sub(bv, self.i64t.const_int(1, false), "bm1").map_err(Self::err)?;
-                let eb = unsafe { self.builder.build_in_bounds_gep(i8t, s, &[bm1], "eb").map_err(Self::err)? };
-                let cb = self.builder.build_load(i8t, eb, "cb").map_err(Self::err)?.into_int_value();
+                let bm1 = self
+                    .builder
+                    .build_int_sub(bv, self.i64t.const_int(1, false), "bm1")
+                    .map_err(Self::err)?;
+                let eb = unsafe {
+                    self.builder
+                        .build_in_bounds_gep(i8t, s, &[bm1], "eb")
+                        .map_err(Self::err)?
+                };
+                let cb = self
+                    .builder
+                    .build_load(i8t, eb, "cb")
+                    .map_err(Self::err)?
+                    .into_int_value();
                 let w = self.is_ws(cb)?;
-                self.builder.build_conditional_branch(w, adv, done).map_err(Self::err)?;
+                self.builder
+                    .build_conditional_branch(w, adv, done)
+                    .map_err(Self::err)?;
                 self.builder.position_at_end(adv);
                 self.builder.build_store(b, bm1).map_err(Self::err)?;
-                self.builder.build_unconditional_branch(head).map_err(Self::err)?;
+                self.builder
+                    .build_unconditional_branch(head)
+                    .map_err(Self::err)?;
                 self.builder.position_at_end(done);
             }
-            let av = self.builder.build_load(self.i64t, a, "fa").map_err(Self::err)?.into_int_value();
-            let bv = self.builder.build_load(self.i64t, b, "fb").map_err(Self::err)?.into_int_value();
-            let cl = self.builder.build_int_sub(bv, av, "cl").map_err(Self::err)?;
+            let av = self
+                .builder
+                .build_load(self.i64t, a, "fa")
+                .map_err(Self::err)?
+                .into_int_value();
+            let bv = self
+                .builder
+                .build_load(self.i64t, b, "fb")
+                .map_err(Self::err)?
+                .into_int_value();
+            let cl = self
+                .builder
+                .build_int_sub(bv, av, "cl")
+                .map_err(Self::err)?;
             self.str_copy(s, av, cl)
         }
 
         /// Get-or-declare a libc `double NAME(double)` and call it on `arg` (evaluated as f64).
-        fn call_libm1(&self, cname: &str, arg: &IrExpr) -> Result<BasicValueEnum<'ctx>, CompileError> {
+        fn call_libm1(
+            &self,
+            cname: &str,
+            arg: &IrExpr,
+        ) -> Result<BasicValueEnum<'ctx>, CompileError> {
             let f = self.module.get_function(cname).unwrap_or_else(|| {
-                self.module.add_function(cname, self.f64t.fn_type(&[self.f64t.into()], false), None)
+                self.module
+                    .add_function(cname, self.f64t.fn_type(&[self.f64t.into()], false), None)
             });
             let a = self.eval_float(arg)?;
             self.builder
@@ -2867,13 +3592,22 @@ pub mod llvm_backend {
         /// Get-or-declare a libc `double NAME(double, double)`.
         fn libm2(&self, cname: &str) -> FunctionValue<'ctx> {
             self.module.get_function(cname).unwrap_or_else(|| {
-                self.module
-                    .add_function(cname, self.f64t.fn_type(&[self.f64t.into(), self.f64t.into()], false), None)
+                self.module.add_function(
+                    cname,
+                    self.f64t
+                        .fn_type(&[self.f64t.into(), self.f64t.into()], false),
+                    None,
+                )
             })
         }
 
         /// `double NAME(double, double)` applied to two f64 args.
-        fn call_libm2(&self, cname: &str, a: FloatValue<'ctx>, b: FloatValue<'ctx>) -> Result<BasicValueEnum<'ctx>, CompileError> {
+        fn call_libm2(
+            &self,
+            cname: &str,
+            a: FloatValue<'ctx>,
+            b: FloatValue<'ctx>,
+        ) -> Result<BasicValueEnum<'ctx>, CompileError> {
             self.builder
                 .build_call(self.libm2(cname), &[a.into(), b.into()], "m2")
                 .map_err(Self::err)?
@@ -2883,7 +3617,11 @@ pub mod llvm_backend {
         }
 
         /// `1.0 / NAME(arg)` — reciprocal trig/hyperbolic (COT/SEC/CSC/COTH/SECH/CSCH).
-        fn call_recip(&self, cname: &str, arg: &IrExpr) -> Result<BasicValueEnum<'ctx>, CompileError> {
+        fn call_recip(
+            &self,
+            cname: &str,
+            arg: &IrExpr,
+        ) -> Result<BasicValueEnum<'ctx>, CompileError> {
             let v = self.call_libm1(cname, arg)?.into_float_value();
             Ok(self
                 .builder
@@ -2893,9 +3631,14 @@ pub mod llvm_backend {
         }
 
         /// `double NAME(double)` applied to an already-evaluated f64 (for composed forms).
-        fn callm1v(&self, cname: &str, v: FloatValue<'ctx>) -> Result<FloatValue<'ctx>, CompileError> {
+        fn callm1v(
+            &self,
+            cname: &str,
+            v: FloatValue<'ctx>,
+        ) -> Result<FloatValue<'ctx>, CompileError> {
             let f = self.module.get_function(cname).unwrap_or_else(|| {
-                self.module.add_function(cname, self.f64t.fn_type(&[self.f64t.into()], false), None)
+                self.module
+                    .add_function(cname, self.f64t.fn_type(&[self.f64t.into()], false), None)
             });
             Ok(self
                 .builder
@@ -2908,19 +3651,46 @@ pub mod llvm_backend {
         }
 
         /// `NAME(1.0 / arg)` — inverse reciprocal (ACSC/ACOTH/ASECH/ACSCH).
-        fn call_inv_recip(&self, cname: &str, arg: &IrExpr) -> Result<BasicValueEnum<'ctx>, CompileError> {
+        fn call_inv_recip(
+            &self,
+            cname: &str,
+            arg: &IrExpr,
+        ) -> Result<BasicValueEnum<'ctx>, CompileError> {
             let v = self.eval_float(arg)?;
-            let inv = self.builder.build_float_div(self.f64t.const_float(1.0), v, "invr").map_err(Self::err)?;
+            let inv = self
+                .builder
+                .build_float_div(self.f64t.const_float(1.0), v, "invr")
+                .map_err(Self::err)?;
             Ok(self.callm1v(cname, inv)?.into())
         }
         /// Append byte `c` to `work[*pos]`, advancing `*pos` only when `cond` — the byte is
         /// always stored but overwritten by the next append when `cond` is false (branchless).
-        fn fmt_push_cond(&self, work: PointerValue<'ctx>, pos: PointerValue<'ctx>, c: IntValue<'ctx>, cond: IntValue<'ctx>) -> Result<(), CompileError> {
-            let p = self.builder.build_load(self.i64t, pos, "fp").map_err(Self::err)?.into_int_value();
-            let ep = unsafe { self.builder.build_in_bounds_gep(self.ctx.i8_type(), work, &[p], "fep").map_err(Self::err)? };
+        fn fmt_push_cond(
+            &self,
+            work: PointerValue<'ctx>,
+            pos: PointerValue<'ctx>,
+            c: IntValue<'ctx>,
+            cond: IntValue<'ctx>,
+        ) -> Result<(), CompileError> {
+            let p = self
+                .builder
+                .build_load(self.i64t, pos, "fp")
+                .map_err(Self::err)?
+                .into_int_value();
+            let ep = unsafe {
+                self.builder
+                    .build_in_bounds_gep(self.ctx.i8_type(), work, &[p], "fep")
+                    .map_err(Self::err)?
+            };
             self.builder.build_store(ep, c).map_err(Self::err)?;
-            let adv = self.builder.build_int_z_extend(cond, self.i64t, "fadv").map_err(Self::err)?;
-            let np = self.builder.build_int_add(p, adv, "fnp").map_err(Self::err)?;
+            let adv = self
+                .builder
+                .build_int_z_extend(cond, self.i64t, "fadv")
+                .map_err(Self::err)?;
+            let np = self
+                .builder
+                .build_int_add(p, adv, "fnp")
+                .map_err(Self::err)?;
             self.builder.build_store(pos, np).map_err(Self::err)?;
             Ok(())
         }
@@ -2928,20 +3698,35 @@ pub mod llvm_backend {
         /// A libc `char* NAME(...)` external (get-or-declare); shape via `two_ptr`/`ptr_i32`.
         fn libc_ptr_fn(&self, name: &str, second_is_int: bool) -> FunctionValue<'ctx> {
             self.module.get_function(name).unwrap_or_else(|| {
-                let arg2 = if second_is_int { self.i32t.into() } else { self.ptr.into() };
-                self.module.add_function(name, self.ptr.fn_type(&[self.ptr.into(), arg2], false), None)
+                let arg2 = if second_is_int {
+                    self.i32t.into()
+                } else {
+                    self.ptr.into()
+                };
+                self.module.add_function(
+                    name,
+                    self.ptr.fn_type(&[self.ptr.into(), arg2], false),
+                    None,
+                )
             })
         }
 
         /// `FORMAT$(fmt, value)` — dispatch on the value type (string align vs numeric).
-        fn eval_format(&self, fmt_arg: &IrExpr, val_arg: &IrExpr) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+        fn eval_format(
+            &self,
+            fmt_arg: &IrExpr,
+            val_arg: &IrExpr,
+        ) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
             let Some(BasicValueEnum::PointerValue(fmt)) = self.eval_value(fmt_arg)? else {
                 return Ok(None);
             };
             match self.eval_value(val_arg)? {
                 Some(BasicValueEnum::PointerValue(sval)) => self.format_string(fmt, sval).map(Some),
                 Some(BasicValueEnum::IntValue(iv)) => {
-                    let d = self.builder.build_signed_int_to_float(iv, self.f64t, "fi2f").map_err(Self::err)?;
+                    let d = self
+                        .builder
+                        .build_signed_int_to_float(iv, self.f64t, "fi2f")
+                        .map_err(Self::err)?;
                     self.format_num(fmt, d).map(Some)
                 }
                 Some(BasicValueEnum::FloatValue(fv)) => self.format_num(fmt, fv).map(Some),
@@ -2952,74 +3737,241 @@ pub mod llvm_backend {
         /// String `FORMAT$`: `&` (and any non-align pattern) copies whole; `<`/`>`/`|` place the
         /// string left/right/center in a width counted from the leading pattern chars, truncating
         /// an over-long string to that width (mirrors `xb_format` is_str path).
-        fn format_string(&self, fmt: PointerValue<'ctx>, sval: PointerValue<'ctx>) -> Result<BasicValueEnum<'ctx>, CompileError> {
+        fn format_string(
+            &self,
+            fmt: PointerValue<'ctx>,
+            sval: PointerValue<'ctx>,
+        ) -> Result<BasicValueEnum<'ctx>, CompileError> {
             let i8t = self.ctx.i8_type();
             let slen = self.str_len(sval)?;
-            let c0 = self.builder.build_load(i8t, fmt, "c0").map_err(Self::err)?.into_int_value();
-            let lt = self.builder.build_int_compare(IntPredicate::EQ, c0, i8t.const_int(b'<' as u64, false), "islt").map_err(Self::err)?;
-            let gt = self.builder.build_int_compare(IntPredicate::EQ, c0, i8t.const_int(b'>' as u64, false), "isgt").map_err(Self::err)?;
-            let bar = self.builder.build_int_compare(IntPredicate::EQ, c0, i8t.const_int(b'|' as u64, false), "isbar").map_err(Self::err)?;
+            let c0 = self
+                .builder
+                .build_load(i8t, fmt, "c0")
+                .map_err(Self::err)?
+                .into_int_value();
+            let lt = self
+                .builder
+                .build_int_compare(
+                    IntPredicate::EQ,
+                    c0,
+                    i8t.const_int(b'<' as u64, false),
+                    "islt",
+                )
+                .map_err(Self::err)?;
+            let gt = self
+                .builder
+                .build_int_compare(
+                    IntPredicate::EQ,
+                    c0,
+                    i8t.const_int(b'>' as u64, false),
+                    "isgt",
+                )
+                .map_err(Self::err)?;
+            let bar = self
+                .builder
+                .build_int_compare(
+                    IntPredicate::EQ,
+                    c0,
+                    i8t.const_int(b'|' as u64, false),
+                    "isbar",
+                )
+                .map_err(Self::err)?;
             let o1 = self.builder.build_or(lt, gt, "o1").map_err(Self::err)?;
-            let isalign = self.builder.build_or(o1, bar, "isalign").map_err(Self::err)?;
-            let result = self.builder.build_alloca(self.ptr, "fsres").map_err(Self::err)?;
+            let isalign = self
+                .builder
+                .build_or(o1, bar, "isalign")
+                .map_err(Self::err)?;
+            let result = self
+                .builder
+                .build_alloca(self.ptr, "fsres")
+                .map_err(Self::err)?;
             let align_bb = self.ctx.append_basic_block(self.cur_fn, "fs.align");
             let dup_bb = self.ctx.append_basic_block(self.cur_fn, "fs.dup");
             let done_bb = self.ctx.append_basic_block(self.cur_fn, "fs.done");
-            self.builder.build_conditional_branch(isalign, align_bb, dup_bb).map_err(Self::err)?;
+            self.builder
+                .build_conditional_branch(isalign, align_bb, dup_bb)
+                .map_err(Self::err)?;
             self.builder.position_at_end(dup_bb);
             let dup = self.str_copy(sval, self.i64t.const_zero(), slen)?;
             self.builder.build_store(result, dup).map_err(Self::err)?;
-            self.builder.build_unconditional_branch(done_bb).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(done_bb)
+                .map_err(Self::err)?;
             self.builder.position_at_end(align_bb);
-            let widx = self.builder.build_alloca(self.i64t, "fw").map_err(Self::err)?;
-            self.builder.build_store(widx, self.i64t.const_zero()).map_err(Self::err)?;
-            let wcount = self.builder.build_alloca(self.i64t, "fwc").map_err(Self::err)?;
-            self.builder.build_store(wcount, self.i64t.const_zero()).map_err(Self::err)?;
+            let widx = self
+                .builder
+                .build_alloca(self.i64t, "fw")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(widx, self.i64t.const_zero())
+                .map_err(Self::err)?;
+            let wcount = self
+                .builder
+                .build_alloca(self.i64t, "fwc")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(wcount, self.i64t.const_zero())
+                .map_err(Self::err)?;
             let wh = self.ctx.append_basic_block(self.cur_fn, "fw.head");
             let wb = self.ctx.append_basic_block(self.cur_fn, "fw.body");
             let we = self.ctx.append_basic_block(self.cur_fn, "fw.exit");
-            self.builder.build_unconditional_branch(wh).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(wh)
+                .map_err(Self::err)?;
             self.builder.position_at_end(wh);
-            let wi = self.builder.build_load(self.i64t, widx, "wi").map_err(Self::err)?.into_int_value();
-            let wcp = unsafe { self.builder.build_in_bounds_gep(i8t, fmt, &[wi], "wcp").map_err(Self::err)? };
-            let wc = self.builder.build_load(i8t, wcp, "wc").map_err(Self::err)?.into_int_value();
-            let wnul = self.builder.build_int_compare(IntPredicate::EQ, wc, i8t.const_int(0, false), "wnul").map_err(Self::err)?;
-            self.builder.build_conditional_branch(wnul, we, wb).map_err(Self::err)?;
+            let wi = self
+                .builder
+                .build_load(self.i64t, widx, "wi")
+                .map_err(Self::err)?
+                .into_int_value();
+            let wcp = unsafe {
+                self.builder
+                    .build_in_bounds_gep(i8t, fmt, &[wi], "wcp")
+                    .map_err(Self::err)?
+            };
+            let wc = self
+                .builder
+                .build_load(i8t, wcp, "wc")
+                .map_err(Self::err)?
+                .into_int_value();
+            let wnul = self
+                .builder
+                .build_int_compare(IntPredicate::EQ, wc, i8t.const_int(0, false), "wnul")
+                .map_err(Self::err)?;
+            self.builder
+                .build_conditional_branch(wnul, we, wb)
+                .map_err(Self::err)?;
             self.builder.position_at_end(wb);
-            let weq = self.builder.build_int_compare(IntPredicate::EQ, wc, c0, "weq").map_err(Self::err)?;
-            let wcv = self.builder.build_load(self.i64t, wcount, "wcv").map_err(Self::err)?.into_int_value();
-            let wce = self.builder.build_int_z_extend(weq, self.i64t, "wce").map_err(Self::err)?;
-            self.builder.build_store(wcount, self.builder.build_int_add(wcv, wce, "wcn").map_err(Self::err)?).map_err(Self::err)?;
-            self.builder.build_store(widx, self.builder.build_int_add(wi, self.i64t.const_int(1, false), "wnext").map_err(Self::err)?).map_err(Self::err)?;
-            self.builder.build_unconditional_branch(wh).map_err(Self::err)?;
+            let weq = self
+                .builder
+                .build_int_compare(IntPredicate::EQ, wc, c0, "weq")
+                .map_err(Self::err)?;
+            let wcv = self
+                .builder
+                .build_load(self.i64t, wcount, "wcv")
+                .map_err(Self::err)?
+                .into_int_value();
+            let wce = self
+                .builder
+                .build_int_z_extend(weq, self.i64t, "wce")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(
+                    wcount,
+                    self.builder
+                        .build_int_add(wcv, wce, "wcn")
+                        .map_err(Self::err)?,
+                )
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(
+                    widx,
+                    self.builder
+                        .build_int_add(wi, self.i64t.const_int(1, false), "wnext")
+                        .map_err(Self::err)?,
+                )
+                .map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(wh)
+                .map_err(Self::err)?;
             self.builder.position_at_end(we);
-            let w = self.builder.build_load(self.i64t, wcount, "w").map_err(Self::err)?.into_int_value();
+            let w = self
+                .builder
+                .build_load(self.i64t, wcount, "w")
+                .map_err(Self::err)?
+                .into_int_value();
             let copylen = self.umin(slen, w)?;
             let r = self.str_new(w)?;
-            let pad = self.builder.build_int_sub(w, copylen, "fspad").map_err(Self::err)?;
-            let half = self.builder.build_int_signed_div(pad, self.i64t.const_int(2, false), "fshalf").map_err(Self::err)?;
-            let bz = self.builder.build_select(bar, half, self.i64t.const_zero(), "fsbz").map_err(Self::err)?.into_int_value();
-            let leftpad = self.builder.build_select(gt, pad, bz, "fslp").map_err(Self::err)?.into_int_value();
+            let pad = self
+                .builder
+                .build_int_sub(w, copylen, "fspad")
+                .map_err(Self::err)?;
+            let half = self
+                .builder
+                .build_int_signed_div(pad, self.i64t.const_int(2, false), "fshalf")
+                .map_err(Self::err)?;
+            let bz = self
+                .builder
+                .build_select(bar, half, self.i64t.const_zero(), "fsbz")
+                .map_err(Self::err)?
+                .into_int_value();
+            let leftpad = self
+                .builder
+                .build_select(gt, pad, bz, "fslp")
+                .map_err(Self::err)?
+                .into_int_value();
             // '>' truncation copies the LAST `w` bytes (src offset slen-copylen); '<'/'|' copy the first.
-            let gtoff = self.builder.build_int_sub(slen, copylen, "gtoff").map_err(Self::err)?;
-            let src_off = self.builder.build_select(gt, gtoff, self.i64t.const_zero(), "srcoff").map_err(Self::err)?.into_int_value();
-            let src = unsafe { self.builder.build_in_bounds_gep(i8t, sval, &[src_off], "fssrc").map_err(Self::err)? };
+            let gtoff = self
+                .builder
+                .build_int_sub(slen, copylen, "gtoff")
+                .map_err(Self::err)?;
+            let src_off = self
+                .builder
+                .build_select(gt, gtoff, self.i64t.const_zero(), "srcoff")
+                .map_err(Self::err)?
+                .into_int_value();
+            let src = unsafe {
+                self.builder
+                    .build_in_bounds_gep(i8t, sval, &[src_off], "fssrc")
+                    .map_err(Self::err)?
+            };
             let space = self.i32t.const_int(b' ' as u64, false);
-            self.builder.build_call(self.memset, &[r.into(), space.into(), leftpad.into()], "fsms1").map_err(Self::err)?;
-            let dst = unsafe { self.builder.build_in_bounds_gep(i8t, r, &[leftpad], "fsdst").map_err(Self::err)? };
-            self.builder.build_call(self.memcpy, &[dst.into(), src.into(), copylen.into()], "fsmc").map_err(Self::err)?;
-            let ls = self.builder.build_int_add(leftpad, copylen, "fsls").map_err(Self::err)?;
-            let rp = self.builder.build_int_sub(w, ls, "fsrp").map_err(Self::err)?;
-            let rstart = unsafe { self.builder.build_in_bounds_gep(i8t, r, &[ls], "fsrs").map_err(Self::err)? };
-            self.builder.build_call(self.memset, &[rstart.into(), space.into(), rp.into()], "fsms2").map_err(Self::err)?;
+            self.builder
+                .build_call(
+                    self.memset,
+                    &[r.into(), space.into(), leftpad.into()],
+                    "fsms1",
+                )
+                .map_err(Self::err)?;
+            let dst = unsafe {
+                self.builder
+                    .build_in_bounds_gep(i8t, r, &[leftpad], "fsdst")
+                    .map_err(Self::err)?
+            };
+            self.builder
+                .build_call(
+                    self.memcpy,
+                    &[dst.into(), src.into(), copylen.into()],
+                    "fsmc",
+                )
+                .map_err(Self::err)?;
+            let ls = self
+                .builder
+                .build_int_add(leftpad, copylen, "fsls")
+                .map_err(Self::err)?;
+            let rp = self
+                .builder
+                .build_int_sub(w, ls, "fsrp")
+                .map_err(Self::err)?;
+            let rstart = unsafe {
+                self.builder
+                    .build_in_bounds_gep(i8t, r, &[ls], "fsrs")
+                    .map_err(Self::err)?
+            };
+            self.builder
+                .build_call(
+                    self.memset,
+                    &[rstart.into(), space.into(), rp.into()],
+                    "fsms2",
+                )
+                .map_err(Self::err)?;
             self.builder.build_store(result, r).map_err(Self::err)?;
-            self.builder.build_unconditional_branch(done_bb).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(done_bb)
+                .map_err(Self::err)?;
             self.builder.position_at_end(done_bb);
-            Ok(self.builder.build_load(self.ptr, result, "fsr").map_err(Self::err)?)
+            Ok(self
+                .builder
+                .build_load(self.ptr, result, "fsr")
+                .map_err(Self::err)?)
         }
         /// Numeric `FORMAT$`: parse `#`/`.`/`,`/`$`/`*`/`0`/`+`/`-`/`(`/`_` pattern flags, then
         /// build sign/dollar/fill-pad/commas/int/decimals/trailing exactly as `xb_format`.
-        fn format_num(&self, fmt: PointerValue<'ctx>, val: FloatValue<'ctx>) -> Result<BasicValueEnum<'ctx>, CompileError> {
+        fn format_num(
+            &self,
+            fmt: PointerValue<'ctx>,
+            val: FloatValue<'ctx>,
+        ) -> Result<BasicValueEnum<'ctx>, CompileError> {
             let i8t = self.ctx.i8_type();
             let z32 = self.i32t.const_zero();
             let ch = |b: u8| i8t.const_int(b as u64, false);
@@ -3028,98 +3980,265 @@ pub mod llvm_backend {
                 self.builder.build_store(a, z32).map_err(Self::err)?;
                 Ok(a)
             };
-            let (int_digits, frac_digits, has_decimal, has_commas) = (flag("int_d")?, flag("frac_d")?, flag("has_dec")?, flag("has_com")?);
+            let (int_digits, frac_digits, has_decimal, has_commas) = (
+                flag("int_d")?,
+                flag("frac_d")?,
+                flag("has_dec")?,
+                flag("has_com")?,
+            );
             let (dollar, star_fill, zero_fill) = (flag("dollar")?, flag("star")?, flag("zero")?);
-            let (leading_plus, trailing_plus, trailing_minus, paren_neg) = (flag("lp")?, flag("tp")?, flag("tm")?, flag("pn")?);
+            let (leading_plus, trailing_plus, trailing_minus, paren_neg) =
+                (flag("lp")?, flag("tp")?, flag("tm")?, flag("pn")?);
             let orr = |a: PointerValue<'ctx>, cond: IntValue<'ctx>| -> Result<(), CompileError> {
-                let f = self.builder.build_load(self.i32t, a, "f").map_err(Self::err)?.into_int_value();
-                let e = self.builder.build_int_z_extend(cond, self.i32t, "e").map_err(Self::err)?;
+                let f = self
+                    .builder
+                    .build_load(self.i32t, a, "f")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let e = self
+                    .builder
+                    .build_int_z_extend(cond, self.i32t, "e")
+                    .map_err(Self::err)?;
                 let nf = self.builder.build_or(f, e, "nf").map_err(Self::err)?;
                 self.builder.build_store(a, nf).map_err(Self::err)?;
                 Ok(())
             };
             let addc = |a: PointerValue<'ctx>, cond: IntValue<'ctx>| -> Result<(), CompileError> {
-                let f = self.builder.build_load(self.i32t, a, "f").map_err(Self::err)?.into_int_value();
-                let e = self.builder.build_int_z_extend(cond, self.i32t, "e").map_err(Self::err)?;
+                let f = self
+                    .builder
+                    .build_load(self.i32t, a, "f")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let e = self
+                    .builder
+                    .build_int_z_extend(cond, self.i32t, "e")
+                    .map_err(Self::err)?;
                 let nf = self.builder.build_int_add(f, e, "nf").map_err(Self::err)?;
                 self.builder.build_store(a, nf).map_err(Self::err)?;
                 Ok(())
             };
-            let eqc = |c: IntValue<'ctx>, b: u8| self.builder.build_int_compare(IntPredicate::EQ, c, ch(b), "eqc").map_err(Self::err);
+            let eqc = |c: IntValue<'ctx>, b: u8| {
+                self.builder
+                    .build_int_compare(IntPredicate::EQ, c, ch(b), "eqc")
+                    .map_err(Self::err)
+            };
             // parse loop
-            let ial = self.builder.build_alloca(self.i64t, "ial").map_err(Self::err)?;
-            self.builder.build_store(ial, self.i64t.const_zero()).map_err(Self::err)?;
+            let ial = self
+                .builder
+                .build_alloca(self.i64t, "ial")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(ial, self.i64t.const_zero())
+                .map_err(Self::err)?;
             let ph = self.ctx.append_basic_block(self.cur_fn, "fn.ph");
             let pb = self.ctx.append_basic_block(self.cur_fn, "fn.pb");
             let pe = self.ctx.append_basic_block(self.cur_fn, "fn.pe");
-            self.builder.build_unconditional_branch(ph).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(ph)
+                .map_err(Self::err)?;
             self.builder.position_at_end(ph);
-            let i = self.builder.build_load(self.i64t, ial, "i").map_err(Self::err)?.into_int_value();
-            let cp = unsafe { self.builder.build_in_bounds_gep(i8t, fmt, &[i], "cp").map_err(Self::err)? };
-            let c = self.builder.build_load(i8t, cp, "c").map_err(Self::err)?.into_int_value();
-            let isnul = self.builder.build_int_compare(IntPredicate::EQ, c, ch(0), "isnul").map_err(Self::err)?;
-            self.builder.build_conditional_branch(isnul, pe, pb).map_err(Self::err)?;
+            let i = self
+                .builder
+                .build_load(self.i64t, ial, "i")
+                .map_err(Self::err)?
+                .into_int_value();
+            let cp = unsafe {
+                self.builder
+                    .build_in_bounds_gep(i8t, fmt, &[i], "cp")
+                    .map_err(Self::err)?
+            };
+            let c = self
+                .builder
+                .build_load(i8t, cp, "c")
+                .map_err(Self::err)?
+                .into_int_value();
+            let isnul = self
+                .builder
+                .build_int_compare(IntPredicate::EQ, c, ch(0), "isnul")
+                .map_err(Self::err)?;
+            self.builder
+                .build_conditional_branch(isnul, pe, pb)
+                .map_err(Self::err)?;
             self.builder.position_at_end(pb);
             let hash = eqc(c, b'#')?;
-            let hd = self.builder.build_load(self.i32t, has_decimal, "hd").map_err(Self::err)?.into_int_value();
-            let hd_nz = self.builder.build_int_compare(IntPredicate::NE, hd, z32, "hdnz").map_err(Self::err)?;
+            let hd = self
+                .builder
+                .build_load(self.i32t, has_decimal, "hd")
+                .map_err(Self::err)?
+                .into_int_value();
+            let hd_nz = self
+                .builder
+                .build_int_compare(IntPredicate::NE, hd, z32, "hdnz")
+                .map_err(Self::err)?;
             let not_hd = self.builder.build_not(hd_nz, "nhd").map_err(Self::err)?;
-            addc(frac_digits, self.builder.build_and(hash, hd_nz, "if").map_err(Self::err)?)?;
-            addc(int_digits, self.builder.build_and(hash, not_hd, "ii").map_err(Self::err)?)?;
+            addc(
+                frac_digits,
+                self.builder
+                    .build_and(hash, hd_nz, "if")
+                    .map_err(Self::err)?,
+            )?;
+            addc(
+                int_digits,
+                self.builder
+                    .build_and(hash, not_hd, "ii")
+                    .map_err(Self::err)?,
+            )?;
             orr(has_decimal, eqc(c, b'.')?)?;
             orr(has_commas, eqc(c, b',')?)?;
             orr(dollar, eqc(c, b'$')?)?;
             orr(star_fill, eqc(c, b'*')?)?;
             orr(zero_fill, eqc(c, b'0')?)?;
             let plus = eqc(c, b'+')?;
-            let idv = self.builder.build_load(self.i32t, int_digits, "idv").map_err(Self::err)?.into_int_value();
-            let id_pos = self.builder.build_int_compare(IntPredicate::SGT, idv, z32, "idpos").map_err(Self::err)?;
-            let not_idpos = self.builder.build_not(id_pos, "nidpos").map_err(Self::err)?;
-            orr(trailing_plus, self.builder.build_and(plus, id_pos, "tpc").map_err(Self::err)?)?;
-            orr(leading_plus, self.builder.build_and(plus, not_idpos, "lpc").map_err(Self::err)?)?;
-            orr(trailing_minus, self.builder.build_and(eqc(c, b'-')?, id_pos, "tmc").map_err(Self::err)?)?;
+            let idv = self
+                .builder
+                .build_load(self.i32t, int_digits, "idv")
+                .map_err(Self::err)?
+                .into_int_value();
+            let id_pos = self
+                .builder
+                .build_int_compare(IntPredicate::SGT, idv, z32, "idpos")
+                .map_err(Self::err)?;
+            let not_idpos = self
+                .builder
+                .build_not(id_pos, "nidpos")
+                .map_err(Self::err)?;
+            orr(
+                trailing_plus,
+                self.builder
+                    .build_and(plus, id_pos, "tpc")
+                    .map_err(Self::err)?,
+            )?;
+            orr(
+                leading_plus,
+                self.builder
+                    .build_and(plus, not_idpos, "lpc")
+                    .map_err(Self::err)?,
+            )?;
+            orr(
+                trailing_minus,
+                self.builder
+                    .build_and(eqc(c, b'-')?, id_pos, "tmc")
+                    .map_err(Self::err)?,
+            )?;
             orr(paren_neg, eqc(c, b'(')?)?;
             let us = eqc(c, b'_')?;
-            let skip = self.builder.build_int_z_extend(us, self.i64t, "skip").map_err(Self::err)?;
-            let i1 = self.builder.build_int_add(i, self.i64t.const_int(1, false), "i1").map_err(Self::err)?;
-            let i2 = self.builder.build_int_add(i1, skip, "i2").map_err(Self::err)?;
+            let skip = self
+                .builder
+                .build_int_z_extend(us, self.i64t, "skip")
+                .map_err(Self::err)?;
+            let i1 = self
+                .builder
+                .build_int_add(i, self.i64t.const_int(1, false), "i1")
+                .map_err(Self::err)?;
+            let i2 = self
+                .builder
+                .build_int_add(i1, skip, "i2")
+                .map_err(Self::err)?;
             self.builder.build_store(ial, i2).map_err(Self::err)?;
-            self.builder.build_unconditional_branch(ph).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(ph)
+                .map_err(Self::err)?;
             self.builder.position_at_end(pe);
             // simple case: no digits and no fill -> "%g"
-            let ld = |a: PointerValue<'ctx>, n: &str| self.builder.build_load(self.i32t, a, n).map_err(Self::err).map(|v| v.into_int_value());
-            let nz = |v: IntValue<'ctx>, n: &str| self.builder.build_int_compare(IntPredicate::NE, v, z32, n).map_err(Self::err);
+            let ld = |a: PointerValue<'ctx>, n: &str| {
+                self.builder
+                    .build_load(self.i32t, a, n)
+                    .map_err(Self::err)
+                    .map(|v| v.into_int_value())
+            };
+            let nz = |v: IntValue<'ctx>, n: &str| {
+                self.builder
+                    .build_int_compare(IntPredicate::NE, v, z32, n)
+                    .map_err(Self::err)
+            };
             let idv = ld(int_digits, "id")?;
             let fdv = ld(frac_digits, "fd")?;
             let sfv = ld(star_fill, "sf")?;
             let zfv = ld(zero_fill, "zf")?;
-            let noid = self.builder.build_int_compare(IntPredicate::EQ, idv, z32, "noid").map_err(Self::err)?;
-            let nofd = self.builder.build_int_compare(IntPredicate::EQ, fdv, z32, "nofd").map_err(Self::err)?;
-            let nosf = self.builder.build_int_compare(IntPredicate::EQ, sfv, z32, "nosf").map_err(Self::err)?;
-            let nozf = self.builder.build_int_compare(IntPredicate::EQ, zfv, z32, "nozf").map_err(Self::err)?;
-            let s1 = self.builder.build_and(noid, nofd, "s1").map_err(Self::err)?;
-            let s2 = self.builder.build_and(nosf, nozf, "s2").map_err(Self::err)?;
-            let simple = self.builder.build_and(s1, s2, "simple").map_err(Self::err)?;
-            let result = self.builder.build_alloca(self.ptr, "fnres").map_err(Self::err)?;
+            let noid = self
+                .builder
+                .build_int_compare(IntPredicate::EQ, idv, z32, "noid")
+                .map_err(Self::err)?;
+            let nofd = self
+                .builder
+                .build_int_compare(IntPredicate::EQ, fdv, z32, "nofd")
+                .map_err(Self::err)?;
+            let nosf = self
+                .builder
+                .build_int_compare(IntPredicate::EQ, sfv, z32, "nosf")
+                .map_err(Self::err)?;
+            let nozf = self
+                .builder
+                .build_int_compare(IntPredicate::EQ, zfv, z32, "nozf")
+                .map_err(Self::err)?;
+            let s1 = self
+                .builder
+                .build_and(noid, nofd, "s1")
+                .map_err(Self::err)?;
+            let s2 = self
+                .builder
+                .build_and(nosf, nozf, "s2")
+                .map_err(Self::err)?;
+            let simple = self
+                .builder
+                .build_and(s1, s2, "simple")
+                .map_err(Self::err)?;
+            let result = self
+                .builder
+                .build_alloca(self.ptr, "fnres")
+                .map_err(Self::err)?;
             let sbb = self.ctx.append_basic_block(self.cur_fn, "fn.simple");
             let bbb = self.ctx.append_basic_block(self.cur_fn, "fn.build");
             let dbb = self.ctx.append_basic_block(self.cur_fn, "fn.done");
-            self.builder.build_conditional_branch(simple, sbb, bbb).map_err(Self::err)?;
+            self.builder
+                .build_conditional_branch(simple, sbb, bbb)
+                .map_err(Self::err)?;
             self.builder.position_at_end(sbb);
-            let nb0 = self.builder.build_alloca(i8t.array_type(64), "nb0").map_err(Self::err)?;
-            self.builder.build_call(self.snprintf, &[nb0.into(), self.i64t.const_int(64, false).into(), self.fmt_g("%g")?.into(), val.into()], "sg").map_err(Self::err)?;
+            let nb0 = self
+                .builder
+                .build_alloca(i8t.array_type(64), "nb0")
+                .map_err(Self::err)?;
+            self.builder
+                .build_call(
+                    self.snprintf,
+                    &[
+                        nb0.into(),
+                        self.i64t.const_int(64, false).into(),
+                        self.fmt_g("%g")?.into(),
+                        val.into(),
+                    ],
+                    "sg",
+                )
+                .map_err(Self::err)?;
             let sr = self.str_from_cstr(nb0)?;
             self.builder.build_store(result, sr).map_err(Self::err)?;
-            self.builder.build_unconditional_branch(dbb).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(dbb)
+                .map_err(Self::err)?;
             // build
             self.builder.position_at_end(bbb);
             let tru = self.ctx.bool_type().const_int(1, false);
-            let neg = self.builder.build_float_compare(FloatPredicate::OLT, val, self.f64t.const_zero(), "neg").map_err(Self::err)?;
+            let neg = self
+                .builder
+                .build_float_compare(FloatPredicate::OLT, val, self.f64t.const_zero(), "neg")
+                .map_err(Self::err)?;
             let nv = self.builder.build_float_neg(val, "nv").map_err(Self::err)?;
-            let absv = self.builder.build_select(neg, nv, val, "absv").map_err(Self::err)?.into_float_value();
-            let work = self.builder.build_alloca(i8t.array_type(256), "work").map_err(Self::err)?;
-            let pos = self.builder.build_alloca(self.i64t, "pos").map_err(Self::err)?;
-            self.builder.build_store(pos, self.i64t.const_zero()).map_err(Self::err)?;
+            let absv = self
+                .builder
+                .build_select(neg, nv, val, "absv")
+                .map_err(Self::err)?
+                .into_float_value();
+            let work = self
+                .builder
+                .build_alloca(i8t.array_type(256), "work")
+                .map_err(Self::err)?;
+            let pos = self
+                .builder
+                .build_alloca(self.i64t, "pos")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(pos, self.i64t.const_zero())
+                .map_err(Self::err)?;
             let pn_nz = nz(ld(paren_neg, "pn")?, "pnnz")?;
             let lp_nz = nz(ld(leading_plus, "lp")?, "lpnz")?;
             let tp_nz = nz(ld(trailing_plus, "tp")?, "tpnz")?;
@@ -3129,123 +4248,392 @@ pub mod llvm_backend {
             let sf_nz = nz(ld(star_fill, "sf2")?, "sfnz")?;
             let zf_nz = nz(ld(zero_fill, "zf2")?, "zfnz")?;
             let dec_nz = nz(ld(has_decimal, "hdc")?, "hdcnz")?;
-            let open_paren = self.builder.build_and(pn_nz, neg, "openp").map_err(Self::err)?;
-            let not_open = self.builder.build_not(open_paren, "nopen").map_err(Self::err)?;
+            let open_paren = self
+                .builder
+                .build_and(pn_nz, neg, "openp")
+                .map_err(Self::err)?;
+            let not_open = self
+                .builder
+                .build_not(open_paren, "nopen")
+                .map_err(Self::err)?;
             self.fmt_push_cond(work, pos, ch(b'('), open_paren)?;
-            let lead = self.builder.build_and(lp_nz, not_open, "lead").map_err(Self::err)?;
-            let lead_char = self.builder.build_select(neg, ch(b'-'), ch(b'+'), "leadc").map_err(Self::err)?.into_int_value();
+            let lead = self
+                .builder
+                .build_and(lp_nz, not_open, "lead")
+                .map_err(Self::err)?;
+            let lead_char = self
+                .builder
+                .build_select(neg, ch(b'-'), ch(b'+'), "leadc")
+                .map_err(Self::err)?
+                .into_int_value();
             self.fmt_push_cond(work, pos, lead_char, lead)?;
             let not_lp = self.builder.build_not(lp_nz, "nlp").map_err(Self::err)?;
             let not_tp = self.builder.build_not(tp_nz, "ntp").map_err(Self::err)?;
             let not_tm = self.builder.build_not(tm_nz, "ntm").map_err(Self::err)?;
-            let b1 = self.builder.build_and(neg, not_open, "b1").map_err(Self::err)?;
-            let b2 = self.builder.build_and(not_lp, not_tp, "b2").map_err(Self::err)?;
-            let b3 = self.builder.build_and(b2, not_tm, "b3").map_err(Self::err)?;
+            let b1 = self
+                .builder
+                .build_and(neg, not_open, "b1")
+                .map_err(Self::err)?;
+            let b2 = self
+                .builder
+                .build_and(not_lp, not_tp, "b2")
+                .map_err(Self::err)?;
+            let b3 = self
+                .builder
+                .build_and(b2, not_tm, "b3")
+                .map_err(Self::err)?;
             let bare = self.builder.build_and(b1, b3, "bare").map_err(Self::err)?;
             self.fmt_push_cond(work, pos, ch(b'-'), bare)?;
             self.fmt_push_cond(work, pos, ch(b'$'), dol_nz)?;
             // numbuf via %.*f or %g
-            let nb = self.builder.build_alloca(i8t.array_type(64), "nb").map_err(Self::err)?;
+            let nb = self
+                .builder
+                .build_alloca(i8t.array_type(64), "nb")
+                .map_err(Self::err)?;
             let fd2 = ld(frac_digits, "fd2")?;
-            let fd_pos = self.builder.build_int_compare(IntPredicate::SGT, fd2, z32, "fdpos").map_err(Self::err)?;
-            let usedec = self.builder.build_and(dec_nz, fd_pos, "usedec").map_err(Self::err)?;
+            let fd_pos = self
+                .builder
+                .build_int_compare(IntPredicate::SGT, fd2, z32, "fdpos")
+                .map_err(Self::err)?;
+            let usedec = self
+                .builder
+                .build_and(dec_nz, fd_pos, "usedec")
+                .map_err(Self::err)?;
             let nbf = self.ctx.append_basic_block(self.cur_fn, "fn.nbf");
             let nbg = self.ctx.append_basic_block(self.cur_fn, "fn.nbg");
             let nbd = self.ctx.append_basic_block(self.cur_fn, "fn.nbd");
-            self.builder.build_conditional_branch(usedec, nbf, nbg).map_err(Self::err)?;
+            self.builder
+                .build_conditional_branch(usedec, nbf, nbg)
+                .map_err(Self::err)?;
             self.builder.position_at_end(nbf);
-            self.builder.build_call(self.snprintf, &[nb.into(), self.i64t.const_int(64, false).into(), self.fmt_g("%.*f")?.into(), fd2.into(), absv.into()], "nbf").map_err(Self::err)?;
-            self.builder.build_unconditional_branch(nbd).map_err(Self::err)?;
+            self.builder
+                .build_call(
+                    self.snprintf,
+                    &[
+                        nb.into(),
+                        self.i64t.const_int(64, false).into(),
+                        self.fmt_g("%.*f")?.into(),
+                        fd2.into(),
+                        absv.into(),
+                    ],
+                    "nbf",
+                )
+                .map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(nbd)
+                .map_err(Self::err)?;
             self.builder.position_at_end(nbg);
-            self.builder.build_call(self.snprintf, &[nb.into(), self.i64t.const_int(64, false).into(), self.fmt_g("%g")?.into(), absv.into()], "nbg").map_err(Self::err)?;
-            self.builder.build_unconditional_branch(nbd).map_err(Self::err)?;
+            self.builder
+                .build_call(
+                    self.snprintf,
+                    &[
+                        nb.into(),
+                        self.i64t.const_int(64, false).into(),
+                        self.fmt_g("%g")?.into(),
+                        absv.into(),
+                    ],
+                    "nbg",
+                )
+                .map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(nbd)
+                .map_err(Self::err)?;
             self.builder.position_at_end(nbd);
             let strchr = self.libc_ptr_fn("strchr", true);
-            let dot = self.builder.build_call(strchr, &[nb.into(), self.i32t.const_int(b'.' as u64, false).into()], "dot").map_err(Self::err)?.try_as_basic_value().basic().ok_or_else(|| CompileError::Llvm("strchr void".into()))?.into_pointer_value();
-            let has_dot = self.builder.build_not(self.builder.build_is_null(dot, "dotnull").map_err(Self::err)?, "hasdot").map_err(Self::err)?;
-            let nblen = self.builder.build_call(self.strlen, &[nb.into()], "nblen").map_err(Self::err)?.try_as_basic_value().basic().ok_or_else(|| CompileError::Llvm("strlen void".into()))?.into_int_value();
-            let dot_i = self.builder.build_ptr_to_int(dot, self.i64t, "doti").map_err(Self::err)?;
-            let nb_i = self.builder.build_ptr_to_int(nb, self.i64t, "nbi").map_err(Self::err)?;
-            let dot_off = self.builder.build_int_sub(dot_i, nb_i, "dotoff").map_err(Self::err)?;
-            let oil = self.builder.build_select(has_dot, dot_off, nblen, "oil").map_err(Self::err)?.into_int_value();
+            let dot = self
+                .builder
+                .build_call(
+                    strchr,
+                    &[nb.into(), self.i32t.const_int(b'.' as u64, false).into()],
+                    "dot",
+                )
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("strchr void".into()))?
+                .into_pointer_value();
+            let has_dot = self
+                .builder
+                .build_not(
+                    self.builder
+                        .build_is_null(dot, "dotnull")
+                        .map_err(Self::err)?,
+                    "hasdot",
+                )
+                .map_err(Self::err)?;
+            let nblen = self
+                .builder
+                .build_call(self.strlen, &[nb.into()], "nblen")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("strlen void".into()))?
+                .into_int_value();
+            let dot_i = self
+                .builder
+                .build_ptr_to_int(dot, self.i64t, "doti")
+                .map_err(Self::err)?;
+            let nb_i = self
+                .builder
+                .build_ptr_to_int(nb, self.i64t, "nbi")
+                .map_err(Self::err)?;
+            let dot_off = self
+                .builder
+                .build_int_sub(dot_i, nb_i, "dotoff")
+                .map_err(Self::err)?;
+            let oil = self
+                .builder
+                .build_select(has_dot, dot_off, nblen, "oil")
+                .map_err(Self::err)?
+                .into_int_value();
             let fill = {
-                let z = self.builder.build_select(zf_nz, ch(b'0'), ch(b' '), "fz").map_err(Self::err)?.into_int_value();
-                self.builder.build_select(sf_nz, ch(b'*'), z, "fill").map_err(Self::err)?.into_int_value()
+                let z = self
+                    .builder
+                    .build_select(zf_nz, ch(b'0'), ch(b' '), "fz")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                self.builder
+                    .build_select(sf_nz, ch(b'*'), z, "fill")
+                    .map_err(Self::err)?
+                    .into_int_value()
             };
-            let oil_m1 = self.builder.build_int_sub(oil, self.i64t.const_int(1, false), "oilm1").map_err(Self::err)?;
-            let commas_if = self.builder.build_int_signed_div(oil_m1, self.i64t.const_int(3, false), "comif").map_err(Self::err)?;
-            let commas = self.builder.build_select(com_nz, commas_if, self.i64t.const_zero(), "commas").map_err(Self::err)?.into_int_value();
-            let idl = self.builder.build_int_s_extend(ld(int_digits, "id2")?, self.i64t, "idl").map_err(Self::err)?;
-            let oic = self.builder.build_int_add(oil, commas, "oic").map_err(Self::err)?;
-            let padgt = self.builder.build_int_compare(IntPredicate::SGT, idl, oic, "padgt").map_err(Self::err)?;
-            let paddiff = self.builder.build_int_sub(idl, oic, "paddiff").map_err(Self::err)?;
-            let pad = self.builder.build_select(padgt, paddiff, self.i64t.const_zero(), "pad").map_err(Self::err)?.into_int_value();
+            let oil_m1 = self
+                .builder
+                .build_int_sub(oil, self.i64t.const_int(1, false), "oilm1")
+                .map_err(Self::err)?;
+            let commas_if = self
+                .builder
+                .build_int_signed_div(oil_m1, self.i64t.const_int(3, false), "comif")
+                .map_err(Self::err)?;
+            let commas = self
+                .builder
+                .build_select(com_nz, commas_if, self.i64t.const_zero(), "commas")
+                .map_err(Self::err)?
+                .into_int_value();
+            let idl = self
+                .builder
+                .build_int_s_extend(ld(int_digits, "id2")?, self.i64t, "idl")
+                .map_err(Self::err)?;
+            let oic = self
+                .builder
+                .build_int_add(oil, commas, "oic")
+                .map_err(Self::err)?;
+            let padgt = self
+                .builder
+                .build_int_compare(IntPredicate::SGT, idl, oic, "padgt")
+                .map_err(Self::err)?;
+            let paddiff = self
+                .builder
+                .build_int_sub(idl, oic, "paddiff")
+                .map_err(Self::err)?;
+            let pad = self
+                .builder
+                .build_select(padgt, paddiff, self.i64t.const_zero(), "pad")
+                .map_err(Self::err)?
+                .into_int_value();
             // pad loop
-            let pj = self.builder.build_alloca(self.i64t, "pj").map_err(Self::err)?;
-            self.builder.build_store(pj, self.i64t.const_zero()).map_err(Self::err)?;
+            let pj = self
+                .builder
+                .build_alloca(self.i64t, "pj")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(pj, self.i64t.const_zero())
+                .map_err(Self::err)?;
             let pph = self.ctx.append_basic_block(self.cur_fn, "fn.pph");
             let ppb = self.ctx.append_basic_block(self.cur_fn, "fn.ppb");
             let ppe = self.ctx.append_basic_block(self.cur_fn, "fn.ppe");
-            self.builder.build_unconditional_branch(pph).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(pph)
+                .map_err(Self::err)?;
             self.builder.position_at_end(pph);
-            let jv = self.builder.build_load(self.i64t, pj, "jv").map_err(Self::err)?.into_int_value();
-            let jlt = self.builder.build_int_compare(IntPredicate::SLT, jv, pad, "jlt").map_err(Self::err)?;
-            self.builder.build_conditional_branch(jlt, ppb, ppe).map_err(Self::err)?;
+            let jv = self
+                .builder
+                .build_load(self.i64t, pj, "jv")
+                .map_err(Self::err)?
+                .into_int_value();
+            let jlt = self
+                .builder
+                .build_int_compare(IntPredicate::SLT, jv, pad, "jlt")
+                .map_err(Self::err)?;
+            self.builder
+                .build_conditional_branch(jlt, ppb, ppe)
+                .map_err(Self::err)?;
             self.builder.position_at_end(ppb);
             self.fmt_push_cond(work, pos, fill, tru)?;
-            self.builder.build_store(pj, self.builder.build_int_add(jv, self.i64t.const_int(1, false), "jn").map_err(Self::err)?).map_err(Self::err)?;
-            self.builder.build_unconditional_branch(pph).map_err(Self::err)?;
+            self.builder
+                .build_store(
+                    pj,
+                    self.builder
+                        .build_int_add(jv, self.i64t.const_int(1, false), "jn")
+                        .map_err(Self::err)?,
+                )
+                .map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(pph)
+                .map_err(Self::err)?;
             self.builder.position_at_end(ppe);
             // int digits with commas
-            let ci = self.builder.build_alloca(self.i64t, "ci").map_err(Self::err)?;
-            self.builder.build_store(ci, self.i64t.const_zero()).map_err(Self::err)?;
+            let ci = self
+                .builder
+                .build_alloca(self.i64t, "ci")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(ci, self.i64t.const_zero())
+                .map_err(Self::err)?;
             let cih = self.ctx.append_basic_block(self.cur_fn, "fn.cih");
             let cib = self.ctx.append_basic_block(self.cur_fn, "fn.cib");
             let cie = self.ctx.append_basic_block(self.cur_fn, "fn.cie");
-            self.builder.build_unconditional_branch(cih).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(cih)
+                .map_err(Self::err)?;
             self.builder.position_at_end(cih);
-            let civ = self.builder.build_load(self.i64t, ci, "civ").map_err(Self::err)?.into_int_value();
-            let cilt = self.builder.build_int_compare(IntPredicate::SLT, civ, oil, "cilt").map_err(Self::err)?;
-            self.builder.build_conditional_branch(cilt, cib, cie).map_err(Self::err)?;
+            let civ = self
+                .builder
+                .build_load(self.i64t, ci, "civ")
+                .map_err(Self::err)?
+                .into_int_value();
+            let cilt = self
+                .builder
+                .build_int_compare(IntPredicate::SLT, civ, oil, "cilt")
+                .map_err(Self::err)?;
+            self.builder
+                .build_conditional_branch(cilt, cib, cie)
+                .map_err(Self::err)?;
             self.builder.position_at_end(cib);
-            let i_gt0 = self.builder.build_int_compare(IntPredicate::SGT, civ, self.i64t.const_zero(), "igt0").map_err(Self::err)?;
-            let oil_ci = self.builder.build_int_sub(oil, civ, "oilci").map_err(Self::err)?;
-            let rem = self.builder.build_int_signed_rem(oil_ci, self.i64t.const_int(3, false), "rem").map_err(Self::err)?;
-            let rem0 = self.builder.build_int_compare(IntPredicate::EQ, rem, self.i64t.const_zero(), "rem0").map_err(Self::err)?;
-            let ch1 = self.builder.build_and(com_nz, i_gt0, "ch1").map_err(Self::err)?;
-            let comma_here = self.builder.build_and(ch1, rem0, "commah").map_err(Self::err)?;
+            let i_gt0 = self
+                .builder
+                .build_int_compare(IntPredicate::SGT, civ, self.i64t.const_zero(), "igt0")
+                .map_err(Self::err)?;
+            let oil_ci = self
+                .builder
+                .build_int_sub(oil, civ, "oilci")
+                .map_err(Self::err)?;
+            let rem = self
+                .builder
+                .build_int_signed_rem(oil_ci, self.i64t.const_int(3, false), "rem")
+                .map_err(Self::err)?;
+            let rem0 = self
+                .builder
+                .build_int_compare(IntPredicate::EQ, rem, self.i64t.const_zero(), "rem0")
+                .map_err(Self::err)?;
+            let ch1 = self
+                .builder
+                .build_and(com_nz, i_gt0, "ch1")
+                .map_err(Self::err)?;
+            let comma_here = self
+                .builder
+                .build_and(ch1, rem0, "commah")
+                .map_err(Self::err)?;
             self.fmt_push_cond(work, pos, ch(b','), comma_here)?;
-            let ncp = unsafe { self.builder.build_in_bounds_gep(i8t, nb, &[civ], "ncp").map_err(Self::err)? };
-            let nc = self.builder.build_load(i8t, ncp, "nc").map_err(Self::err)?.into_int_value();
+            let ncp = unsafe {
+                self.builder
+                    .build_in_bounds_gep(i8t, nb, &[civ], "ncp")
+                    .map_err(Self::err)?
+            };
+            let nc = self
+                .builder
+                .build_load(i8t, ncp, "nc")
+                .map_err(Self::err)?
+                .into_int_value();
             self.fmt_push_cond(work, pos, nc, tru)?;
-            self.builder.build_store(ci, self.builder.build_int_add(civ, self.i64t.const_int(1, false), "cin").map_err(Self::err)?).map_err(Self::err)?;
-            self.builder.build_unconditional_branch(cih).map_err(Self::err)?;
+            self.builder
+                .build_store(
+                    ci,
+                    self.builder
+                        .build_int_add(civ, self.i64t.const_int(1, false), "cin")
+                        .map_err(Self::err)?,
+                )
+                .map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(cih)
+                .map_err(Self::err)?;
             self.builder.position_at_end(cie);
             // decimals
             self.fmt_push_cond(work, pos, ch(b'.'), has_dot)?;
-            let dotp1 = unsafe { self.builder.build_in_bounds_gep(i8t, dot, &[self.i64t.const_int(1, false)], "dotp1").map_err(Self::err)? };
-            let safe = self.builder.build_select(has_dot, dotp1, nb, "safe").map_err(Self::err)?.into_pointer_value();
-            let flen_raw = self.builder.build_call(self.strlen, &[safe.into()], "flenr").map_err(Self::err)?.try_as_basic_value().basic().ok_or_else(|| CompileError::Llvm("strlen void".into()))?.into_int_value();
-            let flen = self.builder.build_select(has_dot, flen_raw, self.i64t.const_zero(), "flen").map_err(Self::err)?.into_int_value();
-            let pv = self.builder.build_load(self.i64t, pos, "pvd").map_err(Self::err)?.into_int_value();
-            let wdst = unsafe { self.builder.build_in_bounds_gep(i8t, work, &[pv], "wdst").map_err(Self::err)? };
-            self.builder.build_call(self.memcpy, &[wdst.into(), safe.into(), flen.into()], "dmc").map_err(Self::err)?;
-            self.builder.build_store(pos, self.builder.build_int_add(pv, flen, "posd").map_err(Self::err)?).map_err(Self::err)?;
+            let dotp1 = unsafe {
+                self.builder
+                    .build_in_bounds_gep(i8t, dot, &[self.i64t.const_int(1, false)], "dotp1")
+                    .map_err(Self::err)?
+            };
+            let safe = self
+                .builder
+                .build_select(has_dot, dotp1, nb, "safe")
+                .map_err(Self::err)?
+                .into_pointer_value();
+            let flen_raw = self
+                .builder
+                .build_call(self.strlen, &[safe.into()], "flenr")
+                .map_err(Self::err)?
+                .try_as_basic_value()
+                .basic()
+                .ok_or_else(|| CompileError::Llvm("strlen void".into()))?
+                .into_int_value();
+            let flen = self
+                .builder
+                .build_select(has_dot, flen_raw, self.i64t.const_zero(), "flen")
+                .map_err(Self::err)?
+                .into_int_value();
+            let pv = self
+                .builder
+                .build_load(self.i64t, pos, "pvd")
+                .map_err(Self::err)?
+                .into_int_value();
+            let wdst = unsafe {
+                self.builder
+                    .build_in_bounds_gep(i8t, work, &[pv], "wdst")
+                    .map_err(Self::err)?
+            };
+            self.builder
+                .build_call(self.memcpy, &[wdst.into(), safe.into(), flen.into()], "dmc")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(
+                    pos,
+                    self.builder
+                        .build_int_add(pv, flen, "posd")
+                        .map_err(Self::err)?,
+                )
+                .map_err(Self::err)?;
             // trailing
             self.fmt_push_cond(work, pos, ch(b')'), open_paren)?;
-            let t_plus = self.builder.build_and(tp_nz, not_open, "tplus").map_err(Self::err)?;
-            let t_plus_char = self.builder.build_select(neg, ch(b'-'), ch(b'+'), "tpc2").map_err(Self::err)?.into_int_value();
+            let t_plus = self
+                .builder
+                .build_and(tp_nz, not_open, "tplus")
+                .map_err(Self::err)?;
+            let t_plus_char = self
+                .builder
+                .build_select(neg, ch(b'-'), ch(b'+'), "tpc2")
+                .map_err(Self::err)?
+                .into_int_value();
             self.fmt_push_cond(work, pos, t_plus_char, t_plus)?;
-            let tmm1 = self.builder.build_and(tm_nz, neg, "tmm1").map_err(Self::err)?;
-            let tmm2 = self.builder.build_and(not_open, not_tp, "tmm2").map_err(Self::err)?;
-            let t_minus = self.builder.build_and(tmm1, tmm2, "tminus").map_err(Self::err)?;
+            let tmm1 = self
+                .builder
+                .build_and(tm_nz, neg, "tmm1")
+                .map_err(Self::err)?;
+            let tmm2 = self
+                .builder
+                .build_and(not_open, not_tp, "tmm2")
+                .map_err(Self::err)?;
+            let t_minus = self
+                .builder
+                .build_and(tmm1, tmm2, "tminus")
+                .map_err(Self::err)?;
             self.fmt_push_cond(work, pos, ch(b'-'), t_minus)?;
-            let finalpos = self.builder.build_load(self.i64t, pos, "finalpos").map_err(Self::err)?.into_int_value();
+            let finalpos = self
+                .builder
+                .build_load(self.i64t, pos, "finalpos")
+                .map_err(Self::err)?
+                .into_int_value();
             let br = self.str_copy(work, self.i64t.const_zero(), finalpos)?;
             self.builder.build_store(result, br).map_err(Self::err)?;
-            self.builder.build_unconditional_branch(dbb).map_err(Self::err)?;
+            self.builder
+                .build_unconditional_branch(dbb)
+                .map_err(Self::err)?;
             self.builder.position_at_end(dbb);
-            Ok(self.builder.build_load(self.ptr, result, "fnr").map_err(Self::err)?)
+            Ok(self
+                .builder
+                .build_load(self.ptr, result, "fnr")
+                .map_err(Self::err)?)
         }
         /// `OPEN(name$, mode)`: normalized documented modes (0..4, share bases
         /// 0x10/0x20/0x30, optional 0x800 NONBLOCK) are handled by the runtime
@@ -3269,7 +4657,10 @@ pub mod llvm_backend {
         /// Address of a variable's storage slot for a positional out-param: a plain
         /// `Symbol` or `ByRef(Symbol)` yields the caller's alloca (the legacy `&x`
         /// prefix parses as a plain symbol). Returns `None` for anything else.
-        fn symbol_slot_addr(&self, expr: &IrExpr) -> Result<Option<PointerValue<'ctx>>, CompileError> {
+        fn symbol_slot_addr(
+            &self,
+            expr: &IrExpr,
+        ) -> Result<Option<PointerValue<'ctx>>, CompileError> {
             let sym = match &expr.kind {
                 IrExprKind::Symbol(s) => Some(s),
                 IrExprKind::ByRef(inner) => match &inner.kind {
@@ -3283,7 +4674,10 @@ pub mod llvm_backend {
 
         /// `FILE*` slot pointer for handle `h` (table index `h − 3`).
         fn file_slot(&self, h: IntValue<'ctx>) -> Result<PointerValue<'ctx>, CompileError> {
-            let idx = self.builder.build_int_sub(h, self.i32t.const_int(3, false), "fsidx").map_err(Self::err)?;
+            let idx = self
+                .builder
+                .build_int_sub(h, self.i32t.const_int(3, false), "fsidx")
+                .map_err(Self::err)?;
             unsafe {
                 self.builder
                     .build_in_bounds_gep(
@@ -3298,12 +4692,23 @@ pub mod llvm_backend {
 
         /// `CLOSE(handle)`: `fclose` the file and clear its table slot; returns 0. Assumes a
         /// valid handle from a prior `OPEN` (the corpus guards `OPEN >= 3` before use).
-        fn file_close(&self, args: &[IrExpr]) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+        fn file_close(
+            &self,
+            args: &[IrExpr],
+        ) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
             let h = self.eval_int(&args[0])?;
             let slot = self.file_slot(h)?;
-            let fp = self.builder.build_load(self.ptr, slot, "cfp").map_err(Self::err)?.into_pointer_value();
-            self.builder.build_call(self.fclose, &[fp.into()], "fclose").map_err(Self::err)?;
-            self.builder.build_store(slot, self.ptr.const_null()).map_err(Self::err)?;
+            let fp = self
+                .builder
+                .build_load(self.ptr, slot, "cfp")
+                .map_err(Self::err)?
+                .into_pointer_value();
+            self.builder
+                .build_call(self.fclose, &[fp.into()], "fclose")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(slot, self.ptr.const_null())
+                .map_err(Self::err)?;
             Ok(Some(self.i32t.const_zero().into()))
         }
 
@@ -3311,7 +4716,11 @@ pub mod llvm_backend {
         fn file_lof(&self, args: &[IrExpr]) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
             let h = self.eval_int(&args[0])?;
             let slot = self.file_slot(h)?;
-            let fp = self.builder.build_load(self.ptr, slot, "lfp").map_err(Self::err)?.into_pointer_value();
+            let fp = self
+                .builder
+                .build_load(self.ptr, slot, "lfp")
+                .map_err(Self::err)?
+                .into_pointer_value();
             let pos = self
                 .builder
                 .build_call(self.ftell, &[fp.into()], "ftpos")
@@ -3322,7 +4731,15 @@ pub mod llvm_backend {
                 .into_int_value();
             // SEEK_END = 2
             self.builder
-                .build_call(self.fseek, &[fp.into(), self.i64t.const_zero().into(), self.i32t.const_int(2, false).into()], "seekend")
+                .build_call(
+                    self.fseek,
+                    &[
+                        fp.into(),
+                        self.i64t.const_zero().into(),
+                        self.i32t.const_int(2, false).into(),
+                    ],
+                    "seekend",
+                )
                 .map_err(Self::err)?;
             let size = self
                 .builder
@@ -3334,9 +4751,16 @@ pub mod llvm_backend {
                 .into_int_value();
             // Restore position (SEEK_SET = 0).
             self.builder
-                .build_call(self.fseek, &[fp.into(), pos.into(), self.i32t.const_zero().into()], "seekpos")
+                .build_call(
+                    self.fseek,
+                    &[fp.into(), pos.into(), self.i32t.const_zero().into()],
+                    "seekpos",
+                )
                 .map_err(Self::err)?;
-            let size32 = self.builder.build_int_truncate(size, self.i32t, "lof").map_err(Self::err)?;
+            let size32 = self
+                .builder
+                .build_int_truncate(size, self.i32t, "lof")
+                .map_err(Self::err)?;
             Ok(Some(size32.into()))
         }
 
@@ -3345,15 +4769,29 @@ pub mod llvm_backend {
         /// the interpreter, which writes `count` zeros (only the byte count is significant —
         /// the record data itself is not serialized). Returns `count`. Assumes a valid handle
         /// (the corpus guards `handle > 2`).
-        fn file_write(&self, args: &[IrExpr]) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
+        fn file_write(
+            &self,
+            args: &[IrExpr],
+        ) -> Result<Option<BasicValueEnum<'ctx>>, CompileError> {
             let h = self.eval_int(&args[0])?;
             let count = self.eval_int(&args[1])?;
             let slot = self.file_slot(h)?;
-            let fp = self.builder.build_load(self.ptr, slot, "wfp").map_err(Self::err)?.into_pointer_value();
-            let count64 = self.builder.build_int_s_extend(count, self.i64t, "wcnt").map_err(Self::err)?;
+            let fp = self
+                .builder
+                .build_load(self.ptr, slot, "wfp")
+                .map_err(Self::err)?
+                .into_pointer_value();
+            let count64 = self
+                .builder
+                .build_int_s_extend(count, self.i64t, "wcnt")
+                .map_err(Self::err)?;
             let buf = self
                 .builder
-                .build_call(self.calloc, &[count64.into(), self.i64t.const_int(1, false).into()], "wbuf")
+                .build_call(
+                    self.calloc,
+                    &[count64.into(), self.i64t.const_int(1, false).into()],
+                    "wbuf",
+                )
                 .map_err(Self::err)?
                 .try_as_basic_value()
                 .basic()
@@ -3362,11 +4800,18 @@ pub mod llvm_backend {
             self.builder
                 .build_call(
                     self.fwrite,
-                    &[buf.into(), self.i64t.const_int(1, false).into(), count64.into(), fp.into()],
+                    &[
+                        buf.into(),
+                        self.i64t.const_int(1, false).into(),
+                        count64.into(),
+                        fp.into(),
+                    ],
                     "fwrite",
                 )
                 .map_err(Self::err)?;
-            self.builder.build_call(self.fflush, &[fp.into()], "fflush").map_err(Self::err)?;
+            self.builder
+                .build_call(self.fflush, &[fp.into()], "fflush")
+                .map_err(Self::err)?;
             Ok(Some(count.into()))
         }
 
@@ -3378,11 +4823,22 @@ pub mod llvm_backend {
             let h = self.eval_int(&args[0])?;
             let count = self.eval_int(&args[1])?;
             let slot = self.file_slot(h)?;
-            let fp = self.builder.build_load(self.ptr, slot, "rfp").map_err(Self::err)?.into_pointer_value();
-            let count64 = self.builder.build_int_s_extend(count, self.i64t, "rcnt").map_err(Self::err)?;
+            let fp = self
+                .builder
+                .build_load(self.ptr, slot, "rfp")
+                .map_err(Self::err)?
+                .into_pointer_value();
+            let count64 = self
+                .builder
+                .build_int_s_extend(count, self.i64t, "rcnt")
+                .map_err(Self::err)?;
             let buf = self
                 .builder
-                .build_call(self.calloc, &[count64.into(), self.i64t.const_int(1, false).into()], "rbuf")
+                .build_call(
+                    self.calloc,
+                    &[count64.into(), self.i64t.const_int(1, false).into()],
+                    "rbuf",
+                )
                 .map_err(Self::err)?
                 .try_as_basic_value()
                 .basic()
@@ -3392,7 +4848,12 @@ pub mod llvm_backend {
                 .builder
                 .build_call(
                     self.fread,
-                    &[buf.into(), self.i64t.const_int(1, false).into(), count64.into(), fp.into()],
+                    &[
+                        buf.into(),
+                        self.i64t.const_int(1, false).into(),
+                        count64.into(),
+                        fp.into(),
+                    ],
                     "fread",
                 )
                 .map_err(Self::err)?
@@ -3400,7 +4861,10 @@ pub mod llvm_backend {
                 .basic()
                 .ok_or_else(|| CompileError::Llvm("fread returned void".into()))?
                 .into_int_value();
-            let got32 = self.builder.build_int_truncate(got, self.i32t, "rgot").map_err(Self::err)?;
+            let got32 = self
+                .builder
+                .build_int_truncate(got, self.i32t, "rgot")
+                .map_err(Self::err)?;
             Ok(Some(got32.into()))
         }
 
@@ -3425,7 +4889,9 @@ pub mod llvm_backend {
                             .map_err(Self::err)?
                             .try_as_basic_value()
                             .basic()
-                            .ok_or_else(|| CompileError::Llvm("xb_getstdhandle returned void".into()))?,
+                            .ok_or_else(|| {
+                                CompileError::Llvm("xb_getstdhandle returned void".into())
+                            })?,
                     ))
                 }
                 ("WriteFile", 5) => {
@@ -3445,13 +4911,21 @@ pub mod llvm_backend {
                         self.builder
                             .build_call(
                                 self.write_file,
-                                &[h.into(), buf.into(), bytes.into(), written.into(), nul.into()],
+                                &[
+                                    h.into(),
+                                    buf.into(),
+                                    bytes.into(),
+                                    written.into(),
+                                    nul.into(),
+                                ],
                                 "wf",
                             )
                             .map_err(Self::err)?
                             .try_as_basic_value()
                             .basic()
-                            .ok_or_else(|| CompileError::Llvm("xb_write_file returned void".into()))?,
+                            .ok_or_else(|| {
+                                CompileError::Llvm("xb_write_file returned void".into())
+                            })?,
                     ))
                 }
                 ("ReadFile", 5) => {
@@ -3473,13 +4947,21 @@ pub mod llvm_backend {
                         self.builder
                             .build_call(
                                 self.read_file,
-                                &[h.into(), bufpp.into(), bytes.into(), read.into(), nul.into()],
+                                &[
+                                    h.into(),
+                                    bufpp.into(),
+                                    bytes.into(),
+                                    read.into(),
+                                    nul.into(),
+                                ],
                                 "rf",
                             )
                             .map_err(Self::err)?
                             .try_as_basic_value()
                             .basic()
-                            .ok_or_else(|| CompileError::Llvm("xb_read_file returned void".into()))?,
+                            .ok_or_else(|| {
+                                CompileError::Llvm("xb_read_file returned void".into())
+                            })?,
                     ))
                 }
                 ("EOF", 1) => {
@@ -3490,7 +4972,9 @@ pub mod llvm_backend {
                             .map_err(Self::err)?
                             .try_as_basic_value()
                             .basic()
-                            .ok_or_else(|| CompileError::Llvm("xb_file_eof returned void".into()))?,
+                            .ok_or_else(|| {
+                                CompileError::Llvm("xb_file_eof returned void".into())
+                            })?,
                     ))
                 }
                 ("ABS", 1) => match self.eval_value(&args[0])? {
@@ -3498,12 +4982,24 @@ pub mod llvm_backend {
                         let neg = self.builder.build_int_neg(iv, "neg").map_err(Self::err)?;
                         let isneg = self
                             .builder
-                            .build_int_compare(IntPredicate::SLT, iv, self.i32t.const_zero(), "isneg")
+                            .build_int_compare(
+                                IntPredicate::SLT,
+                                iv,
+                                self.i32t.const_zero(),
+                                "isneg",
+                            )
                             .map_err(Self::err)?;
-                        Ok(Some(self.builder.build_select(isneg, neg, iv, "abs").map_err(Self::err)?))
+                        Ok(Some(
+                            self.builder
+                                .build_select(isneg, neg, iv, "abs")
+                                .map_err(Self::err)?,
+                        ))
                     }
                     Some(BasicValueEnum::FloatValue(fv)) => {
-                        let neg = self.builder.build_float_neg(fv, "fneg").map_err(Self::err)?;
+                        let neg = self
+                            .builder
+                            .build_float_neg(fv, "fneg")
+                            .map_err(Self::err)?;
                         let isneg = self
                             .builder
                             .build_float_compare(
@@ -3513,7 +5009,11 @@ pub mod llvm_backend {
                                 "fisneg",
                             )
                             .map_err(Self::err)?;
-                        Ok(Some(self.builder.build_select(isneg, neg, fv, "fabs").map_err(Self::err)?))
+                        Ok(Some(
+                            self.builder
+                                .build_select(isneg, neg, fv, "fabs")
+                                .map_err(Self::err)?,
+                        ))
                     }
                     _ => Ok(None),
                 },
@@ -3558,28 +5058,70 @@ pub mod llvm_backend {
                 }
                 ("EXP10", 1) => {
                     let v = self.eval_float(&args[0])?;
-                    Ok(Some(self.call_libm2("pow", self.f64t.const_float(10.0), v)?))
+                    Ok(Some(self.call_libm2(
+                        "pow",
+                        self.f64t.const_float(10.0),
+                        v,
+                    )?))
                 }
                 ("EXP2", 1) => {
                     let v = self.eval_float(&args[0])?;
-                    Ok(Some(self.call_libm2("pow", self.f64t.const_float(2.0), v)?))
+                    Ok(Some(self.call_libm2(
+                        "pow",
+                        self.f64t.const_float(2.0),
+                        v,
+                    )?))
                 }
                 ("ASEC", 1) => {
                     // M_PI_2 - asin(1/v)
                     let v = self.eval_float(&args[0])?;
-                    let inv = self.builder.build_float_div(self.f64t.const_float(1.0), v, "invr").map_err(Self::err)?;
+                    let inv = self
+                        .builder
+                        .build_float_div(self.f64t.const_float(1.0), v, "invr")
+                        .map_err(Self::err)?;
                     let a = self.callm1v("asin", inv)?;
-                    Ok(Some(self.builder.build_float_sub(self.f64t.const_float(std::f64::consts::FRAC_PI_2), a, "asec").map_err(Self::err)?.into()))
+                    Ok(Some(
+                        self.builder
+                            .build_float_sub(
+                                self.f64t.const_float(std::f64::consts::FRAC_PI_2),
+                                a,
+                                "asec",
+                            )
+                            .map_err(Self::err)?
+                            .into(),
+                    ))
                 }
                 ("ACOT", 1) => {
                     // v > 1 ? atan(1/v) : M_PI_2 - atan(v)
                     let v = self.eval_float(&args[0])?;
-                    let inv = self.builder.build_float_div(self.f64t.const_float(1.0), v, "invr").map_err(Self::err)?;
+                    let inv = self
+                        .builder
+                        .build_float_div(self.f64t.const_float(1.0), v, "invr")
+                        .map_err(Self::err)?;
                     let hi = self.callm1v("atan", inv)?;
                     let av = self.callm1v("atan", v)?;
-                    let lo = self.builder.build_float_sub(self.f64t.const_float(std::f64::consts::FRAC_PI_2), av, "acotlo").map_err(Self::err)?;
-                    let gt1 = self.builder.build_float_compare(FloatPredicate::OGT, v, self.f64t.const_float(1.0), "gt1").map_err(Self::err)?;
-                    Ok(Some(self.builder.build_select(gt1, hi, lo, "acot").map_err(Self::err)?))
+                    let lo = self
+                        .builder
+                        .build_float_sub(
+                            self.f64t.const_float(std::f64::consts::FRAC_PI_2),
+                            av,
+                            "acotlo",
+                        )
+                        .map_err(Self::err)?;
+                    let gt1 = self
+                        .builder
+                        .build_float_compare(
+                            FloatPredicate::OGT,
+                            v,
+                            self.f64t.const_float(1.0),
+                            "gt1",
+                        )
+                        .map_err(Self::err)?;
+                    Ok(Some(
+                        self.builder
+                            .build_select(gt1, hi, lo, "acot")
+                            .map_err(Self::err)?,
+                    ))
                 }
                 ("STRING$", 1) => {
                     let iv = self.eval_int(&args[0])?;
@@ -3597,7 +5139,12 @@ pub mod llvm_backend {
                         .basic()
                         .ok_or_else(|| CompileError::Llvm("strlen returned void".into()))?
                         .into_int_value();
-                    Ok(Some(self.builder.build_int_truncate(n, self.i32t, "csz32").map_err(Self::err)?.into()))
+                    Ok(Some(
+                        self.builder
+                            .build_int_truncate(n, self.i32t, "csz32")
+                            .map_err(Self::err)?
+                            .into(),
+                    ))
                 }
                 ("INSTR", 2) => {
                     let Some(BasicValueEnum::PointerValue(s)) = self.eval_value(&args[0])? else {
@@ -3607,7 +5154,11 @@ pub mod llvm_backend {
                         return Ok(None);
                     };
                     let strstr = self.module.get_function("strstr").unwrap_or_else(|| {
-                        self.module.add_function("strstr", self.ptr.fn_type(&[self.ptr.into(), self.ptr.into()], false), None)
+                        self.module.add_function(
+                            "strstr",
+                            self.ptr.fn_type(&[self.ptr.into(), self.ptr.into()], false),
+                            None,
+                        )
                     });
                     let p = self
                         .builder
@@ -3618,12 +5169,31 @@ pub mod llvm_backend {
                         .ok_or_else(|| CompileError::Llvm("strstr returned void".into()))?
                         .into_pointer_value();
                     let pnull = self.builder.build_is_null(p, "pnull").map_err(Self::err)?;
-                    let pi = self.builder.build_ptr_to_int(p, self.i64t, "pi").map_err(Self::err)?;
-                    let si = self.builder.build_ptr_to_int(s, self.i64t, "si").map_err(Self::err)?;
-                    let diff = self.builder.build_int_sub(pi, si, "diff").map_err(Self::err)?;
-                    let diff32 = self.builder.build_int_truncate(diff, self.i32t, "diff32").map_err(Self::err)?;
-                    let pos = self.builder.build_int_add(diff32, self.i32t.const_int(1, false), "pos").map_err(Self::err)?;
-                    Ok(Some(self.builder.build_select(pnull, self.i32t.const_zero(), pos, "instr").map_err(Self::err)?))
+                    let pi = self
+                        .builder
+                        .build_ptr_to_int(p, self.i64t, "pi")
+                        .map_err(Self::err)?;
+                    let si = self
+                        .builder
+                        .build_ptr_to_int(s, self.i64t, "si")
+                        .map_err(Self::err)?;
+                    let diff = self
+                        .builder
+                        .build_int_sub(pi, si, "diff")
+                        .map_err(Self::err)?;
+                    let diff32 = self
+                        .builder
+                        .build_int_truncate(diff, self.i32t, "diff32")
+                        .map_err(Self::err)?;
+                    let pos = self
+                        .builder
+                        .build_int_add(diff32, self.i32t.const_int(1, false), "pos")
+                        .map_err(Self::err)?;
+                    Ok(Some(
+                        self.builder
+                            .build_select(pnull, self.i32t.const_zero(), pos, "instr")
+                            .map_err(Self::err)?,
+                    ))
                 }
                 ("OCT$", 1) => {
                     let iv = self.eval_int(&args[0])?;
@@ -3633,60 +5203,200 @@ pub mod llvm_backend {
                     // Minimal binary of the u32 bit pattern (matches Rust `{:b}`: negatives -> 32
                     // bits, 0 -> "0"), optionally zero-padded to a width, `0b` prefix for BINB$.
                     let n = self.eval_int(&args[0])?;
-                    let ctlz = self.module.get_function("llvm.ctlz.i32").unwrap_or_else(|| {
-                        self.module.add_function("llvm.ctlz.i32", self.i32t.fn_type(&[self.i32t.into(), self.ctx.bool_type().into()], false), None)
-                    });
-                    let clz = self.builder.build_call(ctlz, &[n.into(), self.ctx.bool_type().const_zero().into()], "clz").map_err(Self::err)?.try_as_basic_value().basic().ok_or_else(|| CompileError::Llvm("ctlz void".into()))?.into_int_value();
-                    let nb = self.builder.build_int_sub(self.i32t.const_int(32, false), clz, "nb").map_err(Self::err)?;
-                    let iszero = self.builder.build_int_compare(IntPredicate::EQ, n, self.i32t.const_zero(), "binz").map_err(Self::err)?;
-                    let nbits = self.builder.build_select(iszero, self.i32t.const_int(1, false), nb, "nbits").map_err(Self::err)?.into_int_value();
+                    let ctlz = self
+                        .module
+                        .get_function("llvm.ctlz.i32")
+                        .unwrap_or_else(|| {
+                            self.module.add_function(
+                                "llvm.ctlz.i32",
+                                self.i32t.fn_type(
+                                    &[self.i32t.into(), self.ctx.bool_type().into()],
+                                    false,
+                                ),
+                                None,
+                            )
+                        });
+                    let clz = self
+                        .builder
+                        .build_call(
+                            ctlz,
+                            &[n.into(), self.ctx.bool_type().const_zero().into()],
+                            "clz",
+                        )
+                        .map_err(Self::err)?
+                        .try_as_basic_value()
+                        .basic()
+                        .ok_or_else(|| CompileError::Llvm("ctlz void".into()))?
+                        .into_int_value();
+                    let nb = self
+                        .builder
+                        .build_int_sub(self.i32t.const_int(32, false), clz, "nb")
+                        .map_err(Self::err)?;
+                    let iszero = self
+                        .builder
+                        .build_int_compare(IntPredicate::EQ, n, self.i32t.const_zero(), "binz")
+                        .map_err(Self::err)?;
+                    let nbits = self
+                        .builder
+                        .build_select(iszero, self.i32t.const_int(1, false), nb, "nbits")
+                        .map_err(Self::err)?
+                        .into_int_value();
                     let zeropad = if args.len() == 2 {
                         let w = self.eval_int(&args[1])?;
-                        let padgt = self.builder.build_int_compare(IntPredicate::SGT, w, nbits, "binpadgt").map_err(Self::err)?;
-                        let diff = self.builder.build_int_sub(w, nbits, "bindiff").map_err(Self::err)?;
-                        self.builder.build_select(padgt, diff, self.i32t.const_zero(), "binzp").map_err(Self::err)?.into_int_value()
+                        let padgt = self
+                            .builder
+                            .build_int_compare(IntPredicate::SGT, w, nbits, "binpadgt")
+                            .map_err(Self::err)?;
+                        let diff = self
+                            .builder
+                            .build_int_sub(w, nbits, "bindiff")
+                            .map_err(Self::err)?;
+                        self.builder
+                            .build_select(padgt, diff, self.i32t.const_zero(), "binzp")
+                            .map_err(Self::err)?
+                            .into_int_value()
                     } else {
                         self.i32t.const_zero()
                     };
                     let is_binb = name == "BINB$";
                     let prefix = if is_binb { 2u64 } else { 0 };
                     let i8t = self.ctx.i8_type();
-                    let nbits64 = self.builder.build_int_z_extend(nbits, self.i64t, "nbits64").map_err(Self::err)?;
-                    let zp64 = self.builder.build_int_z_extend(zeropad, self.i64t, "zp64").map_err(Self::err)?;
-                    let digits = self.builder.build_int_add(nbits64, zp64, "bindig").map_err(Self::err)?;
-                    let total = self.builder.build_int_add(digits, self.i64t.const_int(prefix, false), "bintot").map_err(Self::err)?;
+                    let nbits64 = self
+                        .builder
+                        .build_int_z_extend(nbits, self.i64t, "nbits64")
+                        .map_err(Self::err)?;
+                    let zp64 = self
+                        .builder
+                        .build_int_z_extend(zeropad, self.i64t, "zp64")
+                        .map_err(Self::err)?;
+                    let digits = self
+                        .builder
+                        .build_int_add(nbits64, zp64, "bindig")
+                        .map_err(Self::err)?;
+                    let total = self
+                        .builder
+                        .build_int_add(digits, self.i64t.const_int(prefix, false), "bintot")
+                        .map_err(Self::err)?;
                     let r = self.str_new(total)?;
                     if is_binb {
-                        self.builder.build_store(r, i8t.const_int(b'0' as u64, false)).map_err(Self::err)?;
-                        let r1 = unsafe { self.builder.build_in_bounds_gep(i8t, r, &[self.i64t.const_int(1, false)], "br1").map_err(Self::err)? };
-                        self.builder.build_store(r1, i8t.const_int(b'b' as u64, false)).map_err(Self::err)?;
+                        self.builder
+                            .build_store(r, i8t.const_int(b'0' as u64, false))
+                            .map_err(Self::err)?;
+                        let r1 = unsafe {
+                            self.builder
+                                .build_in_bounds_gep(
+                                    i8t,
+                                    r,
+                                    &[self.i64t.const_int(1, false)],
+                                    "br1",
+                                )
+                                .map_err(Self::err)?
+                        };
+                        self.builder
+                            .build_store(r1, i8t.const_int(b'b' as u64, false))
+                            .map_err(Self::err)?;
                     }
-                    let zpstart = unsafe { self.builder.build_in_bounds_gep(i8t, r, &[self.i64t.const_int(prefix, false)], "zps").map_err(Self::err)? };
-                    self.builder.build_call(self.memset, &[zpstart.into(), self.i32t.const_int(b'0' as u64, false).into(), zp64.into()], "binms").map_err(Self::err)?;
-                    let base = self.builder.build_int_add(self.i64t.const_int(prefix, false), zp64, "binbase").map_err(Self::err)?;
-                    let bidx = self.builder.build_alloca(self.i64t, "bidx").map_err(Self::err)?;
-                    self.builder.build_store(bidx, self.i64t.const_zero()).map_err(Self::err)?;
+                    let zpstart = unsafe {
+                        self.builder
+                            .build_in_bounds_gep(
+                                i8t,
+                                r,
+                                &[self.i64t.const_int(prefix, false)],
+                                "zps",
+                            )
+                            .map_err(Self::err)?
+                    };
+                    self.builder
+                        .build_call(
+                            self.memset,
+                            &[
+                                zpstart.into(),
+                                self.i32t.const_int(b'0' as u64, false).into(),
+                                zp64.into(),
+                            ],
+                            "binms",
+                        )
+                        .map_err(Self::err)?;
+                    let base = self
+                        .builder
+                        .build_int_add(self.i64t.const_int(prefix, false), zp64, "binbase")
+                        .map_err(Self::err)?;
+                    let bidx = self
+                        .builder
+                        .build_alloca(self.i64t, "bidx")
+                        .map_err(Self::err)?;
+                    self.builder
+                        .build_store(bidx, self.i64t.const_zero())
+                        .map_err(Self::err)?;
                     let bh = self.ctx.append_basic_block(self.cur_fn, "bin.h");
                     let bb = self.ctx.append_basic_block(self.cur_fn, "bin.b");
                     let be = self.ctx.append_basic_block(self.cur_fn, "bin.e");
-                    self.builder.build_unconditional_branch(bh).map_err(Self::err)?;
+                    self.builder
+                        .build_unconditional_branch(bh)
+                        .map_err(Self::err)?;
                     self.builder.position_at_end(bh);
-                    let bi = self.builder.build_load(self.i64t, bidx, "bi").map_err(Self::err)?.into_int_value();
-                    let bcont = self.builder.build_int_compare(IntPredicate::ULT, bi, nbits64, "bcont").map_err(Self::err)?;
-                    self.builder.build_conditional_branch(bcont, bb, be).map_err(Self::err)?;
+                    let bi = self
+                        .builder
+                        .build_load(self.i64t, bidx, "bi")
+                        .map_err(Self::err)?
+                        .into_int_value();
+                    let bcont = self
+                        .builder
+                        .build_int_compare(IntPredicate::ULT, bi, nbits64, "bcont")
+                        .map_err(Self::err)?;
+                    self.builder
+                        .build_conditional_branch(bcont, bb, be)
+                        .map_err(Self::err)?;
                     self.builder.position_at_end(bb);
-                    let bi32 = self.builder.build_int_truncate(bi, self.i32t, "bi32").map_err(Self::err)?;
-                    let nbm1 = self.builder.build_int_sub(nbits, self.i32t.const_int(1, false), "nbm1").map_err(Self::err)?;
-                    let sh = self.builder.build_int_sub(nbm1, bi32, "binsh").map_err(Self::err)?;
-                    let shifted = self.builder.build_right_shift(n, sh, false, "binshf").map_err(Self::err)?;
-                    let bit = self.builder.build_and(shifted, self.i32t.const_int(1, false), "binbit").map_err(Self::err)?;
-                    let bc32 = self.builder.build_int_add(bit, self.i32t.const_int(b'0' as u64, false), "binbc").map_err(Self::err)?;
-                    let bc = self.builder.build_int_truncate(bc32, i8t, "binbc8").map_err(Self::err)?;
-                    let bpos = self.builder.build_int_add(base, bi, "binpos").map_err(Self::err)?;
-                    let bep = unsafe { self.builder.build_in_bounds_gep(i8t, r, &[bpos], "binep").map_err(Self::err)? };
+                    let bi32 = self
+                        .builder
+                        .build_int_truncate(bi, self.i32t, "bi32")
+                        .map_err(Self::err)?;
+                    let nbm1 = self
+                        .builder
+                        .build_int_sub(nbits, self.i32t.const_int(1, false), "nbm1")
+                        .map_err(Self::err)?;
+                    let sh = self
+                        .builder
+                        .build_int_sub(nbm1, bi32, "binsh")
+                        .map_err(Self::err)?;
+                    let shifted = self
+                        .builder
+                        .build_right_shift(n, sh, false, "binshf")
+                        .map_err(Self::err)?;
+                    let bit = self
+                        .builder
+                        .build_and(shifted, self.i32t.const_int(1, false), "binbit")
+                        .map_err(Self::err)?;
+                    let bc32 = self
+                        .builder
+                        .build_int_add(bit, self.i32t.const_int(b'0' as u64, false), "binbc")
+                        .map_err(Self::err)?;
+                    let bc = self
+                        .builder
+                        .build_int_truncate(bc32, i8t, "binbc8")
+                        .map_err(Self::err)?;
+                    let bpos = self
+                        .builder
+                        .build_int_add(base, bi, "binpos")
+                        .map_err(Self::err)?;
+                    let bep = unsafe {
+                        self.builder
+                            .build_in_bounds_gep(i8t, r, &[bpos], "binep")
+                            .map_err(Self::err)?
+                    };
                     self.builder.build_store(bep, bc).map_err(Self::err)?;
-                    self.builder.build_store(bidx, self.builder.build_int_add(bi, self.i64t.const_int(1, false), "binn").map_err(Self::err)?).map_err(Self::err)?;
-                    self.builder.build_unconditional_branch(bh).map_err(Self::err)?;
+                    self.builder
+                        .build_store(
+                            bidx,
+                            self.builder
+                                .build_int_add(bi, self.i64t.const_int(1, false), "binn")
+                                .map_err(Self::err)?,
+                        )
+                        .map_err(Self::err)?;
+                    self.builder
+                        .build_unconditional_branch(bh)
+                        .map_err(Self::err)?;
                     self.builder.position_at_end(be);
                     Ok(Some(r.into()))
                 }
@@ -3696,9 +5406,19 @@ pub mod llvm_backend {
                 }
                 ("NULL$", 1) => {
                     let n = self.eval_int(&args[0])?;
-                    let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
-                    let neg = self.builder.build_int_compare(IntPredicate::SLT, n64, self.i64t.const_zero(), "nn").map_err(Self::err)?;
-                    let clamped = self.builder.build_select(neg, self.i64t.const_zero(), n64, "nclamp").map_err(Self::err)?.into_int_value();
+                    let n64 = self
+                        .builder
+                        .build_int_s_extend(n, self.i64t, "n64")
+                        .map_err(Self::err)?;
+                    let neg = self
+                        .builder
+                        .build_int_compare(IntPredicate::SLT, n64, self.i64t.const_zero(), "nn")
+                        .map_err(Self::err)?;
+                    let clamped = self
+                        .builder
+                        .build_select(neg, self.i64t.const_zero(), n64, "nclamp")
+                        .map_err(Self::err)?
+                        .into_int_value();
                     Ok(Some(self.str_new(clamped)?.into()))
                 }
                 ("LJUST$", 2) => self.str_justify(&args[0], &args[1], 0),
@@ -3710,10 +5430,16 @@ pub mod llvm_backend {
                         return Ok(None);
                     };
                     let n = self.eval_int(&args[1])?;
-                    let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
+                    let n64 = self
+                        .builder
+                        .build_int_s_extend(n, self.i64t, "n64")
+                        .map_err(Self::err)?;
                     let slen = self.str_len(s)?;
                     let off = self.umin(n64, slen)?;
-                    let outlen = self.builder.build_int_sub(slen, off, "lcl").map_err(Self::err)?;
+                    let outlen = self
+                        .builder
+                        .build_int_sub(slen, off, "lcl")
+                        .map_err(Self::err)?;
                     Ok(Some(self.str_copy(s, off, outlen)?.into()))
                 }
                 ("RCLIP$", 2) => {
@@ -3722,7 +5448,10 @@ pub mod llvm_backend {
                         return Ok(None);
                     };
                     let n = self.eval_int(&args[1])?;
-                    let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
+                    let n64 = self
+                        .builder
+                        .build_int_s_extend(n, self.i64t, "n64")
+                        .map_err(Self::err)?;
                     let slen = self.str_len(s)?;
                     let keep = self.usub_sat(slen, n64)?;
                     Ok(Some(self.str_copy(s, self.i64t.const_zero(), keep)?.into()))
@@ -3738,78 +5467,172 @@ pub mod llvm_backend {
                 ("HEXX$", 2) => {
                     let iv = self.eval_int(&args[0])?;
                     let w = self.eval_int(&args[1])?;
-                    Ok(Some(self.str_from_int_width(self.fmt_g("0x%0*X")?, w, iv)?.into()))
+                    Ok(Some(
+                        self.str_from_int_width(self.fmt_g("0x%0*X")?, w, iv)?
+                            .into(),
+                    ))
                 }
                 ("HEX$", 2) => {
                     let iv = self.eval_int(&args[0])?;
                     let w = self.eval_int(&args[1])?;
-                    Ok(Some(self.str_from_int_width(self.fmt_g("%0*X")?, w, iv)?.into()))
+                    Ok(Some(
+                        self.str_from_int_width(self.fmt_g("%0*X")?, w, iv)?.into(),
+                    ))
                 }
                 ("OCTO$", 2) => {
                     let iv = self.eval_int(&args[0])?;
                     let w = self.eval_int(&args[1])?;
-                    Ok(Some(self.str_from_int_width(self.fmt_g("0o%0*o")?, w, iv)?.into()))
+                    Ok(Some(
+                        self.str_from_int_width(self.fmt_g("0o%0*o")?, w, iv)?
+                            .into(),
+                    ))
                 }
                 ("OCT$", 2) => {
                     let iv = self.eval_int(&args[0])?;
                     let w = self.eval_int(&args[1])?;
-                    Ok(Some(self.str_from_int_width(self.fmt_g("%0*o")?, w, iv)?.into()))
+                    Ok(Some(
+                        self.str_from_int_width(self.fmt_g("%0*o")?, w, iv)?.into(),
+                    ))
                 }
                 ("ROTATEL", 2) | ("ROTATER", 2) => {
                     // n %= 32; ROTATEL = (v<<n)|(v>>((32-n)%32)); ROTATER swaps the shifts.
                     let v = self.eval_int(&args[0])?;
                     let n = self.eval_int(&args[1])?;
                     let c32 = self.i32t.const_int(32, false);
-                    let n = self.builder.build_int_unsigned_rem(n, c32, "rn").map_err(Self::err)?;
-                    let comp = self.builder.build_int_sub(c32, n, "rcomp").map_err(Self::err)?;
-                    let comp = self.builder.build_int_unsigned_rem(comp, c32, "rcompm").map_err(Self::err)?;
-                    let shl = self.builder.build_left_shift(v, n, "rshl").map_err(Self::err)?;
-                    let shr = self.builder.build_right_shift(v, comp, false, "rshr").map_err(Self::err)?;
+                    let n = self
+                        .builder
+                        .build_int_unsigned_rem(n, c32, "rn")
+                        .map_err(Self::err)?;
+                    let comp = self
+                        .builder
+                        .build_int_sub(c32, n, "rcomp")
+                        .map_err(Self::err)?;
+                    let comp = self
+                        .builder
+                        .build_int_unsigned_rem(comp, c32, "rcompm")
+                        .map_err(Self::err)?;
+                    let shl = self
+                        .builder
+                        .build_left_shift(v, n, "rshl")
+                        .map_err(Self::err)?;
+                    let shr = self
+                        .builder
+                        .build_right_shift(v, comp, false, "rshr")
+                        .map_err(Self::err)?;
                     let (a, b) = if name == "ROTATEL" {
                         // (v<<n) | (v>>(32-n))
                         (shl, shr)
                     } else {
                         // (v>>n) | (v<<(32-n))
-                        let shr2 = self.builder.build_right_shift(v, n, false, "rshr2").map_err(Self::err)?;
-                        let shl2 = self.builder.build_left_shift(v, comp, "rshl2").map_err(Self::err)?;
+                        let shr2 = self
+                            .builder
+                            .build_right_shift(v, n, false, "rshr2")
+                            .map_err(Self::err)?;
+                        let shl2 = self
+                            .builder
+                            .build_left_shift(v, comp, "rshl2")
+                            .map_err(Self::err)?;
                         (shr2, shl2)
                     };
-                    Ok(Some(self.builder.build_or(a, b, "rot").map_err(Self::err)?.into()))
+                    Ok(Some(
+                        self.builder
+                            .build_or(a, b, "rot")
+                            .map_err(Self::err)?
+                            .into(),
+                    ))
                 }
                 ("DHIGH", 1) => {
                     let d = self.eval_float(&args[0])?;
-                    let bits = self.builder.build_bit_cast(d, self.i64t, "dbits").map_err(Self::err)?.into_int_value();
-                    let hi = self.builder.build_right_shift(bits, self.i64t.const_int(32, false), false, "dhi").map_err(Self::err)?;
-                    Ok(Some(self.builder.build_int_truncate(hi, self.i32t, "dhi32").map_err(Self::err)?.into()))
+                    let bits = self
+                        .builder
+                        .build_bit_cast(d, self.i64t, "dbits")
+                        .map_err(Self::err)?
+                        .into_int_value();
+                    let hi = self
+                        .builder
+                        .build_right_shift(bits, self.i64t.const_int(32, false), false, "dhi")
+                        .map_err(Self::err)?;
+                    Ok(Some(
+                        self.builder
+                            .build_int_truncate(hi, self.i32t, "dhi32")
+                            .map_err(Self::err)?
+                            .into(),
+                    ))
                 }
                 ("DLOW", 1) => {
                     let d = self.eval_float(&args[0])?;
-                    let bits = self.builder.build_bit_cast(d, self.i64t, "dbits").map_err(Self::err)?.into_int_value();
-                    Ok(Some(self.builder.build_int_truncate(bits, self.i32t, "dlo").map_err(Self::err)?.into()))
+                    let bits = self
+                        .builder
+                        .build_bit_cast(d, self.i64t, "dbits")
+                        .map_err(Self::err)?
+                        .into_int_value();
+                    Ok(Some(
+                        self.builder
+                            .build_int_truncate(bits, self.i32t, "dlo")
+                            .map_err(Self::err)?
+                            .into(),
+                    ))
                 }
                 ("DMAKE", 2) => {
                     let hi = self.eval_int(&args[0])?;
                     let lo = self.eval_int(&args[1])?;
-                    let hi64 = self.builder.build_int_z_extend(hi, self.i64t, "hi64").map_err(Self::err)?;
-                    let lo64 = self.builder.build_int_z_extend(lo, self.i64t, "lo64").map_err(Self::err)?;
-                    let hishift = self.builder.build_left_shift(hi64, self.i64t.const_int(32, false), "hishift").map_err(Self::err)?;
-                    let bits = self.builder.build_or(hishift, lo64, "dmbits").map_err(Self::err)?;
-                    Ok(Some(self.builder.build_bit_cast(bits, self.f64t, "dmake").map_err(Self::err)?))
+                    let hi64 = self
+                        .builder
+                        .build_int_z_extend(hi, self.i64t, "hi64")
+                        .map_err(Self::err)?;
+                    let lo64 = self
+                        .builder
+                        .build_int_z_extend(lo, self.i64t, "lo64")
+                        .map_err(Self::err)?;
+                    let hishift = self
+                        .builder
+                        .build_left_shift(hi64, self.i64t.const_int(32, false), "hishift")
+                        .map_err(Self::err)?;
+                    let bits = self
+                        .builder
+                        .build_or(hishift, lo64, "dmbits")
+                        .map_err(Self::err)?;
+                    Ok(Some(
+                        self.builder
+                            .build_bit_cast(bits, self.f64t, "dmake")
+                            .map_err(Self::err)?,
+                    ))
                 }
                 ("SMAKE", 1) => {
                     let n = self.eval_int(&args[0])?;
-                    let f = self.builder.build_bit_cast(n, self.ctx.f32_type(), "smf").map_err(Self::err)?.into_float_value();
-                    Ok(Some(self.builder.build_float_ext(f, self.f64t, "smake").map_err(Self::err)?.into()))
+                    let f = self
+                        .builder
+                        .build_bit_cast(n, self.ctx.f32_type(), "smf")
+                        .map_err(Self::err)?
+                        .into_float_value();
+                    Ok(Some(
+                        self.builder
+                            .build_float_ext(f, self.f64t, "smake")
+                            .map_err(Self::err)?
+                            .into(),
+                    ))
                 }
                 ("XMAKE", 1) => {
                     let d = self.eval_float(&args[0])?;
-                    let f = self.builder.build_float_trunc(d, self.ctx.f32_type(), "xmf").map_err(Self::err)?;
-                    Ok(Some(self.builder.build_bit_cast(f, self.i32t, "xmake").map_err(Self::err)?))
+                    let f = self
+                        .builder
+                        .build_float_trunc(d, self.ctx.f32_type(), "xmf")
+                        .map_err(Self::err)?;
+                    Ok(Some(
+                        self.builder
+                            .build_bit_cast(f, self.i32t, "xmake")
+                            .map_err(Self::err)?,
+                    ))
                 }
                 ("GMAKE", 2) => Ok(Some(self.eval_int(&args[1])?.into())),
                 ("GHIGH", 1) => {
                     let v = self.eval_int(&args[0])?;
-                    Ok(Some(self.builder.build_right_shift(v, self.i32t.const_int(31, false), true, "ghigh").map_err(Self::err)?.into()))
+                    Ok(Some(
+                        self.builder
+                            .build_right_shift(v, self.i32t.const_int(31, false), true, "ghigh")
+                            .map_err(Self::err)?
+                            .into(),
+                    ))
                 }
                 ("GLOW", 1) => Ok(Some(self.eval_int(&args[0])?.into())),
                 ("LEN", 1) => match self.eval_value(&args[0])? {
@@ -3824,16 +5647,43 @@ pub mod llvm_backend {
                 },
                 ("CHR$", 1) | ("CHR$", 2) => {
                     let n = self.eval_int(&args[0])?;
-                    let chi = self.builder.build_int_truncate(n, self.ctx.i8_type(), "ch").map_err(Self::err)?;
+                    let chi = self
+                        .builder
+                        .build_int_truncate(n, self.ctx.i8_type(), "ch")
+                        .map_err(Self::err)?;
                     // 2-arg CHR$(c, count) = `count` copies; 1-arg = a single byte (CHR$(0) = a real NUL).
                     if args.len() == 2 {
                         let cnt = self.eval_int(&args[1])?;
-                        let cnt64 = self.builder.build_int_s_extend(cnt, self.i64t, "cnt64").map_err(Self::err)?;
-                        let neg = self.builder.build_int_compare(IntPredicate::SLT, cnt64, self.i64t.const_zero(), "cneg").map_err(Self::err)?;
-                        let clamped = self.builder.build_select(neg, self.i64t.const_zero(), cnt64, "cclamp").map_err(Self::err)?.into_int_value();
+                        let cnt64 = self
+                            .builder
+                            .build_int_s_extend(cnt, self.i64t, "cnt64")
+                            .map_err(Self::err)?;
+                        let neg = self
+                            .builder
+                            .build_int_compare(
+                                IntPredicate::SLT,
+                                cnt64,
+                                self.i64t.const_zero(),
+                                "cneg",
+                            )
+                            .map_err(Self::err)?;
+                        let clamped = self
+                            .builder
+                            .build_select(neg, self.i64t.const_zero(), cnt64, "cclamp")
+                            .map_err(Self::err)?
+                            .into_int_value();
                         let buf = self.str_new(clamped)?;
-                        let ci = self.builder.build_int_z_extend(chi, self.i32t, "chi32").map_err(Self::err)?;
-                        self.builder.build_call(self.memset, &[buf.into(), ci.into(), clamped.into()], "chrms").map_err(Self::err)?;
+                        let ci = self
+                            .builder
+                            .build_int_z_extend(chi, self.i32t, "chi32")
+                            .map_err(Self::err)?;
+                        self.builder
+                            .build_call(
+                                self.memset,
+                                &[buf.into(), ci.into(), clamped.into()],
+                                "chrms",
+                            )
+                            .map_err(Self::err)?;
                         Ok(Some(buf.into()))
                     } else {
                         let buf = self.str_new(self.i64t.const_int(1, false))?;
@@ -3846,7 +5696,10 @@ pub mod llvm_backend {
                         return Ok(None);
                     };
                     let n = self.eval_int(&args[1])?;
-                    let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
+                    let n64 = self
+                        .builder
+                        .build_int_s_extend(n, self.i64t, "n64")
+                        .map_err(Self::err)?;
                     let len = self.str_len(s)?;
                     let cl = self.umin(n64, len)?;
                     Ok(Some(self.str_copy(s, self.i64t.const_zero(), cl)?.into()))
@@ -3856,10 +5709,16 @@ pub mod llvm_backend {
                         return Ok(None);
                     };
                     let n = self.eval_int(&args[1])?;
-                    let n64 = self.builder.build_int_s_extend(n, self.i64t, "n64").map_err(Self::err)?;
+                    let n64 = self
+                        .builder
+                        .build_int_s_extend(n, self.i64t, "n64")
+                        .map_err(Self::err)?;
                     let len = self.str_len(s)?;
                     let start = self.usub_sat(len, n64)?;
-                    let cl = self.builder.build_int_sub(len, start, "cl").map_err(Self::err)?;
+                    let cl = self
+                        .builder
+                        .build_int_sub(len, start, "cl")
+                        .map_err(Self::err)?;
                     Ok(Some(self.str_copy(s, start, cl)?.into()))
                 }
                 ("MID$", 2) | ("MID$", 3) => {
@@ -3867,28 +5726,39 @@ pub mod llvm_backend {
                         return Ok(None);
                     };
                     let start = self.eval_int(&args[1])?;
-                    let s64 =
-                        self.builder.build_int_s_extend(start, self.i64t, "s64").map_err(Self::err)?;
+                    let s64 = self
+                        .builder
+                        .build_int_s_extend(start, self.i64t, "s64")
+                        .map_err(Self::err)?;
                     let len = self.str_len(s)?;
                     let a = self.usub_sat(s64, self.i64t.const_int(1, false))?;
                     let start_idx = self.umin(a, len)?;
                     let end_idx = if args.len() == 3 {
                         let l = self.eval_int(&args[2])?;
-                        let l64 =
-                            self.builder.build_int_s_extend(l, self.i64t, "l64").map_err(Self::err)?;
-                        let sum =
-                            self.builder.build_int_add(start_idx, l64, "sum").map_err(Self::err)?;
+                        let l64 = self
+                            .builder
+                            .build_int_s_extend(l, self.i64t, "l64")
+                            .map_err(Self::err)?;
+                        let sum = self
+                            .builder
+                            .build_int_add(start_idx, l64, "sum")
+                            .map_err(Self::err)?;
                         self.umin(sum, len)?
                     } else {
                         len
                     };
-                    let cl = self.builder.build_int_sub(end_idx, start_idx, "cl").map_err(Self::err)?;
+                    let cl = self
+                        .builder
+                        .build_int_sub(end_idx, start_idx, "cl")
+                        .map_err(Self::err)?;
                     Ok(Some(self.str_copy(s, start_idx, cl)?.into()))
                 }
                 ("STR$", 1) => match self.eval_value(&args[0])? {
                     // Integer STR$ = Rust i32::to_string == snprintf("%d"). Float STR$ is
                     // deferred (Rust float fmt != printf; would be silently wrong).
-                    Some(BasicValueEnum::IntValue(iv)) => Ok(Some(self.str_from_int(self.fmt_d, iv)?.into())),
+                    Some(BasicValueEnum::IntValue(iv)) => {
+                        Ok(Some(self.str_from_int(self.fmt_d, iv)?.into()))
+                    }
                     _ => Ok(None),
                 },
                 ("SPACE$", 1) => {
@@ -3904,7 +5774,10 @@ pub mod llvm_backend {
                             .map_err(Self::err)?
                             .into_int_value();
                         Ok(Some(
-                            self.builder.build_int_z_extend(byte, self.i32t, "asc").map_err(Self::err)?.into(),
+                            self.builder
+                                .build_int_z_extend(byte, self.i32t, "asc")
+                                .map_err(Self::err)?
+                                .into(),
                         ))
                     }
                     _ => Ok(None),
@@ -3912,54 +5785,97 @@ pub mod llvm_backend {
                 ("SGN", 1) => match self.eval_value(&args[0])? {
                     Some(BasicValueEnum::IntValue(n)) => {
                         let z = self.i32t.const_zero();
-                        let pos = self.builder.build_int_compare(IntPredicate::SGT, n, z, "sgp").map_err(Self::err)?;
-                        let neg = self.builder.build_int_compare(IntPredicate::SLT, n, z, "sgn").map_err(Self::err)?;
-                        let pi = self.builder.build_int_z_extend(pos, self.i32t, "sgpi").map_err(Self::err)?;
-                        let ni = self.builder.build_int_z_extend(neg, self.i32t, "sgni").map_err(Self::err)?;
-                        Ok(Some(self.builder.build_int_sub(pi, ni, "sgn").map_err(Self::err)?.into()))
+                        let pos = self
+                            .builder
+                            .build_int_compare(IntPredicate::SGT, n, z, "sgp")
+                            .map_err(Self::err)?;
+                        let neg = self
+                            .builder
+                            .build_int_compare(IntPredicate::SLT, n, z, "sgn")
+                            .map_err(Self::err)?;
+                        let pi = self
+                            .builder
+                            .build_int_z_extend(pos, self.i32t, "sgpi")
+                            .map_err(Self::err)?;
+                        let ni = self
+                            .builder
+                            .build_int_z_extend(neg, self.i32t, "sgni")
+                            .map_err(Self::err)?;
+                        Ok(Some(
+                            self.builder
+                                .build_int_sub(pi, ni, "sgn")
+                                .map_err(Self::err)?
+                                .into(),
+                        ))
                     }
                     _ => Ok(None),
                 },
                 ("INT", 1) | ("FIX", 1) => match self.eval_value(&args[0])? {
                     // Float → i32 truncation toward zero (matches `*n as i32`).
                     Some(BasicValueEnum::FloatValue(f)) => Ok(Some(
-                        self.builder.build_float_to_signed_int(f, self.i32t, "int").map_err(Self::err)?.into(),
+                        self.builder
+                            .build_float_to_signed_int(f, self.i32t, "int")
+                            .map_err(Self::err)?
+                            .into(),
                     )),
                     _ => Ok(None),
                 },
                 ("MAX", 2) | ("MIN", 2) => {
                     match (self.eval_value(&args[0])?, self.eval_value(&args[1])?) {
                         (Some(BasicValueEnum::IntValue(a)), Some(BasicValueEnum::IntValue(b))) => {
-                            let pred = if name == "MAX" { IntPredicate::SGT } else { IntPredicate::SLT };
-                            let c = self.builder.build_int_compare(pred, a, b, "mmc").map_err(Self::err)?;
-                            Ok(Some(self.builder.build_select(c, a, b, "mm").map_err(Self::err)?))
+                            let pred = if name == "MAX" {
+                                IntPredicate::SGT
+                            } else {
+                                IntPredicate::SLT
+                            };
+                            let c = self
+                                .builder
+                                .build_int_compare(pred, a, b, "mmc")
+                                .map_err(Self::err)?;
+                            Ok(Some(
+                                self.builder
+                                    .build_select(c, a, b, "mm")
+                                    .map_err(Self::err)?,
+                            ))
                         }
                         _ => Ok(None),
                     }
                 }
                 ("HEX$", 1) => match self.eval_value(&args[0])? {
                     // snprintf("%X") == Rust `{:X}` on i32 (both hex of the 32-bit pattern).
-                    Some(BasicValueEnum::IntValue(iv)) => Ok(Some(self.str_from_int(self.fmt_hex, iv)?.into())),
+                    Some(BasicValueEnum::IntValue(iv)) => {
+                        Ok(Some(self.str_from_int(self.fmt_hex, iv)?.into()))
+                    }
                     _ => Ok(None),
                 },
                 ("UCASE$", 1) => match self.eval_value(&args[0])? {
-                    Some(BasicValueEnum::PointerValue(s)) => Ok(Some(self.str_case(s, true)?.into())),
+                    Some(BasicValueEnum::PointerValue(s)) => {
+                        Ok(Some(self.str_case(s, true)?.into()))
+                    }
                     _ => Ok(None),
                 },
                 ("LCASE$", 1) => match self.eval_value(&args[0])? {
-                    Some(BasicValueEnum::PointerValue(s)) => Ok(Some(self.str_case(s, false)?.into())),
+                    Some(BasicValueEnum::PointerValue(s)) => {
+                        Ok(Some(self.str_case(s, false)?.into()))
+                    }
                     _ => Ok(None),
                 },
                 ("TRIM$", 1) => match self.eval_value(&args[0])? {
-                    Some(BasicValueEnum::PointerValue(s)) => Ok(Some(self.str_trim(s, true, true)?.into())),
+                    Some(BasicValueEnum::PointerValue(s)) => {
+                        Ok(Some(self.str_trim(s, true, true)?.into()))
+                    }
                     _ => Ok(None),
                 },
                 ("LTRIM$", 1) => match self.eval_value(&args[0])? {
-                    Some(BasicValueEnum::PointerValue(s)) => Ok(Some(self.str_trim(s, true, false)?.into())),
+                    Some(BasicValueEnum::PointerValue(s)) => {
+                        Ok(Some(self.str_trim(s, true, false)?.into()))
+                    }
                     _ => Ok(None),
                 },
                 ("RTRIM$", 1) => match self.eval_value(&args[0])? {
-                    Some(BasicValueEnum::PointerValue(s)) => Ok(Some(self.str_trim(s, false, true)?.into())),
+                    Some(BasicValueEnum::PointerValue(s)) => {
+                        Ok(Some(self.str_trim(s, false, true)?.into()))
+                    }
                     _ => Ok(None),
                 },
                 _ => Ok(None),
@@ -3997,14 +5913,22 @@ pub mod llvm_backend {
     fn collect_array_names(items: &[IrItem], out: &mut std::collections::HashSet<String>) {
         for it in items {
             match it {
-                IrItem::Dim { symbol, is_array: true, .. } => {
+                IrItem::Dim {
+                    symbol,
+                    is_array: true,
+                    ..
+                } => {
                     out.insert(symbol.name.clone());
                 }
                 IrItem::Function { body, .. }
                 | IrItem::While { body, .. }
                 | IrItem::For { body, .. }
                 | IrItem::DoLoop { body, .. } => collect_array_names(body, out),
-                IrItem::If { then_body, else_body, .. } => {
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     collect_array_names(then_body, out);
                     if let Some(b) = else_body {
                         collect_array_names(b, out);
@@ -4027,10 +5951,7 @@ pub mod llvm_backend {
     /// Every `SHARED` scalar (name → type) assigned anywhere in the program, recursing
     /// all bodies *including* nested `Function` items — `SHARED` variables span
     /// functions. Deterministic order (`BTreeMap`).
-    fn collect_shared(
-        items: &[IrItem],
-        out: &mut std::collections::BTreeMap<String, ValueType>,
-    ) {
+    fn collect_shared(items: &[IrItem], out: &mut std::collections::BTreeMap<String, ValueType>) {
         for it in items {
             match it {
                 IrItem::SharedAssignment { target, .. } => {
@@ -4040,10 +5961,19 @@ pub mod llvm_backend {
                 | IrItem::While { body, .. }
                 | IrItem::For { body, .. }
                 | IrItem::DoLoop { body, .. } => collect_shared(body, out),
-                IrItem::Dim { symbol, is_array: false, shared: true, .. } => {
+                IrItem::Dim {
+                    symbol,
+                    is_array: false,
+                    shared: true,
+                    ..
+                } => {
                     out.entry(symbol.name.clone()).or_insert(symbol.value_type);
                 }
-                IrItem::If { then_body, else_body, .. } => {
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     collect_shared(then_body, out);
                     if let Some(b) = else_body {
                         collect_shared(b, out);
@@ -4082,7 +6012,11 @@ pub mod llvm_backend {
                 IrItem::While { body, .. }
                 | IrItem::For { body, .. }
                 | IrItem::DoLoop { body, .. } => collect_assigned_scalars(body, out),
-                IrItem::If { then_body, else_body, .. } => {
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     collect_assigned_scalars(then_body, out);
                     if let Some(b) = else_body {
                         collect_assigned_scalars(b, out);
@@ -4114,7 +6048,13 @@ pub mod llvm_backend {
     ) {
         for it in items {
             match it {
-                IrItem::Dim { symbol, size, extra_dims, is_array: true, .. } => {
+                IrItem::Dim {
+                    symbol,
+                    size,
+                    extra_dims,
+                    is_array: true,
+                    ..
+                } => {
                     let ndims = size.iter().count() + extra_dims.len();
                     out.entry(symbol.name.clone())
                         .and_modify(|e| {
@@ -4127,7 +6067,11 @@ pub mod llvm_backend {
                 IrItem::While { body, .. }
                 | IrItem::For { body, .. }
                 | IrItem::DoLoop { body, .. } => collect_dim_arrays(body, out),
-                IrItem::If { then_body, else_body, .. } => {
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     collect_dim_arrays(then_body, out);
                     if let Some(b) = else_body {
                         collect_dim_arrays(b, out);
@@ -4158,7 +6102,12 @@ pub mod llvm_backend {
                     }
                 }
                 IrItem::Assignment { value, .. } => walk_expr_calls(value, cb),
-                IrItem::ArrayAssignment { index, extra_indices, value, .. } => {
+                IrItem::ArrayAssignment {
+                    index,
+                    extra_indices,
+                    value,
+                    ..
+                } => {
                     walk_expr_calls(index, cb);
                     for e in extra_indices {
                         walk_expr_calls(e, cb);
@@ -4170,7 +6119,11 @@ pub mod llvm_backend {
                         walk_expr_calls(e, cb);
                     }
                 }
-                IrItem::If { condition, then_body, else_body } => {
+                IrItem::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
                     walk_expr_calls(condition, cb);
                     walk_calls(then_body, cb);
                     if let Some(b) = else_body {
@@ -4181,7 +6134,11 @@ pub mod llvm_backend {
                     walk_expr_calls(condition, cb);
                     walk_calls(body, cb);
                 }
-                IrItem::DoLoop { pre_condition, post_condition, body } => {
+                IrItem::DoLoop {
+                    pre_condition,
+                    post_condition,
+                    body,
+                } => {
                     if let Some((c, _)) = pre_condition {
                         walk_expr_calls(c, cb);
                     }
@@ -4190,7 +6147,13 @@ pub mod llvm_backend {
                     }
                     walk_calls(body, cb);
                 }
-                IrItem::For { start, end, step, body, .. } => {
+                IrItem::For {
+                    start,
+                    end,
+                    step,
+                    body,
+                    ..
+                } => {
                     walk_expr_calls(start, cb);
                     walk_expr_calls(end, cb);
                     if let Some(s) = step {
@@ -4198,7 +6161,11 @@ pub mod llvm_backend {
                     }
                     walk_calls(body, cb);
                 }
-                IrItem::SelectCase { selector, cases, default } => {
+                IrItem::SelectCase {
+                    selector,
+                    cases,
+                    default,
+                } => {
                     walk_expr_calls(selector, cb);
                     for c in cases {
                         for cond in &c.conditions {
@@ -4237,7 +6204,11 @@ pub mod llvm_backend {
                 walk_expr_calls(left, cb);
                 walk_expr_calls(right, cb);
             }
-            IrExprKind::ArrayAccess { index, extra_indices, .. } => {
+            IrExprKind::ArrayAccess {
+                index,
+                extra_indices,
+                ..
+            } => {
                 walk_expr_calls(index, cb);
                 for e in extra_indices {
                     walk_expr_calls(e, cb);
@@ -4422,10 +6393,9 @@ mod tests {
         use std::io::Write;
         use std::process::Command;
         // Bootstrap hello fixture pattern: DIM / assign / PRINT a string variable.
-        let unit = FrontendUnit::parse(
-            "VERSION \"6.5.0\"\nDIM name$\nname$ = \"hello\"\nPRINT name$\n",
-        )
-        .unwrap();
+        let unit =
+            FrontendUnit::parse("VERSION \"6.5.0\"\nDIM name$\nname$ = \"hello\"\nPRINT name$\n")
+                .unwrap();
         let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
         assert!(!obj.as_bytes().is_empty(), "object file must not be empty");
         // Real-emission proof: link the object with cc and run the executable.
@@ -4459,10 +6429,8 @@ mod tests {
         use std::io::Write;
         use std::process::Command;
         // Integer var + arithmetic + PRINT: 2*3 + 1 = 7.
-        let unit = FrontendUnit::parse(
-            "VERSION \"6.5.0\"\nDIM n\nn = 2 * 3 + 1\nPRINT n\n",
-        )
-        .unwrap();
+        let unit =
+            FrontendUnit::parse("VERSION \"6.5.0\"\nDIM n\nn = 2 * 3 + 1\nPRINT n\n").unwrap();
         let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
         assert!(!obj.as_bytes().is_empty());
         let dir = std::env::temp_dir();
@@ -4543,10 +6511,8 @@ mod tests {
         use std::io::Write;
         use std::process::Command;
         // Double var + float division: 10.0 / 4.0 = 2.5 (printed via %g).
-        let unit = FrontendUnit::parse(
-            "VERSION \"1\"\nDIM x#\nx# = 10.0 / 4.0\nPRINT x#\n",
-        )
-        .unwrap();
+        let unit =
+            FrontendUnit::parse("VERSION \"1\"\nDIM x#\nx# = 10.0 / 4.0\nPRINT x#\n").unwrap();
         let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
         assert!(!obj.as_bytes().is_empty());
         let dir = std::env::temp_dir();
@@ -4810,7 +6776,10 @@ mod tests {
             String::from_utf8_lossy(&link.stderr)
         );
         let run = Command::new(&exep).output().unwrap();
-        assert_eq!(String::from_utf8_lossy(&run.stdout), "hello\nworld\nworld\n");
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "hello\nworld\nworld\n"
+        );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
@@ -5077,7 +7046,10 @@ mod tests {
             String::from_utf8_lossy(&link.stderr)
         );
         let run = Command::new(&exep).output().unwrap();
-        assert_eq!(String::from_utf8_lossy(&run.stdout), "two-or-three\n1\n2\n3\nfour\n");
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "two-or-three\n1\n2\n3\nfour\n"
+        );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
@@ -5107,9 +7079,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_gs.o");
         let exep = dir.join("xb_llvm_gs.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "20\nend\n");
         let _ = std::fs::remove_file(&objp);
@@ -5142,9 +7126,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_ng.o");
         let exep = dir.join("xb_llvm_ng.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "2\nx\n");
         let _ = std::fs::remove_file(&objp);
@@ -5173,9 +7169,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_nb.o");
         let exep = dir.join("xb_llvm_nb.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(
             String::from_utf8_lossy(&run.stdout),
@@ -5205,9 +7213,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_iop.o");
         let exep = dir.join("xb_llvm_iop.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "2\n3\n16\n25\n-2\n");
         let _ = std::fs::remove_file(&objp);
@@ -5235,9 +7255,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_nul.o");
         let exep = dir.join("xb_llvm_nul.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(run.stdout, b"5\nAB\x00CD\n1\n");
         let _ = std::fs::remove_file(&objp);
@@ -5266,11 +7298,26 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_mb.o");
         let exep = dir.join("xb_llvm_mb.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
-        assert_eq!(String::from_utf8_lossy(&run.stdout), "12\n7\n81\n3\n123\n4\n");
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "12\n7\n81\n3\n123\n4\n"
+        );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
@@ -5300,11 +7347,26 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_jb.o");
         let exep = dir.join("xb_llvm_jb.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
-        assert_eq!(String::from_utf8_lossy(&run.stdout), "hi    \n    hi\n  hi  \ntoolong\ntool\nllo\nhel\n100\n+5\n3\n");
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "hi    \n    hi\n  hi  \ntoolong\ntool\nllo\nhel\n100\n+5\n3\n"
+        );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
@@ -5333,9 +7395,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_fmt.o");
         let exep = dir.join("xb_llvm_fmt.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(
             String::from_utf8_lossy(&run.stdout),
@@ -5367,9 +7441,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_bin.o");
         let exep = dir.join("xb_llvm_bin.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(
             String::from_utf8_lossy(&run.stdout),
@@ -5400,9 +7486,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_wr.o");
         let exep = dir.join("xb_llvm_wr.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(
             String::from_utf8_lossy(&run.stdout),
@@ -5445,9 +7543,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_br.o");
         let exep = dir.join("xb_llvm_br.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "6\n[hi]\n");
         let _ = std::fs::remove_file(&objp);
@@ -5486,9 +7596,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_arrbr.o");
         let exep = dir.join("xb_llvm_arrbr.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "10\n20\n30\n");
         let _ = std::fs::remove_file(&objp);
@@ -5524,9 +7646,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_stub.o");
         let exep = dir.join("xb_llvm_stub.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "0\n[]\n0\n");
         let _ = std::fs::remove_file(&objp);
@@ -5560,9 +7694,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_shared.o");
         let exep = dir.join("xb_llvm_shared.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "42\nhello\n");
         let _ = std::fs::remove_file(&objp);
@@ -5599,9 +7745,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_shsc.o");
         let exep = dir.join("xb_llvm_shsc.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "17\n17\n");
         let _ = std::fs::remove_file(&objp);
@@ -5629,9 +7787,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_uv.o");
         let exep = dir.join("xb_llvm_uv.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "[0][]\n");
         let _ = std::fs::remove_file(&objp);
@@ -5662,9 +7832,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_mid.o");
         let exep = dir.join("xb_llvm_mid.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "ABX\n");
         let _ = std::fs::remove_file(&objp);
@@ -5697,9 +7879,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_prealloc.o");
         let exep = dir.join("xb_llvm_prealloc.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "3\n");
         let _ = std::fs::remove_file(&objp);
@@ -5727,9 +7921,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_const.o");
         let exep = dir.join("xb_llvm_const.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "1 0 -1\n");
         let _ = std::fs::remove_file(&objp);
@@ -5762,9 +7968,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_file.o");
         let exep = dir.join("xb_llvm_file.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         // Run in a temp cwd so the data file lands there, then clean it up.
         let run = Command::new(&exep).current_dir(&dir).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "3 4 0\n");
@@ -5777,13 +7995,30 @@ mod tests {
     fn run_llvm_source_in(source: &str, dir: &std::path::Path, stem: &str) -> std::process::Output {
         use std::io::Write;
         let unit = FrontendUnit::parse(source).expect("parse LLVM test source");
-        let obj = llvm_backend::LlvmBackend.compile(&unit).expect("compile LLVM test source");
+        let obj = llvm_backend::LlvmBackend
+            .compile(&unit)
+            .expect("compile LLVM test source");
         let objp = dir.join(format!("{stem}.o"));
         let exep = dir.join(format!("{stem}.bin"));
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = std::process::Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
-        let run = std::process::Command::new(&exep).current_dir(dir).output().unwrap();
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = std::process::Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = std::process::Command::new(&exep)
+            .current_dir(dir)
+            .output()
+            .unwrap();
         let _ = std::fs::remove_file(objp);
         let _ = std::fs::remove_file(exep);
         run
@@ -5796,7 +8031,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
         let p = |name: &str| root.join(name);
-        for name in ["rd", "wr", "rw", "wrnew", "rwnew", "rdshare", "wrshare", "rwshare", "nbwr", "nbrw", "invalid"] {
+        for name in [
+            "rd", "wr", "rw", "wrnew", "rwnew", "rdshare", "wrshare", "rwshare", "nbwr", "nbrw",
+            "invalid",
+        ] {
             std::fs::write(p(name), b"abc").unwrap();
         }
         let q = |path: &std::path::Path| path.to_string_lossy().replace('\\', "\\\\");
@@ -5818,14 +8056,32 @@ mod tests {
              f = OPEN(\"{}\", 0x20) : PRINT f : CLOSE(f)\n\
              f = OPEN(\"{}\", 0x30) : PRINT f : CLOSE(f)\n\
              END FUNCTION\n",
-            q(&p("rd")), q(&p("wr")), q(&p("rw")), q(&p("wrnew")), q(&p("rwnew")),
-            q(&p("rdshare")), q(&p("wrshare")), q(&p("rwshare")), q(&p("nbwr")),
-            q(&p("nbrw")), q(&p("invalid")), q(&p("missing_rd")), q(&p("missing_rdshare")),
-            q(&p("create_wrshare")), q(&p("create_rwshare")),
+            q(&p("rd")),
+            q(&p("wr")),
+            q(&p("rw")),
+            q(&p("wrnew")),
+            q(&p("rwnew")),
+            q(&p("rdshare")),
+            q(&p("wrshare")),
+            q(&p("rwshare")),
+            q(&p("nbwr")),
+            q(&p("nbrw")),
+            q(&p("invalid")),
+            q(&p("missing_rd")),
+            q(&p("missing_rdshare")),
+            q(&p("create_wrshare")),
+            q(&p("create_rwshare")),
         );
         let run = run_llvm_source_in(&source, &root, "open_modes");
-        assert!(run.status.success(), "run: {}", String::from_utf8_lossy(&run.stderr));
-        assert_eq!(String::from_utf8_lossy(&run.stdout), "3\n0\n3\n0\n0\n3\n3\n3\n0\n3\n3\n-1\n-1\n14\n15\n");
+        assert!(
+            run.status.success(),
+            "run: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "3\n0\n3\n0\n0\n3\n3\n3\n0\n3\n3\n-1\n-1\n14\n15\n"
+        );
         assert!(!p("missing_rd").exists());
         assert!(!p("missing_rdshare").exists());
         assert!(p("create_wrshare").exists());
@@ -5853,8 +8109,17 @@ mod tests {
         let objp = root.join("fifo.o");
         let exep = root.join("fifo.bin");
         std::fs::write(&objp, obj.as_bytes()).unwrap();
-        let link = std::process::Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let link = std::process::Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let mut child = std::process::Command::new(&exep)
             .current_dir(&root)
             .stdout(std::process::Stdio::piped())
@@ -5894,11 +8159,27 @@ mod tests {
         let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
         let objp = root.join("tbl.o");
         let exep = root.join("tbl.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).current_dir(&root).output().unwrap();
-        assert!(run.status.success(), "run: {}", String::from_utf8_lossy(&run.stderr));
+        assert!(
+            run.status.success(),
+            "run: {}",
+            String::from_utf8_lossy(&run.stderr)
+        );
         // 254 loop opens + 2 more exactly fill the 256-slot table (handles 3..258);
         // the 257th open must return -1 instead of writing past the table.
         assert_eq!(String::from_utf8_lossy(&run.stdout), "257\n258\n-1\n");
@@ -5938,9 +8219,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_rec.o");
         let exep = dir.join("xb_llvm_rec.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).current_dir(&dir).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "16\n");
         let _ = std::fs::remove_file(&objp);
@@ -5983,9 +8276,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_doloop.o");
         let exep = dir.join("xb_llvm_doloop.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "3\n8\n2\n");
         let _ = std::fs::remove_file(&objp);
@@ -6019,9 +8324,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_eof.o");
         let exep = dir.join("xb_llvm_eof.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).current_dir(&dir).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "1\n");
         let _ = std::fs::remove_file(&objp);
@@ -6055,9 +8372,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_funcaddr.o");
         let exep = dir.join("xb_llvm_funcaddr.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "2 3\n");
         let _ = std::fs::remove_file(&objp);
@@ -6097,9 +8426,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_fwdim.o");
         let exep = dir.join("xb_llvm_fwdim.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "ubound=3\nx\ny\n\n\n");
         let _ = std::fs::remove_file(&objp);
@@ -6129,9 +8470,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_uneg.o");
         let exep = dir.join("xb_llvm_uneg.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "-1\n");
         let _ = std::fs::remove_file(&objp);
@@ -6164,9 +8517,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_bareret.o");
         let exep = dir.join("xb_llvm_bareret.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "before\n");
         let _ = std::fs::remove_file(&objp);
@@ -6199,9 +8564,21 @@ mod tests {
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_ifzs.o");
         let exep = dir.join("xb_llvm_ifzs.bin");
-        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "s-empty\ndone\n");
         let _ = std::fs::remove_file(&objp);
@@ -6234,27 +8611,41 @@ mod tests {
                    END FUNCTION\n\
                    END PROGRAM\n";
         let unit = FrontendUnit::parse(src).expect("parse kernel32 LLVM program");
-        let obj = llvm_backend::LlvmBackend.compile(&unit).expect("compile kernel32 LLVM program");
+        let obj = llvm_backend::LlvmBackend
+            .compile(&unit)
+            .expect("compile kernel32 LLVM program");
         let dir = std::env::temp_dir();
         let objp = dir.join("xb_llvm_k32.o");
         let exep = dir.join("xb_llvm_k32.bin");
         std::fs::write(&objp, obj.as_bytes()).unwrap();
-        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
-        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
         let mut child = Command::new(&exep)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .spawn()
             .unwrap();
-        child.stdin.as_mut().unwrap().write_all(b"POSTDATA-123").unwrap();
+        child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(b"POSTDATA-123")
+            .unwrap();
         let run = child.wait_with_output().unwrap();
-        assert_eq!(String::from_utf8_lossy(&run.stdout), "hello-k32\n10\n12\nPOSTDATA-123\n-1\n");
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "hello-k32\n10\n12\nPOSTDATA-123\n-1\n"
+        );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
-
-
-
-
-
 }

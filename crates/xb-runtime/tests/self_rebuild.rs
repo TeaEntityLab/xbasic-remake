@@ -98,9 +98,13 @@ fn self_rebuild_all_selfhost_corpus_identical() {
 
         // Stage-2 execution
         let input: Vec<Vec<u8>> = if in_path.exists() {
-            common::byte_lines(&fs::read(&in_path).unwrap_or_else(|e| panic!("{stem}: read .in failed: {e}")))
+            common::byte_lines(
+                &fs::read(&in_path).unwrap_or_else(|e| panic!("{stem}: read .in failed: {e}")),
+            )
         } else {
-            common::byte_lines(&fs::read(&x_path).unwrap_or_else(|e| panic!("{stem}: read .x failed: {e}")))
+            common::byte_lines(
+                &fs::read(&x_path).unwrap_or_else(|e| panic!("{stem}: read .x failed: {e}")),
+            )
         };
         let mut stage2_lines = Vec::new();
         Interpreter::new()

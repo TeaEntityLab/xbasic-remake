@@ -257,7 +257,10 @@ fn run_path(path: &Path, input_path: Option<&Path>) -> Result<String, CliError> 
     let mut lines = Vec::new();
     let input: Vec<Vec<u8>> = match input_path {
         Some(inp) => std::fs::read(inp)
-            .map_err(|e| CliError::Read { path: inp.display().to_string(), source: e })?
+            .map_err(|e| CliError::Read {
+                path: inp.display().to_string(),
+                source: e,
+            })?
             .split(|b| *b == b'\n')
             .map(|c| c.to_vec())
             .collect(),

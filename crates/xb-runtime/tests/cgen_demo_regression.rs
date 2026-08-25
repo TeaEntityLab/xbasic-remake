@@ -39,10 +39,22 @@ const DEMOS: &[(&str, &str)] = &[
         "qbtoxb",
         "nested-block array DIM → dyn + dual-use array param (CGEN-NESTED-DIM)",
     ),
-    ("aarray", "cross-function gosub_base + array by-ref dual-use"),
-    ("aarray_ISNODE", "int→ptr by-ref array call arg + gosub_base"),
-    ("zap", "$$-const array assign + byref-dual param local DIM ub-hoist"),
-    ("atools", "string scalar+array dual-use (CGEN-STRDUAL) + cross-fn fold"),
+    (
+        "aarray",
+        "cross-function gosub_base + array by-ref dual-use",
+    ),
+    (
+        "aarray_ISNODE",
+        "int→ptr by-ref array call arg + gosub_base",
+    ),
+    (
+        "zap",
+        "$$-const array assign + byref-dual param local DIM ub-hoist",
+    ),
+    (
+        "atools",
+        "string scalar+array dual-use (CGEN-STRDUAL) + cross-fn fold",
+    ),
 ];
 
 /// Interpreter reference output for `source` on empty stdin.
@@ -483,17 +495,29 @@ fn cgen_matches_interpreter_on_xbsourcelib() {
         ("XBSourceLib/utils/mergeTest01.x", "core-lib compile+run"),
         ("XBSourceLib/utils/mergeTest02.x", "core-lib compile+run"),
         ("XBSourceLib/utils/mergeOut02.x", "core-lib compile+run"),
-        ("XBSourceLib/fgr/fgr.x", "array-facet fold (dual-use undimmed)"),
+        (
+            "XBSourceLib/fgr/fgr.x",
+            "array-facet fold (dual-use undimmed)",
+        ),
         ("XBSourceLib/utils/mergeOut.x", "core-lib compile+run"),
         ("XBSourceLib/utils/mergeTest03.x", "core-lib compile+run"),
-        ("XBSourceLib/vgr/vgr.x", "array-facet fold (dual-use undimmed)"),
-        ("XBSourceLib/vgr/vgrOld.x", "array-facet fold (dual-use undimmed)"),
-        ("XBSourceLib/geo/geo.x", "by-ref write-back + shortest-float printing"),
+        (
+            "XBSourceLib/vgr/vgr.x",
+            "array-facet fold (dual-use undimmed)",
+        ),
+        (
+            "XBSourceLib/vgr/vgrOld.x",
+            "array-facet fold (dual-use undimmed)",
+        ),
+        (
+            "XBSourceLib/geo/geo.x",
+            "by-ref write-back + shortest-float printing",
+        ),
     ];
     let mut failures = Vec::new();
     for (rel, feature) in libs {
-        let source = fs::read_to_string(root.join(rel))
-            .unwrap_or_else(|e| panic!("read {rel}: {e}"));
+        let source =
+            fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"));
         let stem = Path::new(rel).file_stem().unwrap().to_str().unwrap();
         let interp = interp_output(&source);
         let native = cgen_output(&source, stem, &tmp);
@@ -941,7 +965,11 @@ END FUNCTION
         native, interp,
         "SHARED scalar array cross-function cgen output differs from interpreter\n  interp={interp:?}\n  cgen  ={native:?}"
     );
-    assert_eq!(interp.trim(), "7/9", "a SHARED array must persist across functions: {interp:?}");
+    assert_eq!(
+        interp.trim(),
+        "7/9",
+        "a SHARED array must persist across functions: {interp:?}"
+    );
 }
 
 /// Locks CGEN-SHARED-ARR for a SHARED composite ARRAY (`SHARED Rec r[]`, member

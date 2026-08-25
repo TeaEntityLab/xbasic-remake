@@ -97,7 +97,11 @@ impl TypedSlot {
         &self.value
     }
     pub(crate) fn new_array_nd(value_type: ValueType, dims: Vec<usize>) -> Self {
-        let flat = if dims.is_empty() { 0 } else { dims.iter().product() };
+        let flat = if dims.is_empty() {
+            0
+        } else {
+            dims.iter().product()
+        };
         Self {
             value_type,
             value: RuntimeValue::default_for(value_type),
@@ -127,7 +131,11 @@ impl TypedSlot {
     /// Reshape to `dims` (row-major), resizing the flat store to the product of the
     /// dimensions (preserving the common prefix).
     pub(crate) fn array_reshape(&mut self, dims: Vec<usize>) {
-        let flat = if dims.is_empty() { 0 } else { dims.iter().product() };
+        let flat = if dims.is_empty() {
+            0
+        } else {
+            dims.iter().product()
+        };
         let fill = RuntimeValue::default_for(self.value_type);
         match &mut self.array {
             Some(arr) => arr.resize(flat, fill),

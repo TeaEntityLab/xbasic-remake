@@ -22,7 +22,14 @@ pub(crate) fn emit_xin_call(name: &str, args: &[IrExpr], out: &mut String) -> bo
     let spec: Option<(&str, &[ArgKind])> = match name {
         "XinInitialize" => Some((
             "xb_xin_initialize",
-            &[ArgKind::Addr, ArgKind::Addr, ArgKind::Addr, ArgKind::Addr, ArgKind::Addr, ArgKind::Addr],
+            &[
+                ArgKind::Addr,
+                ArgKind::Addr,
+                ArgKind::Addr,
+                ArgKind::Addr,
+                ArgKind::Addr,
+                ArgKind::Addr,
+            ],
         )),
         "XinSetDebug" => Some(("xb_xin_set_debug", &[ArgKind::Value])),
         "XinSocketOpen" => Some((
@@ -39,7 +46,12 @@ pub(crate) fn emit_xin_call(name: &str, args: &[IrExpr], out: &mut String) -> bo
         )),
         "XinSocketAccept" => Some((
             "xb_xin_socket_accept",
-            &[ArgKind::Value, ArgKind::Value, ArgKind::Addr, ArgKind::Value],
+            &[
+                ArgKind::Value,
+                ArgKind::Value,
+                ArgKind::Addr,
+                ArgKind::Value,
+            ],
         )),
         "XinSocketRead" | "XinSocketWrite" => Some((
             if name == "XinSocketRead" {
@@ -47,23 +59,48 @@ pub(crate) fn emit_xin_call(name: &str, args: &[IrExpr], out: &mut String) -> bo
             } else {
                 "xb_xin_socket_write"
             },
-            &[ArgKind::Value, ArgKind::Value, ArgKind::Value, ArgKind::Value, ArgKind::Value, ArgKind::Addr],
+            &[
+                ArgKind::Value,
+                ArgKind::Value,
+                ArgKind::Value,
+                ArgKind::Value,
+                ArgKind::Value,
+                ArgKind::Addr,
+            ],
         )),
         "XinSocketClose" => Some(("xb_xin_socket_close", &[ArgKind::Value])),
         "XinSocketGetStatus" => Some((
             "xb_xin_socket_get_status",
             &[
-                ArgKind::Value, ArgKind::Value, ArgKind::Value, ArgKind::Value, ArgKind::Addr,
-                ArgKind::Value, ArgKind::Value, ArgKind::Value,
+                ArgKind::Value,
+                ArgKind::Value,
+                ArgKind::Value,
+                ArgKind::Value,
+                ArgKind::Addr,
+                ArgKind::Value,
+                ArgKind::Value,
+                ArgKind::Value,
             ],
         )),
         "XinSocketGetAddress" => Some((
             "xb_xin_socket_get_address",
-            &[ArgKind::Value, ArgKind::Addr, ArgKind::Addr, ArgKind::Addr, ArgKind::Addr, ArgKind::Addr],
+            &[
+                ArgKind::Value,
+                ArgKind::Addr,
+                ArgKind::Addr,
+                ArgKind::Addr,
+                ArgKind::Addr,
+                ArgKind::Addr,
+            ],
         )),
         "XinSocketConnectRequest" => Some((
             "xb_xin_socket_connect_request",
-            &[ArgKind::Value, ArgKind::Value, ArgKind::Value, ArgKind::Value],
+            &[
+                ArgKind::Value,
+                ArgKind::Value,
+                ArgKind::Value,
+                ArgKind::Value,
+            ],
         )),
         "XinSocketConnectStatus" => Some((
             "xb_xin_socket_connect_status",
@@ -77,7 +114,10 @@ pub(crate) fn emit_xin_call(name: &str, args: &[IrExpr], out: &mut String) -> bo
             "xb_xin_address_number_to_string",
             &[ArgKind::Addr, ArgKind::Addr],
         )),
-        "XinHostNumberToInfo" => Some(("xb_xin_host_number_to_info", &[ArgKind::Value, ArgKind::Addr])),
+        "XinHostNumberToInfo" => Some((
+            "xb_xin_host_number_to_info",
+            &[ArgKind::Value, ArgKind::Addr],
+        )),
         _ => return false,
     };
     let (c_name, kinds) = spec.unwrap();

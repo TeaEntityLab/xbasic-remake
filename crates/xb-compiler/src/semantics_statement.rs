@@ -29,7 +29,15 @@ impl Analyzer {
                 is_array,
                 redim,
                 shared,
-            } => self.dim(name, *suffix, size.as_ref(), extra_dims, *is_array, *redim, *shared),
+            } => self.dim(
+                name,
+                *suffix,
+                size.as_ref(),
+                extra_dims,
+                *is_array,
+                *redim,
+                *shared,
+            ),
             Statement::Assignment {
                 target,
                 suffix,
@@ -88,8 +96,16 @@ impl Analyzer {
             Statement::Call { name, args } => self.call_stmt(name, args),
             Statement::ExitLoop => Ok(CheckedItem::ExitLoop),
             Statement::ExitSelect => Ok(CheckedItem::ExitSelect),
-            Statement::Inc { target, suffix, indices } => self.inc_dec(target, *suffix, true, indices),
-            Statement::Dec { target, suffix, indices } => self.inc_dec(target, *suffix, false, indices),
+            Statement::Inc {
+                target,
+                suffix,
+                indices,
+            } => self.inc_dec(target, *suffix, true, indices),
+            Statement::Dec {
+                target,
+                suffix,
+                indices,
+            } => self.inc_dec(target, *suffix, false, indices),
             Statement::Swap {
                 left,
                 left_suffix,
@@ -97,7 +113,14 @@ impl Analyzer {
                 right,
                 right_suffix,
                 ref right_indices,
-            } => self.swap_stmt(left, *left_suffix, right, *right_suffix, left_indices.as_slice(), right_indices.as_slice()),
+            } => self.swap_stmt(
+                left,
+                *left_suffix,
+                right,
+                *right_suffix,
+                left_indices.as_slice(),
+                right_indices.as_slice(),
+            ),
             Statement::Function(function) => self.function(function),
             Statement::Program(name) => Ok(CheckedItem::ProgramName(name.clone())),
             Statement::Import(_)
@@ -106,8 +129,7 @@ impl Analyzer {
             | Statement::Data(_) => Ok(CheckedItem::Nop),
             Statement::Goto(expr) => match expr {
                 Expression::Identifier { name, suffix: None }
-                    if self.checked_symbol(name).is_err()
-                        || self.functions.contains_key(name) =>
+                    if self.checked_symbol(name).is_err() || self.functions.contains_key(name) =>
                 {
                     // A bare name that is not a local variable, or is a function
                     // name (not a label), resolves as a direct Goto to a label —
@@ -122,8 +144,7 @@ impl Analyzer {
             },
             Statement::Gosub(expr) => match expr {
                 Expression::Identifier { name, suffix: None }
-                    if self.checked_symbol(name).is_err()
-                        || self.functions.contains_key(name) =>
+                    if self.checked_symbol(name).is_err() || self.functions.contains_key(name) =>
                 {
                     Ok(CheckedItem::Gosub(name.clone()))
                 }

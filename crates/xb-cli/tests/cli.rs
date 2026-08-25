@@ -194,7 +194,11 @@ fn cli_compile_llvm_backend_produces_native_executable() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(exe.exists(), "executable was not created at {}", exe.display());
+    assert!(
+        exe.exists(),
+        "executable was not created at {}",
+        exe.display()
+    );
 
     let run = Command::new(&exe).output().unwrap();
     assert!(run.status.success());

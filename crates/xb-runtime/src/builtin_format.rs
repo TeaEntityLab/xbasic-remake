@@ -17,12 +17,12 @@ pub(crate) fn eval_format(args: &[RuntimeValue]) -> Result<RuntimeValue, Runtime
             &fmt,
             &String::from_utf8_lossy(s),
         ))),
-        RuntimeValue::Integer(n) => {
-            Ok(RuntimeValue::from_string(format_num(&fmt, *n as f64, false)))
-        }
-        RuntimeValue::Giant(n) => {
-            Ok(RuntimeValue::from_string(format_num(&fmt, *n as f64, false)))
-        }
+        RuntimeValue::Integer(n) => Ok(RuntimeValue::from_string(format_num(
+            &fmt, *n as f64, false,
+        ))),
+        RuntimeValue::Giant(n) => Ok(RuntimeValue::from_string(format_num(
+            &fmt, *n as f64, false,
+        ))),
         RuntimeValue::Float(f) => Ok(RuntimeValue::from_string(format_num(&fmt, *f, true))),
     }
 }

@@ -121,7 +121,9 @@ pub(crate) fn emit_swap(
     // Scope the temp in a block so repeated SWAPs of the same left variable
     // (two `SWAP a, x` in one function) don't redeclare the temp.
     out.push_str(ind);
-    out.push_str(&format!("{{ {lt} {tmp} = {ln}; {ln} = {rn}; {rn} = {tmp}; }}\n"));
+    out.push_str(&format!(
+        "{{ {lt} {tmp} = {ln}; {ln} = {rn}; {rn} = {tmp}; }}\n"
+    ));
 }
 
 pub(crate) fn emit_body<'a, I>(items: I, out: &mut String, indent: usize)

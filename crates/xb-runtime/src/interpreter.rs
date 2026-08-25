@@ -229,8 +229,10 @@ pub(crate) fn exec_items(
                         }
                     }
                 }
-                let v =
-                    crate::helpers::coerce_value(eval(program, value, state, output)?, target.value_type);
+                let v = crate::helpers::coerce_value(
+                    eval(program, value, state, output)?,
+                    target.value_type,
+                );
                 // Auto-vivify the slot if it doesn't exist in either local or
                 // shared scope (matches the C backend's hoist-all-used-symbols
                 // behavior; reads already auto-vivify via read_slot/ArrayAccess).
@@ -292,21 +294,20 @@ pub(crate) fn exec_items(
                     Some(RuntimeValue::Integer(n)) => *n as usize,
                     _ => src.len(),
                 };
-                let slot = if target_shared {
-                    state
-                        .shared
-                        .get_mut(target_name)
-                        .ok_or_else(|| RuntimeError::UnknownSlot {
-                            name: target_name.clone(),
+                let slot =
+                    if target_shared {
+                        state.shared.get_mut(target_name).ok_or_else(|| {
+                            RuntimeError::UnknownSlot {
+                                name: target_name.clone(),
+                            }
                         })?
-                } else {
-                    state
-                        .slots
-                        .get_mut(target_name)
-                        .ok_or_else(|| RuntimeError::UnknownSlot {
-                            name: target_name.clone(),
+                    } else {
+                        state.slots.get_mut(target_name).ok_or_else(|| {
+                            RuntimeError::UnknownSlot {
+                                name: target_name.clone(),
+                            }
                         })?
-                };
+                    };
                 if let RuntimeValue::String(ref mut dst) = slot.value {
                     let si = (start_i as usize).saturating_sub(1);
                     let copy = copy_len.min(src.len()).min(dst.len().saturating_sub(si));

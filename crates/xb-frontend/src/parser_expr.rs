@@ -461,7 +461,10 @@ impl Parser {
                 if matches!(self.peek_kind(), TokenKind::Symbol(')')) {
                     self.index += 1;
                 }
-                let base = Expression::Identifier { name: full.trim_end_matches('$').to_string(), suffix: Some(TypeSuffix::String) };
+                let base = Expression::Identifier {
+                    name: full.trim_end_matches('$').to_string(),
+                    suffix: Some(TypeSuffix::String),
+                };
                 return Ok(Self::byte_read_desugar(base, idx));
             }
             let args = self.parse_args()?;
@@ -581,8 +584,7 @@ impl Parser {
                     // BYTE read on the element: text$[l]{n} →
                     // ASC(MID$(text$[l], n+1, 1)) at parse time. A REAL `(` is
                     // a call (legacy behavior).
-                    let brace_call =
-                        self.tokens.get(self.index).is_some_and(|t| t.from_brace);
+                    let brace_call = self.tokens.get(self.index).is_some_and(|t| t.from_brace);
                     let args = self.parse_args()?;
                     if brace_call && full.ends_with('$') {
                         let elem = Expression::ArrayAccess {

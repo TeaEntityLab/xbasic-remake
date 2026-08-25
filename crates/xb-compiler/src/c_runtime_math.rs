@@ -62,5 +62,7 @@ pub(crate) fn emit_math_functions(out: &mut String) {
     out.push_str("static int xb_rinchri2(const char* s, const char* set) { return xb_rinchri(s, set, xb_len(s)); }\n");
     out.push_str("static char* xb_mid2(const char* s, int start) { int slen = xb_len(s); if (start < 1) start = 1; int off = start - 1; if (off >= slen) return xb_str(\"\"); int len = slen - off; char* r = xb_alloc((size_t)len); memcpy(r, s + off, (size_t)len); return r; }\n");
     out.push_str("static char* xb_stuff(const char* into, const char* from, int start, int len) { int ilen = xb_len(into); int flen = xb_len(from); int si = start - 1; if (si < 0) si = 0; if (si > ilen) si = ilen; int avail = ilen - si; int max_from = (len < 0) ? flen : (len < flen ? len : flen); int p2 = max_from < avail ? max_from : avail; char* r = xb_alloc((size_t)ilen); memcpy(r, into, (size_t)si); memcpy(r + si, from, (size_t)p2); memcpy(r + si + p2, into + si + p2, (size_t)(ilen - si - p2)); return r; }\n");
-    out.push_str("static char* xb_version(int _) { (void)_; return xb_from_cstr(xb_version_str); }\n");
+    out.push_str(
+        "static char* xb_version(int _) { (void)_; return xb_from_cstr(xb_version_str); }\n",
+    );
 }

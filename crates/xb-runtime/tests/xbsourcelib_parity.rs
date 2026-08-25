@@ -77,8 +77,7 @@ fn xbsourcelib_interp_matches_compiled() {
         let interp = run_interp(&src);
         let compiled = run_compiled(&src, &tmp);
         assert_eq!(
-            interp,
-            compiled,
+            interp, compiled,
             "output diverges for {prog}:\n  interp:   {interp:?}\n  compiled: {compiled:?}"
         );
     }
@@ -96,7 +95,11 @@ fn xbsourcelib_ary_compiles_clean() {
     let _ = std::fs::create_dir_all(&tmp);
     for prog in ["XBSourceLib/ary/ary.x", "XBSourceLib/ary/ary1.0001.x"] {
         let src = root.join(prog);
-        let emit = Command::new(&xb).arg("--emit-c").arg(&src).output().expect("emit");
+        let emit = Command::new(&xb)
+            .arg("--emit-c")
+            .arg(&src)
+            .output()
+            .expect("emit");
         let c_file = tmp.join("prog.c");
         std::fs::write(&c_file, &emit.stdout).unwrap();
         let cc = Command::new("cc")

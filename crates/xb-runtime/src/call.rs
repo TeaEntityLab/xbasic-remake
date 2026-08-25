@@ -453,7 +453,11 @@ pub(crate) fn call_function(
         };
         let mut passed_array = false;
         if let Some(s) = arg_symbol {
-            if let Some(src) = state.slots.get(&s.name).or_else(|| state.shared.get(&s.name)) {
+            if let Some(src) = state
+                .slots
+                .get(&s.name)
+                .or_else(|| state.shared.get(&s.name))
+            {
                 if src.array.is_some() {
                     slot.array = src.array.clone();
                     slot.dims = src.dims.clone();
@@ -606,7 +610,11 @@ fn xst_write_back(expr: &IrExpr, val: RuntimeValue, state: &mut ExecutionState) 
         _ => return,
     };
     let coerced = crate::helpers::coerce_value(val, vt);
-    let table = if shared { &mut state.shared } else { &mut state.slots };
+    let table = if shared {
+        &mut state.shared
+    } else {
+        &mut state.slots
+    };
     table
         .entry(name)
         .or_insert_with(|| TypedSlot::new(vt))
@@ -629,7 +637,9 @@ fn array_lvalue(expr: &IrExpr) -> (String, bool) {
 
 fn slot_array(state: &ExecutionState, name: &str, shared: bool) -> Vec<RuntimeValue> {
     let tbl = if shared { &state.shared } else { &state.slots };
-    tbl.get(name).and_then(|s| s.array.clone()).unwrap_or_default()
+    tbl.get(name)
+        .and_then(|s| s.array.clone())
+        .unwrap_or_default()
 }
 
 /// RT-KERNEL32 `WriteFile(h, &buf$, bytes, &written, _)`: write up to `bytes`
@@ -767,16 +777,28 @@ fn xst_quicksort(
     let (sorted, perm) = crate::xst::quicksort(&elems, low, high, mode);
     let sorted_len = sorted.len();
     {
-        let tbl = if a_shared { &mut state.shared } else { &mut state.slots };
+        let tbl = if a_shared {
+            &mut state.shared
+        } else {
+            &mut state.slots
+        };
         if let Some(slot) = tbl.get_mut(&a_name) {
             slot.array = Some(sorted);
         }
     }
     let (n_name, n_shared) = array_lvalue(&args[1]);
-    let tbl = if n_shared { &mut state.shared } else { &mut state.slots };
+    let tbl = if n_shared {
+        &mut state.shared
+    } else {
+        &mut state.slots
+    };
     if let Some(slot) = tbl.get_mut(&n_name) {
         if slot.array.as_ref().is_some_and(|a| !a.is_empty()) {
-            slot.array = Some(perm.iter().map(|&x| RuntimeValue::Integer(x as i32)).collect());
+            slot.array = Some(
+                perm.iter()
+                    .map(|&x| RuntimeValue::Integer(x as i32))
+                    .collect(),
+            );
             slot.dims = vec![sorted_len];
         }
     }
@@ -794,7 +816,11 @@ fn xst_copyarray(
     let (dst_name, dst_shared) = array_lvalue(&args[1]);
     let src = slot_array(state, &src_name, src_shared);
     let len = src.len();
-    let tbl = if dst_shared { &mut state.shared } else { &mut state.slots };
+    let tbl = if dst_shared {
+        &mut state.shared
+    } else {
+        &mut state.slots
+    };
     if let Some(slot) = tbl.get_mut(&dst_name) {
         slot.array = Some(src);
         slot.dims = vec![len];
@@ -818,7 +844,11 @@ fn gui_next_callback(
     }
     state.gui_close_sent = true;
     xst_write_back(&args[0], RuntimeValue::Integer(1), state);
-    xst_write_back(&args[1], RuntimeValue::String(b"CloseWindow".to_vec()), state);
+    xst_write_back(
+        &args[1],
+        RuntimeValue::String(b"CloseWindow".to_vec()),
+        state,
+    );
     Ok(RuntimeValue::Integer(-1))
 }
 

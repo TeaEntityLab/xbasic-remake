@@ -116,7 +116,11 @@ impl Analyzer {
             Statement::Gosub(Expression::Identifier { name, .. }) => {
                 out.insert(name.clone());
             }
-            Statement::If { then_body, else_body, .. } => {
+            Statement::If {
+                then_body,
+                else_body,
+                ..
+            } => {
                 for i in then_body {
                     Self::collect_stmt_gosub_targets(i, out);
                 }

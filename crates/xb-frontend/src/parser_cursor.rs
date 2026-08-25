@@ -399,7 +399,11 @@ impl Parser {
                     }
                     self.expect_symbol(']')?;
                 }
-                let name = if is_array { full_name(name, suffix) } else { name };
+                let name = if is_array {
+                    full_name(name, suffix)
+                } else {
+                    name
+                };
                 params.push(Param {
                     name,
                     suffix,

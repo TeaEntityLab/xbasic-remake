@@ -23,9 +23,11 @@ fn any(items: &[IrItem], pred: &impl Fn(&IrItem) -> bool) -> bool {
     items.iter().any(|it| {
         pred(it)
             || match it {
-                IrItem::If { then_body, else_body, .. } => {
-                    any(then_body, pred) || else_body.as_deref().is_some_and(|b| any(b, pred))
-                }
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => any(then_body, pred) || else_body.as_deref().is_some_and(|b| any(b, pred)),
                 IrItem::While { body, .. }
                 | IrItem::For { body, .. }
                 | IrItem::DoLoop { body, .. } => any(body, pred),
@@ -61,5 +63,7 @@ pub(crate) fn emit_computed_goto_prologue(body: &[IrItem], out: &mut String, ind
     // to accept the function's `goto *expr`; the target address is supplied at run
     // time by the program (GOADDR / the gosub stack).
     out.push_str(&ind);
-    out.push_str("if (0) { void* _xb_la = &&_xb_cg_dummy; (void)_xb_la; _xb_cg_dummy: (void)0; }\n");
+    out.push_str(
+        "if (0) { void* _xb_la = &&_xb_cg_dummy; (void)_xb_la; _xb_cg_dummy: (void)0; }\n",
+    );
 }

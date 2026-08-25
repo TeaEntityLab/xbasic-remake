@@ -323,7 +323,15 @@ impl Parser {
         loop {
             let (name, suffix) = Self::shared_name_suffix(self.expect_name_or_keyword()?);
             let (size, is_array, extra_dims) = self.parse_array_size()?;
-            dims.push(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: false, shared: false });
+            dims.push(Statement::Dim {
+                name,
+                suffix,
+                size,
+                extra_dims,
+                is_array,
+                redim: false,
+                shared: false,
+            });
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
             } else {
@@ -1186,16 +1194,26 @@ impl Parser {
         }
         self.expect_line_end()?;
         if is_inc {
-            Ok(Statement::Inc { target: full, suffix, indices })
+            Ok(Statement::Inc {
+                target: full,
+                suffix,
+                indices,
+            })
         } else {
-            Ok(Statement::Dec { target: full, suffix, indices })
+            Ok(Statement::Dec {
+                target: full,
+                suffix,
+                indices,
+            })
         }
     }
     fn swap_stmt(&mut self) -> Result<Statement, ParseError> {
         // Parse one side: `name[subs...]` (subscripts are CAPTURED, not
         // discarded - `SWAP text$[i], text$` must exchange the element with
         // the scalar). Returns (name, suffix, indices).
-        fn side(p: &mut Parser) -> Result<(String, Option<TypeSuffix>, Vec<Expression>), ParseError> {
+        fn side(
+            p: &mut Parser,
+        ) -> Result<(String, Option<TypeSuffix>, Vec<Expression>), ParseError> {
             let (target, suffix) = p.expect_name_or_keyword()?;
             let mut full = target;
             let mut indices: Vec<Expression> = Vec::new();

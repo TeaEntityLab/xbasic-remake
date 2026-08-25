@@ -318,7 +318,11 @@ impl Analyzer {
                 CheckedExprKind::IntegerLiteral("1".to_owned()),
                 ValueType::Integer,
             );
-            let op = if is_inc { ArithmeticOp::Add } else { ArithmeticOp::Sub };
+            let op = if is_inc {
+                ArithmeticOp::Add
+            } else {
+                ArithmeticOp::Sub
+            };
             let value = CheckedExpr::new(
                 CheckedExprKind::Arithmetic {
                     op,
@@ -404,13 +408,17 @@ impl Analyzer {
             crate::c_emit_expr::sanitize_c_ident(right)
         );
         let left_vt = if left_indices.is_empty() {
-            self.checked_symbol(left).map(|s| s.value_type).unwrap_or(ValueType::from_suffix(_left_suffix))
+            self.checked_symbol(left)
+                .map(|s| s.value_type)
+                .unwrap_or(ValueType::from_suffix(_left_suffix))
         } else {
             // Indexed side: element type of the referenced array.
             self.auto_symbol(left).value_type
         };
         let right_vt = if right_indices.is_empty() {
-            self.checked_symbol(right).map(|s| s.value_type).unwrap_or(ValueType::from_suffix(_right_suffix))
+            self.checked_symbol(right)
+                .map(|s| s.value_type)
+                .unwrap_or(ValueType::from_suffix(_right_suffix))
         } else {
             self.auto_symbol(right).value_type
         };
@@ -418,12 +426,18 @@ impl Analyzer {
         let tmp_sym = CheckedSymbol::new(tmp_name, tmp_vt);
         let mut items: Vec<CheckedItem> = Vec::new();
         let left_read = if left_indices.is_empty() {
-            self.expr(&Expression::Identifier { name: left.to_owned(), suffix: None })?
+            self.expr(&Expression::Identifier {
+                name: left.to_owned(),
+                suffix: None,
+            })?
         } else {
             self.array_access(left, &left_indices[0], &left_indices[1..])?
         };
         let right_read = if right_indices.is_empty() {
-            self.expr(&Expression::Identifier { name: right.to_owned(), suffix: None })?
+            self.expr(&Expression::Identifier {
+                name: right.to_owned(),
+                suffix: None,
+            })?
         } else {
             self.array_access(right, &right_indices[0], &right_indices[1..])?
         };
@@ -462,26 +476,17 @@ impl Analyzer {
                 target: CheckedSymbol::new(right.to_owned(), right_vt),
                 index: r_index,
                 extra_indices: r_extra,
-                value: CheckedExpr::new(
-                    CheckedExprKind::Symbol(tmp_sym),
-                    tmp_vt,
-                ),
+                value: CheckedExpr::new(CheckedExprKind::Symbol(tmp_sym), tmp_vt),
             });
         } else if self.shared_scalars.contains(right) {
             items.push(CheckedItem::SharedAssignment {
                 target: CheckedSymbol::new(self.slot_name(right, None), right_vt),
-                value: CheckedExpr::new(
-                    CheckedExprKind::Symbol(tmp_sym),
-                    tmp_vt,
-                ),
+                value: CheckedExpr::new(CheckedExprKind::Symbol(tmp_sym), tmp_vt),
             });
         } else {
             items.push(CheckedItem::Assignment {
                 target: self.auto_symbol(right),
-                value: CheckedExpr::new(
-                    CheckedExprKind::Symbol(tmp_sym),
-                    tmp_vt,
-                ),
+                value: CheckedExpr::new(CheckedExprKind::Symbol(tmp_sym), tmp_vt),
             });
         }
         Ok(CheckedItem::Compound(items))

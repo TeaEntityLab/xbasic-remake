@@ -2,7 +2,6 @@ use crate::helpers::{parse_float, parse_giant, parse_integer, read_slot};
 use crate::interpreter::{exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue};
 use xb_compiler::{BooleanOp, IrExpr, IrExprKind, IrItem, IrProgram, LogicalOp, ValueType};
 
-
 /// 1-based index of the top-level `IrItem::Function` named `target` (0 if absent);
 /// the stable runtime value of `&Func` and a `FUNCADDR` slot.
 pub(crate) fn function_id(program: &IrProgram, target: &str) -> i32 {
@@ -161,7 +160,11 @@ pub(crate) fn eval_expr(
                     }
                 }
             }
-            let value = match state.slots.get(&symbol.name).or_else(|| state.shared.get(&symbol.name)) {
+            let value = match state
+                .slots
+                .get(&symbol.name)
+                .or_else(|| state.shared.get(&symbol.name))
+            {
                 Some(slot) => {
                     match slot.array_offset(&idxs) {
                         Some(off) => slot.array_get(off)?,

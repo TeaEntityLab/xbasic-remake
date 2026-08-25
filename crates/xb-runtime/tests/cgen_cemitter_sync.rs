@@ -80,12 +80,7 @@ fn cgen_emit(cgen_exe: &Path, ir: &str) -> Vec<u8> {
 
 /// Compile C source bytes to a native exe, run it with optional raw stdin,
 /// and return stdout bytes verbatim (no char-decode round trip).
-fn compile_and_exec_bytes(
-    tmp: &Path,
-    name: &str,
-    c: &[u8],
-    input: Option<&[u8]>,
-) -> Vec<u8> {
+fn compile_and_exec_bytes(tmp: &Path, name: &str, c: &[u8], input: Option<&[u8]>) -> Vec<u8> {
     let c_path = tmp.join(format!("{name}.c"));
     let exe = tmp.join(name);
     fs::write(&c_path, c).expect("write c");
@@ -188,7 +183,11 @@ fn compile_and_exec_in(
     cmd.current_dir(run_dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() });
+        .stdin(if input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        });
     let mut child = cmd.spawn().expect("spawn native exe");
     if let Some(inp) = input {
         child
@@ -345,7 +344,10 @@ fn cemitter_and_cgen_agree_on_functionless_module_dim() {
     let self_c = cgen_emit(&cgen_exe, &ir);
     let self_out = compile_and_exec(&tmp, "nofn_self", &self_c, None);
     assert_eq!(interp_out, "0\n", "interpreter reference");
-    assert_eq!(rust_out, interp_out, "Rust CEmitter function-less module DIM");
+    assert_eq!(
+        rust_out, interp_out,
+        "Rust CEmitter function-less module DIM"
+    );
     assert_eq!(self_out, interp_out, "cgen.x function-less module DIM");
     let _ = fs::remove_dir_all(&tmp);
 }
@@ -641,7 +643,10 @@ fn cemitter_and_cgen_agree_on_open_mode_matrix() {
     let cgen_exe = build_native_cgen(&tmp);
     let run = |dir: &Path, tag: &str, cgen: Option<&Path>| -> String {
         let p = |name: &str| dir.join(format!("{tag}_{name}"));
-        for name in ["rd", "wr", "rw", "wrnew", "rwnew", "rdshare", "wrshare", "rwshare", "nbwr", "nbrw", "invalid"] {
+        for name in [
+            "rd", "wr", "rw", "wrnew", "rwnew", "rdshare", "wrshare", "rwshare", "nbwr", "nbrw",
+            "invalid",
+        ] {
             fs::write(p(name), b"abc").expect("seed OPEN mode file");
         }
         let q = |path: &Path| path.to_string_lossy().replace('\\', "\\\\");
@@ -663,12 +668,26 @@ fn cemitter_and_cgen_agree_on_open_mode_matrix() {
              f = OPEN(\"{}\", 0x20) : PRINT f : CLOSE(f)\n\
              f = OPEN(\"{}\", 0x30) : PRINT f : CLOSE(f)\n\
              END FUNCTION\n",
-            q(&p("rd")), q(&p("wr")), q(&p("rw")), q(&p("wrnew")), q(&p("rwnew")),
-            q(&p("rdshare")), q(&p("wrshare")), q(&p("rwshare")), q(&p("nbwr")),
-            q(&p("nbrw")), q(&p("invalid")), q(&p("missing_rd")), q(&p("missing_rdshare")),
-            q(&p("create_wrshare")), q(&p("create_rwshare")),
+            q(&p("rd")),
+            q(&p("wr")),
+            q(&p("rw")),
+            q(&p("wrnew")),
+            q(&p("rwnew")),
+            q(&p("rdshare")),
+            q(&p("wrshare")),
+            q(&p("rwshare")),
+            q(&p("nbwr")),
+            q(&p("nbrw")),
+            q(&p("invalid")),
+            q(&p("missing_rd")),
+            q(&p("missing_rdshare")),
+            q(&p("create_wrshare")),
+            q(&p("create_rwshare")),
         );
-        let prog = FrontendUnit::parse(&src).expect("parse OPEN mode matrix").lower_ir().expect("lower OPEN mode matrix");
+        let prog = FrontendUnit::parse(&src)
+            .expect("parse OPEN mode matrix")
+            .lower_ir()
+            .expect("lower OPEN mode matrix");
         if let Some(cgen_exe) = cgen {
             let ir = TextIrEmitter::new().emit_program(&prog);
             let c = cgen_emit(cgen_exe, &ir);
@@ -678,7 +697,9 @@ fn cemitter_and_cgen_agree_on_open_mode_matrix() {
             compile_and_exec(&tmp, "open_rust", c.as_bytes(), None)
         } else {
             let mut output = Vec::new();
-            Interpreter::new().execute_main_with_input(&prog, Vec::new(), &mut output).expect("interpret OPEN mode matrix");
+            Interpreter::new()
+                .execute_main_with_input(&prog, Vec::new(), &mut output)
+                .expect("interpret OPEN mode matrix");
             output.into_iter().map(|line| format!("{line}\n")).collect()
         }
     };
@@ -704,14 +725,29 @@ fn run_c_with_timeout(tmp: &Path, name: &str, c: &[u8], timeout: std::time::Dura
     let c_path = tmp.join(format!("{name}.c"));
     let exe = tmp.join(name);
     fs::write(&c_path, c).expect("write C");
-    let cc = Command::new(common::cc::cc()).args(["-o", exe.to_str().unwrap(), c_path.to_str().unwrap()]).output().expect("cc");
-    assert!(cc.status.success(), "cc {name}: {}", String::from_utf8_lossy(&cc.stderr));
-    let mut child = Command::new(common::exe_path(&exe)).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("spawn");
+    let cc = Command::new(common::cc::cc())
+        .args(["-o", exe.to_str().unwrap(), c_path.to_str().unwrap()])
+        .output()
+        .expect("cc");
+    assert!(
+        cc.status.success(),
+        "cc {name}: {}",
+        String::from_utf8_lossy(&cc.stderr)
+    );
+    let mut child = Command::new(common::exe_path(&exe))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn");
     let deadline = std::time::Instant::now() + timeout;
     loop {
         if child.try_wait().expect("try_wait").is_some() {
             let out = child.wait_with_output().expect("collect output");
-            assert!(out.status.success(), "{name}: {}", String::from_utf8_lossy(&out.stderr));
+            assert!(
+                out.status.success(),
+                "{name}: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
             return out.stdout.iter().map(|&b| b as char).collect();
         }
         if std::time::Instant::now() >= deadline {
@@ -741,13 +777,21 @@ fn cemitter_and_cgen_apply_nonblock_to_fifo() {
         assert_eq!(rc, 0, "mkfifo {tag}: {}", std::io::Error::last_os_error());
         let path = fifo.to_string_lossy().replace('\\', "\\\\");
         let src = format!("VERSION \"1\"\nFUNCTION Main\nf = OPEN(\"{path}\", 0x800)\nPRINT f\nCLOSE(f)\nEND FUNCTION\n");
-        let prog = FrontendUnit::parse(&src).expect("parse FIFO OPEN").lower_ir().expect("lower FIFO OPEN");
+        let prog = FrontendUnit::parse(&src)
+            .expect("parse FIFO OPEN")
+            .lower_ir()
+            .expect("lower FIFO OPEN");
         let c = if let Some(cgen_exe) = cgen {
             cgen_emit(cgen_exe, &TextIrEmitter::new().emit_program(&prog))
         } else {
             CEmitter::new().emit_program(&prog).into_bytes()
         };
-        let out = run_c_with_timeout(&tmp, &format!("fifo_{tag}"), &c, std::time::Duration::from_secs(3));
+        let out = run_c_with_timeout(
+            &tmp,
+            &format!("fifo_{tag}"),
+            &c,
+            std::time::Duration::from_secs(3),
+        );
         assert_eq!(out, "3\n");
         let _ = fs::remove_file(fifo);
     };
@@ -795,8 +839,14 @@ fn cemitter_and_cgen_agree_on_embedded_nul_strings() {
     // The NUL byte (0x00) sits between AB and CD; LEN is 5 (not 4), and
     // LEN(CHR$(0)) is 1 (not 0) — i.e. no truncation at the first NUL.
     assert_eq!(interp_out, "5\nAB\u{0}CD\n1\n", "interpreter reference");
-    assert_eq!(rust_out, interp_out, "CEmitter dropped/truncated the embedded NUL");
-    assert_eq!(self_out, interp_out, "cgen.x dropped/truncated the embedded NUL");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter dropped/truncated the embedded NUL"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x dropped/truncated the embedded NUL"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -893,7 +943,10 @@ fn cemitter_and_cgen_agree_on_high_byte_strings() {
     // no NUL truncation. `compile_and_exec` decodes each output byte as a char.
     let expected = "2\n\u{C8}\u{FF}\n";
     assert_eq!(rust_out, expected, "CEmitter corrupted high bytes");
-    assert_eq!(self_out, rust_out, "cgen.x diverged from CEmitter on high bytes");
+    assert_eq!(
+        self_out, rust_out,
+        "cgen.x diverged from CEmitter on high bytes"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -955,8 +1008,14 @@ fn cemitter_and_cgen_agree_on_computed_goto() {
 
     // sel = 2 selects PathB by computed jump, then falls to Done.
     assert_eq!(interp_out, "path B\ndone\n", "interpreter reference");
-    assert_eq!(rust_out, interp_out, "CEmitter computed-GOTO dispatch differs");
-    assert_eq!(self_out, interp_out, "cgen.x computed-GOTO dispatch differs");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter computed-GOTO dispatch differs"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x computed-GOTO dispatch differs"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1008,8 +1067,14 @@ fn cemitter_and_cgen_agree_on_builtin_assign() {
 
     // The AT-write no-ops, but Side() (the value) must still run for its side effect.
     assert_eq!(interp_out, "side effect\ndone\n", "interpreter reference");
-    assert_eq!(rust_out, interp_out, "CEmitter dropped the AT-write value side effect");
-    assert_eq!(self_out, interp_out, "cgen.x dropped the AT-write value side effect");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter dropped the AT-write value side effect"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x dropped the AT-write value side effect"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1061,7 +1126,10 @@ fn cemitter_and_cgen_agree_on_unary_pos_and_size() {
 
     // +7=7; SIZE(XLONG)=4; SIZE(DOUBLE)=8; SIZE(x:int)=4; SIZE(int a[3])=16 (4 elems x 4).
     assert_eq!(interp_out, "7\n4\n8\n4\n16\n", "interpreter reference");
-    assert_eq!(rust_out, interp_out, "CEmitter diverged on unary pos / SIZE");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter diverged on unary pos / SIZE"
+    );
     assert_eq!(self_out, interp_out, "cgen.x diverged on unary pos / SIZE");
     let _ = fs::remove_dir_all(&tmp);
 }
@@ -1145,8 +1213,14 @@ fn cemitter_and_cgen_agree_on_float_arith() {
         interp_out.starts_with("0.333"),
         "1.0 / 3.0 must be float 0.333..., not truncated to 0: {interp_out:?}"
     );
-    assert_eq!(rust_out, self_out, "cgen.x float-arith typing differs from CEmitter");
-    assert_eq!(rust_out, interp_out, "float-arith typing differs from interpreter");
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x float-arith typing differs from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "float-arith typing differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1203,7 +1277,10 @@ fn cemitter_and_cgen_agree_on_multidim_array() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(interp_out, "16\n42\n", "multidim reference output");
-    assert_eq!(rust_out, self_out, "cgen.x multi-dim differs from CEmitter (sync drift)");
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x multi-dim differs from CEmitter (sync drift)"
+    );
     assert_eq!(rust_out, interp_out, "multi-dim differs from interpreter");
     let _ = fs::remove_dir_all(&tmp);
 }
@@ -1256,9 +1333,18 @@ fn cemitter_and_cgen_agree_on_undeclared_local() {
         .expect("interpret undeclared-local program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "5\n0\n1\n2\n3\nhi\n10\n", "undeclared-local reference output");
-    assert_eq!(rust_out, self_out, "cgen.x undeclared-local hoisting differs from CEmitter");
-    assert_eq!(rust_out, interp_out, "undeclared-local hoisting differs from interpreter");
+    assert_eq!(
+        interp_out, "5\n0\n1\n2\n3\nhi\n10\n",
+        "undeclared-local reference output"
+    );
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x undeclared-local hoisting differs from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "undeclared-local hoisting differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1309,9 +1395,18 @@ fn cemitter_and_cgen_agree_on_non_main_entry() {
         .expect("interpret non-main-entry program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "from entry\n21\n", "non-main-entry reference output");
-    assert_eq!(rust_out, self_out, "cgen.x non-Main entry differs from CEmitter");
-    assert_eq!(rust_out, interp_out, "non-Main entry differs from interpreter");
+    assert_eq!(
+        interp_out, "from entry\n21\n",
+        "non-main-entry reference output"
+    );
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x non-Main entry differs from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "non-Main entry differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1366,8 +1461,14 @@ fn cemitter_and_cgen_agree_on_unknown_call() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(interp_out, "0\n15\ndone\n", "unknown-call reference output");
-    assert_eq!(rust_out, self_out, "cgen.x unknown-call handling differs from CEmitter");
-    assert_eq!(rust_out, interp_out, "unknown-call handling differs from interpreter");
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x unknown-call handling differs from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "unknown-call handling differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1417,7 +1518,10 @@ fn cemitter_and_cgen_agree_on_bare_return_no_gosub() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(interp_out, "big\n", "bare-return reference output");
-    assert_eq!(rust_out, self_out, "cgen.x bare-return differs from CEmitter");
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x bare-return differs from CEmitter"
+    );
     assert_eq!(rust_out, interp_out, "bare-return differs from interpreter");
     let _ = fs::remove_dir_all(&tmp);
 }
@@ -1466,9 +1570,18 @@ fn cemitter_and_cgen_agree_on_duplicate_function() {
         .expect("interpret duplicate-function program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "1\n", "duplicate-function first-wins reference output");
-    assert_eq!(rust_out, self_out, "cgen.x function dedup differs from CEmitter");
-    assert_eq!(rust_out, interp_out, "function dedup differs from interpreter");
+    assert_eq!(
+        interp_out, "1\n",
+        "duplicate-function first-wins reference output"
+    );
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x function dedup differs from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "function dedup differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1516,9 +1629,18 @@ fn cemitter_and_cgen_agree_on_arg_count() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     // Add(1,2,3,4) drops 3,4 -> 3; Add(10) pads y=0 -> 10.
-    assert_eq!(interp_out, "3\n10\n", "arg-count reconciliation reference output");
-    assert_eq!(rust_out, self_out, "cgen.x arg-count reconciliation differs from CEmitter");
-    assert_eq!(rust_out, interp_out, "arg-count reconciliation differs from interpreter");
+    assert_eq!(
+        interp_out, "3\n10\n",
+        "arg-count reconciliation reference output"
+    );
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x arg-count reconciliation differs from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "arg-count reconciliation differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1560,9 +1682,18 @@ fn cemitter_and_cgen_agree_on_inline_helper() {
         .expect("interpret inline program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "Prompt: \ngot[]\n", "INLINE$ empty-stdin reference output");
-    assert_eq!(rust_out, self_out, "cgen.x INLINE$ helper differs from CEmitter");
-    assert_eq!(rust_out, interp_out, "INLINE$ helper differs from interpreter");
+    assert_eq!(
+        interp_out, "Prompt: \ngot[]\n",
+        "INLINE$ empty-stdin reference output"
+    );
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x INLINE$ helper differs from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "INLINE$ helper differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1607,9 +1738,18 @@ fn cemitter_and_cgen_agree_on_escaped_quote_concat() {
         .expect("interpret escaped-quote program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "start \"MID\" end\n", "escaped-quote concat reference output");
-    assert_eq!(rust_out, self_out, "cgen.x escaped-quote concat differs from CEmitter");
-    assert_eq!(rust_out, interp_out, "escaped-quote concat differs from interpreter");
+    assert_eq!(
+        interp_out, "start \"MID\" end\n",
+        "escaped-quote concat reference output"
+    );
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x escaped-quote concat differs from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "escaped-quote concat differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1655,8 +1795,14 @@ fn cemitter_and_cgen_agree_on_type_suffix_idents() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(interp_out, "5.5\n7\n", "type-suffix reference output");
-    assert_eq!(rust_out, self_out, "cgen.x type-suffix identifier differs from CEmitter");
-    assert_eq!(rust_out, interp_out, "type-suffix identifier differs from interpreter");
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x type-suffix identifier differs from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "type-suffix identifier differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1698,9 +1844,18 @@ fn cemitter_and_cgen_agree_on_unknown_string_call() {
         .expect("interpret unknown-string-call program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "[]\n", "unknown string-call reference output (empty, not null)");
-    assert_eq!(rust_out, self_out, "cgen.x unknown string-call default differs from CEmitter");
-    assert_eq!(rust_out, interp_out, "unknown string-call default differs from interpreter");
+    assert_eq!(
+        interp_out, "[]\n",
+        "unknown string-call reference output (empty, not null)"
+    );
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x unknown string-call default differs from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "unknown string-call default differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1746,8 +1901,14 @@ fn cemitter_and_cgen_agree_on_leading_zero_literal() {
 
     // a[8]=5 + a[9]=6 = 11; 0x1F = 31 (hex preserved).
     assert_eq!(interp_out, "11\n31\n", "leading-zero/hex reference output");
-    assert_eq!(rust_out, self_out, "cgen.x leading-zero literal differs from CEmitter");
-    assert_eq!(rust_out, interp_out, "leading-zero literal differs from interpreter");
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x leading-zero literal differs from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "leading-zero literal differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1791,9 +1952,18 @@ fn cemitter_and_cgen_agree_on_eof_arg() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     // Empty stdin -> at EOF.
-    assert_eq!(interp_out, "ateof\n", "EOF(handle) empty-stdin reference output");
-    assert_eq!(rust_out, self_out, "cgen.x EOF arg handling differs from CEmitter");
-    assert_eq!(rust_out, interp_out, "EOF arg handling differs from interpreter");
+    assert_eq!(
+        interp_out, "ateof\n",
+        "EOF(handle) empty-stdin reference output"
+    );
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x EOF arg handling differs from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "EOF arg handling differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1839,9 +2009,18 @@ fn cemitter_and_cgen_agree_on_repeated_gosub() {
         .expect("interpret repeated-gosub program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "hi\nhi\nend\n", "repeated-gosub reference output");
-    assert_eq!(rust_out, self_out, "cgen.x repeated-gosub labels differ from CEmitter");
-    assert_eq!(rust_out, interp_out, "repeated-gosub differs from interpreter");
+    assert_eq!(
+        interp_out, "hi\nhi\nend\n",
+        "repeated-gosub reference output"
+    );
+    assert_eq!(
+        rust_out, self_out,
+        "cgen.x repeated-gosub labels differ from CEmitter"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "repeated-gosub differs from interpreter"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1872,12 +2051,17 @@ fn cemitter_and_cgen_agree_on_version_after_program_name() {
     // Precondition: `version` is the 2nd IR line (a `program_name` precedes it),
     // which is exactly the path that had the off-by-one.
     assert!(
-        ir.lines().nth(1).map_or(false, |l| l.starts_with("version ")),
+        ir.lines()
+            .nth(1)
+            .map_or(false, |l| l.starts_with("version ")),
         "test setup: version should be the 2nd IR line, got IR:\n{ir}"
     );
 
     let rust_c = CEmitter::new().emit_program(&prog);
-    let self_c: String = cgen_emit(&cgen_exe, &ir).into_iter().map(|b| b as char).collect();
+    let self_c: String = cgen_emit(&cgen_exe, &ir)
+        .into_iter()
+        .map(|b| b as char)
+        .collect();
 
     let needle = "xb_version_str = \"3.0700\"";
     assert!(
@@ -1935,8 +2119,14 @@ fn cemitter_and_cgen_agree_on_composite_member_idents() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(interp_out, "7\n", "composite-member reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled composite-member idents");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled composite-member idents");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled composite-member idents"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled composite-member idents"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -1980,9 +2170,15 @@ fn cemitter_and_cgen_agree_on_binary_literals() {
 
     // 0b1000000 = 64; 0b0001 = 1 (leading binary zeros preserved); the 32-bit
     // pattern wraps to a negative i32.
-    assert_eq!(interp_out, "64\n1\n-2147385343\n", "binary-literal reference output");
+    assert_eq!(
+        interp_out, "64\n1\n-2147385343\n",
+        "binary-literal reference output"
+    );
     assert_eq!(rust_out, interp_out, "CEmitter mishandled binary literals");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled binary literals (strip_zeros stripped 0b)");
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled binary literals (strip_zeros stripped 0b)"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2033,8 +2229,14 @@ fn cemitter_and_cgen_agree_on_nested_function() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(interp_out, "21\n42\n", "nested-function reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled the nested function");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled the nested function (label-block emission)");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled the nested function"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the nested function (label-block emission)"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2083,7 +2285,10 @@ fn cemitter_and_cgen_agree_on_dyn_array() {
     // sum = 60; UBOUND of the [3] array = 3 (reads xb_ub_a, not sizeof of a pointer).
     assert_eq!(interp_out, "60\n3\n", "dyn-array reference output");
     assert_eq!(rust_out, interp_out, "CEmitter mishandled the dyn array");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled the dyn array (scalar+1D-array redefinition)");
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the dyn array (scalar+1D-array redefinition)"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2129,9 +2334,18 @@ fn cemitter_and_cgen_agree_on_scalar_used_dyn_array() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     // dsp is 0 before its DIM (prints), then indexed; sum = 60.
-    assert_eq!(interp_out, "dsp-is-zero\n60\n", "scalar-used-dyn reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled the scalar-used dyn array");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled the scalar-used dyn array");
+    assert_eq!(
+        interp_out, "dsp-is-zero\n60\n",
+        "scalar-used-dyn reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled the scalar-used dyn array"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the scalar-used dyn array"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2175,8 +2389,14 @@ fn cemitter_and_cgen_agree_on_undimmed_array() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     // Un-DIMmed read -> default 0; UBOUND of a non-array -> -1; guarded write is a no-op.
-    assert_eq!(interp_out, "0\n-1\ndone\n", "undimmed-array reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled the undimmed array");
+    assert_eq!(
+        interp_out, "0\n-1\ndone\n",
+        "undimmed-array reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled the undimmed array"
+    );
     assert_eq!(self_out, interp_out, "cgen.x mishandled the undimmed array");
     let _ = fs::remove_dir_all(&tmp);
 }
@@ -2228,8 +2448,14 @@ fn cemitter_and_cgen_agree_on_cross_function_array() {
 
     // Reader's `s$` is a distinct undimmed local (DIM'd only in Filler) -> UBOUND -1.
     assert_eq!(interp_out, "-1\n", "cross-function array reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled the cross-function array");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled the cross-function array");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled the cross-function array"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the cross-function array"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2273,8 +2499,14 @@ fn cemitter_and_cgen_agree_on_forward_referenced_scalar() {
 
     // Pre-DIM read of `x` sees the default 0 (-> "zero"), then x = 7.
     assert_eq!(interp_out, "zero\n7\n", "forward-ref scalar output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled the forward-ref scalar");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled the forward-ref scalar");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled the forward-ref scalar"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the forward-ref scalar"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2319,8 +2551,14 @@ fn cemitter_and_cgen_agree_on_string_dyn_array() {
 
     // REDIM'd string array holds "x","y" after the second DIM -> concat "xy".
     assert_eq!(interp_out, "xy\n", "string-dyn reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled the string dyn array");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled the string dyn array (char** redefinition)");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled the string dyn array"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the string dyn array (char** redefinition)"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2366,8 +2604,14 @@ fn cemitter_and_cgen_agree_on_scalar_dim_of_string_dyn_array() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(interp_out, "xy\n", "scalar-dim string-dyn reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled scalar-dim string dyn array");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled scalar-dim string dyn array (char*/char** redefinition)");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled scalar-dim string dyn array"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled scalar-dim string dyn array (char*/char** redefinition)"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2417,9 +2661,15 @@ fn cemitter_and_cgen_agree_on_shared_array_cross_function() {
         .expect("interpret shared-array program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "42\n", "shared-array cross-function reference output");
+    assert_eq!(
+        interp_out, "42\n",
+        "shared-array cross-function reference output"
+    );
     assert_eq!(rust_out, interp_out, "CEmitter mishandled the shared array");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled the shared array (cross-function heap global)");
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the shared array (cross-function heap global)"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2461,9 +2711,15 @@ fn cemitter_and_cgen_agree_on_func_addr_id() {
         .expect("interpret funcaddr program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "2\n", "funcaddr reference id (Helper = 2nd function)");
+    assert_eq!(
+        interp_out, "2\n",
+        "funcaddr reference id (Helper = 2nd function)"
+    );
     assert_eq!(rust_out, interp_out, "CEmitter mishandled &func id");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled &func id (should be decl-order position)");
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled &func id (should be decl-order position)"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2507,8 +2763,14 @@ fn cemitter_and_cgen_agree_on_multidim_string_array() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(interp_out, "hiyo\n", "2-D string array reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled the 2-D string array");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled the 2-D string array DIM");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled the 2-D string array"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the 2-D string array DIM"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2557,8 +2819,14 @@ fn cemitter_and_cgen_agree_on_2d_dyn_array() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(interp_out, "7\n9\n", "2-D dyn array reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled the 2-D dyn array");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled the 2-D dyn array (flattened calloc/access)");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled the 2-D dyn array"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the 2-D dyn array (flattened calloc/access)"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2603,8 +2871,14 @@ fn cemitter_and_cgen_agree_on_function_name_self_dim() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(interp_out, "7\n", "self-dim reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled function-name self-DIM");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled retval self-DIM or repeated scalar DIM");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled function-name self-DIM"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled retval self-DIM or repeated scalar DIM"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2819,8 +3093,14 @@ fn cemitter_and_cgen_agree_on_typed_float_array() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(interp_out, "3.75\n", "typed float array reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled the typed float array");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled the typed float array (element type)");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled the typed float array"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the typed float array (element type)"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2866,9 +3146,18 @@ fn cemitter_and_cgen_agree_on_ubound_of_string() {
         .expect("interpret ubound-of-string program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "2\n97\n98\n99\n", "UBOUND-of-string reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled UBOUND of a string");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled UBOUND of a string (byte length)");
+    assert_eq!(
+        interp_out, "2\n97\n98\n99\n",
+        "UBOUND-of-string reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled UBOUND of a string"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled UBOUND of a string (byte length)"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2914,8 +3203,14 @@ fn cemitter_and_cgen_agree_on_array_element_byte_access() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(interp_out, "97\n102\n0\n", "array-byte reference output (ElemByte bare-brace through by-ref param reads its scalar facet = 0, consistent across all backends)");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled array-element byte access");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled array-element byte access");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled array-element byte access"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled array-element byte access"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -2961,9 +3256,18 @@ fn cemitter_and_cgen_agree_on_inc_composite_member_element() {
         .expect("interpret inc-composite program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "6\n12\n", "INC composite-member reference output");
-    assert_eq!(rust_out, interp_out, "CEmitter mishandled INC on composite member");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled INC on composite member");
+    assert_eq!(
+        interp_out, "6\n12\n",
+        "INC composite-member reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled INC on composite member"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled INC on composite member"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -3009,7 +3313,10 @@ fn cemitter_and_cgen_agree_on_nul_string() {
 
     assert_eq!(interp_out, "5\n<\0\0abc>\n", "NUL-string reference output");
     assert_eq!(rust_out, interp_out, "CEmitter mishandled the NUL string");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled the NUL string (literal length + PRINT)");
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the NUL string (literal length + PRINT)"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -3053,9 +3360,15 @@ fn cemitter_and_cgen_agree_on_i32_overflow() {
         .expect("interpret i32 program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    assert_eq!(interp_out, "FFF80000\n7FFFFFF\n", "i32 arithmetic reference output");
+    assert_eq!(
+        interp_out, "FFF80000\n7FFFFFF\n",
+        "i32 arithmetic reference output"
+    );
     assert_eq!(rust_out, interp_out, "CEmitter mishandled i32 arithmetic");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled i32 arithmetic (literal + shift/xor mask)");
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled i32 arithmetic (literal + shift/xor mask)"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -3105,6 +3418,9 @@ fn cemitter_and_cgen_agree_on_do_loop_until() {
 
     assert_eq!(interp_out, "1\n2\n3\n4\n5\n6\n", "DO-loop reference output");
     assert_eq!(rust_out, interp_out, "CEmitter mishandled DO-loop");
-    assert_eq!(self_out, interp_out, "cgen.x mishandled DO ... LOOP UNTIL/WHILE");
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled DO ... LOOP UNTIL/WHILE"
+    );
     let _ = fs::remove_dir_all(&tmp);
 }
