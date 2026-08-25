@@ -551,6 +551,12 @@ impl Analyzer {
         let suffix_vt = ref_value_type(name, suffix);
         // Single-`#` SharedName reads of shared-written names go to the shared
         // slot (checked first; a local DIM of the same name keeps the local).
+        // Keyword-`SHARED` scalar declared in this scope: reads hit the
+        // shared slot (classic BASIC).
+        if self.shared_scalars.contains(&self.slot_name(name, suffix)) {
+            let slot = self.slot_name(name, suffix);
+            return self.shared_variable(slot.as_str(), None);
+        }
         if let Some(shared) = self.shared_read_symbol(name, suffix) {
             return shared;
         }
@@ -627,7 +633,14 @@ impl Analyzer {
     }
 
     fn byref_symbol(&self, name: &str, suffix: Option<xb_frontend::TypeSuffix>) -> ExprResult {
-        // Bare `@x` reads as x's value; the ByRef marker is applied only at call
+        let suffix_vt = ref_value_type(name, suffix);
+        // Keyword-`SHARED` scalar: the byref "address" is the shared slot's —
+        // callee writebacks must land in `xb_shared_<name>` / state.shared.
+        if self.shared_scalars.contains(&self.slot_name(name, suffix)) {
+            let slot = self.slot_name(name, suffix);
+            return self.shared_variable(slot.as_str(), None);
+        }
+        let suffix_vt = ref_value_type(name, suffix);
         // sites (see `call_arg`), where write-back into the caller is meaningful.
         // Resolve the name exactly like `symbol()` so `@line$` (byref arg) and a
         // plain `line$` read canonicalize to the SAME slot on a type conflict

@@ -11,7 +11,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         IrItem::Print { items, separators } => {
             crate::c_emit_select::emit_print(items, separators, out, indent);
         }
-        IrItem::Dim { symbol, size, is_array, extra_dims, redim, .. } => {
+        IrItem::Dim { symbol, size, is_array, extra_dims, redim, shared, .. } => {
             if crate::c_emit::is_descriptor_param(&symbol.name) {
                 // DIM/REDIM of a descriptor by-ref array param resizes the caller's
                 // array through the descriptor (realloc + `*ub`). REDIM preserves
@@ -27,6 +27,12 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             // redefinition. The interpreter's execute_dim would reset the slot,
             // but for demo lifetimes this is safe.
             if crate::c_emit::is_fn_param(&symbol.name) {
+                return;
+            }
+            // Keyword-`SHARED` scalar: storage is the file-scope `xb_shared_<n>`
+            // global (declared by collect_shared); a local declaration would
+            // shadow it. The zero-init global matches the interp's default slot.
+            if *shared && !*is_array {
                 return;
             }
             // A module-shared array is a heap global (emit_globals, CGEN-SHARED-ARR).

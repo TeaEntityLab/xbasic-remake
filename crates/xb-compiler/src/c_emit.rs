@@ -250,6 +250,11 @@ fn collect_shared_arrays(items: &[IrItem], out: &mut HashMap<String, crate::Valu
 fn collect_scalar_dimmed_names(items: &[IrItem], out: &mut HashSet<String>) {
     for item in items {
         match item {
+            // Keyword-`SHARED` scalars are program storage (`xb_shared_<n>`):
+            // they must NOT suppress other functions' auto-local hoisting of
+            // the same name (xui's `window` is SHARED in one function and a
+            // plain auto-local in several others).
+            IrItem::Dim { symbol, is_array: false, shared: true, .. } => {}
             IrItem::Dim { symbol, is_array: false, .. } => {
                 out.insert(symbol.name.clone());
             }

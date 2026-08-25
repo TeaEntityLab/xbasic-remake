@@ -542,7 +542,7 @@ impl Parser {
             }
             return Ok(decl);
         }
-        Ok(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: false, shared: is_shared && is_array })
+        Ok(Statement::Dim { name, suffix, size, extra_dims, is_array, redim: false, shared: is_shared })
     }
 
     pub(crate) fn redim_stmt(&mut self) -> Result<Statement, crate::ParseError> {

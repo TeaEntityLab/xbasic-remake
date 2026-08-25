@@ -68,6 +68,11 @@ pub struct Analyzer {
     /// shared scalar form) instead of a fresh local — fixing the write/read
     /// split that left cross-function shared scalars at their type default.
     pub(crate) shared_writes: BTreeSet<String>,
+    /// Keyword-`SHARED` scalar names declared in the scope under analysis
+    /// (reset per function). Reads and writes of these route to the shared
+    /// slot (classic BASIC `SHARED y` refers to module-level storage);
+    /// functions without the declaration keep their own locals.
+    pub(crate) shared_scalars: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -718,16 +718,26 @@ pub(crate) fn emit_call_args(name: &str, args: &[IrExpr], out: &mut String) {
                 .is_some_and(|pb| pb.get(i).copied().unwrap_or(false));
         if to_ptr {
             if let IrExprKind::ByRef(inner) = &arg.kind {
-                if let IrExprKind::Symbol(s) = &inner.kind {
-                    if crate::c_emit::is_dyn_array(&s.name)
-                        && !crate::c_emit::is_dual_use(&s.name)
-                    {
-                        emit_var_name(s, out);
-                    } else {
-                        out.push('&');
-                        emit_var_name(s, out);
+                match &inner.kind {
+                    IrExprKind::Symbol(s) => {
+                        if crate::c_emit::is_dyn_array(&s.name)
+                            && !crate::c_emit::is_dual_use(&s.name)
+                        {
+                            emit_var_name(s, out);
+                        } else {
+                            out.push('&');
+                            emit_var_name(s, out);
+                        }
+                        continue;
                     }
-                    continue;
+                    // Byref of a keyword-`SHARED` scalar: address of the
+                    // file-scope shared slot.
+                    IrExprKind::SharedVariable(s) => {
+                        out.push_str("&xb_shared_");
+                        out.push_str(&sanitize_c_ident(&s.name));
+                        continue;
+                    }
+                    _ => {}
                 }
             }
         }

@@ -185,6 +185,14 @@ pub(crate) fn exec_items(
                             TypedSlot::new_array_nd(symbol.value_type, dims),
                         );
                     }
+                } else if *shared {
+                    // Keyword-`SHARED` scalar: module-shared storage (classic
+                    // BASIC); reads/writes go through SharedVariable /
+                    // SharedAssignment which target `state.shared`.
+                    state
+                        .shared
+                        .entry(symbol.name.clone())
+                        .or_insert_with(|| TypedSlot::new(symbol.value_type));
                 } else {
                     state
                         .slots
@@ -250,9 +258,11 @@ pub(crate) fn exec_items(
                 length,
                 value,
             } => {
-                // Target must be a symbol (string variable)
-                let target_name = match &target.kind {
-                    IrExprKind::Symbol(s) => &s.name,
+                // Target: a local symbol, or a keyword-`SHARED` scalar
+                // (SharedVariable) whose bytes live in `state.shared`.
+                let (target_name, target_shared) = match &target.kind {
+                    IrExprKind::Symbol(s) => (&s.name, false),
+                    IrExprKind::SharedVariable(s) => (&s.name, true),
                     _ => {
                         return Err(RuntimeError::UnknownSlot {
                             name: "mid_assign target".into(),
@@ -282,13 +292,21 @@ pub(crate) fn exec_items(
                     Some(RuntimeValue::Integer(n)) => *n as usize,
                     _ => src.len(),
                 };
-                let slot =
+                let slot = if target_shared {
+                    state
+                        .shared
+                        .get_mut(target_name)
+                        .ok_or_else(|| RuntimeError::UnknownSlot {
+                            name: target_name.clone(),
+                        })?
+                } else {
                     state
                         .slots
                         .get_mut(target_name)
                         .ok_or_else(|| RuntimeError::UnknownSlot {
                             name: target_name.clone(),
-                        })?;
+                        })?
+                };
                 if let RuntimeValue::String(ref mut dst) = slot.value {
                     let si = (start_i as usize).saturating_sub(1);
                     let copy = copy_len.min(src.len()).min(dst.len().saturating_sub(si));

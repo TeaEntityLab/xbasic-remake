@@ -831,6 +831,41 @@ WHILE shRefPos > 0
   END IF
   shRefPos = INSTR(src$, shPat$, shNameStart)
 WEND
+' Keyword-SHARED scalar dims: `dim shared X:type` (no bracket). The
+' in-function declaration is suppressed; storage is the xb_shared_X global
+' declared here (dedup via ##sharedDecls$). Line-based (LEFT$ prefix check)
+' so a "dim shared " STRING LITERAL inside any statement cannot match —
+' whole-text INSTR would match its own pattern during self-host.
+dsPos = 1
+WHILE dsPos <= LEN(src$)
+  dsLe = INSTR(src$, CHR$(10), dsPos)
+  IF dsLe = 0 THEN
+    dsLe = LEN(src$) + 1
+  END IF
+  dsLn$ = trim_spaces$(MID$(src$, dsPos, dsLe - dsPos))
+  dsPos = dsLe + 1
+  IF LEFT$(dsLn$, 11) = "dim shared " THEN
+    dsRest$ = MID$(dsLn$, 12, LEN(dsLn$) - 11)
+    dsColon = INSTR(dsRest$, ":")
+    dsBr = INSTR(dsRest$, "[")
+    IF dsColon > 1 AND (dsBr = 0 OR dsBr > dsColon) THEN
+      dsRefName$ = LEFT$(dsRest$, dsColon - 1)
+      dsSp = INSTR(dsRest$, " ", dsColon + 1)
+      IF dsSp = 0 THEN
+        dsRefType$ = MID$(dsRest$, dsColon + 1, LEN(dsRest$) - dsColon)
+      ELSE
+        dsRefType$ = MID$(dsRest$, dsColon + 1, dsSp - dsColon - 1)
+      END IF
+      IF INSTR(##sharedDecls$, ":" + dsRefName$ + ":") = 0 THEN
+        ##sharedDecls$ = ##sharedDecls$ + ":" + dsRefName$ + ":"
+        PRINT c_type$(dsRefType$) + " xb_shared_" + sanitize_ident$(dsRefName$) + " = 0;"
+        IF dsRefType$ = "string" THEN
+          ##sharedStrInits$ = ##sharedStrInits$ + sanitize_ident$(dsRefName$) + ","
+        END IF
+      END IF
+    END IF
+  END IF
+WEND
 ##funcMixed$ = scan_mixed_byref$(src$)
 ##byrefWB$ = scan_byref_wb$(src$)
 ' Emit deferred forward declarations (now that ##byrefWB$ is set for pointer params)
@@ -2628,6 +2663,17 @@ FUNCTION emit_expr$(e$)
     t$ = MID$(e$, 7, LEN(e$) - 6)
     IF RIGHT$(t$, 1) = ")" THEN
       t$ = LEFT$(t$, LEN(t$) - 1)
+    END IF
+    IF LEFT$(t$, 9) = "shared(" + "##" THEN
+      t$ = MID$(t$, 10, LEN(t$) - 10)
+      colonPos = INSTR(t$, ":")
+      IF colonPos > 0 THEN
+        varName$ = LEFT$(t$, colonPos - 1)
+      ELSE
+        varName$ = t$
+      END IF
+      emit_expr$ = "&xb_shared_" + sanitize_ident$(varName$)
+      RETURN emit_expr$
     END IF
     IF LEFT$(t$, 7) = "symbol(" THEN
       t$ = MID$(t$, 8, LEN(t$) - 7)
@@ -5194,6 +5240,12 @@ FUNCTION emit_stmt$(s$)
         varName$ = LEFT$(varName$, colonPos - 1)
       ELSE
         varType$ = "integer"
+      END IF
+      IF bracketPos = 0 THEN
+        ' Keyword-SHARED scalar: storage is the file-scope xb_shared_ global
+        ' (pre-scanned below); a local declaration would shadow it.
+        emit_stmt$ = ""
+        RETURN emit_stmt$
       END IF
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
         IF bracketPos > 0 THEN

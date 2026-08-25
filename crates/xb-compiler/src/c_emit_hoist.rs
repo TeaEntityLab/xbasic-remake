@@ -294,6 +294,7 @@ pub(crate) fn body_dims_name(items: &[IrItem], name: &str) -> bool {
 fn collect_dimmed(items: &[IrItem], dimmed: &mut HashSet<(String, bool)>) {
     for it in items {
         match it {
+            IrItem::Dim { symbol, shared: true, is_array: false, .. } => {}
             IrItem::Dim { symbol, .. } => {
                 dimmed.insert((symbol.name.clone(), symbol.value_type == ValueType::String));
             }

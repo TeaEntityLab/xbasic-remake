@@ -319,6 +319,47 @@ fn cemitter_and_cgen_agree_on_rank_three_flat_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// SHARED-SCALAR: keyword `SHARED y` scalars share module-level storage — a
+/// write in Main is visible in a callee that also declares `SHARED counter`,
+/// and vice versa (classic BASIC). Previously the shared flag was discarded
+/// for scalars, giving each function a fresh local.
+#[test]
+fn cemitter_and_cgen_agree_on_shared_scalar_keyword() {
+    let tmp = std::env::temp_dir().join("xb_sync_shared_scalar");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Show\n\
+               SHARED counter\n\
+               counter = counter + 5\n\
+               RETURN counter\n\
+               END FUNCTION\n\
+               FUNCTION Main\n\
+               SHARED counter\n\
+               counter = 12\n\
+               PRINT Show()\n\
+               PRINT counter\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse shared-scalar program")
+        .lower_ir()
+        .expect("lower shared-scalar program");
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("run interp shared-scalar");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "shsc_rust", rust_c.as_bytes(), None);
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "shsc_self", &self_c, None);
+    assert_eq!(interp_out, "17\n17\n", "interpreter reference");
+    assert_eq!(rust_out, interp_out, "Rust CEmitter shared-scalar output");
+    assert_eq!(self_out, interp_out, "cgen.x shared-scalar output");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// RT-KERNEL32 (CGEN-KERNEL32): `GetStdHandle`/`WriteFile`/`ReadFile` — the
 /// Win32-CGI stdio subset — must behave identically through the interpreter
 /// and BOTH C generators. The legacy `&x` argument prefix lowers to a plain

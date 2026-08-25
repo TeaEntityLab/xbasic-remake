@@ -17,6 +17,9 @@ impl Analyzer {
         // A `SHARED`-declared array stays shared across DIM/REDIM in this function,
         // so a `REDIM` of it (parser-marked `shared=false`) still resizes the
         // module-shared storage instead of shadowing it with a fresh local.
+        // Keyword-`SHARED` scalars are captured separately: their reads/writes
+        // route to the shared slot (classic BASIC), other scopes keep locals.
+        let keyword_shared_scalar = shared && !is_array;
         let shared = shared || self.shared_arrays.contains(name);
         if shared && is_array {
             self.shared_arrays.insert(name.to_owned());
@@ -83,6 +86,12 @@ impl Analyzer {
             // in C (xdis `imm`/`imm$`). Non-colliding → bare name (byte-neutral).
             self.slot_name(name, suffix)
         };
+        if keyword_shared_scalar {
+            self.shared_scalars.insert(sym_name.clone());
+        }
+        if keyword_shared_scalar {
+            self.shared.insert(sym_name.clone(), vt);
+        }
         let previous = self.symbols.insert(sym_name.clone(), vt);
         // REDIM legitimately re-declares an existing array; only DIM flags a dup.
         if !self.permissive && previous.is_some() && !redim {
@@ -110,6 +119,20 @@ impl Analyzer {
         // XBasic auto-declares locals on assignment; record the type so later
         // references (and brace-notation detection) resolve it.
         self.symbols.entry(name.to_owned()).or_insert(suffix_vt);
+        // Keyword-`SHARED` scalar: the write goes to the shared slot.
+        let shared_slot = self.slot_name(name, suffix);
+        if self.shared_scalars.contains(&shared_slot) {
+            let value = self.expr(value)?;
+            let value = if suffix_vt != value.value_type {
+                CheckedExpr::new(value.kind.clone(), suffix_vt)
+            } else {
+                value
+            };
+            return Ok(CheckedItem::SharedAssignment {
+                target: CheckedSymbol::new(shared_slot, suffix_vt),
+                value,
+            });
+        }
         let target = if !name.contains('.') && self.collisions.contains(name) {
             CheckedSymbol::new(self.slot_name(name, suffix), suffix_vt)
         } else if self.symbols.contains_key(name) {
@@ -157,7 +180,20 @@ impl Analyzer {
         // MID$(s, off + 1, 1) = CHR$(v) (0-based offset -> 1-based MID$).
         let base = name.trim_end_matches('$');
         if !self.arrays.contains_key(name) && self.symbols.get(base) == Some(&ValueType::String) {
-            let sym = self.checked_symbol(base)?;
+            // Keyword-`SHARED` scalar: the byte write mutates the shared
+            // string's storage (`xb_shared_<name>` / state.shared).
+            let slot = self.slot_name(base, Some(TypeSuffix::String));
+            let shared_slot = self.shared_scalars.contains(slot.as_str());
+            let sym = if shared_slot {
+                CheckedSymbol::new(slot.clone(), ValueType::String)
+            } else {
+                self.checked_symbol(base)?
+            };
+            let target_kind = if shared_slot {
+                CheckedExprKind::SharedVariable(sym)
+            } else {
+                CheckedExprKind::Symbol(sym)
+            };
             let idx = self.expr(index)?;
             let one = CheckedExpr::new(
                 CheckedExprKind::IntegerLiteral("1".to_owned()),
@@ -180,7 +216,7 @@ impl Analyzer {
                 ValueType::String,
             );
             return Ok(CheckedItem::MidAssign {
-                target: CheckedExpr::new(CheckedExprKind::Symbol(sym), ValueType::String),
+                target: CheckedExpr::new(target_kind, ValueType::String),
                 start: pos,
                 length: Some(one),
                 value: chr,
@@ -324,6 +360,13 @@ impl Analyzer {
         } else {
             value
         };
+        let shared_slot = self.slot_name(name, suffix);
+        if self.shared_scalars.contains(&shared_slot) {
+            return Ok(CheckedItem::SharedAssignment {
+                target: CheckedSymbol::new(shared_slot, target.value_type),
+                value,
+            });
+        }
         Ok(CheckedItem::Assignment { target, value })
     }
 
@@ -336,8 +379,14 @@ impl Analyzer {
         left_indices: &[Expression],
         right_indices: &[Expression],
     ) -> ItemResult {
-        // Both sides plain scalars: single Swap item (legacy emission).
-        if left_indices.is_empty() && right_indices.is_empty() {
+        // Both sides plain scalars, neither keyword-`SHARED`: single Swap item
+        // (legacy emission). A shared side routes its write through the shared
+        // slot, so either-shared swaps take the temp-Compound path below.
+        if left_indices.is_empty()
+            && right_indices.is_empty()
+            && !self.shared_scalars.contains(left)
+            && !self.shared_scalars.contains(right)
+        {
             let left_sym = self.auto_symbol(left);
             let right_sym = self.auto_symbol(right);
             return Ok(CheckedItem::Swap {
@@ -378,11 +427,6 @@ impl Analyzer {
         } else {
             self.array_access(right, &right_indices[0], &right_indices[1..])?
         };
-        // 1. tmp = L
-        items.push(CheckedItem::Assignment {
-            target: tmp_sym.clone(),
-            value: left_read.clone(),
-        });
         // 2. L = R
         if !left_indices.is_empty() {
             let l_index = self.expr(&left_indices[0])?;
@@ -396,7 +440,18 @@ impl Analyzer {
                 extra_indices: l_extra,
                 value: right_read.clone(),
             });
+        } else if self.shared_scalars.contains(left) {
+            items.push(CheckedItem::SharedAssignment {
+                target: CheckedSymbol::new(self.slot_name(left, None), left_vt),
+                value: right_read.clone(),
+            });
+        } else {
+            items.push(CheckedItem::Assignment {
+                target: self.auto_symbol(left),
+                value: right_read.clone(),
+            });
         }
+        // 3. R = tmp
         if !right_indices.is_empty() {
             let r_index = self.expr(&right_indices[0])?;
             let r_extra = right_indices[1..]
@@ -407,6 +462,22 @@ impl Analyzer {
                 target: CheckedSymbol::new(right.to_owned(), right_vt),
                 index: r_index,
                 extra_indices: r_extra,
+                value: CheckedExpr::new(
+                    CheckedExprKind::Symbol(tmp_sym),
+                    tmp_vt,
+                ),
+            });
+        } else if self.shared_scalars.contains(right) {
+            items.push(CheckedItem::SharedAssignment {
+                target: CheckedSymbol::new(self.slot_name(right, None), right_vt),
+                value: CheckedExpr::new(
+                    CheckedExprKind::Symbol(tmp_sym),
+                    tmp_vt,
+                ),
+            });
+        } else {
+            items.push(CheckedItem::Assignment {
+                target: self.auto_symbol(right),
                 value: CheckedExpr::new(
                     CheckedExprKind::Symbol(tmp_sym),
                     tmp_vt,

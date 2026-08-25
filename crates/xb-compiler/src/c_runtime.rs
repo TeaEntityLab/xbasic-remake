@@ -484,6 +484,17 @@ fn collect_shared(
                 }
                 collect_shared_expr(value, seen, out);
             }
+            IrItem::Dim { symbol, is_array: false, shared: true, .. } => {
+                if seen.insert(symbol.name.clone()) {
+                    if crate::c_emit::weak_symbols_enabled() {
+                        out.push_str("__attribute__((weak)) ");
+                    }
+                    out.push_str(c_type(symbol.value_type));
+                    out.push_str(" xb_shared_");
+                    out.push_str(&sanitize_c_name(&symbol.name));
+                    out.push_str(" = 0;\n");
+                }
+            }
             IrItem::If {
                 condition,
                 then_body,

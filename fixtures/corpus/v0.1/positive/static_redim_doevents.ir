@@ -1,15 +1,15 @@
 version 0.1
 function Main() -> integer
   dim x:integer
-  dim y:integer
+  dim shared y:integer
   dim z:integer[integer(5)]
   program_name 
   assign x:integer = integer(42)
-  assign y:integer = integer(99)
+  shared ##y:integer = integer(99)
   array_assign z:integer[integer(1)] = integer(10)
   array_assign z:integer[integer(2)] = integer(20)
   print symbol(x:integer)
-  print symbol(y:integer)
+  print shared(##y:integer)
   print array_access(z:integer[integer(1)])
   print array_access(z:integer[integer(2)])
 end function

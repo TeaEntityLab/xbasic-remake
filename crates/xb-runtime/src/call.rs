@@ -437,7 +437,7 @@ pub(crate) fn call_function(
         ret_slot.set(RuntimeValue::from_str(""));
     }
     local.insert(fname.to_string(), ret_slot);
-    let mut writebacks: Vec<(String, String)> = Vec::new();
+    let mut writebacks: Vec<(String, String, bool)> = Vec::new();
     for (p, arg) in params.iter().zip(args) {
         let mut slot = TypedSlot::new(p.value_type);
         // If the argument names an array (directly or via `@`), pass its storage
@@ -469,8 +469,16 @@ pub(crate) fn call_function(
         local.insert(p.name.clone(), slot);
         // `@x` (by-ref): record the caller lvalue to write the param back into.
         if let xb_compiler::IrExprKind::ByRef(inner) = &arg.kind {
-            if let xb_compiler::IrExprKind::Symbol(s) = &inner.kind {
-                writebacks.push((p.name.clone(), s.name.clone()));
+            match &inner.kind {
+                xb_compiler::IrExprKind::Symbol(s) => {
+                    writebacks.push((p.name.clone(), s.name.clone(), false));
+                }
+                // Byref of a keyword-`SHARED` scalar: the writeback lands in
+                // `state.shared`, not the caller's local slots.
+                xb_compiler::IrExprKind::SharedVariable(s) => {
+                    writebacks.push((p.name.clone(), s.name.clone(), true));
+                }
+                _ => {}
             }
         }
     }
@@ -503,28 +511,52 @@ pub(crate) fn call_function(
     state.shared = sub.shared;
     state.error_code = sub.error_code;
     // Propagate by-ref (`@`) parameter results back into the caller's lvalues.
-    for (pname, target) in &writebacks {
-        if let Some(src) = sub.slots.get(pname) {
-            if src.array.is_some() {
-                // Array by-ref: write the (possibly REDIM'd) elements + shape back
-                // into the caller's array so callee resize/fill propagates.
-                let arr = src.array.clone();
-                let dims = src.dims.clone();
-                let vt = src.value_type;
-                let dst = state
+    for (pname, target, target_shared) in &writebacks {
+        let Some(src) = sub.slots.get(pname) else {
+            continue;
+        };
+        if src.array.is_some() {
+            // Array by-ref: write the (possibly REDIM'd) elements + shape back
+            // into the caller's array so callee resize/fill propagates.
+            let arr = src.array.clone();
+            let dims = src.dims.clone();
+            let vt = src.value_type;
+            let dst = if *target_shared {
+                state
+                    .shared
+                    .entry(target.clone())
+                    .or_insert_with(|| TypedSlot::new(vt))
+            } else {
+                state
                     .slots
                     .entry(target.clone())
-                    .or_insert_with(|| TypedSlot::new(vt));
-                dst.array = arr;
-                dst.dims = dims;
+                    .or_insert_with(|| TypedSlot::new(vt))
+            };
+            dst.array = arr;
+            dst.dims = dims;
+        } else {
+            let val = src.value.clone();
+            let vt = if *target_shared {
+                state
+                    .shared
+                    .get(target)
+                    .map(|s| s.value_type())
+                    .unwrap_or_else(|| val.value_type())
             } else {
-                let val = src.value.clone();
-                let vt = state
+                state
                     .slots
                     .get(target)
                     .map(|s| s.value_type())
-                    .unwrap_or_else(|| val.value_type());
-                let coerced = crate::helpers::coerce_value(val, vt);
+                    .unwrap_or_else(|| val.value_type())
+            };
+            let coerced = crate::helpers::coerce_value(val, vt);
+            if *target_shared {
+                state
+                    .shared
+                    .entry(target.clone())
+                    .or_insert_with(|| TypedSlot::new(vt))
+                    .set(coerced);
+            } else {
                 state
                     .slots
                     .entry(target.clone())

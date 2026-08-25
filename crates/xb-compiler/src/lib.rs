@@ -1407,7 +1407,7 @@ pub mod llvm_backend {
 
         fn emit_item(&mut self, item: &IrItem) -> Result<(), CompileError> {
             match item {
-                IrItem::Dim { symbol, is_array: false, .. } => {
+                IrItem::Dim { symbol, is_array: false, shared: false, .. } => {
                     let slot = self.get_or_alloca(&symbol.name, symbol.value_type)?;
                     let init: BasicValueEnum = match symbol.value_type {
                         ValueType::String => self.str_const(b"")?.into(),
@@ -4040,6 +4040,9 @@ pub mod llvm_backend {
                 | IrItem::While { body, .. }
                 | IrItem::For { body, .. }
                 | IrItem::DoLoop { body, .. } => collect_shared(body, out),
+                IrItem::Dim { symbol, is_array: false, shared: true, .. } => {
+                    out.entry(symbol.name.clone()).or_insert(symbol.value_type);
+                }
                 IrItem::If { then_body, else_body, .. } => {
                     collect_shared(then_body, out);
                     if let Some(b) = else_body {
@@ -5562,6 +5565,45 @@ mod tests {
         assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "42\nhello\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_shared_scalar_keyword() {
+        use std::io::Write;
+        use std::process::Command;
+        // Keyword `SHARED y` scalars share module-level storage (classic
+        // BASIC): Main's write is visible in a callee that also declares
+        // `SHARED counter`, matching the interpreter and the C backends.
+        // Previously the shared flag was discarded for scalars, so the callee
+        // mutated its own fresh local (printed 5, not 17).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             FUNCTION Show ()\n\
+             SHARED counter\n\
+             counter = counter + 5\n\
+             RETURN counter\n\
+             END FUNCTION\n\
+             FUNCTION Main\n\
+             SHARED counter\n\
+             counter = 12\n\
+             PRINT Show ()\n\
+             PRINT counter\n\
+             END FUNCTION\n\
+             END PROGRAM\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_shsc.o");
+        let exep = dir.join("xb_llvm_shsc.bin");
+        std::fs::File::create(&objp).unwrap().write_all(obj.as_bytes()).unwrap();
+        let link = Command::new("cc").arg(&objp).arg("-o").arg(&exep).output().unwrap();
+        assert!(link.status.success(), "link: {}", String::from_utf8_lossy(&link.stderr));
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "17\n17\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
