@@ -252,6 +252,9 @@ pub mod llvm_backend {
         /// they persist across function calls — mirrors the interpreter's `state.shared`
         /// and the C backend's `xb_shared_<name>` file-scope globals.
         shared: HashMap<String, (PointerValue<'ctx>, ValueType)>,
+        /// LLVM-SHARED-ARR: program-wide shared array storage declared by
+        /// `declare_shared` — name -> (holder global, elem type, dim-count globals).
+        shared_arrays: HashMap<String, (PointerValue<'ctx>, ValueType, Vec<PointerValue<'ctx>>)>,
         i64t: IntType<'ctx>,
         calloc: FunctionValue<'ctx>,
         strlen: FunctionValue<'ctx>,
@@ -1115,6 +1118,7 @@ pub mod llvm_backend {
                 file_table,
                 vars: HashMap::new(),
                 shared: HashMap::new(),
+                shared_arrays: HashMap::new(),
                 funcs: HashMap::new(),
                 func_ids: HashMap::new(),
                 cur_fn: main,
@@ -1356,6 +1360,79 @@ pub mod llvm_backend {
             let mut names: std::collections::BTreeMap<String, ValueType> =
                 std::collections::BTreeMap::new();
             collect_shared(items, &mut names);
+            // LLVM-SHARED-ARR: shared array DIMs get program-global storage
+            // (buffer holder + per-dim count slots) so every function shares
+            // one backing store. First DIM site wins; later sites reuse it.
+            {
+                fn scan_shared_arr_dims<'a>(
+                    items: &'a [IrItem],
+                    out: &mut Vec<(&'a str, ValueType, usize)>,
+                ) {
+                    for it in items {
+                        match it {
+                            IrItem::Dim {
+                                symbol,
+                                shared: true,
+                                is_array: true,
+                                extra_dims,
+                                ..
+                            } => {
+                                out.push((
+                                    symbol.name.as_str(),
+                                    symbol.value_type,
+                                    1 + extra_dims.len(),
+                                ));
+                            }
+                            IrItem::If {
+                                then_body,
+                                else_body,
+                                ..
+                            } => {
+                                scan_shared_arr_dims(then_body, out);
+                                if let Some(eb) = else_body {
+                                    scan_shared_arr_dims(eb, out);
+                                }
+                            }
+                            IrItem::While { body, .. }
+                            | IrItem::For { body, .. }
+                            | IrItem::DoLoop { body, .. }
+                            | IrItem::Compound(body) => scan_shared_arr_dims(body, out),
+                            IrItem::SelectCase { cases, default, .. } => {
+                                for c in cases {
+                                    scan_shared_arr_dims(&c.body, out);
+                                }
+                                if let Some(d) = default {
+                                    scan_shared_arr_dims(d, out);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                let mut arrs: Vec<(&str, ValueType, usize)> = Vec::new();
+                scan_shared_arr_dims(items, &mut arrs);
+                for (name, vt, ndims) in arrs {
+                    if self.shared_arrays.contains_key(name) {
+                        continue;
+                    }
+                    let holder = self
+                        .module
+                        .add_global(self.ptr, None, &format!("xb_sarr_{name}"));
+                    holder.set_initializer(&self.ptr.const_null());
+                    let mut shape = Vec::with_capacity(ndims);
+                    for k in 0..ndims {
+                        let g = self.module.add_global(
+                            self.i64t,
+                            None,
+                            &format!("xb_sarr_{name}_d{k}"),
+                        );
+                        g.set_initializer(&self.i64t.const_zero());
+                        shape.push(g.as_pointer_value());
+                    }
+                    self.shared_arrays
+                        .insert(name.to_string(), (holder.as_pointer_value(), vt, shape));
+                }
+            }
             for (name, vt) in names {
                 let g =
                     self.module
@@ -1388,6 +1465,11 @@ pub mod llvm_backend {
                     let f = self.funcs[name];
                     let saved_vars = std::mem::take(&mut self.vars);
                     let saved_arrays = std::mem::take(&mut self.arrays);
+                    // Shared arrays are program-global: every function sees the
+                    // same holder/shape slots regardless of DIM execution order.
+                    for (n, (h, vt, sh)) in self.shared_arrays.clone() {
+                        self.arrays.insert(n, (h, vt, sh));
+                    }
                     let (saved_fn, saved_ret) = (self.cur_fn, self.cur_ret);
                     self.cur_fn = f;
                     self.cur_ret = *return_type;
@@ -1694,6 +1776,106 @@ pub mod llvm_backend {
                         _ => self.i32t.const_zero().into(),
                     };
                     self.builder.build_store(slot, init).map_err(Self::err)?;
+                }
+                IrItem::Dim {
+                    symbol,
+                    size,
+                    extra_dims,
+                    is_array: true,
+                    shared: true,
+                    ..
+                } => {
+                    // LLVM-SHARED-ARR: store the buffer + per-dim counts into the
+                    // program-global slots declared by declare_shared so every
+                    // function shares one backing store.
+                    let elem = symbol.value_type;
+                    let Some((holder, _, shape)) = self.shared_arrays.get(&symbol.name).cloned()
+                    else {
+                        return Err(CompileError::Llvm(format!(
+                            "shared array {} missing global declaration",
+                            symbol.name
+                        )));
+                    };
+                    let esz: u64 = match elem {
+                        ValueType::Float | ValueType::String => 8,
+                        _ => 4,
+                    };
+                    let mut total = self.i64t.const_int(1, false);
+                    for e in size.iter().chain(extra_dims.iter()) {
+                        let raw = self.eval_int(e)?;
+                        let pos = self
+                            .builder
+                            .build_int_compare(
+                                IntPredicate::SGT,
+                                raw,
+                                self.i32t.const_zero(),
+                                "pos",
+                            )
+                            .map_err(Self::err)?;
+                        let nn = self
+                            .builder
+                            .build_select(pos, raw, self.i32t.const_zero(), "max0")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        let nn64 = self
+                            .builder
+                            .build_int_s_extend(nn, self.i64t, "nn64")
+                            .map_err(Self::err)?;
+                        let cnt = self
+                            .builder
+                            .build_int_add(nn64, self.i64t.const_int(1, false), "cnt")
+                            .map_err(Self::err)?;
+                        total = self
+                            .builder
+                            .build_int_mul(total, cnt, "tot")
+                            .map_err(Self::err)?;
+                    }
+                    let buf = self
+                        .builder
+                        .build_call(
+                            self.calloc,
+                            &[total.into(), self.i64t.const_int(esz, false).into()],
+                            "arr",
+                        )
+                        .map_err(Self::err)?
+                        .try_as_basic_value()
+                        .basic()
+                        .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                        .into_pointer_value();
+                    self.builder.build_store(holder, buf).map_err(Self::err)?;
+                    // Store per-dim counts into the global shape slots.
+                    for (k, e) in size.iter().chain(extra_dims.iter()).enumerate() {
+                        let raw = self.eval_int(e)?;
+                        let pos = self
+                            .builder
+                            .build_int_compare(
+                                IntPredicate::SGT,
+                                raw,
+                                self.i32t.const_zero(),
+                                "pos",
+                            )
+                            .map_err(Self::err)?;
+                        let nn = self
+                            .builder
+                            .build_select(pos, raw, self.i32t.const_zero(), "max0")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        let nn64 = self
+                            .builder
+                            .build_int_s_extend(nn, self.i64t, "nn64")
+                            .map_err(Self::err)?;
+                        let cnt = self
+                            .builder
+                            .build_int_add(nn64, self.i64t.const_int(1, false), "cnt")
+                            .map_err(Self::err)?;
+                        if let Some(s) = shape.get(k) {
+                            self.builder.build_store(*s, cnt).map_err(Self::err)?;
+                        }
+                    }
+                    self.shared_arrays
+                        .insert(symbol.name.clone(), (holder, elem, shape.clone()));
+                    self.arrays
+                        .insert(symbol.name.clone(), (holder, elem, shape));
                 }
                 IrItem::Dim {
                     symbol,
@@ -7762,6 +7944,54 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "17\n17\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_shared_array_keyword() {
+        use std::io::Write;
+        use std::process::Command;
+        // `DIM SHARED arr[n]` (and the 2-D form) share program-global storage:
+        // a callee's writes are visible in Main without passing the array,
+        // matching the interpreter, Rust CEmitter, and cgen.x. Previously the
+        // LLVM backend allocated shared arrays per-function (0/0 divergence).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM SHARED arr[3]\n\
+             FUNCTION Fill ()\n\
+             arr[0] = 7\n\
+             arr[2] = 9\n\
+             END FUNCTION\n\
+             FUNCTION Main\n\
+             Fill ()\n\
+             PRINT arr[0]\n\
+             PRINT arr[2]\n\
+             END FUNCTION\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_sharr.o");
+        let exep = dir.join("xb_llvm_sharr.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&run.stdout), "7\n9\n");
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
