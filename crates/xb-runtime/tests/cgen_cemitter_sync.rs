@@ -319,6 +319,75 @@ fn cemitter_and_cgen_agree_on_rank_three_flat_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// MODULE-DIM-SCOPE function-less corner: with zero functions, emit_module_dims
+/// early-returns, so the module DIM must stay in main()'s body. The unconditional
+/// emit_main filter dropped it (undeclared xb_var_a, cc failure).
+#[test]
+fn cemitter_and_cgen_agree_on_functionless_module_dim() {
+    let tmp = std::env::temp_dir().join("xb_sync_nofn_moddim");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+    let src = "VERSION \"0.1\"\n\
+               DIM a[9]\n\
+               PRINT a[0]\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse function-less program")
+        .lower_ir()
+        .expect("lower function-less program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret function-less program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "nofn_rust", rust_c.as_bytes(), None);
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "nofn_self", &self_c, None);
+    assert_eq!(interp_out, "0\n", "interpreter reference");
+    assert_eq!(rust_out, interp_out, "Rust CEmitter function-less module DIM");
+    assert_eq!(self_out, interp_out, "cgen.x function-less module DIM");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// Fixed local arrays are zero-filled (interp slot semantics); the C emitters
+/// declared them uninitialized, so reads-before-write returned stack garbage.
+#[test]
+fn cemitter_and_cgen_agree_on_fixed_array_zero_init() {
+    let tmp = std::env::temp_dir().join("xb_sync_arrzero");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM a[9]\n\
+               DIM m[3,4]\n\
+               DIM i\n\
+               FOR i = 0 TO 3\n\
+               m[1,i] = i * 10\n\
+               NEXT i\n\
+               PRINT a[0]; \" \"; a[2]; \" \"; UBOUND(a[])\n\
+               PRINT m[1,0]; \" \"; m[1,3]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse zero-init program")
+        .lower_ir()
+        .expect("lower zero-init program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret zero-init program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "arrzero_rust", rust_c.as_bytes(), None);
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "arrzero_self", &self_c, None);
+    assert_eq!(interp_out, "0 0 9\n0 30\n", "interpreter reference");
+    assert_eq!(rust_out, interp_out, "Rust CEmitter fixed-array zero-init");
+    assert_eq!(self_out, interp_out, "cgen.x fixed-array zero-init");
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// SHARED-SCALAR: keyword `SHARED y` scalars share module-level storage — a
 /// write in Main is visible in a callee that also declares `SHARED counter`,
 /// and vice versa (classic BASIC). Previously the shared flag was discarded

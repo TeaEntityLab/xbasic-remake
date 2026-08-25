@@ -1291,6 +1291,14 @@ fn emit_module_dims(program: &IrProgram, out: &mut String) {
 }
 
 fn emit_main(program: &IrProgram, out: &mut String) {
+    // MODULE-DIM-SCOPE: with functions present, hoistable module DIMs live at
+    // file scope (emit_module_dims) and are skipped here. Without functions
+    // emit_module_dims early-returns, so the DIM must stay in main()'s body —
+    // filtering unconditionally dropped it entirely (undeclared xb_var_N).
+    let has_fn = program
+        .items
+        .iter()
+        .any(|i| matches!(i, IrItem::Function { .. }));
     let top: Vec<&IrItem> = program
         .items
         .iter()
@@ -1301,8 +1309,7 @@ fn emit_main(program: &IrProgram, out: &mut String) {
             ) {
                 return false;
             }
-            // MODULE-DIM-SCOPE: hoisted to file scope (emit_module_dims).
-            !hoistable_module_dim(i)
+            !(has_fn && hoistable_module_dim(i))
         })
         .collect();
     // Entry point: mirror IrProgram::entry_or_first("Main") / the interpreter's

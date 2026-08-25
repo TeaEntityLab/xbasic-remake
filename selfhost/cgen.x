@@ -60,6 +60,7 @@ DIM inNest
 DIM nfName$
 DIM nfAfter$
 DIM nfClose
+DIM _mdSemi
 
 src$ = ""
 WHILE EOF() = 0
@@ -1117,8 +1118,17 @@ WHILE pos <= LEN(src$)
           IF LEFT$(stmt$, 4) = "dim " THEN
             IF INSTR(stmt$, "[") > 0 AND INSTR(stmt$, "[]") = 0 AND INSTR(stmt$, ":string") = 0 AND INSTR(stmt$, "shared") = 0 THEN
               IF LEN(cCode$) > 0 THEN
-                PRINT "static " + cCode$
-                cCode$ = ""
+                ' cCode$ may be `decl; memset(...);` — only the DECLARATION is
+                ' hoisted (executable code cannot live at file scope); any
+                ' trailing statements stay in main().
+                _mdSemi = INSTR(cCode$, ";")
+                IF _mdSemi > 0 THEN
+                  PRINT "static " + trim_spaces$(LEFT$(cCode$, _mdSemi))
+                  cCode$ = MID$(cCode$, _mdSemi + 1)
+                ELSE
+                  PRINT "static " + cCode$
+                  cCode$ = ""
+                END IF
               END IF
             END IF
           END IF
@@ -5339,7 +5349,7 @@ FUNCTION emit_stmt$(s$)
           emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
         END IF
       ELSE
-        emit_stmt$ = "    " + c_type$(varType$) + " " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + ";"
+        emit_stmt$ = "    " + c_type$(varType$) + " " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + "; memset(" + c_var_name$(varName$, varType$) + ", 0, sizeof(" + c_var_name$(varName$, varType$) + "));"
       END IF
     ELSE
       colonPos = INSTR(rest$, ":")

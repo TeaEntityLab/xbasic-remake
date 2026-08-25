@@ -71,7 +71,11 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                         crate::c_emit::emit_array_var_name(symbol, out);
                         out.push('[');
                         crate::c_emit::emit_flat_size(&dims, out);
-                        out.push_str("];\n");
+                        out.push_str("]; memset(");
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push_str(", 0, sizeof(");
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push_str("));\n");
                     }
                     if symbol.value_type == ValueType::String {
                         out.push_str(&ind);
@@ -152,7 +156,11 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     crate::c_emit::emit_array_var_name(symbol, out);
                     out.push_str("[(");
                     emit_expr(sz, out);
-                    out.push_str(") + 1];\n");
+                    out.push_str(") + 1]; memset(");
+                    crate::c_emit::emit_array_var_name(symbol, out);
+                    out.push_str(", 0, sizeof(");
+                    crate::c_emit::emit_array_var_name(symbol, out);
+                    out.push_str("));\n");
                     if symbol.value_type == ValueType::String {
                         out.push_str(&ind);
                         out.push_str("for (int _i = 0; _i < (");
