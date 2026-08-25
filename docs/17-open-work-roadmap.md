@@ -272,7 +272,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | JIT-X87 | strategic | x87-exact FPU semantics (`iced-x86`/dynasm JIT) | only if compat tests demand | deferred |
 | STAGE3-LLVM | strategic | LLVM as the *selfhost* AOT backend (C generator is today's default + bootstrap path) | stage-3 backend split (docs/13) | deferred |
 | CRANELIFT | strategic | debug backend | — | deferred |
-| ENTRY-SCAFFOLD | runtime | `entry.rs` `XxxMain` callback scaffold is not a generated-program pipeline (docs/14 §4) | exported-callback programs | deferred |
+| ENTRY-SCAFFOLD | runtime | `entry.rs` `XxxMain` callback scaffold is not a generated-program pipeline (docs/14 §4). Assessed 2026-08-24: the Rust ABI scaffold exists + tested; wiring generated C programs through it needs a C-side `XxxMain` (crtl/xstart.c mirror) in the emitted runtime — dead code until GUI-RUNTIME provides `start_app` consumers. Sequence after GUI-RUNTIME. | exported-callback programs | deferred (sequenced) |
 
 Micro-residual documented in place: `FUNCADDRESS` (the builtin) returns `0` — no corpus
 program uses it (§2 RT-FUNCPTR).
