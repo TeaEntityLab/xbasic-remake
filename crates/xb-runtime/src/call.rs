@@ -499,6 +499,7 @@ pub(crate) fn call_function(
         files: Vec::new(),
         label_addresses: std::collections::HashMap::new(),
         gui_close_sent: state.gui_close_sent,
+        dyn_arrays: state.dyn_arrays.clone(),
     };
     let result = match exec_items(program, body, body, 0, &mut sub, output)? {
         Flow::Return(Some(v)) => Ok(v),

@@ -50,9 +50,15 @@ impl TextIrEmitter {
                 size,
                 extra_dims,
                 shared,
+                redim,
+                is_array,
                 ..
             } => {
                 let sh = if *shared { "shared " } else { "" };
+                // REDIM lowers to a sized `dim`; without the flag the text form
+                // is indistinguishable from DIM and self-host consumers cannot
+                // classify the name as dynamic.
+                let rd = if *redim { "redim " } else { "" };
                 match size {
                     Some(sz) => {
                         let mut dims = self.emit_expr(sz);
@@ -61,13 +67,22 @@ impl TextIrEmitter {
                             dims.push_str(&self.emit_expr(e));
                         }
                         out.push_str(&format!(
-                            "{prefix}dim {sh}{}[{}]\n",
+                            "{prefix}{rd}dim {sh}{}[{}]\n",
                             self.emit_symbol(symbol),
                             dims
                         ));
                     }
                     None => {
-                        out.push_str(&format!("{prefix}dim {sh}{}\n", self.emit_symbol(symbol)))
+                        // A size-None ARRAY dim (`DIM a[]`) must keep its
+                        // brackets: the bare `dim a:t` form is indistinguishable
+                        // from a scalar DIM, and text-IR consumers (cgen.x)
+                        // would classify the name as a scalar and fold its
+                        // element writes.
+                        let brackets = if *is_array { "[]" } else { "" };
+                        out.push_str(&format!(
+                            "{prefix}{rd}dim {sh}{}{brackets}\n",
+                            self.emit_symbol(symbol)
+                        ))
                     }
                 }
             }

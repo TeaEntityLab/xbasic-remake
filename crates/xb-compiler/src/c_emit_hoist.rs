@@ -1044,6 +1044,11 @@ struct DynWalk {
     /// (dyn). This is structural, so it round-trips through the text IR (unlike
     /// the `redim` flag, which the frozen v0.1 golden IR does not serialize).
     nested_arrays: HashSet<String>,
+    /// Array DIMs with NO size (`DIM a$[]`): inherently dynamic under the
+    /// auto-vivify contract — any write may grow the storage, so the name must
+    /// register as dyn (heap pointer + `xb_ub_` cell + write grow-guard) even
+    /// when DIM'd exactly once and never REDIM'd.
+    unsized_arrays: HashSet<String>,
 }
 
 impl DynWalk {
@@ -1096,6 +1101,7 @@ impl DynWalk {
                 IrItem::Dim {
                     symbol,
                     size,
+                    extra_dims,
                     is_array,
                     ..
                 } => {
@@ -1108,6 +1114,9 @@ impl DynWalk {
                     *self.dim_count.entry(symbol.name.clone()).or_insert(0) += 1;
                     if nested && arr {
                         self.nested_arrays.insert(symbol.name.clone());
+                    }
+                    if *is_array && size.is_none() && extra_dims.is_empty() {
+                        self.unsized_arrays.insert(symbol.name.clone());
                     }
                     if let Some(sz) = size {
                         self.expr(sz);
@@ -1287,6 +1296,7 @@ pub(crate) fn collect_dyn_names(
         let force = is_array
             && (has_gosub
                 || w.nested_arrays.contains(name)
+                || w.unsized_arrays.contains(name)
                 || descriptor_locals.contains_key(name));
         if !force && !late && *count < 2 {
             continue;

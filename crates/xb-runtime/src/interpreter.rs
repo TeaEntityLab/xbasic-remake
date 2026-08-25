@@ -130,6 +130,13 @@ pub(crate) fn exec_items(
                 redim,
                 shared,
             } => {
+                // A dynamic array (empty-bracket DIM, REDIM'd, or SHARED)
+                // registers for write auto-vivification: a write past the
+                // current storage grows it (contract matches the compiled
+                // backends' dyn grow-guard). Fixed non-shared arrays don't.
+                if *is_array && (*redim || size.is_none() || *shared) {
+                    state.dyn_arrays.insert(symbol.name.clone());
+                }
                 if *is_array {
                     // Inclusive upper bounds: DIM a[d0, d1, …] -> shape
                     // [d0+1, d1+1, …]; empty `DIM a[]` -> empty shape (len 0).
@@ -238,13 +245,23 @@ pub(crate) fn exec_items(
                 // behavior; reads already auto-vivify via read_slot/ArrayAccess).
                 // If the slot has no array (undimmed), discard the write —
                 // matching the C backend's undimmed-array fold (write → discard).
+                // Dynamic arrays (dyn_arrays set) GROW instead: a write past the
+                // current storage resizes to index+1 (preserving the prefix),
+                // matching the compiled backends' dyn grow-guard. 1-D only.
+                let grow = state.dyn_arrays.contains(&target.name) && idxs.len() == 1;
                 if let Some(slot) = state.slots.get_mut(&target.name) {
                     if let Some(off) = slot.array_offset(&idxs) {
                         slot.array_set(off, v)?;
+                    } else if grow {
+                        slot.array_reshape(vec![idxs[0] + 1]);
+                        slot.array_set(idxs[0], v)?;
                     }
                 } else if let Some(slot) = state.shared.get_mut(&target.name) {
                     if let Some(off) = slot.array_offset(&idxs) {
                         slot.array_set(off, v)?;
+                    } else if grow {
+                        slot.array_reshape(vec![idxs[0] + 1]);
+                        slot.array_set(idxs[0], v)?;
                     }
                 } else {
                     let mut slot = TypedSlot::new(target.value_type);

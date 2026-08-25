@@ -190,6 +190,11 @@ pub struct ExecutionState {
     pub(crate) error_code: i32,
     pub(crate) files: Vec<Option<std::fs::File>>,
     pub(crate) label_addresses: std::collections::HashMap<String, usize>,
+    /// Dynamic array names (empty-bracket DIM, REDIM'd, or SHARED arrays): a
+    /// write past the current storage auto-vivifies (grows to index+1),
+    /// matching the compiled backends' dyn grow-guard. Fixed non-shared
+    /// arrays are absent — their OOB writes keep the historical discard.
+    pub(crate) dyn_arrays: std::collections::HashSet<String>,
     /// Headless GUI runtime: whether a synthetic `CloseWindow` callback has been
     /// delivered (so `XuiGetNextCallback` terminates the demo's event loop once).
     pub(crate) gui_close_sent: bool,

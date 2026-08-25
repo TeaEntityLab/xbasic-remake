@@ -193,6 +193,52 @@ pub mod llvm_backend {
             };
             emit.declare_functions(&program.items);
             emit.declare_shared(&program.items);
+            {
+                // CGEN-AUTOVIVIFY parity: dynamic array names (empty-bracket DIM
+                // or REDIM'd) — 1-D writes past the count auto-vivify.
+                fn scan_dyn_names(items: &[IrItem], out: &mut std::collections::HashSet<String>) {
+                    for it in items {
+                        match it {
+                            IrItem::Dim {
+                                symbol,
+                                size,
+                                is_array: true,
+                                redim,
+                                ..
+                            } => {
+                                if *redim || size.is_none() {
+                                    out.insert(symbol.name.clone());
+                                }
+                            }
+                            IrItem::If {
+                                then_body,
+                                else_body,
+                                ..
+                            } => {
+                                scan_dyn_names(then_body, out);
+                                if let Some(eb) = else_body {
+                                    scan_dyn_names(eb, out);
+                                }
+                            }
+                            IrItem::Function { body, .. } => scan_dyn_names(body, out),
+                            IrItem::While { body, .. }
+                            | IrItem::For { body, .. }
+                            | IrItem::DoLoop { body, .. }
+                            | IrItem::Compound(body) => scan_dyn_names(body, out),
+                            IrItem::SelectCase { cases, default, .. } => {
+                                for c in cases {
+                                    scan_dyn_names(&c.body, out);
+                                }
+                                if let Some(d) = default {
+                                    scan_dyn_names(d, out);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                scan_dyn_names(&program.items, &mut emit.dyn_arrays);
+            }
             emit.emit_body(&program.items)?;
             if let Some(body) = entry_body(&program) {
                 emit.emit_body(body)?;
@@ -296,6 +342,12 @@ pub mod llvm_backend {
         file_eof: FunctionValue<'ctx>,
         /// Global `[FILE_SLOTS x ptr]` of open `FILE*` (index = handle − 3).
         file_table: PointerValue<'ctx>,
+        /// CGEN-AUTOVIVIFY parity: `xb_dyn_resize(holder, cnt, newcnt, esz, is_str)`
+        /// reallocs a dynamic array preserving content and fills the grown tail.
+        dyn_resize: FunctionValue<'ctx>,
+        /// Dynamic array names (empty-bracket DIM or REDIM'd): 1-D writes past the
+        /// count auto-vivify via `dyn_resize`.
+        dyn_arrays: std::collections::HashSet<String>,
     }
 
     impl<'ctx> Emit<'ctx> {
@@ -310,6 +362,11 @@ pub mod llvm_backend {
             let f64t = ctx.f64_type();
             let ptr = ctx.ptr_type(AddressSpace::default());
             let i64t = ctx.i64_type();
+            let realloc_f = module.add_function(
+                "realloc",
+                ptr.fn_type(&[ptr.into(), i64t.into()], false),
+                None,
+            );
             let calloc = module.add_function(
                 "calloc",
                 ptr.fn_type(&[i64t.into(), i64t.into()], false),
@@ -386,6 +443,23 @@ pub mod llvm_backend {
             // read and stores the count.
             let getstdhandle =
                 module.add_function("xb_getstdhandle", i32t.fn_type(&[i32t.into()], false), None);
+            // CGEN-AUTOVIVIFY parity: dynamic-array resize helper (realloc +
+            // tail fill; empty byte-strings for String elements, zeros else).
+            let dyn_resize = module.add_function(
+                "xb_dyn_resize",
+                ctx.void_type().fn_type(
+                    &[
+                        ptr.into(),
+                        ptr.into(),
+                        i64t.into(),
+                        i64t.into(),
+                        ctx.bool_type().into(),
+                    ],
+                    false,
+                ),
+                None,
+            );
+
             let write_file = module.add_function(
                 "xb_write_file",
                 i32t.fn_type(
@@ -852,6 +926,125 @@ pub mod llvm_backend {
                 builder.build_return(Some(&r2)).map_err(Self::err)?;
             }
             {
+                // `xb_dyn_resize(holder, cnt, newcnt, esz, is_str)`: realloc the
+                // dynamic array to `newcnt` elements preserving content; fill the
+                // grown tail with fresh empty byte-strings (String) or zeros.
+                let entry = ctx.append_basic_block(dyn_resize, "entry");
+                builder.position_at_end(entry);
+                let holder = dyn_resize.get_nth_param(0).unwrap().into_pointer_value();
+                let cnt = dyn_resize.get_nth_param(1).unwrap().into_pointer_value();
+                let newcnt = dyn_resize.get_nth_param(2).unwrap().into_int_value();
+                let esz = dyn_resize.get_nth_param(3).unwrap().into_int_value();
+                let is_str = dyn_resize.get_nth_param(4).unwrap().into_int_value();
+                let oldcnt = builder
+                    .build_load(i64t, cnt, "oldcnt")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let oldbuf = builder
+                    .build_load(ptr, holder, "oldbuf")
+                    .map_err(Self::err)?
+                    .into_pointer_value();
+                let bytes = builder
+                    .build_int_mul(newcnt, esz, "bytes")
+                    .map_err(Self::err)?;
+                let newbuf = builder
+                    .build_call(realloc_f, &[oldbuf.into(), bytes.into()], "newbuf")
+                    .map_err(Self::err)?
+                    .try_as_basic_value()
+                    .basic()
+                    .ok_or_else(|| CompileError::Llvm("realloc returned void".into()))?
+                    .into_pointer_value();
+                builder.build_store(holder, newbuf).map_err(Self::err)?;
+                builder.build_store(cnt, newcnt).map_err(Self::err)?;
+                let more = builder
+                    .build_int_compare(IntPredicate::SLT, oldcnt, newcnt, "more")
+                    .map_err(Self::err)?;
+                let fill = ctx.append_basic_block(dyn_resize, "fill");
+                let done = ctx.append_basic_block(dyn_resize, "done");
+                builder
+                    .build_conditional_branch(more, fill, done)
+                    .map_err(Self::err)?;
+                builder.position_at_end(fill);
+                let cur = builder
+                    .build_phi(i64t, "cur")
+                    .map_err(Self::err)?;
+                let is_str_b = builder
+                    .build_int_compare(
+                        IntPredicate::NE,
+                        is_str,
+                        ctx.bool_type().const_zero(),
+                        "s",
+                    )
+                    .map_err(Self::err)?;
+                let curb = builder
+                    .build_int_mul(
+                        cur.as_basic_value().into_int_value(),
+                        esz,
+                        "curb",
+                    )
+                    .map_err(Self::err)?;
+                let ep = unsafe {
+                    builder
+                        .build_in_bounds_gep(ctx.i8_type(), newbuf, &[curb], "ep")
+                        .map_err(Self::err)?
+                };
+                let sblk = ctx.append_basic_block(dyn_resize, "sfill");
+                let zblk = ctx.append_basic_block(dyn_resize, "zfill");
+                let fnext = ctx.append_basic_block(dyn_resize, "fnext");
+                builder
+                    .build_conditional_branch(is_str_b, sblk, zblk)
+                    .map_err(Self::err)?;
+                builder.position_at_end(sblk);
+                let sp = builder
+                    .build_call(
+                        calloc,
+                        &[
+                            i64t.const_int(9, false).into(),
+                            i64t.const_int(1, false).into(),
+                        ],
+                        "s",
+                    )
+                    .map_err(Self::err)?
+                    .try_as_basic_value()
+                    .basic()
+                    .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                    .into_pointer_value();
+                builder.build_store(ep, sp).map_err(Self::err)?;
+                builder.build_unconditional_branch(fnext).map_err(Self::err)?;
+                builder.position_at_end(zblk);
+                builder
+                    .build_call(
+                        memset,
+                        &[
+                            ep.into(),
+                            i32t.const_zero().into(),
+                            esz.into(),
+                        ],
+                        "z",
+                    )
+                    .map_err(Self::err)?;
+                builder.build_unconditional_branch(fnext).map_err(Self::err)?;
+                builder.position_at_end(fnext);
+                let inext = builder
+                    .build_int_add(
+                        cur.as_basic_value().into_int_value(),
+                        i64t.const_int(1, false),
+                        "inext",
+                    )
+                    .map_err(Self::err)?;
+                let more2 = builder
+                    .build_int_compare(IntPredicate::SLT, inext, newcnt, "more2")
+                    .map_err(Self::err)?;
+                builder
+                    .build_conditional_branch(more2, fill, done)
+                    .map_err(Self::err)?;
+                let oldcnt_enum: BasicValueEnum = oldcnt.into();
+                let inext_enum: BasicValueEnum = inext.into();
+                cur.add_incoming(&[(&oldcnt_enum, entry), (&inext_enum, fnext)]);
+                builder.position_at_end(done);
+                builder.build_return(None).map_err(Self::err)?;
+            }
+            {
                 let entry = ctx.append_basic_block(write_file, "entry");
                 builder.position_at_end(entry);
                 let h = write_file.get_nth_param(0).unwrap().into_int_value();
@@ -1116,6 +1309,8 @@ pub mod llvm_backend {
                 read_file,
                 file_eof,
                 file_table,
+                dyn_resize,
+                dyn_arrays: std::collections::HashSet::new(),
                 vars: HashMap::new(),
                 shared: HashMap::new(),
                 shared_arrays: HashMap::new(),
@@ -1882,6 +2077,7 @@ pub mod llvm_backend {
                     size,
                     extra_dims,
                     is_array: true,
+                    redim,
                     ..
                 } => {
                     let elem = symbol.value_type;
@@ -1931,47 +2127,115 @@ pub mod llvm_backend {
                             .build_int_mul(total, *c, "tot")
                             .map_err(Self::err)?;
                     }
-                    let buf = self
-                        .builder
-                        .build_call(
-                            self.calloc,
-                            &[total.into(), self.i64t.const_int(esz, false).into()],
-                            "arr",
-                        )
-                        .map_err(Self::err)?
-                        .try_as_basic_value()
-                        .basic()
-                        .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
-                        .into_pointer_value();
-                    // Persist the shape as one i64 count slot per dim. Reuse the array's
-                    // existing slots (holder + per-dim counts) when the dimensionality matches
-                    // — e.g. pre-registered by `prealloc_arrays`, so a `UBOUND`/access emitted
-                    // before this `DIM` (after a GOSUB) reads the same slots — otherwise create
-                    // fresh ones.
+                    // Dynamic arrays (empty-bracket DIM or REDIM'd): the count
+                    // slots must exist BEFORE the buffer op — auto-vivify writes
+                    // and content-preserving REDIM resize through them.
+                    let is_dyn = self.dyn_arrays.contains(&symbol.name);
                     let existing = self.arrays.get(&symbol.name).cloned();
-                    let shape: Vec<PointerValue<'ctx>> = match &existing {
-                        Some((_, _, sh)) if sh.len() == counts.len() => {
-                            for (s, c) in sh.iter().zip(counts.iter()) {
-                                self.builder.build_store(*s, *c).map_err(Self::err)?;
+                    let shape: Vec<PointerValue<'ctx>> = if is_dyn {
+                        match &existing {
+                            Some((_, _, sh)) if sh.len() == counts.len() => {
+                                for (s, c) in sh.iter().zip(counts.iter()) {
+                                    self.builder.build_store(*s, *c).map_err(Self::err)?;
+                                }
+                                sh.clone()
                             }
-                            sh.clone()
+                            _ => {
+                                let mut sh = Vec::with_capacity(counts.len().max(1));
+                                for (k, c) in counts.iter().enumerate() {
+                                    let s = self.entry_alloca(
+                                        self.i64t.into(),
+                                        &format!("{}_d{k}", symbol.name),
+                                    )?;
+                                    self.builder.build_store(s, *c).map_err(Self::err)?;
+                                    sh.push(s);
+                                }
+                                if sh.is_empty() {
+                                    // `DIM a$[]`: one count slot at 0 (UBOUND -1)
+                                    // so auto-vivify writes have a counter.
+                                    let s = self.entry_alloca(
+                                        self.i64t.into(),
+                                        &format!("{}_d0", symbol.name),
+                                    )?;
+                                    self.builder
+                                        .build_store(s, self.i64t.const_zero())
+                                        .map_err(Self::err)?;
+                                    sh.push(s);
+                                }
+                                sh
+                            }
                         }
-                        _ => {
-                            let mut sh = Vec::with_capacity(counts.len());
-                            for (k, c) in counts.iter().enumerate() {
-                                let s = self.entry_alloca(
-                                    self.i64t.into(),
-                                    &format!("{}_d{k}", symbol.name),
-                                )?;
-                                self.builder.build_store(s, *c).map_err(Self::err)?;
-                                sh.push(s);
+                    } else {
+                        match &existing {
+                            Some((_, _, sh)) if sh.len() == counts.len() => {
+                                for (s, c) in sh.iter().zip(counts.iter()) {
+                                    self.builder.build_store(*s, *c).map_err(Self::err)?;
+                                }
+                                sh.clone()
                             }
-                            sh
+                            _ => {
+                                let mut sh = Vec::with_capacity(counts.len());
+                                for (k, c) in counts.iter().enumerate() {
+                                    let s = self.entry_alloca(
+                                        self.i64t.into(),
+                                        &format!("{}_d{k}", symbol.name),
+                                    )?;
+                                    self.builder.build_store(s, *c).map_err(Self::err)?;
+                                    sh.push(s);
+                                }
+                                sh
+                            }
                         }
                     };
                     let holder = match &existing {
                         Some((h, _, _)) => *h,
                         None => self.entry_alloca(self.ptr.into(), &symbol.name)?,
+                    };
+                    let is_str_b = self
+                        .ctx
+                        .bool_type()
+                        .const_int(u64::from(elem == ValueType::String), false);
+                    let buf = if is_dyn && *redim {
+                        // Content-preserving REDIM: realloc + fill the grown tail.
+                        // The helper stores the new buffer into `holder` itself.
+                        self.builder
+                            .build_call(
+                                self.dyn_resize,
+                                &[
+                                    holder.into(),
+                                    shape[0].into(),
+                                    total.into(),
+                                    self.i64t.const_int(esz, false).into(),
+                                    is_str_b.into(),
+                                ],
+                                "redim",
+                            )
+                            .map_err(Self::err)?;
+                        self.builder
+                            .build_load(self.ptr, holder, "redbuf")
+                            .map_err(Self::err)?
+                            .into_pointer_value()
+                    } else {
+                        if is_dyn {
+                            // Fresh dynamic holder: NULL so realloc(NULL,·) in the
+                            // grow helper behaves as malloc.
+                            if existing.is_none() {
+                                self.builder
+                                    .build_store(holder, self.ptr.const_null())
+                                    .map_err(Self::err)?;
+                            }
+                        }
+                        self.builder
+                            .build_call(
+                                self.calloc,
+                                &[total.into(), self.i64t.const_int(esz, false).into()],
+                                "arr",
+                            )
+                            .map_err(Self::err)?
+                            .try_as_basic_value()
+                            .basic()
+                            .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                            .into_pointer_value()
                     };
                     self.builder.build_store(holder, buf).map_err(Self::err)?;
                     self.arrays
@@ -2003,8 +2267,82 @@ pub mod llvm_backend {
                     extra_indices,
                     value,
                 } => {
+                    let v = self.eval_value(value)?;
+                    // CGEN-AUTOVIVIFY parity: a 1-D write past a dynamic array's
+                    // count grows the storage (preserving content) before the store.
+                    if extra_indices.is_empty() && self.dyn_arrays.contains(&target.name) {
+                        if let Some((holder, elem, dims)) = self.arrays.get(&target.name).cloned()
+                        {
+                            if let Some(cnt) = dims.first().copied() {
+                                let raw = self.eval_int(index)?;
+                                let idx64 = self
+                                    .builder
+                                    .build_int_s_extend(raw, self.i64t, "avidx")
+                                    .map_err(Self::err)?;
+                                // The count slot holds ELEMENT COUNT (ubound+1):
+                                // a write at index i needs count >= i+1, and
+                                // must NEVER shrink existing storage.
+                                let idx1 = self
+                                    .builder
+                                    .build_int_add(
+                                        idx64,
+                                        self.i64t.const_int(1, false),
+                                        "avidx1",
+                                    )
+                                    .map_err(Self::err)?;
+                                let cur = self
+                                    .builder
+                                    .build_load(self.i64t, cnt, "avcur")
+                                    .map_err(Self::err)?
+                                    .into_int_value();
+                                let bigger = self
+                                    .builder
+                                    .build_int_compare(
+                                        IntPredicate::SGT,
+                                        cur,
+                                        idx1,
+                                        "avbigger",
+                                    )
+                                    .map_err(Self::err)?;
+                                let want = self
+                                    .builder
+                                    .build_select(
+                                        bigger,
+                                        cur,
+                                        idx1,
+                                        "avwant",
+                                    )
+                                    .map_err(Self::err)?;
+                                let esz: u64 = match elem {
+                                    ValueType::Float | ValueType::String => 8,
+                                    _ => 4,
+                                };
+                                self.builder
+                                    .build_call(
+                                        self.dyn_resize,
+                                        &[
+                                            holder.into(),
+                                            cnt.into(),
+                                            want.into(),
+                                            self.i64t
+                                                .const_int(esz, false)
+                                                .into(),
+                                            self.ctx
+                                                .bool_type()
+                                                .const_int(
+                                                    u64::from(elem == ValueType::String),
+                                                    false,
+                                                )
+                                                .into(),
+                                        ],
+                                        "avgrow",
+                                    )
+                                    .map_err(Self::err)?;
+                            }
+                        }
+                    }
                     if let (Some(v), Some((ep, elem))) = (
-                        self.eval_value(value)?,
+                        v,
                         self.array_elem_ptr(&target.name, index, extra_indices)?,
                     ) {
                         let v = self.coerce_to(v, self.llvm_type(elem).into())?;
@@ -6237,7 +6575,11 @@ pub mod llvm_backend {
                     is_array: true,
                     ..
                 } => {
-                    let ndims = size.iter().count() + extra_dims.len();
+                    // An empty-bracket array DIM (`DIM a$[]`) is still rank-1:
+                    // prealloc must create one 0-init count slot so auto-vivify
+                    // writes and UBOUND have a counter (a 0-dim shape would
+                    // fold every access to offset 0).
+                    let ndims = (size.iter().count() + extra_dims.len()).max(1);
                     out.entry(symbol.name.clone())
                         .and_modify(|e| {
                             if ndims > e.1 {
@@ -7992,6 +8334,62 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "7\n9\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_dyn_array_autovivify() {
+        use std::io::Write;
+        use std::process::Command;
+        // Writes past a dynamic array's ubound auto-vivify: storage grows to
+        // index+1 (preserving the prefix), matching interp/Rust-C/cgen.x.
+        // Previously LLVM SIGSEGV'd on the NULL-buffer write.
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             FUNCTION Main\n\
+             DIM a$[]\n\
+             a$[0] = \"x\"\n\
+             a$[2] = \"z\"\n\
+             REDIM a$[UBOUND(a$[]) + 3]\n\
+             PRINT a$[0]\n\
+             PRINT a$[2]\n\
+             PRINT UBOUND(a$[])\n\
+             END FUNCTION\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_autoviv.o");
+        let exep = dir.join("xb_llvm_autoviv.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert!(
+            run.status.success(),
+            "run rc={:?}: {}",
+            run.status.code(),
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "x\nz\n5\n",
+            "auto-vivify + content-preserving REDIM output"
+        );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }

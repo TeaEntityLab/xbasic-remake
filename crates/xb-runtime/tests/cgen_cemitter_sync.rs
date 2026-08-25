@@ -773,6 +773,8 @@ fn cemitter_and_cgen_apply_nonblock_to_fifo() {
     let check = |tag: &str, cgen: Option<&Path>| {
         let fifo = tmp.join(format!("{tag}.fifo"));
         let c_fifo = CString::new(fifo.as_os_str().as_bytes()).unwrap();
+        // A prior crashed run can leave the FIFO behind - remove stale first.
+        let _ = std::fs::remove_file(&fifo);
         let rc = unsafe { libc::mkfifo(c_fifo.as_ptr(), 0o600) };
         assert_eq!(rc, 0, "mkfifo {tag}: {}", std::io::Error::last_os_error());
         let path = fifo.to_string_lossy().replace('\\', "\\\\");

@@ -248,6 +248,36 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 out.push_str(");\n");
                 return;
             }
+            // Dynamic arrays (heap pointer + ubound var): a write past the
+            // current ubound auto-vivifies — grow to index+1 (preserving the
+            // prefix), matching the interpreter. 1-D only; realloc(NULL,·)
+            // covers the never-allocated case. Fixed native arrays keep the
+            // bare subscript (OOB is a program error, as in C).
+            let dyn_1d = crate::c_emit::is_dyn_array(&target.name)
+                && extra_indices.is_empty()
+                && !crate::c_emit::is_descriptor_param(&target.name);
+            if dyn_1d {
+                let mut idx_c = String::new();
+                emit_expr(index, &mut idx_c);
+                let ident = crate::c_emit::array_ident(&target.name);
+                let ptr = if target.value_type == ValueType::String {
+                    format!("xb_str_{ident}")
+                } else {
+                    format!("xb_var_{ident}")
+                };
+                let ub = format!("xb_ub_{ident}");
+                let fill = if target.value_type == ValueType::String {
+                    "xb_str(\"\")".to_string()
+                } else {
+                    "0".to_string()
+                };
+                out.push_str(&ind);
+                out.push_str(&format!(
+                    "if (({idx_c}) > {ub}) {{ intptr_t _oldub = {ub}; {ub} = ({idx_c}); \
+                     {ptr} = realloc({ptr}, (size_t)({ub} + 1) * sizeof(*{ptr})); \
+                     for (intptr_t _i = _oldub + 1; _i <= {ub}; _i++) {ptr}[_i] = {fill}; }}\n"
+                ));
+            }
             out.push_str(&ind);
             crate::c_emit::emit_array_var_name(target, out);
             out.push('[');

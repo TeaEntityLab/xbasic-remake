@@ -30,6 +30,12 @@ pub(crate) fn parse_item(
         let (items, separators) = crate::text_ir_parser_select::parse_print_items(rest, l)?;
         return Ok(IrItem::Print { items, separators });
     }
+    // `redim dim [shared] X[...]` — a REDIM lowered to a sized dim; the flag
+    // marks the name dynamic for consumers (cgen.x auto-vivify classification).
+    let (redim, content) = match content.strip_prefix("redim ") {
+        Some(r) => (true, r),
+        None => (false, content),
+    };
     if let Some(rest0) = content.strip_prefix("dim ") {
         let (shared, rest) = match rest0.strip_prefix("shared ") {
             Some(r) => (true, r),
@@ -55,7 +61,7 @@ pub(crate) fn parse_item(
                 size,
                 extra_dims,
                 is_array: true,
-                redim: false,
+                redim,
                 shared,
             });
         }
