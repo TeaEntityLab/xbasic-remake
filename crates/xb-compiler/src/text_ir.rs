@@ -45,7 +45,13 @@ impl TextIrEmitter {
                     out.push_str(&format!("{line}\n"));
                 }
             }
-            IrItem::Dim { symbol, size, extra_dims, shared, .. } => {
+            IrItem::Dim {
+                symbol,
+                size,
+                extra_dims,
+                shared,
+                ..
+            } => {
                 let sh = if *shared { "shared " } else { "" };
                 match size {
                     Some(sz) => {

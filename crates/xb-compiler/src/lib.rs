@@ -280,8 +280,13 @@ pub mod llvm_backend {
         ptr: PointerType<'ctx>,
         printf: FunctionValue<'ctx>,
         fmt_d: PointerValue<'ctx>,
+        fmt_s: PointerValue<'ctx>,
         nl: PointerValue<'ctx>,
         tab: PointerValue<'ctx>,
+        /// CGEN-TAB parity: current print column (chars since the last newline).
+        xb_col: PointerValue<'ctx>,
+        /// digit width of an i32 as printf("%d") prints it
+        intwidth: FunctionValue<'ctx>,
         fmt_g: PointerValue<'ctx>,
         fmt_hex: PointerValue<'ctx>,
         /// User-defined functions (name → LLVM fn), excluding the flattened entry.
@@ -493,8 +498,84 @@ pub mod llvm_backend {
                         .as_pointer_value())
                 };
             let fmt_d = g(&builder, "%d", "fmtd")?;
+            let fmt_s = g(&builder, "%s", "fmts")?;
             let nl = g(&builder, "\n", "nl")?;
             let tab = g(&builder, "\t", "tab")?;
+            // CGEN-TAB parity: current print column (chars since last newline).
+            let xb_col_g = module.add_global(ctx.i32_type(), None, "xb_col");
+            xb_col_g.set_initializer(&ctx.i32_type().const_zero());
+            let xb_col = xb_col_g.as_pointer_value();
+            // digit width of an i32 as printf("%d") renders it (sign included)
+            let intwidth = module.add_function(
+                "xb_intwidth",
+                ctx.i32_type().fn_type(&[ctx.i32_type().into()], false),
+                None,
+            );
+            {
+                let entry = ctx.append_basic_block(intwidth, "entry");
+                builder.position_at_end(entry);
+                let v = intwidth.get_nth_param(0).unwrap().into_int_value();
+                let neg = builder
+                    .build_int_compare(IntPredicate::SLT, v, ctx.i32_type().const_zero(), "neg")
+                    .map_err(Self::err)?;
+                let v64 = builder
+                    .build_int_s_extend(v, i64t, "v64")
+                    .map_err(Self::err)?;
+                let aneg = builder
+                    .build_select(
+                        neg,
+                        builder
+                            .build_int_sub(i64t.const_zero(), v64, "neg64")
+                            .map_err(Self::err)?,
+                        v64,
+                        "an",
+                    )
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let w0 = builder
+                    .build_select(neg, i32t.const_int(1, false), i32t.const_zero(), "w0")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let loopb = ctx.append_basic_block(intwidth, "loop");
+                let done = ctx.append_basic_block(intwidth, "done");
+                let cont = builder
+                    .build_int_compare(IntPredicate::SGT, aneg, i64t.const_zero(), "cont")
+                    .map_err(Self::err)?;
+                builder
+                    .build_conditional_branch(cont, loopb, done)
+                    .map_err(Self::err)?;
+                builder.position_at_end(loopb);
+                let wphi = builder.build_phi(i32t, "w").map_err(Self::err)?;
+                let nphi = builder.build_phi(i64t, "n").map_err(Self::err)?;
+                let w1 = builder
+                    .build_int_add(
+                        wphi.as_basic_value().into_int_value(),
+                        i32t.const_int(1, false),
+                        "w1",
+                    )
+                    .map_err(Self::err)?;
+                let n1 = builder
+                    .build_int_signed_div(
+                        nphi.as_basic_value().into_int_value(),
+                        i64t.const_int(10, false),
+                        "n1",
+                    )
+                    .map_err(Self::err)?;
+                let more = builder
+                    .build_int_compare(IntPredicate::SGT, n1, i64t.const_zero(), "more")
+                    .map_err(Self::err)?;
+                builder
+                    .build_conditional_branch(more, loopb, done)
+                    .map_err(Self::err)?;
+                wphi.add_incoming(&[(&w0, entry), (&w1, loopb)]);
+                nphi.add_incoming(&[(&aneg, entry), (&n1, loopb)]);
+                builder.position_at_end(done);
+                let wr = builder.build_phi(i32t, "wr").map_err(Self::err)?;
+                wr.add_incoming(&[(&w0, entry), (&w1, loopb)]);
+                builder
+                    .build_return(Some(&wr.as_basic_value()))
+                    .map_err(Self::err)?;
+            }
             let fmt_g = g(&builder, "%g", "fmtg")?;
             // `xb_file_open_mode`: strip only NONBLOCK (0x800), exact-match documented bases,
             // and fall back to read-only existing-file semantics for unsupported values.
@@ -965,23 +1046,12 @@ pub mod llvm_backend {
                     .build_conditional_branch(more, fill, done)
                     .map_err(Self::err)?;
                 builder.position_at_end(fill);
-                let cur = builder
-                    .build_phi(i64t, "cur")
-                    .map_err(Self::err)?;
+                let cur = builder.build_phi(i64t, "cur").map_err(Self::err)?;
                 let is_str_b = builder
-                    .build_int_compare(
-                        IntPredicate::NE,
-                        is_str,
-                        ctx.bool_type().const_zero(),
-                        "s",
-                    )
+                    .build_int_compare(IntPredicate::NE, is_str, ctx.bool_type().const_zero(), "s")
                     .map_err(Self::err)?;
                 let curb = builder
-                    .build_int_mul(
-                        cur.as_basic_value().into_int_value(),
-                        esz,
-                        "curb",
-                    )
+                    .build_int_mul(cur.as_basic_value().into_int_value(), esz, "curb")
                     .map_err(Self::err)?;
                 let ep = unsafe {
                     builder
@@ -1010,20 +1080,20 @@ pub mod llvm_backend {
                     .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
                     .into_pointer_value();
                 builder.build_store(ep, sp).map_err(Self::err)?;
-                builder.build_unconditional_branch(fnext).map_err(Self::err)?;
+                builder
+                    .build_unconditional_branch(fnext)
+                    .map_err(Self::err)?;
                 builder.position_at_end(zblk);
                 builder
                     .build_call(
                         memset,
-                        &[
-                            ep.into(),
-                            i32t.const_zero().into(),
-                            esz.into(),
-                        ],
+                        &[ep.into(), i32t.const_zero().into(), esz.into()],
                         "z",
                     )
                     .map_err(Self::err)?;
-                builder.build_unconditional_branch(fnext).map_err(Self::err)?;
+                builder
+                    .build_unconditional_branch(fnext)
+                    .map_err(Self::err)?;
                 builder.position_at_end(fnext);
                 let inext = builder
                     .build_int_add(
@@ -1280,8 +1350,12 @@ pub mod llvm_backend {
                 ptr,
                 printf,
                 fmt_d,
+                fmt_s,
+                snprintf,
                 nl,
                 tab,
+                xb_col,
+                intwidth,
                 f64t,
                 fmt_g,
                 fmt_hex,
@@ -1289,7 +1363,6 @@ pub mod llvm_backend {
                 calloc,
                 strlen,
                 memcpy,
-                snprintf,
                 memset,
                 putchar,
                 memcmp,
@@ -2271,8 +2344,7 @@ pub mod llvm_backend {
                     // CGEN-AUTOVIVIFY parity: a 1-D write past a dynamic array's
                     // count grows the storage (preserving content) before the store.
                     if extra_indices.is_empty() && self.dyn_arrays.contains(&target.name) {
-                        if let Some((holder, elem, dims)) = self.arrays.get(&target.name).cloned()
-                        {
+                        if let Some((holder, elem, dims)) = self.arrays.get(&target.name).cloned() {
                             if let Some(cnt) = dims.first().copied() {
                                 let raw = self.eval_int(index)?;
                                 let idx64 = self
@@ -2284,11 +2356,7 @@ pub mod llvm_backend {
                                 // must NEVER shrink existing storage.
                                 let idx1 = self
                                     .builder
-                                    .build_int_add(
-                                        idx64,
-                                        self.i64t.const_int(1, false),
-                                        "avidx1",
-                                    )
+                                    .build_int_add(idx64, self.i64t.const_int(1, false), "avidx1")
                                     .map_err(Self::err)?;
                                 let cur = self
                                     .builder
@@ -2297,21 +2365,11 @@ pub mod llvm_backend {
                                     .into_int_value();
                                 let bigger = self
                                     .builder
-                                    .build_int_compare(
-                                        IntPredicate::SGT,
-                                        cur,
-                                        idx1,
-                                        "avbigger",
-                                    )
+                                    .build_int_compare(IntPredicate::SGT, cur, idx1, "avbigger")
                                     .map_err(Self::err)?;
                                 let want = self
                                     .builder
-                                    .build_select(
-                                        bigger,
-                                        cur,
-                                        idx1,
-                                        "avwant",
-                                    )
+                                    .build_select(bigger, cur, idx1, "avwant")
                                     .map_err(Self::err)?;
                                 let esz: u64 = match elem {
                                     ValueType::Float | ValueType::String => 8,
@@ -2324,9 +2382,7 @@ pub mod llvm_backend {
                                             holder.into(),
                                             cnt.into(),
                                             want.into(),
-                                            self.i64t
-                                                .const_int(esz, false)
-                                                .into(),
+                                            self.i64t.const_int(esz, false).into(),
                                             self.ctx
                                                 .bool_type()
                                                 .const_int(
@@ -2341,10 +2397,9 @@ pub mod llvm_backend {
                             }
                         }
                     }
-                    if let (Some(v), Some((ep, elem))) = (
-                        v,
-                        self.array_elem_ptr(&target.name, index, extra_indices)?,
-                    ) {
+                    if let (Some(v), Some((ep, elem))) =
+                        (v, self.array_elem_ptr(&target.name, index, extra_indices)?)
+                    {
                         let v = self.coerce_to(v, self.llvm_type(elem).into())?;
                         self.builder.build_store(ep, v).map_err(Self::err)?;
                     }
@@ -2365,6 +2420,28 @@ pub mod llvm_backend {
                                 self.builder
                                     .build_call(self.printf, &[self.tab.into()], "")
                                     .map_err(Self::err)?;
+                                let col0 = self
+                                    .builder
+                                    .build_load(self.i32t, self.xb_col, "col0")
+                                    .map_err(Self::err)?
+                                    .into_int_value();
+                                let q = self
+                                    .builder
+                                    .build_int_signed_div(col0, self.i32t.const_int(8, false), "q")
+                                    .map_err(Self::err)?;
+                                let col1 = self
+                                    .builder
+                                    .build_int_mul(
+                                        self.builder
+                                            .build_int_add(q, self.i32t.const_int(1, false), "q1")
+                                            .map_err(Self::err)?,
+                                        self.i32t.const_int(8, false),
+                                        "col1",
+                                    )
+                                    .map_err(Self::err)?;
+                                self.builder
+                                    .build_store(self.xb_col, col1)
+                                    .map_err(Self::err)?;
                             }
                         }
                         match self.eval_value(e)? {
@@ -2372,11 +2449,73 @@ pub mod llvm_backend {
                                 self.builder
                                     .build_call(self.printf, &[self.fmt_d.into(), iv.into()], "")
                                     .map_err(Self::err)?;
+                                let w = self
+                                    .builder
+                                    .build_call(self.intwidth, &[iv.into()], "w")
+                                    .map_err(Self::err)?
+                                    .try_as_basic_value()
+                                    .basic()
+                                    .ok_or_else(|| CompileError::Llvm("intwidth void".into()))?
+                                    .into_int_value();
+                                let col0 = self
+                                    .builder
+                                    .build_load(self.i32t, self.xb_col, "col0")
+                                    .map_err(Self::err)?
+                                    .into_int_value();
+                                let col1 = self
+                                    .builder
+                                    .build_int_add(col0, w, "col1")
+                                    .map_err(Self::err)?;
+                                self.builder
+                                    .build_store(self.xb_col, col1)
+                                    .map_err(Self::err)?;
                             }
                             Some(BasicValueEnum::PointerValue(pv)) => self.str_print(pv)?,
                             Some(BasicValueEnum::FloatValue(fv)) => {
+                                // Format via snprintf so the column tracks the
+                                // exact rendered width.
+                                let buf = self
+                                    .builder
+                                    .build_alloca(self.ctx.i8_type().array_type(400), "fbuf")
+                                    .map_err(Self::err)?;
                                 self.builder
-                                    .build_call(self.printf, &[self.fmt_g.into(), fv.into()], "")
+                                    .build_call(
+                                        self.snprintf,
+                                        &[
+                                            buf.into(),
+                                            self.i64t.const_int(400, false).into(),
+                                            self.fmt_g.into(),
+                                            fv.into(),
+                                        ],
+                                        "",
+                                    )
+                                    .map_err(Self::err)?;
+                                let sl = self
+                                    .builder
+                                    .build_call(self.strlen, &[buf.into()], "sl")
+                                    .map_err(Self::err)?
+                                    .try_as_basic_value()
+                                    .basic()
+                                    .ok_or_else(|| CompileError::Llvm("strlen void".into()))?
+                                    .into_int_value();
+                                self.builder
+                                    .build_call(self.printf, &[self.fmt_s.into(), buf.into()], "")
+                                    .map_err(Self::err)?;
+                                let col0 = self
+                                    .builder
+                                    .build_load(self.i32t, self.xb_col, "col0")
+                                    .map_err(Self::err)?
+                                    .into_int_value();
+                                let sl32 = self
+                                    .builder
+                                    .build_int_truncate(sl, self.i32t, "sl32")
+                                    .map_err(Self::err)?;
+                                let col1 = self
+                                    .builder
+                                    .build_int_add(col0, sl32, "col1")
+                                    .map_err(Self::err)?;
+                                self.builder
+                                    .build_store(self.xb_col, col1)
                                     .map_err(Self::err)?;
                             }
                             _ => {}
@@ -2384,6 +2523,9 @@ pub mod llvm_backend {
                     }
                     self.builder
                         .build_call(self.printf, &[self.nl.into()], "")
+                        .map_err(Self::err)?;
+                    self.builder
+                        .build_store(self.xb_col, self.i32t.const_zero())
                         .map_err(Self::err)?;
                 }
                 IrItem::If {
@@ -3653,6 +3795,23 @@ pub mod llvm_backend {
                 .map_err(Self::err)?;
             self.builder.position_at_end(go);
             let len = self.str_len(s)?;
+            // CGEN-TAB parity: track the print column.
+            let col0 = self
+                .builder
+                .build_load(self.i32t, self.xb_col, "col0")
+                .map_err(Self::err)?
+                .into_int_value();
+            let len32 = self
+                .builder
+                .build_int_truncate(len, self.i32t, "len32")
+                .map_err(Self::err)?;
+            let col1 = self
+                .builder
+                .build_int_add(col0, len32, "col1")
+                .map_err(Self::err)?;
+            self.builder
+                .build_store(self.xb_col, col1)
+                .map_err(Self::err)?;
             let idx = self
                 .builder
                 .build_alloca(self.i64t, "pi")
@@ -6155,6 +6314,41 @@ pub mod llvm_backend {
                     ))
                 }
                 ("GLOW", 1) => Ok(Some(self.eval_int(&args[0])?.into())),
+                ("TAB", 1) => {
+                    // CGEN-TAB parity: spaces from the current print column to
+                    // the requested one (empty when already past). The returned
+                    // byte-string prints via str_print, which advances the
+                    // column to the target.
+                    let n = self.eval_int(&args[0])?;
+                    let n64 = self
+                        .builder
+                        .build_int_s_extend(n, self.i64t, "tabn")
+                        .map_err(Self::err)?;
+                    let cur = self
+                        .builder
+                        .build_load(self.i64t, self.xb_col, "tabcur")
+                        .map_err(Self::err)?
+                        .into_int_value();
+                    let pad = self
+                        .builder
+                        .build_int_sub(n64, cur, "tabpad")
+                        .map_err(Self::err)?;
+                    let neg = self
+                        .builder
+                        .build_int_compare(IntPredicate::SLT, pad, self.i64t.const_zero(), "tabneg")
+                        .map_err(Self::err)?;
+                    let padc = self
+                        .builder
+                        .build_select(neg, self.i64t.const_zero(), pad, "tabclamp")
+                        .map_err(Self::err)?
+                        .into_int_value();
+                    let buf = self.str_new(padc)?;
+                    let sp = self.i32t.const_int(32, false);
+                    self.builder
+                        .build_call(self.memset, &[buf.into(), sp.into(), padc.into()], "tabms")
+                        .map_err(Self::err)?;
+                    Ok(Some(buf.into()))
+                }
                 ("LEN", 1) => match self.eval_value(&args[0])? {
                     Some(BasicValueEnum::PointerValue(pv)) => {
                         let n32 = self
@@ -8334,6 +8528,52 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "7\n9\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    /// CGEN-TAB parity: `PRINT TAB(n); x` pads to column n and a same-line
+    /// successor continues at that column - identical to interp/Rust-C/cgen.
+    /// Previously LLVM dropped TAB entirely (printed nothing).
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_tab_column_parity() {
+        use std::io::Write;
+        use std::process::Command;
+        let unit = FrontendUnit::parse(
+            "VERSION \"0.1\"\n\
+             FUNCTION Main\n\
+             PRINT TAB(10); \"X\"\n\
+             PRINT 1; TAB(5); 2\n\
+             END FUNCTION\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_tab.o");
+        let exep = dir.join("xb_llvm_tab.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new("cc")
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert!(run.status.success(), "run failed");
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "          X\n1    2\n",
+            "TAB column parity"
+        );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
