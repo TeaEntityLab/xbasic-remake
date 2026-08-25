@@ -885,7 +885,14 @@ WHILE LEN(fwdDeclsBuf$) > 0
   _fdParams$ = MID$(_fdLine$, _fdTab1 + 1, _fdTab2 - _fdTab1 - 1)
   _fdRet$ = MID$(_fdLine$, _fdTab2 + 1, LEN(_fdLine$) - _fdTab2)
   ##curFnName$ = _fdName$
-  PRINT c_type$(_fdRet$) + " xb_user_" + _fdName$ + "(" + emit_params$(_fdParams$) + ");"
+  ' CG-BYTES: parameterless prototypes use C `(void)` and a trailing blank
+  ' line, matching the Rust CEmitter's forward-declaration block.
+  IF LEN(trim_spaces$(_fdParams$)) = 0 THEN
+    PRINT c_type$(_fdRet$) + " xb_user_" + _fdName$ + "(void);"
+    PRINT ""
+  ELSE
+    PRINT c_type$(_fdRet$) + " xb_user_" + _fdName$ + "(" + emit_params$(_fdParams$) + ");"
+  END IF
   _fdRest$ = MID$(fwdDeclsBuf$, INSTR(fwdDeclsBuf$, CHR$(10)) + 1, LEN(fwdDeclsBuf$) - INSTR(fwdDeclsBuf$, CHR$(10)))
   fwdDeclsBuf$ = _fdRest$
 WEND
@@ -1000,8 +1007,11 @@ WHILE pos <= LEN(src$)
           ##arrParams$ = arr_param_names$(params$)
           ##curParams$ = param_names$(params$)
           ##curFnName$ = funcName$
-          PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(" + emit_params$(params$) + ") {"
-          PRINT "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";"
+          IF LEN(trim_spaces$(params$)) = 0 THEN
+            PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(void) {"
+          ELSE
+            PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(" + emit_params$(params$) + ") {"
+          END IF
           ' CGEN-BYREF-WRITEBACK: copy-in prologue for all-byref scalar params
           DIM _wbIn$
           _wbIn$ = gen_byref_cio$(params$)
@@ -1033,6 +1043,15 @@ WHILE pos <= LEN(src$)
         ##curFnShapes$ = ""
         IF skipFunc = 0 THEN
           hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
+          ' CG-BYTES: the return-value variable is declared only when the
+          ' body actually assigns the function name; otherwise the function
+          ' returns the type default directly (matching the Rust CEmitter).
+          IF INSTR(funcBody$ + nestBlocks$, c_var_name$(funcName$, retType$) + " = ") > 0 THEN
+            hoists$ = hoists$ + "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";" + CHR$(10)
+            retStmt$ = "    return " + c_var_name$(funcName$, retType$) + ";"
+          ELSE
+            retStmt$ = "    return " + c_default$(retType$) + ";"
+          END IF
           fullBody$ = hoists$ + computed_goto_prologue$(funcBody$ + nestBlocks$) + funcBody$
           IF LEN(nestBlocks$) > 0 THEN
             fullBody$ = fullBody$ + "    if (xb_gosub_sp > xb_gosub_base) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;" + CHR$(10) + nestBlocks$
@@ -1043,7 +1062,7 @@ WHILE pos <= LEN(src$)
           IF LEN(##byrefWBCopy$) > 0 THEN
             PRINT LEFT$(##byrefWBCopy$, LEN(##byrefWBCopy$) - 1)
           END IF
-          PRINT "    return " + c_var_name$(funcName$, retType$) + ";"
+          PRINT retStmt$
           PRINT "}"
         END IF
         skipFunc = 0
@@ -1101,7 +1120,9 @@ WHILE pos <= LEN(src$)
           ELSEIF LEFT$(stmt$, 6) = "redim " THEN
             dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
           END IF
-          nestBlocks$ = nestBlocks$ + cCode$ + CHR$(10)
+          IF LEN(cCode$) > 0 THEN
+            nestBlocks$ = nestBlocks$ + cCode$ + CHR$(10)
+          END IF
         ELSEIF inFunc = 1 THEN
           usedSyms$ = scan_used$(stmt$, usedSyms$)
           IF LEFT$(stmt$, 4) = "dim " THEN
@@ -1109,7 +1130,9 @@ WHILE pos <= LEN(src$)
           ELSEIF LEFT$(stmt$, 6) = "redim " THEN
             dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
           END IF
-          funcBody$ = funcBody$ + cCode$ + CHR$(10)
+          IF LEN(cCode$) > 0 THEN
+            funcBody$ = funcBody$ + cCode$ + CHR$(10)
+          END IF
         ELSE
           ' MODULE-DIM-SCOPE: a top-level fixed-size non-string array DIM
           ' becomes a file-scope static declaration so named functions can
@@ -1132,13 +1155,18 @@ WHILE pos <= LEN(src$)
               END IF
             END IF
           END IF
-          mainBody$ = mainBody$ + cCode$ + CHR$(10)
+          IF LEN(cCode$) > 0 THEN
+            mainBody$ = mainBody$ + cCode$ + CHR$(10)
+          END IF
         END IF
       END IF
     END IF
   END IF
 WEND
 
+IF LEN(emittedFuncs$) > 0 THEN
+  PRINT ""
+END IF
 PRINT "int main(void) {"
 IF LEN(mainBody$) > 0 THEN
   PRINT mainBody$
