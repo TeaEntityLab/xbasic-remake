@@ -2,7 +2,7 @@ version 0.1
 function Main() -> integer
   dim x:integer
   dim shared y:integer
-  redim dim z:integer[integer(5)]
+  dim z:integer[integer(5)]
   program_name 
   assign x:integer = integer(42)
   shared ##y:integer = integer(99)

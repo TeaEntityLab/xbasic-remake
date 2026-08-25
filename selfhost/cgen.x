@@ -1104,29 +1104,6 @@ WHILE pos <= LEN(src$)
           nestBlocks$ = nestBlocks$ + cCode$ + CHR$(10)
         ELSEIF inFunc = 1 THEN
           usedSyms$ = scan_used$(stmt$, usedSyms$)
-          ' CGEN-AUTOVIVIFY: a `redim dim X[...]` statement uses X - register
-          ' it so the dyn hoist declares its storage even when X is never
-          ' DIM'd and never read via array_access in this function.
-          IF LEFT$(stmt$, 10) = "redim dim " THEN
-            rdRest$ = MID$(stmt$, 11, LEN(stmt$) - 10)
-            IF LEFT$(rdRest$, 7) = "shared " THEN
-              rdRest$ = MID$(rdRest$, 8, LEN(rdRest$) - 7)
-            END IF
-            rdBp = INSTR(rdRest$, "[")
-            IF rdBp > 0 THEN
-              rdNm$ = LEFT$(rdRest$, rdBp - 1)
-              rdCp = INSTR(rdNm$, ":")
-              IF rdCp > 0 THEN
-                rdTy$ = MID$(rdNm$, rdCp + 1, LEN(rdNm$) - rdCp)
-                rdNm$ = LEFT$(rdNm$, rdCp - 1)
-              ELSE
-                rdTy$ = "integer"
-              END IF
-              IF INSTR(usedSyms$, CHR$(10) + rdNm$ + "|") = 0 THEN
-                usedSyms$ = usedSyms$ + CHR$(10) + rdNm$ + "|" + rdTy$
-              END IF
-            END IF
-          END IF
           IF LEFT$(stmt$, 4) = "dim " THEN
             dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
           ELSEIF LEFT$(stmt$, 6) = "redim " THEN
@@ -3418,11 +3395,6 @@ FUNCTION dim_name$(s$)
   ELSEIF LEFT$(r$, 6) = "redim " THEN
     r$ = MID$(r$, 7, LEN(r$) - 6)
   END IF
-  ' `redim dim X[...]` leaves the inner `dim ` - strip it so the extracted
-  ' name is X, not "dim X" (which broke the dyn hoist's dimmed$ lookup).
-  IF LEFT$(r$, 4) = "dim " THEN
-    r$ = MID$(r$, 5, LEN(r$) - 4)
-  END IF
   IF LEFT$(r$, 7) = "shared " THEN
     r$ = MID$(r$, 8, LEN(r$) - 7)
   END IF
@@ -3791,9 +3763,6 @@ FUNCTION fn_array_dims$(s$, fromPos)
       ELSE
         r$ = MID$(ln$, 7, LEN(ln$) - 6)
       END IF
-      IF LEFT$(r$, 4) = "dim " THEN
-        r$ = MID$(r$, 5, LEN(r$) - 4)
-      END IF
       bp = INSTR(r$, "[")
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
@@ -3844,9 +3813,6 @@ FUNCTION fn_array_shapes$(s$, fromPos)
         r$ = MID$(ln$, 5, LEN(ln$) - 4)
       ELSE
         r$ = MID$(ln$, 7, LEN(ln$) - 6)
-      END IF
-      IF LEFT$(r$, 4) = "dim " THEN
-        r$ = MID$(r$, 5, LEN(r$) - 4)
       END IF
       IF LEFT$(r$, 7) = "shared " THEN
         r$ = MID$(r$, 8, LEN(r$) - 7)
@@ -4161,37 +4127,6 @@ FUNCTION scan_dyn$(s$)
   DIM cdepth
   DIM ncomma
   sc$ = ""
-  ' CGEN-AUTOVIVIFY: a name with ANY `redim X[` statement is dynamic — the DIM
-  ' takes the calloc/realloc path and writes past the ubound grow (matching the
-  ' interpreter and the Rust CEmitter). Without this, `DIM n[3]` + `REDIM n[...]`
-  ' emits a fixed-native declaration plus a redeclaration (cc error).
-  rd$ = ""
-  p = 1
-  WHILE p <= LEN(s$)
-    le = INSTR(s$, CHR$(10), p)
-    IF le = 0 THEN
-      le = LEN(s$) + 1
-    END IF
-    ln$ = trim_spaces$(MID$(s$, p, le - p))
-    p = le + 1
-    IF LEFT$(ln$, 6) = "redim " THEN
-      r$ = MID$(ln$, 7, LEN(ln$) - 6)
-      IF LEFT$(r$, 4) = "dim " THEN
-        r$ = MID$(r$, 5, LEN(r$) - 4)
-      END IF
-      bp = INSTR(r$, "[")
-      IF bp > 0 THEN
-        nm$ = LEFT$(r$, bp - 1)
-        cp = INSTR(nm$, ":")
-        IF cp > 0 THEN
-          nm$ = LEFT$(nm$, cp - 1)
-        END IF
-        IF INSTR(rd$, ":" + nm$ + ":") = 0 THEN
-          rd$ = rd$ + ":" + nm$ + ":"
-        END IF
-      END IF
-    END IF
-  WEND
   res$ = ""
   p = 1
   WHILE p <= LEN(s$)
@@ -4284,12 +4219,6 @@ FUNCTION scan_dyn$(s$)
     p = le + 1
     IF LEFT$(ln$, 4) = "dim " THEN
       r$ = MID$(ln$, 5, LEN(ln$) - 4)
-    ELSEIF LEFT$(ln$, 10) = "redim dim " THEN
-      r$ = MID$(ln$, 11, LEN(ln$) - 10)
-    ELSE
-      r$ = ""
-    END IF
-    IF LEN(r$) > 0 THEN
       bp = INSTR(r$, "[")
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
@@ -4327,14 +4256,7 @@ FUNCTION scan_dyn$(s$)
           ci = ci + 1
         WEND
         IF ty$ = "integer" OR ty$ = "float" THEN
-          ' CGEN-AUTOVIVIFY: an empty-bracket array DIM (`dim X:t[]`) is
-          ' inherently dynamic - any write may grow the storage - so it is
-          ' classified dyn regardless of scalar-facet/REDIM evidence.
-          IF sub$ = "]" THEN
-            IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
-              res$ = res$ + ":" + nm$ + ":" + ty$ + ":"
-            END IF
-          ELSEIF INSTR(sc$, ":" + nm$ + ":") > 0 OR INSTR(rd$, ":" + nm$ + ":") > 0 THEN
+          IF INSTR(sc$, ":" + nm$ + ":") > 0 THEN
             IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
               res$ = res$ + ":" + nm$ + ":" + ty$ + ":"
             END IF
@@ -4668,12 +4590,6 @@ FUNCTION scan_undimmed$(s$)
     p = le + 1
     IF LEFT$(ln$, 4) = "dim " THEN
       r$ = MID$(ln$, 5, LEN(ln$) - 4)
-    ELSEIF LEFT$(ln$, 10) = "redim dim " THEN
-      r$ = MID$(ln$, 11, LEN(ln$) - 10)
-    ELSE
-      r$ = ""
-    END IF
-    IF LEN(r$) > 0 THEN
       bp = INSTR(r$, "[")
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
@@ -4757,12 +4673,6 @@ FUNCTION scan_dynstr$(s$)
     p = le + 1
     IF LEFT$(ln$, 4) = "dim " THEN
       r$ = MID$(ln$, 5, LEN(ln$) - 4)
-    ELSEIF LEFT$(ln$, 10) = "redim dim " THEN
-      r$ = MID$(ln$, 11, LEN(ln$) - 10)
-    ELSE
-      r$ = ""
-    END IF
-    IF LEN(r$) > 0 THEN
       bp = INSTR(r$, "[")
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
@@ -4770,14 +4680,7 @@ FUNCTION scan_dynstr$(s$)
         IF e > 0 THEN
           IF MID$(nm$, e + 1, LEN(nm$) - e) = "string" THEN
             nm$ = LEFT$(nm$, e - 1)
-            ' CGEN-AUTOVIVIFY: an empty-bracket string array DIM
-            ' (`dim X:string[]`) is dynamic on first sighting.
-            sub2$ = MID$(r$, bp + 1, LEN(r$) - bp - 1)
-            IF sub2$ = "" THEN
-              IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
-                res$ = res$ + ":" + nm$ + ":"
-              END IF
-            ELSEIF INSTR(seen$, ":" + nm$ + ":") > 0 THEN
+            IF INSTR(seen$, ":" + nm$ + ":") > 0 THEN
               IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
                 res$ = res$ + ":" + nm$ + ":"
               END IF
@@ -4932,12 +4835,6 @@ FUNCTION scan_str_dual$(s$)
     p = le + 1
     IF LEFT$(ln$, 4) = "dim " THEN
       r$ = MID$(ln$, 5, LEN(ln$) - 4)
-    ELSEIF LEFT$(ln$, 10) = "redim dim " THEN
-      r$ = MID$(ln$, 11, LEN(ln$) - 10)
-    ELSE
-      r$ = ""
-    END IF
-    IF LEN(r$) > 0 THEN
       bp = INSTR(r$, "[")
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
@@ -5041,12 +4938,8 @@ FUNCTION scan_arr2d$(s$)
     END IF
     ln$ = trim_spaces$(MID$(s$, p, le - p))
     p = le + 1
-    IF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 10) = "redim dim " THEN
-      IF LEFT$(ln$, 4) = "dim " THEN
-        r$ = MID$(ln$, 5, LEN(ln$) - 4)
-      ELSE
-        r$ = MID$(ln$, 11, LEN(ln$) - 10)
-      END IF
+    IF LEFT$(ln$, 4) = "dim " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
       IF LEFT$(r$, 7) = "shared " THEN
         r$ = MID$(r$, 8, LEN(r$) - 7)
       END IF
@@ -5294,8 +5187,6 @@ FUNCTION emit_stmt$(s$)
   DIM _ndShape$
   DIM _ndRank
   DIM _ndIdxRank
-  DIM _avPtr$
-  DIM _avDef$
 
   IF LEFT$(s$, 8) = "function" THEN
     emit_stmt$ = ""
@@ -5341,39 +5232,6 @@ FUNCTION emit_stmt$(s$)
     RETURN emit_stmt$
   END IF
 
-  ' CGEN-AUTOVIVIFY / content-preserving REDIM: `redim dim X:t[...]` (the text-IR
-  ' form of REDIM) reallocs the dynamic array PRESERVING content, unlike the calloc
-  ' at DIM. Matches the interpreter's reshape and the Rust CEmitter's _oldub loop.
-  IF LEFT$(s$, 10) = "redim dim " THEN
-    rest$ = MID$(s$, 11, LEN(s$) - 10)
-    IF LEFT$(rest$, 7) = "shared " THEN
-      rest$ = MID$(rest$, 8, LEN(rest$) - 7)
-    END IF
-    bracketPos = INSTR(rest$, "[")
-    varName$ = LEFT$(rest$, bracketPos - 1)
-    colonPos = INSTR(varName$, ":")
-    IF colonPos > 0 THEN
-      varType$ = MID$(varName$, colonPos + 1, LEN(varName$) - colonPos)
-      varName$ = LEFT$(varName$, colonPos - 1)
-    ELSE
-      varType$ = "integer"
-    END IF
-    arrSize$ = MID$(rest$, bracketPos + 1, LEN(rest$) - bracketPos - 1)
-    _avPtr$ = c_var_name$(varName$, varType$) + bd$(varName$)
-    _avDef$ = "0"
-    IF varType$ = "string" THEN
-      _avDef$ = "xb_str(" + CHR$(34) + CHR$(34) + ")"
-    ELSEIF varType$ = "float" THEN
-      _avDef$ = "0.0"
-    END IF
-    ' The dyn hoist declares the pointer + ubound cells for names classified
-    ' dyn (incl. `redim dim`-only names via their array_access reads).
-    emit_stmt$ = "{ intptr_t _oldub = xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + "; xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + _avPtr$ + " = realloc(" + _avPtr$ + ", (size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1) * sizeof(*" + _avPtr$ + ")); for (intptr_t _i = _oldub + 1; _i <= xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + "; _i++) " + _avPtr$ + "[_i] = " + _avDef$ + "; }"
-    IF INSTR(arrSize$, ",") > 0 THEN
-      emit_stmt$ = emit_stmt$ + " xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
-    END IF
-    RETURN emit_stmt$
-  END IF
   IF LEFT$(s$, 3) = "dim" THEN
     rest$ = MID$(s$, 5, LEN(s$) - 4)
     IF LEFT$(rest$, 7) = "shared " THEN
@@ -5383,7 +5241,6 @@ FUNCTION emit_stmt$(s$)
         varName$ = LEFT$(rest$, bracketPos - 1)
         arrSize$ = MID$(rest$, bracketPos + 1, LEN(rest$) - bracketPos - 1)
       ELSE
-
         varName$ = rest$
         arrSize$ = ""
       END IF
@@ -5428,14 +5285,6 @@ FUNCTION emit_stmt$(s$)
         varName$ = LEFT$(varName$, colonPos - 1)
       ELSE
         varType$ = "integer"
-      END IF
-      ' CGEN-AUTOVIVIFY: an empty-bracket array DIM (`dim X:t[]`) needs no
-      ' emitted declaration - the name registers dyn (scan_dyn$/scan_dynstr$),
-      ' so the hoist declares the NULL buffer + ubound -1 cells and the write
-      ' grow-guard does the first allocation (matching interp/Rust CEmitter).
-      IF arrSize$ = "" THEN
-        emit_stmt$ = ""
-        RETURN emit_stmt$
       END IF
       cExpr$ = emit_expr$(arrSize$)
       IF INSTR(##strDual$, ":" + varName$ + ":") > 0 THEN
@@ -5544,23 +5393,9 @@ FUNCTION emit_stmt$(s$)
     IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
       emit_stmt$ = "    (void)(" + c2$ + ");"
     ELSE
-      ' CGEN-AUTOVIVIFY: a 1-D write past a dynamic array's ubound grows the
-      ' storage (preserving the prefix), matching the interpreter and the Rust
-      ' CEmitter. realloc(NULL,·) covers the never-allocated case.
       _ndShape$ = shape_of$(varName$)
       _ndRank = top_part_count(_ndShape$)
       _ndIdxRank = top_part_count(cExpr$)
-      IF INSTR(cExpr$, ",") = 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0) THEN
-        _avPtr$ = c_var_name$(varName$, varType$) + bd$(varName$)
-        _avDef$ = "0"
-        IF varType$ = "string" THEN
-          _avDef$ = "xb_str(" + CHR$(34) + CHR$(34) + ")"
-        ELSEIF varType$ = "float" THEN
-          _avDef$ = "0.0"
-        END IF
-        emit_stmt$ = "    if ((" + emit_expr$(cExpr$) + ") > xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + ") { intptr_t _oldub = xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + "; xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_expr$(cExpr$) + "); " + _avPtr$ + " = realloc(" + _avPtr$ + ", (size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1) * sizeof(*" + _avPtr$ + ")); for (intptr_t _i = _oldub + 1; _i <= xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + "; _i++) " + _avPtr$ + "[_i] = " + _avDef$ + "; }" + CHR$(10) + "    " + _avPtr$ + "[" + emit_expr$(cExpr$) + "] = " + c2$ + ";"
-        RETURN emit_stmt$
-      END IF
       IF _ndRank >= 3 AND INSTR(cExpr$, ",") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
         IF _ndRank = _ndIdxRank THEN
           emit_stmt$ = "    " + c_var_name$(varName$, varType$) + bd$(varName$) + "[" + emit_flat_nd$(cExpr$, _ndShape$) + "] = " + c2$ + ";"
