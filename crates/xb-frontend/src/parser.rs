@@ -418,13 +418,12 @@ impl Parser {
         // name. Only consume an identifier type when a further name follows, so
         // `FUNCADDR foo` keeps `foo` as the name while `FUNCADDR XLONG foo` treats
         // `XLONG` as the return type.
-        if matches!(self.peek_kind(), TokenKind::Keyword(_)) {
-            self.index += 1;
-        } else if matches!(self.peek_kind(), TokenKind::Identifier { .. })
-            && matches!(
-                self.peek_next_kind(),
-                Some(TokenKind::Identifier { .. }) | Some(TokenKind::Keyword(_))
-            )
+        if matches!(self.peek_kind(), TokenKind::Keyword(_))
+            || (matches!(self.peek_kind(), TokenKind::Identifier { .. })
+                && matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::Identifier { .. }) | Some(TokenKind::Keyword(_))
+                ))
         {
             self.index += 1;
         }

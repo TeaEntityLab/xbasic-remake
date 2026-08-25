@@ -82,8 +82,8 @@ impl<'a> Lexer<'a> {
                                     let before_quote =
                                         line_rest.split_once('\'').map(|(b, _)| b).unwrap_or("");
                                     if !before_quote.is_empty()
-                                        && !(before_quote.len() > 1
-                                            && before_quote.chars().all(|c| c.is_whitespace()))
+                                        && (before_quote.len() <= 1
+                                            || !before_quote.chars().all(|c| c.is_whitespace()))
                                         && (before_quote.len() <= 3
                                             || (!before_quote.contains(' ')
                                                 && !before_quote.contains('(')

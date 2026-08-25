@@ -163,7 +163,7 @@ impl Parser {
         let exit_label = format!("_exit_sel_true_{id}");
 
         // Replace EXIT SELECT in case bodies with GOTO <exit_label>.
-        fn replace_exit_select(stmts: &mut Vec<Statement>, label: &str) {
+        fn replace_exit_select(stmts: &mut [Statement], label: &str) {
             for s in stmts.iter_mut() {
                 match s {
                     Statement::ExitSelect => {
@@ -607,8 +607,8 @@ pub(crate) fn parse_print(parser: &mut Parser) -> Result<Statement, crate::Parse
                 break;
             }
             items.push(parse_print_item(parser)?);
-        } else if !parser.at_line_end()
-            && !(parser.in_single_line_if && matches!(parser.peek_kind(), TokenKind::Symbol(':')))
+        } else if !(parser.at_line_end()
+            || parser.in_single_line_if && matches!(parser.peek_kind(), TokenKind::Symbol(':')))
         {
             // Space-separated item: implicit semicolon
             separators.push(PrintSep::Semicolon);
