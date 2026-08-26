@@ -2455,6 +2455,8 @@ FUNCTION emit_expr$(e$)
         emit_expr$ = "atof(" + emittedArgs$ + ")"
       ELSEIF dargType$ = "integer" THEN
         emit_expr$ = "(double)(" + emittedArgs$ + ")"
+      ELSEIF fn$ = "GIANT" THEN
+        emit_expr$ = "(int64_t)(" + emittedArgs$ + ")"
       ELSE
         emit_expr$ = "(" + emittedArgs$ + ")"
       END IF
@@ -2467,6 +2469,8 @@ FUNCTION emit_expr$(e$)
         emit_expr$ = "atoi(" + emittedArgs$ + ")"
       ELSEIF xargType$ = "float" THEN
         emit_expr$ = "(int)(" + emittedArgs$ + ")"
+      ELSEIF fn$ = "GIANT" THEN
+        emit_expr$ = "(int64_t)(" + emittedArgs$ + ")"
       ELSE
         emit_expr$ = "(" + emittedArgs$ + ")"
       END IF
