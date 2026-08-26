@@ -606,6 +606,8 @@ END IF
 ##fileScopeDecls$ = ""
 ##doStack$ = ""
 ##curLead$ = "0"
+##constDefines$ = ""
+##hadDecls$ = "0"
 ##selLead$ = ""
 ##noLead$ = "0"
 ##dynStr$ = ""
@@ -724,6 +726,40 @@ IF INSTR(src$, "XgrProcessMessages") > 0 THEN
   PRINT ""
 END IF
 ' Forward declarations: pre-scan all lines for function signatures
+##constDefines$ = ""
+cpos = 1
+WHILE cpos <= LEN(src$)
+  cle = INSTR(src$, CHR$(10), cpos)
+  IF cle = 0 THEN
+    cle = LEN(src$) + 1
+  END IF
+  cln$ = trim_spaces$(MID$(src$, cpos, cle - cpos))
+  cpos = cle + 1
+  IF LEFT$(cln$, 6) = "const " THEN
+    crest$ = MID$(cln$, 7, LEN(cln$) - 6)
+    ceq = INSTR(crest$, " = ")
+    IF ceq > 0 THEN
+      cnm$ = LEFT$(crest$, ceq - 1)
+      chp = INSTR(cnm$, "$$")
+      IF chp > 0 THEN
+        cnm$ = MID$(cnm$, chp + 2, LEN(cnm$) - chp)
+      END IF
+      ccp = INSTR(cnm$, ":")
+      IF ccp > 0 THEN
+        cnm$ = LEFT$(cnm$, ccp - 1)
+      END IF
+      cvl$ = MID$(crest$, ceq + 3, LEN(crest$) - ceq)
+      cvp = INSTR(cvl$, "(")
+      IF cvp > 0 THEN
+        cvl$ = MID$(cvl$, cvp + 1, LEN(cvl$) - cvp - 1)
+      END IF
+      ##constDefines$ = ##constDefines$ + "#define XB_CONST_" + cnm$ + " " + cvl$ + CHR$(10)
+    END IF
+  END IF
+WEND
+IF LEN(##constDefines$) > 0 THEN
+  PRINT ##constDefines$
+END IF
 fwdPos = 1
 WHILE fwdPos <= LEN(src$)
   fwdLine$ = ""
@@ -889,14 +925,18 @@ WHILE LEN(fwdDeclsBuf$) > 0
   ' CG-BYTES: parameterless prototypes use C `(void)` and a trailing blank
   ' line, matching the Rust CEmitter's forward-declaration block.
   IF LEN(trim_spaces$(_fdParams$)) = 0 THEN
+    ##hadDecls$ = "1"
     PRINT c_type$(_fdRet$) + " xb_user_" + _fdName$ + "(void);"
-    PRINT ""
   ELSE
+    ##hadDecls$ = "1"
     PRINT c_type$(_fdRet$) + " xb_user_" + _fdName$ + "(" + emit_params$(_fdParams$) + ");"
   END IF
   _fdRest$ = MID$(fwdDeclsBuf$, INSTR(fwdDeclsBuf$, CHR$(10)) + 1, LEN(fwdDeclsBuf$) - INSTR(fwdDeclsBuf$, CHR$(10)))
   fwdDeclsBuf$ = _fdRest$
 WEND
+IF ##hadDecls$ = "1" THEN
+  PRINT ""
+END IF
 
 ##dynNames$ = scan_dyn$(src$)
 ##byrefDual$ = scan_byref_dual$(src$)
@@ -5419,7 +5459,7 @@ FUNCTION emit_stmt$(s$)
       IF LEFT$(val$, 8) = "integer(" OR LEFT$(val$, 6) = "float(" THEN
         val$ = MID$(val$, vp + 1, LEN(val$) - vp - 1)
       END IF
-      PRINT "#define XB_CONST_" + nm$ + " " + val$
+      ' Collected by the const pre-scan below.
     END IF
     emit_stmt$ = ""
     RETURN emit_stmt$
