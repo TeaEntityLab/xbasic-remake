@@ -604,6 +604,7 @@ END IF
 ##byrefDual$ = ""
 ##undimmed$ = ""
 ##fileScopeDecls$ = ""
+##doStack$ = ""
 ##dynStr$ = ""
 ##strDual$ = ""
 ##dualUse$ = ""
@@ -931,6 +932,7 @@ WHILE pos <= LEN(src$)
     ' Empty line, skip
   ELSE
     stmt$ = MID$(line$, j, LEN(line$) - j + 1)
+    lead = j - 1
     IF LEFT$(stmt$, 5) = "data " THEN
       DIM dataRest$
       dataRest$ = MID$(stmt$, 6, LEN(stmt$) - 5)
@@ -1022,6 +1024,7 @@ WHILE pos <= LEN(src$)
           ##gosubRetCount$ = ""
           ##scalarSeen$ = ""
           ##arrDimsSeen$ = ""
+          ##doStack$ = ""
           ##fwdScalars$ = ""
           ##curFnArrays$ = fn_array_dims$(src$, pos)
           ##curFnShapes$ = fn_array_shapes$(src$, pos)
@@ -1122,7 +1125,108 @@ WHILE pos <= LEN(src$)
             nestBlocks$ = nestBlocks$ + cCode$ + CHR$(10)
           END IF
         ELSEIF inFunc = 1 THEN
+          IF lead >= 2 THEN cCode$ = add_lead$(cCode$, 2 * (lead - 2))
           usedSyms$ = scan_used$(stmt$, usedSyms$)
+          ' CG-BYTES: DO/LOOP render in the Rust CEmitter's exact shapes.
+          IF LEFT$(stmt$, 3) = "do " OR stmt$ = "do" THEN
+            preIsWhile$ = "0"
+            postK$ = "0"
+            IF LEN(stmt$) > 4 THEN
+              kw$ = MID$(stmt$, 4, 5)
+              IF kw$ = "while" THEN
+                preIsWhile$ = "1"
+                cCode$ = "    while (" + emit_expr$(trim_spaces$(MID$(stmt$, 10, LEN(stmt$) - 9))) + ") {"
+              ELSEIF kw$ = "until" THEN
+                preIsWhile$ = "1"
+                cCode$ = "    while (!(" + emit_expr$(trim_spaces$(MID$(stmt$, 10, LEN(stmt$) - 9))) + ")) {"
+              ELSE
+                cCode$ = "    while (1) {"
+              END IF
+            ELSE
+              ' Bare DO: look ahead to the matching LOOP for the post form.
+              sp2 = pos
+              found = 0
+              WHILE sp2 <= LEN(src$) AND found = 0
+                le2 = INSTR(src$, CHR$(10), sp2)
+                IF le2 = 0 THEN
+                  le2 = LEN(src$) + 1
+                END IF
+                ln2$ = MID$(src$, sp2, le2 - sp2)
+                sp2 = le2 + 1
+                l2 = 0
+                WHILE ASC(MID$(ln2$, l2 + 1, 1)) = 32
+                  l2 = l2 + 1
+                WEND
+                tr2$ = trim_spaces$(ln2$)
+                IF l2 < lead THEN
+                  EXIT WHILE
+                END IF
+                IF l2 = lead AND (tr2$ = "loop" OR LEFT$(tr2$, 5) = "loop ") THEN
+                  found = 1
+                  IF LEN(tr2$) > 4 THEN
+                    kw2$ = MID$(tr2$, 6, 5)
+                    IF kw2$ = "while" THEN
+                      postK$ = "1"
+                    ELSEIF kw2$ = "until" THEN
+                      postK$ = "2"
+                    END IF
+                  END IF
+                END IF
+              WEND
+              PRINT "static int dbg_bare = 1;"
+              IF postK$ = "0" THEN
+                cCode$ = "    while (1) {"
+              ELSE
+                cCode$ = "    do {"
+              END IF
+            END IF
+            ##doStack$ = ##doStack$ + "|" + preIsWhile$ + postK$
+            IF lead >= 2 THEN cCode$ = add_lead$(cCode$, 2 * (lead - 2))
+            IF LEN(cCode$) > 0 THEN
+              funcBody$ = funcBody$ + cCode$ + CHR$(10)
+            END IF
+          ELSEIF LEFT$(stmt$, 4) = "loop" THEN
+            pl = LEN(##doStack$)
+            pr = pl - 1
+            IF pr < 1 THEN
+              pr = 1
+            END IF
+            tok$ = MID$(##doStack$, pr, 2)
+            ##doStack$ = LEFT$(##doStack$, pr - 1)
+            preW$ = LEFT$(tok$, 1)
+            postK$ = MID$(tok$, 2, 1)
+            tr2$ = trim_spaces$(stmt$)
+            cExpr$ = ""
+            IF LEN(tr2$) > 4 THEN
+              kw2$ = MID$(tr2$, 6, 5)
+              IF kw2$ = "while" THEN
+                postK$ = "1"
+                cExpr$ = emit_expr$(trim_spaces$(MID$(tr2$, 11, LEN(tr2$) - 10)))
+              ELSEIF kw2$ = "until" THEN
+                postK$ = "2"
+                cExpr$ = emit_expr$(trim_spaces$(MID$(tr2$, 11, LEN(tr2$) - 10)))
+              END IF
+            END IF
+            IF postK$ = "1" THEN
+              IF preW$ = "1" THEN
+                cCode$ = "    if (!(" + cExpr$ + ")) break;" + CHR$(10) + "    }"
+              ELSE
+                cCode$ = "    } while ((" + cExpr$ + "));"
+              END IF
+            ELSEIF postK$ = "2" THEN
+              IF preW$ = "1" THEN
+                cCode$ = "    if ((" + cExpr$ + ")) break;" + CHR$(10) + "    }"
+              ELSE
+                cCode$ = "    } while (!(" + cExpr$ + "));"
+              END IF
+            ELSE
+              cCode$ = "    }"
+            END IF
+            IF lead >= 2 THEN cCode$ = add_lead$(cCode$, 2 * (lead - 2))
+            IF LEN(cCode$) > 0 THEN
+              funcBody$ = funcBody$ + cCode$ + CHR$(10)
+            END IF
+          ELSE
           IF LEFT$(stmt$, 4) = "dim " THEN
             dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
           ELSEIF LEFT$(stmt$, 6) = "redim " THEN
@@ -1130,6 +1234,7 @@ WHILE pos <= LEN(src$)
           END IF
           IF LEN(cCode$) > 0 THEN
             funcBody$ = funcBody$ + cCode$ + CHR$(10)
+          END IF
           END IF
         ELSE
           ' MODULE-DIM-SCOPE: a top-level fixed-size non-string array DIM
@@ -1760,6 +1865,42 @@ FUNCTION after_first$(s$)
     p = p + 1
   END IF
   after_first$ = MID$(s$, p, LEN(s$) - p + 1)
+END FUNCTION
+
+' CG-BYTES: re-indent an emitted statement to its IR nesting depth.
+FUNCTION add_lead$(a$, extra)
+  DIM out$
+  DIM rest$
+  DIM nl
+  DIM pad$
+  DIM i
+  IF extra <= 0 THEN
+    add_lead$ = a$
+    RETURN add_lead$
+  END IF
+  pad$ = ""
+  FOR i = 1 TO extra
+    pad$ = pad$ + " "
+  NEXT i
+  out$ = ""
+  rest$ = a$
+  WHILE LEN(rest$) > 0
+    nl = INSTR(rest$, CHR$(10))
+    IF nl = 0 THEN
+      IF LEN(trim_spaces$(rest$)) > 0 THEN
+        out$ = out$ + pad$ + rest$
+      END IF
+      rest$ = ""
+    ELSE
+      ln$ = LEFT$(rest$, nl - 1)
+      IF LEN(trim_spaces$(ln$)) > 0 THEN
+        out$ = out$ + pad$ + ln$
+      END IF
+      out$ = out$ + CHR$(10)
+      rest$ = MID$(rest$, nl + 1, LEN(rest$) - nl)
+    END IF
+  WEND
+  add_lead$ = out$
 END FUNCTION
 
 FUNCTION trim_spaces$(s$)
