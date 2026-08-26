@@ -1321,7 +1321,7 @@ WEND
 
 PRINT "int main(void) {"
 IF LEN(mainBody$) > 0 THEN
-  PRINT mainBody$
+  PRINT LEFT$(mainBody$, LEN(mainBody$) - 1)
 END IF
 IF LEN(##sharedStrInits$) > 0 THEN
   DIM _ssiRest$
