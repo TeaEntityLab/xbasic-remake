@@ -605,6 +605,9 @@ END IF
 ##undimmed$ = ""
 ##fileScopeDecls$ = ""
 ##doStack$ = ""
+##curLead$ = "0"
+##selLead$ = ""
+##noLead$ = "0"
 ##dynStr$ = ""
 ##strDual$ = ""
 ##dualUse$ = ""
@@ -933,6 +936,7 @@ WHILE pos <= LEN(src$)
   ELSE
     stmt$ = MID$(line$, j, LEN(line$) - j + 1)
     lead = j - 1
+    ##curLead$ = STR$(lead)
     IF LEFT$(stmt$, 5) = "data " THEN
       DIM dataRest$
       dataRest$ = MID$(stmt$, 6, LEN(stmt$) - 5)
@@ -1125,7 +1129,15 @@ WHILE pos <= LEN(src$)
             nestBlocks$ = nestBlocks$ + cCode$ + CHR$(10)
           END IF
         ELSEIF inFunc = 1 THEN
-          IF lead >= 2 THEN cCode$ = add_lead$(cCode$, 2 * (lead - 2))
+          IF ##noLead$ = "1" THEN
+            ' SELECT structural lines carry their intrinsic indentation.
+            ##noLead$ = "0"
+          ELSEIF ##selLead$ <> "" THEN
+            ' SELECT case bodies: Rust indents them at selLead+6 total.
+            IF lead >= 2 THEN cCode$ = add_lead$(cCode$, VAL(##curLead$) + 2)
+          ELSEIF lead >= 2 THEN
+            cCode$ = add_lead$(cCode$, 2 * (lead - 2))
+          END IF
           usedSyms$ = scan_used$(stmt$, usedSyms$)
           ' CG-BYTES: DO/LOOP render in the Rust CEmitter's exact shapes.
           IF LEFT$(stmt$, 3) = "do " OR stmt$ = "do" THEN
@@ -1944,6 +1956,10 @@ FUNCTION emit_expr$(e$)
   DIM args$
   DIM parenPos
   DIM br
+  DIM selTy$
+  DIM _sl$
+  DIM _sl2$
+  DIM _si
   DIM _ndShape$
   DIM _ndRank
   DIM _ndIdxRank
@@ -5989,7 +6005,7 @@ FUNCTION emit_stmt$(s$)
         esId = ASC(MID$(##selectExitStack$, esLastComma - 1, 1))
       END IF
     END IF
-    emit_stmt$ = "    goto _exit_sel_" + STR$(esId) + ";"
+    emit_stmt$ = "    goto _exit_sel_" + STR$(esId - 1) + ";"
     RETURN emit_stmt$
   END IF
 
@@ -6006,7 +6022,19 @@ FUNCTION emit_stmt$(s$)
     ##selectBraces = 0
     ##selectExitCount = ##selectExitCount + 1
     ##selectExitStack$ = ##selectExitStack$ + CHR$(##selectExitCount) + ","
-    emit_stmt$ = "    { intptr_t _matched = 0;"
+    ' CG-BYTES: Rust CEmitter shape - saved _sel, if/else-if chain, 0-based
+    ' exit ids. Case bodies stream via add_lead (their IR lead supplies +4).
+    selTy$ = "intptr_t"
+    IF ##selectIsString = 1 THEN
+      selTy$ = "char*"
+    END IF
+    ##selLead$ = ##curLead$
+    _sl$ = ""
+    FOR _si = 1 TO VAL(##curLead$)
+      _sl$ = _sl$ + " "
+    NEXT _si
+    ##noLead$ = "1"
+    emit_stmt$ = _sl$ + "{" + CHR$(10) + _sl$ + "    " + selTy$ + " _sel = " + cExpr$ + ";"
     RETURN emit_stmt$
   END IF
 
@@ -6035,9 +6063,9 @@ FUNCTION emit_stmt$(s$)
           caseConds$ = caseConds$ + " || "
         END IF
         IF ##selectIsString = 1 THEN
-          caseConds$ = caseConds$ + "(xb_scmp(" + ##selectExpr$ + ", " + emit_expr$(caseArg$) + ") == 0)"
+          caseConds$ = caseConds$ + "(xb_scmp(_sel, " + emit_expr$(trim_spaces$(caseArg$)) + ") == 0)"
         ELSE
-          caseConds$ = caseConds$ + "(" + ##selectExpr$ + " == " + emit_expr$(caseArg$) + ")"
+          caseConds$ = caseConds$ + "_sel == " + emit_expr$(trim_spaces$(caseArg$))
         END IF
         caseStart = casePos + 1
       END IF
@@ -6049,15 +6077,20 @@ FUNCTION emit_stmt$(s$)
         caseConds$ = caseConds$ + " || "
       END IF
       IF ##selectIsString = 1 THEN
-        caseConds$ = caseConds$ + "(xb_scmp(" + ##selectExpr$ + ", " + emit_expr$(caseLast$) + ") == 0)"
+        caseConds$ = caseConds$ + "(xb_scmp(_sel, " + emit_expr$(trim_spaces$(caseLast$)) + ") == 0)"
       ELSE
-        caseConds$ = caseConds$ + "(" + ##selectExpr$ + " == " + emit_expr$(caseLast$) + ")"
+        caseConds$ = caseConds$ + "_sel == " + emit_expr$(trim_spaces$(caseLast$))
       END IF
     END IF
+    _sl$ = ""
+    FOR _si = 1 TO VAL(##selLead$) + 4
+      _sl$ = _sl$ + " "
+    NEXT _si
+    ##noLead$ = "1"
     IF ##selectState = 1 THEN
-      emit_stmt$ = "    if (" + caseConds$ + ") { _matched = 1;"
+      emit_stmt$ = _sl$ + "if (" + caseConds$ + ") {"
     ELSE
-      emit_stmt$ = "    } else if (!_matched && (" + caseConds$ + ")) { _matched = 1;"
+      emit_stmt$ = _sl$ + "}" + CHR$(10) + _sl$ + "else if (" + caseConds$ + ") {"
     END IF
     ##selectState = 2
     ##selectBraces = ##selectBraces + 1
@@ -6065,7 +6098,12 @@ FUNCTION emit_stmt$(s$)
   END IF
 
   IF s$ = "case_else" AND ##selectState > 0 THEN
-    emit_stmt$ = "    } else {"
+    _sl$ = ""
+    FOR _si = 1 TO VAL(##selLead$) + 4
+      _sl$ = _sl$ + " "
+    NEXT _si
+    ##noLead$ = "1"
+    emit_stmt$ = _sl$ + "}" + CHR$(10) + _sl$ + "else {"
     ##selectBraces = ##selectBraces + 1
     RETURN emit_stmt$
   END IF
@@ -6090,7 +6128,17 @@ FUNCTION emit_stmt$(s$)
         ##selectExitStack$ = LEFT$(##selectExitStack$, lastComma - 2)
       END IF
     END IF
-    emit_stmt$ = "    _exit_sel_" + STR$(selId) + ":; } }"
+    _sl$ = ""
+    FOR _si = 1 TO VAL(##selLead$) + 4
+      _sl$ = _sl$ + " "
+    NEXT _si
+    _sl2$ = ""
+    FOR _si = 1 TO VAL(##curLead$)
+      _sl2$ = _sl2$ + " "
+    NEXT _si
+    emit_stmt$ = _sl$ + "}" + CHR$(10) + _sl$ + "_exit_sel_" + STR$(selId - 1) + ":;" + CHR$(10) + _sl2$ + "}"
+    ##selLead$ = ""
+    ##selLead$ = ""
     RETURN emit_stmt$
   END IF
 
