@@ -720,6 +720,31 @@ WHILE sub2 <= LEN(src$)
     END IF
   END IF
 WEND
+' CG-BYTES: string arrays passed BYREF (byref(symbol(X:string))) get the
+' dyn storage scheme in the Rust CEmitter (the callee may realloc) - they
+' need the xb_ub cell even with a single sized DIM.
+##byrefStrArr$ = ""
+bscan = 1
+WHILE bscan <= LEN(src$)
+  bfp = INSTR(src$, "byref" + CHR$(40) + "symbol" + CHR$(40), bscan)
+  IF bfp = 0 THEN
+    EXIT WHILE
+  END IF
+  binn$ = MID$(src$, bfp + 13, 160)
+  bcp = INSTR(binn$, ":")
+  IF bcp > 0 THEN
+    bnm$ = LEFT$(binn$, bcp - 1)
+    bty$ = MID$(binn$, bcp + 1, LEN(binn$) - bcp)
+    berp = INSTR(bty$, ")")
+    IF berp > 0 THEN
+      bty$ = LEFT$(bty$, berp - 1)
+    END IF
+    IF bty$ = "string" AND INSTR(##byrefStrArr$, ":" + bnm$ + ":") = 0 THEN
+      ##byrefStrArr$ = ##byrefStrArr$ + ":" + bnm$ + ":"
+    END IF
+  END IF
+  bscan = bfp + 13
+WEND
 IF LEN(##xstArrays$) > 0 THEN
   PRINT "static int xb_qs_gt(const uint64_t* a, int et, intptr_t i, intptr_t j, int decr, int ci) {"
   PRINT "    int c;"
@@ -1274,7 +1299,6 @@ WHILE pos <= LEN(src$)
                   END IF
                 END IF
               WEND
-              PRINT "static int dbg_bare = 1;"
               IF postK$ = "0" THEN
                 cCode$ = "    while (1) {"
               ELSE
@@ -2093,6 +2117,10 @@ FUNCTION emit_expr$(e$)
       varName$ = t$
       varType$ = "integer"
     END IF
+    IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND (varType$ = "string" OR RIGHT$(varName$, 1) = "$") THEN
+      emit_expr$ = "xb_str_" + sanitize_dual$(varName$)
+      RETURN emit_expr$
+    END IF
     emit_expr$ = c_var_name$(varName$, varType$)
     RETURN emit_expr$
   END IF
@@ -2827,8 +2855,8 @@ FUNCTION emit_expr$(e$)
     END IF
     IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 THEN
       _du$ = sanitize_dual$(varName$)
-      IF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
-        emit_expr$ = "(int)xb_ub_" + _du$
+      IF INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + varName$ + ":") > 0 THEN
+        emit_expr$ = "(int)xb_ub_" + _du$ + "_arr"
       ELSE
         emit_expr$ = "(int)(sizeof(xb_str_" + _du$ + "_arr)/sizeof(xb_str_" + _du$ + "_arr[0])-1)"
       END IF
@@ -2978,6 +3006,14 @@ FUNCTION emit_expr$(e$)
       ELSE
         varName$ = t$
         varType$ = "integer"
+      END IF
+      IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND (RIGHT$(varName$, 1) = "$" OR varType$ = "string") THEN
+        IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
+          emit_expr$ = "xb_str_" + sanitize_dual$(varName$)
+        ELSE
+          emit_expr$ = "&xb_str_" + sanitize_dual$(varName$)
+        END IF
+        RETURN emit_expr$
       END IF
       ' Mixed-function check: if callee has mixed byref/byval calls,
       ' emit value directly (no &) to match Rust CEmitter (c_emit.rs:659-680).
@@ -3901,7 +3937,20 @@ FUNCTION emit_hoists$(used$, dimmed$)
         nm$ = LEFT$(entry$, bar - 1)
         ty$ = MID$(entry$, bar + 1, LEN(entry$) - bar)
         IF INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 THEN
-          IF INSTR(##allStrArr$, ":" + nm$ + ":") > 0 AND INSTR(##strDual$, ":" + nm$ + ":") = 0 AND INSTR(##strUbDual$, ":" + nm$ + ":") = 0 AND RIGHT$(nm$, 1) = "$" THEN
+          IF INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
+            IF INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0 THEN
+              IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 THEN
+                out$ = out$ + "    char* *xb_str_" + sanitize_dual$(nm$) + "_arr = 0; intptr_t xb_ub_" + sanitize_dual$(nm$) + "_arr = -1;" + CHR$(10)
+              END IF
+              IF INSTR(out$, "char* xb_str_" + sanitize_dual$(nm$) + " = xb_str(") = 0 THEN
+                out$ = out$ + "    char* xb_str_" + sanitize_dual$(nm$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
+              END IF
+            ELSE
+              IF INSTR(out$, "char* xb_str_" + sanitize_dual$(nm$) + " = xb_str(") = 0 THEN
+                out$ = out$ + "    char* xb_str_" + sanitize_dual$(nm$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
+              END IF
+            END IF
+          ELSEIF INSTR(##allStrArr$, ":" + nm$ + ":") > 0 AND INSTR(##strDual$, ":" + nm$ + ":") = 0 AND INSTR(##strUbDual$, ":" + nm$ + ":") = 0 AND RIGHT$(nm$, 1) = "$" THEN
             IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
               out$ = out$ + "    char** " + c_var_name$(nm$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
@@ -3931,7 +3980,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
     ELSEIF nlpos > 1 THEN
       entry$ = LEFT$(rest$, nlpos - 1)
       rest$ = MID$(rest$, nlpos + 1, LEN(rest$) - nlpos)
-      IF INSTR(##strDual$, ":" + entry$ + ":") > 0 THEN
+      IF INSTR(##strDual$, ":" + entry$ + ":") > 0 AND INSTR(##strUbDual$, ":" + entry$ + ":") = 0 THEN
         IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
           IF INSTR(out$, "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** ") = 0 THEN
             out$ = out$ + "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** " + c_var_name$(entry$, "string") + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
@@ -3944,6 +3993,14 @@ FUNCTION emit_hoists$(used$, dimmed$)
       ELSEIF INSTR(##strUbDual$, ":" + entry$ + ":") > 0 THEN
         IF INSTR(out$, "char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(") = 0 THEN
           out$ = out$ + "    char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
+        END IF
+        IF INSTR(##dynStr$, ":" + entry$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + entry$ + ":") > 0 THEN
+          IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(entry$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(entry$) + "_arr = 0;") = 0 THEN
+            out$ = out$ + "    char* *xb_str_" + sanitize_dual$(entry$) + "_arr = 0; intptr_t xb_ub_" + sanitize_dual$(entry$) + "_arr = -1;" + CHR$(10)
+          END IF
+          IF INSTR(out$, "char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(") = 0 THEN
+            out$ = out$ + "    char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
+          END IF
         END IF
       ELSEIF INSTR(##allStrArr$, ":" + entry$ + ":") > 0 AND INSTR(##dynStr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 AND INSTR(##strUbDual$, ":" + entry$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
         IF INSTR(out$, "char** " + c_var_name$(entry$, "string") + " = 0;") = 0 THEN
@@ -4786,6 +4843,7 @@ FUNCTION scan_dual_use$(s$)
         END IF
         IF INSTR(arraySet$, ":" + nm$ + ":") = 0 THEN
           arraySet$ = arraySet$ + ":" + nm$ + ":"
+
         END IF
       END IF
     END IF
@@ -4825,6 +4883,16 @@ END FUNCTION
 
 ' The element-access name for an array: the dual-facet _arr name for
 ' string-UBOUND dual arrays, else the standard name (+ bd\$ suffix).
+' The SCALAR-facet C name: the dual scalar facet for string-UBOUND dual
+' arrays, else the standard name.
+FUNCTION scalar_name$(n$, t$)
+  IF INSTR(##strUbDual$, ":" + n$ + ":") > 0 AND (t$ = "string" OR RIGHT$(n$, 1) = "$") THEN
+    scalar_name$ = "xb_str_" + sanitize_dual$(n$)
+    RETURN scalar_name$
+  END IF
+  scalar_name$ = c_var_name$(n$, t$)
+END FUNCTION
+
 FUNCTION arr_acc_name$(n$, t$)
   IF INSTR(##strUbDual$, ":" + n$ + ":") > 0 THEN
     arr_acc_name$ = "xb_str_" + sanitize_dual$(n$) + "_arr"
@@ -4844,6 +4912,16 @@ FUNCTION bd$(n$)
     bd$ = ""
   END IF
 END FUNCTION
+' The UBOUND-cell reference for a name: the dual-facet _arr cell for
+' dyn dual arrays, else the standard name (+ bd\$ suffix).
+FUNCTION ub_ref$(n$, t$)
+  IF INSTR(##strUbDual$, ":" + n$ + ":") > 0 AND (INSTR(##dynStr$, ":" + n$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + n$ + ":") > 0) THEN
+    ub_ref$ = "xb_ub_" + sanitize_dual$(n$) + "_arr"
+    RETURN ub_ref$
+  END IF
+  ub_ref$ = "xb_ub_" + sanitize_ident$(n$) + bd$(n$)
+END FUNCTION
+ FUNCTION dyn_type$(n$)
 ' Get the element type of a ##dynNames$ entry. ##dynNames$ entries are
 ' :name:type: pairs. Returns "integer" if not found or type unknown.
 FUNCTION dyn_type$(n$)
@@ -5612,17 +5690,29 @@ FUNCTION emit_stmt$(s$)
         varType$ = "integer"
       END IF
       cExpr$ = emit_expr$(arrSize$)
-      IF INSTR(##strDual$, ":" + varName$ + ":") > 0 THEN
+      IF INSTR(##strDual$, ":" + varName$ + ":") > 0 AND INSTR(##strUbDual$, ":" + varName$ + ":") = 0 THEN
         IF INSTR(arrSize$, ",") > 0 THEN
           emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + bd$(varName$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
           emit_stmt$ = "    " + c_var_name$(varName$, "string") + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + bd$(varName$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
         END IF
       ELSEIF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
+        IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 THEN
+          ' Dual-use dyn string arrays name the storage the _arr facet.
+          _du$ = sanitize_dual$(varName$)
+          _an$ = "xb_str_" + _du$ + "_arr"
+          _ub$ = "xb_ub_" + _du$ + "_arr"
+          IF INSTR(arrSize$, ",") > 0 THEN
+            emit_stmt$ = "    " + _ub$ + " = " + emit_mtotal$(arrSize$) + " - 1; " + _an$ + " = calloc((size_t)(" + _ub$ + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= " + _ub$ + "; _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+          ELSE
+            emit_stmt$ = "    " + _an$ + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + _ub$ + " = (" + cExpr$ + ");"
+          END IF
+        ELSE
         IF INSTR(arrSize$, ",") > 0 THEN
           emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
           emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+        END IF
         END IF
       ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
         IF INSTR(arrSize$, ",") > 0 THEN
@@ -5661,10 +5751,10 @@ FUNCTION emit_stmt$(s$)
         IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 THEN
           _du$ = sanitize_dual$(varName$)
           _an$ = "xb_str_" + _du$ + "_arr"
-          _ub$ = "xb_ub_" + _du$
+          _ub$ = "xb_ub_" + _du$ + "_arr"
           ' Single-sized-DIM dual arrays are FIXED-NATIVE (Rust: memset +
           ' fill loop, sizeof UBOUND); multi-DIM'd ones stay calloc-dyn.
-          IF INSTR(##dynStr$, ":" + varName$ + ":") = 0 THEN
+          IF INSTR(##dynStr$, ":" + varName$ + ":") = 0 AND INSTR(##byrefStrArr$, ":" + varName$ + ":") = 0 THEN
             emit_stmt$ = "    char* " + _an$ + "[(" + emit_expr$(arrSize$) + ") + 1]; memset(" + _an$ + ", 0, sizeof(" + _an$ + "));" + CHR$(10) + "    for (int _i = 0; _i < (" + emit_expr$(arrSize$) + ") + 1; _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
             RETURN emit_stmt$
           END IF
@@ -6166,20 +6256,26 @@ FUNCTION emit_stmt$(s$)
         DIM xsLen0$
         DIM xsIdxData$
         DIM xsIdxUb$
-        xsLen0$ = "(xb_ub_" + sanitize_ident$(xsN0$) + " + 1)"
-        xsIdxData$ = "xb_var_" + sanitize_ident$(xsN1$)
-        xsIdxUb$ = "xb_ub_" + sanitize_ident$(xsN1$)
-        emit_stmt$ = "    xb_quicksort((void*)" + c_var_name$(xsN0$, xsT0$) + ", " + xsEt0$ + ", " + xsLen0$ + ", (intptr_t**)&" + xsIdxData$ + ", (intptr_t*)&" + xsIdxUb$ + ", (intptr_t)(" + emit_expr$(xsArgs$[2]) + "), (intptr_t)(" + emit_expr$(xsArgs$[3]) + "), (intptr_t)(" + emit_expr$(xsArgs$[4]) + "));"
+        xsLen0$ = "(" + ub_ref$(xsN0$, xsT0$) + " + 1)"
+        xsIdxData$ = arr_acc_name$(xsN1$, xsT1$)
+        IF INSTR(xsIdxData$, "xb_str_") = 0 THEN
+          xsIdxData$ = "xb_var_" + sanitize_ident$(xsN1$)
+        END IF
+        xsIdxUb$ = ub_ref$(xsN1$, xsT1$)
+        emit_stmt$ = "    xb_quicksort((void*)" + arr_acc_name$(xsN0$, xsT0$) + ", " + xsEt0$ + ", " + xsLen0$ + ", (intptr_t**)&" + xsIdxData$ + ", (intptr_t*)&" + xsIdxUb$ + ", (intptr_t)(" + emit_expr$(xsArgs$[2]) + "), (intptr_t)(" + emit_expr$(xsArgs$[3]) + "), (intptr_t)(" + emit_expr$(xsArgs$[4]) + "));"
         RETURN emit_stmt$
       END IF
       IF fn$ = "XstCopyArray" AND xsCount = 2 THEN
         DIM xsSrcLen$
         DIM xsDstData$
         DIM xsDstUb$
-        xsSrcLen$ = "(xb_ub_" + sanitize_ident$(xsN0$) + " + 1)"
-        xsDstData$ = c_var_name$(xsN1$, xsT1$)
-        xsDstUb$ = "xb_ub_" + sanitize_ident$(xsN1$)
-        emit_stmt$ = "    xb_copyarray((void*)" + c_var_name$(xsN0$, xsT0$) + ", " + xsSrcLen$ + ", " + xsEt0$ + ", (void**)&" + xsDstData$ + ", &" + xsDstUb$ + ");"
+        xsSrcLen$ = "(" + ub_ref$(xsN0$, xsT0$) + " + 1)"
+        xsDstData$ = arr_acc_name$(xsN1$, xsT1$)
+        IF INSTR(xsDstData$, "xb_str_") = 0 AND INSTR(xsDstData$, "_arr") = 0 THEN
+          xsDstData$ = "xb_var_" + sanitize_ident$(xsN1$)
+        END IF
+        xsDstUb$ = ub_ref$(xsN1$, xsT1$)
+        emit_stmt$ = "    xb_copyarray((void*)" + arr_acc_name$(xsN0$, xsT0$) + ", " + xsSrcLen$ + ", " + xsEt0$ + ", (void**)&" + xsDstData$ + ", &" + xsDstUb$ + ");"
         RETURN emit_stmt$
       END IF
       emit_stmt$ = ""
@@ -6407,8 +6503,8 @@ FUNCTION emit_stmt$(s$)
       END IF
       DIM swapCType$
       swapCType$ = c_type$(swapLType$)
-      _swT$ = "_swap_tmp_" + c_var_name$(swapLName$, swapLType$)
-      emit_stmt$ = "    { " + swapCType$ + " " + _swT$ + " = " + c_var_name$(swapLName$, swapLType$) + "; " + c_var_name$(swapLName$, swapLType$) + " = " + c_var_name$(swapRName$, swapRType$) + "; " + c_var_name$(swapRName$, swapRType$) + " = " + _swT$ + "; }"
+      _swT$ = "_swap_tmp_" + scalar_name$(swapLName$, swapLType$)
+      emit_stmt$ = "    { " + swapCType$ + " " + _swT$ + " = " + scalar_name$(swapLName$, swapLType$) + "; " + scalar_name$(swapLName$, swapLType$) + " = " + scalar_name$(swapRName$, swapRType$) + "; " + scalar_name$(swapRName$, swapRType$) + " = " + _swT$ + "; }"
     ELSE
       emit_stmt$ = ""
     END IF
