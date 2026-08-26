@@ -587,6 +587,41 @@ PRINT "    if (si + copy > dlen) copy = dlen - si;"
 PRINT "    memcpy(dst + si, src, copy);"
 PRINT "}"
 PRINT "static void* xb_gosub_stack[256]; static int xb_gosub_sp = 0;"
+##constDefines$ = ""
+cpos = 1
+WHILE cpos <= LEN(src$)
+  cle = INSTR(src$, CHR$(10), cpos)
+  IF cle = 0 THEN
+    cle = LEN(src$) + 1
+  END IF
+  cln$ = trim_spaces$(MID$(src$, cpos, cle - cpos))
+  cpos = cle + 1
+  IF LEFT$(cln$, 6) = "const " THEN
+    crest$ = MID$(cln$, 7, LEN(cln$) - 6)
+    ceq = INSTR(crest$, " = ")
+    IF ceq > 0 THEN
+      cnm$ = LEFT$(crest$, ceq - 1)
+      chp = INSTR(cnm$, "$$")
+      IF chp > 0 THEN
+        cnm$ = MID$(cnm$, chp + 2, LEN(cnm$) - chp)
+      END IF
+      ccp = INSTR(cnm$, ":")
+      IF ccp > 0 THEN
+        cnm$ = LEFT$(cnm$, ccp - 1)
+      END IF
+      cvl$ = MID$(crest$, ceq + 3, LEN(crest$) - ceq)
+      cvp = INSTR(cvl$, "(")
+      IF cvp > 0 THEN
+        cvl$ = MID$(cvl$, cvp + 1, LEN(cvl$) - cvp - 1)
+      END IF
+      ##constDefines$ = ##constDefines$ + "#define XB_CONST_" + cnm$ + " " + cvl$ + CHR$(10)
+    END IF
+  END IF
+WEND
+IF LEN(##constDefines$) > 0 THEN
+  PRINT ##constDefines$
+END IF
+
 IF INSTR(src$, CHR$(92) + "0") > 0 THEN
   PRINT "static char* xb_str_n(const char* s, size_t n) { char* d = xb_alloc(n); memcpy(d, s, n); return d; }"
 END IF
@@ -726,40 +761,6 @@ IF INSTR(src$, "XgrProcessMessages") > 0 THEN
   PRINT ""
 END IF
 ' Forward declarations: pre-scan all lines for function signatures
-##constDefines$ = ""
-cpos = 1
-WHILE cpos <= LEN(src$)
-  cle = INSTR(src$, CHR$(10), cpos)
-  IF cle = 0 THEN
-    cle = LEN(src$) + 1
-  END IF
-  cln$ = trim_spaces$(MID$(src$, cpos, cle - cpos))
-  cpos = cle + 1
-  IF LEFT$(cln$, 6) = "const " THEN
-    crest$ = MID$(cln$, 7, LEN(cln$) - 6)
-    ceq = INSTR(crest$, " = ")
-    IF ceq > 0 THEN
-      cnm$ = LEFT$(crest$, ceq - 1)
-      chp = INSTR(cnm$, "$$")
-      IF chp > 0 THEN
-        cnm$ = MID$(cnm$, chp + 2, LEN(cnm$) - chp)
-      END IF
-      ccp = INSTR(cnm$, ":")
-      IF ccp > 0 THEN
-        cnm$ = LEFT$(cnm$, ccp - 1)
-      END IF
-      cvl$ = MID$(crest$, ceq + 3, LEN(crest$) - ceq)
-      cvp = INSTR(cvl$, "(")
-      IF cvp > 0 THEN
-        cvl$ = MID$(cvl$, cvp + 1, LEN(cvl$) - cvp - 1)
-      END IF
-      ##constDefines$ = ##constDefines$ + "#define XB_CONST_" + cnm$ + " " + cvl$ + CHR$(10)
-    END IF
-  END IF
-WEND
-IF LEN(##constDefines$) > 0 THEN
-  PRINT ##constDefines$
-END IF
 fwdPos = 1
 WHILE fwdPos <= LEN(src$)
   fwdLine$ = ""
