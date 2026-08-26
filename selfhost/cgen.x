@@ -999,7 +999,7 @@ WHILE pos <= LEN(src$)
           DIM dataVal$
           dataType$ = LEFT$(dataToken$, dataColon - 1)
           dataVal$ = MID$(dataToken$, dataColon + 1, LEN(dataToken$) - dataColon)
-          IF dataType$ = "intptr_t" THEN
+          IF dataType$ = "intptr_t" OR dataType$ = "int" THEN
             mainBody$ = mainBody$ + "    xb_data_add_int(" + dataVal$ + ");" + CHR$(10)
           ELSEIF dataType$ = "float" THEN
             mainBody$ = mainBody$ + "    xb_data_add_float(" + dataVal$ + ");" + CHR$(10)
@@ -1167,7 +1167,11 @@ WHILE pos <= LEN(src$)
             dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
           END IF
           IF LEN(cCode$) > 0 THEN
-            nestBlocks$ = nestBlocks$ + cCode$ + CHR$(10)
+            IF RIGHT$(cCode$, 1) = CHR$(10) THEN
+              nestBlocks$ = nestBlocks$ + cCode$
+            ELSE
+              nestBlocks$ = nestBlocks$ + cCode$ + CHR$(10)
+            END IF
           END IF
         ELSEIF inFunc = 1 THEN
           IF ##noLead$ = "1" THEN
@@ -1286,7 +1290,11 @@ WHILE pos <= LEN(src$)
             dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
           END IF
           IF LEN(cCode$) > 0 THEN
-            funcBody$ = funcBody$ + cCode$ + CHR$(10)
+            IF RIGHT$(cCode$, 1) = CHR$(10) THEN
+              funcBody$ = funcBody$ + cCode$
+            ELSE
+              funcBody$ = funcBody$ + cCode$ + CHR$(10)
+            END IF
           END IF
           END IF
         ELSE
@@ -1312,7 +1320,11 @@ WHILE pos <= LEN(src$)
             END IF
           END IF
           IF LEN(cCode$) > 0 THEN
-            mainBody$ = mainBody$ + cCode$ + CHR$(10)
+            IF RIGHT$(cCode$, 1) = CHR$(10) THEN
+              mainBody$ = mainBody$ + cCode$
+            ELSE
+              mainBody$ = mainBody$ + cCode$ + CHR$(10)
+            END IF
           END IF
         END IF
       END IF
