@@ -2653,7 +2653,7 @@ FUNCTION emit_expr$(e$)
       DIM fmtArgType$
       fmtArgType$ = expr_type$(fmtArg2$)
       IF fmtArgType$ = "string" THEN
-        emit_expr$ = funcName$ + "(" + fmtE1$ + ", " + fmtE2$ + ", 0, 0.0, 0, 1)"
+        emit_expr$ = funcName$ + "(" + fmtE1$ + ", xb_strdup(" + fmtE2$ + "), 0, 0.0, 0, 1)"
       ELSEIF fmtArgType$ = "float" THEN
         emit_expr$ = funcName$ + "(" + fmtE1$ + ", NULL, 0, " + fmtE2$ + ", 1, 0)"
       ELSE
