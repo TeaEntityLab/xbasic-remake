@@ -678,7 +678,6 @@ END IF
 ##arr2d$ = scan_arr2d$(src$)
 ##allStrArr$ = scan_all_strarr$(src$)
 ##xstArrays$ = scan_xst_arrays$(src$)
-PRINT ""
 IF LEN(##xstArrays$) > 0 THEN
   PRINT "static int xb_qs_gt(const uint64_t* a, int et, intptr_t i, intptr_t j, int decr, int ci) {"
   PRINT "    int c;"
@@ -905,6 +904,7 @@ WHILE dsPos <= LEN(src$)
     END IF
   END IF
 WEND
+PRINT ""
 ##funcMixed$ = scan_mixed_byref$(src$)
 ##byrefWB$ = scan_byref_wb$(src$)
 ' Emit deferred forward declarations (now that ##byrefWB$ is set for pointer params)
