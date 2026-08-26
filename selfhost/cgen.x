@@ -619,7 +619,7 @@ WHILE cpos <= LEN(src$)
   END IF
 WEND
 IF LEN(##constDefines$) > 0 THEN
-  PRINT ##constDefines$
+  PRINT LEFT$(##constDefines$, LEN(##constDefines$) - 1)
 END IF
 
 IF INSTR(src$, CHR$(92) + "0") > 0 THEN
