@@ -701,7 +701,18 @@ WHILE sub2 <= LEN(src$)
       IF RIGHT$(ity$, 1) = ")" THEN
         ity$ = LEFT$(ity$, LEN(ity$) - 1)
       END IF
-      IF ity$ = "string" AND INSTR(##allStrArr$, ":" + inm$ + ":") > 0 THEN
+      ' Only FIXED string arrays (a sized dim, no empty bracket): dyn
+      ' string arrays keep their existing calloc-dyn path.
+      sizedDim = 0
+      IF INSTR(src$, "dim " + inm$ + ":string[") > 0 THEN
+        dbp = INSTR(src$, "dim " + inm$ + ":string[")
+        dbr = INSTR(src$, "]", dbp)
+        dcont$ = MID$(src$, dbp + LEN("dim " + inm$ + ":string["), dbr - dbp - LEN("dim " + inm$ + ":string["))
+        IF LEN(trim_spaces$(dcont$)) > 0 THEN
+          sizedDim = 1
+        END IF
+      END IF
+      IF ity$ = "string" AND sizedDim = 1 AND INSTR(##allStrArr$, ":" + inm$ + ":") > 0 THEN
         IF INSTR(##strUbDual$, ":" + inm$ + ":") = 0 THEN
           ##strUbDual$ = ##strUbDual$ + ":" + inm$ + ":"
         END IF
@@ -1122,7 +1133,9 @@ WHILE pos <= LEN(src$)
           ' CG-BYTES: the return-value variable is declared only when the
           ' body actually assigns the function name; otherwise the function
           ' returns the type default directly (matching the Rust CEmitter).
-          IF INSTR(funcBody$ + nestBlocks$, c_var_name$(funcName$, retType$) + " = ") > 0 THEN
+          ' Any reference (the self-DIM is suppressed, so reads of the
+          ' function-name variable need this declaration).
+          IF INSTR(funcBody$ + nestBlocks$, c_var_name$(funcName$, retType$)) > 0 THEN
             hoists$ = hoists$ + "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";" + CHR$(10)
             retStmt$ = "    return " + c_var_name$(funcName$, retType$) + ";"
           ELSE
@@ -2814,7 +2827,11 @@ FUNCTION emit_expr$(e$)
     END IF
     IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 THEN
       _du$ = sanitize_dual$(varName$)
-      emit_expr$ = "(int)(sizeof(xb_str_" + _du$ + "_arr)/sizeof(xb_str_" + _du$ + "_arr[0])-1)"
+      IF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
+        emit_expr$ = "(int)xb_ub_" + _du$
+      ELSE
+        emit_expr$ = "(int)(sizeof(xb_str_" + _du$ + "_arr)/sizeof(xb_str_" + _du$ + "_arr[0])-1)"
+      END IF
     ELSEIF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1" THEN
@@ -3925,7 +3942,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
           END IF
         END IF
       ELSEIF INSTR(##strUbDual$, ":" + entry$ + ":") > 0 THEN
-        IF INSTR(out$, "char* " + c_var_name$(entry$, "string") + " = xb_str(") = 0 THEN
+        IF INSTR(out$, "char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(") = 0 THEN
           out$ = out$ + "    char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
         END IF
       ELSEIF INSTR(##allStrArr$, ":" + entry$ + ":") > 0 AND INSTR(##dynStr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 AND INSTR(##strUbDual$, ":" + entry$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
@@ -5638,12 +5655,26 @@ FUNCTION emit_stmt$(s$)
           _dt4$ = c_type$(dyn_type$(varName$))
           emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + _dt4$ + ")); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
         END IF
-      ELSEIF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND varType$ = "string" AND INSTR(arrSize$, ",") = 0 AND LEN(arrSize$) > 0 THEN
-        ' CG-BYTES: dual-use string array (string UBOUND read) - Rust emits
-        ' the scalar facet + a FIXED-NATIVE _arr facet with a fill loop.
-        _du$ = sanitize_dual$(varName$)
-        emit_stmt$ = "    char* xb_str_" + _du$ + "_arr[(" + emit_expr$(arrSize$) + ") + 1]; memset(xb_str_" + _du$ + "_arr, 0, sizeof(xb_str_" + _du$ + "_arr));" + CHR$(10) + "    for (int _i = 0; _i < (" + emit_expr$(arrSize$) + ") + 1; _i++) xb_str_" + _du$ + "_arr[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
       ELSEIF INSTR(##allStrArr$, ":" + varName$ + ":") > 0 AND varType$ = "string" THEN
+        ' CG-BYTES: dual-use string arrays name their storage the _arr facet
+        ' (xb_str_<du>_arr / xb_ub_<du>) with the dollar -> _s sanitization.
+        IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 THEN
+          _du$ = sanitize_dual$(varName$)
+          _an$ = "xb_str_" + _du$ + "_arr"
+          _ub$ = "xb_ub_" + _du$
+          ' Single-sized-DIM dual arrays are FIXED-NATIVE (Rust: memset +
+          ' fill loop, sizeof UBOUND); multi-DIM'd ones stay calloc-dyn.
+          IF INSTR(##dynStr$, ":" + varName$ + ":") = 0 THEN
+            emit_stmt$ = "    char* " + _an$ + "[(" + emit_expr$(arrSize$) + ") + 1]; memset(" + _an$ + ", 0, sizeof(" + _an$ + "));" + CHR$(10) + "    for (int _i = 0; _i < (" + emit_expr$(arrSize$) + ") + 1; _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
+            RETURN emit_stmt$
+          END IF
+          IF INSTR(arrSize$, ",") > 0 THEN
+            emit_stmt$ = "    " + _ub$ + " = " + emit_mtotal$(arrSize$) + " - 1; " + _an$ + " = calloc((size_t)(" + _ub$ + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= " + _ub$ + "; _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
+          ELSE
+            emit_stmt$ = "    " + _an$ + " = calloc((size_t)((" + emit_expr$(arrSize$) + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + emit_expr$(arrSize$) + "); _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + _ub$ + " = (" + emit_expr$(arrSize$) + ");"
+          END IF
+          RETURN emit_stmt$
+        END IF
         IF INSTR(arrSize$, ",") > 0 THEN
           emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
