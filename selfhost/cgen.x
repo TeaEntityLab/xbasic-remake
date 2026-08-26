@@ -594,9 +594,12 @@ WHILE cpos <= LEN(src$)
   IF cle = 0 THEN
     cle = LEN(src$) + 1
   END IF
-  cln$ = trim_spaces$(MID$(src$, cpos, cle - cpos))
+  craw$ = MID$(src$, cpos, cle - cpos)
+  cln$ = trim_spaces$(craw$)
   cpos = cle + 1
-  IF LEFT$(cln$, 6) = "const " THEN
+  ' Only TOP-LEVEL consts become #defines (Rust emit_globals iterates
+  ' program.items); function-local consts lower to locals there.
+  IF LEFT$(craw$, 1) <> " " AND LEFT$(cln$, 6) = "const " THEN
     crest$ = MID$(cln$, 7, LEN(cln$) - 6)
     ceq = INSTR(crest$, " = ")
     IF ceq > 0 THEN
