@@ -1704,6 +1704,18 @@ FUNCTION expr_type$(e$)
     ELSE
       fn$ = rest$
     END IF
+    ' CG-BYTES: builtin result types the print/assign paths depend on
+    ' (mirrors the Rust CEmitter's builtin table).
+    IF fn$ = "GMAKE" OR fn$ = "GIANT" THEN
+      expr_type$ = "giant"
+      RETURN expr_type$
+    ELSEIF fn$ = "DMAKE" OR fn$ = "SMAKE" THEN
+      expr_type$ = "float"
+      RETURN expr_type$
+    ELSEIF fn$ = "XMAKE" THEN
+      expr_type$ = "integer"
+      RETURN expr_type$
+    END IF
     IF fn$ = "ABS" OR fn$ = "DOUBLE" OR fn$ = "SINGLE" THEN
       DIM absArgs$
       IF parenPos > 0 THEN
@@ -5397,6 +5409,11 @@ FUNCTION emit_stmt$(s$)
       IF hashPos > 0 THEN
         nm$ = MID$(nm$, hashPos + 2, LEN(nm$) - hashPos)
       END IF
+      ' Strip an embedded type suffix (`$$XBSysLinux:integer`).
+      cp2 = INSTR(nm$, ":")
+      IF cp2 > 0 THEN
+        nm$ = LEFT$(nm$, cp2 - 1)
+      END IF
       val$ = MID$(rest$, eqPos + 3, LEN(rest$) - eqPos)
       vp = INSTR(val$, "(")
       IF LEFT$(val$, 8) = "integer(" OR LEFT$(val$, 6) = "float(" THEN
@@ -5703,6 +5720,8 @@ FUNCTION emit_stmt$(s$)
             printParts$ = printParts$ + "    { char* _pt = " + printE$ + "; fwrite(_pt, 1, (size_t)xb_len(_pt), stdout); }" + CHR$(10)
           ELSEIF printT$ = "float" THEN
             printParts$ = printParts$ + "    printf(" + CHR$(34) + "%g" + CHR$(34) + ", " + printE$ + ");" + CHR$(10)
+          ELSEIF printT$ = "giant" THEN
+            printParts$ = printParts$ + "    xb_print_giant(" + printE$ + ");" + CHR$(10)
           ELSE
             printParts$ = printParts$ + "    printf(" + CHR$(34) + "%d" + CHR$(34) + ", " + printE$ + ");" + CHR$(10)
           END IF
@@ -5723,6 +5742,8 @@ FUNCTION emit_stmt$(s$)
         printParts$ = printParts$ + "    xb_print_str(" + printLE$ + ");"
       ELSEIF printLT$ = "float" THEN
         printParts$ = printParts$ + "    xb_print_float(" + printLE$ + ");"
+      ELSEIF printLT$ = "giant" THEN
+        printParts$ = printParts$ + "    xb_print_giant(" + printLE$ + ");"
       ELSE
         printParts$ = printParts$ + "    xb_print_int(" + printLE$ + ");"
       END IF
@@ -6172,7 +6193,8 @@ FUNCTION emit_stmt$(s$)
       END IF
       DIM swapCType$
       swapCType$ = c_type$(swapLType$)
-      emit_stmt$ = "    { " + swapCType$ + " _swap_tmp = " + c_var_name$(swapLName$, swapLType$) + "; " + c_var_name$(swapLName$, swapLType$) + " = " + c_var_name$(swapRName$, swapRType$) + "; " + c_var_name$(swapRName$, swapRType$) + " = _swap_tmp; }"
+      _swT$ = "_swap_tmp_" + c_var_name$(swapLName$, swapLType$)
+      emit_stmt$ = "    { " + swapCType$ + " " + _swT$ + " = " + c_var_name$(swapLName$, swapLType$) + "; " + c_var_name$(swapLName$, swapLType$) + " = " + c_var_name$(swapRName$, swapRType$) + "; " + c_var_name$(swapRName$, swapRType$) + " = " + _swT$ + "; }"
     ELSE
       emit_stmt$ = ""
     END IF
