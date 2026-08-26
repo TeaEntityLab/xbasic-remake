@@ -4921,7 +4921,6 @@ FUNCTION ub_ref$(n$, t$)
   END IF
   ub_ref$ = "xb_ub_" + sanitize_ident$(n$) + bd$(n$)
 END FUNCTION
- FUNCTION dyn_type$(n$)
 ' Get the element type of a ##dynNames$ entry. ##dynNames$ entries are
 ' :name:type: pairs. Returns "integer" if not found or type unknown.
 FUNCTION dyn_type$(n$)
