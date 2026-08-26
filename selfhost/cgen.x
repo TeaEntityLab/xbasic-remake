@@ -5686,69 +5686,152 @@ FUNCTION emit_stmt$(s$)
 
   IF LEFT$(s$, 5) = "print" THEN
     rest$ = MID$(s$, 7, LEN(s$) - 6)
-    DIM printParts$
-    DIM printPos
-    DIM printStart
-    DIM printDepth
-    DIM printCh
-    DIM printArg$
-    DIM printE$
-    DIM printT$
-    DIM printLast$
-    DIM printLE$
-    DIM printLT$
-    printParts$ = ""
-    IF LEN(rest$) = 0 THEN
+    ' CG-BYTES: the Rust CEmitter accumulates each PRINT line into one
+    ' byte-string and prints it once - mirror that exactly.
+    DIM pi
+    DIM pdepth
+    DIM pstart
+    DIM pitems$
+    DIM pseps$
+    DIM pch
+    DIM pcount
+    DIM pw
+    DIM pn
+    DIM it$
+    DIM pt$
+    DIM pe$
+    DIM pf$
+    DIM out$
+    DIM k
+    DIM ksep$
+    DIM karg$
+    DIM pstr$
+    pi = 1
+    pdepth = 0
+    pstart = 1
+    pitems$ = ""
+    pseps$ = ""
+    WHILE pi <= LEN(rest$)
+      pch = ASC(MID$(rest$, pi, 1))
+      IF pch = 34 THEN
+        pi = pi + 1
+        WHILE pi <= LEN(rest$)
+          pch = ASC(MID$(rest$, pi, 1))
+          IF pch = 92 THEN
+            pi = pi + 2
+          ELSEIF pch = 34 THEN
+            EXIT WHILE
+          ELSE
+            pi = pi + 1
+          END IF
+        WEND
+      ELSEIF pch = 40 THEN
+        pdepth = pdepth + 1
+      ELSEIF pch = 41 THEN
+        pdepth = pdepth - 1
+      ELSEIF pch = 44 AND pdepth = 0 THEN
+        pitems$ = pitems$ + MID$(rest$, pstart, pi - pstart) + CHR$(10)
+        pseps$ = pseps$ + "C" + CHR$(10)
+        pstart = pi + 1
+      ELSEIF pch = 59 AND pdepth = 0 THEN
+        pitems$ = pitems$ + MID$(rest$, pstart, pi - pstart) + CHR$(10)
+        pseps$ = pseps$ + "S" + CHR$(10)
+        pstart = pi + 1
+      END IF
+      pi = pi + 1
+    WEND
+    pitems$ = pitems$ + MID$(rest$, pstart, LEN(rest$) - pstart + 1) + CHR$(10)
+    pcount = 0
+    pw = 1
+    WHILE pw <= LEN(pitems$)
+      pn = INSTR(pitems$, CHR$(10), pw)
+      IF pn = 0 THEN
+        pn = LEN(pitems$) + 1
+      END IF
+      it$ = trim_spaces$(MID$(pitems$, pw, pn - pw))
+      IF LEN(it$) > 0 THEN
+        pcount = pcount + 1
+      END IF
+      pw = pn + 1
+    WEND
+    IF pcount = 0 THEN
       emit_stmt$ = "    printf(" + CHR$(34) + CHR$(92) + "n" + CHR$(34) + ");"
       RETURN emit_stmt$
     END IF
-    printPos = 1
-    printStart = 1
-    printDepth = 0
-    WHILE printPos <= LEN(rest$)
-      printCh = ASC(MID$(rest$, printPos, 1))
-      IF printCh = 40 THEN
-        printDepth = printDepth + 1
-      ELSEIF printCh = 41 THEN
-        printDepth = printDepth - 1
-      ELSEIF printDepth = 0 AND printPos + 2 <= LEN(rest$) THEN
-        IF MID$(rest$, printPos, 3) = " ; " OR MID$(rest$, printPos, 3) = " , " THEN
-          printArg$ = MID$(rest$, printStart, printPos - printStart)
-          printE$ = emit_expr$(printArg$)
-          printT$ = expr_type$(printArg$)
-          IF printT$ = "string" THEN
-            printParts$ = printParts$ + "    { char* _pt = " + printE$ + "; fwrite(_pt, 1, (size_t)xb_len(_pt), stdout); }" + CHR$(10)
-          ELSEIF printT$ = "float" THEN
-            printParts$ = printParts$ + "    printf(" + CHR$(34) + "%g" + CHR$(34) + ", " + printE$ + ");" + CHR$(10)
-          ELSEIF printT$ = "giant" THEN
-            printParts$ = printParts$ + "    xb_print_giant(" + printE$ + ");" + CHR$(10)
-          ELSE
-            printParts$ = printParts$ + "    printf(" + CHR$(34) + "%d" + CHR$(34) + ", " + printE$ + ");" + CHR$(10)
-          END IF
-          IF MID$(rest$, printPos, 3) = " , " THEN
-            printParts$ = printParts$ + "    printf(" + CHR$(34) + "\t" + CHR$(34) + ");" + CHR$(10)
-          END IF
-          printStart = printPos + 3
-          printPos = printPos + 2
-        END IF
-      END IF
-      printPos = printPos + 1
-    WEND
-    IF printStart <= LEN(rest$) THEN
-      printLast$ = MID$(rest$, printStart, LEN(rest$) - printStart + 1)
-      printLE$ = emit_expr$(printLast$)
-      printLT$ = expr_type$(printLast$)
-      IF printLT$ = "string" THEN
-        printParts$ = printParts$ + "    xb_print_str(" + printLE$ + ");"
-      ELSEIF printLT$ = "float" THEN
-        printParts$ = printParts$ + "    xb_print_float(" + printLE$ + ");"
-      ELSEIF printLT$ = "giant" THEN
-        printParts$ = printParts$ + "    xb_print_giant(" + printLE$ + ");"
+    IF pcount = 1 THEN
+      it$ = trim_spaces$(LEFT$(pitems$, INSTR(pitems$, CHR$(10)) - 1))
+      IF LEFT$(it$, 9) = "call TAB(" THEN
+        karg$ = MID$(it$, 10, LEN(it$) - 10)
+        emit_stmt$ = "    { char* _p = xb_str(" + CHR$(34) + CHR$(34) + "); char* _t = xb_tab(xb_len(_p), " + emit_expr$(trim_spaces$(karg$)) + "); _p = xb_concat(_p, _t); xb_print_str(_p); }"
       ELSE
-        printParts$ = printParts$ + "    xb_print_int(" + printLE$ + ");"
+        pt$ = expr_type$(it$)
+        pe$ = emit_expr$(it$)
+        pf$ = "xb_print_int"
+        IF pt$ = "string" THEN
+          pf$ = "xb_print_str"
+        ELSEIF pt$ = "float" THEN
+          pf$ = "xb_print_float"
+        ELSEIF pt$ = "giant" THEN
+          pf$ = "xb_print_giant"
+        END IF
+        emit_stmt$ = "    " + pf$ + "(" + pe$ + ");"
       END IF
+      RETURN emit_stmt$
     END IF
-    emit_stmt$ = printParts$
+    it$ = trim_spaces$(LEFT$(pitems$, INSTR(pitems$, CHR$(10)) - 1))
+    IF LEFT$(it$, 9) = "call TAB(" THEN
+      karg$ = MID$(it$, 10, LEN(it$) - 10)
+      out$ = "    { char* _p = xb_tab(0, " + emit_expr$(trim_spaces$(karg$)) + ");"
+    ELSE
+      pt$ = expr_type$(it$)
+      pe$ = emit_expr$(it$)
+      pstr$ = pe$
+      IF pt$ = "integer" THEN
+        pstr$ = "xb_str_num(" + pe$ + ")"
+      ELSEIF pt$ = "giant" THEN
+        pstr$ = "xb_str_giant(" + pe$ + ")"
+      ELSEIF pt$ = "float" THEN
+        pstr$ = "xb_str_float(" + pe$ + ")"
+      END IF
+      out$ = "    { char* _p = " + pstr$ + ";"
+    END IF
+    k = 2
+    pw = INSTR(pitems$, CHR$(10)) + 1
+    WHILE k <= pcount
+      pn = INSTR(pitems$, CHR$(10), pw)
+      IF pn = 0 THEN
+        pn = LEN(pitems$) + 1
+      END IF
+      it$ = trim_spaces$(MID$(pitems$, pw, pn - pw))
+      pw = pn + 1
+      IF LEN(it$) = 0 THEN
+        k = k + 1
+      ELSE
+        ksep$ = MID$(pseps$, (k - 2) * 2 + 1, 1)
+        IF ksep$ = "C" THEN
+          out$ = out$ + " _p = xb_concat(_p, xb_str(" + CHR$(34) + CHR$(92) + "t" + CHR$(34) + "));"
+        END IF
+        IF LEFT$(it$, 9) = "call TAB(" THEN
+          karg$ = MID$(it$, 10, LEN(it$) - 10)
+          out$ = out$ + " { char* _t = xb_tab(xb_len(_p), " + emit_expr$(trim_spaces$(karg$)) + "); _p = xb_concat(_p, _t); }"
+        ELSE
+          pt$ = expr_type$(it$)
+          pe$ = emit_expr$(it$)
+          pstr$ = pe$
+          IF pt$ = "integer" THEN
+            pstr$ = "xb_str_num(" + pe$ + ")"
+          ELSEIF pt$ = "giant" THEN
+            pstr$ = "xb_str_giant(" + pe$ + ")"
+          ELSEIF pt$ = "float" THEN
+            pstr$ = "xb_str_float(" + pe$ + ")"
+          END IF
+          out$ = out$ + " { char* _t = " + pstr$ + "; _p = xb_concat(_p, _t); }"
+        END IF
+        k = k + 1
+      END IF
+    WEND
+    out$ = out$ + " xb_print_str(_p); }"
+    emit_stmt$ = out$
     RETURN emit_stmt$
   END IF
 
