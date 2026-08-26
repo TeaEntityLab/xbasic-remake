@@ -1,17 +1,16 @@
 # 16 — cgen ↔ CEmitter Sync Roadmap
 
-> Status: living roadmap. Behavioral sync is **locked by tests** as of this entry;
-> byte-level parity and several semantic drifts remain **open** (items below).
+> Status: living roadmap. Behavioral sync and positive-corpus emitted-C byte
+> identity are **locked by tests**; demo-scale C-text parity remains open.
 > Companion to [17-open-work-roadmap.md](17-open-work-roadmap.md) (the umbrella
 > "everything not done yet" list). This doc is scoped to the two C generators.
 >
-> Re-verified **2026-08-20**: `cargo test -p xb-runtime --test cgen_cemitter_sync`
-> = **5/5** (positive-corpus, selfhost-tools, helper-signatures, embedded-NUL strings,
-> high-byte strings). CG-ADDR / CG-OPEN / CG-SIG / CG-BYTESTRING remain ✅ done;
-> CG-BYTES / CG-BODY-COVER remain deferred/open. Full workspace suite: **182 / 0**.
-> Note: the five 2026-08-20 CEmitter demo fixes (docs/17 §1 Backend feature-sync) are
-> deliberate **no-ops on the shared corpus** — byte-identity with `cgen.x` held without
-> touching it.
+> Re-verified **2026-08-26**: `cargo test --release --test cgen_cemitter_sync`
+> = **58/58**; all **80/80** positive-corpus programs emit byte-identical C from
+> both generators; `./checks/validate-all.sh` = **274 / 0 across 33 binaries**.
+> CG-BYTES is complete for the positive corpus. Demo C-text identity is **7/114**
+> and continues as DEMO-BYTES in docs/17. CG-BODY-COVER retains only the
+> low-priority AT-read/file-mode blind spots below.
 
 ## 1. Why this exists
 
@@ -42,8 +41,8 @@ That drift was real and undetected until this roadmap's tests were added — see
   `parser.x`, and `cgen.x`, both generators' executables agree with each other
   **and** with the Rust interpreter on the tool's own input.
 
-Sync is asserted on **observable behavior** (native run output), not on emitted
-C text, because the emitted C is not yet byte-identical (item **CG-BYTES**).
+Sync is asserted on observable native behavior. The positive corpus additionally
+locks emitted C byte-for-byte; demo-scale emitted-C identity remains 7/114.
 
 Run: `cargo test -p xb-runtime --test cgen_cemitter_sync`
 
@@ -84,15 +83,15 @@ corpus: a helper present in one generator only (the `xb_ljust` gap), and a
 signature/type change in one only (the CG-ADDR `int`/`intptr_t` drift). 174
 signatures, identical on both sides.
 
-### CG-BYTES — full byte-identical C — deferred (cosmetic)
-Beyond signatures the generators still differ in: helper *ordering*, parameter
-*names* (`addr`/`off` vs `a`/`o` in the 12 `*AT` accessors), `#include` order
-(`<ctype.h>`/`<math.h>`), and body formatting (e.g. `xb_open` chain vs ternary).
-None affect behavior or the signature contract. Full byte-identity would let the
-sync test upgrade to `assert_eq!` on emitted C (the tightest lock) but requires
-reconciling ~170 helpers' order/formatting between a Rust emitter and an XBasic
-one — an ongoing cosmetic burden. **Deferred**: CG-SIG + the behavioral corpus
-cover the high-value drift.
+### CG-BYTES — positive corpus byte-identical ✅ done; demo text parity open
+All **80/80** programs in `fixtures/corpus/v0.1/positive` now emit byte-identical
+C from the Rust CEmitter and self-hosted `cgen.x`. The sync suite locks this
+contract alongside behavioral parity and helper signatures.
+
+The broader demo surface is not text-identical: **7/114** demos currently match
+byte-for-byte. Remaining classes include usage-gated forward declarations,
+by-ref callback parameter forms, dynamic/facet hoisting, and spacing. That work
+is tracked as DEMO-BYTES in docs/17; it does not weaken the completed corpus lock.
 
 ### CG-BODY-COVER — computed GOTO + AT-write lvalue closed; AT-deref reads + file-mode-2 remain (low priority)
 Behavioral coverage of the addr-of / control-flow builtins is now substantial: the

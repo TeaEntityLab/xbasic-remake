@@ -8,15 +8,15 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
-> Last full re-verification: **2026-08-21** (all backends, post-array-ABI). `cargo
-> test --workspace --exclude xb-ide` = **238 passed / 0 failed**; `cgen_cemitter_sync`
-> **33/33** (byte-identity intact; +float-arith +multidim +hoist +entry +unknown-call +bare-return +dedup +arg-count +inline-helper +escaped-quote +type-suffix-sanitize +typed-unknown-default +leading-zero +EOF-arg +repeated-gosub +computed-goto-prologue +version-offbyone +AT-stub-0 +composite-dot-sanitize +binary-literal +nested-fn +dyn-array-1D +funcname-self-dim +scalar-used-dyn +undimmed-array +string-dyn-array); +4 interp Giant-context fixes; cgen.x self-hosted-generator fixes lifting **self-hosted demo faithfulness 1→85** (true cgen.x differential, real bootstrap cc flags; the computed-GOTO-prologue fix replaced an earlier rewrite-to-return hack, matching Rust; the binary-literal fix flipped arotate — a long-standing "diverge" that was a `0b..` miscompile, not a loop hang); native bootstrap fixed point **intact**; LLVM
-> **105/0**. C-backend demo sweep: **114/114 compile, 111 byte-faithful, diverge=0,
-> 0 compile-fails** — every testable demo matches the interpreter; the 3 remaining
-> (aclient/aserver network sockets + aeasy) block on real I/O, not the GUI loop.
-> **NB the demo sweep + differential run the Rust `CEmitter` (`--compile`), NOT the
-> self-hosted `cgen.x`.** cgen.x is verified only on the selfhost tools (sync 12/12 +
-> bootstrap fixed point); its *demo* faithfulness is far lower — see CGEN-SELFHOST-PARITY.
+> Last full re-verification: **2026-08-26**. `./checks/validate-all.sh` =
+> **274 passed / 0 failed across 33 binaries**; `cgen_cemitter_sync` = **58/58**;
+> positive-corpus emitted C is **80/80 byte-identical** between the Rust CEmitter
+> and self-hosted `cgen.x`; all **114/114 demos** compile through true `cgen.x`.
+> The strict runnable differential reports **112 comparable matches / 2 real-I/O
+> skips / 0 failures**. Stage 0, Stage 1, and Stage 2 native self-hosting are
+> complete; all 15 core libraries compile and link. Historical session notes
+> below preserve their original measurements and may be superseded by this
+> banner or later dated rows.
 > **NEW: `#var$` typing fix — a `#foo$` SharedName typed String (was Integer), so
 > `acgibin` no longer crashes on `"s" + #foo$` and is now interp==cgen faithful.**
 > **`0b42cf1`: headless Xgr/Xui GUI runtime** — `XuiGetNextCallback`
@@ -87,16 +87,19 @@ sections below or the named sibling docs; ✅-done items are omitted.
 
 ### Full-corpus CI parity locks `[2026-08-24]`
 
-> Every `.x` program in the repo is now regression-locked in CI: `demo_parity`
-> (114/114 demos interp↔C byte-identical; daemons via timeout sentinel; links
-> core-lib objects), `xbsourcelib_parity` (11 programs byte parity + ary/ary1
-> compile-lock), `multi_lib_integration` (15 libs cc-clean + link + execute).
-> Suite 257/0 across 32 binaries. Also this session: SWAP `side()` dot-member
-> fix (`c9ddb5a`), clippy cleanup, XBSourceLib classification (mergeOut/
-> mergeTest03 are vgr copies; ary crashes root-caused to composite-byref
-> string corruption, docs/18).
+> Every `.x` program in the repo is regression-locked in CI: `demo_parity`
+> covers the 114 demos (real-I/O programs use explicit skip/sentinel handling),
+> `xbsourcelib_parity` locks the source-library programs, and
+> `multi_lib_integration` compiles, links, and executes all 15 core libraries.
+> Re-verified 2026-08-26: **274/0 across 33 binaries**. The later rows in this
+> roadmap are authoritative for feature-level completion and remaining gaps.
 
-### cgen.x demo ceiling: 114/114 compile, 114/114 faithful — all demos match `[2026-08-23]`
+### cgen.x demos: 114/114 compile; 112 comparable matches + 2 I/O skips `[2026-08-26]`
+
+> Current strict harness: all 114 demos compile; every runnable comparable demo
+> matches, two real-I/O cases are skipped, and no divergence remains. The
+> 2026-08-23 narrative below used a broader termination convention and reported
+> all 114 as faithful; both measurements agree that no known demo diverges.
 
 > The self-hosted `cgen.x` C generator now compiles **ALL 114 demos** with **114 byte-faithful**
 > (up from 71), **0 diverge, 0 cc-fail, 0 crash, 0 timeout** — verified via the *true cgen.x differential*

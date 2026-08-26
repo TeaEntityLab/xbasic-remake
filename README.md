@@ -43,12 +43,13 @@ cargo check -p xb-compiler --features llvm
 
 On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` is 1.97.1 after update. The IDE feature requires Rust ≥1.95 and was checked with explicit rustup cargo/rustc. LLVM 22 is not installed (`llvm@21` is present), so the LLVM backend is intentionally feature-gated off by default.
 
-## Verified capabilities (2026-08-23)
+## Verified capabilities (2026-08-26)
 
 - **All 15 core libraries compile cc-clean** (`xbasic-6.4.5/src/{shared,linux}/*.x`)
 - **All 15 link into one working binary** — `checks/link-core-libs.sh`
-- **114/114 demo programs** emit + compile through the C backend
+- **114/114 demo programs** emit + compile through both the Rust CEmitter and self-hosted `cgen.x`
+- **80/80 positive-corpus programs** emit byte-identical C from both C generators
 - **Byte access `{}`** on string scalars and array elements
 - **INC/DEC + SWAP subscripts** on indexed/composite targets
-- **253 tests across 29 binaries**, 0 failures
+- **274 tests across 33 binaries**, 0 failures (`./checks/validate-all.sh`)
 - Self-hosting: compiler.x → cgen.x → native C generator (bootstrap fixed point held)
