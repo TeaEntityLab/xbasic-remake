@@ -171,9 +171,8 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
 - **2026-08-27 (slice 8):** `collect_facets_accurate` now walks `Dim` recursively
   (`Function`/`If`/`While`/`For`/`DoLoop`/`SelectCase`/`Compound`) so nested
   `dim argv$:string[3]` (zap) etc. get facets; previously non-top-level nested
-  DIMs were missed and fell back to heuristic, but `zap` with facet header now
-  correctly `facet argv$:string scope=Entry storage=fixed rank1 dual0`. Keeps
-  114/114 via narrow facet (`dyn`/`dual`/`arr2d`).
+  DIMs were missed and fell back to heuristic. `zap`'s `DIM argv$[3]` sits inside nested `IFZ standalone` THEN+ELSE (DIM twice per path) — `DynWalk` nested + `dim_count==2` ⇒ **`facet argv$:string scope=Entry storage=dyn rank1 dual0`** (not `fixed`; earlier draft said `fixed` — corrected per 2026-08-27 parallel-lens Correctness lens). Keeps
+  114/114 via narrow facet (`dyn`/`dual`/`arr2d`). Residual gaps (L14): member 2D facets still hardcode `rank=2` + `storage=shared` (`scope=="*" ? "shared" : "shared"` no-op); array params hardcode `rank=1`; nested `Function` DIMs can leak into parent `dim_info` while `DynWalk` does not walk nested functions; `collect_member_2d_expr` misses `Print`/`For`-bounds/`SelectCase` selector.
 
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` already
   asserts per-program byte-identical emitted C — the header must not break this.
