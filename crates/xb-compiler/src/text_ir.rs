@@ -140,28 +140,7 @@ impl TextIrEmitter {
         let dual_use = crate::c_emit_hoist::collect_dual_use(items, &array_dimmed);
         let dyn_names = crate::c_emit_hoist::collect_dyn_names(items, params, has_gosub, desc_locals);
         let mut dim_info: HashMap<String, (bool, usize, ValueType, String)> = HashMap::new();
-        for it in items {
-            if let IrItem::Dim { symbol, size, extra_dims, is_array, shared, .. } = it {
-                if *is_array {
-                    let rank = if size.is_some() {
-                        1 + extra_dims.len()
-                    } else if extra_dims.is_empty() {
-                        1
-                    } else {
-                        extra_dims.len()
-                    };
-                    let is_shared = *shared;
-                    let storage = if is_shared {
-                        "shared".to_string()
-                    } else if dyn_names.arrays.contains_key(&symbol.name) || dual_use.contains(&symbol.name) {
-                        "dyn".to_string()
-                    } else {
-                        "fixed".to_string()
-                    };
-                    dim_info.insert(symbol.name.clone(), (is_shared, rank, symbol.value_type, storage));
-                }
-            }
-        }
+        self.collect_dims_recursive(items, &dyn_names, &dual_use, &mut dim_info);
         for (name, (is_shared, rank, vt, storage)) in &dim_info {
             let key = format!("{}:{}", name, scope);
             if !seen.insert(key) {
@@ -245,6 +224,63 @@ impl TextIrEmitter {
             }
         }
     }
+    fn collect_dims_recursive(
+        self,
+        items: &[IrItem],
+        dyn_names: &crate::c_emit_hoist::DynNames,
+        dual_use: &std::collections::HashSet<String>,
+        out: &mut std::collections::HashMap<String, (bool, usize, ValueType, String)>,
+    ) {
+        for it in items {
+            match it {
+                IrItem::Dim { symbol, size, extra_dims, is_array, shared, .. } => {
+                    if *is_array {
+                        let rank = if size.is_some() {
+                            1 + extra_dims.len()
+                        } else if extra_dims.is_empty() {
+                            1
+                        } else {
+                            extra_dims.len()
+                        };
+                        let is_shared = *shared;
+                        let storage = if is_shared {
+                            "shared".to_string()
+                        } else if dyn_names.arrays.contains_key(&symbol.name) || dual_use.contains(&symbol.name) {
+                            "dyn".to_string()
+                        } else {
+                            "fixed".to_string()
+                        };
+                        out.insert(symbol.name.clone(), (is_shared, rank, symbol.value_type, storage));
+                    }
+                }
+                IrItem::Function { body, .. } => {
+                    self.collect_dims_recursive(body, dyn_names, dual_use, out);
+                }
+                IrItem::If { then_body, else_body, .. } => {
+                    self.collect_dims_recursive(then_body, dyn_names, dual_use, out);
+                    if let Some(eb) = else_body {
+                        self.collect_dims_recursive(eb, dyn_names, dual_use, out);
+                    }
+                }
+                IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
+                    self.collect_dims_recursive(body, dyn_names, dual_use, out);
+                }
+                IrItem::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        self.collect_dims_recursive(&c.body, dyn_names, dual_use, out);
+                    }
+                    if let Some(d) = default {
+                        self.collect_dims_recursive(d, dyn_names, dual_use, out);
+                    }
+                }
+                IrItem::Compound(inner) => {
+                    self.collect_dims_recursive(inner, dyn_names, dual_use, out);
+                }
+                _ => {}
+            }
+        }
+    }
+
     fn collect_member_2d(
         self,
         items: &[IrItem],
