@@ -113,6 +113,15 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
 
 ## 6. Verification
 
+## 9. Implementation progress
+
+- **2026-08-27:** `crates/xb-compiler/src/text_ir_parser_item.rs` now accepts
+  `facet` header lines (`facet <name>:<type> ...`) as `IrItem::Nop` — the Text
+  IR extension point is open and backward-compatible (old goldens still parse;
+  `cgen.x` ignores the header until it consumes it). Verified:
+  `cargo test -p xb-compiler --lib` (19/19) and manual `cgen` with a
+  `facet user:integer ...` header still emits C.
+
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` already
   asserts per-program byte-identical emitted C — the header must not break this.
 - New: `cgen_x_compiles_all_demos_cc_clean` must stay green.

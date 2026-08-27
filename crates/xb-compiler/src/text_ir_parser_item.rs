@@ -16,6 +16,9 @@ pub(crate) fn parse_item(
         let v = content.strip_prefix("version").unwrap_or("").trim();
         return Ok(IrItem::Version(v.to_string()));
     }
+    if content.starts_with("facet ") || content == "facet" {
+        return Ok(IrItem::Nop);
+    }
     if content == "program_name" || content.starts_with("program_name ") {
         let v = content.strip_prefix("program_name").unwrap_or("").trim();
         return Ok(IrItem::ProgramName(v.to_string()));
