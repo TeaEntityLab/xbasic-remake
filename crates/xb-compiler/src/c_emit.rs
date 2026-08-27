@@ -1838,7 +1838,35 @@ fn emit_main(program: &IrProgram, out: &mut String) {
                 _ => None,
             })
         });
-    out.push_str("int main(void) {\n");
+    // File-scope weak definitions for system shared arrays so that
+    // main's startup init can always reference them without undefined-
+    // symbol errors, even for programs that don't directly use ARGV$.
+    // The real definitions (when needed) are weak in xst.o and will
+    // coalesce; otherwise these stay as 0/-1 singletons.
+    out.push_str("__attribute__((weak)) char** xb_str_ARGV_s_arr = (char**)0;\n");
+    out.push_str("__attribute__((weak)) intptr_t xb_ub_ARGV_s_arr = -1;\n");
+    out.push_str("__attribute__((weak)) char** xb_str_ENVP_s_arr = (char**)0;\n");
+    out.push_str("__attribute__((weak)) intptr_t xb_ub_ENVP_s_arr = -1;\n");
+    out.push_str("int main(int argc, char **argv) {\n");
+    // ARCH-02: populate system shared arrays from process startup.
+    out.push_str("    if (xb_str_ARGV_s_arr == (char**)0) {\n");
+    out.push_str("        xb_ub_ARGV_s_arr = (intptr_t)argc - 1;\n");
+    out.push_str("        if (argc > 0) {\n");
+    out.push_str("            xb_str_ARGV_s_arr = (char**)calloc((size_t)argc, sizeof(char*));\n");
+    out.push_str("            for (int _i = 0; _i < argc; _i++) xb_str_ARGV_s_arr[_i] = xb_str(argv[_i]);\n");
+    out.push_str("        }\n");
+    out.push_str("    }\n");
+    out.push_str("    {\n");
+    out.push_str("        extern char** environ;\n");
+    out.push_str("        if (xb_str_ENVP_s_arr == (char**)0 && environ) {\n");
+    out.push_str("            int _envc = 0; while (environ[_envc]) _envc++;\n");
+    out.push_str("            xb_ub_ENVP_s_arr = (intptr_t)_envc - 1;\n");
+    out.push_str("            if (_envc > 0) {\n");
+    out.push_str("                xb_str_ENVP_s_arr = (char**)calloc((size_t)_envc, sizeof(char*));\n");
+    out.push_str("                for (int _i = 0; _i < _envc; _i++) xb_str_ENVP_s_arr[_i] = xb_str(environ[_i]);\n");
+    out.push_str("            }\n");
+    out.push_str("        }\n");
+    out.push_str("    }\n");
     emit_data_init(program, out);
     set_fn_context("", &program.items, &[]);
     // Top-level scalars (walk_items ignores nested Function bodies).

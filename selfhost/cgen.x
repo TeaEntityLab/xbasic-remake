@@ -1603,7 +1603,29 @@ WHILE pos <= LEN(src$)
   END IF
 WEND
 
-PRINT "int main(void) {"
+PRINT "__attribute__((weak)) char** xb_str_ARGV_s_arr = (char**)0;"
+PRINT "__attribute__((weak)) intptr_t xb_ub_ARGV_s_arr = -1;"
+PRINT "__attribute__((weak)) char** xb_str_ENVP_s_arr = (char**)0;"
+PRINT "__attribute__((weak)) intptr_t xb_ub_ENVP_s_arr = -1;"
+PRINT "int main(int argc, char **argv) {"
+PRINT "    if (xb_str_ARGV_s_arr == (char**)0) {"
+PRINT "        xb_ub_ARGV_s_arr = (intptr_t)argc - 1;"
+PRINT "        if (argc > 0) {"
+PRINT "            xb_str_ARGV_s_arr = (char**)calloc((size_t)argc, sizeof(char*));"
+PRINT "            for (int _i = 0; _i < argc; _i++) xb_str_ARGV_s_arr[_i] = xb_str(argv[_i]);"
+PRINT "        }"
+PRINT "    }"
+PRINT "    {"
+PRINT "        extern char** environ;"
+PRINT "        if (xb_str_ENVP_s_arr == (char**)0 && environ) {"
+PRINT "            int _envc = 0; while (environ[_envc]) _envc++;"
+PRINT "            xb_ub_ENVP_s_arr = (intptr_t)_envc - 1;"
+PRINT "            if (_envc > 0) {"
+PRINT "                xb_str_ENVP_s_arr = (char**)calloc((size_t)_envc, sizeof(char*));"
+PRINT "                for (int _i = 0; _i < _envc; _i++) xb_str_ENVP_s_arr[_i] = xb_str(environ[_i]);"
+PRINT "            }"
+PRINT "        }"
+PRINT "    }"
 IF LEN(mainBody$) > 0 THEN
   ' Fix Kittedy found dual-use (array xb_var_found_arr vs scalar xb_var_found) and qbtoxb TranslateStatement
   mainBody$ = replace$(mainBody$, "xb_str_found", "xb_var_found")
