@@ -1964,3 +1964,40 @@ pub(crate) fn c_type(vt: ValueType) -> &'static str {
         ValueType::String => "char*",
     }
 }
+#[cfg(test)]
+mod c_emit_argv_tests {
+    use super::*;
+    #[test]
+    fn c_emit_argv_init_and_main_signature() {
+        // Lock ARCH-02: xst's ##ARGV$[] should be a shared heap global with
+        // startup init, not a scalar stub. This test guards the panel's
+        // strongest objection falsifier (XstGetCommandLineArguments(-1)).
+        let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let xst_path = manifest_dir.join("../../xbasic-6.4.5/src/linux/xst.x");
+        let src = std::fs::read_to_string(&xst_path)
+            .unwrap_or_else(|e| panic!("read {}: {e}", xst_path.display()));
+        let prog = crate::FrontendUnit::parse(&src)
+            .expect("parse xst.x")
+            .lower_ir()
+            .expect("lower xst.x");
+        let c = crate::CEmitter::new().emit_program(&prog);
+        assert!(
+            c.contains("int main(int argc, char **argv)"),
+            "main should be int main(int argc, char **argv) with ARGV$ init"
+        );
+        assert!(
+            c.contains("__attribute__((weak)) char** xb_str_ARGV_s_arr"),
+            "file-scope weak def for ARGV$"
+        );
+        assert!(
+            c.contains("xb_ub_ARGV_s_arr = (intptr_t)argc - 1"),
+            "ARGV$ ub init from argc"
+        );
+        assert!(
+            c.contains("xb_str_ARGV_s_arr[xb_var_i]"),
+            "ARGV$ access should be via shared global, not xb_str(\"\") stub"
+        );
+        // ENVP$ should also be present (same mechanism)
+        assert!(c.contains("xb_str_ENVP_s_arr"), "ENVP$ global");
+    }
+}
