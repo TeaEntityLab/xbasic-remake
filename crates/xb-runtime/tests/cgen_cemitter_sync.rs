@@ -376,10 +376,33 @@ fn docs_headline_claims_are_recorded_at_named_surfaces() {
     let d17 =
         fs::read_to_string(root().join("docs/17-open-work-roadmap.md")).expect("read docs/17");
     for (surface, text, needle) in [
-        ("README.md", &readme, "emit byte-identical C (locked by `cgen_cemitter_sync`)"),
-        ("README.md", &readme, "self-hosted `cgen.x` (`cgen_x_compiles_all_demos_cc_clean`)"),
+        (
+            "README.md",
+            &readme,
+            "emit byte-identical C (locked by `cgen_cemitter_sync`)",
+        ),
+        (
+            "README.md",
+            &readme,
+            "self-hosted `cgen.x` (`cgen_x_compiles_all_demos_cc_clean`)",
+        ),
         ("docs/16", &d16, "identity are **locked by tests**"),
         ("docs/17", &d17, "Candidate Adoption Ledger"),
+        (
+            "docs/17",
+            &d17,
+            "The Rust CEmitter is class **(b) link-ready** for all 15 core libraries",
+        ),
+        (
+            "docs/17",
+            &d17,
+            "compiled legacy-library bodies remain below class **(c) behavior-ready**",
+        ),
+        (
+            "docs/17",
+            &d17,
+            "**GTK/helpsrc remain\n> parse/lower-only.**",
+        ),
     ] {
         assert!(
             text.contains(needle),

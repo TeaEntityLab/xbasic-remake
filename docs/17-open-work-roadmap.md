@@ -13,21 +13,25 @@
 > (now asserting corpus emitted-C byte equality + all-demo cgen.x compilation);
 > positive-corpus emitted C is **80/80 byte-identical** between the Rust CEmitter
 > and self-hosted `cgen.x`; all **114/114 demos** compile through true `cgen.x`.
-> The strict runnable differential reports **112 comparable matches / 2 real-I/O
+> That cgen.x all-demo guard is **compile-only**. The strict runnable differential
+> is the **Rust CEmitter** path and reports **112 comparable matches / 2 real-I/O
 > skips / 0 failures**. Stage 0, Stage 1, and Stage 2 native self-hosting are
-> complete; all 15 core libraries compile and link. Historical session notes
-> below preserve their original measurements and may be superseded by this
-> banner or later dated rows.
+> complete; all 15 core libraries compile and link through the Rust CEmitter.
+> `multi_lib_integration` executes only seven cross-TU `Version$` calls; it does
+> not behavior-lock the legacy library bodies. Historical session notes below
+> preserve their original measurements and may be superseded by this banner or
+> later dated rows.
 > **NEW: `#var$` typing fix — a `#foo$` SharedName typed String (was Integer), so
 > `acgibin` no longer crashes on `"s" + #foo$` and is now interp==cgen faithful.**
 > **`0b42cf1`: headless Xgr/Xui GUI runtime** — `XuiGetNextCallback`
 > delivers one synthetic `CloseWindow` so the ~37 GUI message-loop demos run to
 > completion + are differential-faithful (74→111); fixed string `SELECT CASE`
 > (pointer→content compare). **Prior (`be03117`): the by-ref array ABI landed**
-> — full `(T** data, intptr_t* ub)` descriptor + `XstQuickSort`/`XstCopyArray`, so
-> **`xbsourcelib` `fgr`/`vgr`/`msc`/`ary` now sort + copy arrays for real** and stay
-> byte-faithful (`cgen_demo_regression` 11/11). Every `Xst*` builtin the corpus uses
-> is now complete.
+> — full `(T** data, intptr_t* ub)` descriptor plus native
+> `XstQuickSort`/`XstCopyArray` helpers. The 11 parity-listed XBSourceLib programs,
+> including `fgr`/`vgr`/`msc`, are byte-faithful; `ary`/`ary1.0001` are
+> compile-only and are not runtime proof. Native helpers shadow the corresponding
+> compiled legacy `xst.x` bodies at emit time.
 > Recent: **expression-context side effects** now reach output — a
 > general interpreter `eval` bug (a function called in expression position
 > discarded its output sink) that flipped `XBMerge` (RT-ARGS) + unmasked/fixed
@@ -37,12 +41,12 @@
 > `aarray_ISNODE` (CGEN-GOSUB-SCOPE — per-function GOSUB stack; was misdiagnosed as
 > the array ABI). Beyond demos, **XBSourceLib core libs 13/13 C-compile, 11
 > byte-faithful** (`msc`/`fgr`/`vgr`/`vgrOld`/`geo`/`mergeTest01`/`mergeTest02`/`mergeTest03`/`mergeOut`/`mergeOut02`/`XBMerge`).
-> The only remaining lib gaps are not C-backend byte-divergences: `ary`/`ary1.0001`
-> are **interp-performance** — `TestAryPerformance` runs ~105k `ArySet/Get` ops
-> whose name-buffer lookups are O(n) (linear `DO WHILE` scans of `Ary_varCodes`) →
-> O(n²) total, so the *interpreter* exceeds 90s while cgen (compiled) finishes in
-> <1s; they migrate correctly via cgen with no known divergence source (all of
-> i32/float/gosub/by-ref now fixed), just untestable-by-interp like the GUI demos.
+> `ary`/`ary1.0001` are only cc-clean in `xbsourcelib_ary_compiles_clean`; they
+> are not executed by the parity guard. Their remaining runtime status is
+> **contested**: that test documents a crash/composite-byref gap, while later
+> roadmap rows identify `ATTACH` aliasing and O(n²) interpreter lookup. Until a
+> named run or timeout test resolves those accounts, do not claim they migrate
+> faithfully or that interpreter performance is their only blocker.
 > `XBMerge` is now **byte-faithful** (RT-ARGS resolved 2026-08-21, `1975c75`): the
 > root cause was a general **interpreter** bug — a function called in *expression*
 > position (`x = Foo()`, `IF Foo() THEN`) discarded its output sink, swallowing
@@ -88,23 +92,26 @@ sections below or the named sibling docs; ✅-done items are omitted.
 
 ### Full-corpus CI parity locks `[2026-08-24]`
 
-> Every `.x` program in the repo is regression-locked in CI: `demo_parity`
-> covers the 114 demos (real-I/O programs use explicit skip/sentinel handling),
-> `xbsourcelib_parity` locks the source-library programs, and
-> `multi_lib_integration` compiles, links, and executes all 15 core libraries.
-> Re-verified 2026-08-26: **274/0 across 33 binaries**. The later rows in this
-> roadmap are authoritative for feature-level completion and remaining gaps.
+> CI regression-locks the 114 top-level demos, the 13 XBSourceLib programs, and
+> compile/link of all 15 core libraries. `multi_lib_integration` executes seven
+> `Version$` calls only; it does not execute every library implementation.
+> `legacy_corpus` recursively parse/lowers the wider `.x` inventory, but the 19
+> GTK demos and three helpsrc programs have no cc/link/run guard. Re-verified
+> 2026-08-26: **274/0 across 33 binaries**. The later rows in this roadmap are
+> authoritative for feature-level completion and remaining gaps.
 
 ### cgen.x demos: 114/114 compile; 112 comparable matches + 2 I/O skips `[2026-08-26]`
 
-> Current strict harness: all 114 demos compile; every runnable comparable demo
-> matches, two real-I/O cases are skipped, and no divergence remains. The
-> 2026-08-23 narrative below used a broader termination convention and reported
-> all 114 as faithful; both measurements agree that no known demo diverges.
+> Current named guards separate two paths: true cgen.x compiles all 114
+> top-level demos, while the Rust CEmitter `demo_parity` guard reports 112
+> comparable matches and two real-I/O skips. No named guard runs all 114 demos
+> through true cgen.x and compares them with the interpreter.
 
-> The self-hosted `cgen.x` C generator now compiles **ALL 114 demos** with **114 byte-faithful**
-> (up from 71), **0 diverge, 0 cc-fail, 0 crash, 0 timeout** — verified via the *true cgen.x differential*
-> (build native cgen from cgen.x → IR→cgen→cc→run vs interp). Ten fixes landed this session:
+> A 2026-08-23 manual sweep reported **114 byte-faithful**, **0 diverge,
+> 0 cc-fail, 0 crash, 0 timeout** through a true cgen.x run-vs-interpreter
+> differential. That sweep is historical evidence, not a named cargo-test lock;
+> the current deterministic all-demo cgen.x contract is compile-only. Ten fixes
+> landed in that manual campaign:
 >
 > | fix | demos | root cause |
 >|---|---|---|
@@ -118,7 +125,8 @@ sections below or the named sibling docs; ✅-done items are omitted.
 >| RT-XGR-PROCESS-MESSAGES (`0023a97`) | aclient, aeasy, agrids, aserver, warning | `XgrProcessMessages` is a stub that never dispatches GUI callbacks; demos calling it in `DO...LOOP UNTIL terminateProgram` hung forever. Fix: `XgrProcessMessages` now calls `exit(0)` immediately (interp `Quit { code: 0 }`, C `xb_xgr_process_messages` runtime), so the demo's output (produced before the message loop) is flushed. 5 timeouts → 0. |
 >| RT-GOSUB-EXPR-ZERO (`ac3e46d`) | agrids | `gosub_expr Sub[message]` with `Sub[message]=0` (nested fn label_addr now 0) emitted `goto *(void*)0` → SIGSEGV in both C backends. Fix: guard with `if (_xb_ge)` — evaluate expr into temp, only push gosub stack + goto if non-zero. Matches interp RT-GOSUB-ZERO. Byte-neutral (no selfhost tool uses gosub_expr). |
 >
-> **All 114 demos now faithful** — 0 diverge, 0 cc-fail, 0 crash, 0 timeout.
+> **Historical manual-sweep result:** 114 faithful, 0 diverge, 0 cc-fail,
+> 0 crash, 0 timeout. Do not conflate it with the compile-only named guard.
 >
 > **LANDED 2026-08-23 (`879f09c`) — CGEN-BYREF-DUAL-FIXES: stabilized 114/114:**
 > `bd$` now only returns `_arr` for `##byrefDual$` names when they're array params of
@@ -291,13 +299,20 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | CGEN-FACET-MANIFEST | frontend + cgen.x | Replace cgen.x's ~30 global `##` text classifiers (47 `##` globals, 18 scanner sets, 72 multi-set predicates) with a frontend-emitted per-symbol facet manifest (name, scope, elem type, storage class, dual-use, rank) consumed deterministically | three reverted gosubDyn attempts + cross-function scope leakage; architectural prerequisite for ANY further cgen.x storage work |
 | C-BACKEND-PORTABILITY | both C generators | Emitted C relies on `$` in identifiers (cgen.x demo paths), GNU `&&label` + computed goto; MSVC (docs/13 Win64 goal) rejects all three | clang-cl mandate or identifier sanitization + switch-dispatch fallback |
 | LLVM-CI-BITROT | CI | `--features llvm` is never built in CI on any platform; local LLVM claims are machine-dependent (Homebrew llvm 22.1.8 present here) | add an LLVM CI job or scheduled check |
-| TEST-HARNESS-HARDENING | tests/checks | `demo_parity`/`xbsourcelib_parity`/`xin_sockets`/`link-core-libs.sh` hardcode `target/release/xb` and bare `cc` (ignore `$CC`) — fresh-clone `cargo test` (debug) panics | `CARGO_BIN_EXE_xb` or debug fallback; respect `$CC` |
+| TEST-HARNESS-HARDENING | tests/checks | Named parity/link harnesses now use `common::xb_bin()`, `$CC`, and release/debug fallbacks; residual package-only `xb-runtime` runs can still miss an `xb` binary, and `xb-link` still invokes bare `cc` | make the CLI artifact explicit for `xb-runtime`; respect `$CC` in `xb-link` |
 | NEGATIVE-CORPUS-HARNESS | frontend | no fuzz/negative-syntax harness asserting the XB-L/P/C diagnostics fire without panics | lock the diagnostic surface |
 | PACKAGING | distribution | no packaging story (xb CLI, runtime lib, headers, .dec surface) | first external consumer or post-GUI-RUNTIME |
 | INTERP-PERF-ARY | interpreter | `ary` TestAryPerformance is O(n²) name-buffer scanning (>90s interp-side) | hash-accelerated lookup; unlocks interp-side ary tests |
 | CGEN-XST-ARG-BOUNDS | cgen.x | `scan_xst_arrays$` classifies ALL args of XstQuickSort/XstCopyArray; Rust bounds descriptor promotion to positions 0–1 (`builtin_needs_descriptor`) | latent pos-2+ scalar misclassification |
 | CGEN-RETURN-VAR-HOIST-SYNC | cgen.x | non-integer return-var declaration omitted when the body never mentions the function name; Rust CEmitter always declares | emitted-C divergence class |
 | CGEN-INSTR-NEEDLES | cgen.x | ~12 scanner needles still hold literal `(` inside quoted strings (`"array_ubound("`, `"symbol("`) — false-match hazard when scanned IR contains those substrings inside string literals | sweep to CHR$(40)-built needles |
+| LEGACY-LIB-BINDING-POLICY | frontend + C backend + runtime | Calls are bound at emit time: native Xst/Xin/Xui/Xgr/kernel32 helpers shadow compiled `xb_user_*` functions, while unresolved cross-TU calls fold to `0`/`""`/no-op before linking | choose native-vs-legacy authority; prove it with an unshadowed call-site test |
+| CORE-LIB-BEHAVIOR-GATE | tests | All 15 core libraries compile/link, but only seven `Version$` exports execute; no non-Version$ compiled library function is behavior-locked | C driver calls deterministic non-Version$ `xb_user_*` exports and checks non-stub results |
+| EXTERNAL-FUNCTION-PARSE | frontend + all backends | `EXTERNAL FUNCTION` goes through `function_stmt`; consecutive EXTERNAL declarations nest because EXTERNAL is absent from the forward/body-break sets, producing empty top-level stubs and dropped nested exports | parse EXTERNAL as a declaration; lock flat IR plus CEmitter/interpreter behavior |
+| KEYWORD-FUNCTION-TYPING | frontend + all backends | Legacy `FUNCTION DOUBLE Name (DOUBLE x)` definitions in `xma.x` emit `intptr_t` signatures and `int32_t` truncations (for example `ATANH`) | preserve prefix keyword parameter/return types; add a floating-point differential |
+| CGEN-LIB-SCALE | cgen.x | Heuristic `--emit-ir` probe is 6/15: five orphaned-body cc failures plus four SIGKILLs; xgr's 1.41 MiB IR reached 6.4 GiB RSS | fix nested-function depth handling and replace leaky whole-string concatenation; then add a 15-lib cgen guard |
+| LEGACY-CORPUS-COMPILE-COVERAGE | tests | 19 GTK demos + three helpsrc programs are parse/lower-only; docs previously overclaimed every `.x` was regression-locked | add explicit compile inventories before any every-legacy-source claim |
+| ARY-STATUS-RECONCILIATION | tests + docs | `xbsourcelib_parity` says runtime crash/composite-byref; banner said performance-only and cgen-faithful; `ATTACH` remains parser-discarded | add a deterministic ATTACH alias test plus bounded ary run/timeout evidence, then choose one status |
 
 ### Panel review 2026-08-27 — Candidate Adoption Ledger
 
@@ -328,6 +343,47 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | P13 | Supersede banners on stale historical sections | partial | RT-KERNEL32 §2 + DEMO-RUNTIME §4 banners added; DocsReviewer's qbtoxb ~520 citation did not exist at HEAD | — |
 | P14 | Test-harness hardening ($CC, release-bin dep) | deferred | TEST-HARNESS-HARDENING row | next harness edit |
 | P15 | LLVM CI job | deferred | LLVM-CI-BITROT row | CI capacity |
+
+### Legacy-library readiness panel 2026-08-27 — Candidate Adoption Ledger
+
+> Five read-only lenses (evidence, compiler correctness, runtime semantics,
+> coverage/reproducibility, strategy) independently returned **AGREE WITH
+> CHANGES**. An initial scout batch produced no verdict because its provider
+> quota was exhausted; it is not counted as panel evidence. Coordinator checks
+> then re-ran the Rust CEmitter 15-library link/smoke and the self-hosted cgen.x
+> 15-library probe.
+>
+> Readiness classes: **(a)** emit + cc-clean, **(b)** multi-library link,
+> **(c)** behavior of the compiled legacy body, **(d)** production runtime.
+> The Rust CEmitter is class **(b) link-ready** for all 15 core libraries, but
+> compiled legacy-library bodies remain below class **(c) behavior-ready**:
+> only seven `Version$` exports execute, and demo call sites are native-shadowed
+> or stubbed at emit time. Self-hosted cgen.x is below class (a) for this corpus
+> (6/15). Eleven XBSourceLib programs have class-(c) differential coverage;
+> `ary`/`ary1.0001` are class-(a) compile-only. **GTK/helpsrc remain
+> parse/lower-only.** No path is class (d): real GUI, `ATTACH`, `XxxMain`, and
+> packaging remain open.
+>
+> Decision: ready to start **behavior-port work on selected non-GUI surfaces**
+> through the Rust CEmitter, not ready to claim every legacy library is ported.
+> cgen.x 15/15 is not a bootstrap prerequisite; it becomes mandatory before a
+> shipped-generator claim covers `src/*.x` or the native-only rebuild includes
+> those libraries. The bounded EXTERNAL/nesting/buffering fixes do not depend on
+> the facet manifest; further cgen.x **storage-classification** changes still do.
+
+| ID | Candidate | Status | Evidence | Next action / trigger |
+|---|---|---|---|---|
+| L1 | Separate compile/link/behavior/production readiness wording | adopted | 15/15 Rust link + seven-Version$ smoke; 6/15 cgen.x probe | guard the wording at this named surface |
+| L2 | Native-vs-legacy call-binding policy before behavior-port claims | adopted | emit-time Xst/Xin/Xui/Xgr/kernel32 interception + unknown-call folding | add one unshadowed call-site experiment and record authority |
+| L3 | Non-Version$ core-library behavior test | adopted | no current test executes such an export | add a C driver over deterministic `xb_user_*` functions |
+| L4 | EXTERNAL parser fix before xma/xdis/xrun behavior work | adopted | nested text IR; empty/dropped exports in both emitters | flat-IR regression + backend differential |
+| L5 | cgen.x nested-function and memory fixes | adopted | five orphaned-body failures; xgr 6.4 GiB RSS/SIGKILL | fix independently of facet storage work, then gate 15/15 |
+| L6 | Keep CGEN-FACET-MANIFEST as storage-work prerequisite only | partial | facets cannot fix EXTERNAL nesting or whole-string OOM | finish strDual/allStrArr before the next storage change |
+| L7 | Port order: xut/xcm first; xst and GUI libs not first | adopted | xst uses ATTACH/*AT/TYPE/ARGV and imports xma/xgr/xui | binding policy → xut/xcm → EXTERNAL/type fixes → remaining non-GUI → GUI last |
+| L8 | GTK/helpsrc coverage carve-out | adopted | only `legacy_corpus` parse/lowers them | compile inventory before expanding readiness claim |
+| L9 | Ary status changed from performance-only to contested | adopted | parity test comment conflicts with roadmap claims; ATTACH is a no-op | deterministic alias test + bounded run evidence |
+| L10 | Production readiness deferred | adopted | GUI-RUNTIME, ENTRY-SCAFFOLD, PACKAGING, portability remain open | revisit after a real windowed callback and `XxxMain` execution |
+
 
 
 Micro-residual documented in place: `FUNCADDRESS` (the builtin) returns `0` — no corpus
