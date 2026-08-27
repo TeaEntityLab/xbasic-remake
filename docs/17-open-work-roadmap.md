@@ -9,7 +9,7 @@
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-27** (post-panel). `./checks/validate-all.sh`
-> = **276 passed / 0 failed across 33 binaries**; `cgen_cemitter_sync` = **60/60**
+> = **277 passed / 0 failed across 33 binaries**; `cgen_cemitter_sync` = **60/60**
 > (now asserting corpus emitted-C byte equality + all-demo cgen.x compilation);
 > positive-corpus emitted C is **80/80 byte-identical** between the Rust CEmitter
 > and self-hosted `cgen.x`; all **114/114 demos** compile through true `cgen.x`.

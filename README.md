@@ -55,5 +55,5 @@ On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` 
 - **80/80 positive-corpus programs** emit byte-identical C (locked by `cgen_cemitter_sync`)
 - **Byte access `{}`** on string scalars and array elements
 - **INC/DEC + SWAP subscripts** on indexed/composite targets
-- **276 tests across 33 binaries**, 0 failures (`./checks/validate-all.sh`)
+- **277 tests across 33 binaries**, 0 failures (`./checks/validate-all.sh`)
 - Self-hosting: compiler.x → cgen.x → native C generator (bootstrap fixed point held)
