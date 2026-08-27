@@ -8,18 +8,29 @@ fn collect_append_chain<'a>(target: &IrSymbol, expr: &'a IrExpr) -> Option<Vec<&
     if expr.value_type != ValueType::String {
         return None;
     }
+    // A dyn array pointer (`a$[]`) is not a scalar `char*`. xb_append onto
+    // `T*`/`T**` is a type error (xui string-array `a$` vs int scalar `a`).
+    if crate::c_emit::is_dyn_array(&target.name) && !crate::c_emit::is_dual_use(&target.name) {
+        return None;
+    }
     let mut parts = Vec::new();
     let mut cur = expr;
     loop {
         match &cur.kind {
-            crate::ir::IrExprKind::Arithmetic { op: crate::checked::ArithmeticOp::Add, left, right } if cur.value_type == ValueType::String => {
+            crate::ir::IrExprKind::Arithmetic {
+                op: crate::checked::ArithmeticOp::Add,
+                left,
+                right,
+            } if cur.value_type == ValueType::String => {
                 if expr_aliases_target(target, right) {
                     return None;
                 }
                 parts.push(right.as_ref());
                 cur = left.as_ref();
             }
-            crate::ir::IrExprKind::Symbol(sym) if sym.name == target.name && sym.value_type == target.value_type => {
+            crate::ir::IrExprKind::Symbol(sym)
+                if sym.name == target.name && sym.value_type == target.value_type =>
+            {
                 if parts.is_empty() {
                     return None;
                 }
@@ -32,14 +43,32 @@ fn collect_append_chain<'a>(target: &IrSymbol, expr: &'a IrExpr) -> Option<Vec<&
 }
 fn expr_aliases_target(target: &IrSymbol, expr: &IrExpr) -> bool {
     match &expr.kind {
-        crate::ir::IrExprKind::Symbol(sym) => sym.name == target.name && sym.value_type == target.value_type,
-        crate::ir::IrExprKind::SharedVariable(sym) => sym.name == target.name && sym.value_type == target.value_type,
-        crate::ir::IrExprKind::Arithmetic { left, right, .. } => expr_aliases_target(target, left) || expr_aliases_target(target, right),
-        crate::ir::IrExprKind::Comparison { left, right, .. } => expr_aliases_target(target, left) || expr_aliases_target(target, right),
-        crate::ir::IrExprKind::Boolean { left, right, .. } => expr_aliases_target(target, left) || expr_aliases_target(target, right),
-        crate::ir::IrExprKind::Logical { left, right, .. } => expr_aliases_target(target, left) || expr_aliases_target(target, right),
-        crate::ir::IrExprKind::FunctionCall { args, .. } => args.iter().any(|a| expr_aliases_target(target, a)),
-        crate::ir::IrExprKind::ArrayAccess { symbol, index, extra_indices } => {
+        crate::ir::IrExprKind::Symbol(sym) => {
+            sym.name == target.name && sym.value_type == target.value_type
+        }
+        crate::ir::IrExprKind::SharedVariable(sym) => {
+            sym.name == target.name && sym.value_type == target.value_type
+        }
+        crate::ir::IrExprKind::Arithmetic { left, right, .. } => {
+            expr_aliases_target(target, left) || expr_aliases_target(target, right)
+        }
+        crate::ir::IrExprKind::Comparison { left, right, .. } => {
+            expr_aliases_target(target, left) || expr_aliases_target(target, right)
+        }
+        crate::ir::IrExprKind::Boolean { left, right, .. } => {
+            expr_aliases_target(target, left) || expr_aliases_target(target, right)
+        }
+        crate::ir::IrExprKind::Logical { left, right, .. } => {
+            expr_aliases_target(target, left) || expr_aliases_target(target, right)
+        }
+        crate::ir::IrExprKind::FunctionCall { args, .. } => {
+            args.iter().any(|a| expr_aliases_target(target, a))
+        }
+        crate::ir::IrExprKind::ArrayAccess {
+            symbol,
+            index,
+            extra_indices,
+        } => {
             (symbol.name == target.name && symbol.value_type == target.value_type)
                 || expr_aliases_target(target, index)
                 || extra_indices.iter().any(|i| expr_aliases_target(target, i))
@@ -94,6 +123,17 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             // would clear data another function stored. A sized DIM/REDIM still
             // (re)allocates the global via the dyn arms below (is_dyn_array=true).
             if *is_array && crate::c_emit::is_shared_array(&symbol.name) && size.is_none() {
+                return;
+            }
+            // Scalar DIM of a STRING name whose storage is a dyn/shared array
+            // (flattened `HOST.alias$[]`): do not emit a shadowing `char*`.
+            // Indexing that scalar made `host.alias[0]` a `char`.
+            if !*is_array
+                && size.is_none()
+                && symbol.value_type == ValueType::String
+                && crate::c_emit::is_dyn_array(&symbol.name)
+                && !crate::c_emit::is_shared_dual(&symbol.name)
+            {
                 return;
             }
             // Multi-dim array (`DIM a[i,j,…]`): the interpreter flattens to a 1-D
@@ -249,7 +289,10 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     emit_default(symbol.value_type, out);
                     out.push_str(";\n");
                 }
-                None if dyn_scalar || crate::c_emit::is_dual_use(&symbol.name) => {
+                None if dyn_scalar
+                    || crate::c_emit::is_dual_use(&symbol.name)
+                    || crate::c_emit::is_shared_dual(&symbol.name) =>
+                {
                     // Late/repeated scalar `DIM`, or the scalar facet of a dual-use
                     // name (`emit_hoisted_scalars` already declared it at the top):
                     // the site resets to the default like the interpreter's fresh
@@ -307,7 +350,8 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 // otherwise xb_append's free/realloc will dangle aliases (xgr abort).
                 if target.value_type == ValueType::String {
                     match &value.kind {
-                        crate::ir::IrExprKind::Symbol(_) | crate::ir::IrExprKind::SharedVariable(_) => {
+                        crate::ir::IrExprKind::Symbol(_)
+                        | crate::ir::IrExprKind::SharedVariable(_) => {
                             out.push_str("xb_strdup(");
                             emit_expr(value, out);
                             out.push_str(")");
@@ -455,7 +499,8 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 out.push_str(" = ");
                 if target.value_type == ValueType::String {
                     match &value.kind {
-                        crate::ir::IrExprKind::Symbol(_) | crate::ir::IrExprKind::SharedVariable(_) => {
+                        crate::ir::IrExprKind::Symbol(_)
+                        | crate::ir::IrExprKind::SharedVariable(_) => {
                             out.push_str("xb_strdup(");
                             emit_expr(value, out);
                             out.push_str(")");

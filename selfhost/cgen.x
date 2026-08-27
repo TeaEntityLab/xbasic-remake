@@ -55,6 +55,11 @@ DIM firstFunc$
 DIM firstParams$
 DIM emittedFuncs$
 DIM skipFunc
+DIM fwdDepth
+DIM fwdPeek$
+DIM fwdPeekPos
+DIM fwdPeekCh
+DIM fwdEmpty
 DIM nestBlocks$
 DIM inNest
 DIM nfName$
@@ -708,6 +713,7 @@ END IF
 ##curParams$ = ""
 ##arrParams$ = ""
 ##funcMixed$ = ","
+##funcHasArr$ = ","
 ##curCallFn$ = ""
 ##byrefWB$ = ","
 ##curFnName$ = ""
@@ -828,7 +834,9 @@ WHILE sub2 <= LEN(src$)
           sizedDim = 1
         END IF
       END IF
-      IF ity$ = "string" AND sizedDim = 1 AND INSTR(##allStrArr$, ":" + inm$ + ":") > 0 THEN
+      ' SHARED string arrays are heap globals, not fixed `_arr` VLAs.
+      ' `envp$[]` must not enter strUbDual or UBOUND emits sizeof(xb_str_envp_s_arr).
+      IF ity$ = "string" AND sizedDim = 1 AND INSTR(##allStrArr$, ":" + inm$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + inm$ + ":") = 0 THEN
         IF INSTR(##strUbDual$, ":" + inm$ + ":") = 0 THEN
           ##strUbDual$ = ##strUbDual$ + ":" + inm$ + ":"
         END IF
@@ -942,8 +950,9 @@ IF INSTR(src$, "XgrProcessMessages") > 0 THEN
   PRINT "static void xb_xgr_process_messages(intptr_t mode) { (void)mode; exit(0); }"
   PRINT ""
 END IF
-' Forward declarations: pre-scan all lines for function signatures
+' Forward declarations: pre-scan top-level function signatures only
 fwdPos = 1
+fwdDepth = 0
 WHILE fwdPos <= LEN(src$)
   fwdLine$ = ""
   WHILE fwdPos <= LEN(src$)
@@ -965,19 +974,68 @@ WHILE fwdPos <= LEN(src$)
   IF fwdJ <= LEN(fwdLine$) THEN
     fwdStmt$ = MID$(fwdLine$, fwdJ, LEN(fwdLine$) - fwdJ + 1)
     IF LEFT$(fwdStmt$, 9) = "function " THEN
+      ' Record callees whose params include arrays (`T[]`) so byref args to
+      ' those params keep `&` even when the call is mixed byval/byref (xdis
+      ' `XxxGetFunctionVariables(@kinds[])`). Nested/empty skip below must
+      ' not drop EXTERNAL prototypes from this set.
       fwdRest$ = MID$(fwdStmt$, 10, LEN(fwdStmt$) - 9)
       fwdParen = INSTR(fwdRest$, "(")
-      fwdName$ = LEFT$(fwdRest$, fwdParen - 1)
-      fwdAfter$ = MID$(fwdRest$, fwdParen + 1, LEN(fwdRest$) - fwdParen)
-      fwdClose = INSTR(fwdAfter$, ")")
-      fwdParams$ = LEFT$(fwdAfter$, fwdClose - 1)
-      fwdRet$ = MID$(fwdAfter$, fwdClose + 5, LEN(fwdAfter$) - fwdClose - 4)
-      ##curFnName$ = fwdName$
-      fwdDeclsBuf$ = fwdDeclsBuf$ + fwdName$ + CHR$(9) + fwdParams$ + CHR$(9) + fwdRet$ + CHR$(10)
-      ##funcTypes$ = ##funcTypes$ + fwdName$ + ":" + fwdRet$ + ","
-      ##funcIds$ = ##funcIds$ + fwdName$ + ":"
-      IF INSTR(##funcArity$, ":" + fwdName$ + "=") = 0 THEN
-        ##funcArity$ = ##funcArity$ + ":" + fwdName$ + "=" + param_count$(fwdParams$) + ":"
+      IF fwdParen > 0 THEN
+        fwdName$ = LEFT$(fwdRest$, fwdParen - 1)
+        fwdAfter$ = MID$(fwdRest$, fwdParen + 1, LEN(fwdRest$) - fwdParen)
+        fwdClose = INSTR(fwdAfter$, ")")
+        IF fwdClose > 0 THEN
+          fwdParams$ = LEFT$(fwdAfter$, fwdClose - 1)
+          IF INSTR(fwdParams$, "[]") > 0 THEN
+            IF INSTR(##funcHasArr$, "," + fwdName$ + ",") = 0 THEN
+              ##funcHasArr$ = ##funcHasArr$ + fwdName$ + ","
+            END IF
+          END IF
+        END IF
+      END IF
+      ' Nested function lines are SUBs inside a parent (xui SUB PullDownMessage
+      ' vs FUNCTION PullDownMessage). Empty bodies are DECLARE/INTERNAL
+      ' prototypes. Only top-level non-empty signatures become C prototypes.
+      fwdEmpty = 0
+      fwdPeek$ = ""
+      fwdPeekPos = fwdPos
+      WHILE fwdPeekPos <= LEN(src$)
+        fwdPeekCh = ASC(MID$(src$, fwdPeekPos, 1))
+        IF fwdPeekCh = 10 THEN
+          EXIT WHILE
+        END IF
+        fwdPeek$ = fwdPeek$ + CHR$(fwdPeekCh)
+        fwdPeekPos = fwdPeekPos + 1
+      WEND
+      IF trim_spaces$(fwdPeek$) = "end function" THEN
+        fwdEmpty = 1
+      END IF
+      IF fwdDepth = 0 THEN
+        IF fwdEmpty = 0 THEN
+          fwdRest$ = MID$(fwdStmt$, 10, LEN(fwdStmt$) - 9)
+          fwdParen = INSTR(fwdRest$, "(")
+          fwdName$ = LEFT$(fwdRest$, fwdParen - 1)
+          fwdAfter$ = MID$(fwdRest$, fwdParen + 1, LEN(fwdRest$) - fwdParen)
+          fwdClose = INSTR(fwdAfter$, ")")
+          fwdParams$ = LEFT$(fwdAfter$, fwdClose - 1)
+          fwdRet$ = MID$(fwdAfter$, fwdClose + 5, LEN(fwdAfter$) - fwdClose - 4)
+          ##curFnName$ = fwdName$
+          IF INSTR(CHR$(10) + fwdDeclsBuf$, CHR$(10) + fwdName$ + CHR$(9)) = 0 THEN
+            IF LEFT$(fwdDeclsBuf$, LEN(fwdName$) + 1) <> fwdName$ + CHR$(9) THEN
+              fwdDeclsBuf$ = fwdDeclsBuf$ + fwdName$ + CHR$(9) + fwdParams$ + CHR$(9) + fwdRet$ + CHR$(10)
+              ##funcTypes$ = ##funcTypes$ + fwdName$ + ":" + fwdRet$ + ","
+              ##funcIds$ = ##funcIds$ + fwdName$ + ":"
+            END IF
+          END IF
+          IF INSTR(##funcArity$, ":" + fwdName$ + "=") = 0 THEN
+            ##funcArity$ = ##funcArity$ + ":" + fwdName$ + "=" + param_count$(fwdParams$) + ":"
+          END IF
+        END IF
+      END IF
+      fwdDepth = fwdDepth + 1
+    ELSEIF trim_spaces$(fwdStmt$) = "end function" THEN
+      IF fwdDepth > 0 THEN
+        fwdDepth = fwdDepth - 1
       END IF
     ELSEIF LEFT$(fwdStmt$, 7) = "shared " THEN
       fwdRest$ = MID$(fwdStmt$, 8, LEN(fwdStmt$) - 7)
@@ -1077,7 +1135,7 @@ WHILE dsPos <= LEN(src$)
       ELSE
         dsRefType$ = MID$(dsRest$, dsColon + 1, dsSp - dsColon - 1)
       END IF
-      IF INSTR(##sharedDecls$, ":" + dsRefName$ + ":") = 0 THEN
+      IF INSTR(##sharedDecls$, ":" + dsRefName$ + ":") = 0 AND INSTR(##sharedArrays$, ":" + dsRefName$ + ":") = 0 THEN
         ##sharedDecls$ = ##sharedDecls$ + ":" + dsRefName$ + ":"
         PRINT c_type$(dsRefType$) + " xb_shared_" + sanitize_ident$(dsRefName$) + " = 0;"
         IF dsRefType$ = "string" THEN
@@ -2289,6 +2347,22 @@ FUNCTION emit_expr$(e$)
       op$ = r$
       right$ = ""
     END IF
+    ' `IFZ envp$[]` lowers as `symbol(envp$:string) = 0`. A SHARED string array
+    ' is a heap pointer, not a scalar string — compare the pointer, not xb_len.
+    IF LEFT$(left$, 7) = "symbol(" AND expr_type$(right$) <> "string" THEN
+      _ifzInner$ = MID$(left$, 8, LEN(left$) - 8)
+      IF RIGHT$(_ifzInner$, 1) = ")" THEN
+        _ifzInner$ = LEFT$(_ifzInner$, LEN(_ifzInner$) - 1)
+      END IF
+      _ifzColon = INSTR(_ifzInner$, ":")
+      IF _ifzColon > 0 THEN
+        _ifzName$ = LEFT$(_ifzInner$, _ifzColon - 1)
+        IF INSTR(##sharedArrays$, ":" + _ifzName$ + ":") > 0 THEN
+          emit_expr$ = "-(" + c_var_name$(_ifzName$, "string") + " " + c_cmp_op$(op$) + " " + emit_expr$(right$) + ")"
+          RETURN emit_expr$
+        END IF
+      END IF
+    END IF
     IF expr_type$(left$) = "string" AND expr_type$(right$) = "string" THEN
       emit_expr$ = "(-(xb_scmp(" + emit_expr$(left$) + ", " + emit_expr$(right$) + ") " + c_cmp_op$(op$) + " 0))"
     ELSEIF expr_type$(left$) = "string" OR expr_type$(right$) = "string" THEN
@@ -2366,7 +2440,14 @@ FUNCTION emit_expr$(e$)
     IF RIGHT$(t$, 1) = ")" THEN
       t$ = LEFT$(t$, LEN(t$) - 1)
     END IF
-    emit_expr$ = "(+" + emit_expr$(t$) + ")"
+    ' Unary POS is identity (interp `Pos => v`). On a String operand pass
+    ' through unchanged — `+` on a `char*` is invalid C (`+log$` in xrun.x).
+    ' Mirrors Rust CEmitter emit_expr Unary Pos + String.
+    IF expr_type$(t$) = "string" THEN
+      emit_expr$ = emit_expr$(t$)
+    ELSE
+      emit_expr$ = "(+" + emit_expr$(t$) + ")"
+    END IF
     RETURN emit_expr$
   END IF
 
@@ -3002,15 +3083,15 @@ FUNCTION emit_expr$(e$)
       varType$ = "integer"
       varName$ = t$
     END IF
-    IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 THEN
+    IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
+      emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
+    ELSEIF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 THEN
       _du$ = sanitize_dual$(varName$)
       IF INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + varName$ + ":") > 0 THEN
         emit_expr$ = "(int)xb_ub_" + _du$ + "_arr"
       ELSE
         emit_expr$ = "(int)(sizeof(xb_str_" + _du$ + "_arr)/sizeof(xb_str_" + _du$ + "_arr[0])-1)"
       END IF
-    ELSEIF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
-      emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1" THEN
       IF varType$ = "string" THEN
         emit_expr$ = "(xb_len(" + c_var_name$(varName$, varType$) + ") - 1)"
@@ -3166,13 +3247,16 @@ FUNCTION emit_expr$(e$)
       END IF
       ' Mixed-function check: if callee has mixed byref/byval calls,
       ' emit value directly (no &) to match Rust CEmitter (c_emit.rs:659-680).
+      ' Array-param callees still take pointers (CEmitter `to_ptr` for `T[]`).
       IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
-        IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
-          emit_expr$ = c_var_name$(varName$, "string")
-        ELSE
-          emit_expr$ = c_var_name$(varName$, "integer")
+        IF INSTR(##funcHasArr$, "," + ##curCallFn$ + ",") = 0 THEN
+          IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
+            emit_expr$ = c_var_name$(varName$, "string")
+          ELSE
+            emit_expr$ = c_var_name$(varName$, "integer")
+          END IF
+          RETURN emit_expr$
         END IF
-        RETURN emit_expr$
       END IF
       IF INSTR(##byrefDual$, ":" + varName$ + ":") > 0 THEN
         IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
@@ -4085,7 +4169,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
       IF bar > 0 THEN
         nm$ = LEFT$(entry$, bar - 1)
         ty$ = MID$(entry$, bar + 1, LEN(entry$) - bar)
-        IF INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 THEN
+        IF INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0) THEN
           IF INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
             IF (INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
               IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 THEN
@@ -4110,7 +4194,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
             IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
               out$ = out$ + "    char** " + c_var_name$(nm$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
-          ELSEIF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 AND INSTR(##allStrArr$, ":" + nm$ + ":") = 0 AND INSTR(##dynNames$, ":" + nm$ + ":") = 0 THEN
+          ELSEIF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 AND INSTR(##allStrArr$, ":" + nm$ + ":") = 0 AND INSTR(##dynNames$, ":" + nm$ + ":") = 0 AND ty$ <> "string" AND RIGHT$(nm$, 1) <> "$" THEN
             IF INSTR(out$, " xb_var_" + sanitize_ident$(nm$) + " = 0; intptr_t xb_ub_") = 0 THEN
               out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(nm$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
@@ -4136,7 +4220,9 @@ FUNCTION emit_hoists$(used$, dimmed$)
     ELSEIF nlpos > 1 THEN
       entry$ = LEFT$(rest$, nlpos - 1)
       rest$ = MID$(rest$, nlpos + 1, LEN(rest$) - nlpos)
-      IF INSTR(##strDual$, ":" + entry$ + ":") > 0 AND INSTR(##strUbDual$, ":" + entry$ + ":") = 0 THEN
+      IF INSTR(##sharedArrays$, ":" + entry$ + ":") > 0 THEN
+        ' Shared array: file-scope heap global already declared (no local `_arr`).
+      ELSEIF INSTR(##strDual$, ":" + entry$ + ":") > 0 AND INSTR(##strUbDual$, ":" + entry$ + ":") = 0 THEN
         IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
           IF INSTR(out$, "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** ") = 0 THEN
             out$ = out$ + "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** " + c_var_name$(entry$, "string") + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
@@ -4776,6 +4862,16 @@ FUNCTION scan_dyn$(s$)
               res$ = res$ + ":" + nm$ + ":" + ty$ + ":"
             END IF
           END IF
+          ' Composite TYPE member 2D arrays (`d86.param`) are DIM'd only as
+          ' arrays, so they miss the dual-use dyn scan; they still need
+          ' function-scope storage when DIM'd after first use (GOSUB Init).
+          IF ncomma > 0 AND INSTR(nm$, ".") > 0 THEN
+            IF LEFT$(nm$, 7) <> "shared " THEN
+              IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+                res$ = res$ + ":" + nm$ + ":" + ty$ + ":"
+              END IF
+            END IF
+          END IF
         END IF
       END IF
     END IF
@@ -5067,6 +5163,12 @@ FUNCTION scalar_name$(n$, t$)
 END FUNCTION
 
 FUNCTION arr_acc_name$(n$, t$)
+  ' Shared arrays are one file-scope pointer. Never the dual `_arr` facet
+  ' (Rust `is_shared_array` skips `_arr`). `envp$[]` must match `xb_str_envp_s`.
+  IF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
+    arr_acc_name$ = c_var_name$(n$, t$)
+    RETURN arr_acc_name$
+  END IF
   IF INSTR(##strUbDual$, ":" + n$ + ":") > 0 THEN
     arr_acc_name$ = "xb_str_" + sanitize_dual$(n$) + "_arr"
     RETURN arr_acc_name$
@@ -5077,7 +5179,11 @@ END FUNCTION
 FUNCTION bd$(n$)
   ' of the current function (##arrParams$) — otherwise a local array in another
   ' function with the same name as a byref-dual param gets wrongly suffixed.
-  IF INSTR(##strDual$, ":" + n$ + ":") > 0 OR INSTR(##dualUse$, ":" + n$ + ":") > 0 THEN
+  ' A module-shared array is one heap global; dual-use `_arr` would not match
+  ' the global decl (Rust `is_dual_use && !is_shared_array`).
+  IF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
+    bd$ = ""
+  ELSEIF INSTR(##strDual$, ":" + n$ + ":") > 0 OR INSTR(##dualUse$, ":" + n$ + ":") > 0 THEN
     bd$ = "_arr"
   ELSEIF INSTR(##byrefDual$, ":" + n$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + n$ + CHR$(10)) > 0 THEN
     bd$ = "_arr"
@@ -5088,6 +5194,10 @@ END FUNCTION
 ' The UBOUND-cell reference for a name: the dual-facet _arr cell for
 ' dyn dual arrays, else the standard name (+ bd\$ suffix).
 FUNCTION ub_ref$(n$, t$)
+  IF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
+    ub_ref$ = "xb_ub_" + sanitize_ident$(n$)
+    RETURN ub_ref$
+  END IF
   IF INSTR(##strUbDual$, ":" + n$ + ":") > 0 AND (INSTR(##dynStr$, ":" + n$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + n$ + ":") > 0) THEN
     ub_ref$ = "xb_ub_" + sanitize_dual$(n$) + "_arr"
     RETURN ub_ref$
@@ -5863,6 +5973,18 @@ FUNCTION emit_stmt$(s$)
         varType$ = "integer"
       END IF
       cExpr$ = emit_expr$(arrSize$)
+      IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
+        IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
+          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, varType$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(" + c_type$(varType$) + ")); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+        ELSE
+          IF varType$ = "string" THEN
+            emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+          ELSE
+            emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + c_type$(varType$) + ")); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+          END IF
+        END IF
+        RETURN emit_stmt$
+      END IF
       IF INSTR(##strDual$, ":" + varName$ + ":") > 0 AND INSTR(##strUbDual$, ":" + varName$ + ":") = 0 THEN
         IF INSTR(arrSize$, ",") > 0 THEN
           emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + bd$(varName$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
@@ -5967,7 +6089,9 @@ FUNCTION emit_stmt$(s$)
         varName$ = rest$
         varType$ = "integer"
       END IF
-      IF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(##byrefDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
+      IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
+        emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = 0; xb_ub_" + sanitize_ident$(varName$) + " = -1;"
+      ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(##byrefDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
         emit_stmt$ = ""
       ELSEIF varType$ = "string" THEN
         emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");"

@@ -475,6 +475,19 @@ impl Parser {
                     "0".to_string()
                 }
             }
+            Expression::FunctionCall { name, args }
+                if name.eq_ignore_ascii_case("BITFIELD") && args.len() == 2 =>
+            {
+                match (&args[0], &args[1]) {
+                    (Expression::IntegerLiteral(w), Expression::IntegerLiteral(o)) => {
+                        match (parse_xb_int_literal(w), parse_xb_int_literal(o)) {
+                            (Some(w), Some(o)) => ((w << 8) | o).to_string(),
+                            _ => "0".to_string(),
+                        }
+                    }
+                    _ => "0".to_string(),
+                }
+            }
             _ => "0".to_string(),
         };
         Ok(Statement::ConstantDefinition {
@@ -524,4 +537,18 @@ impl Parser {
             value,
         })
     }
+}
+
+fn parse_xb_int_literal(s: &str) -> Option<i64> {
+    let t = s.trim();
+    if let Some(h) = t.strip_prefix("0x").or_else(|| t.strip_prefix("0X")) {
+        return i64::from_str_radix(h, 16).ok();
+    }
+    if let Some(b) = t.strip_prefix("0b").or_else(|| t.strip_prefix("0B")) {
+        return i64::from_str_radix(b, 2).ok();
+    }
+    if let Some(o) = t.strip_prefix("0o").or_else(|| t.strip_prefix("0O")) {
+        return i64::from_str_radix(o, 8).ok();
+    }
+    t.parse().ok()
 }

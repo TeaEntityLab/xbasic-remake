@@ -1,7 +1,7 @@
 use crate::c_emit_expr::emit_var_name;
 use crate::c_emit_select::emit_body;
 use crate::c_runtime::{emit_forward_decls, emit_globals, emit_header};
-use crate::ir::{IrExpr, IrItem, IrProgram, IrSymbol};
+use crate::ir::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol};
 use crate::ValueType;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -22,15 +22,16 @@ thread_local! {
     /// by-ref param is passed as a pointer (`&x`) to match the pointer param
     /// (CGEN-BYREF-WRITEBACK). Empty-ish for the corpus (no by-ref param).
     static DEFINED_PARAM_BYREF: RefCell<HashMap<String, Vec<bool>>> = RefCell::new(HashMap::new());
-    /// Module-shared arrays (`SHARED a[]`) → element type, program-wide, EXCLUDING
-    /// any that are dual-use (used as both scalar and array) anywhere — those keep
-    /// the status-quo per-function local emission to avoid a `_arr`-naming mismatch
-    /// between the global decl and dual-use access sites (CGEN-SHARED-ARR). The
-    /// interpreter keeps shared arrays in `state.shared` (one global); the C
-    /// backend must emit ONE heap global, not a per-function local, or
-    /// cross-function reads see an uninitialized copy. cgen.x/v0.1 use no SHARED
-    /// arrays → byte-neutral on the sync corpus.
+    /// Module-shared arrays (`SHARED a[]`) → element type, program-wide
+    /// (CGEN-SHARED-ARR). Dual-use names stay here; the array facet is the
+    /// `_arr` heap global (SHARED_DUAL) and the scalar facet is a per-function
+    /// local. The interpreter keeps shared arrays in `state.shared` (one
+    /// global). cgen.x/v0.1 use no SHARED arrays → byte-neutral on the corpus.
     static SHARED_ARRAYS: RefCell<HashMap<String, crate::ValueType>> = RefCell::new(HashMap::new());
+    /// Shared-array names also used as a scalar somewhere. Their global
+    /// pointer/`xb_ub_` cell take the `_arr` suffix so emit_globals matches
+    /// every access site (xit `lineLast` / `funcAfterAddr`).
+    static SHARED_DUAL: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
     /// Per-function emit context: array names referenced but never `Dim`'d in the
     /// current function (auto-vivified — reads fold to the type default like the
     /// interpreter's missing-slot path), and the labels the current C function
@@ -167,15 +168,17 @@ fn set_defined_funcs(program: &IrProgram) {
             }
         }
     });
+    SHARED_DUAL.with(|d| d.borrow_mut().clear());
     SHARED_ARRAYS.with(|s| {
         let mut m = s.borrow_mut();
         m.clear();
         collect_shared_arrays(&program.items, &mut m);
-        // Gate: a shared array that is *dual-use* (scalar + array) in ANY function
-        // keeps the status-quo per-function local emission — its array facet gets
-        // an `_arr` C suffix at access sites (per-function context) that the ONE
-        // global decl cannot match (emit_globals has no such context). Only
-        // non-dual-use shared arrays become heap globals (CGEN-SHARED-ARR).
+        // Dual-use SHARED arrays stay heap globals (xit `lineLast[255]` /
+        // `funcAfterAddr[255]`). Dropping them emitted a per-function
+        // `intptr_t` stack/scalar plus `calloc` into that scalar. The sized
+        // DIM is often nested in an EXTERNAL function body, so a top-level
+        // keep-gate missed them. The array facet takes `_arr` (SHARED_DUAL)
+        // so a local scalar still type-checks.
         if !m.is_empty() {
             let mut dual = std::collections::HashSet::new();
             collect_program_dual_use(&program.items, &mut dual);
@@ -186,23 +189,19 @@ fn set_defined_funcs(program: &IrProgram) {
                     }
                 }
             }
-            // A module-TOP-LEVEL shared array has exactly one storage location;
-            // keep it global even when dual-use (scalar-facet reads via byref
-            // handoffs must hit the same storage the DIM allocated).
-            let mut top_level: HashSet<String> = HashSet::new();
-            for item in &program.items {
-                if let IrItem::Dim {
-                    symbol,
-                    is_array: true,
-                    shared: true,
-                    ..
-                } = item
-                {
-                    top_level.insert(symbol.name.clone());
-                }
-            }
-            m.retain(|name, _| {
-                !dual.contains(name) || top_level.contains(name) || name.contains('.')
+            // TYPE string *array members* (`HOST.alias[2]`): scalar DIM from
+            // `DIM host:HOST` plus `host.alias[0]` in the same function.
+            // Those are one `char**`, not a dual-use `char*` + `_arr`.
+            // TYPE string *scalar* members (`HOST.name`) are only dual across
+            // functions and still split. Integer dotted dual-use (xit
+            // lineLast, host.addresses) is unchanged.
+            let member_arr = collect_type_string_array_members(&program.items);
+            SHARED_DUAL.with(|d| {
+                d.borrow_mut().extend(
+                    m.keys()
+                        .filter(|n| dual.contains(*n) && !member_arr.contains(*n))
+                        .cloned(),
+                );
             });
 
             // Composite-member dual-use gate: a shared array member (dotted name)
@@ -218,6 +217,7 @@ fn set_defined_funcs(program: &IrProgram) {
             let mut scalar_dimmed = std::collections::HashSet::new();
             collect_scalar_dimmed_names(&program.items, &mut scalar_dimmed);
             m.retain(|name, _| !scalar_dimmed.contains(name) || name.contains('.'));
+            SHARED_DUAL.with(|d| d.borrow_mut().retain(|n| m.contains_key(n)));
         }
     });
 }
@@ -348,10 +348,29 @@ fn collect_program_dual_use(items: &[IrItem], out: &mut HashSet<String>) {
     }
 }
 
-/// True if `name` is a (non-dual-use) module-shared array emitted as one heap
-/// global rather than a per-function local (CGEN-SHARED-ARR).
+/// True if `name` is a module-shared array emitted as one heap global rather
+/// than a per-function local (CGEN-SHARED-ARR). Dual-use names are included;
+/// their array facet uses `_arr` (`is_shared_dual`).
 pub(crate) fn is_shared_array(name: &str) -> bool {
     SHARED_ARRAYS.with(|s| s.borrow().contains_key(name))
+}
+
+/// True if `name` is a shared array that is also used as a scalar somewhere
+/// in the program — the global pointer/`xb_ub_` cell are `_arr`-suffixed.
+pub(crate) fn is_shared_dual(name: &str) -> bool {
+    SHARED_DUAL.with(|s| s.borrow().contains(name))
+}
+
+/// Dotted STRING shared array (`HOST.alias$[]`): one `char**` global, never a
+/// dual-use `char*` scalar. `host.alias[0]` must be `char*`, not `char`.
+pub(crate) fn is_shared_string_array(name: &str) -> bool {
+    name.contains('.')
+        && SHARED_ARRAYS.with(|s| s.borrow().get(name).copied() == Some(crate::ValueType::String))
+}
+
+/// Array-facet C name takes `_arr` when a scalar facet of the same name exists.
+fn array_needs_arr_suffix(name: &str) -> bool {
+    is_shared_dual(name) || (is_dual_use(name) && !is_shared_array(name))
 }
 
 /// The shared arrays (name, element type), sorted by name for a deterministic
@@ -626,7 +645,7 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
         set.clear();
         set.extend(params.iter().map(|p| p.name.clone()));
     });
-    FN_DUAL_USE.with(|s| {
+    let peel_host_str = FN_DUAL_USE.with(|s| {
         let forced_array: HashSet<String> = descriptors
             .iter()
             .cloned()
@@ -657,7 +676,29 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
                 set.remove(&p.name);
             }
         }
+        // HOST TYPE string array members (`alias$[]`) are `char**`, not a
+        // dual-use `char*` + `_arr`. Indexing the scalar makes `[0]` a char.
+        let peel: Vec<String> = set
+            .iter()
+            .filter(|n| {
+                n.contains('.') && (is_shared_string_array(n) || has_string_scalar_dim(items, n))
+            })
+            .cloned()
+            .collect();
+        for n in &peel {
+            set.remove(n);
+        }
         *s.borrow_mut() = set;
+        peel
+    });
+    FN_DYN.with(|dyn_s| {
+        let mut dyn_names = dyn_s.borrow_mut();
+        for n in &peel_host_str {
+            dyn_names
+                .arrays
+                .entry(n.clone())
+                .or_insert(ValueType::String);
+        }
     });
     // A dual-use SCALAR param (xcol's `mode` used as `GOSUB @mode[mode]`) needs
     // its array facet (`_arr`) declared as a dyn array. The scalar facet is the
@@ -786,12 +827,11 @@ pub(crate) fn is_descriptor_param(name: &str) -> bool {
 /// descriptor deref — used to build the `_d` descriptor names + param decls.
 pub(crate) fn emit_raw_array_name(symbol: &IrSymbol, out: &mut String) {
     crate::c_emit_expr::emit_var_name(symbol, out);
-    // A shared array global (composite member like `funcToken.tindex`) already
-    // has a global pointer decl without `_arr`. The per-function dual-use
-    // detection may flag it, but the global can't get `_arr` (no per-function
-    // context at global scope). Skip `_arr` for shared arrays — the local
-    // scalar shadows the global in C (different scopes, valid).
-    if is_dual_use(&symbol.name) && !is_shared_array(&symbol.name) {
+    // Dual-use shared arrays (xit `lineLast`) keep a local scalar `xb_var_x`
+    // and a file-scope pointer `xb_var_x_arr`. Non-dual shared arrays stay
+    // unsuffixed. Dotted STRING members are not shared-dual, so they keep
+    // the unsuffixed `char**` global (`host.alias`).
+    if array_needs_arr_suffix(&symbol.name) {
         out.push_str("_arr");
     }
 }
@@ -826,7 +866,7 @@ pub(crate) fn emit_array_ub_ref(name: &str, out: &mut String) {
 /// for a dual-use name so it matches `emit_array_var_name`.
 pub(crate) fn array_ident(name: &str) -> String {
     let base = crate::c_emit_expr::sanitize_c_ident(name);
-    if is_dual_use(name) && !is_shared_array(name) {
+    if array_needs_arr_suffix(name) {
         format!("{base}_arr")
     } else {
         base
@@ -1107,6 +1147,206 @@ fn array_dim_type(items: &[IrItem], name: &str) -> Option<ValueType> {
         None
     }
     search(items, name)
+}
+
+/// True if `name` has a scalar STRING DIM in `items` (flattened `DIM host:HOST`
+/// leaf `host.alias:string`, as opposed to `DIM host.alias$[]`).
+fn has_string_scalar_dim(items: &[IrItem], name: &str) -> bool {
+    fn search(items: &[IrItem], name: &str) -> bool {
+        for it in items {
+            match it {
+                IrItem::Dim {
+                    symbol,
+                    size,
+                    is_array,
+                    ..
+                } if !*is_array
+                    && size.is_none()
+                    && symbol.name == name
+                    && symbol.value_type == ValueType::String =>
+                {
+                    return true;
+                }
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
+                    if search(then_body, name) {
+                        return true;
+                    }
+                    if let Some(b) = else_body {
+                        if search(b, name) {
+                            return true;
+                        }
+                    }
+                }
+                IrItem::While { body, .. }
+                | IrItem::For { body, .. }
+                | IrItem::DoLoop { body, .. }
+                | IrItem::Compound(body) => {
+                    if search(body, name) {
+                        return true;
+                    }
+                }
+                IrItem::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        if search(&c.body, name) {
+                            return true;
+                        }
+                    }
+                    if let Some(b) = default {
+                        if search(b, name) {
+                            return true;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+    search(items, name)
+}
+
+/// Dotted STRING names that are a TYPE array member: a scalar STRING DIM and
+/// an `ArrayAccess`/`ArrayAssignment` (not mere `UBOUND`) in the same function.
+/// `HOST.alias[2]` in Xin(); not `HOST.name` (indexed only in other functions).
+fn collect_type_string_array_members(items: &[IrItem]) -> HashSet<String> {
+    let mut out = HashSet::new();
+    scan_fn(items, &mut out);
+    for item in items {
+        if let IrItem::Function { body, .. } = item {
+            scan_fn(body, &mut out);
+        }
+    }
+    out
+}
+
+fn scan_fn(body: &[IrItem], out: &mut HashSet<String>) {
+    let mut indexed = HashSet::new();
+    collect_indexed_names(body, &mut indexed);
+    for n in indexed {
+        if n.contains('.') && has_string_scalar_dim(body, &n) {
+            out.insert(n);
+        }
+    }
+}
+
+fn collect_indexed_names(items: &[IrItem], out: &mut HashSet<String>) {
+    fn expr(e: &IrExpr, out: &mut HashSet<String>) {
+        match &e.kind {
+            IrExprKind::ArrayAccess {
+                symbol,
+                index,
+                extra_indices,
+            } => {
+                out.insert(symbol.name.clone());
+                expr(index, out);
+                for x in extra_indices {
+                    expr(x, out);
+                }
+            }
+            IrExprKind::ByRef(inner) | IrExprKind::Not(inner) => expr(inner, out),
+            IrExprKind::Unary { operand, .. } => expr(operand, out),
+            IrExprKind::Comparison { left, right, .. }
+            | IrExprKind::Arithmetic { left, right, .. }
+            | IrExprKind::Boolean { left, right, .. }
+            | IrExprKind::Logical { left, right, .. } => {
+                expr(left, out);
+                expr(right, out);
+            }
+            IrExprKind::FunctionCall { args, .. } => {
+                for a in args {
+                    expr(a, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    for it in items {
+        match it {
+            IrItem::Print { items, .. } => {
+                for e in items {
+                    expr(e, out);
+                }
+            }
+            IrItem::Assignment { value, .. } | IrItem::SharedAssignment { value, .. } => {
+                expr(value, out)
+            }
+            IrItem::ArrayAssignment {
+                target,
+                index,
+                extra_indices,
+                value,
+                ..
+            } => {
+                out.insert(target.name.clone());
+                expr(index, out);
+                for x in extra_indices {
+                    expr(x, out);
+                }
+                expr(value, out);
+            }
+            IrItem::Call { args, .. } => {
+                for a in args {
+                    expr(a, out);
+                }
+            }
+            IrItem::Return { value } => {
+                if let Some(v) = value {
+                    expr(v, out);
+                }
+            }
+            IrItem::If {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
+                expr(condition, out);
+                collect_indexed_names(then_body, out);
+                if let Some(b) = else_body {
+                    collect_indexed_names(b, out);
+                }
+            }
+            IrItem::While { body, .. } | IrItem::DoLoop { body, .. } | IrItem::Compound(body) => {
+                collect_indexed_names(body, out)
+            }
+            IrItem::For {
+                start,
+                end,
+                step,
+                body,
+                ..
+            } => {
+                expr(start, out);
+                expr(end, out);
+                if let Some(s) = step {
+                    expr(s, out);
+                }
+                collect_indexed_names(body, out);
+            }
+            IrItem::SelectCase {
+                selector,
+                cases,
+                default,
+            } => {
+                expr(selector, out);
+                for c in cases {
+                    for cond in &c.conditions {
+                        expr(cond, out);
+                    }
+                    collect_indexed_names(&c.body, out);
+                }
+                if let Some(d) = default {
+                    collect_indexed_names(d, out);
+                }
+            }
+            IrItem::GosubExpr(e) | IrItem::GotoExpr(e) => expr(e, out),
+            _ => {}
+        }
+    }
 }
 
 /// A called name that is neither a user-defined function, a recognized builtin,

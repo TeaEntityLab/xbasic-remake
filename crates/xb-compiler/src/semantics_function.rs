@@ -82,6 +82,10 @@ impl Analyzer {
     /// statements in the enclosing scope, a `GOSUB` then runs them with the
     /// caller's shared variables (classic BASIC). Bodies with no gosub-targeted
     /// SUB are returned unchanged.
+    ///
+    /// `SUBADDRESS(Name)` / computed `GOSUB @arr.action` also target nested
+    /// SUBs; those names are collected from expressions so the callee shares
+    /// the caller's collision set (`imm$` vs `imm`).
     fn inline_gosub_subs(body: &[Statement]) -> Vec<Statement> {
         let mut targets: BTreeSet<String> = BTreeSet::new();
         for s in body {
@@ -90,11 +94,20 @@ impl Analyzer {
         if targets.is_empty() {
             return body.to_vec();
         }
+        // Local parameter-less SUBs in a GOSUB function share caller scope
+        // (GOSUB-SCOPE), including those only reached via SUBADDRESS.
+        for s in body {
+            if let Statement::Function(f) = s {
+                if f.params.is_empty() {
+                    targets.insert(f.name.clone());
+                }
+            }
+        }
         let mut main: Vec<Statement> = Vec::new();
         let mut subs: Vec<Statement> = Vec::new();
         for s in body {
             if let Statement::Function(f) = s {
-                if targets.contains(&f.name) {
+                if targets.contains(&f.name) && f.params.is_empty() {
                     subs.push(Statement::Label(f.name.clone()));
                     subs.extend(f.body.iter().cloned());
                     subs.push(Statement::Return { value: None });
@@ -116,11 +129,63 @@ impl Analyzer {
             Statement::Gosub(Expression::Identifier { name, .. }) => {
                 out.insert(name.clone());
             }
-            Statement::If {
-                then_body,
-                else_body,
+            Statement::Gosub(e) | Statement::Goto(e) => {
+                Self::collect_expr_gosub_targets(e, out);
+            }
+            Statement::Assignment { value, .. }
+            | Statement::SharedAssignment { value, .. } => {
+                Self::collect_expr_gosub_targets(value, out);
+            }
+            Statement::ArrayAssignment {
+                index,
+                extra_indices,
+                value,
                 ..
             } => {
+                Self::collect_expr_gosub_targets(index, out);
+                for e in extra_indices {
+                    Self::collect_expr_gosub_targets(e, out);
+                }
+                Self::collect_expr_gosub_targets(value, out);
+            }
+            Statement::Call { args, .. } => {
+                for a in args {
+                    Self::collect_expr_gosub_targets(a, out);
+                }
+            }
+            Statement::Print { items, .. } => {
+                for e in items {
+                    Self::collect_expr_gosub_targets(e, out);
+                }
+            }
+            Statement::Return { value: Some(e) } => {
+                Self::collect_expr_gosub_targets(e, out);
+            }
+            Statement::MidAssign {
+                target,
+                start,
+                length,
+                value,
+            } => {
+                Self::collect_expr_gosub_targets(target, out);
+                Self::collect_expr_gosub_targets(start, out);
+                if let Some(l) = length {
+                    Self::collect_expr_gosub_targets(l, out);
+                }
+                Self::collect_expr_gosub_targets(value, out);
+            }
+            Statement::BuiltinAssign { args, value, .. } => {
+                for a in args {
+                    Self::collect_expr_gosub_targets(a, out);
+                }
+                Self::collect_expr_gosub_targets(value, out);
+            }
+            Statement::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                Self::collect_expr_gosub_targets(condition, out);
                 for i in then_body {
                     Self::collect_stmt_gosub_targets(i, out);
                 }
@@ -130,15 +195,53 @@ impl Analyzer {
                     }
                 }
             }
-            Statement::While { body, .. }
-            | Statement::For { body, .. }
-            | Statement::DoLoop { body, .. } => {
+            Statement::While { condition, body } => {
+                Self::collect_expr_gosub_targets(condition, out);
                 for i in body {
                     Self::collect_stmt_gosub_targets(i, out);
                 }
             }
-            Statement::SelectCase { cases, default, .. } => {
+            Statement::For {
+                start,
+                end,
+                step,
+                body,
+                ..
+            } => {
+                Self::collect_expr_gosub_targets(start, out);
+                Self::collect_expr_gosub_targets(end, out);
+                if let Some(st) = step {
+                    Self::collect_expr_gosub_targets(st, out);
+                }
+                for i in body {
+                    Self::collect_stmt_gosub_targets(i, out);
+                }
+            }
+            Statement::DoLoop {
+                pre_condition,
+                post_condition,
+                body,
+            } => {
+                if let Some((e, _)) = pre_condition {
+                    Self::collect_expr_gosub_targets(e, out);
+                }
+                if let Some((e, _)) = post_condition {
+                    Self::collect_expr_gosub_targets(e, out);
+                }
+                for i in body {
+                    Self::collect_stmt_gosub_targets(i, out);
+                }
+            }
+            Statement::SelectCase {
+                selector,
+                cases,
+                default,
+            } => {
+                Self::collect_expr_gosub_targets(selector, out);
                 for c in cases {
+                    for cond in &c.conditions {
+                        Self::collect_expr_gosub_targets(cond, out);
+                    }
                     for i in &c.body {
                         Self::collect_stmt_gosub_targets(i, out);
                     }
@@ -158,6 +261,60 @@ impl Analyzer {
                 for i in inner {
                     Self::collect_stmt_gosub_targets(i, out);
                 }
+            }
+            Statement::Inc { indices, .. } | Statement::Dec { indices, .. } => {
+                for e in indices {
+                    Self::collect_expr_gosub_targets(e, out);
+                }
+            }
+            Statement::Swap {
+                left_indices,
+                right_indices,
+                ..
+            } => {
+                for e in left_indices.iter().chain(right_indices) {
+                    Self::collect_expr_gosub_targets(e, out);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_expr_gosub_targets(e: &Expression, out: &mut BTreeSet<String>) {
+        match e {
+            Expression::FunctionCall { name, args } => {
+                if name.eq_ignore_ascii_case("SUBADDRESS")
+                    || name.eq_ignore_ascii_case("GOADDRESS")
+                    || name.eq_ignore_ascii_case("SUBADDR")
+                    || name.eq_ignore_ascii_case("GOADDR")
+                {
+                    if let Some(Expression::Identifier { name: label, .. }) = args.first() {
+                        out.insert(label.clone());
+                    }
+                }
+                for a in args {
+                    Self::collect_expr_gosub_targets(a, out);
+                }
+            }
+            Expression::ArrayAccess {
+                index,
+                extra_indices,
+                ..
+            } => {
+                Self::collect_expr_gosub_targets(index, out);
+                for x in extra_indices {
+                    Self::collect_expr_gosub_targets(x, out);
+                }
+            }
+            Expression::Comparison { left, right, .. }
+            | Expression::Boolean { left, right, .. }
+            | Expression::Logical { left, right, .. }
+            | Expression::Arithmetic { left, right, .. } => {
+                Self::collect_expr_gosub_targets(left, out);
+                Self::collect_expr_gosub_targets(right, out);
+            }
+            Expression::Not(inner) | Expression::Unary { operand: inner, .. } => {
+                Self::collect_expr_gosub_targets(inner, out);
             }
             _ => {}
         }

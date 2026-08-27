@@ -92,11 +92,35 @@ impl Analyzer {
         // `$`/`!`/`#` suffix). Prefer the declared array element type so e.g. a
         // `SHARED DLL library[]` read `library[i].name` (String member) emits
         // `xb_str_library_name`, not an undeclared `xb_var_library_name`.
-        let vt = self
-            .arrays
-            .get(name)
-            .copied()
-            .unwrap_or_else(|| self.auto_symbol(name).value_type);
+        // When the array is a SHARED global not dimmed in this function
+        // (`XxxGetSymbolInfo` sees `m_addr$` param shadowing global `m_addr[]`),
+        // `self.arrays.get` misses and `auto_symbol` would incorrectly return
+        // the param's String type for `m_addr[tokNumber]` (no `$`), emitting
+        // `xb_str_m_addr_arr` instead of `xb_var_m_addr_arr` (xcol 6 errors).
+        // Infer from the identifier's own suffix; `m_addr` → Integer,
+        // `m_addr$` → String, which matches the global array's declared type.
+        let vt = self.arrays.get(name).copied().unwrap_or_else(|| {
+            if name.contains('.') {
+                // Dotted composite member (e.g. `host.alias` string member):
+                // `self.arrays` holds the array facet; `auto_symbol` finds the
+                // scalar facet's String type, which matches the array element
+                // type (`host.alias:string` scalar vs `host.alias:string[]`).
+                // Suffix inference would give Integer (`host.alias` no `$`).
+                self.auto_symbol(name).value_type
+            } else {
+                // Non-dotted: infer from identifier's own suffix. When a SHARED
+                // global `m_addr[]` (integer) is shadowed by param `m_addr$`
+                // (string) in `XxxGetSymbolInfo`, `self.arrays.get` misses and
+                // `auto_symbol("m_addr")` would incorrectly return String
+                // (the param). `m_addr` with no `$` is Integer, `m_addr$` with
+                // `$` is String, matching the global array's declared type.
+                match name.chars().last() {
+                    Some('$') => ValueType::String,
+                    Some('!') | Some('#') => ValueType::Float,
+                    _ => ValueType::Integer,
+                }
+            }
+        });
         let sym = CheckedSymbol::new(name.to_owned(), vt);
         let idx = self.expr(index)?;
         let extra_indices = extra
@@ -492,6 +516,9 @@ impl Analyzer {
             match self.functions.get(&with_suffix) {
                 Some(s) => (with_suffix, s),
                 None => {
+                    if let Some(extu) = self.scalar_bitfield_call(name, args) {
+                        return extu;
+                    }
                     if !self.permissive {
                         return Err(crate::checked::SemanticError::UnknownFunction {
                             name: name.to_owned(),
@@ -781,6 +808,44 @@ impl Analyzer {
                 .map(|t| self.composites.contains_key(t).then(|| t.clone()))
                 .collect(),
         )
+    }
+
+    /// Scalar `{field}` / `{w, o}`: `curByte{$MODE}` parses as a call. When the
+    /// name is a known non-function, non-array symbol, lower to `EXTU`.
+    /// Array 1-arg FORTRAN index is handled earlier; 2-arg array stays a call.
+    fn scalar_bitfield_call(&self, name: &str, args: &[Expression]) -> Option<ExprResult> {
+        // Disabled for xit dispatch regression: `func(dispatch[i,1])` (indirect
+        // call via `func` variable) was mis-identified as `EXTU(func,
+        // dispatch[i,1])` and then emitted as `EXTU(dispatch[i,1])` with wrong
+        // arity (xit 1 error). The scalar bitfield is only needed for
+        // `curByte{...}` byte-field extractions; disable until a more precise
+        // check (e.g. arg is constant bitfield spec, not array_access) is added.
+        let _ = (name, args);
+        return None;
+        if !(1..=2).contains(&args.len()) {
+            return None;
+        }
+        if self.arrays.contains_key(name) || self.functions.contains_key(name) {
+            return None;
+        }
+        let is_scalar = self.symbols.contains_key(name)
+            || self.shared.contains_key(name)
+            || self.shared_scalars.contains(name);
+        if !is_scalar {
+            return None;
+        }
+        let mut extu_args = Vec::with_capacity(1 + args.len());
+        extu_args.push(Expression::Identifier {
+            name: name.to_owned(),
+            suffix: None,
+        });
+        extu_args.extend_from_slice(args);
+        Some(crate::builtin::builtin_call(
+            self,
+            "EXTU",
+            &extu_args,
+            ValueType::Integer,
+        ))
     }
 
     /// Lower a brace-notation byte read `s${off}` to `ASC(MID$(s, off + 1, 1))`.

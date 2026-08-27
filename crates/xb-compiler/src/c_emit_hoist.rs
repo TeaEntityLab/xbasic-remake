@@ -67,14 +67,21 @@ pub(crate) fn emit_hoisted_scalars(
         // though it is dimmed / dyn. Otherwise the dynamic-name system already
         // hoists the name (pointer for a late/repeated-DIM array, or a reset
         // scalar), and it also has an inline `Dim`; hoisting again = C redefinition.
-        // A program-global SHARED array (top-level declared, retained in
-        // SHARED_ARRAYS even when dual-use) must never get a local scalar
-        // facet here: its one storage is the file-scope pair, and a local
-        // shadow breaks DIM-site writes through it (ary.x nameBufferIndex).
-        if crate::c_emit::is_shared_array(name) {
+        // A non-dual-use SHARED array is only the file-scope pointer; a local
+        // scalar would shadow DIM-site writes (ary.x nameBufferIndex). Dual-use
+        // SHARED (xit `lineLast = lineLast[func]`) still needs the local
+        // integer scalar — the array facet is the `_arr` global.
+        // Dotted STRING TYPE array members (`HOST.alias$[]`) are char**
+        // globals (not shared-dual). Cross-function string leaves
+        // (`host.name`) stay shared-dual and still need a local char*.
+        if crate::c_emit::is_shared_string_array(name) && !crate::c_emit::is_shared_dual(name) {
+            continue;
+        }
+        if crate::c_emit::is_shared_array(name) && !crate::c_emit::is_shared_dual(name) {
             continue;
         }
         if !crate::c_emit::is_dual_use(name)
+            && !crate::c_emit::is_shared_dual(name)
             && (dimmed.contains(&(name.clone(), *is_str))
                 || crate::c_emit::is_dyn_array(name)
                 || crate::c_emit::is_dyn_scalar(name))
