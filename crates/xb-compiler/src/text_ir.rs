@@ -253,8 +253,13 @@ impl TextIrEmitter {
                         out.insert(symbol.name.clone(), (is_shared, rank, symbol.value_type, storage));
                     }
                 }
-                IrItem::Function { body, .. } => {
-                    self.collect_dims_recursive(body, dyn_names, dual_use, out);
+                IrItem::Function { .. } => {
+                    // DIMs inside nested Functions belong to that Function's own
+                    // scope, not the parent scope. Do not leak into parent
+                    // dim_info (fixes docs/19 residual: nested Function DIMs
+                    // leak into parent, causing rank/storage misclassification
+                    // for host.address etc. and contributing to L11 OOM via
+                    // inflated facet tables).
                 }
                 IrItem::If { then_body, else_body, .. } => {
                     self.collect_dims_recursive(then_body, dyn_names, dual_use, out);
@@ -288,13 +293,9 @@ impl TextIrEmitter {
     ) {
         for it in items {
             match it {
-                IrItem::ArrayAssignment { target, extra_indices, .. } => {
-                    if !extra_indices.is_empty() && target.name.contains('.') {
-                        out.entry(target.name.clone()).or_insert(target.value_type);
-                    }
-                }
-                IrItem::Function { body, .. } => {
-                    self.collect_member_2d(body, out);
+                IrItem::Function { .. } => {
+                    // Composite member accesses inside nested Functions belong
+                    // to that Function's scope, not the parent.
                 }
                 IrItem::If { then_body, else_body, .. } => {
                     self.collect_member_2d(then_body, out);
