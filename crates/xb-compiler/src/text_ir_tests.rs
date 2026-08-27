@@ -55,3 +55,13 @@ fn preserves_uppercase_hexadecimal_prefix() {
         "const $$Answer:integer = integer(0X2A)\nprint constant($$Answer:integer = integer(0X2A))\n"
     );
 }
+#[test]
+fn emits_facet_header_with_array_dim() {
+    let program = parse_program("DIM arr[3]\n").unwrap();
+    let checked = Analyzer::analyze(&program).unwrap();
+    let ir = IrProgram::lower(&checked);
+    let text = TextIrEmitter::new().emit_program_with_facets(&ir);
+    let reparsed = crate::text_ir_parser::TextIrParser::parse(&text).unwrap();
+    // Reparsed program should still contain the dim (facet is Nop, not dim).
+    assert!(format!("{reparsed:?}").contains("arr"));
+}

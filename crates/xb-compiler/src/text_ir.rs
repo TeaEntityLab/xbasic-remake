@@ -24,6 +24,113 @@ impl TextIrEmitter {
         out
     }
 
+    /// Emit the program with an additive `facet` header. The header is
+    /// optional and backward-compatible: `TextIrParser` accepts it as `Nop`.
+    /// This is the first slice of `docs/19` — it emits a facet per array
+    /// `Dim` with the frontend's best-effort storage/dual classification.
+    /// `cgen.x` currently ignores the header; a later slice will consume it.
+    pub fn emit_program_with_facets(self, program: &IrProgram) -> String {
+        let mut out = String::new();
+        let mut facets: Vec<String> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        self.collect_facets(&program.items, "*", &mut facets, &mut seen);
+        // Emit version / program_name first if present, then facets, then rest.
+        let mut rest_start = 0;
+        for (idx, item) in program.items.iter().enumerate() {
+            match item {
+                IrItem::Version(_) | IrItem::ProgramName(_) => {
+                    self.emit_item(item, &mut out, 0);
+                    rest_start = idx + 1;
+                }
+                _ => break,
+            }
+        }
+        for f in &facets {
+            out.push_str(f);
+            out.push('\n');
+        }
+        for item in &program.items[rest_start..] {
+            self.emit_item(item, &mut out, 0);
+        }
+        if !program.data_values.is_empty() {
+            out.push_str("data");
+            for (tag, val) in &program.data_values {
+                out.push_str(&format!(" {tag}:{val}"));
+            }
+            out.push('\n');
+        }
+        out
+    }
+
+    fn collect_facets(
+        self,
+        items: &[IrItem],
+        scope: &str,
+        out: &mut Vec<String>,
+        seen: &mut std::collections::HashSet<String>,
+    ) {
+        for item in items {
+            match item {
+                IrItem::Dim {
+                    symbol,
+                    size,
+                    extra_dims,
+                    is_array,
+                    shared,
+                    ..
+                } => {
+                    if *is_array {
+                        let rank = if size.is_some() {
+                            1 + extra_dims.len()
+                        } else {
+                            extra_dims.len()
+                        };
+                        let storage = if size.is_none() && extra_dims.is_empty() {
+                            "dyn"
+                        } else {
+                            "fixed"
+                        };
+                        let key = format!("{}:{}", symbol.name, scope);
+                        if seen.insert(key) {
+                            let sh = if *shared { " shared" } else { "" };
+                            out.push(format!(
+                                "facet {}:{} scope={} storage={} rank={} dual=0{}",
+                                symbol.name,
+                                self.emit_type(symbol.value_type),
+                                scope,
+                                storage,
+                                rank,
+                                sh
+                            ));
+                        }
+                    }
+                }
+                IrItem::Function {
+                    name, body, ..
+                } => {
+                    self.collect_facets(body, name, out, seen);
+                }
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
+                    self.collect_facets(then_body, scope, out, seen);
+                    if let Some(eb) = else_body {
+                        self.collect_facets(eb, scope, out, seen);
+                    }
+                }
+                IrItem::While { body, .. }
+                | IrItem::For { body, .. }
+                | IrItem::DoLoop { body, .. } => {
+                    self.collect_facets(body, scope, out, seen);
+                }
+                _ => {}
+            }
+        }
+    }
+
+
     fn emit_item(self, item: &IrItem, out: &mut String, indent: usize) {
         let prefix = "  ".repeat(indent);
         match item {

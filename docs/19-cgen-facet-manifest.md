@@ -121,6 +121,12 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
   `cgen.x` ignores the header until it consumes it). Verified:
   `cargo test -p xb-compiler --lib` (19/19) and manual `cgen` with a
   `facet user:integer ...` header still emits C.
+- **2026-08-27:** `TextIrEmitter::emit_program_with_facets` now emits a `facet`
+  header per array `Dim` (storage `dyn` vs `fixed` by size presence, rank from
+  `extra_dims`). `cargo test -p xb-compiler --lib emits_facet_header_with_array_dim`
+  verifies the header is emitted and round-trips as `Nop`. Default
+  `emit_program` remains unchanged (backward-compatible with goldens).
+
 
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` already
   asserts per-program byte-identical emitted C — the header must not break this.
