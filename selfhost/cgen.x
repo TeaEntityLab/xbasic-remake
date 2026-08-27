@@ -3941,19 +3941,26 @@ FUNCTION emit_hoists$(used$, dimmed$)
         ty$ = MID$(entry$, bar + 1, LEN(entry$) - bar)
         IF INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 THEN
           IF INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
-            IF INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0 THEN
+            IF (INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
               IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 THEN
                 out$ = out$ + "    char* *xb_str_" + sanitize_dual$(nm$) + "_arr = 0; intptr_t xb_ub_" + sanitize_dual$(nm$) + "_arr = -1;" + CHR$(10)
               END IF
               IF INSTR(out$, "char* xb_str_" + sanitize_dual$(nm$) + " = xb_str(") = 0 THEN
                 out$ = out$ + "    char* xb_str_" + sanitize_dual$(nm$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
               END IF
+            ELSEIF (INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0 THEN
+              IF INSTR(out$, "char* xb_str_" + sanitize_dual$(nm$) + " = xb_str(") = 0 THEN
+                out$ = out$ + "    char* xb_str_" + sanitize_dual$(nm$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
+              END IF
+              IF INSTR(out$, "intptr_t xb_ub_" + sanitize_dual$(nm$) + "_arr = -1;") = 0 THEN
+                out$ = out$ + "    intptr_t xb_ub_" + sanitize_dual$(nm$) + "_arr = -1;" + CHR$(10)
+              END IF
             ELSE
               IF INSTR(out$, "char* xb_str_" + sanitize_dual$(nm$) + " = xb_str(") = 0 THEN
                 out$ = out$ + "    char* xb_str_" + sanitize_dual$(nm$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
               END IF
             END IF
-          ELSEIF INSTR(##allStrArr$, ":" + nm$ + ":") > 0 AND INSTR(##strDual$, ":" + nm$ + ":") = 0 AND INSTR(##strUbDual$, ":" + nm$ + ":") = 0 AND RIGHT$(nm$, 1) = "$" THEN
+          ELSEIF INSTR(##allStrArr$, ":" + nm$ + ":") > 0 AND INSTR(##strDual$, ":" + nm$ + ":") = 0 AND INSTR(##strUbDual$, ":" + nm$ + ":") = 0 AND RIGHT$(nm$, 1) = "$" AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
             IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
               out$ = out$ + "    char** " + c_var_name$(nm$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
@@ -3997,12 +4004,16 @@ FUNCTION emit_hoists$(used$, dimmed$)
         IF INSTR(out$, "char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(") = 0 THEN
           out$ = out$ + "    char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
         END IF
-        IF INSTR(##dynStr$, ":" + entry$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + entry$ + ":") > 0 THEN
+        IF (INSTR(##dynStr$, ":" + entry$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + entry$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
           IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(entry$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(entry$) + "_arr = 0;") = 0 THEN
             out$ = out$ + "    char* *xb_str_" + sanitize_dual$(entry$) + "_arr = 0; intptr_t xb_ub_" + sanitize_dual$(entry$) + "_arr = -1;" + CHR$(10)
           END IF
           IF INSTR(out$, "char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(") = 0 THEN
             out$ = out$ + "    char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
+          END IF
+        ELSEIF (INSTR(##dynStr$, ":" + entry$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + entry$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) > 0 THEN
+          IF INSTR(out$, "intptr_t xb_ub_" + sanitize_dual$(entry$) + "_arr = -1;") = 0 THEN
+            out$ = out$ + "    intptr_t xb_ub_" + sanitize_dual$(entry$) + "_arr = -1;" + CHR$(10)
           END IF
         END IF
       ELSEIF INSTR(##allStrArr$, ":" + entry$ + ":") > 0 AND INSTR(##dynStr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 AND INSTR(##strUbDual$, ":" + entry$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
@@ -5422,6 +5433,7 @@ END FUNCTION
 FUNCTION sanitize_ident$(n$)
   DIM r$
   r$ = replace$(n$, ".", "_")
+  r$ = replace$(r$, "$", "_s")
   r$ = replace$(r$, "#", "_d")
   r$ = replace$(r$, "!", "_f")
   r$ = replace$(r$, "@", "_a")
