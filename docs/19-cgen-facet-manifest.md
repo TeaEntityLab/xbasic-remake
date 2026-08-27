@@ -126,6 +126,18 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
   `extra_dims`). `cargo test -p xb-compiler --lib emits_facet_header_with_array_dim`
   verifies the header is emitted and round-trips as `Nop`. Default
   `emit_program` remains unchanged (backward-compatible with goldens).
+- **2026-08-27 (slice 2):** `TextIrEmitter::emit_program_with_facets` now uses
+  frontend-accurate classification — `collect_dyn_names` (gosub/nested/unsized/
+  descriptor), `collect_dual_use`, `collect_descriptor_params` — so `storage`
+  (`dyn`/`fixed`/`shared`/`param`), `rank`, and `dual` match the Rust CEmitter
+  exactly (verified: `DIM arr[3]` → `fixed`, `DIM user[upper]`+GOSUB → `dyn`,
+  `SHARED` → `shared`, array param → `param`, scalar+array → `dual=1`). Rank now
+  `1` for unsized 1-D (`DIM a[]`). `selfhost/cgen.x` now parses the header at
+  startup into `##facetTab$` (`CHR$(10)`-delimited `facet` bodies) — currently
+  stored, not yet consumed (behavior unchanged, 114/114 demos still `cc` via
+  `cgen_x_compiles_all_demos_cc_clean` `ok` 14s, positive corpus sync `ok` 62s).
+  Next slice: switch `emit_hoists$`/`scan_dyn$` predicates to table lookup when
+  `##facetTab$` non-empty, with scan fallback.
 
 
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` already

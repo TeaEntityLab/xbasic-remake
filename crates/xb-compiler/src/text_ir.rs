@@ -1,5 +1,5 @@
-use crate::checked::PrintSep;
-use crate::ir::{IrItem, IrProgram};
+use crate::checked::{PrintSep, ValueType};
+use crate::ir::{IrItem, IrParam, IrProgram};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TextIrEmitter;
@@ -26,14 +26,15 @@ impl TextIrEmitter {
 
     /// Emit the program with an additive `facet` header. The header is
     /// optional and backward-compatible: `TextIrParser` accepts it as `Nop`.
-    /// This is the first slice of `docs/19` — it emits a facet per array
-    /// `Dim` with the frontend's best-effort storage/dual classification.
-    /// `cgen.x` currently ignores the header; a later slice will consume it.
+    /// This is the second slice of `docs/19` — facets now reflect the
+    /// frontend's real storage/dual classification (dyn via `collect_dyn_names`,
+    /// dual via `collect_dual_use`, descriptor via `collect_descriptor_params`)
+    /// instead of the initial fixed/dyn-by-size heuristic.
     pub fn emit_program_with_facets(self, program: &IrProgram) -> String {
         let mut out = String::new();
         let mut facets: Vec<String> = Vec::new();
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-        self.collect_facets(&program.items, "*", &mut facets, &mut seen);
+        self.collect_facets_accurate(program, &mut facets, &mut seen);
         // Emit version / program_name first if present, then facets, then rest.
         let mut rest_start = 0;
         for (idx, item) in program.items.iter().enumerate() {
@@ -62,6 +63,163 @@ impl TextIrEmitter {
         out
     }
 
+    fn collect_facets_accurate(
+        self,
+        program: &IrProgram,
+        out: &mut Vec<String>,
+        seen: &mut std::collections::HashSet<String>,
+    ) {
+        use std::collections::{HashMap, HashSet};
+        let desc_map = crate::c_emit_hoist::collect_descriptor_params(program);
+        let top_items: Vec<IrItem> = program
+            .items
+            .iter()
+            .filter(|it| !matches!(it, IrItem::Function { .. }))
+            .cloned()
+            .collect();
+        if !top_items.is_empty() {
+            self.emit_facets_for_scope(&top_items, "*", &[], &HashMap::new(), out, seen);
+        }
+        for item in &program.items {
+            if let IrItem::Function { name, params, body, .. } = item {
+                let desc_locals: HashMap<String, crate::checked::ValueType> = desc_map
+                    .get(name)
+                    .map(|(_, m)| m.clone())
+                    .unwrap_or_default();
+                self.emit_facets_for_scope(body, name, params, &desc_locals, out, seen);
+                self.collect_facets_nested(body, out, seen, &desc_map);
+            }
+        }
+    }
+
+    fn collect_facets_nested(
+        self,
+        items: &[IrItem],
+        out: &mut Vec<String>,
+        seen: &mut std::collections::HashSet<String>,
+        desc_map: &std::collections::HashMap<String, (std::collections::HashSet<String>, std::collections::HashMap<String, crate::checked::ValueType>)>,
+    ) {
+        for item in items {
+            if let IrItem::Function { name, params, body, .. } = item {
+                let desc_locals = desc_map.get(name).map(|(_, m)| m.clone()).unwrap_or_default();
+                self.emit_facets_for_scope(body, name, params, &desc_locals, out, seen);
+                self.collect_facets_nested(body, out, seen, desc_map);
+            } else if let IrItem::If { then_body, else_body, .. } = item {
+                self.collect_facets_nested(then_body, out, seen, desc_map);
+                if let Some(eb) = else_body {
+                    self.collect_facets_nested(eb, out, seen, desc_map);
+                }
+            } else if let IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } = item {
+                self.collect_facets_nested(body, out, seen, desc_map);
+            } else if let IrItem::SelectCase { cases, default, .. } = item {
+                for cl in cases {
+                    self.collect_facets_nested(&cl.body, out, seen, desc_map);
+                }
+                if let Some(d) = default {
+                    self.collect_facets_nested(d, out, seen, desc_map);
+                }
+            } else if let IrItem::Compound(inner) = item {
+                self.collect_facets_nested(inner, out, seen, desc_map);
+            }
+        }
+    }
+
+    fn emit_facets_for_scope(
+        self,
+        items: &[IrItem],
+        scope: &str,
+        params: &[IrParam],
+        desc_locals: &std::collections::HashMap<String, crate::checked::ValueType>,
+        out: &mut Vec<String>,
+        seen: &mut std::collections::HashSet<String>,
+    ) {
+        use std::collections::{HashMap, HashSet};
+        let has_gosub = crate::c_emit_hoist::has_gosub(items);
+        let mut array_dimmed: HashSet<String> = HashSet::new();
+        crate::c_emit_hoist::collect_array_dimmed_names(items, &mut array_dimmed);
+        let dual_use = crate::c_emit_hoist::collect_dual_use(items, &array_dimmed);
+        let dyn_names = crate::c_emit_hoist::collect_dyn_names(items, params, has_gosub, desc_locals);
+        let mut dim_info: HashMap<String, (bool, usize, ValueType, String)> = HashMap::new();
+        for it in items {
+            if let IrItem::Dim { symbol, size, extra_dims, is_array, shared, .. } = it {
+                if *is_array {
+                    let rank = if size.is_some() {
+                        1 + extra_dims.len()
+                    } else if extra_dims.is_empty() {
+                        1
+                    } else {
+                        extra_dims.len()
+                    };
+                    let is_shared = *shared;
+                    let storage = if is_shared {
+                        "shared".to_string()
+                    } else if dyn_names.arrays.contains_key(&symbol.name) {
+                        "dyn".to_string()
+                    } else {
+                        "fixed".to_string()
+                    };
+                    dim_info.insert(symbol.name.clone(), (is_shared, rank, symbol.value_type, storage));
+                }
+            }
+        }
+        for (name, (is_shared, rank, vt, storage)) in &dim_info {
+            let key = format!("{}:{}", name, scope);
+            if !seen.insert(key) {
+                continue;
+            }
+            let dual = if dual_use.contains(name) { 1 } else { 0 };
+            let sh = if *is_shared { " shared" } else { "" };
+            out.push(format!(
+                "facet {}:{} scope={} storage={} rank={} dual={}{}",
+                name,
+                self.emit_type(*vt),
+                scope,
+                storage,
+                rank,
+                dual,
+                sh
+            ));
+        }
+        for (name, vt) in desc_locals {
+            let key = format!("{}:{}", name, scope);
+            if seen.contains(&key) {
+                continue;
+            }
+            if dim_info.contains_key(name) {
+                continue;
+            }
+            seen.insert(key);
+            let dual = if dual_use.contains(name) { 1 } else { 0 };
+            out.push(format!(
+                "facet {}:{} scope={} storage=dyn rank=1 dual={}",
+                name,
+                self.emit_type(*vt),
+                scope,
+                dual
+            ));
+        }
+        for p in params {
+            if p.is_array {
+                let key = format!("{}:{}", p.name, scope);
+                if !seen.insert(key) {
+                    continue;
+                }
+                let rank = 1;
+                let dual = if dual_use.contains(&p.name) { 1 } else { 0 };
+                out.push(format!(
+                    "facet {}:{} scope={} storage=param rank={} dual={}",
+                    p.name,
+                    self.emit_type(p.value_type),
+                    scope,
+                    rank,
+                    dual
+                ));
+            }
+        }
+    }
+
+
+    #[allow(dead_code)]
     fn collect_facets(
         self,
         items: &[IrItem],

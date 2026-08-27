@@ -61,6 +61,10 @@ DIM nfName$
 DIM nfAfter$
 DIM nfClose
 DIM _mdSemi
+DIM facetPos
+DIM facetE
+DIM facetLine$
+DIM facetRest$
 
 src$ = ""
 WHILE EOF() = 0
@@ -674,6 +678,21 @@ END IF
 ##selectExitCount = 0
 ##nestFns$ = ""
 ##selectExitStack$ = ""
+##facetTab$ = ""
+facetPos = 1
+WHILE facetPos <= LEN(src$)
+  facetE = INSTR(src$, CHR$(10), facetPos)
+  IF facetE = 0 THEN
+    facetE = LEN(src$) + 1
+  END IF
+  facetLine$ = MID$(src$, facetPos, facetE - facetPos)
+  facetPos = facetE + 1
+  facetLine$ = trim_spaces$(facetLine$)
+  IF LEFT$(facetLine$, 6) = "facet " THEN
+    facetRest$ = MID$(facetLine$, 7, LEN(facetLine$) - 6)
+    ##facetTab$ = ##facetTab$ + CHR$(10) + facetRest$ + CHR$(10)
+  END IF
+WEND
 ##sharedArrays$ = scan_shared_arr$(src$)
 ##dynNames$ = scan_dyn$(src$)
 ##byrefDual$ = scan_byref_dual$(src$)
