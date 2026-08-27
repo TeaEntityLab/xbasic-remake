@@ -2182,6 +2182,23 @@ FUNCTION emit_expr$(e$)
 
   IF LEFT$(e$, 8) = "integer(" THEN
     t$ = MID$(e$, 9, LEN(e$) - 9)
+    DIM lt2$
+    lt2$ = LCASE$(t$)
+    IF lt2$ = "nan" OR lt2$ = "-nan" THEN
+      IF LEFT$(t$, 1) = "-" THEN
+        emit_expr$ = "-NAN"
+      ELSE
+        emit_expr$ = "NAN"
+      END IF
+      RETURN emit_expr$
+    ELSEIF lt2$ = "inf" OR lt2$ = "-inf" OR lt2$ = "infinity" OR lt2$ = "-infinity" THEN
+      IF LEFT$(t$, 1) = "-" THEN
+        emit_expr$ = "-INFINITY"
+      ELSE
+        emit_expr$ = "INFINITY"
+      END IF
+      RETURN emit_expr$
+    END IF
     IF LEFT$(t$, 2) = "0x" OR LEFT$(t$, 2) = "0X" OR LEFT$(t$, 2) = "0b" OR LEFT$(t$, 2) = "0B" THEN
       emit_expr$ = "(int32_t)(" + t$ + ")"
     ELSE
@@ -2192,7 +2209,23 @@ FUNCTION emit_expr$(e$)
 
   IF LEFT$(e$, 6) = "float(" THEN
     t$ = MID$(e$, 7, LEN(e$) - 7)
-    emit_expr$ = t$
+    DIM lt$
+    lt$ = LCASE$(t$)
+    IF lt$ = "nan" OR lt$ = "-nan" THEN
+      IF LEFT$(t$, 1) = "-" THEN
+        emit_expr$ = "-NAN"
+      ELSE
+        emit_expr$ = "NAN"
+      END IF
+    ELSEIF lt$ = "inf" OR lt$ = "-inf" OR lt$ = "infinity" OR lt$ = "-infinity" THEN
+      IF LEFT$(t$, 1) = "-" THEN
+        emit_expr$ = "-INFINITY"
+      ELSE
+        emit_expr$ = "INFINITY"
+      END IF
+    ELSE
+      emit_expr$ = t$
+    END IF
     RETURN emit_expr$
   END IF
 
