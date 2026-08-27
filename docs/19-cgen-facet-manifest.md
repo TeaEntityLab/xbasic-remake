@@ -154,9 +154,14 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
 - **2026-08-27 (slice 5):** `cgen_x_compiles_all_demos_cc_clean` now uses
   `emit_program_with_facets` (114/114 demos `cc` via facet-driven cgen,
   `ok` 41s; `arecurse`/`Kittedy` with facet header `cc` clean). Positive corpus
-  still `emit_program` goldens (80/80 byte-identical, `ok` 77s). Next: composite
-  member facets (`squareInfo.grid` rank 2) and `byref`/`descriptor`.
-
+  still `emit_program` goldens (80/80 byte-identical, `ok` 77s).
+- **2026-08-27 (slice 6):** `collect_facets_accurate` now emits member 2D facets
+  for composite `TYPE` arrays (`squareInfo.grid:integer[9,15]` etc. via
+  `array_access`/`array_assign` with `extra_indices` and `.` in name, rank 2,
+  `storage=shared`). `cgen` `arr2d` facet handling re-enabled (`fArr2d` from
+  `rank>=2`); `Kittedy` with facet header `cc` clean via `cgen_new` and via
+  `cgen_x_compiles_all_demos_cc_clean` (still 114/114). Next: `byref`/`descriptor`
+  and `strDual`/`allStrArr` re-enable.
 
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` already
   asserts per-program byte-identical emitted C — the header must not break this.
