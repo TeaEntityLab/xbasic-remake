@@ -723,6 +723,7 @@ WEND
 IF LEN(##facetTab$) > 0 THEN
   fDyn$ = ""
   fDual$ = ""
+  fArr2d$ = ""
   fPos2 = 1
   WHILE fPos2 <= LEN(##facetTab$)
     fLe2 = INSTR(##facetTab$, CHR$(10), fPos2)
@@ -745,6 +746,15 @@ IF LEN(##facetTab$) > 0 THEN
             END IF
           END IF
         END IF
+        fSpRank = INSTR(fRest2$, " rank=")
+        IF fSpRank > 0 THEN
+          fRank$ = MID$(fRest2$, fSpRank + 6, 1)
+          IF VAL(fRank$) >= 2 THEN
+            IF INSTR(fArr2d$, ":" + fNm2$ + ":") = 0 THEN
+              fArr2d$ = fArr2d$ + ":" + fNm2$ + ":"
+            END IF
+          END IF
+        END IF
         fSpDual = INSTR(fRest2$, " dual=")
         IF fSpDual > 0 THEN
           fDualFlag$ = MID$(fRest2$, fSpDual + 6, 1)
@@ -759,6 +769,7 @@ IF LEN(##facetTab$) > 0 THEN
   WEND
   ##dynNames$ = fDyn$
   ##dualUse$ = fDual$
+  ##arr2d$ = fArr2d$
 END IF
 ' CG-BYTES: string arrays whose UBOUND is read (array_ubound(X:string))
 ' are dual-use in the Rust CEmitter (the string UBOUND notes a scalar

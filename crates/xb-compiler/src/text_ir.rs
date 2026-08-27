@@ -180,6 +180,34 @@ impl TextIrEmitter {
                 sh
             ));
         }
+        // Composite TYPE member 2D arrays (e.g. squareInfo.grid[9,15] where
+        // squareInfo: SQUAREINFORMATION is DIM'd as 2D but the text Dim is
+        // squareInfo.grid:integer[9,15] member-wise). The parent Dim is
+        // squareInfo:SQUAREINFORMATION with rank 2, but the member
+        // array_access is squareInfo.grid:integer with 2 indices. Emit a
+        // facet for the flattened member name when we see a 2D access.
+        {
+            let mut member_2d: std::collections::HashMap<String, ValueType> = std::collections::HashMap::new();
+            self.collect_member_2d(items, &mut member_2d);
+            for (mname, vt) in member_2d {
+                if dim_info.contains_key(&mname) {
+                    continue;
+                }
+                let key = format!("{}:{}", mname, scope);
+                if !seen.insert(key) {
+                    continue;
+                }
+                // Member of a shared composite array is shared storage.
+                let storage = if scope == "*" { "shared" } else { "shared" };
+                out.push(format!(
+                    "facet {}:{} scope={} storage={} rank=2 dual=0 shared",
+                    mname,
+                    self.emit_type(vt),
+                    scope,
+                    storage
+                ));
+            }
+        }
         for (name, vt) in desc_locals {
             let key = format!("{}:{}", name, scope);
             if seen.contains(&key) {
@@ -217,6 +245,98 @@ impl TextIrEmitter {
             }
         }
     }
+    fn collect_member_2d(
+        self,
+        items: &[IrItem],
+        out: &mut std::collections::HashMap<String, ValueType>,
+    ) {
+        for it in items {
+            match it {
+                IrItem::ArrayAssignment { target, extra_indices, .. } => {
+                    if !extra_indices.is_empty() && target.name.contains('.') {
+                        out.entry(target.name.clone()).or_insert(target.value_type);
+                    }
+                }
+                IrItem::Function { body, .. } => {
+                    self.collect_member_2d(body, out);
+                }
+                IrItem::If { then_body, else_body, .. } => {
+                    self.collect_member_2d(then_body, out);
+                    if let Some(eb) = else_body {
+                        self.collect_member_2d(eb, out);
+                    }
+                }
+                IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
+                    self.collect_member_2d(body, out);
+                }
+                IrItem::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        self.collect_member_2d(&c.body, out);
+                    }
+                    if let Some(d) = default {
+                        self.collect_member_2d(d, out);
+                    }
+                }
+                IrItem::Compound(inner) => {
+                    self.collect_member_2d(inner, out);
+                }
+                _ => {
+                    // Also check expressions for array_access with extra_indices
+                    self.collect_member_2d_expr(it, out);
+                }
+            }
+        }
+    }
+
+    fn collect_member_2d_expr(self, item: &IrItem, out: &mut std::collections::HashMap<String, ValueType>) {
+        match item {
+            IrItem::Assignment { value, .. }
+            | IrItem::Return { value: Some(value) }
+            | IrItem::If { condition: value, .. }
+            | IrItem::While { condition: value, .. } => {
+                self.walk_expr_2d(value, out);
+            }
+            IrItem::ArrayAssignment { .. } => {}
+            IrItem::Call { args, .. } => {
+                for a in args {
+                    self.walk_expr_2d(a, out);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn walk_expr_2d(self, expr: &crate::ir::IrExpr, out: &mut std::collections::HashMap<String, ValueType>) {
+        match &expr.kind {
+            crate::ir::IrExprKind::ArrayAccess { symbol, extra_indices, .. } => {
+                if !extra_indices.is_empty() && symbol.name.contains('.') {
+                    out.entry(symbol.name.clone()).or_insert(symbol.value_type);
+                }
+            }
+            crate::ir::IrExprKind::ArrayUBound { symbol } => {
+                if symbol.name.contains('.') {
+                    // UBOUND on member array implies 1D, not 2D, skip
+                }
+            }
+            crate::ir::IrExprKind::FunctionCall { args, .. } => {
+                for a in args {
+                    self.walk_expr_2d(a, out);
+                }
+            }
+            crate::ir::IrExprKind::Comparison { left, right, .. }
+            | crate::ir::IrExprKind::Arithmetic { left, right, .. }
+            | crate::ir::IrExprKind::Boolean { left, right, .. }
+            | crate::ir::IrExprKind::Logical { left, right, .. } => {
+                self.walk_expr_2d(left, out);
+                self.walk_expr_2d(right, out);
+            }
+            crate::ir::IrExprKind::Unary { operand, .. } => {
+                self.walk_expr_2d(operand, out);
+            }
+            _ => {}
+        }
+    }
+
 
 
     #[allow(dead_code)]
