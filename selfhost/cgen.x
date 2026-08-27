@@ -65,6 +65,15 @@ DIM facetPos
 DIM facetE
 DIM facetLine$
 DIM facetRest$
+DIM fDyn$
+DIM fPos2
+DIM fLe2
+DIM fLn2$
+DIM fCp2
+DIM fNm2$
+DIM fRest2$
+DIM fSp2
+DIM fStor2$
 
 src$ = ""
 WHILE EOF() = 0
@@ -701,6 +710,35 @@ WEND
 ##arr2d$ = scan_arr2d$(src$)
 ##allStrArr$ = scan_all_strarr$(src$)
 ##xstArrays$ = scan_xst_arrays$(src$)
+IF LEN(##facetTab$) > 0 THEN
+  fDyn$ = ""
+  fPos2 = 1
+  WHILE fPos2 <= LEN(##facetTab$)
+    fLe2 = INSTR(##facetTab$, CHR$(10), fPos2)
+    IF fLe2 = 0 THEN
+      fLe2 = LEN(##facetTab$) + 1
+    END IF
+    fLn2$ = trim_spaces$(MID$(##facetTab$, fPos2, fLe2 - fPos2))
+    fPos2 = fLe2 + 1
+    IF LEN(fLn2$) > 0 THEN
+      fCp2 = INSTR(fLn2$, ":")
+      IF fCp2 > 0 THEN
+        fNm2$ = LEFT$(fLn2$, fCp2 - 1)
+        fRest2$ = MID$(fLn2$, fCp2 + 1, LEN(fLn2$) - fCp2)
+        fSp2 = INSTR(fRest2$, " storage=")
+        IF fSp2 > 0 THEN
+          fStor2$ = MID$(fRest2$, fSp2 + 9, 3)
+          IF fStor2$ = "dyn" THEN
+            IF INSTR(fDyn$, ":" + fNm2$ + ":") = 0 THEN
+              fDyn$ = fDyn$ + ":" + fNm2$ + ":"
+            END IF
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  ##dynNames$ = fDyn$
+END IF
 ' CG-BYTES: string arrays whose UBOUND is read (array_ubound(X:string))
 ' are dual-use in the Rust CEmitter (the string UBOUND notes a scalar
 ' context) - they get the scalar facet + fixed-native _arr facet.

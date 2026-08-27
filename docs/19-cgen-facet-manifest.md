@@ -136,8 +136,13 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
   startup into `##facetTab$` (`CHR$(10)`-delimited `facet` bodies) — currently
   stored, not yet consumed (behavior unchanged, 114/114 demos still `cc` via
   `cgen_x_compiles_all_demos_cc_clean` `ok` 14s, positive corpus sync `ok` 62s).
-  Next slice: switch `emit_hoists$`/`scan_dyn$` predicates to table lookup when
-  `##facetTab$` non-empty, with scan fallback.
+- **2026-08-27 (slice 3):** `selfhost/cgen.x` now *consumes* `##facetTab$` for
+  `##dynNames$` — when a `facet` header is present, `##dynNames$` is rebuilt
+  from `storage=dyn` facets (`:name:` per dyn) overriding the heuristic
+  `scan_dyn$`; empty `##facetTab$` falls back to scanning (114/114 demos still
+  `cc`, `cgen_x_compiles_all_demos_cc_clean` `ok` 19s, `aback` with/without
+  header diff 0 and `cc` clean). Next slices: `dual`/`strDual`/`allStrArr`
+  and scope-qualified rank.
 
 
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` already
