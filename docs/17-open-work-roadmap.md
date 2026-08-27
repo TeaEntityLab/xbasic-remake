@@ -78,6 +78,32 @@
 > `$$`-GIANT lexing / `0s`-`0d` / `byref_symbol` / `for_stmt` / `auto_symbol` /
 > `string_byte_read` did not regress it). Bootstrap + `cgen.x` intact.
 
+## L15 — License Boundary (distribution + legal)
+
+> **Status:** `link-core-libs.sh` links GPL+LGPL+unspecified into one `xblibs` binary — **local smoke is run-only**, not redistributable. Any combined binary is GPL-2.0-or-later per GPL §2(b). See `COPYING` (GPL-2.0) and `COPYING_LIB` (LGPL-2.0, truncated at §0, no GNU preamble).
+
+| Library | File | License (header) | Notice file | Crate license | Notes |
+|---|---|---|---|---|---|
+| `xcol` | `src/linux/xcol.x` | GPL-2.0 (`' subject to GPL license - see COPYING`) | `xbasic-6.4.5/COPYING` (GPL-2.0, full) | `xb-compiler` GPL-2.0-or-later | Compiler, 20 ATTACH sites |
+| `xit` | `src/linux/xit.x` | GPL-2.0 (`COPYING`) | `COPYING` | `xb-compiler` GPL | IDE, 15 ATTACH |
+| `xdis` | `src/shared/xdis.x` | GPL-2.0 (`COPYING`) | `COPYING` | `xb-compiler` GPL | Disassembler |
+| `xcm` | `src/shared/xcm.x` | LGPL-2.0 (`COPYING_LIB`) | `COPYING_LIB` (LGPL-2.0, §0 truncated, no preamble) | `xb-runtime` LGPL-2.1-or-later | Complex math |
+| `xma` | `src/shared/xma.x` | LGPL-2.0 (`COPYING_LIB`) | `COPYING_LIB` truncated | `xb-runtime` LGPL | Math, EXTERNAL unnest 14f9c69 |
+| `xui` | `src/shared/xui.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | GUI, 15 ATTACH |
+| `xgr` | `src/linux/xgr.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | Graphics, 8-10 ATTACH |
+| `xin` | `src/linux/xin.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | Sockets |
+| `xrun` | `src/linux/xrun.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | Exec support |
+| `xst` | `src/linux/xst.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | Stdlib, 20 ATTACH |
+| `xut` | `src/shared/xut.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | Utility |
+| `xutpde` | `src/shared/xutpde.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | PDE util |
+| `gdi32` | `src/linux/gdi32.x` | **Unspecified** (no header, 537 lines) | none | — | Win32 shim, no notice |
+| `kernel32` | `src/linux/kernel32.x` | **Unspecified** (no header, 1004 lines) | none | — | Win32 shim, no notice |
+| `user32` | `src/linux/user32.x` | **Unspecified** (no header, 669 lines) | none | — | Win32 shim, no notice |
+
+* **Inventory:** `src/shared` 6 (`xcm xdis xma xui xut xutpde`) + `src/linux` 9 (`gdi32 kernel32 user32 xcol xgr xin xit xrun xst`) = 15. Previous `src/shared` vs `src/linux` miscount fixed per L15.
+* **Distribution guard:** `checks/link-core-libs.sh` + `xblibs` are **INTERNAL TEST HARNESS ONLY — NOT FOR REDISTRIBUTION** (local `cc -c` + 7 `Version$` smoke, not behavioral). Distributing the combined `xblibs` without GPL notices + full source violates GPL-2.0 §1-3. Downstream linking against `xst`/`xui` etc. without isolating LGPL from GPL is GPL-infected. `COPYING_LIB` is truncated at §0, so LGPL-2.0 terms are incomplete in the vendor drop.
+* **Remake crates:** `xb-cli`/`xb-compiler`/`xb-frontend`/`xb-link` are `GPL-2.0-or-later`; `xb-runtime`/`xb-gui` are `LGPL-2.1-or-later` — split mirrors vendor mix but does not resolve combined-binary GPL taint.
+
 ## 0. Open-gap index (at a glance)
 
 Everything still open, one line each — the "what's left" view. Details live in the
@@ -385,9 +411,9 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | L12 | `scan_dyn` per-line `symbol(` walk | **partial — landed 08fc0cb** | `scan_dyn$` now per-line `CHR$(10)` split for `symbol(`+`byref(` with inner `WHILE qp` for multi-`symbol(` per line; `DIM`/`SWAP` already per-line. Change is `INSTR(s$,nSym$)` → `INSTR(qLn$,nSym$)` + `INSTR(qLn$,":",qp+7)` + `MID$(qLn$,qp+7,cp-qp-7)` (same-line colon only; cross-line dropped). No quote-skip for `string("symbol(")` (both old and new) | add fixture `string("symbol(foo:bar)")` + multi-`symbol(` per line; prove no regression; xcol probe still 46s suggests scan not the sole bottleneck |
 | L13 | `scan_undimmed` MID-avoidance 3-arg `INSTR` | **partial — landed 08fc0cb** | Three sites `array_access`/`array_assign`/`array_ubound`: `INSTR(MID$(s$,p+13,…),":")` + `MID$(s$,p+13,e-1)` → `INSTR(s$,":",p+13)` + `MID$(s$,p+13,e-p-13)` (algebra `e-1 = e_abs-p-13`). Still whole-`s$` (not per-line). No quote-skip | name fixture `array_access(` line with `string("a:b")`; xcol still 46s |
 | L14 | `pNames$[32]→[128]` + zap `argv$` nested-DIM facet | **partial — landed 08fc0cb + docs/19 fix** | `selfhost/cgen.x` `pNames$`/`pTypes$`/`pIsStr` 32→128 (xdis/xst depth 5-55). `docs/19` slice 8 corrected: `zap` `DIM argv$[3]` inside nested `IFZ` THEN+ELSE `dim_count==2` ⇒ `storage=dyn` not `fixed`. Residual (docs/19): member 2D hardcodes `rank=2`+`storage=shared` no-op, array params `rank=1`, nested `Function` DIMs leak into parent `dim_info`, `collect_member_2d_expr` misses `Print`/`For`/`SelectCase` | dump `facet argv$:string scope=Entry storage=dyn rank1` + fix member-2D hardcodes before lib facet claim |
-| L15 | License-boundary disclosure for 15 libs | **deferred — blocker** | `xcol`/`xit`/`xdis` GPL (`COPYING`); `xst`/`xma`/`xcm`/`xui`/`xgr`/`xin`/`xrun`/`xut`/`xutpde` LGPL (`COPYING_LIB` truncated at §0); `gdi32`/`kernel32`/`user32` no notice; remake crates split GPL-2.0-or-later vs LGPL-2.1-or-later | add § license table; note that generating/linking/distributing combined C/objects is GPL-covered; local smoke is run-only; fix `src/shared` vs `src/linux` inventory (shared 6: `xcm xdis xma xui xut xutpde`; linux 9: `gdi32 kernel32 user32 xcol xgr xin xit xrun xst`) |
-| L16 | Weak-link-order determinism + `OUT` hygiene | **deferred** | `XB_WEAK_SYMBOLS=1` first-definition-wins follows `$OUT/*.o` glob (alpha/readdir) not named `cc` loop; `OUT` never cleaned; `XB_BIN` computed not env; `nm -U` not portable | gate any symbol-count headline on `git status --short` clean + empty `OUT` + `ls -l $XB_BIN` + without-weak link check |
-| L17 | Named 15-lib cgen cc-clean guard (`cgen_x_compiles_all_core_libs_cc_clean`) | **deferred** | last 6/15 cgen probe + xcol ~60s wall probe via uncommitted `cgen_exp` (SIGTERM 124 at 15s/30s; TTFB of `xb_version_str` vs `T_total` distinguishes `src$` build from post-`src$` scans/emit); no named test exists | re-probe 15 libs on current tree; then land `cgen_x_compiles_all_core_libs_cc_clean` (build cgen from `selfhost/cgen.x` via Rust CEmitter; emit-ir→cgen→`cc -O0 -w` with `$CC`; cc-clean + sentinel per lib; falsified by SIGKILL/OOM/cc error/hang); do not gate remaining **demo-scoped** facet slices or Rust Bar C (xut/xcm) on it; do gate any **shipped-generator** claim covering `src/*.x` |
+| L15 | License-boundary disclosure for 15 libs | **done — landed 2026-08-28** | §L15 table added (see top): `xcol`/`xit`/`xdis` GPL (`COPYING`); `xst`/`xma`/`xcm`/`xui`/`xgr`/`xin`/`xrun`/`xut`/`xutpde` LGPL (`COPYING_LIB` truncated at §0); `gdi32`/`kernel32`/`user32` no notice; remake crates split `GPL-2.0-or-later` vs `LGPL-2.1-or-later`; `src/shared` 6 vs `src/linux` 9 inventoried; `xblibs` marked **INTERNAL TEST HARNESS ONLY — NOT FOR REDISTRIBUTION** (local smoke run-only, distribution is GPL-covered) | — |
+| L16 | Weak-link-order determinism + `OUT` hygiene | **deferred** | `XB_WEAK_SYMBOLS=1` first-definition-wins now deterministic via `link-core-libs.sh` ordered `xcm,xdis,xma,xui,xut,xutpde,gdi32,kernel32,user32,xcol,xgr,xin,xit,xrun,xst` (not glob), but `OUT` never cleaned in `validate-all.sh` (`/tmp/xblib-validate` persists), `XB_BIN` computed not env (`XB_BIN="${XB_BIN:-...}"` missing), `nm -U` not portable (Darwin `nm -U` vs Linux `nm`); `cgen_x_compiles_all_core_libs_cc_clean` now gates 9/15 but `OUT` hygiene still open | gate any symbol-count headline on `git status --short` clean + empty `OUT` + `ls -l $XB_BIN` + without-weak link check; fix `XB_BIN` env and `nm` portability |
+| L17 | Named 15-lib cgen cc-clean guard (`cgen_x_compiles_all_core_libs_cc_clean`) | **partial — landed 2026-08-28** | `cgen_x_compiles_all_core_libs_cc_clean` now exists in `crates/xb-runtime/tests/cgen_cemitter_sync.rs` (cargo test, 9/15 baseline at `e293b77`: `xcm,xdis,xma,xut,xutpde,gdi32,kernel32,user32,xrun` pass; `xcol` Killed:9 OOM 2.6 MiB IR, `xgr` Abort:6, `xui/xin/xit/xst` cc errors; `checks/cgen-lib-compile.sh` remains shell probe at 9/15). Falsified by SIGKILL/OOM/cc error/hang; `cgen` OOM now counted per-lib via `wait_with_output` not panic. | land 15/15 when L11 leaky concat + facet `CGEN-FACET-SCOPE` complete; do not gate demo-scoped facet slices on it |
 
 ### Parallel-lens review 2026-08-27 — Legacy lib port `review-packet-legacy-lib-port-2026-08-27.md` (4/7 delivered)
 

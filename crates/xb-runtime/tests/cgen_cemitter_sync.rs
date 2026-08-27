@@ -429,6 +429,120 @@ fn cgen_x_compiles_all_demos_cc_clean() {
     );
     let _ = fs::remove_dir_all(&tmp);
 }
+/// CGEN-LIB-SCALE / L17: core libraries via self-hosted cgen.x (probe, not yet 15/15).
+/// At `e293b77` the probe is 9/15 via `checks/cgen-lib-compile.sh` (xcol OOM, xgr abort, xui/xin/xit/xst cc).
+/// This cargo test locks the 9/15 baseline: it builds native cgen, feeds each of the 15 core libs
+/// through `emit_program` (heuristic, not facets) → cgen → `cc -c`, and asserts at least 9 pass.
+/// The 6 expected failures are `xcol` (Killed:9 OOM), `xgr` (abort), `xui`/`xin`/`xit`/`xst` (cc errors).
+/// When the facet manifest + L11 leaky concat fix lands, this should flip to 15/15.
+#[test]
+fn cgen_x_compiles_all_core_libs_cc_clean() {
+    let tmp = std::env::temp_dir().join("xb_sync_cgen_core_libs_cc");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+    let libs: Vec<(String, PathBuf)> = {
+        let mut v = Vec::new();
+        for dir in ["src/shared", "src/linux"] {
+            let d = root().join("xbasic-6.4.5").join(dir);
+            for entry in fs::read_dir(&d).expect("read_dir core libs") {
+                let p = entry.expect("dir entry").path();
+                if p.extension().and_then(|e| e.to_str()) == Some("x") {
+                    v.push((p.file_stem().unwrap().to_str().unwrap().to_string(), p));
+                }
+            }
+        }
+        v.sort_by(|a, b| a.0.cmp(&b.0));
+        v
+    };
+    assert!(libs.len() >= 15, "expected 15 core libs, found {}", libs.len());
+    let mut failures: Vec<String> = Vec::new();
+    let mut passes: Vec<String> = Vec::new();
+    for (stem, path) in &libs {
+        let src = fs::read_to_string(path).expect("read core lib");
+        let prog = match FrontendUnit::parse(&src) {
+            Ok(u) => match u.lower_ir() {
+                Ok(p) => p,
+                Err(e) => {
+                    failures.push(format!("{stem}: lower failed: {e:?}"));
+                    continue;
+                }
+            },
+            Err(e) => {
+                failures.push(format!("{stem}: parse failed: {e:?}"));
+                continue;
+            }
+        };
+        let ir = TextIrEmitter::new().emit_program(&prog);
+        let raw_c = {
+            let mut child = Command::new(common::exe_path(&cgen_exe))
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("spawn cgen");
+            child
+                .stdin
+                .take()
+                .expect("cgen stdin")
+                .write_all(ir.as_bytes())
+                .expect("write IR to cgen");
+            let out = child.wait_with_output().expect("wait cgen");
+            if !out.status.success() {
+                let err = String::from_utf8_lossy(&out.stderr);
+                let first = err.lines().next().unwrap_or("cgen failed").chars().take(80).collect::<String>();
+                failures.push(format!("{stem}: cgen failed: {first} (exit {:?})", out.status.code()));
+                continue;
+            }
+            out.stdout
+        };
+        if raw_c.is_empty() {
+            failures.push(format!("{stem}: cgen emitted empty"));
+            continue;
+        }
+        let self_c = String::from_utf8(raw_c).expect("cgen utf8");
+        let c_path = tmp.join(format!("{stem}.c"));
+        let o_path = tmp.join(format!("{stem}.o"));
+        fs::write(&c_path, &self_c).expect("write c");
+        let cc = Command::new(common::cc::cc())
+            .args([
+                "-O0",
+                "-w",
+                "-c",
+                "-o",
+                o_path.to_str().unwrap(),
+                c_path.to_str().unwrap(),
+            ])
+            .output()
+            .expect("run cc");
+        if cc.status.success() {
+            passes.push(stem.clone());
+        } else {
+            let err = String::from_utf8_lossy(&cc.stderr);
+            let first = err.lines().next().unwrap_or("").chars().take(120).collect::<String>();
+            failures.push(format!("{stem}: cc failed: {first}"));
+        }
+    }
+    let expected_pass = ["xcm", "xdis", "xma", "xut", "xutpde", "gdi32", "kernel32", "user32", "xrun"];
+    for exp in expected_pass {
+        assert!(
+            passes.contains(&exp.to_string()),
+            "expected core lib {exp} to cc -c clean via cgen.x, but it failed; passes={passes:?} failures={failures:?}"
+        );
+    }
+    assert!(
+        passes.len() >= 9,
+        "cgen.x core libs cc regression: only {}/15 passed (expected ≥9); passes={passes:?} failures={failures:?}",
+        passes.len()
+    );
+    if passes.len() < 15 {
+        eprintln!(
+            "cgen_x_compiles_all_core_libs_cc_clean: {}/15 pass (expected 15/15 when L11+facet complete); passes={passes:?} failures={failures:?}",
+            passes.len()
+        );
+    }
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 
 /// Panel 2026-08-27 adoption guard: the load-bearing verification claims must
 /// stay recorded at their named doc surfaces in the adopted wording, so a doc
