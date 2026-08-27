@@ -12,6 +12,8 @@
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+mod common;
+
 /// Demos that fail standalone LINK (undefined external symbols).
 const SKIP: &[&str] = &["aclient", "aserver"];
 /// Sentinel for "process timed out" — compared like any other outcome.
@@ -73,7 +75,7 @@ fn demo_interp_matches_compiled() {
     let demo_dir = root.join("xbasic-6.4.5/demo");
     let tmp = std::env::temp_dir().join("demo_parity");
     let _ = std::fs::create_dir_all(&tmp);
-    let xb = root.join("target/release/xb");
+    let xb = common::xb_bin();
 
     let mut sources: Vec<_> = std::fs::read_dir(&demo_dir)
         .expect("demo dir")
@@ -127,7 +129,7 @@ fn demo_interp_matches_compiled() {
         std::fs::write(&c_file, &emit.stdout).unwrap();
         let bin = tmp.join("demo_bin");
         let obj = tmp.join("demo.o");
-        let c_obj = Command::new("cc")
+        let c_obj = Command::new(common::cc::cc())
             .args([
                 "-O1",
                 "-w",
@@ -141,7 +143,7 @@ fn demo_interp_matches_compiled() {
             .output()
             .expect("cc");
         assert!(c_obj.status.success(), "{name}: cc compile failed");
-        let mut link = Command::new("cc");
+        let mut link = Command::new(common::cc::cc());
         link.arg(&obj).arg("-o").arg(&bin);
         for o in &lib_objs {
             link.arg(o);

@@ -8,6 +8,8 @@
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
+mod common;
+
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
@@ -49,7 +51,7 @@ XEOF"#;
 #[test]
 fn xin_sockets_xbasic_client_roundtrip() {
     let root = repo_root();
-    let xb = root.join("target/release/xb");
+    let xb = common::xb_bin();
     let tmp = std::env::temp_dir().join("xin_sockets_client");
     let _ = std::fs::create_dir_all(&tmp);
 
@@ -69,7 +71,7 @@ fn xin_sockets_xbasic_client_roundtrip() {
     let server_c = tmp.join("aserver.c");
     std::fs::write(&server_c, &emit.stdout).unwrap();
     let server_bin = tmp.join("aserver_bin");
-    let cc = Command::new("cc")
+    let cc = Command::new(common::cc::cc())
         .args([
             "-O1",
             "-w",
@@ -104,7 +106,7 @@ fn xin_sockets_xbasic_client_roundtrip() {
     let client_c = tmp.join("xclient.c");
     std::fs::write(&client_c, &emit.stdout).unwrap();
     let client_bin = tmp.join("xclient_bin");
-    let cc = Command::new("cc")
+    let cc = Command::new(common::cc::cc())
         .args([
             "-O1",
             "-w",
@@ -186,7 +188,7 @@ fn xin_sockets_xbasic_client_roundtrip() {
 #[test]
 fn xin_sockets_aserver_serves_timestamp() {
     let root = repo_root();
-    let xb = root.join("target/release/xb");
+    let xb = common::xb_bin();
     let tmp = std::env::temp_dir().join("xin_sockets_test");
     let _ = std::fs::create_dir_all(&tmp);
 
@@ -200,7 +202,7 @@ fn xin_sockets_aserver_serves_timestamp() {
     let c_file = tmp.join("aserver.c");
     std::fs::write(&c_file, &emit.stdout).unwrap();
     let bin = tmp.join("aserver_bin");
-    let cc = Command::new("cc")
+    let cc = Command::new(common::cc::cc())
         .args([
             "-O1",
             "-w",

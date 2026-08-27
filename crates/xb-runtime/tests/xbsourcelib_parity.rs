@@ -1,6 +1,8 @@
 //! XBSourceLib parity: every non-GUI XBSourceLib program must produce
 //! byte-identical output between the interpreter and the compiled C binary.
 
+mod common;
+
 use std::process::{Command, Stdio};
 
 const PROGRAMS: &[&str] = &[
@@ -29,7 +31,7 @@ fn repo_root() -> std::path::PathBuf {
 }
 
 fn run_interp(src: &std::path::Path) -> Vec<u8> {
-    let out = Command::new(repo_root().join("target/release/xb"))
+    let out = Command::new(common::xb_bin())
         .args(["--run"])
         .arg(src)
         .stdin(Stdio::null())
@@ -41,13 +43,13 @@ fn run_interp(src: &std::path::Path) -> Vec<u8> {
 fn run_compiled(src: &std::path::Path, tmp: &std::path::Path) -> Vec<u8> {
     let c_file = tmp.join("prog.c");
     let bin = tmp.join("prog_bin");
-    let emit = Command::new(repo_root().join("target/release/xb"))
+    let emit = Command::new(common::xb_bin())
         .args(["--emit-c"])
         .arg(src)
         .output()
         .expect("emit");
     std::fs::write(&c_file, &emit.stdout).unwrap();
-    let cc = Command::new("cc")
+    let cc = Command::new(common::cc::cc())
         .args([
             "-O0",
             "-Wno-incompatible-pointer-types",
@@ -90,7 +92,7 @@ fn xbsourcelib_interp_matches_compiled() {
 #[test]
 fn xbsourcelib_ary_compiles_clean() {
     let root = repo_root();
-    let xb = root.join("target/release/xb");
+    let xb = common::xb_bin();
     let tmp = std::env::temp_dir().join("xbsrclib_ary");
     let _ = std::fs::create_dir_all(&tmp);
     for prog in ["XBSourceLib/ary/ary.x", "XBSourceLib/ary/ary1.0001.x"] {
@@ -102,7 +104,7 @@ fn xbsourcelib_ary_compiles_clean() {
             .expect("emit");
         let c_file = tmp.join("prog.c");
         std::fs::write(&c_file, &emit.stdout).unwrap();
-        let cc = Command::new("cc")
+        let cc = Command::new(common::cc::cc())
             .args(["-O0", "-w", "-c"])
             .arg(&c_file)
             .arg("-o")

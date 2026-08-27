@@ -14,6 +14,32 @@ pub fn exe_path(base: &Path) -> PathBuf {
     }
 }
 
+/// Locate the `xb` CLI binary for integration tests, respecting Cargo's
+/// `CARGO_BIN_EXE_xb` when available and falling back to the workspace's
+/// `target/release` / `target/debug` builds. This lets `cargo test` pass
+/// without a prior `cargo build --release`.
+pub fn xb_bin() -> PathBuf {
+    if let Ok(p) = std::env::var("CARGO_BIN_EXE_xb") {
+        return PathBuf::from(p);
+    }
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let ws_root = manifest_dir.parent().and_then(|p| p.parent()).unwrap();
+    let mut cands = Vec::new();
+    for base in ["target/release/xb", "target/debug/xb"] {
+        let mut p = ws_root.join(base);
+        if cfg!(windows) {
+            p.set_extension("exe");
+        }
+        cands.push(p);
+    }
+    for cand in &cands {
+        if cand.exists() {
+            return cand.clone();
+        }
+    }
+    cands.into_iter().next().unwrap()
+}
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use xb_compiler::{
