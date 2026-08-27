@@ -27,3 +27,11 @@ fi
 TOTAL=$(grep -oE "[0-9]+ passed" "$OUT" | grep -oE "[0-9]+" | awk "{s+=\$1} END {print s}")
 echo "=== ALL PASS ($TOTAL tests across $(grep -c 'test result:' "$OUT") binaries) ==="
 rm -f "$OUT"
+
+echo "=== core libs (link-core-libs.sh) ==="
+rm -rf /tmp/xblib-validate
+if ! checks/link-core-libs.sh /tmp/xblib-validate 2>&1 | tee /tmp/xblib-validate.log | tail -n 20; then
+    echo "link-core-libs.sh FAILED (see /tmp/xblib-validate.log)"
+    exit 1
+fi
+echo "=== core libs OK (15/15, smoke 7 Version\$) ==="

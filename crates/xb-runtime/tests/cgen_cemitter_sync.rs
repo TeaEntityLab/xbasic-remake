@@ -294,6 +294,15 @@ fn cemitter_and_cgen_agree_on_positive_corpus() {
 /// Compile-only: runnable parity for the curated subset lives in
 /// `cgen_demo_regression`, and full runnable parity vs the interpreter is
 /// `demo_parity`'s job on the CEmitter side.
+/// NOTE: Kittedy and qbtoxb require post-emit string patches (found-array
+/// dual-use `xb_str_found`→`xb_var_found`/`_arr`/`_ub_found_arr` + scalar
+/// `found` injection for Selection/Redo/Undo/DoMove/FindMove, and
+/// TranslateStatement forward-decl fix) applied in this harness — see
+/// `// Fix Kittedy ...` block below. These are workarounds for cgen.x
+/// codegen bugs (heuristic scan mis-classifies integer `found` as string
+/// dual-use; empty-function forward-decl missed), not test fixtures.
+/// Future CGEN-FACET-MANIFEST work should remove them (see
+/// review-synthesis-legacy-lib-port-2026-08-28.md RC-R10).
 #[test]
 fn cgen_x_compiles_all_demos_cc_clean() {
     let tmp = std::env::temp_dir().join("xb_sync_cgen_demo_cc");
@@ -460,6 +469,10 @@ fn docs_headline_claims_are_recorded_at_named_surfaces() {
             &d17,
             "**GTK/helpsrc remain\n> parse/lower-only.**",
         ),
+        ("docs/17", &d17, "LICENSE-BOUNDARY"),
+        ("docs/17", &d17, "ATTACH-IMPL"),
+        ("docs/17", &d17, "CGEN-X-LIB-COMPILE"),
+        ("docs/17", &d17, "SHELL-CAPABILITY"),
     ] {
         assert!(
             text.contains(needle),
