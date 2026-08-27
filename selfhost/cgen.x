@@ -160,8 +160,9 @@ PRINT "#ifndef _WIN32"
 PRINT "#include <fcntl.h>"
 PRINT "#include <unistd.h>"
 PRINT "#endif"
-PRINT "static char* xb_alloc(size_t n) { char* p = (char*)malloc(sizeof(size_t) + n + 1); *(size_t*)p = n; char* d = p + sizeof(size_t); d[n] = 0; return d; }"
-PRINT "static int xb_len(const char* s) { if (!s) return 0; return (int)*((size_t*)s - 1); }"
+PRINT "static char* xb_alloc(size_t n) { size_t* p = (size_t*)malloc(2*sizeof(size_t) + n + 1); p[0] = n; p[1] = n; char* d = (char*)(p + 2); d[n] = 0; return d; }"
+PRINT "static int xb_len(const char* s) { if (!s) return 0; return (int)((size_t*)s)[-2]; }"
+PRINT "static size_t xb_cap(const char* s) { if (!s) return 0; return ((size_t*)s)[-1]; }"
 PRINT "static char* xb_from_cstr(const char* s) { size_t n = strlen(s); char* d = xb_alloc(n); memcpy(d, s, n); return d; }"
 PRINT "static char* xb_strdup(const char* s) { int n = xb_len(s); char* d = xb_alloc((size_t)n); memcpy(d, s, (size_t)n); return d; }"
 PRINT "static char* xb_str(const char* s) { return xb_from_cstr(s); }"
@@ -170,6 +171,29 @@ PRINT "    int la = xb_len(a), lb = xb_len(b);"
 PRINT "    char* r = xb_alloc((size_t)(la + lb));"
 PRINT "    memcpy(r, a, (size_t)la);"
 PRINT "    memcpy(r + la, b, (size_t)lb);"
+PRINT "    return r;"
+PRINT "}"
+PRINT "static char* xb_append(char* a, const char* b) {"
+PRINT "    if (!a) return xb_strdup(b);"
+PRINT "    int la = xb_len(a), lb = xb_len(b);"
+PRINT "    size_t new_len = (size_t)la + (size_t)lb;"
+PRINT "    size_t cap = xb_cap(a);"
+PRINT "    if (new_len <= cap) {"
+PRINT "        ((size_t*)a)[-2] = new_len;"
+PRINT "        memcpy(a + la, b, (size_t)lb);"
+PRINT "        a[new_len] = 0;"
+PRINT "        return a;"
+PRINT "    }"
+PRINT "    size_t new_cap = new_len;"
+PRINT "    if (la > 4096) { size_t want = (size_t)la * 2; if (want > new_cap) new_cap = want; }"
+PRINT "    size_t* pa = (size_t*)a - 2;"
+PRINT "    size_t* new_p = (size_t*)realloc(pa, 2*sizeof(size_t) + new_cap + 1);"
+PRINT "    if (!new_p) { char* r = xb_alloc(new_len); memcpy(r, a, (size_t)la); memcpy(r + la, b, (size_t)lb); return r; }"
+PRINT "    new_p[0] = new_len;"
+PRINT "    new_p[1] = new_cap;"
+PRINT "    char* r = (char*)(new_p + 2);"
+PRINT "    memcpy(r + la, b, (size_t)lb);"
+PRINT "    r[new_len] = 0;"
 PRINT "    return r;"
 PRINT "}"
 PRINT "static int xb_asc(const char* s) { return (unsigned char)s[0]; }"
@@ -3588,9 +3612,9 @@ FUNCTION emit_params$(params$)
   DIM i
   DIM j
   DIM pCount
-  DIM pNames$[32]
-  DIM pTypes$[32]
-  DIM pIsStr[32]
+  DIM pNames$[128]
+  DIM pTypes$[128]
+  DIM pIsStr[128]
   DIM isDup
   DIM baseName$
   ' First pass: parse all parameters into arrays for dup detection
@@ -4604,6 +4628,10 @@ FUNCTION scan_dyn$(s$)
   DIM cch
   DIM cdepth
   DIM ncomma
+  DIM q
+  DIM qp
+  DIM qLe
+  DIM qLn$
   sc$ = ""
   res$ = ""
   p = 1
@@ -4635,22 +4663,31 @@ FUNCTION scan_dyn$(s$)
   ' splitter's string-literal blind spot (CGEN-ARGSPLIT-STRLIT).
   nSym$ = "symbol" + CHR$(40)
   nBy$ = "byref" + CHR$(40)
-  p = INSTR(s$, nSym$)
-  WHILE p > 0
-    before$ = ""
-    IF p > 6 THEN
-      before$ = MID$(s$, p - 6, 6)
+  q = 1
+  WHILE q <= LEN(s$)
+    qLe = INSTR(s$, CHR$(10), q)
+    IF qLe = 0 THEN
+      qLe = LEN(s$) + 1
     END IF
-    IF before$ <> nBy$ THEN
-      le = INSTR(MID$(s$, p + 7, LEN(s$) - p - 6), ":")
-      IF le > 0 THEN
-        nm$ = MID$(s$, p + 7, le - 1)
-        IF INSTR(sc$, ":" + nm$ + ":") = 0 THEN
-          sc$ = sc$ + ":" + nm$ + ":"
+    qLn$ = MID$(s$, q, qLe - q)
+    q = qLe + 1
+    qp = INSTR(qLn$, nSym$)
+    WHILE qp > 0
+      before$ = ""
+      IF qp > 6 THEN
+        before$ = MID$(qLn$, qp - 6, 6)
+      END IF
+      IF before$ <> nBy$ THEN
+        cp = INSTR(qLn$, ":", qp + 7)
+        IF cp > 0 THEN
+          nm$ = MID$(qLn$, qp + 7, cp - qp - 7)
+          IF INSTR(sc$, ":" + nm$ + ":") = 0 THEN
+            sc$ = sc$ + ":" + nm$ + ":"
+          END IF
         END IF
       END IF
-    END IF
-    p = INSTR(s$, nSym$, p + 7)
+      qp = INSTR(qLn$, nSym$, qp + 7)
+    WEND
   WEND
   ' Also treat SWAP operands as scalar context: `swap X:type Y:type` uses both
   ' X and Y as scalars. A name DIM'd as an array AND swapped (adatadim) becomes
@@ -5122,9 +5159,9 @@ FUNCTION scan_undimmed$(s$)
   nAsn$ = "array_assign "
   p = INSTR(s$, nAcc$)
   WHILE p > 0
-    e = INSTR(MID$(s$, p + 13, LEN(s$) - p - 12), ":")
+    e = INSTR(s$, ":", p + 13)
     IF e > 0 THEN
-      nm$ = MID$(s$, p + 13, e - 1)
+      nm$ = MID$(s$, p + 13, e - p - 13)
       IF INSTR(ad$, ":" + nm$ + ":") = 0 THEN
         IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
           res$ = res$ + ":" + nm$ + ":"
@@ -5135,9 +5172,9 @@ FUNCTION scan_undimmed$(s$)
   WEND
   p = INSTR(s$, nAsn$)
   WHILE p > 0
-    e = INSTR(MID$(s$, p + 13, LEN(s$) - p - 12), ":")
+    e = INSTR(s$, ":", p + 13)
     IF e > 0 THEN
-      nm$ = MID$(s$, p + 13, e - 1)
+      nm$ = MID$(s$, p + 13, e - p - 13)
       IF INSTR(ad$, ":" + nm$ + ":") = 0 THEN
         IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
           res$ = res$ + ":" + nm$ + ":"
@@ -5149,9 +5186,9 @@ FUNCTION scan_undimmed$(s$)
   nAcc$ = "array_ubound" + CHR$(40)
   p = INSTR(s$, nAcc$)
   WHILE p > 0
-    e = INSTR(MID$(s$, p + 13, LEN(s$) - p - 12), ":")
+    e = INSTR(s$, ":", p + 13)
     IF e > 0 THEN
-      nm$ = MID$(s$, p + 13, e - 1)
+      nm$ = MID$(s$, p + 13, e - p - 13)
       IF INSTR(ad$, ":" + nm$ + ":") = 0 THEN
         IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
           res$ = res$ + ":" + nm$ + ":"

@@ -4,6 +4,52 @@ use crate::c_emit_helpers::emit_c_function_name;
 use crate::c_emit_select::emit_body;
 use crate::ir::{IrExpr, IrItem, IrSymbol};
 use crate::ValueType;
+fn collect_append_chain<'a>(target: &IrSymbol, expr: &'a IrExpr) -> Option<Vec<&'a IrExpr>> {
+    if expr.value_type != ValueType::String {
+        return None;
+    }
+    let mut parts = Vec::new();
+    let mut cur = expr;
+    loop {
+        match &cur.kind {
+            crate::ir::IrExprKind::Arithmetic { op: crate::checked::ArithmeticOp::Add, left, right } if cur.value_type == ValueType::String => {
+                if expr_aliases_target(target, right) {
+                    return None;
+                }
+                parts.push(right.as_ref());
+                cur = left.as_ref();
+            }
+            crate::ir::IrExprKind::Symbol(sym) if sym.name == target.name && sym.value_type == target.value_type => {
+                if parts.is_empty() {
+                    return None;
+                }
+                parts.reverse();
+                return Some(parts);
+            }
+            _ => return None,
+        }
+    }
+}
+fn expr_aliases_target(target: &IrSymbol, expr: &IrExpr) -> bool {
+    match &expr.kind {
+        crate::ir::IrExprKind::Symbol(sym) => sym.name == target.name && sym.value_type == target.value_type,
+        crate::ir::IrExprKind::SharedVariable(sym) => sym.name == target.name && sym.value_type == target.value_type,
+        crate::ir::IrExprKind::Arithmetic { left, right, .. } => expr_aliases_target(target, left) || expr_aliases_target(target, right),
+        crate::ir::IrExprKind::Comparison { left, right, .. } => expr_aliases_target(target, left) || expr_aliases_target(target, right),
+        crate::ir::IrExprKind::Boolean { left, right, .. } => expr_aliases_target(target, left) || expr_aliases_target(target, right),
+        crate::ir::IrExprKind::Logical { left, right, .. } => expr_aliases_target(target, left) || expr_aliases_target(target, right),
+        crate::ir::IrExprKind::FunctionCall { args, .. } => args.iter().any(|a| expr_aliases_target(target, a)),
+        crate::ir::IrExprKind::ArrayAccess { symbol, index, extra_indices } => {
+            (symbol.name == target.name && symbol.value_type == target.value_type)
+                || expr_aliases_target(target, index)
+                || extra_indices.iter().any(|i| expr_aliases_target(target, i))
+        }
+        crate::ir::IrExprKind::ByRef(inner) => expr_aliases_target(target, inner),
+        crate::ir::IrExprKind::Unary { operand, .. } => expr_aliases_target(target, operand),
+        crate::ir::IrExprKind::Not(inner) => expr_aliases_target(target, inner),
+        _ => false,
+    }
+}
 pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
     let ind = "    ".repeat(indent);
     match item {
@@ -226,11 +272,53 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             }
         }
         IrItem::Assignment { target, value } => {
-            out.push_str(&ind);
-            emit_var_name(target, out);
-            out.push_str(" = ");
-            emit_expr(value, out);
-            out.push_str(";\n");
+            if let Some(chain) = collect_append_chain(target, value) {
+                out.push_str(&ind);
+                emit_var_name(target, out);
+                out.push_str(" = ");
+                let mut expr_str = String::new();
+                expr_str.push_str("xb_append(");
+                let mut target_buf = String::new();
+                emit_var_name(target, &mut target_buf);
+                expr_str.push_str(&target_buf);
+                expr_str.push_str(", ");
+                let mut part_buf = String::new();
+                emit_expr(chain[0], &mut part_buf);
+                expr_str.push_str(&part_buf);
+                expr_str.push(')');
+                for part in chain.iter().skip(1) {
+                    let mut new_buf = String::new();
+                    new_buf.push_str("xb_append(");
+                    new_buf.push_str(&expr_str);
+                    new_buf.push_str(", ");
+                    let mut p2 = String::new();
+                    emit_expr(part, &mut p2);
+                    new_buf.push_str(&p2);
+                    new_buf.push(')');
+                    expr_str = new_buf;
+                }
+                out.push_str(&expr_str);
+                out.push_str(";\n");
+            } else {
+                out.push_str(&ind);
+                emit_var_name(target, out);
+                out.push_str(" = ");
+                // String Symbol copy must be deep (xb_strdup), not shallow pointer share,
+                // otherwise xb_append's free/realloc will dangle aliases (xgr abort).
+                if target.value_type == ValueType::String {
+                    match &value.kind {
+                        crate::ir::IrExprKind::Symbol(_) | crate::ir::IrExprKind::SharedVariable(_) => {
+                            out.push_str("xb_strdup(");
+                            emit_expr(value, out);
+                            out.push_str(")");
+                        }
+                        _ => emit_expr(value, out),
+                    }
+                } else {
+                    emit_expr(value, out);
+                }
+                out.push_str(";\n");
+            }
         }
         IrItem::ArrayAssignment {
             target,
@@ -334,12 +422,51 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         }
         IrItem::ConstantDefinition { .. } => {}
         IrItem::SharedAssignment { target, value } => {
-            out.push_str(&ind);
-            out.push_str("xb_shared_");
-            out.push_str(&crate::c_emit_expr::sanitize_c_ident(&target.name));
-            out.push_str(" = ");
-            emit_expr(value, out);
-            out.push_str(";\n");
+            if let Some(chain) = collect_append_chain(target, value) {
+                out.push_str(&ind);
+                out.push_str("xb_shared_");
+                out.push_str(&crate::c_emit_expr::sanitize_c_ident(&target.name));
+                out.push_str(" = ");
+                let mut expr_str = String::new();
+                expr_str.push_str("xb_append(xb_shared_");
+                expr_str.push_str(&crate::c_emit_expr::sanitize_c_ident(&target.name));
+                expr_str.push_str(", ");
+                let mut part_buf = String::new();
+                emit_expr(chain[0], &mut part_buf);
+                expr_str.push_str(&part_buf);
+                expr_str.push(')');
+                for part in chain.iter().skip(1) {
+                    let mut new_buf = String::new();
+                    new_buf.push_str("xb_append(");
+                    new_buf.push_str(&expr_str);
+                    new_buf.push_str(", ");
+                    let mut p2 = String::new();
+                    emit_expr(part, &mut p2);
+                    new_buf.push_str(&p2);
+                    new_buf.push(')');
+                    expr_str = new_buf;
+                }
+                out.push_str(&expr_str);
+                out.push_str(";\n");
+            } else {
+                out.push_str(&ind);
+                out.push_str("xb_shared_");
+                out.push_str(&crate::c_emit_expr::sanitize_c_ident(&target.name));
+                out.push_str(" = ");
+                if target.value_type == ValueType::String {
+                    match &value.kind {
+                        crate::ir::IrExprKind::Symbol(_) | crate::ir::IrExprKind::SharedVariable(_) => {
+                            out.push_str("xb_strdup(");
+                            emit_expr(value, out);
+                            out.push_str(")");
+                        }
+                        _ => emit_expr(value, out),
+                    }
+                } else {
+                    emit_expr(value, out);
+                }
+                out.push_str(";\n");
+            }
         }
         IrItem::If {
             condition,

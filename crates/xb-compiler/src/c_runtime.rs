@@ -11,10 +11,14 @@ pub(crate) fn emit_header(out: &mut String) {
     // Byte-strings: a string is a char* to its data with a size_t length in an 8-byte
     // header before the data (xb_len reads it) + a trailing NUL for legacy C-lib interop.
     // This makes CHR$(0)/embedded/high bytes byte-accurate through len/concat/print/compare.
-    out.push_str("static char* xb_alloc(size_t n) { char* p = (char*)malloc(sizeof(size_t) + n + 1); *(size_t*)p = n; char* d = p + sizeof(size_t); d[n] = 0; return d; }\n");
+    // Byte-strings: a string is a char* to its data with TWO size_t header words
+    // before the data: [0]=length (xb_len), [1]=capacity (for xb_append doubling).
+    // This makes CHR$(0)/embedded/high bytes byte-accurate and gives O(1) amortized append.
+    out.push_str("static char* xb_alloc(size_t n) { size_t* p = (size_t*)malloc(2*sizeof(size_t) + n + 1); p[0] = n; p[1] = n; char* d = (char*)(p + 2); d[n] = 0; return d; }\n");
     out.push_str(
-        "static int xb_len(const char* s) { if (!s) return 0; return (int)*((size_t*)s - 1); }\n",
+        "static int xb_len(const char* s) { if (!s) return 0; return (int)((size_t*)s)[-2]; }\n",
     );
+    out.push_str("static size_t xb_cap(const char* s) { if (!s) return 0; return ((size_t*)s)[-1]; }\n");
     out.push_str("static char* xb_from_cstr(const char* s) { size_t n = strlen(s); char* d = xb_alloc(n); memcpy(d, s, n); return d; }\n");
     out.push_str("static char* xb_strdup(const char* s) { int n = xb_len(s); char* d = xb_alloc((size_t)n); memcpy(d, s, (size_t)n); return d; }\n");
     out.push_str("static char* xb_str(const char* s) { return xb_from_cstr(s); }\n");
@@ -23,6 +27,29 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    char* r = xb_alloc((size_t)(la + lb));\n");
     out.push_str("    memcpy(r, a, (size_t)la);\n");
     out.push_str("    memcpy(r + la, b, (size_t)lb);\n");
+    out.push_str("    return r;\n");
+    out.push_str("}\n");
+    out.push_str("static char* xb_append(char* a, const char* b) {\n");
+    out.push_str("    if (!a) return xb_strdup(b);\n");
+    out.push_str("    int la = xb_len(a), lb = xb_len(b);\n");
+    out.push_str("    size_t new_len = (size_t)la + (size_t)lb;\n");
+    out.push_str("    size_t cap = xb_cap(a);\n");
+    out.push_str("    if (new_len <= cap) {\n");
+    out.push_str("        ((size_t*)a)[-2] = new_len;\n");
+    out.push_str("        memcpy(a + la, b, (size_t)lb);\n");
+    out.push_str("        a[new_len] = 0;\n");
+    out.push_str("        return a;\n");
+    out.push_str("    }\n");
+    out.push_str("    size_t new_cap = new_len;\n");
+    out.push_str("    if (la > 4096) { size_t want = (size_t)la * 2; if (want > new_cap) new_cap = want; }\n");
+    out.push_str("    size_t* pa = (size_t*)a - 2;\n");
+    out.push_str("    size_t* new_p = (size_t*)realloc(pa, 2*sizeof(size_t) + new_cap + 1);\n");
+    out.push_str("    if (!new_p) { char* r = xb_alloc(new_len); memcpy(r, a, (size_t)la); memcpy(r + la, b, (size_t)lb); return r; }\n");
+    out.push_str("    new_p[0] = new_len;\n");
+    out.push_str("    new_p[1] = new_cap;\n");
+    out.push_str("    char* r = (char*)(new_p + 2);\n");
+    out.push_str("    memcpy(r + la, b, (size_t)lb);\n");
+    out.push_str("    r[new_len] = 0;\n");
     out.push_str("    return r;\n");
     out.push_str("}\n");
     out.push_str("static int xb_asc(const char* s) { return (unsigned char)s[0]; }\n");
