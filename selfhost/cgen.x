@@ -2706,16 +2706,24 @@ FUNCTION emit_expr$(e$)
       DIM instrI
       DIM instrCommas
       DIM instrCh
+      DIM instrInQuote
       instrDepth = 0
       instrCommas = 0
+      instrInQuote = 0
       FOR instrI = 1 TO LEN(args$)
         instrCh = ASC(MID$(args$, instrI, 1))
-        IF instrCh = 40 THEN
-          instrDepth = instrDepth + 1
-        ELSEIF instrCh = 41 THEN
-          instrDepth = instrDepth - 1
-        ELSEIF instrCh = 44 AND instrDepth = 0 THEN
-          instrCommas = instrCommas + 1
+        IF instrCh = 92 AND instrInQuote = 1 THEN
+          instrI = instrI + 1
+        ELSEIF instrCh = 34 THEN
+          instrInQuote = 1 - instrInQuote
+        ELSEIF instrInQuote = 0 THEN
+          IF instrCh = 40 THEN
+            instrDepth = instrDepth + 1
+          ELSEIF instrCh = 41 THEN
+            instrDepth = instrDepth - 1
+          ELSEIF instrCh = 44 AND instrDepth = 0 THEN
+            instrCommas = instrCommas + 1
+          END IF
         END IF
       NEXT instrI
       IF instrCommas >= 2 THEN
@@ -2727,16 +2735,24 @@ FUNCTION emit_expr$(e$)
       DIM rinstrI
       DIM rinstrCommas
       DIM rinstrCh
+      DIM rinstrInQuote
       rinstrDepth = 0
       rinstrCommas = 0
+      rinstrInQuote = 0
       FOR rinstrI = 1 TO LEN(args$)
         rinstrCh = ASC(MID$(args$, rinstrI, 1))
-        IF rinstrCh = 40 THEN
-          rinstrDepth = rinstrDepth + 1
-        ELSEIF rinstrCh = 41 THEN
-          rinstrDepth = rinstrDepth - 1
-        ELSEIF rinstrCh = 44 AND rinstrDepth = 0 THEN
-          rinstrCommas = rinstrCommas + 1
+        IF rinstrCh = 92 AND rinstrInQuote = 1 THEN
+          rinstrI = rinstrI + 1
+        ELSEIF rinstrCh = 34 THEN
+          rinstrInQuote = 1 - rinstrInQuote
+        ELSEIF rinstrInQuote = 0 THEN
+          IF rinstrCh = 40 THEN
+            rinstrDepth = rinstrDepth + 1
+          ELSEIF rinstrCh = 41 THEN
+            rinstrDepth = rinstrDepth - 1
+          ELSEIF rinstrCh = 44 AND rinstrDepth = 0 THEN
+            rinstrCommas = rinstrCommas + 1
+          END IF
         END IF
       NEXT rinstrI
       IF rinstrCommas >= 2 THEN
@@ -2748,16 +2764,24 @@ FUNCTION emit_expr$(e$)
       DIM istriI
       DIM istriCommas
       DIM istriCh
+      DIM istriInQuote
       istriDepth = 0
       istriCommas = 0
+      istriInQuote = 0
       FOR istriI = 1 TO LEN(args$)
         istriCh = ASC(MID$(args$, istriI, 1))
-        IF istriCh = 40 THEN
-          istriDepth = istriDepth + 1
-        ELSEIF istriCh = 41 THEN
-          istriDepth = istriDepth - 1
-        ELSEIF istriCh = 44 AND istriDepth = 0 THEN
-          istriCommas = istriCommas + 1
+        IF istriCh = 92 AND istriInQuote = 1 THEN
+          istriI = istriI + 1
+        ELSEIF istriCh = 34 THEN
+          istriInQuote = 1 - istriInQuote
+        ELSEIF istriInQuote = 0 THEN
+          IF istriCh = 40 THEN
+            istriDepth = istriDepth + 1
+          ELSEIF istriCh = 41 THEN
+            istriDepth = istriDepth - 1
+          ELSEIF istriCh = 44 AND istriDepth = 0 THEN
+            istriCommas = istriCommas + 1
+          END IF
         END IF
       NEXT istriI
       IF istriCommas >= 2 THEN
@@ -2778,16 +2802,24 @@ FUNCTION emit_expr$(e$)
       DIM ichrI
       DIM ichrCommas
       DIM ichrCh
+      DIM ichrInQuote
       ichrDepth = 0
       ichrCommas = 0
+      ichrInQuote = 0
       FOR ichrI = 1 TO LEN(args$)
         ichrCh = ASC(MID$(args$, ichrI, 1))
-        IF ichrCh = 40 THEN
-          ichrDepth = ichrDepth + 1
-        ELSEIF ichrCh = 41 THEN
-          ichrDepth = ichrDepth - 1
-        ELSEIF ichrCh = 44 AND ichrDepth = 0 THEN
-          ichrCommas = ichrCommas + 1
+        IF ichrCh = 92 AND ichrInQuote = 1 THEN
+          ichrI = ichrI + 1
+        ELSEIF ichrCh = 34 THEN
+          ichrInQuote = 1 - ichrInQuote
+        ELSEIF ichrInQuote = 0 THEN
+          IF ichrCh = 40 THEN
+            ichrDepth = ichrDepth + 1
+          ELSEIF ichrCh = 41 THEN
+            ichrDepth = ichrDepth - 1
+          ELSEIF ichrCh = 44 AND ichrDepth = 0 THEN
+            ichrCommas = ichrCommas + 1
+          END IF
         END IF
       NEXT ichrI
       IF ichrCommas >= 2 THEN

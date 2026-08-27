@@ -321,13 +321,12 @@ impl Parser {
         self.expect_keyword(Keyword::Dim)?;
         // `DIM SHARED x[...]` - the classic BASIC shared-storage form. The bare
         // `SHARED x[...]` statement form is handled by shared_static_stmt.
-        let shared_kw = matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Shared));
-        if shared_kw {
+        let shared = matches!(self.peek_kind(), TokenKind::Keyword(Keyword::Shared));
+        if shared {
             self.index += 1;
         }
         let mut dims = Vec::new();
         loop {
-            let is_shared_name = matches!(self.peek_kind(), TokenKind::SharedName(_));
             let (name, suffix) = Self::shared_name_suffix(self.expect_name_or_keyword()?);
             let (size, is_array, extra_dims) = self.parse_array_size()?;
             dims.push(Statement::Dim {
@@ -337,7 +336,7 @@ impl Parser {
                 extra_dims,
                 is_array,
                 redim: false,
-                shared: shared_kw || is_shared_name,
+                shared,
             });
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
