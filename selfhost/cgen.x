@@ -6111,14 +6111,21 @@ FUNCTION emit_stmt$(s$)
           _ub$ = "xb_ub_" + _du$ + "_arr"
           ' Single-sized-DIM dual arrays are FIXED-NATIVE (Rust: memset +
           ' fill loop, sizeof UBOUND); multi-DIM'd ones stay calloc-dyn.
-          IF INSTR(##dynStr$, ":" + varName$ + ":") = 0 AND INSTR(##byrefStrArr$, ":" + varName$ + ":") = 0 THEN
+          ' Byref/array-param duals must not use the VLA path — they need heap
+          ' (xst: XstGetExecutionPathArray @path$[] with DIM path$[colon] was
+          ' emitting char* _arr[(colon)+1] shadowing the char** param).
+          IF INSTR(##dynStr$, ":" + varName$ + ":") = 0 AND INSTR(##byrefStrArr$, ":" + varName$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) = 0 THEN
             emit_stmt$ = "    char* " + _an$ + "[(" + emit_expr$(arrSize$) + ") + 1]; memset(" + _an$ + ", 0, sizeof(" + _an$ + "));" + CHR$(10) + "    for (int _i = 0; _i < (" + emit_expr$(arrSize$) + ") + 1; _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
             RETURN emit_stmt$
           END IF
           IF INSTR(arrSize$, ",") > 0 THEN
             emit_stmt$ = "    " + _ub$ + " = " + emit_mtotal$(arrSize$) + " - 1; " + _an$ + " = calloc((size_t)(" + _ub$ + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= " + _ub$ + "; _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
           ELSE
-            emit_stmt$ = "    " + _an$ + " = calloc((size_t)((" + emit_expr$(arrSize$) + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + emit_expr$(arrSize$) + "); _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + _ub$ + " = (" + emit_expr$(arrSize$) + ");"
+            IF INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
+              emit_stmt$ = "    " + _an$ + " = calloc((size_t)((" + emit_expr$(arrSize$) + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + emit_expr$(arrSize$) + "); _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
+            ELSE
+              emit_stmt$ = "    " + _an$ + " = calloc((size_t)((" + emit_expr$(arrSize$) + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + emit_expr$(arrSize$) + "); _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + _ub$ + " = (" + emit_expr$(arrSize$) + ");"
+            END IF
           END IF
           RETURN emit_stmt$
         END IF
