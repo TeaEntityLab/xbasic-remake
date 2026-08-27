@@ -723,8 +723,6 @@ WEND
 IF LEN(##facetTab$) > 0 THEN
   fDyn$ = ""
   fDual$ = ""
-  fStrDual$ = ""
-  fAllStr$ = ""
   fArr2d$ = ""
   fPos2 = 1
   WHILE fPos2 <= LEN(##facetTab$)
@@ -770,22 +768,6 @@ IF LEN(##facetTab$) > 0 THEN
             IF INSTR(fDual$, ":" + fNm2$ + ":") = 0 THEN
               fDual$ = fDual$ + ":" + fNm2$ + ":"
             END IF
-            IF fType$ = "string" THEN
-              IF INSTR(fStrDual$, ":" + fNm2$ + ":") = 0 THEN
-                fStrDual$ = fStrDual$ + ":" + fNm2$ + ":"
-              END IF
-            END IF
-          END IF
-        END IF
-        IF fType$ = "string" THEN
-          fSpRank = INSTR(fRest2$, " rank=")
-          IF fSpRank > 0 THEN
-            fRank$ = MID$(fRest2$, fSpRank + 6, 1)
-            IF VAL(fRank$) >= 1 THEN
-              IF INSTR(fAllStr$, ":" + fNm2$ + ":") = 0 THEN
-                fAllStr$ = fAllStr$ + ":" + fNm2$ + ":"
-              END IF
-            END IF
           END IF
         END IF
       END IF
@@ -793,8 +775,6 @@ IF LEN(##facetTab$) > 0 THEN
   WEND
   ##dynNames$ = fDyn$
   ##dualUse$ = fDual$
-  ##strDual$ = fStrDual$
-  ##allStrArr$ = fAllStr$
   ##arr2d$ = fArr2d$
 END IF
 ' CG-BYTES: string arrays whose UBOUND is read (array_ubound(X:string))
