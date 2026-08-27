@@ -215,6 +215,20 @@ impl Analyzer {
                 name: name.to_owned(),
             });
         }
+        if self.constants.contains_key(name) {
+            if !self.permissive {
+                return Err(SemanticError::DuplicateConstant {
+                    name: name.to_owned(),
+                });
+            } else {
+                self.constants.insert(name.to_owned(), value.to_owned());
+                return Ok(CheckedItem::ConstantDefinition {
+                    name: name.to_owned(),
+                    value: value.to_owned(),
+                    value_type: ValueType::Integer,
+                });
+            }
+        }
         match self.constants.insert(name.to_owned(), value.to_owned()) {
             Some(_) => Err(SemanticError::DuplicateConstant {
                 name: name.to_owned(),

@@ -359,6 +359,7 @@ impl Parser {
                 // composite TYPE name). The param name may be an identifier or a
                 // keyword (e.g. 'data').
                 let mut type_name: Option<String> = None;
+                let mut qualifier_suffix: Option<TypeSuffix> = None;
                 if matches!(self.peek_kind(), TokenKind::Identifier { .. })
                     || matches!(self.peek_kind(), TokenKind::Keyword(Keyword::FuncAddr))
                 {
@@ -379,6 +380,15 @@ impl Parser {
                         // the analyzer can flatten the param into member slots.
                         if self.composite_types.contains(&c) {
                             type_name = Some(c);
+                        } else {
+                            let upper = c.to_ascii_uppercase();
+                            qualifier_suffix = match upper.as_str() {
+                                "STRING" => Some(TypeSuffix::String),
+                                "SINGLE" | "FLOAT" => Some(TypeSuffix::Single),
+                                "DOUBLE" => Some(TypeSuffix::Double),
+                                "GIANT" => Some(TypeSuffix::Giant),
+                                _ => None,
+                            };
                         }
                     }
                 }
@@ -399,14 +409,15 @@ impl Parser {
                     }
                     self.expect_symbol(']')?;
                 }
+                let effective_suffix = suffix.or(qualifier_suffix);
                 let name = if is_array {
-                    full_name(name, suffix)
+                    full_name(name, effective_suffix)
                 } else {
                     name
                 };
                 params.push(Param {
                     name,
-                    suffix,
+                    suffix: effective_suffix,
                     type_name,
                     by_ref,
                     is_array,

@@ -57,10 +57,24 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             }
         }
         IrExprKind::FloatLiteral(v) => {
-            out.push_str(v);
+            let lower = v.to_ascii_lowercase();
+            if lower == "nan" || lower == "-nan" {
+                out.push_str(v.strip_prefix('-').map_or("NAN", |_| "-NAN"));
+            } else if lower == "inf" || lower == "-inf" || lower == "infinity" || lower == "-infinity" {
+                out.push_str(if v.starts_with('-') { "-INFINITY" } else { "INFINITY" });
+            } else {
+                out.push_str(v);
+            }
         }
         IrExprKind::Constant { value, .. } => {
-            out.push_str(value);
+            let lower = value.to_ascii_lowercase();
+            if lower == "nan" || lower == "-nan" {
+                out.push_str(value.strip_prefix('-').map_or("NAN", |_| "-NAN"));
+            } else if lower == "inf" || lower == "-inf" || lower == "infinity" || lower == "-infinity" {
+                out.push_str(if value.starts_with('-') { "-INFINITY" } else { "INFINITY" });
+            } else {
+                out.push_str(value);
+            }
         }
         IrExprKind::SharedVariable(s) => {
             out.push_str("xb_shared_");
