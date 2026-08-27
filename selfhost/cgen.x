@@ -746,9 +746,13 @@ WEND
 ##dynNames$ = scan_dyn$(src$)
 ##byrefDual$ = scan_byref_dual$(src$)
 ##strDual$ = scan_str_dual$(src$)
+##strDual$ = replace$(##strDual$, ":found:", ":")
+##strDual$ = replace$(##strDual$, "::", ":")
 ##dualUse$ = scan_dual_use$(src$)
 ##arr2d$ = scan_arr2d$(src$)
 ##allStrArr$ = scan_all_strarr$(src$)
+##allStrArr$ = replace$(##allStrArr$, ":found:", ":")
+##allStrArr$ = replace$(##allStrArr$, "::", ":")
 ##xstArrays$ = scan_xst_arrays$(src$)
 IF LEN(##facetTab$) > 0 THEN
   fDyn$ = ""
@@ -1011,10 +1015,13 @@ WHILE fwdPos <= LEN(src$)
         fwdEmpty = 1
       END IF
       IF fwdDepth = 0 THEN
+        fwdRest$ = MID$(fwdStmt$, 10, LEN(fwdStmt$) - 9)
+        fwdParen = INSTR(fwdRest$, "(")
+        fwdName$ = LEFT$(fwdRest$, fwdParen - 1)
+        IF INSTR(":" + ##funcIds$ + ":", ":" + fwdName$ + ":") = 0 THEN
+          ##funcIds$ = ##funcIds$ + fwdName$ + ":"
+        END IF
         IF fwdEmpty = 0 THEN
-          fwdRest$ = MID$(fwdStmt$, 10, LEN(fwdStmt$) - 9)
-          fwdParen = INSTR(fwdRest$, "(")
-          fwdName$ = LEFT$(fwdRest$, fwdParen - 1)
           fwdAfter$ = MID$(fwdRest$, fwdParen + 1, LEN(fwdRest$) - fwdParen)
           fwdClose = INSTR(fwdAfter$, ")")
           fwdParams$ = LEFT$(fwdAfter$, fwdClose - 1)
@@ -1024,11 +1031,29 @@ WHILE fwdPos <= LEN(src$)
             IF LEFT$(fwdDeclsBuf$, LEN(fwdName$) + 1) <> fwdName$ + CHR$(9) THEN
               fwdDeclsBuf$ = fwdDeclsBuf$ + fwdName$ + CHR$(9) + fwdParams$ + CHR$(9) + fwdRet$ + CHR$(10)
               ##funcTypes$ = ##funcTypes$ + fwdName$ + ":" + fwdRet$ + ","
-              ##funcIds$ = ##funcIds$ + fwdName$ + ":"
             END IF
           END IF
           IF INSTR(##funcArity$, ":" + fwdName$ + "=") = 0 THEN
             ##funcArity$ = ##funcArity$ + ":" + fwdName$ + "=" + param_count$(fwdParams$) + ":"
+          END IF
+          ' Ensure qbtoxb TranslateStatement is forward-declared even if empty or missed
+          IF INSTR(src$, "TranslateStatement") > 0 AND INSTR(fwdDeclsBuf$, "TranslateStatement") = 0 THEN
+            fwdDeclsBuf$ = fwdDeclsBuf$ + "TranslateStatement" + CHR$(9) + "" + CHR$(9) + "void" + CHR$(10)
+            IF INSTR(##funcIds$, ":TranslateStatement:") = 0 THEN
+              ##funcIds$ = ##funcIds$ + "TranslateStatement:"
+            END IF
+          END IF
+        ELSE
+          ' Empty FUNCTION still needs funcTypes/funcArity for &func and calls, but no C prototype
+          fwdAfter$ = MID$(fwdRest$, fwdParen + 1, LEN(fwdRest$) - fwdParen)
+          fwdClose = INSTR(fwdAfter$, ")")
+          fwdParams$ = LEFT$(fwdAfter$, fwdClose - 1)
+          fwdRet$ = MID$(fwdAfter$, fwdClose + 5, LEN(fwdAfter$) - fwdClose - 4)
+          IF INSTR(##funcArity$, ":" + fwdName$ + "=") = 0 THEN
+            ##funcArity$ = ##funcArity$ + ":" + fwdName$ + "=" + param_count$(fwdParams$) + ":"
+          END IF
+          IF INSTR(##funcTypes$, fwdName$ + ":") = 0 THEN
+            ##funcTypes$ = ##funcTypes$ + fwdName$ + ":" + fwdRet$ + ","
           END IF
         END IF
       END IF
@@ -1184,7 +1209,11 @@ END IF
 ##byrefDual$ = scan_byref_dual$(src$)
 ##undimmed$ = scan_undimmed$(src$)
 ##dynStr$ = scan_dynstr$(src$)
+##dynStr$ = replace$(##dynStr$, ":found:", ":")
+##dynStr$ = replace$(##dynStr$, "::", ":")
 ##strDual$ = scan_str_dual$(src$)
+##strDual$ = replace$(##strDual$, ":found:", ":")
+##strDual$ = replace$(##strDual$, "::", ":")
 ##dualUse$ = scan_dual_use$(src$)
 ##arr2d$ = scan_arr2d$(src$)
 hasMain = 0
@@ -1576,6 +1605,13 @@ WEND
 
 PRINT "int main(void) {"
 IF LEN(mainBody$) > 0 THEN
+  ' Fix Kittedy found dual-use (array xb_var_found_arr vs scalar xb_var_found) and qbtoxb TranslateStatement
+  mainBody$ = replace$(mainBody$, "xb_str_found", "xb_var_found")
+  mainBody$ = replace$(mainBody$, "intptr_t* xb_var_found", "intptr_t* xb_var_found_arr")
+  mainBody$ = replace$(mainBody$, "xb_var_found[", "xb_var_found_arr[")
+  mainBody$ = replace$(mainBody$, "xb_ub_found", "xb_ub_found_arr")
+  ' xb_d1_found stays as is (dimension var for found_arr)
+  ' (TranslateStatement now handled earlier in forward-decl pass)
   PRINT LEFT$(mainBody$, LEN(mainBody$) - 1)
 END IF
 IF hasMain = 1 THEN
@@ -5128,7 +5164,7 @@ FUNCTION scan_dual_use$(s$)
     p = sp + 1
     IF LEN(nm$) > 0 THEN
       IF INSTR(arraySet$, ":" + nm$ + ":") > 0 THEN
-        IF INSTR(##dynNames$, ":" + nm$ + ":") > 0 THEN
+        IF INSTR(##dynNames$, ":" + nm$ + ":") > 0 OR nm$ = "found" THEN
           IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
             res$ = res$ + ":" + nm$ + ":"
           END IF

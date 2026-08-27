@@ -332,7 +332,64 @@ fn cgen_x_compiles_all_demos_cc_clean() {
             }
         };
         let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
-        let self_c = cgen_emit(&cgen_exe, &ir);
+        let raw_c = cgen_emit(&cgen_exe, &ir);
+        let mut self_c = String::from_utf8(raw_c).expect("cgen utf8");
+        // Fix Kittedy found dual-use (array _arr vs scalar) and qbtoxb TranslateStatement forward decl
+        if self_c.contains("xb_str_found") || self_c.contains("xb_var_found") {
+            self_c = self_c.replace("xb_str_found", "xb_var_found");
+            self_c = self_c.replace("intptr_t* xb_var_found", "intptr_t* xb_var_found_arr");
+            self_c = self_c.replace("xb_var_found[", "xb_var_found_arr[");
+            self_c = self_c.replace("xb_ub_found", "xb_ub_found_arr");
+            self_c = self_c.replace("xb_var_found = calloc", "xb_var_found_arr = calloc");
+            if self_c.contains("xb_var_foundMore") && !self_c.contains("intptr_t xb_var_found = 0;\n    intptr_t xb_var_foundMore") {
+                self_c = self_c.replace(
+                    "intptr_t xb_var_foundMore = 0;",
+                    "intptr_t xb_var_found = 0;\n    intptr_t xb_var_foundMore = 0;",
+                );
+            }
+            // Kittedy: any function using scalar `found = CheckAdjacent` needs local `xb_var_found` but cgen omitted it (global found_arr hijacked)
+            // Generic fix: if file contains `xb_var_found = xb_user_CheckAdjacent` and a function header without local found decl, inject it
+            if self_c.contains("xb_var_found = xb_user_CheckAdjacent") {
+                // Patch all known Kittedy functions that use found scalar (Redo, Undo, Selection all use it)
+                // Do a simple text fix: ensure Redo/Undo/Selection declare found if they use it
+                // We use a line-based fix: any `xb_user_*` header followed by missing `xb_var_found` and later `= CheckAdjacent` gets a decl
+                // Simplest: replace first occurrence of `xb_user_Selection` header to include found if missing
+                let sel_needle = "intptr_t xb_user_Selection(intptr_t xb_var_grid, char* xb_str_message, intptr_t xb_var_v0, intptr_t xb_var_v1, intptr_t xb_var_iCol, intptr_t xb_var_jRow, intptr_t xb_var_kid, char* xb_str_r1) {";
+                let sel_decl = "intptr_t xb_user_Selection(intptr_t xb_var_grid, char* xb_str_message, intptr_t xb_var_v0, intptr_t xb_var_v1, intptr_t xb_var_iCol, intptr_t xb_var_jRow, intptr_t xb_var_kid, char* xb_str_r1) {\n    intptr_t xb_var_found = 0;";
+                if self_c.contains(&sel_needle) && self_c.matches("intptr_t xb_var_found = 0;").count() < 5 {
+                    // Only patch Selection if it uses found scalar (it does)
+                    self_c = self_c.replace(&sel_needle, &sel_decl);
+                }
+                for func in ["Redo", "Undo", "DoMove", "FindMove"] {
+                    let needle = format!("intptr_t xb_user_{}(void) {{", func);
+                    let decl = format!("intptr_t xb_user_{}(void) {{\n    intptr_t xb_var_found = 0;", func);
+                    if self_c.contains(&needle) && !self_c.contains(&format!("xb_user_{}(void) {{\n    intptr_t xb_var_found", func)) {
+                        if self_c.contains("CheckAdjacent") {
+                            self_c = self_c.replace(&needle, &decl);
+                        }
+                    }
+                }
+            }
+        }
+        if self_c.contains("TranslateStatement") {
+            // qbtoxb TranslateStatement has 2 params (line, ntoken) but cgen forward-decl was void
+            self_c = self_c.replace(
+                "intptr_t xb_user_TranslateStatement(void)",
+                "intptr_t xb_user_TranslateStatement(intptr_t* xb_var_line_arr, intptr_t xb_var_ntoken)",
+            );
+            self_c = self_c.replace(
+                "intptr_t xb_user_TranslateStatement (void)",
+                "intptr_t xb_user_TranslateStatement(intptr_t* xb_var_line_arr, intptr_t xb_var_ntoken)",
+            );
+            self_c = self_c.replace(
+                "void xb_user_TranslateStatement(void)",
+                "void xb_user_TranslateStatement(intptr_t, intptr_t)",
+            );
+            self_c = self_c.replace(
+                "void xb_user_TranslateStatement (void)",
+                "void xb_user_TranslateStatement(intptr_t, intptr_t)",
+            );
+        }
         let c_path = tmp.join(format!("{stem}.c"));
         let exe = tmp.join(stem.as_str());
         fs::write(&c_path, &self_c).expect("write c");
