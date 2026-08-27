@@ -1182,7 +1182,7 @@ WHILE pos <= LEN(src$)
         ' inside the parent (placed after the parent body, guarded from fall-through)
         ' and hoist its locals into the parent's shared C scope. Byte-neutral on the
         ' selfhost tools, which nest no functions.
-        inNest = 1
+        inNest = inNest + 1
         ##nestFns$ = ##nestFns$ + "," + nfName$
         nestBlocks$ = nestBlocks$ + "xb_label_" + nfName$ + ":" + CHR$(10)
         nfAfter$ = MID$(rest$, parenPos + 1, LEN(rest$) - parenPos)
@@ -1238,9 +1238,9 @@ WHILE pos <= LEN(src$)
         END IF
       END IF
     ELSEIF stmt$ = "end function" THEN
-      IF inNest = 1 THEN
+      IF inNest > 0 THEN
         nestBlocks$ = nestBlocks$ + "    if (xb_gosub_sp > xb_gosub_base) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;" + CHR$(10)
-        inNest = 0
+        inNest = inNest - 1
       ELSE
         inFunc = 0
         ##inFuncScope = 0
@@ -1320,7 +1320,7 @@ WHILE pos <= LEN(src$)
             END IF
           END IF
         END IF
-        IF inNest = 1 THEN
+        IF inNest > 0 THEN
           usedSyms$ = scan_used$(stmt$, usedSyms$)
           IF LEFT$(stmt$, 4) = "dim " THEN
             dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
