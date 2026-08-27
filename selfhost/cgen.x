@@ -90,6 +90,9 @@ DIM fSpType
 DIM fSpRank
 DIM fSpDual
 
+DIM t_src
+DIM t_main
+t_src = TIMER
 src$ = ""
 WHILE EOF() = 0
   line$ = READLINE$()
@@ -99,6 +102,8 @@ WHILE EOF() = 0
     src$ = src$ + line$
   END IF
 WEND
+PRINT "/*src read:" + STR$(TIMER - t_src) + "*/"
+t_main = TIMER
 DIM verStr$
 verStr$ = ""
 DIM vLine$
@@ -1223,15 +1228,12 @@ nestBlocks$ = ""
 mainBody$ = ""
 pos = 1
 WHILE pos <= LEN(src$)
-  line$ = ""
-  WHILE pos <= LEN(src$)
-    ch = ASC(MID$(src$, pos, 1))
-    pos = pos + 1
-    IF ch = 10 THEN
-      EXIT WHILE
-    END IF
-    line$ = line$ + CHR$(ch)
-  WEND
+  le = INSTR(src$, CHR$(10), pos)
+  IF le = 0 THEN
+    le = LEN(src$) + 1
+  END IF
+  line$ = MID$(src$, pos, le - pos)
+  pos = le + 1
 
   j = 1
   WHILE j <= LEN(line$)
@@ -5336,9 +5338,10 @@ FUNCTION scan_undimmed$(s$)
   DIM e
   DIM nAcc$
   DIM nAsn$
+  DIM t0
+  t0 = TIMER
   ad$ = ""
   res$ = ""
-  p = 1
   WHILE p <= LEN(s$)
     le = INSTR(s$, CHR$(10), p)
     IF le = 0 THEN
@@ -5409,6 +5412,7 @@ FUNCTION scan_undimmed$(s$)
       q = INSTR(ln$, "array_ubound" + CHR$(40), q + 13)
     WEND
   WEND
+  PRINT "/*scan_undimmed:" + STR$(TIMER - t0) + "*/"
   scan_undimmed$ = res$
 END FUNCTION
 
