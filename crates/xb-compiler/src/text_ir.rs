@@ -153,7 +153,7 @@ impl TextIrEmitter {
                     let is_shared = *shared;
                     let storage = if is_shared {
                         "shared".to_string()
-                    } else if dyn_names.arrays.contains_key(&symbol.name) {
+                    } else if dyn_names.arrays.contains_key(&symbol.name) || dual_use.contains(&symbol.name) {
                         "dyn".to_string()
                     } else {
                         "fixed".to_string()
