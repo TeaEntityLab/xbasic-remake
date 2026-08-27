@@ -173,6 +173,20 @@ fn set_defined_funcs(program: &IrProgram) {
         let mut m = s.borrow_mut();
         m.clear();
         collect_shared_arrays(&program.items, &mut m);
+        // System shared arrays (ARCH-02): ##ARGV$[], ##ENVP$[], ##REG[] are
+        // runtime-provided but never DIM'd with SHARED. If the program references
+        // them, seed them as shared so they get a file-scope heap global rather
+        // than folding to defaults. Only seed if referenced to keep symbol count
+        // stable for programs that don't use them.
+        for (sys_name, sys_vt) in [
+            ("ARGV$", crate::ValueType::String),
+            ("ENVP$", crate::ValueType::String),
+            ("REG", crate::ValueType::Integer),
+        ] {
+            if !m.contains_key(sys_name) && program_references_array(sys_name, &program.items) {
+                m.insert(sys_name.to_string(), sys_vt);
+            }
+        }
         // Dual-use SHARED arrays stay heap globals (xit `lineLast[255]` /
         // `funcAfterAddr[255]`). Dropping them emitted a per-function
         // `intptr_t` stack/scalar plus `calloc` into that scalar. The sized
@@ -260,6 +274,128 @@ fn collect_shared_arrays(items: &[IrItem], out: &mut HashMap<String, crate::Valu
             IrItem::Compound(items) => collect_shared_arrays(items, out),
             _ => {}
         }
+    }
+}
+/// True if `name` is referenced as an array (ArrayAccess/ArrayUBound/SizeOf)
+/// anywhere in `items` (including nested function bodies). Used to seed
+/// system shared arrays like `ARGV$` that are never `Dim SHARED` but are
+/// accessed as `##ARGV$[]`.
+fn program_references_array(name: &str, items: &[IrItem]) -> bool {
+    for item in items {
+        if item_references_array(name, item) {
+            return true;
+        }
+        match item {
+            IrItem::Function { body, .. } => {
+                if program_references_array(name, body) {
+                    return true;
+                }
+            }
+            IrItem::If {
+                then_body,
+                else_body,
+                ..
+            } => {
+                if program_references_array(name, then_body) {
+                    return true;
+                }
+                if let Some(eb) = else_body {
+                    if program_references_array(name, eb) {
+                        return true;
+                    }
+                }
+            }
+            IrItem::While { body, .. }
+            | IrItem::For { body, .. }
+            | IrItem::DoLoop { body, .. } => {
+                if program_references_array(name, body) {
+                    return true;
+                }
+            }
+            IrItem::SelectCase { cases, default, .. } => {
+                for c in cases {
+                    if program_references_array(name, &c.body) {
+                        return true;
+                    }
+                }
+                if let Some(d) = default {
+                    if program_references_array(name, d) {
+                        return true;
+                    }
+                }
+            }
+            IrItem::Compound(inner) => {
+                if program_references_array(name, inner) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+fn expr_references_array(name: &str, expr: &crate::ir::IrExpr) -> bool {
+    match &expr.kind {
+        crate::ir::IrExprKind::ArrayAccess { symbol, .. }
+        | crate::ir::IrExprKind::ArrayUBound { symbol }
+        | crate::ir::IrExprKind::SizeOf { symbol } => symbol.name == name,
+        crate::ir::IrExprKind::FunctionCall { args, .. } => {
+            args.iter().any(|a| expr_references_array(name, a))
+        }
+        crate::ir::IrExprKind::Comparison { left, right, .. } => {
+            expr_references_array(name, left) || expr_references_array(name, right)
+        }
+        crate::ir::IrExprKind::Arithmetic { left, right, .. } => {
+            expr_references_array(name, left) || expr_references_array(name, right)
+        }
+        crate::ir::IrExprKind::Unary { operand, .. } => expr_references_array(name, operand),
+        crate::ir::IrExprKind::Not(inner) => expr_references_array(name, inner),
+        crate::ir::IrExprKind::Boolean { left, right, .. }
+        | crate::ir::IrExprKind::Logical { left, right, .. } => {
+            expr_references_array(name, left) || expr_references_array(name, right)
+        }
+        crate::ir::IrExprKind::ByRef(inner) => expr_references_array(name, inner),
+        _ => false,
+    }
+}
+fn item_references_array(name: &str, item: &IrItem) -> bool {
+    match item {
+        IrItem::Assignment { target, value } => {
+            target.name == name || expr_references_array(name, value)
+        }
+        IrItem::ArrayAssignment {
+            target,
+            index,
+            extra_indices,
+            value,
+        } => {
+            target.name == name
+                || expr_references_array(name, index)
+                || extra_indices.iter().any(|e| expr_references_array(name, e))
+                || expr_references_array(name, value)
+        }
+        IrItem::If { condition, .. } => expr_references_array(name, condition),
+        IrItem::While { condition, .. } => expr_references_array(name, condition),
+        IrItem::For { start, end, step, .. } => {
+            expr_references_array(name, start)
+                || expr_references_array(name, end)
+                || step.as_ref().map_or(false, |s| expr_references_array(name, s))
+        }
+        IrItem::DoLoop { pre_condition, post_condition, .. } => {
+            pre_condition.as_ref().map_or(false, |(c, _)| expr_references_array(name, c))
+                || post_condition.as_ref().map_or(false, |(c, _)| expr_references_array(name, c))
+        }
+        IrItem::SelectCase { selector, .. } => expr_references_array(name, selector),
+        IrItem::Return { value } => value.as_ref().map_or(false, |v| expr_references_array(name, v)),
+        IrItem::Call { args, .. } => args.iter().any(|a| expr_references_array(name, a)),
+        IrItem::Swap { left, right } => left.name == name || right.name == name,
+        IrItem::SharedAssignment { target, value } => {
+            target.name == name || expr_references_array(name, value)
+        }
+        IrItem::BuiltinAssign { args, value, .. } => {
+            args.iter().any(|a| expr_references_array(name, a)) || expr_references_array(name, value)
+        }
+        _ => false,
     }
 }
 
