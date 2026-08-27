@@ -397,3 +397,16 @@ Four lexer/parser extensions to `selfhost/compiler.x` closed the gaps:
 4. **`##` shared with string suffix** (`##XBDir$ = "/usr/xb"`): The shared variable handler already stripped type suffixes via `strip_suffix$`, which correctly sets `##suffixType$` to `"string"` for `$` suffix. The `##` lexer already handled `##Name$` as a single token. This was already working; the mismatch was caused by the missing `$$` handler cascading parse errors into the shared statements.
 
 The 3-stage fixed point is maintained with the golden IR hash `c8d5c7f1ed32b0287c8f16cbaaf3a73d241d59ec90469046c5b6027b6197967f` (SHA-256 of `fixtures/corpus/v0.1/selfhost/compiler.ir`), matching across Rust host, compA, and compB. Re-verified 2026-08-17: `xb --emit-ir selfhost/compiler.x` hashes identically to the committed fixture; the earlier `f6e21a03…` value predates IR growth from composite/by-ref params and is superseded.
+
+## 21. Closing status at HEAD (2026-08-27)
+
+Everything above is a dated historical narrative; this section is the current
+truth. Stage 0, Stage 1, and Stage 2 native self-hosting are complete. The
+positive corpus has grown from the 19 programs of the §16 milestone to **80**,
+all emitting **byte-identical C** from the Rust CEmitter and the self-hosted
+`cgen.x` (test-locked 2026-08-27). All **114 demos** compile through the true
+`cgen.x` (test-locked), with 112 runnable matches / 2 real-I/O skips on the
+CEmitter differential. All 15 core libraries compile and link. The §6
+≤250-LOC module rule is **advisory** in `checks/verify-bootstrap.sh` (not a
+hard gate). Current open work lives in docs/17 (§0 + the 2026-08-27 panel
+ledger); generator-sync scope lives in docs/16.

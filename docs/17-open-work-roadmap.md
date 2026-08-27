@@ -8,8 +8,9 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
-> Last full re-verification: **2026-08-26**. `./checks/validate-all.sh` =
-> **274 passed / 0 failed across 33 binaries**; `cgen_cemitter_sync` = **58/58**;
+> Last full re-verification: **2026-08-27** (post-panel). `./checks/validate-all.sh`
+> = **276 passed / 0 failed across 33 binaries**; `cgen_cemitter_sync` = **60/60**
+> (now asserting corpus emitted-C byte equality + all-demo cgen.x compilation);
 > positive-corpus emitted C is **80/80 byte-identical** between the Rust CEmitter
 > and self-hosted `cgen.x`; all **114/114 demos** compile through true `cgen.x`.
 > The strict runnable differential reports **112 comparable matches / 2 real-I/O
@@ -214,7 +215,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~CGEN-AROTATE~~ | C backend | ✅ **done** (2026-08-20): `xb_bin2`/`xb_binb`/`xb_binb2` shifted a signed int (negative rotate results looped forever); unsigned shifts, mirrored in cgen.x | — | ✅ |
 | ~~CGEN-REDIM / CGEN-BYREF-REDIM~~ | C backend | ✅ **done** (2026-08-21, merge `be03117`; guide `docs/18`): full by-ref array descriptor `(T** xb_var_x_d, intptr_t* xb_ub_x)` — resize-seeded + backward-propagated closure (`collect_descriptor_params`), `emit_array_var_name` chokepoint, all emission sites (access/assign/UBOUND/SizeOf/bare-Symbol/REDIM-DIM/swap/call-site passing-consistency/param-decls), dual-use for genuinely-dual descriptor locals, content-preserving `REDIM` (realloc; `DIM` zero-all). **`xbsourcelib` now FAITHFUL** — `fgr`/`vgr`/`msc`/`ary` sort+copy for real. Verified: demo-regression 10/10, sync 5/5 (byte-identity), suite 193/0, differential 74/0. Final `qbtoxb` fix (`d13ee91`): bare descriptor Symbol reads scalar default, not data-ptr address. | ✅ unblocks XstQuickSort/XstCopyArray | ✅ |
 | ~~CGEN-ANY-PARAM~~ | C backend | ✅ **done** (2026-08-20): array params (`UBYTE gif[]`) thread `is_array` → C pointers; `*AT` memory builtins fold to the interp's 0/no-op stub (aquick faithful) | — | ✅ |
-| COMPOSITE-ARR-BYREF | frontend + all backends | `PM pm[]` composite-array decl lowers to Nop (registers name resolution only). Probed bounded fix (emit per-leaf size-None array Dims) and REVERTED: it creates a 3-way divergence class (caller-side member write without REDIM: interp drops write [empty shape], Rust-C-non-dyn writes [1]-slot = works, cgen folds) where all paths previously agreed; arecord (only corpus user) already byte-faithful via callee-REDIM + sized member DIMs. True fix needs THREE interlocking pieces: (1) consistent size-None member-dim shape contract (interp empty-drop vs C-non-dyn [1]-writable vs C-dyn NULL-crash-on-write; dyn = late/dual registry, per-function), (2) byref transfer of ALL member arrays at call time for callees writing without REDIM (ABI extension beyond dd), (3) module-scope member-dim visibility (size-None arrays not MODULE-DIM-SCOPE-hoistable). Each alone is bounded; interlock makes it a coordinated pass. Repros: /tmp/comp_min8.x (callee write no REDIM), comp_minD/E.x (caller direct write). | ary full parity (also blocked on row-pointer ABI for ATTACH) | feature |
+| COMPOSITE-ARR-BYREF | frontend + all backends | `PM pm[]` composite-array decl lowers to Nop (registers name resolution only). Probed bounded fix (emit per-leaf size-None array Dims) and REVERTED: it creates a 3-way divergence class (caller-side member write without REDIM: interp drops write [empty shape], Rust-C-non-dyn writes [1]-slot = works, cgen folds) where all paths previously agreed; arecord (only corpus user) already byte-faithful via callee-REDIM + sized member DIMs. **Panel 2026-08-27: reclassified next/design-first** — zero failing tests/demos today; contract-first requirement stands (disputed: correctness lens ranked it #1, priority lens argued defer). True fix needs THREE interlocking pieces: (1) consistent size-None member-dim shape contract (interp empty-drop vs C-non-dyn [1]-writable vs C-dyn NULL-crash-on-write; dyn = late/dual registry, per-function), (2) byref transfer of ALL member arrays at call time for callees writing without REDIM (ABI extension beyond dd), (3) module-scope member-dim visibility (size-None arrays not MODULE-DIM-SCOPE-hoistable). Each alone is bounded; interlock makes it a coordinated pass. Repros: /tmp/comp_min8.x (callee write no REDIM), comp_minD/E.x (caller direct write). | ary full parity (also blocked on row-pointer ABI for ATTACH) | feature |
 
 | ~~CGEN-COMPOSITE-ARR~~ | C backend | ✅ **done** (2026-08-20): composite member arrays hoist once (dyn pointer wins); scalar+array DIM of one name no longer double-declares (arecord/adata faithful) | — | ✅ |
 | ~~CGEN-COMPOSITE-DUAL~~ | C backend | ✅ **done** (2026-08-20, `c2e7300`): a *dual-use* name's scalar facet is declared once by `emit_hoisted_scalars`; a scalar `DIM` of it hit the plain `None` arm and re-declared it → C "redefinition". Fires for a flattened composite array member DIM'd scalar (TYPE decl `SINGLE .x`) but indexed as an array (`px3D.shape[i].x`). The scalar-DIM `None` arm now *resets* (like dyn-scalar) when `is_dual_use`. Byte-neutral (arecord/adata faithful, sync 5/5, suite 186/0); advances 5 XBSourceLib libs (fgr/mergeOut/mergeTest03/vgr/vgrOld) past the redef | XBSourceLib (5) | ✅ |
@@ -268,7 +269,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 
 **CGEN-DEMO-CC DONE** (`e09c938` + `20c956e`, 2026-08-26): all 114 demos now COMPILE CLEAN through the self-hosted cgen.x (was 12 cc-fails). Dual-use string arrays completed end-to-end: the dyn/fixed storage dispatch (multi-DIM or BYREF-passed -> calloc-dyn; single sized DIM -> fixed-native), the _arr facet naming everywhere (DIM, UBOUND cell, hoisted decls, scalar reads, byref args, SWAP via the new scalar_name$ helper, XstQuickSort/XstCopyArray via ub_ref$), the ##byrefStrArr$ scanner (byref string arrays get the dyn scheme - the callee may realloc), and the strUbDual/strDual arm exclusions. 
 
-**Next campaign decomposed (2026-08-26): DEMO-BYTES** - demo byte-identity 7/114 -> 114/114. Dominant diff classes (sampled acolors/aback/acircle): (a) usage-gated FORWARD DECLS - cgen declares xb_user_<fn> for all functions; Rust only for referenced ones (aback: extra hoisted decls too); (b) BYREF callback params - Rust emits `intptr_t *xb_var_grid_ref` pointer params for GUI callback byref params; cgen emits plain values with different names; (c) extra blank lines in cgen's prelude/function spacing. 
+**DEMO-BYTES DE-SCOPED (panel 2026-08-27)**: demo-scale emitted-C TEXT identity (was 7/114) is no longer a milestone. 114/114 demos compile through true cgen.x (now test-locked by `cgen_x_compiles_all_demos_cc_clean`) and parity is behavioral — the contract that actually governs the bootstrap. Chasing text identity in cgen.x caused the three reverted gosubDyn attempts. The real signal (cgen.x classifier fragility) is the CGEN-FACET-MANIFEST row; any future text-identity work goes through that route (frontend-emitted facet manifest), never through more text scanning. Historical diff classes, for reference: usage-gated forward decls, byref callback pointer params, prelude spacing.
 
 **gosubDyn slice ATTEMPTED + REVERTED (2026-08-26)**: Rust's has_gosub force-dyn rule (GOSUB bypasses VLAs) regressed demos 114 -> 89 cc-clean; reverted. VLAs compile on clang, so dyn is only needed for byte-identity. Prerequisites mapped for the retry: both facets hoisted (afirst's scalar null-check precedes the dim), cross-function facet decls (loop-1 needs the branch too), string _arr naming consistency, type-agnostic dedup, integer names kept out of the dynStr arm,  Second attempt (same day) reached 90/114 with the interactions partially solved (both facets in loop-1+loop-2, strDual exclusion, dynStr/dynNames arm routing, scalar facets) - the residual 24 demos need a COHERENT facet-model design, not patches: (i) name-collision classes (grid$ vs grid share bd$ suffixing; a variable literally named `string`); (ii) multi-dim type conflicts (adjacent integer+float -> _arr redefinition); (iii) the access/assign emitters still emit c_var_name$+"_arr" forms at sites not yet routed through arr_acc_name$; (iv) loop-counter names (o, i) dim'd as arrays in gosub fns + scalar-used elsewhere; (v) used$ may not include array-only-accessed names (loop-1 misses their facet decls).  Third attempt (same day) implemented the helper architecture (g_arr_name$/g_ub_name$/g_scalar_name$/g_type$/g_in$ as the single naming source, arr_acc_name$ delegating, hoist loops + dynStr/dynNames/strDual arms routed) - it FIXED the naming-consistency class (Rust's _s dual form confirmed correct via the gif/aquick oracles: xb_str_code_s_arr/xb_str_grid_s_arr) but the residual failures are the TYPE-CONFLICT class: names dim'd as BOTH integer array and string scalar (aback's user, afirst's Sub) where the per-name single-type facet table cannot serve both uses - Rust solves this because its FN_DYN is keyed by the SEMANTIC analyzer's per-symbol types, not by IR-text scanning. Conclusion: the gosubDyn slice is BLOCKED on semantic-type resolution in the scanner (the IR text does not carry enough information to disambiguate multi-type names); it requires either (a) the Rust frontend exposing per-symbol type maps to the sync harness, or (b) a much smarter cgen-side scan that tracks each name's type PER USE SITE. Parked until then. (name -> {scalar decl, arr decl, ub cell, naming scheme}) computed ONCE in the pre-scan, then have every emitter consult it - mirroring Rust's FN_DYN single-source-of-truth. cgen.x-source constraint: INSTR needles must keep parens out of string literals (the xb_instr3 comma counter lacks the string-literal blind-spot fix).
 | CG-BODY-COVER | two-C-gen sync | computed GOTO (`GotoExpr`/`GOADDRESS`, `1efe782`) + AT-write lvalue (`BuiltinAssign`, `05e9645`) ✅ **done** (2026-08-21): `cemitter_and_cgen_agree_on_{computed_goto,builtin_assign}` lock all three backends. A systematic audit of every `LEFT$(s$, N) = "lit"` dispatch in cgen.x found + fixed **2 off-by-one drops** (`goto_expr`, `builtin_assign`) — the dispatch-length bug class is now fully swept. SUBADDRESS/FUNCADDRESS/computed-GOSUB/sequential-file-IO also corpus-covered. **Remaining** (low pri): AT-deref *reads* (`XLONGAT` rvalue etc. — interp returns 0 vs C real memory, divergent by design) + file mode 2 | drift blind spot (docs/16) | ◑ partial |
@@ -282,6 +283,52 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | STAGE3-LLVM | strategic | LLVM as the *selfhost* AOT backend (C generator is today's default + bootstrap path) | stage-3 backend split (docs/13) | deferred |
 | CRANELIFT | strategic | debug backend | — | deferred |
 | ENTRY-SCAFFOLD | runtime | `entry.rs` `XxxMain` callback scaffold is not a generated-program pipeline (docs/14 §4). Assessed 2026-08-24: the Rust ABI scaffold exists + tested; wiring generated C programs through it needs a C-side `XxxMain` (crtl/xstart.c mirror) in the emitted runtime — dead code until GUI-RUNTIME provides `start_app` consumers. Sequence after GUI-RUNTIME. | exported-callback programs | deferred (sequenced) |
+
+### Panel-added open rows `[2026-08-27]`
+
+| Row | Area | What | Why / trigger |
+|---|---|---|---|
+| CGEN-FACET-MANIFEST | frontend + cgen.x | Replace cgen.x's ~30 global `##` text classifiers (47 `##` globals, 18 scanner sets, 72 multi-set predicates) with a frontend-emitted per-symbol facet manifest (name, scope, elem type, storage class, dual-use, rank) consumed deterministically | three reverted gosubDyn attempts + cross-function scope leakage; architectural prerequisite for ANY further cgen.x storage work |
+| C-BACKEND-PORTABILITY | both C generators | Emitted C relies on `$` in identifiers (cgen.x demo paths), GNU `&&label` + computed goto; MSVC (docs/13 Win64 goal) rejects all three | clang-cl mandate or identifier sanitization + switch-dispatch fallback |
+| LLVM-CI-BITROT | CI | `--features llvm` is never built in CI on any platform; local LLVM claims are machine-dependent (Homebrew llvm 22.1.8 present here) | add an LLVM CI job or scheduled check |
+| TEST-HARNESS-HARDENING | tests/checks | `demo_parity`/`xbsourcelib_parity`/`xin_sockets`/`link-core-libs.sh` hardcode `target/release/xb` and bare `cc` (ignore `$CC`) — fresh-clone `cargo test` (debug) panics | `CARGO_BIN_EXE_xb` or debug fallback; respect `$CC` |
+| NEGATIVE-CORPUS-HARNESS | frontend | no fuzz/negative-syntax harness asserting the XB-L/P/C diagnostics fire without panics | lock the diagnostic surface |
+| PACKAGING | distribution | no packaging story (xb CLI, runtime lib, headers, .dec surface) | first external consumer or post-GUI-RUNTIME |
+| INTERP-PERF-ARY | interpreter | `ary` TestAryPerformance is O(n²) name-buffer scanning (>90s interp-side) | hash-accelerated lookup; unlocks interp-side ary tests |
+| CGEN-XST-ARG-BOUNDS | cgen.x | `scan_xst_arrays$` classifies ALL args of XstQuickSort/XstCopyArray; Rust bounds descriptor promotion to positions 0–1 (`builtin_needs_descriptor`) | latent pos-2+ scalar misclassification |
+| CGEN-RETURN-VAR-HOIST-SYNC | cgen.x | non-integer return-var declaration omitted when the body never mentions the function name; Rust CEmitter always declares | emitted-C divergence class |
+| CGEN-INSTR-NEEDLES | cgen.x | ~12 scanner needles still hold literal `(` inside quoted strings (`"array_ubound("`, `"symbol("`) — false-match hazard when scanned IR contains those substrings inside string literals | sweep to CHR$(40)-built needles |
+
+### Panel review 2026-08-27 — Candidate Adoption Ledger
+
+> Six-lens adversarial review (evidence, architecture, priority, correctness,
+> reproducibility, docs) at `90283be`; **6/6 AGREE WITH CHANGES**. The one
+> factual dispute (is corpus byte-identity test-locked?) was settled by
+> coordinator inspection: it was NOT — the sync test asserted run output only.
+> Resolution: add the locks instead of weakening the docs. Consensus next-step
+> order: (1) test-lock the headline claims [LANDED with this commit],
+> (2) CGEN-FACET-MANIFEST, (3) C-BACKEND-PORTABILITY, (4) bounded LLVM parity
+> (LLVM-BYREF-REDIM + bounds checks). RT-ATTACH deferred; GUI-RUNTIME deferred
+> (platform-scale); JIT-X87 + CRANELIFT recommended **drop** (priority lens).
+
+| ID | Candidate | Status | Evidence | Next action / trigger |
+|---|---|---|---|---|
+| P1 | Corpus emitted-C byte assertion in the sync test | adopted | `cemitter_and_cgen_agree_on_positive_corpus` byte `assert_eq!` | — |
+| P2 | True-cgen.x all-demo cc-clean lock | adopted | `cgen_x_compiles_all_demos_cc_clean` | — |
+| P3 | Stale sync-test docstring fix | adopted | `cgen_cemitter_sync.rs` module doc | — |
+| P4 | Locked-vs-manual provenance wording | adopted | README bullets, docs/16 banner + CG-BYTES, docs/17 banner | guarded by `docs_headline_claims_are_recorded_at_named_surfaces` |
+| P5 | README LLVM correction (llvm 22.1.8 IS present; feature-gated) | adopted | README local-verification section | — |
+| P6 | New named roadmap rows | adopted | table above | implementation deferred per row |
+| P7 | COMPOSITE-ARR-BYREF → next/design-first | adopted | row note | revisit when a real consumer breaks or FACET-MANIFEST lands |
+| P8 | DEMO-BYTES de-scope (text identity non-goal) | adopted | this section + docs/16 CG-BYTES | re-litigate only via CGEN-FACET-MANIFEST |
+| P9 | Dedicated docs/19 for DEMO-BYTES | deferred | DocsReviewer proposal | only if DEMO-BYTES is re-scoped |
+| P10 | Archive docs/17 historical logs to docs/archive/ | deferred | supersede banners chosen instead | next major roadmap restructure |
+| P11 | docs/14 closing section (§21) | adopted | docs/14 §21 | — |
+| P12 | docs/README Roadmaps table refresh + docs/18 row | adopted | docs/README.md | — |
+| P13 | Supersede banners on stale historical sections | partial | RT-KERNEL32 §2 + DEMO-RUNTIME §4 banners added; DocsReviewer's qbtoxb ~520 citation did not exist at HEAD | — |
+| P14 | Test-harness hardening ($CC, release-bin dep) | deferred | TEST-HARNESS-HARDENING row | next harness edit |
+| P15 | LLVM CI job | deferred | LLVM-CI-BITROT row | CI capacity |
+
 
 Micro-residual documented in place: `FUNCADDRESS` (the builtin) returns `0` — no corpus
 program uses it (§2 RT-FUNCPTR).
@@ -1008,6 +1055,8 @@ slots — a distinct feature. `ary.x` still parses+lowers (MIG-CORPUS-GATE) and 
 the `xbsourcelib_smoke_libs_run_clean` clean-run set.
 
 ### RT-KERNEL32 — kernel32/stdio stubs for `acgibin` `[verified 2026-08-17]`
+
+> ⚠️ HISTORICAL — superseded 2026-08-24: RT-KERNEL32 is ✅ done (§0 row). Preserved as written.
 `acgibin.x` needs `GetStdHandle`/`ReadFile`/`WriteFile` and the handle constants
 `$$STD_INPUT_HANDLE=-10` / `$$STD_OUTPUT_HANDLE=-11`. Not implemented in the
 interpreter runtime.
@@ -1134,6 +1183,8 @@ fixed it (`You claim Rex has brown hair.`), so the non-GUI/non-platform corpus n
 ## 4. Demos / GUI
 
 ### DEMO-RUNTIME — 68/114 demos run clean `[verified 2026-08-17]`
+
+> ⚠️ HISTORICAL — superseded 2026-08-26: 114/114 compile, 112 match / 2 real-I/O skips (banner + §0). Preserved as written.
 Re-measured with `xb --run` (6 s timeout, `</dev/null`): **68 / 114**
 `xbasic-6.4.5/demo/*.x` reach a clean exit; **40** are GUI message-loop timeouts,
 **3** are GUI-init stack overflows (`agrids`, `warning`, `xgrids`), and **3** are

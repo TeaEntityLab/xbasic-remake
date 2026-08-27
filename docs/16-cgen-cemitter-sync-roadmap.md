@@ -5,12 +5,14 @@
 > Companion to [17-open-work-roadmap.md](17-open-work-roadmap.md) (the umbrella
 > "everything not done yet" list). This doc is scoped to the two C generators.
 >
-> Re-verified **2026-08-26**: `cargo test --release --test cgen_cemitter_sync`
-> = **58/58**; all **80/80** positive-corpus programs emit byte-identical C from
-> both generators; `./checks/validate-all.sh` = **274 / 0 across 33 binaries**.
-> CG-BYTES is complete for the positive corpus. Demo C-text identity is **7/114**
-> and continues as DEMO-BYTES in docs/17. CG-BODY-COVER retains only the
-> low-priority AT-read/file-mode blind spots below.
+> Re-verified **2026-08-27** (panel review): the positive-corpus sync test now
+> **asserts emitted-C byte equality per program** (`assert_eq!` in
+> `cemitter_and_cgen_agree_on_positive_corpus`), and a new
+> `cgen_x_compiles_all_demos_cc_clean` locks all-demo compilation through the
+> TRUE cgen.x. CG-BYTES is complete for the positive corpus. Demo-scale C-text
+> identity is DE-SCOPED (docs/17 CGEN-FACET-MANIFEST is the only sanctioned
+> route). CG-BODY-COVER retains only the low-priority AT-read/file-mode blind
+> spots below.
 
 ## 1. Why this exists
 
@@ -41,8 +43,10 @@ That drift was real and undetected until this roadmap's tests were added — see
   `parser.x`, and `cgen.x`, both generators' executables agree with each other
   **and** with the Rust interpreter on the tool's own input.
 
-Sync is asserted on observable native behavior. The positive corpus additionally
-locks emitted C byte-for-byte; demo-scale emitted-C identity remains 7/114.
+Sync is asserted on observable native behavior, and the positive-corpus test
+additionally asserts the two generators' emitted C byte-for-byte per program
+(added 2026-08-27 — previously session-verified only). Demo-scale emitted-C
+identity is de-scoped; see docs/17 CGEN-FACET-MANIFEST.
 
 Run: `cargo test -p xb-runtime --test cgen_cemitter_sync`
 
@@ -88,10 +92,11 @@ All **80/80** programs in `fixtures/corpus/v0.1/positive` now emit byte-identica
 C from the Rust CEmitter and self-hosted `cgen.x`. The sync suite locks this
 contract alongside behavioral parity and helper signatures.
 
-The broader demo surface is not text-identical: **7/114** demos currently match
-byte-for-byte. Remaining classes include usage-gated forward declarations,
-by-ref callback parameter forms, dynamic/facet hoisting, and spacing. That work
-is tracked as DEMO-BYTES in docs/17; it does not weaken the completed corpus lock.
+The broader demo surface is not text-identical (~7/114 at last measurement) and
+**demo text identity is a non-goal** (panel 2026-08-27): behavioral parity plus
+the corpus byte lock are the governing contracts. The residual signal — cgen.x's
+fragile global classifiers — is tracked as CGEN-FACET-MANIFEST in docs/17; any
+future text-identity work goes through that route, never more text scanning.
 
 ### CG-BODY-COVER — computed GOTO + AT-write lvalue closed; AT-deref reads + file-mode-2 remain (low priority)
 Behavioral coverage of the addr-of / control-flow builtins is now substantial: the

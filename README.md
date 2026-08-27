@@ -29,6 +29,10 @@ cargo check --workspace --exclude xb-ide
 cargo test --workspace --exclude xb-ide
 ```
 
+Note: several integration suites (demo parity, multi-lib link, sockets) invoke a
+prebuilt `target/release/xb`; run `cargo build --release` first, or use
+`./checks/validate-all.sh`, which builds and runs the whole release suite.
+
 IDE stack check, requires Rust compatible with egui/eframe 0.36.1:
 
 ```sh
@@ -41,15 +45,15 @@ LLVM backend check, requires LLVM 22 in `PATH` or `LLVM_SYS_221_PREFIX`:
 cargo check -p xb-compiler --features llvm
 ```
 
-On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` is 1.97.1 after update. The IDE feature requires Rust ≥1.95 and was checked with explicit rustup cargo/rustc. LLVM 22 is not installed (`llvm@21` is present), so the LLVM backend is intentionally feature-gated off by default.
+On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` is 1.97.1 after update. The IDE feature requires Rust ≥1.95 and was checked with explicit rustup cargo/rustc. Homebrew `llvm` is **22.1.8** (`/opt/homebrew/opt/llvm`); the LLVM backend builds and tests with `LLVM_SYS_221_PREFIX=/opt/homebrew/opt/llvm` but stays feature-gated off by default — `./checks/validate-all.sh` covers default features only (no `--features llvm`, no CI LLVM job yet; see docs/17 LLVM-CI-BITROT).
 
 ## Verified capabilities (2026-08-26)
 
 - **All 15 core libraries compile cc-clean** (`xbasic-6.4.5/src/{shared,linux}/*.x`)
 - **All 15 link into one working binary** — `checks/link-core-libs.sh`
-- **114/114 demo programs** emit + compile through both the Rust CEmitter and self-hosted `cgen.x`
-- **80/80 positive-corpus programs** emit byte-identical C from both C generators
+- **114/114 demo programs** compile through the Rust CEmitter (`demo_parity`: 112 match / 2 real-I/O skips) and through the true self-hosted `cgen.x` (`cgen_x_compiles_all_demos_cc_clean`)
+- **80/80 positive-corpus programs** emit byte-identical C (locked by `cgen_cemitter_sync`)
 - **Byte access `{}`** on string scalars and array elements
 - **INC/DEC + SWAP subscripts** on indexed/composite targets
-- **274 tests across 33 binaries**, 0 failures (`./checks/validate-all.sh`)
+- **276 tests across 33 binaries**, 0 failures (`./checks/validate-all.sh`)
 - Self-hosting: compiler.x → cgen.x → native C generator (bootstrap fixed point held)

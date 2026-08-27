@@ -12,11 +12,12 @@
 //! a test if some corpus program happens to exercise it. These tests close that
 //! gap by requiring both generators to agree, program-for-program.
 //!
-//! Sync is asserted on OBSERVABLE BEHAVIOR (native run output), not on the
-//! emitted C text: the two generators' fixed runtime *preludes* are not yet
-//! byte-identical (helper ordering/formatting and parameter names differ —
-//! tracked in `docs/16-cgen-cemitter-sync-roadmap.md`, item CG-BYTES). Output
-//! equivalence is the contract that actually governs a correct bootstrap.
+//! Sync is asserted on OBSERVABLE BEHAVIOR (native run output) for every test,
+//! and — since CG-BYTES completed (docs/16) — the positive corpus additionally
+//! asserts the two generators' emitted C is BYTE-IDENTICAL per program
+//! (`cemitter_and_cgen_agree_on_positive_corpus`). Demo-scale C-text identity
+//! is intentionally NOT asserted (de-scoped 2026-08-27; docs/17
+//! CGEN-FACET-MANIFEST tracks the architectural route).
 
 mod common;
 
@@ -262,6 +263,14 @@ fn cemitter_and_cgen_agree_on_positive_corpus() {
         let self_c = cgen_emit(&cgen_exe, &ir);
         let self_out = compile_and_exec(&tmp, &format!("{stem}_self"), &self_c, input_ref);
 
+        // CG-BYTES (docs/16): the two generators emit byte-identical C for the
+        // whole positive corpus — lock the text itself, not just the behavior.
+        assert_eq!(
+            rust_c.as_bytes(),
+            &self_c[..],
+            "CG-BYTES BREAK: emitted C text differs for {stem}"
+        );
+
         assert_eq!(
             rust_out, golden,
             "CEmitter-built {stem} output differs from golden .out"
@@ -276,6 +285,107 @@ fn cemitter_and_cgen_agree_on_positive_corpus() {
         );
     }
     let _ = fs::remove_dir_all(&tmp);
+}
+
+/// CGEN-DEMO-CC (docs/17): every demo compiles clean through the TRUE
+/// self-hosted cgen.x (not the Rust CEmitter — `demo_parity` covers that).
+/// This was previously verified only by manual session sweeps; a cgen.x
+/// regression could drop demos without failing any test (panel 2026-08-27).
+/// Compile-only: runnable parity for the curated subset lives in
+/// `cgen_demo_regression`, and full runnable parity vs the interpreter is
+/// `demo_parity`'s job on the CEmitter side.
+#[test]
+fn cgen_x_compiles_all_demos_cc_clean() {
+    let tmp = std::env::temp_dir().join("xb_sync_cgen_demo_cc");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+    let demo_dir = root().join("xbasic-6.4.5/demo");
+
+    let mut stems: Vec<String> = Vec::new();
+    for entry in fs::read_dir(&demo_dir).expect("read_dir demos") {
+        let path = entry.expect("dir entry").path();
+        if path.extension().and_then(|e| e.to_str()) == Some("x") {
+            stems.push(path.file_stem().unwrap().to_str().unwrap().to_string());
+        }
+    }
+    stems.sort();
+    assert!(
+        stems.len() >= 100,
+        "expected the full demo corpus (>=100), found {}",
+        stems.len()
+    );
+
+    let mut failures: Vec<String> = Vec::new();
+    for stem in &stems {
+        let src = fs::read_to_string(demo_dir.join(format!("{stem}.x"))).expect("read demo");
+        let prog = match FrontendUnit::parse(&src) {
+            Ok(u) => match u.lower_ir() {
+                Ok(p) => p,
+                Err(e) => {
+                    failures.push(format!("{stem}: lower failed: {e:?}"));
+                    continue;
+                }
+            },
+            Err(e) => {
+                failures.push(format!("{stem}: parse failed: {e:?}"));
+                continue;
+            }
+        };
+        let ir = TextIrEmitter::new().emit_program(&prog);
+        let self_c = cgen_emit(&cgen_exe, &ir);
+        let c_path = tmp.join(format!("{stem}.c"));
+        let exe = tmp.join(stem.as_str());
+        fs::write(&c_path, &self_c).expect("write c");
+        let cc = Command::new(common::cc::cc())
+            .args([
+                "-O0",
+                "-w",
+                "-Werror=implicit-function-declaration",
+                "-Wno-incompatible-pointer-types",
+                "-Wno-int-conversion",
+                "-o",
+                exe.to_str().unwrap(),
+                c_path.to_str().unwrap(),
+            ])
+            .output()
+            .expect("run cc");
+        if !cc.status.success() {
+            let err = String::from_utf8_lossy(&cc.stderr);
+            let first = err.lines().next().unwrap_or("");
+            failures.push(format!("{stem}: cc failed: {first}"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "cgen.x demo cc regression ({}): {:?}",
+        failures.len(),
+        failures
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// Panel 2026-08-27 adoption guard: the load-bearing verification claims must
+/// stay recorded at their named doc surfaces in the adopted wording, so a doc
+/// edit cannot silently reintroduce the locked-vs-manual ambiguity this suite
+/// resolves. (Candidate Adoption Ledger: docs/17.)
+#[test]
+fn docs_headline_claims_are_recorded_at_named_surfaces() {
+    let readme = fs::read_to_string(root().join("README.md")).expect("read README");
+    let d16 = fs::read_to_string(root().join("docs/16-cgen-cemitter-sync-roadmap.md"))
+        .expect("read docs/16");
+    let d17 =
+        fs::read_to_string(root().join("docs/17-open-work-roadmap.md")).expect("read docs/17");
+    for (surface, text, needle) in [
+        ("README.md", &readme, "emit byte-identical C (locked by `cgen_cemitter_sync`)"),
+        ("README.md", &readme, "self-hosted `cgen.x` (`cgen_x_compiles_all_demos_cc_clean`)"),
+        ("docs/16", &d16, "identity are **locked by tests**"),
+        ("docs/17", &d17, "Candidate Adoption Ledger"),
+    ] {
+        assert!(
+            text.contains(needle),
+            "{surface} lost the adopted wording: {needle:?}"
+        );
+    }
 }
 
 /// CGEN-NDIM: rank-3 *flat-storage* array access/assignment must flatten

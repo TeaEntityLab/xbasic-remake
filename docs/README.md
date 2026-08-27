@@ -49,8 +49,9 @@ Living roadmaps of open work (updated as work lands, not fixed chapters):
 
 | Doc | Covers |
 |---|---|
-| [16 — cgen ↔ CEmitter Sync Roadmap](16-cgen-cemitter-sync-roadmap.md) | Keeping the Rust `CEmitter` and self-hosted `cgen.x` in sync: behavioral sync locked by tests, plus open items (address helpers `int`→`intptr_t`, `xb_open` file mode 2, byte-identical prelude) |
-| [17 — Open-Work Roadmap](17-open-work-roadmap.md) | Umbrella "everything not done yet": LLVM object emission + LLVM 22 toolchain/CI, x87 JIT, `Vec<u8>` byte strings, kernel32/function-pointer runtime, legacy corpus test gating, demo/GUI status |
+| [16 — cgen ↔ CEmitter Sync Roadmap](16-cgen-cemitter-sync-roadmap.md) | Keeping the Rust `CEmitter` and self-hosted `cgen.x` in sync: behavioral sync + positive-corpus emitted-C byte identity, both locked by tests |
+| [17 — Open-Work Roadmap](17-open-work-roadmap.md) | Umbrella "everything not done yet": open rows, panel adoption ledger, demo/GUI status, historical session logs |
+| [18 — By-ref Array ABI](18-byref-array-abi.md) | ✅ Landed implementation guide for the `(T** data, intptr_t* ub)` descriptor ABI (`XstQuickSort`/`XstCopyArray`) |
 
 ## The big picture
 
