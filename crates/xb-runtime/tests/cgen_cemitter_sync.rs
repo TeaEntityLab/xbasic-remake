@@ -331,7 +331,7 @@ fn cgen_x_compiles_all_demos_cc_clean() {
                 continue;
             }
         };
-        let ir = TextIrEmitter::new().emit_program(&prog);
+        let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
         let self_c = cgen_emit(&cgen_exe, &ir);
         let c_path = tmp.join(format!("{stem}.c"));
         let exe = tmp.join(stem.as_str());
