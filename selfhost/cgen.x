@@ -5361,45 +5361,53 @@ FUNCTION scan_undimmed$(s$)
   WEND
   nAcc$ = "array_access" + CHR$(40)
   nAsn$ = "array_assign "
-  p = INSTR(s$, nAcc$)
-  WHILE p > 0
-    e = INSTR(s$, ":", p + 13)
-    IF e > 0 THEN
-      nm$ = MID$(s$, p + 13, e - p - 13)
-      IF INSTR(ad$, ":" + nm$ + ":") = 0 THEN
-        IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
-          res$ = res$ + ":" + nm$ + ":"
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = MID$(s$, p, le - p)
+    p = le + 1
+    q = INSTR(ln$, nAcc$)
+    WHILE q > 0
+      e = INSTR(ln$, ":", q + 13)
+      IF e > 0 THEN
+        nm$ = MID$(ln$, q + 13, e - q - 13)
+        IF INSTR(ad$, ":" + nm$ + ":") = 0 THEN
+          IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+            res$ = res$ + ":" + nm$ + ":"
+          END IF
         END IF
       END IF
-    END IF
-    p = INSTR(s$, nAcc$, p + 13)
-  WEND
-  p = INSTR(s$, nAsn$)
-  WHILE p > 0
-    e = INSTR(s$, ":", p + 13)
-    IF e > 0 THEN
-      nm$ = MID$(s$, p + 13, e - p - 13)
-      IF INSTR(ad$, ":" + nm$ + ":") = 0 THEN
-        IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
-          res$ = res$ + ":" + nm$ + ":"
+      q = INSTR(ln$, nAcc$, q + 13)
+    WEND
+    q = INSTR(ln$, nAsn$)
+    WHILE q > 0
+      e = INSTR(ln$, ":", q + 13)
+      IF e > 0 THEN
+        nm$ = MID$(ln$, q + 13, e - q - 13)
+        IF INSTR(ad$, ":" + nm$ + ":") = 0 THEN
+          IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+            res$ = res$ + ":" + nm$ + ":"
+          END IF
         END IF
       END IF
-    END IF
-    p = INSTR(s$, nAsn$, p + 13)
-  WEND
-  nAcc$ = "array_ubound" + CHR$(40)
-  p = INSTR(s$, nAcc$)
-  WHILE p > 0
-    e = INSTR(s$, ":", p + 13)
-    IF e > 0 THEN
-      nm$ = MID$(s$, p + 13, e - p - 13)
-      IF INSTR(ad$, ":" + nm$ + ":") = 0 THEN
-        IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
-          res$ = res$ + ":" + nm$ + ":"
+      q = INSTR(ln$, nAsn$, q + 13)
+    WEND
+    q = INSTR(ln$, "array_ubound" + CHR$(40))
+    WHILE q > 0
+      e = INSTR(ln$, ":", q + 13)
+      IF e > 0 THEN
+        nm$ = MID$(ln$, q + 13, e - q - 13)
+        IF INSTR(ad$, ":" + nm$ + ":") = 0 THEN
+          IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+            res$ = res$ + ":" + nm$ + ":"
+          END IF
         END IF
       END IF
-    END IF
-    p = INSTR(s$, nAcc$, p + 13)
+      q = INSTR(ln$, "array_ubound" + CHR$(40), q + 13)
+    WEND
   WEND
   scan_undimmed$ = res$
 END FUNCTION
