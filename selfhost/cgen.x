@@ -74,6 +74,16 @@ DIM fNm2$
 DIM fRest2$
 DIM fSp2
 DIM fStor2$
+DIM fDual$
+DIM fStrDual$
+DIM fAllStr$
+DIM fArr2d$
+DIM fType$
+DIM fRank$
+DIM fDualFlag$
+DIM fSpType
+DIM fSpRank
+DIM fSpDual
 
 src$ = ""
 WHILE EOF() = 0
@@ -712,6 +722,10 @@ WEND
 ##xstArrays$ = scan_xst_arrays$(src$)
 IF LEN(##facetTab$) > 0 THEN
   fDyn$ = ""
+  fDual$ = ""
+  fStrDual$ = ""
+  fAllStr$ = ""
+  fArr2d$ = ""
   fPos2 = 1
   WHILE fPos2 <= LEN(##facetTab$)
     fLe2 = INSTR(##facetTab$, CHR$(10), fPos2)
@@ -725,6 +739,12 @@ IF LEN(##facetTab$) > 0 THEN
       IF fCp2 > 0 THEN
         fNm2$ = LEFT$(fLn2$, fCp2 - 1)
         fRest2$ = MID$(fLn2$, fCp2 + 1, LEN(fLn2$) - fCp2)
+        fSpType = INSTR(fRest2$, " ")
+        IF fSpType > 0 THEN
+          fType$ = LEFT$(fRest2$, fSpType - 1)
+        ELSE
+          fType$ = fRest2$
+        END IF
         fSp2 = INSTR(fRest2$, " storage=")
         IF fSp2 > 0 THEN
           fStor2$ = MID$(fRest2$, fSp2 + 9, 3)
@@ -734,10 +754,48 @@ IF LEN(##facetTab$) > 0 THEN
             END IF
           END IF
         END IF
+        fSpRank = INSTR(fRest2$, " rank=")
+        IF fSpRank > 0 THEN
+          fRank$ = MID$(fRest2$, fSpRank + 6, 1)
+          IF VAL(fRank$) >= 2 THEN
+            IF INSTR(fArr2d$, ":" + fNm2$ + ":") = 0 THEN
+              fArr2d$ = fArr2d$ + ":" + fNm2$ + ":"
+            END IF
+          END IF
+        END IF
+        fSpDual = INSTR(fRest2$, " dual=")
+        IF fSpDual > 0 THEN
+          fDualFlag$ = MID$(fRest2$, fSpDual + 6, 1)
+          IF fDualFlag$ = "1" THEN
+            IF INSTR(fDual$, ":" + fNm2$ + ":") = 0 THEN
+              fDual$ = fDual$ + ":" + fNm2$ + ":"
+            END IF
+            IF fType$ = "string" THEN
+              IF INSTR(fStrDual$, ":" + fNm2$ + ":") = 0 THEN
+                fStrDual$ = fStrDual$ + ":" + fNm2$ + ":"
+              END IF
+            END IF
+          END IF
+        END IF
+        IF fType$ = "string" THEN
+          fSpRank = INSTR(fRest2$, " rank=")
+          IF fSpRank > 0 THEN
+            fRank$ = MID$(fRest2$, fSpRank + 6, 1)
+            IF VAL(fRank$) >= 1 THEN
+              IF INSTR(fAllStr$, ":" + fNm2$ + ":") = 0 THEN
+                fAllStr$ = fAllStr$ + ":" + fNm2$ + ":"
+              END IF
+            END IF
+          END IF
+        END IF
       END IF
     END IF
   WEND
   ##dynNames$ = fDyn$
+  ##dualUse$ = fDual$
+  ##strDual$ = fStrDual$
+  ##allStrArr$ = fAllStr$
+  ##arr2d$ = fArr2d$
 END IF
 ' CG-BYTES: string arrays whose UBOUND is read (array_ubound(X:string))
 ' are dual-use in the Rust CEmitter (the string UBOUND notes a scalar

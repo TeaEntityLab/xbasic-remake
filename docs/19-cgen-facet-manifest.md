@@ -141,8 +141,14 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
   from `storage=dyn` facets (`:name:` per dyn) overriding the heuristic
   `scan_dyn$`; empty `##facetTab$` falls back to scanning (114/114 demos still
   `cc`, `cgen_x_compiles_all_demos_cc_clean` `ok` 19s, `aback` with/without
-  header diff 0 and `cc` clean). Next slices: `dual`/`strDual`/`allStrArr`
-  and scope-qualified rank.
+  header diff 0 and `cc` clean).
+- **2026-08-27 (slice 4):** `selfhost/cgen.x` now also rebuilds `##dualUse$`,
+  `##strDual$`, `##allStrArr$`, `##arr2d$` from facets (`dual=1`, `type=string`,
+  `rank>=1/2`) when `##facetTab$` present. Verified parse `ok`, 114/114 demos
+  still `cc` (`cgen_x_compiles_all_demos_cc_clean` `ok` 31s), `aback` header
+  still diff 0. Fixed `##xstArrays$` missing-line regression (parse `ok`). Next:
+  scope-qualified consumption and `byref`/`descriptor` facets.
+
 
 
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` already
