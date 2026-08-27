@@ -90,9 +90,6 @@ DIM fSpType
 DIM fSpRank
 DIM fSpDual
 
-DIM t_src
-DIM t_main
-t_src = TIMER
 src$ = ""
 WHILE EOF() = 0
   line$ = READLINE$()
@@ -102,8 +99,6 @@ WHILE EOF() = 0
     src$ = src$ + line$
   END IF
 WEND
-PRINT "/*src read:" + STR$(TIMER - t_src) + "*/"
-t_main = TIMER
 DIM verStr$
 verStr$ = ""
 DIM vLine$
@@ -5338,8 +5333,6 @@ FUNCTION scan_undimmed$(s$)
   DIM e
   DIM nAcc$
   DIM nAsn$
-  DIM t0
-  t0 = TIMER
   ad$ = ""
   res$ = ""
   WHILE p <= LEN(s$)
@@ -5412,7 +5405,6 @@ FUNCTION scan_undimmed$(s$)
       q = INSTR(ln$, "array_ubound" + CHR$(40), q + 13)
     WEND
   WEND
-  PRINT "/*scan_undimmed:" + STR$(TIMER - t0) + "*/"
   scan_undimmed$ = res$
 END FUNCTION
 
