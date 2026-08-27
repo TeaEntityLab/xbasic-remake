@@ -16,7 +16,7 @@
 > That cgen.x all-demo guard is **compile-only**. The strict runnable differential
 > is the **Rust CEmitter** path and reports **112 comparable matches / 2 real-I/O
 > skips / 0 failures**. Stage 0, Stage 1, and Stage 2 native self-hosting are
-> complete; all 15 core libraries compile and link through the Rust CEmitter.
+> complete; all 15 core libraries compile and link through the Rust CEmitter (1736 `xb_user_*` after `xma` `SIN`/`double`/`NAN` fix `14f9c69`).
 > `multi_lib_integration` executes only seven cross-TU `Version$` calls; it does
 > not behavior-lock the legacy library bodies. Historical session notes below
 > preserve their original measurements and may be superseded by this banner or
@@ -308,8 +308,9 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | CGEN-INSTR-NEEDLES | cgen.x | ~12 scanner needles still hold literal `(` inside quoted strings (`"array_ubound("`, `"symbol("`) — false-match hazard when scanned IR contains those substrings inside string literals | sweep to CHR$(40)-built needles |
 | LEGACY-LIB-BINDING-POLICY | frontend + C backend + runtime | Calls are bound at emit time: native Xst/Xin/Xui/Xgr/kernel32 helpers shadow compiled `xb_user_*` functions, while unresolved cross-TU calls fold to `0`/`""`/no-op before linking | choose native-vs-legacy authority; prove it with an unshadowed call-site test |
 | CORE-LIB-BEHAVIOR-GATE | tests | All 15 core libraries compile/link, but only seven `Version$` exports execute; no non-Version$ compiled library function is behavior-locked | C driver calls deterministic non-Version$ `xb_user_*` exports and checks non-stub results |
-| EXTERNAL-FUNCTION-PARSE | frontend + all backends | `EXTERNAL FUNCTION` goes through `function_stmt`; consecutive EXTERNAL declarations nest because EXTERNAL is absent from the forward/body-break sets, producing empty top-level stubs and dropped nested exports | parse EXTERNAL as a declaration; lock flat IR plus CEmitter/interpreter behavior |
-| KEYWORD-FUNCTION-TYPING | frontend + all backends | Legacy `FUNCTION DOUBLE Name (DOUBLE x)` definitions in `xma.x` emit `intptr_t` signatures and `int32_t` truncations (for example `ATANH`) | preserve prefix keyword parameter/return types; add a floating-point differential |
+| ~~EXTERNAL-FUNCTION-PARSE~~ | frontend + all backends | ✅ **done** `14f9c69`: `EXTERNAL FUNCTION` now flat top-level (`External` + `Function` in `is_forward`/`at_function_start`), so `xma` `SIN`/`SQRT`/`TAN`/`EXP10`/`POWER` are emitted (was nested inside `EXP2`, now 46 new `xb_user_*`, 1690→1736) | — |
+| ~~KEYWORD-FUNCTION-TYPING~~ | frontend + all backends | ✅ **done** `14f9c69`: `FUNCTION DOUBLE` prefix/postfix and `DOUBLE` param prefix now map to `TypeSuffix::Double` (`effective_suffix`), so `xma` `ACOS` etc. are `double` not `intptr_t`/`int32_t` | — |
+| ~~C-EMIT-NAN~~ | C backend | ✅ **done** `14f9c69`: `0d7FFF…` (`$$PNAN`/`$$PINF`) `NaN`/`inf` lower to `NAN`/`INFINITY` (`<math.h>` already included) so `xma` `double` returns compile (was 17 `use of undeclared identifier NaN/inf`) | — |
 | CGEN-LIB-SCALE | cgen.x | Heuristic `--emit-ir` probe is 6/15: five orphaned-body cc failures plus four SIGKILLs; xgr's 1.41 MiB IR reached 6.4 GiB RSS | fix nested-function depth handling and replace leaky whole-string concatenation; then add a 15-lib cgen guard |
 | LEGACY-CORPUS-COMPILE-COVERAGE | tests | 19 GTK demos + three helpsrc programs are parse/lower-only; docs previously overclaimed every `.x` was regression-locked | add explicit compile inventories before any every-legacy-source claim |
 | ARY-STATUS-RECONCILIATION | tests + docs | `xbsourcelib_parity` says runtime crash/composite-byref; banner said performance-only and cgen-faithful; `ATTACH` remains parser-discarded | add a deterministic ATTACH alias test plus bounded ary run/timeout evidence, then choose one status |
