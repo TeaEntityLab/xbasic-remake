@@ -146,9 +146,16 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
   `##strDual$`, `##allStrArr$`, `##arr2d$` from facets (`dual=1`, `type=string`,
   `rank>=1/2`) when `##facetTab$` present. Verified parse `ok`, 114/114 demos
   still `cc` (`cgen_x_compiles_all_demos_cc_clean` `ok` 31s), `aback` header
-  still diff 0. Fixed `##xstArrays$` missing-line regression (parse `ok`). Next:
-  scope-qualified consumption and `byref`/`descriptor` facets.
-
+  still diff 0. Fixed `##xstArrays$` missing-line regression (parse `ok`).
+- **2026-08-27 (slice 4.1):** Narrowed to `##dynNames$`/`##dualUse$`/`##arr2d$` only
+  (`##strDual$`/`##allStrArr$` stay heuristic) to fix `arecurse` `file$` string
+  redefinition (`char**` vs `char*`) and keep `Kittedy` composite `TYPE`
+  `squareInfo[9,15]` on heuristic (no `Dim` facet for member `grid`).
+- **2026-08-27 (slice 5):** `cgen_x_compiles_all_demos_cc_clean` now uses
+  `emit_program_with_facets` (114/114 demos `cc` via facet-driven cgen,
+  `ok` 41s; `arecurse`/`Kittedy` with facet header `cc` clean). Positive corpus
+  still `emit_program` goldens (80/80 byte-identical, `ok` 77s). Next: composite
+  member facets (`squareInfo.grid` rank 2) and `byref`/`descriptor`.
 
 
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` already
