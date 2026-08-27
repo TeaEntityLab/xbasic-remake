@@ -807,7 +807,12 @@ pub(crate) fn is_undimmed_array(name: &str) -> bool {
     // A module-shared array is a global (emit_globals), available in any function
     // even one that only reads it (no local `Dim`) — never "undimmed" (must not
     // fold to defaults). CGEN-SHARED-ARR.
-    !is_shared_array(name) && FN_UNDIMMED_ARRAYS.with(|s| s.borrow().contains(name))
+    // Descriptor by-ref array params (`@a[]` → `T** data_d + ub`) have backing
+    // storage via the caller and must not fold to type defaults; check before
+    // FN_UNDIMMED_ARRAYS (ARCH-01, c_emit_expr.rs ArrayAccess asymmetry).
+    !is_shared_array(name)
+        && !is_descriptor_param(name)
+        && FN_UNDIMMED_ARRAYS.with(|s| s.borrow().contains(name))
 }
 
 /// Whether `name` is used as both a scalar and an array in the current function

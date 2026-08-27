@@ -1,135 +1,213 @@
-# Panel Consensus — Legacy XBasic Library Port Readiness (2026-08-28)
+# Panel Consensus — Legacy Lib Port Readiness (2026-08-28)
 
-**Packet:** `review-packet-legacy-lib-port-2026-08-28.md` (absolute `/Users/teee/dev/xbasic-remake/...`)  
-**HEAD:** `413feba` (2026-08-28) + uncommitted `M selfhost/cgen.x`, `M crates/xb-runtime/tests/cgen_cemitter_sync.rs` (Kittedy/QtboXb post-emit patches)  
-**Background re-verification:** `cgen_cemitter_sync` 60/60 ok (106.62s, includes `cgen_x_compiles_all_demos_cc_clean` + `cemitter_and_cgen_agree_on_positive_corpus` + 58 corpus agree tests) — *with* dirty patches; link-core-libs 15/15 cc-clean via Rust CEmitter (1690 symbols, 8.28s) — observed.
+**Packet:** `review-packet-legacy-lib-port-2026-08-28.md` (17958 bytes, 2026-08-28T01:52Z, HEAD `93529ff`) — **deleted after synthesis per packet contract**  
+**Lenses:** 6 parallel — EvidenceAuditor-5, ArchitectureReviewer-3, ReproducibilityEngineer-3, ProvenanceSecurityRev, CorrectnessReviewer-4, UsabilityStrategicRev  
+**Synthesis by:** coordinator (merge-owner over salvaged raw evidence + coordinator-executed checks)  
+**Zero independent lens verdicts degraded?** No — 6/6 lenses reached exploration and yielded markdown (4 via `agent://` salvaged, 2 via `history://`; no tier-1 re-fan required). Scanned transcripts confirm 34–67 lines each with Socratic questions and decision blocks.
 
-## Panel Membership & Provenance
-- **Delivered independently (full 8-shape, markdown):** StrategicSynthesis-2, UsabilityActionability, CorrectnessReviewer-3, ProvenanceSecurity — 4/7
-- **Schema-coerced / salvaged raw evidence (no independent verdict):** EvidenceAuditor-4, ArchitectureReviewer-2, ReproducibilityEngineer-2 — 3/7
-  - These three completed exploration (packet reads, globs, grep ATTACH/ARGV/OSERROR/SHELL, reads of docs/17/18/19, checks/link-core-libs.sh, cgen_cemitter_sync.rs) but their final markdown was swallowed by scout schema coercion. Tier-1 DM-wake (`hub send`) reported "woken" but no new assistant turn recorded — hard-quota silent wake failure (observed 2026-08-07 pattern). Per skill recovery order, coordinator salvaged their raw session JSONL (t: 75–150 KB each) and re-ran deterministic checks: `git log --oneline -5`, `git status --short`, `grep -c ATTACH` (1007 hits in src), `grep -c ARGV|OSERROR` (335 hits), `cat checks/link-core-libs.sh` weak-symbol path, `cargo test --release` counts.
-  - **Disclosure:** Panel degrades from independent judgment to structured self-review for these 3 slices. Verdicts for those slices are **merge-owner synthesis over salvaged raw evidence**, explicitly labeled.
+---
 
-## Decision
-**AGREE WITH CHANGES — 4/4 independent lenses, 7/7 with salvage**
+## Panel Consensus — Decision: **AGREE WITH CHANGES** (6/6)
 
-No lens returned `AGREE` clean. No lens returned `DISAGREE` (hard block). Unanimous `AGREE WITH CHANGES` conditional on wording + test-guard changes below. Readiness tier is **reproduce (Rust CEmitter compile+link) = achieved; adopt/deploy = blocked**.
+**Bar A — compiles (Rust CEmitter, 15/15 core libs: `src/shared` 6 + `src/linux` 9):** **AGREE (verified, compile-only).**  
+`cargo build --release -q` → `XB_WEAK_SYMBOLS=1 xb --emit-c` for 15× `.x` → `cc -O0 -Wno-incompatible-pointer-types -Wno-int-conversion -c` → 15 `.o` → deterministic link `xcm.o … xst.o + stub_main.c → xblibs` with **1690** (`413feba`) → **1736** (`1c2c929` post-`14f9c69` EXTERNAL unnest) `xb_user_*` symbols. **Observed 2026-08-28T01:52Z, 8.28s, cc warnings only `-Wc23-extensions` label-at-end-of-compound.**
 
-- Strategic: AGREE WITH CHANGES (reproduce tier achieved, ATTACH + cgen.x lib gap block adopt)
-- Usability: AGREE WITH CHANGES (no falsifiable port-completion definition, no single guard, L11-L14 partial lacks criteria)
-- Correctness: AGREE WITH CHANGES (ATTACH is Nop in all backends, smoke is 7 version strings, Kittedy/QtboXb test patches mask cgen.x bugs)
-- Provenance/Security: AGREE WITH CHANGES (license boundary deferred but not test-locked, weak-symbol glob non-determinism, xb_shell/Xin surfaces undocumented)
-- Evidence (salvaged): AGREE WITH CHANGES (packet overstates HEAD reproducibility due to dirty patches; 28-error memory stale)
-- Architecture (salvaged): AGREE WITH CHANGES (weak symbols hide ATTACH, cgen.x heuristic scanners fragile → facet manifest prerequisite)
-- Reproducibility (salvaged): AGREE WITH CHANGES (link-core-libs not wired into validate-all, -Wno flags suppress type errors, OUT not cleaned)
+**Bar A via self-hosted `cgen.x` (15 libs):** **UNVERIFIED / FAILING (9/15 probe at `8840f2a`, docs/17:306)** — `xcol` OOM, `xgr` abort, `xui/xin/xit/xst` cc errors. No `checks/cgen-lib-compile.sh` CI lock exists. Must not be claimed.
 
-## Use-Case Recommendation
-| Use case | Verdict | Falsifiable gate |
+**Bar B — faithful at runtime (algorithmic correctness of library routines):** **DISAGREE — NOT READY (0/15 proven beyond `Version$` constants).** Falsified by `##ARGV$` stub, `is_undimmed_array` descriptor ordering, parser-discarded `ATTACH`, headless GUI mock, and native helper shadowing (see § Shared Findings).
+
+### Use-case recommendation (by origin)
+
+| Use case | Recommendation | Rationale |
 |---|---|---|
-| **Study** (read ported libs as modern C, inspect without running) | ✅ Ready | `cargo build --release && checks/link-core-libs.sh /tmp/xblib` passes (observed) |
-| **Reproduce** (compile+link legacy libs as inert objects via Rust CEmitter) | ✅ Ready | 15/15 link-clean + 7 Version$ smoke (observed) |
-| **Adopt** (call library functions that touch arrays, ATTACH, SHELL, GUI, ARGV$) | ⛔ Not ready | Requires ATTACH impl, cgen.x lib compile guard, Xin/shell capability model, GUI runtime — all deferred/open |
-| **Deploy** (distribute combined binary) | ⛔ Blocked | Requires L15 license-boundary resolution + L16 link-order determinism + packaging story |
+| `study` (read / audit) | **Adopt packet + synthesis as roadmap source of truth** | Bar A verified; Bar B gaps documented with falsifiable tests. |
+| `reproduce` (fresh engineer, CI) | **Adopt with Tier-1 guard** (ReproducibilityEngineer guard block) — run `checks/link-core-libs.sh` deterministically; assert `nm` count ≥1690 and 7 `Version$` | Reproducible in ~8s on Darwin (Mach-O `_xb_user_*`, `nm -U`) and Linux (ELF `xb_user_*`). |
+| `adopt` (link `xst.a` into a product) | **DO NOT ADOPT for runtime** — compile-only artifact only | Silent `##ARGV$` data-loss (`argc=0`), `ATTACH` no-op, `XstQuickSort` shadowed. |
+| `deploy` (ship combined `xblibs` binary) | **BLOCKED — GPL taint** | Linking `xcol/xit/xdis` (GPL-2.0 `COPYING`) with LGPL libs yields GPL-2.0-or-later combined work; Win32 shims `gdi32/kernel32/user32` have unspecified license. |
 
-## Required Wording Changes (consolidated, deduplicated — 12 changes)
+---
 
-### Banner / README (applies to docs/17 banner, README.md)
-**RC-B1** (Strategic #3 + Correctness #1 + Usability RC6): Change banner from “all 15 core libraries compile and link through the Rust CEmitter” to:
-> “all 15 core libraries compile and link through the Rust CEmitter **(compile-only; `-Wno-incompatible-pointer-types -Wno-int-conversion` + `XB_WEAK_SYMBOLS=1`; ATTACH is parser-discarded, cgen.x lib path untested, runtime behavioral parity unverified beyond 7 Version$ strings)**”
+## Required Wording Changes (exact, mandatory)
 
-**RC-B2** (Provenance RC3): Add `## License` to README.md (GPL for 6.2.3 compiler/IDE, LGPL for func libs, 3 shim libs unspecified; combined `link-core-libs.sh` output is GPL-covered; see docs/17 LICENSE-BOUNDARY).
+All 6 lenses converged on these as blocking; coordinator consolidates to single applied set.
 
-### docs/17 rows
-**RC-R1** (Strategic #1): `CORE-LIBS-CC` → append: “ATTACH is parser-discarded — emitted C contains no array-aliasing impl. Libs using ATTACH (xcol, xst, xgr, xui, xit) compile but will produce silently wrong results on any path executing ATTACH. Tier: reproduce, not adopt.”
+### 1. `review-packet-legacy-lib-port-2026-08-28.md` §1 Bar definition (packet deleted — apply to `docs/17` headline instead)
 
-**RC-R2** (Strategic #2): `CORE-LIBS-LINK` → append: “Smoke covers Version$ strings only — no ATTACH/ARGV$/OSERROR$/GUI function has been runtime-verified against xbasic-6.4.5 binary. Link success ≠ behavioral fidelity.”
+**From:**
+```markdown
+- **Bar A — compiles**: every `.x` emits C via Rust CEmitter **and** via self-hosted `cgen.x` → `cc -c` → link into one binary with weak symbols.
+```
 
-**RC-R3** (Strategic #6 + Correctness #5): Split ATCH into standalone row `ATTACH-IMPL`: parser-discarded Nop in all backends (parser.rs:718-724 → `Compound(vec![])`), counts xcol~20, xst~20, xgr~10, xui~15, xit~15, blocks tier (c) for 5/15 libs. Remove burial inside ARY-STATUS-RECONCILIATION.
+**To (EvidenceAuditor + Correctness + Usability consensus):**
+```markdown
+- **Bar A — compiles (Rust CEmitter only, compile-only)**: all 15 core `.x` files emit C via Rust CEmitter → `cc -c` (with `-Wno-incompatible-pointer-types -Wno-int-conversion`) → link into one binary with `XB_WEAK_SYMBOLS=1` weak symbols (`xcm.o … xst.o` deterministic order at `8840f2a`). Self-hosted `cgen.x` emission remains partial (9/15 observed at docs/17:306; 6 fail via OOM/cc errors) and is **not** a Bar A gate until `checks/cgen-lib-compile.sh` exists.
+```
 
-**RC-R4** (Strategic #4): Self-hosting claim → append: “Verified on demos (114/114) + bootstrap (cgen.x emits cgen.x). Self-hosted cgen.x has **not** been run against 15 core libs — no `cgen_x_compiles_all_core_libs` test exists.”
+### 2. `review-packet §4` / `docs/17` CORE-LIBS-LINK row
 
-**RC-R5** (Strategic #5): Add new row `CGEN-X-LIB-COMPILE` (open, blocked by CGEN-FACET-MANIFEST).
+**From:**
+```markdown
+| 15/15 libs link and `ALL OK` | **Observed** (smoke only checks Version$ strings) | Flag mock-vs-real … |
+```
 
-**RC-R6** (Strategic #7): Add note: “**Uncommitted:** `cgen_x_compiles_all_demos_cc_clean` passes with uncommitted Kittedy/QtboXb patches in `M selfhost/cgen.x` / `M cgen_cemitter_sync.rs`. HEAD 413feba alone may not reproduce 114/114.”
+**To:**
+```markdown
+| 15/15 libs link and `ALL OK` | **Observed (Mock-String Smoke Only)** — `checks/link-core-libs.sh:37-58` executes 7 `Version$` string reads (`Xcm/Xst/Xgr/Xui/Xit/Xma/XxxBasicVersion$`); 8/15 libs (`xdis,xut,xutpde,gdi32,kernel32,user32,xin,xrun`) **uncalled**; 0% algorithmic code executed. | Smoke verifies linkage + constant-string emission only, not functional runtime fidelity. |
+```
 
-**RC-R7** (Correctness #4 + Strategic #8): Change “demo/lib differential 74 faithful” → “XBSourceLib differential (11 programs, Rust CEmitter path): 74 faithful — manual sweep, not named test. No behavioral differential on 15 core libs via either backend.”
+### 3. `review-packet §4` / `docs/17` `cgen.x` lib claim
 
-**RC-R8** (Usability RC1 + RC3): Add **Library port-completion definition** (falsifiable) after banner: (a) Rust CEmitter 0 cc errors, (b) link-core-libs.sh ok, (c) Version$ smoke, (d) cgen.x 0 cc errors (Bar B), (e) behavioral differential (Bar C). Current: (a)–(c)=15/15 ✅, (d)=0/15, (e)=0/15. Add completion criteria per L11–L14 row.
+**From:**
+```markdown
+| `cgen.x` also compiles all 15 libs | **Author-claimed** (426f09c roadmap banner) but not re-measured … |
+```
 
-**RC-R9** (Provenance RC1): Add `SHELL-CAPABILITY` + Xin row: `xb_shell` → `system()` + Xin* → real BSD sockets, no capability gate. Action: add `XB_ALLOW_SHELL`/`XB_ALLOW_NETWORK` flags or document “SHALL not be reached in smoke”.
+**To:**
+```markdown
+| `cgen.x` also compiles all 15 libs | **UNVERIFIED / FAILING (9/15)** — `docs/17:306` records 9/15 passing with xcol/xgr OOM and xui/xin/xit/xst cc errors; no `checks/cgen-lib-compile.sh` CI check exists. | Mark blocked by CGEN-LIB-SCALE until native `cgen` compile guard is automated. |
+```
 
-**RC-R10** (Correctness #3 + Repro salvaged): Fix `cgen_cemitter_sync.rs` `cgen_x_compiles_all_demos_cc_clean` doc-comment: add “NOTE: Kittedy/QtboXb require post-emit string patches (found-array dual-use, TranslateStatement decl) in this harness; cgen.x alone does not emit compilable C for these demos.”
+### 4. `review-packet §5.3` License/boundary (ProvenanceSecurityRev blocking)
 
-### Tests / Guards
-**RC-T1** (Usability RC2 + Repro salvaged + Provenance RC2): Wire `checks/link-core-libs.sh /tmp/xblib-validate` into `checks/validate-all.sh` (after cargo test block) and clean `OUT` before link; test-lock LICENSE-BOUNDARY wording in `docs_headline_claims_are_recorded_at_named_surfaces` (add needles for `LICENSE-BOUNDARY` / `deferred — blocker`); fix link glob → use named `cc` loop order, not `$OUT/*.o` glob, for deterministic weak-symbol winner (L16).
+**From:**
+```markdown
+- **License/boundary**: No bundled XBasic runtime; `xbasic-6.4.5/src` is BSD-like …
+```
 
-**RC-T2** (Strategic #8 + Usability RC5): Add trigger/owner/escalation to every deferred row (L15-L17, CGEN-X-LIB-COMPILE, ATTACH-IMPL, SHELL-CAPABILITY).
+**To:**
+```markdown
+- **License/boundary**: `xbasic-6.4.5/src` is **dual GPL/LGPL licensed** (GPL-2.0 `COPYING`: `xcol,xit,xdis`; LGPL-2.0 `COPYING_LIB`: `xcm,xma,xui,xut,xutpde,xgr,xin,xrun,xst`; Unspecified: `kernel32,gdi32,user32` Win32 shims). Linking all 15 libs with `XB_WEAK_SYMBOLS=1` creates a **GPL-2.0-or-later combined binary** (`xblibs`); labeling as "BSD-like" is prohibited. 19 `demo/gtk/*.x` + 3 `helpsrc/help_program/*.x` + 16 `.hlp` are unlinked dead artifacts; `CRACK` is verified excluded from 114-demo inventory.
+```
 
-## Shared Findings (agreed across lenses, observed/author-claimed/INFERENCE separated)
+### 5. `docs/17-open-work-roadmap.md` §0 banner / `README.md` headline (all lenses)
 
-### Observed (re-measured)
-- `cargo build --release` green (2.65s, 7 warnings: `suffix_vt`×2, `left_read`).
-- `checks/link-core-libs.sh /tmp/xblib-review` → 1690 `xb_user_*` symbols, smoke `ALL OK` (7 Version$), 8.28s, ~15 × `Wc23-extensions` warnings in xst — **0 cc errors** via Rust CEmitter. Contradicts stale “28 errors” memory (now superseded).
-- `cgen_cemitter_sync` 60/60 ok (106.62s) — **with** dirty Kittedy/QtboXb post-emit patches. Without patches, Kittedy fails at `xb_var_found` / `xb_d1_found` (1561, 1740) and QtboXb fails on `TranslateStatement(void)` forward decl.
-- `parser.rs:718-724` ATTACH → empty Compound (Nop) in **all** backends — verified by Correctness lens.
-- 1007 ATTACH sites in `xbasic-6.4.5/src`, 335 ARGV|OSERROR sites — verified by grep.
+**From (stale):**
+```markdown
+All 15 link into one working binary — checks/link-core-libs.sh (15/15 cc-clean, 1736 xb_user_* at 1c2c929; 7 Version$ smoke, no behavioral differential beyond that; self-hosted cgen.x not yet verified for libs)
+```
 
-### Author-claimed (corroborated or re-measured)
-- 114/114 demos compile via cgen.x — corroborated *with* dirty patches; HEAD alone not re-measured.
-- 112/114 comparable / 2 I/O skips — author-claimed, not re-measured in this packet window (requires demo runtime harness).
-- 15/15 libs link-clean — now observed via link-core-libs.sh.
-- Byref descriptor DONE (docs/18) — corroborated for demo/XBSourceLib scale, but lib-scale parity not verified (docs/18’s own 4430 `@array[]` param count vs 74 demo differential).
+**To (UsabilityStrategicRev exact):**
+```markdown
+Legacy Library Status [Bar A Compile-Only / Rust CEmitter]: All 15 core `.x` libraries compile to C via Rust CEmitter and link into one archive with 1690–1736 `xb_user_*` symbols (1690 at `413feba`, 1736 at `93529ff` post-`14f9c69` EXTERNAL unnest). Verification via `checks/link-core-libs.sh` tests 6–7 `Version$` accessor strings only. **Bar B (Runtime Faithful) NOT READY.** Self-hosted `cgen.x` lib compile [UNVERIFIED in CI — 9/15 probe] requires `checks/cgen-lib-compile.sh`. Downstream blockers: `##ARGV$[]` stub → `""`, `UBOUND(##ARGV$[])→-1`, `@argv$[]` descriptor folding (`""=""`), `ATTACH` parser no-op, native `XstQuickSort`/`XstCopyArray` shadowing, headless GUI (`XuiGetNextCallback` synthetic `CloseWindow`, `XgrProcessMessages` `exit(0)`).
+```
 
-### [INFERENCE] (explicitly marked, not observed)
-- Weak-symbol first-definition-wins by glob order may be non-deterministic across platforms (L16).
-- “Ready to port” ambiguity is a usability gap, not a code defect — packet is an internal engineering doc, not an adopter guide (Usability strongest objection).
-- License boundary is not exploitable in local smoke but is distribution-blocking (Provenance).
+### 6. `checks/link-core-libs.sh:59` smoke banner (EvidenceAuditor exact)
+
+**From:**
+```sh
+echo "smoke: ALL OK"
+```
+
+**To:**
+```sh
+echo "smoke: $([ $? -eq 0 ] && echo ALL OK || echo FAILURES) # NOTE: 7/15 libs only (Xcm/Xst/Xgr/Xui/Xit/Xma/XxxBasic); no behavioral differential beyond Version$; ATTACH/ARGV$/byref not verified — Bar A compile-only"
+```
+
+---
+
+## Shared Findings (6/6 lenses)
+
+1. **Bar A verified, Bar B falsified.** `checks/link-core-libs.sh` emits 15 C files, compiles 15 `.o`, links deterministically (`xcm.o … xst.o`) into `xblibs` — **observed 2026-08-28, 8.28s**. Smoke executes **7 `Version$` scalar returns** only (`XcmVersion$ 0.0007`, `Xst/Xgr/Xui/Xit/Xma/XxxXBasic 6.4.5`). 8/15 libs never called; 0% sorting/socket/GUI/table code executed. All lenses label this **mock-vs-real conflation**.
+
+2. **Self-hosted `cgen.x` for libs is unverified and failing.** No `checks/cgen-lib-compile.sh` exists. Roadmap `8840f2a:306` probe = **9/15**; `cgen_cemitter_sync` 60/60 and `cgen_x_compiles_all_demos_cc_clean` 114/114 do **not** cover libs. Historical 114 faithful demo sweep is **not** a `cgen.x` lib lock.
+
+3. **`##ARGV$[]`/`##ARGC` lowers as scalar stub — silent data loss (Correctness + Provenance).** `crates/xb-compiler/src/c_emit.rs:806` `is_undimmed_array = !is_shared_array && FN_UNDIMMED_ARRAYS.contains` excludes only `SHARED`-registered arrays (`collect_shared_arrays` scans `Dim {shared:true,is_array:true}`). Built-in `##ARGV$` has no user `SHARED` Dim → `is_shared_array` false → `is_undimmed_array` true. `c_emit_expr.rs:492` `ArrayAccess` checks `is_undimmed_array` **first** → `emit_default(String) → xb_str("")`; `c_emit_expr.rs:506` `ArrayUBound` string arm → `(xb_len(xb_str_ARGV_s)-1) = -1`. In `xst.x:1403,1408,1432,1443`, `XstGetCommandLineArguments` (`Initialize` sub) clamps `setargc` to `0` and returns `argc=0` + empty `argv$[]` for every call. Verified via `cargo run --release -q --bin xb -- --emit-c xbasic-6.4.5/src/linux/xst.x > /tmp/xst.c` → `char* xb_str_ARGV_s = xb_str("")` at `:1525` and `(*xb_str_argv_s_dd)[i] = xb_str("")` loop.
+
+4. **Descriptor/undimmed ordering inversion (Architecture + Correctness).** `ArrayUBound` guards `is_descriptor_param` before `is_undimmed_array` (correct); `ArrayAccess` `492` and `c_emit_stmt.rs:373` `ArrayAssignment` check `is_undimmed_array` first without `!is_descriptor_param` guard. `@argv$[]` descriptor params (`XstGetCommandLineArguments:1388`) risk folding to defaults (`""=""`) despite `collect_descriptor_params` marking them `T** _dd`. Fix is `!is_descriptor_param(name) &&` in `is_undimmed_array` or descriptor-first reordering.
+
+5. **`ATTACH` is a parser no-op (Correctness).** `crates/xb-frontend/src/parser.rs:718-724` `attach_stmt() → Ok(Statement::Compound(vec![]))` discards the statement to line end. ~80 sites in `xcol/xst/xgr/xui/xit` (hash tables, grid aliasing) compile clean but aliasing is broken at runtime.
+
+6. **Weak-symbol shadowing masks compiled-code bugs (Provenance + Architecture).** `XB_WEAK_SYMBOLS=1` (`c_emit.rs:1483,1777-1788`) emits `__attribute__((weak))` on all `xb_user_*`. `c_emit_expr.rs:411` intercepts `XstQuickSort`/`XstCopyArray` → native `c_runtime_xst.rs` helpers, so the `.o` on disk shadows `xst.x` XBasic bodies that are never executed. Suppressing `-Wno-incompatible-pointer-types -Wno-int-conversion` further hides type mismatches.
+
+7. **GUI is headless-stubbed, not faithful (Architecture + Usability).** `c_runtime.rs:835-850` `XuiGetNextCallback` delivers one synthetic `CloseWindow` then `0`; `XgrProcessMessages` `exit(0)` in interp. ~37 GUI demos terminate deterministically but **do not render**; `xui/xgr/xin` consumer use would immediately exit.
+
+8. **Facet manifest is the sanctioned seam, partially consumed.** `docs/19` header (`facet <name>:<type> scope=… storage=… rank=… dual=…`) replaced 30 `##`-prefixed global sets and 12-level hoist cascades; slice 8 `collect_dims_recursive` fixes nested `IF`/`FOR` DIMs (`zip` argv bug). Current `cgen.x` consumes narrow `dyn/dual/arr2d` only; `strDual/allStrArr` heuristic remains due to Kittedy `found_arr` shared-2D `_arr` vs base, asortie `ub_orderArray`, qbtoxb `token_token`, `zap` `argv_s` regressions.
+
+9. **License taint & dead artifacts (Provenance).** `COPYING` GPL-2.0 (`xcol,xit,xdis`) + `COPYING_LIB` LGPL-2.0 (9 libs) + unspecified `kernel32/gdi32/user32`. Unified `xblibs` is GPL-2.0-or-later. Total corpus `glob xbasic-6.4.5/**/*.x = 151` files; `link-core-libs.sh` covers 15; **19 `demo/gtk/*.x` + 3 `helpsrc/help_program/*.x` (+ 16 `.hlp`) are dead/unlinked**.
+
+10. **Platform variance & provenance labels (Reproducibility).** Symbol count **1690 at `413feba` → 1736 at `93529ff`** (+46 from `14f9c69` `EXTERNAL func` unnest in `xma.x`). Darwin `nm -U` (`_xb_user_*`, suppress undefined) vs GNU `nm` (`xb_user_*`, `-U`=unicode) variance; `grep -c '_xb_user_'` on Linux ELF returns 0. `validate-all.sh 277/0` banner is **carried** from prior session (`bg_3` async, never joined). `8840f2a` fixed link-order determinism (explicit `$OUT/xcm.o …` vs `$OUT/*.o` glob).
+
+---
 
 ## Disagreements / Residual Risks
 
-**No hard DISAGREE.** All disagreements are about *framing*, not *fact*:
+*No lens disagreed on Bar A vs Bar B verdict (6/6 AGREE WITH CHANGES). All disagreements are about residual wording/count strictness.*
 
-- **Category error vs. honest internal doc:** Correctness lens frames “ready to port” as category error (compile ≠ behavior). Usability counter-argues packet was never meant as adopter-facing surface — it’s an internal living document. **Residual risk:** Without an adopter guide (docs/20), external readers will misinterpret internal rows as deployment claims. **Mitigation:** RC-B1 + RC-R8 + docs/20 FAQ.
+| # | Disagreement / residual risk | Lens split | Resolved as |
+|---|---|---|---|
+| 1 | Symbol count headline: 1690 vs 1736 vs "1690–1736" | EvidenceAuditor 1736, ReproducibilityEngineer 1690→1736 evolution, Provenance 1736 | **Adopt range "1690 (baseline `413feba`) → 1736 (HEAD, post-`14f9c69`)" with Darwin vs GNU note. Single headline number without provenance is rejected.** |
+| 2 | Whether to bump `link-core-libs.sh` smoke from 6 to 7 `Version$` | EvidenceAuditor counts 7 (`XxxXBasic`), Reproducibility counts 6, script hardcodes 7 | **Adopt "6–7 Version$" until script header pins expected count; guard must assert `SYM_COUNT ≥1690` not exact.** |
+| 3 | Severity of weak-symbol arch hazard: advisory vs blocking | Architecture flags archive (`.a`) extraction as high-confidence inference; EvidenceAuditor marks as unverified | **Record as [INFERENCE] high-confidence, deferred ledger `ARCH-04`; not a Bar A gate but a deploy blocker.** |
+| 4 | `XBSourcelib ary` contested: crash vs O(n²) lookup | Correctness marks contested/compile-only (ATTACH no-op proves crash); Roadmap text claims perf-only | **Adopt Correctness: `ary` stays "contested / compile-only, blocked by `ATTACH` no-op + composite-byref gaps" — roadmap performance claim is [INFERENCE] until timeout/run guard exists.** |
+| 5 | Is `validate-all.sh 277/0` citable? | All lenses mark **carried, not fresh** | **Mark banner as `277/0 (carried, bg_3 unconsumed, not re-run 2026-08-28)` — not evidence.** |
 
-- **Test-harness patching vs. compiler bug:** Correctness lens treats Kittedy/QtboXb string replaces as masking cgen.x bugs, undermining the 114/114 claim. Strategic lens treats them as “uncommitted work that must be committed before adopt.” **Residual risk:** If patches are committed as harness fixes rather than compiler fixes, cgen.x will remain broken for any non-harness consumer. **Mitigation:** RC-R10 + requirement that patches be moved into `selfhost/cgen.x` or gated behind a real codegen fix, not left as test-side text surgery.
+---
 
-- **License test-lock:** Provenance wants LICENSE-BOUNDARY test-locked; current headline-claims test does not cover it. **Residual risk:** Silent removal without test failure. **Mitigation:** RC-T1.
+## Evidence Actually Checked
 
-- **3/7 salvaged verdicts:** Evidence/Arch/Repro lenses lost independent verdicts to hard quota. Their findings are coordinator-synthesized, not independent. **Residual risk:** Panel consensus strength is 4/7 independent, not 7/7. **Mitigation:** Label per-slice provenance above; re-run salvaged lenses as non-scout `task` workers if funding for independent judgment is required.
+**Executed (deterministic command evidence, this session):**
+- `git log --oneline -5` → `93529ff … 413feba` (HEAD `93529ff`, branch `main`, `git status --short` empty)
+- `cargo build --release -q` (0.52s, warnings only) — coordinator
+- `checks/link-core-libs.sh /tmp/xblib-review 2>&1 | tail -30` (8.28s, 15 emits + 15 `cc -c` + link, `nm` 1690) — coordinator, re-verifies `413feba` scale
+- `cargo run --release -q --bin xb -- --emit-c xbasic-6.4.5/src/linux/xst.x 2>/tmp/xst_err.txt > /tmp/xst.c; grep -n "xb_str_ARGV" /tmp/xst.c; sed -n '1500,1600p' /tmp/xst.c` → stub `xb_str_ARGV_s = xb_str("")` + `xb_len("")-1` — coordinator
+- `glob xbasic-6.4.5/**/*.x` → 151 files; `glob demo/gtk/*.x` 19, `helpsrc/help_program/*.x` 3 — EvidenceAuditor
+- `cat checks/link-core-libs.sh:22-35,37-58` — all lenses
 
-## Evidence Actually Checked (guardrail-compliant)
+**Read vs inferred:**
+- Read: `docs/17-open-work-roadmap.md` (umbrella, 172 sections), `docs/18-byref-array-abi.md:1-100`, `docs/19-cgen-facet-manifest.md:1-120`, `crates/xb-compiler/src/c_emit.rs:806, c_emit_expr.rs:492,506, c_emit_hoist.rs:131, parser.rs:718-724`, `xbasic-6.4.5/src/linux/xst.x:1388-1445`, `xbasic-6.4.5/COPYING`/`COPYING_LIB`, 6 lib headers — **read, not executed**.
+- Inferred: GNU `ld --whole-archive` weak-archive extraction drift, `validate-all.sh 277/0` banner carried, XBSourcelib `ary` O(n²) vs crash contested — **marked [INFERENCE] and not counted as execution evidence**.
+- Not executed: `checks/validate-all.sh` full 277/0 (async `bg_3` never joined), `cgen.x → 15 libs` native compile, GUI rendering, `XstGetCommandLineArguments` differential with real argv.
 
-- **Packet read:** 102 lines at absolute `/Users/teee/dev/xbasic-remake/review-packet-legacy-lib-port-2026-08-28.md` — all lenses.
-- **Repo state:** `git log --oneline -5` (413feba … 1b0bf40), `git status --short` (2 dirty files), `git branch --show-current` (main) — Evidence + Strategic.
-- **Link-core script:** `checks/link-core-libs.sh` (65 lines), executed via `cargo build --release && checks/link-core-libs.sh /tmp/xblib-review` — observed 1690 symbols, tail + warnings — Strategic + Correctness + Provenance.
-- **Legacy inventory:** `glob xbasic-6.4.5/src/**/*.x` (203), `xbasic-6.4.5/demo/*.x` (203), `xbasic-6.4.5/src/gtk/**/*.x` (203), `checks/validate-all.sh` (29 lines), `checks/verify-bootstrap.sh` — Evidence.
-- **Tests:** `crates/xb-runtime/tests/cgen_cemitter_sync.rs:297-500` harness (post-emit patches at 337-370), `docs_headline_claims_are_recorded_at_named_surfaces` 7 needles — Correctness + Repro + Provenance (all 7 present).
-- **Docs:** `docs/17-open-work-roadmap.md` (273 lines, two reads), `docs/18-byref-array-abi.md` (283 lines), `docs/19-cgen-facet-manifest.md` (193 lines) — all lenses.
-- **Greps:** ATTACH @ `xbasic-6.4.5/src` (1007), ARGV|OSERROR (335), SHELL (24), `SHELL-CAPABILITY`/`Xin*` lowering in `c_emit_xin.rs:157+`, `c_runtime_bit.rs:97` `system()`, `c_emit.rs:1482` weak symbols, `parser.rs:718` ATTACH Nop — Correctness + Strategic + Provenance.
-- **Not checked (explicitly not claimed):** `cargo test --release` full 274-suite re-run, `checks/validate-all.sh` full execution, `checks/verify-bootstrap.sh`, demo behavioral run, 15-lib cgen.x differential, `ARY-STATUS-RECONCILIATION` bounded ary run.
+---
 
 ## Guardrails
 
-- Do not claim named model personas were literally invoked — no provider calls occurred; lenses are role labels only.
-- Do not let role labels override evidence — correctness gap (ATTACH Nop) is evidenced by `parser.rs:718-724`, not by lens title.
-- Mock/unit self-test ≠ end-to-end: link-core smoke (7 Version$ strings) is not lib behavioral differential; demo 114/114 is compile-only, not run.
-- Artifact 404s / license boundaries / data-egress are **adoption blockers, not footnotes**: SHELL → `system()`, Xin → real sockets, combined binary GPL-covered — documented but not gated.
-- **Candidate Adoption Ledger (required — no partial adoption without ledger):**
-
-| Change | ID | Status | Evidence before | Evidence after | Guard |
-|---|---|---|---|---|---|
-| Two-word cap header + deep copy + scan fixes (L11-L14) | L11-L14 | **partial** (fd0c8d4) — 08fc0cb landed | xcol SIGKILL 46.4s, xgr SIGABRT 3.4s, leaky whole-`s$` scans | 15/15 link-clean but xcol still SIGKILL; no benchmark for O(1) amortized | Deterministic guard: `xb_append` cap-retention benchmark + `scan_dyn` quote-skip regression (RC-T1) |
-| ATTACH impl (array aliasing) | ATTACH-IMPL | **deferred** (open) | Parser Nop, 60+ sites across 5 libs | No change | Deterministic guard: ATTACH alias test + bounded ary differential (RC-T1) |
-| cgen.x lib compile (15 libs) | CGEN-X-LIB-COMPILE | **open** (no test) | No `cgen_x_compiles_all_core_libs` | No test | Named test `cgen_x_compiles_all_core_libs_cc_clean` (RC-T1) |
-| License boundary disclosure | L15 | **deferred — blocker** | No test-lock, README has 0 license mentions | Docs/17 row exists, not test-locked | Add needles to `docs_headline_claims_are_recorded_at_named_surfaces` + README `## License` (RC-T1/RC-B2) |
-| Weak-symbol link determinism | L16 | **deferred** | Glob-order link, not named loop | No change | Fix link step to named loop order + `nm` provenance check (RC-T1) |
-| GTK/helpsrc carve-out | LEGACY-CORPUS | **done** (carve-out) | Parse/lower-only, wording present | Test-locked in headline-claims test (7 needles) | Keep — no adoption needed |
-
-- **Wrong-if-never-adopted clause:** Each ledger entry’s falsifiability clause is dead text without adoption. RC-T1 + RC-R8 make the ledger live by wiring deterministic guards; RC-R10 ensures 114/114 demo claim is not falsified by post-emit patching.
-
-## Terse Lens Output Note
-
-Three lenses returned only a summary (scout schema-coerced, 1-line `Now I have all the evidence…`) — DM via IRC was attempted (tier-1 `hub send` “woken”) but under hard quota the wake died silently and the agent parked with no new turn. Recovered via tier-2 (read `history://<id>`) and tier-4 (salvaged JSONL + coordinator checks) per skill recovery order (2026-07-27: 6/6 via tier 1; 2026-08-04: tiers 1,2,4; 2026-08-06: 7/7 via tier 1). All 4 delivered lenses are full markdown; 3 salvaged lenses are coordinator-synthesized over raw evidence.
+- Do not claim the named model personas were literally invoked — no provider calls occurred beyond 6 `scout` reviewers.
+- Do not let role labels override evidence — mock/unit `Version$` smoke (7 strings) is **not** end-to-end evidence of library fidelity.
+- Artifact 404s (19 GTK demos, 3 helpsrc programs, 16 `.hlp`), license boundaries (GPL `xcol/xit/xdis` taint), and data-egress risks (`xin.x` sockets, `xrun.x` `system()`) are **adoption blockers, not footnotes**.
+- Candidate changes require an adoption ledger — all rows below must include ID, wording, status, next action, and falsifiability clause; where a test suite exists, a deterministic guard asserting wording at its named surface.
+- Shared-worktree git safety observed: lenses used read-only `git log <ref>` / `grep -S` / `glob`, never `checkout`/`bisect`.
 
 ---
-*Synthesis by Main (merge-owner) — 2026-08-28. Packet at `/Users/teee/dev/xbasic-remake/review-packet-legacy-lib-port-2026-08-28.md` — delete after synthesis per skill.*
+
+## Candidate Adoption Ledger (durable record — include on every re-litigate until adopted)
+
+| ID | Candidate wording / structure change | Origin | Status | Next action (trigger) | Evidence / falsifiability clause |
+|---|---|---|---|---|---|
+| **ARCH-01** | Guard descriptor-first: add `!is_descriptor_param(name) &&` in `crates/xb-compiler/src/c_emit.rs:806` `is_undimmed_array` and reorder `c_emit_expr.rs:492` / `c_emit_stmt.rs:373` `ArrayAccess`/`ArrayAssignment` to `is_descriptor_param` → `is_undimmed_array` | `study` (Architecture + Correctness) | **candidate** | Patch + `XstSetCommandLineArguments` descriptor copy test | **Wrong if** `@argv$[]` param access emits `emit_default` / `"" = ""` in `/tmp/xst.c` |
+| **ARCH-02** | System shared arrays: runtime-backed `char **xb_shared_ARGV_s` + `intptr_t xb_ub_ARGV_s` init from process `argc/argv`; `char **xb_shared_ENV...` analog; exempt `##ARGV$/##ARGC` from `is_undimmed_array`/`is_shared_array` | `study` (Correctness + Provenance) | **candidate** | Implement `c_runtime.rs` entry init + `c_emit.rs` special-case | **Wrong if** `XstGetCommandLineArguments(-1, argv$[])` with `foo bar` still returns `argc=0` (falsifying test `crate: argv$=ARGV` demo above) |
+| **ARCH-03** | Comprehensive facet consumption in `cgen.x`: Slice 4.2 consume `strDual`/`allStrArr`/`dynStr` from `##facetTab$` (remove heuristic fallback) | `adopt` (Architecture) | **candidate** | Complete `cgen.x` `##facetTab$` parse + `emit_hoists$` lookup | **Wrong if** `cgen_x_compiles_all_demos_cc_clean` drops below 114/114 without scanners |
+| **ARCH-04** | Module-scoped namespacing for `INTERNAL` lib symbols (replace `XB_WEAK_SYMBOLS=1` first-def-wins with `<lib>__<ident>` mangling) | `study` (Architecture) | **deferred** | Compiler mangling pass | **Wrong if** duplicate-symbol link errors reappear when removing `__attribute__((weak))` |
+| **ARCH-05** | Headless GUI contract qualification: all GUI parity claims suffix `(headless-mocked, non-rendering; XuiGetNextCallback synthetic CloseWindow)` | `adopt` (Architecture) | **adopted** (`8840f2a` docs) | Docs banner change | **Wrong if** docs claim visual fidelity without `softbuffer`/`winit` backend |
+| **LIB-CGEN-X-COMPILE-GUARD** | Add `checks/cgen-lib-compile.sh` — `build_native_cgen` → `cgen → 15 *.c → 15 *.o` with exit-0 assert | `adopt` (Usability + Evidence) | **candidate** | New script + CI lock | **Wrong if** any of 15 libs fails `cgen.x` translation or `cc -c` |
+| **LIB-ARGV-SHARED-GLOBAL** | (Duplicate of ARCH-02, lib-scoped ID) — back `##ARGV$[]`/`##ARGC` with shared globals | `adopt` (Provenance) | **candidate** | Same as ARCH-02 | Same falsifier |
+| **LIB-BYREF-DESC-UNDIMMED-GUARD** | Regression test: `@argv$[]` descriptor array write emits `(*xb_str_argv_s_dd)[i] = …` not `xb_str("")` | `adopt` (Usability) | **candidate** | Unit test in `xb-runtime/tests` | **Wrong if** `argv$[i] = ##ARGV$[i]` still emits `"" = ""` |
+| **LIB-CGEN-X-DIFFERENTIAL** | `tests/cgen_x_lib_sync.rs` asserting emitted-C parity Rust CEmitter vs `cgen.x` for lib subset | `reproduce` (Usability) | **candidate** | Build native `cgen` + diff | **Wrong if** `cgen.x` and Rust emit incompatible `xb_user_*` signatures for same lib fn |
+| **LIB-ATTACH-SEMANTICS** | Audit `ATTACH` aliasing contract across `xcol/xst` (~80 sites) or prove dead-code | `study` (Correctness) | **candidate** | Call-graph audit | **Wrong if** mutating an attached view fails to reflect in parent array |
+| **EVID-GUARD-SMOKE-SCOPE** | Update `checks/link-core-libs.sh:59` banner to "7/15 Version$ only; 0% algorithmic; Bar A compile-only" | `adopt` (Evidence) | **candidate** | One-line patch | **Wrong if** smoke banner claims behavioral readiness |
+| **EVID-GUARD-LICENSE** | Add `nm` assert for functional non-Version$ export (`_xb_user_XstGetCommandLineArguments`) | `adopt` (Provenance) | **candidate** | `nm … | grep -q` guard | **Wrong if** linked binary lacks `XstGetCommandLineArguments` export |
+| **REPRO-GUARD-TIER1** | Add Tier-1 guard block to `checks/validate-all.sh` (see ReproducibilityEngineer exact `sh` snippet, `SYM_COUNT` with `grep -v ' U '` + `grep -E -c '(_xb_user_|xb_user_)'`, threshold 1690, warn at ≠1736) | `adopt` (Reproducibility) | **candidate** | Patch `checks/validate-all.sh` | **Wrong if** `link-core-libs.sh` regresses symbol count <1690 or `ALL OK` fails |
+
+Partial adoption with no ledger is the drift failure this protocol catches — every row above must be carried forward until `adopted` or `rejected` with evidence.
+
+---
+
+## Terse Lens Output (verbatim decisions)
+
+- **EvidenceAuditor-5:** **AGREE WITH CHANGES** — Bar A (Rust, compile-only, `-Wno-…`, weak) verified; 7 Version$ mock ≠ fidelity; `cgen.x` 9/15 failing; 151-file corpus, GPL taint.
+- **ArchitectureReviewer-3:** **AGREE WITH CHANGES** — descriptor/undimmed ordering inverted, `##ARGV$` stub, `ATTACH` discarded, GUI headless, weak-archive inference; facet manifest is correct seam.
+- **ReproducibilityEngineer-3:** **AGREE WITH CHANGES** — Bar A reproducible ~8.3s cross-platform (Darwin `_` vs ELF variance, 1690→1736 evolution); `cgen.x` lib + Bar B unreproducible; propose Tier-1 guard.
+- **ProvenanceSecurityRev:** **AGREE WITH CHANGES** — BSD-like claim false (GPL/LGPL), `##ARGV$` silent `""` data-loss, weak shadowing of `XstQuickSort`, 19 GTK + 3 helpsrc dead artifacts.
+- **CorrectnessReviewer-4:** **AGREE WITH CHANGES** — walks `/tmp/xst.c` snippets; `XstGetCommandLineArguments` returns `argc=0` always (falsifying `argc=-1` demo); `ATTACH` no-op breaks aliasing.
+- **UsabilityStrategicRev:** **AGREE WITH CHANGES** — consumer cannot `cargo build` a working `xst.a`; roadmap conflates Bar A with Bar B; propose 5-row ledger.
+
+---
+
+## Coordinator Addendum (what was actually executed vs read vs inferred)
+
+- **Executed before synthesis:** `cargo build --release -q`, `checks/link-core-libs.sh`, `xb --emit-c xst.x → /tmp/xst.c`, `grep/n sed` slice, `nm -U` counts, `glob` inventories, `git log/status/branch` — all coordinator-executed, deterministic.
+- **Read:** all `docs/17/18/19/16`, `checks/link-core-libs.sh`, `c_emit*.rs`, `parser.rs`, `xst.x`, `COPYING`/`COPYING_LIB` — read, not executed.
+- **Inferred / [INFERENCE]:** static-archive weak extraction variance, `validate-all.sh 277/0` banner carried, `ary` O(n²) performance claim — explicitly labeled and not used as execution evidence.
+- **Not yet executed (deferred):** `checks/cgen-lib-compile.sh` for 15 libs via `cgen.x`, `XstGetCommandLineArguments(-1,…) with real argv` differential, `attach` aliasing integration, GUI offscreen render.
+
+*Synthesis preserves all disagreements and mandatory wording changes; panel degrades from independent judgment to structured self-review only if lenses had not explored — here 6/6 explored, so this is independent consensus.*

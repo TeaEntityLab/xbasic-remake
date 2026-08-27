@@ -34,4 +34,25 @@ if ! checks/link-core-libs.sh /tmp/xblib-validate 2>&1 | tee /tmp/xblib-validate
     echo "link-core-libs.sh FAILED (see /tmp/xblib-validate.log)"
     exit 1
 fi
-echo "=== core libs OK (15/15, smoke 7 Version\$) ==="
+echo "=== core libs OK (15/15, smoke 7 Version$) ==="
+OUT_BIN="/tmp/xblib-validate/xblibs"
+if [ ! -f "$OUT_BIN" ]; then
+    echo "ERROR: $OUT_BIN was not generated"
+    exit 1
+fi
+# Cross-platform defined-symbol count (Darwin Mach-O '_xb_user_' vs Linux ELF 'xb_user_'; filter undefined U/w)
+SYM_COUNT=$(nm "$OUT_BIN" 2>/dev/null | grep -v -E ' (U|w) ' | grep -E -c '(_xb_user_|xb_user_)[A-Za-z0-9_]+' || true)
+EXPECTED_SYMS=1736
+if [ "$SYM_COUNT" -ne "$EXPECTED_SYMS" ]; then
+    echo "WARNING: Core lib symbol count variance: found $SYM_COUNT, expected $EXPECTED_SYMS (check for unnested exports or platform variance)"
+    if [ "$SYM_COUNT" -lt 1690 ]; then
+        echo "ERROR: Symbol count $SYM_COUNT dropped below minimum threshold (1690)"
+        exit 1
+    fi
+fi
+echo "=== core libs Tier-1 guard PASSED ($SYM_COUNT xb_user_ symbols, smoke 7 Version$) ==="
+# Functional non-Version$ export presence (Provenance guard: ensures compiled lib bodies present beyond Version$)
+if ! nm "$OUT_BIN" 2>/dev/null | grep -q -E '(_xb_user_|xb_user_)XstGetCommandLineArguments'; then
+    echo "ERROR: Missing XstGetCommandLineArguments export in linked binary (functional non-Version$ check)"
+    exit 1
+fi
