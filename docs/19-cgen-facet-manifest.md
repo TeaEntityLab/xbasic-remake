@@ -167,7 +167,13 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
   emitted `intptr_t b[4]` fixed but accessed `b_arr` → `adatadim` `intptr_t[4]`
   not assignable. Facet now `b:dyn rank1 dual1` → `xb_var_b_arr` heap, `cc` clean.
   `cgen_x_compiles_all_demos_cc_clean` 114/114 via facets (`ok` 13s) and `a`/`b`/`c`/`d`
-  facets `dyn`. Next: `byref`/`descriptor` and `strDual`/`allStrArr`.
+  facets `dyn`.
+- **2026-08-27 (slice 8):** `collect_facets_accurate` now walks `Dim` recursively
+  (`Function`/`If`/`While`/`For`/`DoLoop`/`SelectCase`/`Compound`) so nested
+  `dim argv$:string[3]` (zap) etc. get facets; previously non-top-level nested
+  DIMs were missed and fell back to heuristic, but `zap` with facet header now
+  correctly `facet argv$:string scope=Entry storage=fixed rank1 dual0`. Keeps
+  114/114 via narrow facet (`dyn`/`dual`/`arr2d`).
 
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` already
   asserts per-program byte-identical emitted C — the header must not break this.
