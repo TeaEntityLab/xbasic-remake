@@ -4733,6 +4733,12 @@ FUNCTION scan_dyn$(s$)
   IF INSTR(s$, "null:") > 0 THEN
     IF INSTR(res$, ":null:") = 0 THEN res$ = res$ + ":null:integer:"
   END IF
+  IF INSTR(s$, "SHARED window[]") > 0 THEN
+    IF INSTR(res$, ":window:") = 0 THEN res$ = res$ + ":window:integer:"
+  END IF
+  IF INSTR(s$, "host.address") > 0 THEN
+    IF INSTR(res$, ":host_address:") = 0 THEN res$ = res$ + ":host_address:integer:"
+  END IF
   scan_dyn$ = res$
 END FUNCTION
 
