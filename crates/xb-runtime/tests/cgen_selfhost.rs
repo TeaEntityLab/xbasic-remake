@@ -60,7 +60,9 @@ fn cgen_x_self_hosting_pipeline() {
     assert!(cgen_out.status.success(), "cgen native failed");
     let compiler_c = String::from_utf8(cgen_out.stdout).expect("cgen output");
     assert!(
-        compiler_c.contains("int main(void)"),
+        // ARCH-02 (2b0f6ee / locked by d945e3c): cgen.x emits an argc/argv main
+        // that seeds ##ARGV$[]/##ENVP$[]; the bare `int main(void)` is gone.
+        compiler_c.contains("int main(int argc, char **argv)"),
         "cgen output missing main"
     );
 

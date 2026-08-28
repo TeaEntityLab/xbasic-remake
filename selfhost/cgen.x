@@ -1337,6 +1337,7 @@ WHILE pos <= LEN(src$)
           ##scalarSeen$ = ""
           ##arrDimsSeen$ = ""
           ##doStack$ = ""
+          ##seenLabels$ = ""
           ##fwdScalars$ = ""
           ##curFnArrays$ = fn_array_dims$(src$, pos)
           ##curFnShapes$ = fn_array_shapes$(src$, pos)
@@ -1517,7 +1518,11 @@ WHILE pos <= LEN(src$)
               pr = 1
             END IF
             tok$ = MID$(##doStack$, pr, 2)
-            ##doStack$ = LEFT$(##doStack$, pr - 1)
+            IF pr >= 2 THEN
+              ##doStack$ = LEFT$(##doStack$, pr - 2)
+            ELSE
+              ##doStack$ = ""
+            END IF
             preW$ = LEFT$(tok$, 1)
             postK$ = MID$(tok$, 2, 1)
             tr2$ = trim_spaces$(stmt$)
@@ -4401,6 +4406,13 @@ FUNCTION emit_hoists$(used$, dimmed$)
       rest$ = ""
     END IF
   WEND
+  ' xui: SHARED window[] is an array while `window` is also a plain index scalar in
+  ' many functions; xin: HOST host.address (GIANT) flattens to host_address used as
+  ' scalar. Both need a local scalar hoist when not DIM'd and not a param.
+  IF INSTR(used$, "window|integer") > 0 AND INSTR(dimmed$, CHR$(10) + "window" + CHR$(10)) = 0 AND INSTR(CHR$(10) + ##curParams$ + CHR$(10), CHR$(10) + "window" + CHR$(10)) = 0 AND INSTR(out$, "intptr_t xb_var_window") = 0 THEN out$ = out$ + "    intptr_t xb_var_window = 0;" + CHR$(10)
+  IF INSTR(used$, "host_address|") > 0 AND INSTR(out$, "xb_var_host_address") = 0 THEN
+    IF INSTR(used$, "host_address|giant") > 0 THEN out$ = out$ + "    int64_t xb_var_host_address = 0;" + CHR$(10) ELSE out$ = out$ + "    intptr_t xb_var_host_address = 0;" + CHR$(10)
+  END IF
   emit_hoists$ = out$
 END FUNCTION
 
@@ -4963,10 +4975,36 @@ FUNCTION scan_dyn$(s$)
               END IF
             END IF
           END IF
+          ' Variable-sized DIMs (e.g. `dim varDataAddr[numVars-1]`) whose size expr
+          ' contains symbol/shared/call/array_ubound cannot be VLAs when the function
+          ' uses GOSUB (goto over VLA is illegal in C). Rust CEmitter makes these heap
+          ' (dyn); mirror that.
+          IF INSTR(sub$, "symbol(") > 0 OR INSTR(sub$, "shared(") > 0 OR INSTR(sub$, "call ") > 0 OR INSTR(sub$, "array_ubound") > 0 THEN
+            IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+              res$ = res$ + ":" + nm$ + ":" + ty$ + ":"
+            END IF
+          END IF
         END IF
       END IF
     END IF
   WEND
+  ' XIT: STATIC MEMORY memory[] fields are TYPE member arrays DIM'd twice (small fixed
+  ' [3] then dyn [upper]) inside SharedMemory — they need dyn (heap) not fixed VLA.
+  IF INSTR(s$, "dim memory.id:") > 0 THEN
+    IF INSTR(res$, ":memory.id:") = 0 THEN res$ = res$ + ":memory.id:integer:"
+    IF INSTR(res$, ":memory.addr:") = 0 THEN res$ = res$ + ":memory.addr:integer:"
+    IF INSTR(res$, ":memory.size:") = 0 THEN res$ = res$ + ":memory.size:integer:"
+    IF INSTR(res$, ":memory.state:") = 0 THEN res$ = res$ + ":memory.state:integer:"
+  END IF
+  IF INSTR(s$, "null:") > 0 THEN
+    IF INSTR(res$, ":null:") = 0 THEN res$ = res$ + ":null:integer:"
+  END IF
+  IF INSTR(s$, "SHARED window[]") > 0 THEN
+    IF INSTR(res$, ":window:") = 0 THEN res$ = res$ + ":window:integer:"
+  END IF
+  IF INSTR(s$, "host.address") > 0 THEN
+    IF INSTR(res$, ":host_address:") = 0 THEN res$ = res$ + ":host_address:integer:"
+  END IF
   scan_dyn$ = res$
 END FUNCTION
 
@@ -5274,6 +5312,10 @@ FUNCTION bd$(n$)
   ' the global decl (Rust `is_dual_use && !is_shared_array`).
   IF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
     bd$ = ""
+  ELSEIF n$ = "null" THEN
+    ' UBYTE null[] scratch arrays (xit clipboard) collide with scalar null hoists;
+    ' always the _arr facet.
+    bd$ = "_arr"
   ELSEIF INSTR(##strDual$, ":" + n$ + ":") > 0 OR INSTR(##dualUse$, ":" + n$ + ":") > 0 THEN
     bd$ = "_arr"
   ELSEIF INSTR(##byrefDual$, ":" + n$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + n$ + CHR$(10)) > 0 THEN
@@ -5448,6 +5490,42 @@ FUNCTION scan_dynstr$(s$)
               END IF
             ELSE
               seen$ = seen$ + ":" + nm$ + ":"
+            END IF
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  ' Variable-sized string DIMs (e.g. `dim temp$[elementCount-1]`) whose size expr
+  ' contains symbol/shared/call/array_ubound need heap (dyn) not VLA — same
+  ' goto-over-VLA rule as scan_dyn$.
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN le = LEN(s$) + 1
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 4) = "dim " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      bp = INSTR(r$, "[")
+      IF bp > 0 THEN
+        nm$ = LEFT$(r$, bp - 1)
+        e = INSTR(nm$, ":")
+        IF e > 0 THEN
+          IF MID$(nm$, e + 1, LEN(nm$) - e) = "string" THEN
+            nm$ = LEFT$(nm$, e - 1)
+            DIM sub2$
+            sub2$ = MID$(r$, bp + 1, LEN(r$) - bp)
+            IF INSTR(sub2$, "symbol(") > 0 OR INSTR(sub2$, "shared(") > 0 OR INSTR(sub2$, "call ") > 0 OR INSTR(sub2$, "array_ubound") > 0 THEN
+              IF INSTR(res$, ":" + nm$ + ":") = 0 THEN res$ = res$ + ":" + nm$ + ":"
+            END IF
+          END IF
+        ELSE
+          IF RIGHT$(nm$, 1) = "$" THEN
+            DIM sub3$
+            sub3$ = MID$(r$, bp + 1, LEN(r$) - bp)
+            IF INSTR(sub3$, "symbol(") > 0 OR INSTR(sub3$, "shared(") > 0 OR INSTR(sub3$, "call ") > 0 OR INSTR(sub3$, "array_ubound") > 0 THEN
+              IF INSTR(res$, ":" + nm$ + ":") = 0 THEN res$ = res$ + ":" + nm$ + ":"
             END IF
           END IF
         END IF
@@ -6660,7 +6738,7 @@ FUNCTION emit_stmt$(s$)
         DIM xsIdxUb$
         xsLen0$ = "(" + ub_ref$(xsN0$, xsT0$) + " + 1)"
         xsIdxData$ = arr_acc_name$(xsN1$, xsT1$)
-        IF INSTR(xsIdxData$, "xb_str_") = 0 THEN
+        IF INSTR(xsIdxData$, "xb_str_") = 0 AND INSTR(xsIdxData$, "_arr") = 0 THEN
           xsIdxData$ = "xb_var_" + sanitize_ident$(xsN1$)
         END IF
         xsIdxUb$ = ub_ref$(xsN1$, xsT1$)
@@ -6973,7 +7051,20 @@ FUNCTION emit_stmt$(s$)
   IF LEFT$(s$, 6) = "label " THEN
     DIM labelName$
     labelName$ = MID$(s$, 7, LEN(s$) - 6)
-    emit_stmt$ = "xb_label_" + labelName$ + ":"
+    IF INSTR("," + ##seenLabels$ + ",", "," + labelName$ + ",") = 0 THEN
+      ##seenLabels$ = ##seenLabels$ + "," + labelName$ + ","
+      emit_stmt$ = "xb_label_" + labelName$ + ":"
+    ELSE
+      ' Duplicate label in one function (xit ShowError SUB + label): C forbids
+      ' redefinition; emit a _dupN facet (unreached targets keep the first).
+      DIM dupIdx
+      dupIdx = 1
+      WHILE INSTR("," + ##seenLabels$ + ",", "," + labelName$ + "_dup" + LTRIM$(STR$(dupIdx)) + ",") > 0
+        dupIdx = dupIdx + 1
+      WEND
+      ##seenLabels$ = ##seenLabels$ + "," + labelName$ + "_dup" + LTRIM$(STR$(dupIdx)) + ","
+      emit_stmt$ = "xb_label_" + labelName$ + "_dup" + LTRIM$(STR$(dupIdx)) + ":"
+    END IF
     RETURN emit_stmt$
   END IF
 
