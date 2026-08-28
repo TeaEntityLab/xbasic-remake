@@ -37,7 +37,8 @@ END FUNCTION
     // C emission
     let c_source = CEmitter::new().emit_program(&program);
     assert!(!c_source.is_empty());
-    assert!(c_source.contains("int main(void)"));
+    // ARCH-02 (2b0f6ee): main is argc/argv-seeded for ##ARGV$[]/##ENVP$[].
+    assert!(c_source.contains("int main(int argc, char **argv)"));
     assert!(c_source.contains("xb_user_Main"));
 
     // Write C to temp file, compile, run
