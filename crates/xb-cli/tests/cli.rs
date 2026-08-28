@@ -85,7 +85,7 @@ fn cli_emit_c_produces_compilable_c_source() {
         String::from_utf8_lossy(&output.stderr)
     );
     let c_source = String::from_utf8(output.stdout).unwrap();
-    assert!(c_source.contains("int main(void)"));
+    assert!(c_source.contains("int main(int argc, char **argv)"));
     assert!(c_source.contains("xb_print_str"));
     assert!(c_source.contains("#include <stdio.h>"));
 }

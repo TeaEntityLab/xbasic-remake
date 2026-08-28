@@ -1001,14 +1001,23 @@ impl Parser {
         } else {
             self.expect_keyword(Keyword::Function)?;
         }
-        // Skip optional return type qualifier (DOUBLE, XLONG, STRING, etc.)
-        if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
+        let mut prefix_suffix: Option<TypeSuffix> = None;
+        if let TokenKind::Identifier { name, .. } = self.peek_kind().clone() {
+            let name = name.clone();
             let save = self.index;
+            let upper = name.to_ascii_uppercase();
             self.index += 1;
-            // If next is another identifier, the first was a return type
-            if !matches!(self.peek_kind(), TokenKind::Identifier { .. })
-                && !matches!(self.peek_kind(), TokenKind::Keyword(_))
+            if matches!(self.peek_kind(), TokenKind::Identifier { .. })
+                || matches!(self.peek_kind(), TokenKind::Keyword(_))
             {
+                prefix_suffix = match upper.as_str() {
+                    "STRING" => Some(TypeSuffix::String),
+                    "SINGLE" | "FLOAT" => Some(TypeSuffix::Single),
+                    "DOUBLE" => Some(TypeSuffix::Double),
+                    "GIANT" => Some(TypeSuffix::Giant),
+                    _ => None,
+                };
+            } else {
                 self.index = save;
             }
         }
@@ -1018,15 +1027,34 @@ impl Parser {
         } else {
             Vec::new()
         };
-        // Skip optional return type after params: FUNCTION Xcm () DOUBLE
-        if matches!(self.peek_kind(), TokenKind::Identifier { .. }) {
+        let mut postfix_suffix: Option<TypeSuffix> = None;
+        if let TokenKind::Identifier { name, .. } = self.peek_kind().clone() {
+            let name = name.clone();
+            let upper = name.to_ascii_uppercase();
+            postfix_suffix = match upper.as_str() {
+                "STRING" => Some(TypeSuffix::String),
+                "SINGLE" | "FLOAT" => Some(TypeSuffix::Single),
+                "DOUBLE" => Some(TypeSuffix::Double),
+                "GIANT" => Some(TypeSuffix::Giant),
+                _ => None,
+            };
             self.index += 1;
         }
+        let effective_suffix = suffix.or(prefix_suffix).or(postfix_suffix);
         self.expect_line_end()?;
         let mut body = Vec::new();
         self.skip_newlines();
         // Check for forward declaration: if next token starts another
         // function/declare/program/end, this is a declaration only
+        let next_is_external_function = self.peek_keyword() == Some(Keyword::External)
+            && self.peek_next_kind().is_some_and(|k| {
+                matches!(
+                    k,
+                    TokenKind::Keyword(Keyword::Function)
+                        | TokenKind::Keyword(Keyword::CFunction)
+                        | TokenKind::Keyword(Keyword::Internal)
+                )
+            });
         let is_forward = self.at_eof()
             || self.is_end_program()
             || (self.peek_keyword() == Some(Keyword::Function)
@@ -1038,19 +1066,30 @@ impl Parser {
                     | Some(Keyword::Declare)
                     | Some(Keyword::Program)
                     | Some(Keyword::Export)
-            );
+            )
+            || next_is_external_function;
         if is_forward {
             return Ok(Statement::Function(FunctionDecl::new(
-                name, suffix, params, body,
+                name, effective_suffix, params, body,
             )));
         }
         while !self.at_eof() && !self.starts_end_function() {
             // If we encounter a new function declaration, this is a forward declaration
-            if (matches!(
+            let at_external_function = self.peek_keyword() == Some(Keyword::External)
+                && self.peek_next_kind().is_some_and(|k| {
+                    matches!(
+                        k,
+                        TokenKind::Keyword(Keyword::Function)
+                            | TokenKind::Keyword(Keyword::CFunction)
+                            | TokenKind::Keyword(Keyword::Internal)
+                    )
+                });
+            let at_function_start = (matches!(
                 self.peek_keyword(),
                 Some(Keyword::Function) | Some(Keyword::Internal) | Some(Keyword::CFunction)
             ) && !matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))))
-            {
+                || at_external_function;
+            if at_function_start {
                 break;
             }
             body.push(self.statement()?);
@@ -1075,7 +1114,7 @@ impl Parser {
             return Err(self.expected("keyword"));
         }
         Ok(Statement::Function(FunctionDecl::new(
-            name, suffix, params, body,
+            name, effective_suffix, params, body,
         )))
     }
     fn if_stmt(&mut self) -> Result<Statement, ParseError> {

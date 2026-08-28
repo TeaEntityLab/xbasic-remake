@@ -120,13 +120,26 @@ fn rejects_duplicate_constant_definitions() {
     let program = parse_program("$$Answer = 1\n$$Answer = 2\n").unwrap();
 
     // When
-    let result = Analyzer::analyze(&program);
+    let result = Analyzer::analyze_strict(&program);
 
     // Then
     assert!(matches!(
         result,
         Err(SemanticError::DuplicateConstant { ref name }) if name == "Answer"
     ));
+}
+
+#[test]
+fn permissive_allows_duplicate_constant_as_overwrite() {
+    // Given: legacy xui $$FileBox top-level vs $FileBox in FUNCTION XuiFile
+    // uses permissive duplicate-overwrite (14f9c69).
+    let program = parse_program("$$Answer = 1\n$$Answer = 2\n").unwrap();
+
+    // When
+    let result = Analyzer::analyze(&program);
+
+    // Then: permissive overwrites instead of erroring
+    assert!(result.is_ok());
 }
 
 #[test]

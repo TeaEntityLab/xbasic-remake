@@ -248,3 +248,43 @@ fn parses_comparison_expression() {
         }
     ));
 }
+
+#[test]
+fn parses_composite_member_bitfield_as_extu_keeping_indices() {
+    let src = "x = d86[curTable, opcodeByte].flags{$SIZE8}\n";
+    let program = parse_program(src).unwrap();
+    let Statement::Assignment { value, .. } = &program.statements[0] else {
+        panic!("not assignment: {:?}", program.statements[0]);
+    };
+    let Expression::FunctionCall { name, args } = value else {
+        panic!("expected EXTU call, got {value:?}");
+    };
+    assert_eq!(name, "EXTU");
+    assert!(
+        matches!(
+            &args[0],
+            Expression::ArrayAccess {
+                name,
+                extra_indices,
+                ..
+            } if name == "d86.flags" && extra_indices.len() == 1
+        ),
+        "expected 2-D d86.flags access, got {:?}",
+        args[0]
+    );
+}
+
+#[test]
+fn folds_bitfield_constant_to_packed_integer() {
+    let src = "$SIZE8 = BITFIELD(1, 0)\n";
+    let program = parse_program(src).unwrap();
+    assert!(
+        matches!(
+            &program.statements[0],
+            Statement::ConstantDefinition { name, value }
+                if name == "SIZE8" && value == "256"
+        ),
+        "got {:?}",
+        program.statements[0]
+    );
+}

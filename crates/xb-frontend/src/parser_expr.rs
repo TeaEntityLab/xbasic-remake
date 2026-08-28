@@ -386,14 +386,7 @@ impl Parser {
                         args.push(self.expression()?);
                     }
                     self.expect_token_kind(TokenKind::RBrace2)?;
-                    // Wrap: treat as function call on the expression
-                    if let Expression::FunctionCall { name, .. } = &expr {
-                        return Ok(Expression::FunctionCall {
-                            name: name.clone(),
-                            args,
-                        });
-                    }
-                    return Ok(expr);
+                    return Ok(Self::bitfield_extu(expr, args));
                 }
                 Ok(expr)
             }
@@ -405,6 +398,18 @@ impl Parser {
                 Ok(expr)
             }
             _ => Err(self.expected("expression")),
+        }
+    }
+
+    /// `{field}` / `{{w, o}}` bitfield extract: `EXTU(base, field…)`.
+    /// A 1-arg field is the packed `BITFIELD` encoding (`b=-99999` at emit).
+    fn bitfield_extu(base: Expression, field_args: Vec<Expression>) -> Expression {
+        let mut args = Vec::with_capacity(1 + field_args.len());
+        args.push(base);
+        args.extend(field_args);
+        Expression::FunctionCall {
+            name: "EXTU".to_string(),
+            args,
         }
     }
 
@@ -436,7 +441,7 @@ impl Parser {
     ) -> Result<Expression, ParseError> {
         self.index += 1;
         if matches!(self.peek_kind(), TokenKind::LBrace2) {
-            // {{...}} bitfield access
+            // {{...}} bitfield access on a scalar: curByte{{8, 0}}
             self.index += 1;
             let full = full_name(name, suffix);
             let mut args = vec![self.expression()?];
@@ -445,7 +450,11 @@ impl Parser {
                 args.push(self.expression()?);
             }
             self.expect_token_kind(TokenKind::RBrace2)?;
-            return Ok(Expression::FunctionCall { name: full, args });
+            let base = Expression::Identifier {
+                name: full,
+                suffix: None,
+            };
+            return Ok(Self::bitfield_extu(base, args));
         }
         if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
             // `{n}` on a string (brace-mapped paren) is a BYTE read: lower at
@@ -479,10 +488,11 @@ impl Parser {
                     bf_args.push(self.expression()?);
                 }
                 self.expect_token_kind(TokenKind::RBrace2)?;
-                return Ok(Expression::FunctionCall {
-                    name: full,
-                    args: bf_args,
-                });
+                let base = Expression::FunctionCall {
+                    name: full.clone(),
+                    args: args.clone(),
+                };
+                return Ok(Self::bitfield_extu(base, bf_args));
             }
             // Handle bitfield {8, 0} after function call: ABS(offset){8, 0}
             // { is mapped to ( by lexer, so we see ( after )
@@ -492,12 +502,11 @@ impl Parser {
                 let curr_pos = self.tokens.get(self.index).map(|t| t.pos);
                 let same_line =
                     matches!((prev_pos, curr_pos), (Some(p), Some(c)) if p.line == c.line);
-                if same_line {
+                let brace_bf = self.tokens.get(self.index).is_some_and(|t| t.from_brace);
+                if same_line && brace_bf {
                     let bf_args = self.parse_args()?;
-                    return Ok(Expression::FunctionCall {
-                        name: full,
-                        args: bf_args,
-                    });
+                    let base = Expression::FunctionCall { name: full, args };
+                    return Ok(Self::bitfield_extu(base, bf_args));
                 }
             }
             Ok(Expression::FunctionCall { name: full, args })
@@ -533,13 +542,39 @@ impl Parser {
                                 break;
                             }
                         }
-                        // Handle call/bitfield after dot: d86[i].flags{$SIZE8} → d86[i].flags($SIZE8)
+                        // Handle call/bitfield after dot: d86[i].flags{$SIZE8}
+                        // Keep the 2-D indices; `{bf}` is EXTU of the element.
                         if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+                            let brace_bf =
+                                self.tokens.get(self.index).is_some_and(|t| t.from_brace);
                             let args = self.parse_args()?;
+                            if brace_bf {
+                                let base = Expression::ArrayAccess {
+                                    name: combined,
+                                    index: Box::new(index),
+                                    extra_indices: index_extra,
+                                };
+                                return Ok(Self::bitfield_extu(base, args));
+                            }
                             return Ok(Expression::FunctionCall {
                                 name: combined,
                                 args,
                             });
+                        }
+                        if matches!(self.peek_kind(), TokenKind::LBrace2) {
+                            self.index += 1;
+                            let mut args = vec![self.expression()?];
+                            while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                                self.index += 1;
+                                args.push(self.expression()?);
+                            }
+                            self.expect_token_kind(TokenKind::RBrace2)?;
+                            let base = Expression::ArrayAccess {
+                                name: combined,
+                                index: Box::new(index),
+                                extra_indices: index_extra,
+                            };
+                            return Ok(Self::bitfield_extu(base, args));
                         }
                         // Handle array access after dot member: arr[i].member[j]
                         if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
@@ -569,7 +604,7 @@ impl Parser {
                     }
                 }
                 if matches!(self.peek_kind(), TokenKind::LBrace2) {
-                    // {{...}} bitfield after array access
+                    // {{...}} bitfield after array access: keep indices
                     self.index += 1;
                     let mut args = vec![self.expression()?];
                     while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
@@ -577,7 +612,12 @@ impl Parser {
                         args.push(self.expression()?);
                     }
                     self.expect_token_kind(TokenKind::RBrace2)?;
-                    return Ok(Expression::FunctionCall { name: full, args });
+                    let base = Expression::ArrayAccess {
+                        name: full,
+                        index: Box::new(index),
+                        extra_indices: index_extra,
+                    };
+                    return Ok(Self::bitfield_extu(base, args));
                 }
                 if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
                     // `{expr}` after array access (brace-mapped paren) is a
@@ -635,12 +675,35 @@ impl Parser {
                     }
                 }
                 // Call: a.b(args)
+                // Call or `{bf}` bitfield: a.b{$SIZE8}
                 if matches!(self.peek_kind(), TokenKind::Symbol('(')) {
+                    let brace_bf = self.tokens.get(self.index).is_some_and(|t| t.from_brace);
                     let args = self.parse_args()?;
+                    if brace_bf {
+                        let base = Expression::Identifier {
+                            name: combined,
+                            suffix: mem_suffix,
+                        };
+                        return Ok(Self::bitfield_extu(base, args));
+                    }
                     return Ok(Expression::FunctionCall {
                         name: combined,
                         args,
                     });
+                }
+                if matches!(self.peek_kind(), TokenKind::LBrace2) {
+                    self.index += 1;
+                    let mut args = vec![self.expression()?];
+                    while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                        self.index += 1;
+                        args.push(self.expression()?);
+                    }
+                    self.expect_token_kind(TokenKind::RBrace2)?;
+                    let base = Expression::Identifier {
+                        name: combined,
+                        suffix: mem_suffix,
+                    };
+                    return Ok(Self::bitfield_extu(base, args));
                 }
                 // Array access: a.b[i]  (a.b[] is an array reference)
                 if matches!(self.peek_kind(), TokenKind::Symbol('[')) {

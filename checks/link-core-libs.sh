@@ -18,6 +18,7 @@ else
     XB_BIN="target/release/xb"
 fi
 OUT=${1:-/tmp/xblib}
+rm -rf "$OUT"
 mkdir -p "$OUT"
 for lib in xbasic-6.4.5/src/shared/*.x xbasic-6.4.5/src/linux/*.x; do
     name=$(basename "$lib" .x)
@@ -30,8 +31,9 @@ for name in xcm xdis xma xui xut xutpde gdi32 kernel32 user32 xcol xgr xin xit x
     $CC $FLAGS -c "$OUT/$name.c" -o "$OUT/$name.o"
 done
 echo "int main(void){return 0;}" > "$OUT/stub_main.c"
-$CC "$OUT/stub_main.c" "$OUT"/*.o -o "$OUT/xblibs"
-echo "linked: $OUT/xblibs ($(nm -U "$OUT/xblibs" | grep -c '_xb_user_') xb_user_ symbols)"
+# Deterministic link order matching cc loop (was "$OUT"/*.o glob — filesystem-dependent for weak symbols, see L16)
+$CC "$OUT/stub_main.c" "$OUT/xcm.o" "$OUT/xdis.o" "$OUT/xma.o" "$OUT/xui.o" "$OUT/xut.o" "$OUT/xutpde.o" "$OUT/gdi32.o" "$OUT/kernel32.o" "$OUT/user32.o" "$OUT/xcol.o" "$OUT/xgr.o" "$OUT/xin.o" "$OUT/xit.o" "$OUT/xrun.o" "$OUT/xst.o" -o "$OUT/xblibs"
+echo "linked: $OUT/xblibs ($(nm -U "$OUT/xblibs" 2>/dev/null | grep -c '_xb_user_' || nm "$OUT/xblibs" | grep -c '_xb_user_') xb_user_ symbols)"
 
 # Execute a cross-TU smoke: each lib's Version$ must return its source value.
 cat > "$OUT/smoke.c" <<'EOF'
@@ -60,6 +62,6 @@ int main(void) {
     return fails;
 }
 EOF
-$CC -include string.h "$OUT/smoke.c" "$OUT"/*.o -o "$OUT/smoke"
+$CC -include string.h "$OUT/smoke.c" "$OUT/xcm.o" "$OUT/xdis.o" "$OUT/xma.o" "$OUT/xui.o" "$OUT/xut.o" "$OUT/xutpde.o" "$OUT/gdi32.o" "$OUT/kernel32.o" "$OUT/user32.o" "$OUT/xcol.o" "$OUT/xgr.o" "$OUT/xin.o" "$OUT/xit.o" "$OUT/xrun.o" "$OUT/xst.o" -o "$OUT/smoke"
 "$OUT/smoke"
-echo "smoke: $([ $? -eq 0 ] && echo ALL OK || echo FAILURES)"
+echo "smoke: $([ $? -eq 0 ] && echo ALL OK || echo FAILURES) # NOTE: 7/15 libs only (Xcm/Xst/Xgr/Xui/Xit/Xma/XxxBasic); no behavioral differential beyond Version$; ATTACH/ARGV$/byref not verified — Bar A compile-only"

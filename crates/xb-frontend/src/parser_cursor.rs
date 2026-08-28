@@ -359,6 +359,7 @@ impl Parser {
                 // composite TYPE name). The param name may be an identifier or a
                 // keyword (e.g. 'data').
                 let mut type_name: Option<String> = None;
+                let mut qualifier_suffix: Option<TypeSuffix> = None;
                 if matches!(self.peek_kind(), TokenKind::Identifier { .. })
                     || matches!(self.peek_kind(), TokenKind::Keyword(Keyword::FuncAddr))
                 {
@@ -379,6 +380,15 @@ impl Parser {
                         // the analyzer can flatten the param into member slots.
                         if self.composite_types.contains(&c) {
                             type_name = Some(c);
+                        } else {
+                            let upper = c.to_ascii_uppercase();
+                            qualifier_suffix = match upper.as_str() {
+                                "STRING" => Some(TypeSuffix::String),
+                                "SINGLE" | "FLOAT" => Some(TypeSuffix::Single),
+                                "DOUBLE" => Some(TypeSuffix::Double),
+                                "GIANT" => Some(TypeSuffix::Giant),
+                                _ => None,
+                            };
                         }
                     }
                 }
@@ -399,14 +409,15 @@ impl Parser {
                     }
                     self.expect_symbol(']')?;
                 }
+                let effective_suffix = suffix.or(qualifier_suffix);
                 let name = if is_array {
-                    full_name(name, suffix)
+                    full_name(name, effective_suffix)
                 } else {
                     name
                 };
                 params.push(Param {
                     name,
-                    suffix,
+                    suffix: effective_suffix,
                     type_name,
                     by_ref,
                     is_array,
@@ -464,6 +475,19 @@ impl Parser {
                     "0".to_string()
                 }
             }
+            Expression::FunctionCall { name, args }
+                if name.eq_ignore_ascii_case("BITFIELD") && args.len() == 2 =>
+            {
+                match (&args[0], &args[1]) {
+                    (Expression::IntegerLiteral(w), Expression::IntegerLiteral(o)) => {
+                        match (parse_xb_int_literal(w), parse_xb_int_literal(o)) {
+                            (Some(w), Some(o)) => ((w << 8) | o).to_string(),
+                            _ => "0".to_string(),
+                        }
+                    }
+                    _ => "0".to_string(),
+                }
+            }
             _ => "0".to_string(),
         };
         Ok(Statement::ConstantDefinition {
@@ -513,4 +537,18 @@ impl Parser {
             value,
         })
     }
+}
+
+fn parse_xb_int_literal(s: &str) -> Option<i64> {
+    let t = s.trim();
+    if let Some(h) = t.strip_prefix("0x").or_else(|| t.strip_prefix("0X")) {
+        return i64::from_str_radix(h, 16).ok();
+    }
+    if let Some(b) = t.strip_prefix("0b").or_else(|| t.strip_prefix("0B")) {
+        return i64::from_str_radix(b, 2).ok();
+    }
+    if let Some(o) = t.strip_prefix("0o").or_else(|| t.strip_prefix("0O")) {
+        return i64::from_str_radix(o, 8).ok();
+    }
+    t.parse().ok()
 }

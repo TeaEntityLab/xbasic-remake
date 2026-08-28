@@ -47,13 +47,24 @@ cargo check -p xb-compiler --features llvm
 
 On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` is 1.97.1 after update. The IDE feature requires Rust ≥1.95 and was checked with explicit rustup cargo/rustc. Homebrew `llvm` is **22.1.8** (`/opt/homebrew/opt/llvm`); the LLVM backend builds and tests with `LLVM_SYS_221_PREFIX=/opt/homebrew/opt/llvm` but stays feature-gated off by default — `./checks/validate-all.sh` covers default features only (no `--features llvm`, no CI LLVM job yet; see docs/17 LLVM-CI-BITROT).
 
-## Verified capabilities (2026-08-26)
+## Verified capabilities (2026-08-28)
 
-- **All 15 core libraries compile cc-clean** (`xbasic-6.4.5/src/{shared,linux}/*.x`)
-- **All 15 link into one working binary** — `checks/link-core-libs.sh`
-- **114/114 demo programs** compile through the Rust CEmitter (`demo_parity`: 112 match / 2 real-I/O skips) and through the true self-hosted `cgen.x` (`cgen_x_compiles_all_demos_cc_clean`)
+- **All 15 core libraries compile cc-clean** (`xbasic-6.4.5/src/{shared,linux}/*.x`) via Rust CEmitter with `XB_WEAK_SYMBOLS=1 -O0 -Wno-incompatible-pointer-types -Wno-int-conversion` (compile-only; `ATTACH` is parser-discarded affecting xcol/xst/xgr/xui/xit runtime; see docs/17 LICENSE-BOUNDARY)
+- **All 15 link into one working binary** — `checks/link-core-libs.sh` (15/15 cc-clean, 1736 `xb_user_*` at 1c2c929; 7 `Version$` smoke, no behavioral differential beyond that; self-hosted cgen.x not yet verified for libs)
+- **114/114 demo programs** compile through the Rust CEmitter (`demo_parity`: 112 match / 2 real-I/O skips) and through the true self-hosted `cgen.x` (`cgen_x_compiles_all_demos_cc_clean`) — requires Kittedy/TranslateStatement workarounds landed at 1c2c929; see review-synthesis-legacy-lib-port-2026-08-28.md
 - **80/80 positive-corpus programs** emit byte-identical C (locked by `cgen_cemitter_sync`)
 - **Byte access `{}`** on string scalars and array elements
 - **INC/DEC + SWAP subscripts** on indexed/composite targets
-- **277 tests across 33 binaries**, 0 failures (`./checks/validate-all.sh`)
+- **277 tests across 33 binaries**, 0 failures (`./checks/validate-all.sh` — now also runs `link-core-libs.sh`; 1736 `xb_user_*` at 1c2c929)
 - Self-hosting: compiler.x → cgen.x → native C generator (bootstrap fixed point held)
+
+## License
+
+The original XBasic source tree (`xbasic-6.4.5/`) is dual-licensed: GPL for the
+compiler/IDE (`COPYING`), LGPL for the function libraries (`COPYING_LIB`).
+Three Win32 shim libraries (`gdi32`, `kernel32`, `user32`) carry no license
+notice. The remake crates split `GPL-2.0-or-later` (compiler/IDE/linker) vs
+`LGPL-2.1-or-later` (runtime/GUI). `checks/link-core-libs.sh` links all 15
+libraries into one binary; the combined work is GPL-covered. See docs/17
+LICENSE-BOUNDARY row for the full disclosure. Local `link-core-libs.sh` runs
+are run-only; distribution without GPL notices is not allowed.
