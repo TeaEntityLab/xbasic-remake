@@ -4411,7 +4411,11 @@ FUNCTION emit_hoists$(used$, dimmed$)
   ' scalar. Both need a local scalar hoist when not DIM'd and not a param.
   IF INSTR(used$, "window|integer") > 0 AND INSTR(dimmed$, CHR$(10) + "window" + CHR$(10)) = 0 AND INSTR(CHR$(10) + ##curParams$ + CHR$(10), CHR$(10) + "window" + CHR$(10)) = 0 AND INSTR(out$, "intptr_t xb_var_window") = 0 THEN out$ = out$ + "    intptr_t xb_var_window = 0;" + CHR$(10)
   IF INSTR(used$, "host_address|") > 0 AND INSTR(out$, "xb_var_host_address") = 0 THEN
-    IF INSTR(used$, "host_address|giant") > 0 THEN out$ = out$ + "    int64_t xb_var_host_address = 0;" + CHR$(10) ELSE out$ = out$ + "    intptr_t xb_var_host_address = 0;" + CHR$(10)
+    IF INSTR(used$, "host_address|giant") > 0 THEN
+      out$ = out$ + "    int64_t xb_var_host_address = 0;" + CHR$(10)
+    ELSE
+      out$ = out$ + "    intptr_t xb_var_host_address = 0;" + CHR$(10)
+    END IF
   END IF
   emit_hoists$ = out$
 END FUNCTION
