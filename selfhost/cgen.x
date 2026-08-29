@@ -4121,34 +4121,12 @@ FUNCTION add_sym$(acc$, nm$, ty$)
   IF INSTR(nm$, "[") > 0 THEN
     RETURN add_sym$
   END IF
-  DIM want$
-  DIM rest2$
-  DIM e2$
-  DIM nl2
-  DIM b2
-  DIM en2$
-  DIM et2$
-  want$ = c_var_name$(nm$, ty$)
-  rest2$ = acc$
-  WHILE LEN(rest2$) > 0
-    nl2 = INSTR(rest2$, CHR$(10))
-    IF nl2 = 1 THEN
-      rest2$ = MID$(rest2$, 2, LEN(rest2$) - 1)
-    ELSEIF nl2 > 1 THEN
-      e2$ = LEFT$(rest2$, nl2 - 1)
-      rest2$ = MID$(rest2$, nl2 + 1, LEN(rest2$) - nl2)
-      b2 = INSTR(e2$, "|")
-      IF b2 > 0 THEN
-        en2$ = LEFT$(e2$, b2 - 1)
-        et2$ = MID$(e2$, b2 + 1, LEN(e2$) - b2)
-        IF c_var_name$(en2$, et2$) = want$ THEN
-          RETURN add_sym$
-        END IF
-      END IF
-    ELSE
-      rest2$ = ""
-    END IF
-  WEND
+  ' O(1) duplicate check: each entry is CHR$(10)+nm$+"|"+ty$+CHR$(10).
+  ' Searching for CHR$(10)+nm$+"|" matches at entry boundaries (the leading
+  ' newline ensures we don't match a substring of a longer name like "a" in "aa").
+  IF INSTR(acc$, CHR$(10) + nm$ + "|") > 0 THEN
+    RETURN add_sym$
+  END IF
   add_sym$ = acc$ + nm$ + "|" + ty$ + CHR$(10)
 END FUNCTION
 
