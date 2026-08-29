@@ -51,7 +51,7 @@ On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` 
 
 - **All 15 core libraries compile cc-clean through the Rust CEmitter** (`xbasic-6.4.5/src/{shared,linux}/*.x`) with `XB_WEAK_SYMBOLS=1 -O0 -Wno-incompatible-pointer-types -Wno-int-conversion`. This is compile-only; `ATTACH` is parser-discarded in xcol/xst/xgr/xui/xit.
 - **All 15 link in the internal test harness** — `checks/link-core-libs.sh` records 1736 `xb_user_*` symbols and seven `Version$` smoke checks, not compiled-body behavior. Self-hosted cgen.x has a test-locked 9/15 floor; 15/15 remains open.
-- **The all-demo cgen guard reports 114/114** (`cgen_x_compiles_all_demos_cc_clean`), but currently applies test-local post-emission C rewrites for Kittedy and qbtoxb. A standalone manual sweep observed raw self-hosted `cgen.x` output compile-clean for 114/114; RR-13 removes the rewrites and makes that result the CI contract. Rust CEmitter `demo_parity` records 112 matches and two real-I/O skips.
+- **The all-demo cgen guard reports 114/114** (`cgen_x_compiles_all_demos_cc_clean`) as a raw-generator contract — no post-emission C rewrites. Rust CEmitter `demo_parity` records 112 matches and two real-I/O skips.
 - **80/80 positive-corpus programs** emit byte-identical C (locked by `cgen_cemitter_sync`).
 - **Byte access `{}`** works on string scalars and array elements.
 - **INC/DEC + SWAP subscripts** work on indexed/composite targets.

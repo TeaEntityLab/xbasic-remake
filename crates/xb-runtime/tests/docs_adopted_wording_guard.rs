@@ -37,21 +37,15 @@ fn assert_occurs_exactly(rel_path: &str, needle: &str, expected: usize) {
 fn docs_adopted_wording_is_present() {
     let open_work = "docs/17-open-work-roadmap.md";
 
-    // One canonical evidence banner: standalone raw result, harness-assisted CI.
+    // One canonical evidence banner: raw-generator contract (RR-13 done).
     assert_occurs_exactly(open_work, "Last full re-verification:", 1);
-    assert_contains(
-        open_work,
-        "that manual raw result is evidence, not yet an unassisted CI contract",
-    );
-    assert_contains(open_work, "transitional post-emission rewrites");
+    assert_contains(open_work, "raw-generator contract");
+    assert_contains(open_work, "RR-13 done");
+    assert_not_contains(open_work, "transitional post-emission rewrites");
     assert_not_contains(open_work, "raw cgen.x output is not yet a 114/114");
 
     // Current compiler queue and falsifiability.
-    assert_contains(open_work, "RR-13 raw demo guard & RR-03 scoped facets");
-    assert_contains(
-        open_work,
-        "Strip test-local harness rewrites in `cgen_x_compiles_all_demos_cc_clean`",
-    );
+    assert_contains(open_work, "RR-03 scoped facets");
     assert_contains(open_work, "Heuristic patch falsifiability");
     assert_contains(open_work, "9/15 at `54db874`");
 

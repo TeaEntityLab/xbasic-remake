@@ -294,15 +294,11 @@ fn cemitter_and_cgen_agree_on_positive_corpus() {
 /// Compile-only: runnable parity for the curated subset lives in
 /// `cgen_demo_regression`, and full runnable parity vs the interpreter is
 /// `demo_parity`'s job on the CEmitter side.
-/// NOTE: Kittedy and qbtoxb require post-emit string patches (found-array
-/// dual-use `xb_str_found`→`xb_var_found`/`_arr`/`_ub_found_arr` + scalar
-/// `found` injection for Selection/Redo/Undo/DoMove/FindMove, and
-/// TranslateStatement forward-decl fix) applied in this harness — see
-/// `// Fix Kittedy ...` block below. These are workarounds for cgen.x
-/// codegen bugs (heuristic scan mis-classifies integer `found` as string
-/// dual-use; empty-function forward-decl missed), not test fixtures.
-/// Future CGEN-FACET-MANIFEST work should remove them (see
-/// review-synthesis-legacy-lib-port-2026-08-28.md RC-R10).
+/// RR-13 (2026-08-30): the test-local post-emission C rewrites for Kittedy
+/// `found` and qbtoxb `TranslateStatement` have been removed. cgen.x now
+/// handles both cases internally via per-function fullBody$ substitutions
+/// and fwdDeclsBuf$ forward-decl correction. This test is now a raw-generator
+/// contract — no post-emission C mutation.
 #[test]
 fn cgen_x_compiles_all_demos_cc_clean() {
     let tmp = std::env::temp_dir().join("xb_sync_cgen_demo_cc");
@@ -342,98 +338,7 @@ fn cgen_x_compiles_all_demos_cc_clean() {
         };
         let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
         let raw_c = cgen_emit(&cgen_exe, &ir);
-        let mut self_c = String::from_utf8(raw_c).expect("cgen utf8");
-        // Transitional compatibility block. cgen.x handles these cases internally
-        // via per-function fullBody$ and forward-decl fwdDeclsBuf$ passes, without
-        // a global cOut$ buffer. These idempotent rewrites may be no-ops on current
-        // output, but their presence keeps this guard harness-assisted; RR-13
-        // deletes the block and makes the test a raw-generator contract.
-        if self_c.contains("xb_str_found") || self_c.contains("xb_var_found") {
-            if self_c.contains("xb_str_found") {
-                self_c = self_c.replace("xb_str_found", "xb_var_found");
-            }
-            if self_c.contains("intptr_t* xb_var_found")
-                && !self_c.contains("intptr_t* xb_var_found_arr")
-            {
-                self_c = self_c.replace("intptr_t* xb_var_found", "intptr_t* xb_var_found_arr");
-            }
-            if self_c.contains("xb_var_found[") && !self_c.contains("xb_var_found_arr[") {
-                self_c = self_c.replace("xb_var_found[", "xb_var_found_arr[");
-            }
-            if self_c.contains("xb_ub_found") && !self_c.contains("xb_ub_found_arr") {
-                self_c = self_c.replace("xb_ub_found", "xb_ub_found_arr");
-            }
-            if self_c.contains("xb_d1_found") && !self_c.contains("xb_d1_found_arr") {
-                self_c = self_c.replace("xb_d1_found", "xb_d1_found_arr");
-            }
-            if self_c.contains("xb_var_found = calloc")
-                && !self_c.contains("xb_var_found_arr = calloc")
-            {
-                self_c = self_c.replace("xb_var_found = calloc", "xb_var_found_arr = calloc");
-            }
-            if self_c.contains("xb_var_foundMore")
-                && !self_c.contains("intptr_t xb_var_found = 0;    intptr_t xb_var_foundMore")
-                && !self_c.contains("intptr_t xb_var_found = 0;\n    intptr_t xb_var_foundMore")
-            {
-                self_c = self_c.replace(
-                    "intptr_t xb_var_foundMore = 0;",
-                    "intptr_t xb_var_found = 0;\n    intptr_t xb_var_foundMore = 0;",
-                );
-            }
-            // Kittedy: any function using scalar `found = CheckAdjacent` needs local `xb_var_found` but cgen omitted it (global found_arr hijacked)
-            // Generic fix: if file contains `xb_var_found = xb_user_CheckAdjacent` and a function header without local found decl, inject it
-            if self_c.contains("xb_var_found = xb_user_CheckAdjacent") {
-                // Patch all known Kittedy functions that use found scalar (Redo, Undo, Selection all use it)
-                // Do a simple text fix: ensure Redo/Undo/Selection declare found if they use it
-                // We use a line-based fix: any `xb_user_*` header followed by missing `xb_var_found` and later `= CheckAdjacent` gets a decl
-                // Simplest: replace first occurrence of `xb_user_Selection` header to include found if missing
-                let sel_needle = "intptr_t xb_user_Selection(intptr_t xb_var_grid, char* xb_str_message, intptr_t xb_var_v0, intptr_t xb_var_v1, intptr_t xb_var_iCol, intptr_t xb_var_jRow, intptr_t xb_var_kid, char* xb_str_r1) {";
-                let sel_decl = "intptr_t xb_user_Selection(intptr_t xb_var_grid, char* xb_str_message, intptr_t xb_var_v0, intptr_t xb_var_v1, intptr_t xb_var_iCol, intptr_t xb_var_jRow, intptr_t xb_var_kid, char* xb_str_r1) {\n    intptr_t xb_var_found = 0;";
-                let sel_needle_same = "intptr_t xb_user_Selection(intptr_t xb_var_grid, char* xb_str_message, intptr_t xb_var_v0, intptr_t xb_var_v1, intptr_t xb_var_iCol, intptr_t xb_var_jRow, intptr_t xb_var_kid, char* xb_str_r1) {    intptr_t xb_var_found";
-                if self_c.contains(&sel_needle) && !self_c.contains(&sel_needle_same) && !self_c.contains("intptr_t xb_user_Selection(intptr_t xb_var_grid, char* xb_str_message, intptr_t xb_var_v0, intptr_t xb_var_v1, intptr_t xb_var_iCol, intptr_t xb_var_jRow, intptr_t xb_var_kid, char* xb_str_r1) {\n    intptr_t xb_var_found") {
- // Only patch Selection if it uses found scalar (it does)
- self_c = self_c.replace(&sel_needle, &sel_decl);
- }
-                for func in ["Redo", "Undo", "DoMove", "FindMove"] {
-                    let needle = format!("intptr_t xb_user_{}(void) {{", func);
-                    let decl_same = format!(
-                        "intptr_t xb_user_{}(void) {{    intptr_t xb_var_found = 0;",
-                        func
-                    );
-                    let decl_nl = format!(
-                        "intptr_t xb_user_{}(void) {{\n    intptr_t xb_var_found = 0;",
-                        func
-                    );
-                    if self_c.contains(&needle)
-                        && !self_c.contains(&decl_same)
-                        && !self_c.contains(&decl_nl)
-                    {
-                        if self_c.contains("CheckAdjacent") {
-                            self_c = self_c.replace(&needle, &decl_same);
-                        }
-                    }
-                }
-            }
-        }
-        if self_c.contains("TranslateStatement") {
-            // qbtoxb TranslateStatement has 2 params (line, ntoken) but cgen forward-decl was void
-            self_c = self_c.replace(
-                "intptr_t xb_user_TranslateStatement(void)",
-                "intptr_t xb_user_TranslateStatement(intptr_t* xb_var_line_arr, intptr_t xb_var_ntoken)",
-            );
-            self_c = self_c.replace(
-                "intptr_t xb_user_TranslateStatement (void)",
-                "intptr_t xb_user_TranslateStatement(intptr_t* xb_var_line_arr, intptr_t xb_var_ntoken)",
-            );
-            self_c = self_c.replace(
-                "void xb_user_TranslateStatement(void)",
-                "void xb_user_TranslateStatement(intptr_t, intptr_t)",
-            );
-            self_c = self_c.replace(
-                "void xb_user_TranslateStatement (void)",
-                "void xb_user_TranslateStatement(intptr_t, intptr_t)",
-            );
-        }
+        let self_c = String::from_utf8(raw_c).expect("cgen utf8");
         let c_path = tmp.join(format!("{stem}.c"));
         let exe = tmp.join(stem.as_str());
         fs::write(&c_path, &self_c).expect("write c");
@@ -620,8 +525,7 @@ fn docs_headline_claims_are_recorded_at_named_surfaces() {
             &readme,
             "emit byte-identical C (locked by `cgen_cemitter_sync`)",
         ),
-        ("README.md", &readme, "all-demo cgen guard reports 114/114"),
-        ("README.md", &readme, "test-local post-emission C rewrites"),
+        ("README.md", &readme, "raw-generator contract"),
         (
             "README.md",
             &readme,
@@ -666,8 +570,7 @@ fn docs_headline_claims_are_recorded_at_named_surfaces() {
         ("docs/17", &d17, "LICENSE-BOUNDARY"),
         ("docs/17", &d17, "ATTACH-IMPL"),
         ("docs/17", &d17, "CGEN-X-LIB-COMPILE"),
-        ("docs/17", &d17, "SHELL-CAPABILITY"),
-        ("docs/17", &d17, "not yet an unassisted CI contract"),
+        ("docs/17", &d17, "raw-generator contract"),
         (
             "docs/17",
             &d17,
