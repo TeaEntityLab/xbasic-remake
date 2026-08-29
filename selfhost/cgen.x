@@ -4022,9 +4022,9 @@ FUNCTION emit_params$(params$)
   DIM i
   DIM j
   DIM pCount
-  DIM pNames$[128]
-  DIM pTypes$[128]
-  DIM pIsStr[128]
+  DIM pNames$[256]
+  DIM pTypes$[256]
+  DIM pIsStr[256]
   DIM isDup
   DIM baseName$
   ' First pass: parse all parameters into arrays for dup detection
