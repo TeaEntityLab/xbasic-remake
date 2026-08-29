@@ -1485,7 +1485,7 @@ WHILE pos <= LEN(src$)
         ' RR-03: restore happens after function body emission (below).
         ##curHoistFn$ = funcName$
         IF skipFunc = 0 THEN
-          hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
+          hoists$ = emit_hoists$(CHR$(10) + usedSyms$, CHR$(10) + dimmedSyms$)
           ' body actually assigns the function name; otherwise the function
           ' returns the type default directly (matching the Rust CEmitter).
           ' Any reference (the self-DIM is suppressed, so reads of the
@@ -2813,6 +2813,13 @@ FUNCTION emit_expr$(e$)
     funcName$ = c_func_name$(fn$)
     IF fn$ = "EOF" THEN
       emit_expr$ = "xb_eof()"
+      RETURN emit_expr$
+    END IF
+    IF fn$ = "ASC" THEN
+      ' ASC(s$, n): interpreter reads only args[0] (byte 0), ignoring the
+      ' optional position arg. xb_asc is 1-arg — drop extras, matching
+      ' the Rust CEmitter (c_emit_expr.rs:256-262).
+      emit_expr$ = "xb_asc(" + emit_args_n$(args$, 1) + ")"
       RETURN emit_expr$
     END IF
     IF fn$ = "SBYTEAT" OR fn$ = "UBYTEAT" OR fn$ = "SSHORTAT" OR fn$ = "USHORTAT" OR fn$ = "SLONGAT" OR fn$ = "ULONGAT" OR fn$ = "XLONGAT" OR fn$ = "GIANTAT" OR fn$ = "SUBADDRAT" OR fn$ = "GOADDRAT" THEN
@@ -4169,10 +4176,12 @@ FUNCTION add_sym$(acc$, nm$, ty$)
   IF INSTR(nm$, "[") > 0 THEN
     RETURN add_sym$
   END IF
-  ' O(1) duplicate check: each entry is CHR$(10)+nm$+"|"+ty$+CHR$(10).
-  ' Searching for CHR$(10)+nm$+"|" matches at entry boundaries (the leading
-  ' newline ensures we don't match a substring of a longer name like "a" in "aa").
-  IF INSTR(acc$, CHR$(10) + nm$ + "|") > 0 THEN
+  ' O(1) duplicate check: each entry is nm$+"|"+ty$+CHR$(10).
+  ' Deduplicate by name AND type so a variable used as both integer and string
+  ' (e.g., symbol(label:integer) and symbol(label:string)) gets both entries.
+  ' The leading CHR$(10) boundary search prevents matching substrings of
+  ' longer names like "a" in "aa".
+  IF INSTR(CHR$(10) + acc$, CHR$(10) + nm$ + "|" + ty$ + CHR$(10)) > 0 THEN
     RETURN add_sym$
   END IF
   add_sym$ = acc$ + nm$ + "|" + ty$ + CHR$(10)
@@ -4623,6 +4632,13 @@ FUNCTION emit_hoists$(used$, dimmed$)
             _strFacet = 1
           ELSEIF INSTR(used$, CHR$(10) + nm$ + "|integer") > 0 OR INSTR(used$, CHR$(10) + nm$ + "|float") > 0 THEN
             _strFacet = 1
+          ELSEIF INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) > 0 AND INSTR(##curFnArrays$, ":" + nm$ + ":") > 0 THEN
+            ' Variable DIM'd as an array with a different type (e.g.,
+            ' dim arg:integer[...] but used as symbol(arg:string)).
+            ' The string facet xb_str_X is a separate C variable and needs hoisting.
+            ' Only fire for array DIMs (##curFnArrays$); scalar string DIMs
+            ' (dim lastCommandLine:string) should NOT trigger this.
+            _strFacet = 1
           END IF
         END IF
         IF (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0) OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1 OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0)) THEN
@@ -4659,7 +4675,12 @@ FUNCTION emit_hoists$(used$, dimmed$)
               out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(nm$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
           ELSE
-            out$ = out$ + "    " + c_type$(ty$) + " " + c_var_name$(nm$, ty$) + " = " + c_default$(ty$) + ";" + CHR$(10)
+            ' Guard: don't re-emit the same C variable name (integer and float
+            ' both map to xb_var_X; string maps to xb_str_X). The first entry
+            ' in used$ wins, matching the Rust CEmitter's first-DIM-wins rule.
+            IF INSTR(out$, " " + c_var_name$(nm$, ty$) + " = ") = 0 THEN
+              out$ = out$ + "    " + c_type$(ty$) + " " + c_var_name$(nm$, ty$) + " = " + c_default$(ty$) + ";" + CHR$(10)
+            END IF
           END IF
         END IF
       END IF
@@ -4684,8 +4705,10 @@ FUNCTION emit_hoists$(used$, dimmed$)
         ' Shared array: file-scope heap global already declared (no local `_arr`).
       ELSEIF INSTR(##strDual$, ":" + entry$ + ":") > 0 AND INSTR(##strUbDual$, ":" + entry$ + ":") = 0 THEN
         IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
-          IF INSTR(out$, "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** ") = 0 THEN
+          IF INSTR(out$, "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** ") = 0 AND INSTR(out$, " " + c_var_name$(entry$, "string") + " = xb_str(") = 0 THEN
             out$ = out$ + "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** " + c_var_name$(entry$, "string") + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
+          ELSEIF INSTR(out$, " " + c_var_name$(entry$, "string") + " = xb_str(") > 0 AND INSTR(out$, "char** " + c_var_name$(entry$, "string") + "_arr = 0;") = 0 THEN
+            out$ = out$ + "    char** " + c_var_name$(entry$, "string") + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
           END IF
         ELSE
           IF INSTR(out$, "char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr") = 0 THEN
