@@ -2521,7 +2521,10 @@ FUNCTION emit_expr$(e$)
       _ifzColon = INSTR(_ifzInner$, ":")
       IF _ifzColon > 0 THEN
         _ifzName$ = LEFT$(_ifzInner$, _ifzColon - 1)
-        IF INSTR(##sharedArrays$, ":" + _ifzName$ + ":") > 0 THEN
+        _ifzType$ = MID$(_ifzInner$, _ifzColon + 1, LEN(_ifzInner$) - _ifzColon)
+        ' Only apply pointer comparison to SHARED STRING arrays, not shared
+        ' integer arrays (kids:integer > 9 would incorrectly emit xb_str_kids).
+        IF _ifzType$ = "string" AND INSTR(##sharedArrays$, ":" + _ifzName$ + ":") > 0 THEN
           emit_expr$ = "-(" + c_var_name$(_ifzName$, "string") + " " + c_cmp_op$(op$) + " " + emit_expr$(right$) + ")"
           RETURN emit_expr$
         END IF
@@ -4428,15 +4431,21 @@ FUNCTION emit_hoists$(used$, dimmed$)
       IF bar > 0 THEN
         nm$ = LEFT$(entry$, bar - 1)
         ty$ = MID$(entry$, bar + 1, LEN(entry$) - bar)
-        ' IR $-stripping artifact: parser emits symbol(k:string) for k$ where k is
-        ' a shared INTEGER array (dim shared k:integer[...]). The string facet
-        ' xb_str_k is a separate C variable from xb_var_k. Only bypass for
-        ' ##sharedArrays$ members — local string DIMs (dim src:string) already
-        ' declare xb_str_src, so hoisting would redeclare.
+        ' IR $-stripping artifact: parser emits symbol(k:string) for k$ where k
+        ' is DIM'd as a NON-STRING type (dim k:integer[...]). The string facet
+        ' xb_str_k is a separate C variable from xb_var_k and must be hoisted.
+        ' Detect: ty$=string, name without $, AND the variable also appears in
+        ' used$ with a non-string type (meaning it's DIM'd as non-string).
+        ' For string-only DIMs (dim src:string), there's no non-string usage,
+        ' so _strFacet stays 0 and the dimmed check blocks the redeclaration.
         DIM _strFacet
         _strFacet = 0
-        IF ty$ = "string" AND RIGHT$(nm$, 1) <> "$" AND INSTR(##sharedArrays$, ":" + nm$ + ":") > 0 THEN
-          _strFacet = 1
+        IF ty$ = "string" AND RIGHT$(nm$, 1) <> "$" AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
+          IF INSTR(##sharedArrays$, ":" + nm$ + ":") > 0 THEN
+            _strFacet = 1
+          ELSEIF INSTR(used$, CHR$(10) + nm$ + "|integer") > 0 OR INSTR(used$, CHR$(10) + nm$ + "|float") > 0 THEN
+            _strFacet = 1
+          END IF
         END IF
         IF (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1) THEN
           IF INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
