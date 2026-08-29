@@ -3565,11 +3565,9 @@ FUNCTION emit_expr$(e$)
         varType$ = "integer"
       END IF
       IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND (RIGHT$(varName$, 1) = "$" OR varType$ = "string") THEN
-        IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
-          emit_expr$ = "xb_str_" + sanitize_dual$(varName$)
-        ELSE
-          emit_expr$ = "&xb_str_" + sanitize_dual$(varName$)
-        END IF
+        ' strUbDual array passed byref: emit the _arr array pointer directly
+        ' (the callee's array param is char** X_arr, not char* X).
+        emit_expr$ = "xb_str_" + sanitize_dual$(varName$) + "_arr"
         RETURN emit_expr$
       END IF
       ' Mixed-function check: if callee has mixed byref/byval calls,
@@ -4132,8 +4130,8 @@ FUNCTION emit_params$(params$)
     ' Build base C name — byref-dual and str-dual ARRAY params get _arr suffix.
     ' A scalar param (e.g. line:string) must NOT get _arr even if the name is in
     ' ##byrefDual$ from a different function's array param of the same name.
-    IF _isArrParam = 1 AND (INSTR(##byrefDual$, ":" + pName$ + ":") > 0 OR INSTR(##strDual$, ":" + pName$ + ":") > 0) THEN
-      baseName$ = c_var_name$(pName$, pType$) + bd$(pName$)
+    IF _isArrParam = 1 AND (INSTR(##byrefDual$, ":" + pName$ + ":") > 0 OR INSTR(##strDual$, ":" + pName$ + ":") > 0 OR (INSTR(##strUbDual$, ":" + pName$ + ":") > 0 AND RIGHT$(pName$, 1) = "$")) THEN
+      baseName$ = c_var_name$(pName$, pType$) + "_arr"
     ELSE
       baseName$ = c_var_name$(pName$, pType$)
     END IF
@@ -4641,7 +4639,13 @@ FUNCTION emit_hoists$(used$, dimmed$)
             _strFacet = 1
           END IF
         END IF
-        IF (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0) OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1 OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0)) THEN
+        ' Param-match check: if nm$ is a param AND the param type matches ty$
+        ' (_ptMatch=1), the param already declares this C variable — skip hoist.
+        ' If nm$ is a param but type differs (_ptMatch=0), the C names differ
+        ' (e.g., string→xb_str_X vs integer→xb_var_X) — hoist the other facet.
+        ' Note: $-suffix names (asm$ vs asm) never collide because sanitize_ident$
+        ' maps $ to _s, producing different C names (xb_str_asm_s vs xb_str_asm).
+        IF (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) AND (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0) OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1 OR (INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0)) THEN
           IF INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
             IF (INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
               IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 THEN
@@ -4716,8 +4720,10 @@ FUNCTION emit_hoists$(used$, dimmed$)
           END IF
         END IF
       ELSEIF INSTR(##strUbDual$, ":" + entry$ + ":") > 0 THEN
-        IF INSTR(out$, "char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(") = 0 THEN
-          out$ = out$ + "    char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
+        IF INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
+          IF INSTR(out$, "char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(") = 0 THEN
+            out$ = out$ + "    char* xb_str_" + sanitize_dual$(entry$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
+          END IF
         END IF
         IF (INSTR(##dynStr$, ":" + entry$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + entry$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
           IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(entry$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(entry$) + "_arr = 0;") = 0 THEN
@@ -4740,8 +4746,14 @@ FUNCTION emit_hoists$(used$, dimmed$)
           out$ = out$ + "    intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
         END IF
       ELSEIF INSTR(##dynStr$, ":" + entry$ + ":") > 0 THEN
-        IF INSTR(out$, " " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_") = 0 THEN
-          out$ = out$ + "    char** " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
+        IF INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
+          IF INSTR(out$, " " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_") = 0 THEN
+            out$ = out$ + "    char** " + c_var_name$(entry$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
+          END IF
+        ELSE
+          IF INSTR(out$, "intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;") = 0 THEN
+            out$ = out$ + "    intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
+          END IF
         END IF
       ELSEIF INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
         IF INSTR(##byrefDual$, ":" + entry$ + ":") > 0 OR INSTR(##dualUse$, ":" + entry$ + ":") > 0 THEN

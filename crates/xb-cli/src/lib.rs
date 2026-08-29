@@ -7,7 +7,7 @@ use xb_runtime::Interpreter;
 
 #[derive(Debug, Error)]
 pub enum CliError {
-    #[error("usage: xb [--emit-ir|--emit-c|--run|--compile] <source.x> [-o <output>] [--backend c|llvm]")]
+    #[error("usage: xb [--emit-ir|--emit-ir-facets|--emit-c|--run|--compile] <source.x> [-o <output>] [--backend c|llvm]")]
     Usage,
     #[error("failed to read {path}: {source}")]
     Read {
@@ -31,6 +31,7 @@ pub enum CliError {
 enum Mode {
     Summary,
     EmitIr,
+    EmitIrFacets,
     EmitC,
     Run,
     Compile { output: PathBuf },
@@ -62,6 +63,7 @@ fn parse_args(args: &[String]) -> Result<Args, CliError> {
     while i < args.len() {
         match args[i].as_str() {
             "--emit-ir" => mode = Mode::EmitIr,
+            "--emit-ir-facets" => mode = Mode::EmitIrFacets,
             "--emit-c" => mode = Mode::EmitC,
             "--run" => mode = Mode::Run,
             "--with-input" => {
@@ -117,6 +119,7 @@ pub fn run(args: &[String]) -> Result<String, CliError> {
     match parsed.mode {
         Mode::Summary => summary_for_path(&parsed.source),
         Mode::EmitIr => emit_ir_for_path(&parsed.source),
+        Mode::EmitIrFacets => emit_ir_facets_for_path(&parsed.source),
         Mode::Run => run_path(&parsed.source, parsed.input_path.as_deref()),
         Mode::EmitC => emit_c_for_path(&parsed.source),
         Mode::Compile { output } => compile_to_native(&parsed.source, &output, parsed.backend),
@@ -138,6 +141,13 @@ fn emit_ir_for_path(path: &Path) -> Result<String, CliError> {
     let unit = FrontendUnit::parse(&source)?;
     let program = unit.lower_ir()?;
     Ok(TextIrEmitter::new().emit_program(&program))
+}
+
+fn emit_ir_facets_for_path(path: &Path) -> Result<String, CliError> {
+    let source = read_source(path)?;
+    let unit = FrontendUnit::parse(&source)?;
+    let program = unit.lower_ir()?;
+    Ok(TextIrEmitter::new().emit_program_with_facets(&program))
 }
 
 fn emit_c_for_path(path: &Path) -> Result<String, CliError> {
