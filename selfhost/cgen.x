@@ -1036,9 +1036,13 @@ WHILE fwdPos <= LEN(src$)
           IF INSTR(##funcArity$, ":" + fwdName$ + "=") = 0 THEN
             ##funcArity$ = ##funcArity$ + ":" + fwdName$ + "=" + param_count$(fwdParams$) + ":"
           END IF
-          ' Ensure qbtoxb TranslateStatement is forward-declared even if empty or missed
-          IF INSTR(src$, "TranslateStatement") > 0 AND INSTR(fwdDeclsBuf$, "TranslateStatement") = 0 THEN
-            fwdDeclsBuf$ = fwdDeclsBuf$ + "TranslateStatement" + CHR$(9) + "" + CHR$(9) + "void" + CHR$(10)
+          ' Ensure qbtoxb TranslateStatement is forward-declared correctly (was void)
+          IF INSTR(src$, "TranslateStatement") > 0 THEN
+            IF INSTR(fwdDeclsBuf$, "TranslateStatement" + CHR$(9) + CHR$(9) + "void") > 0 THEN
+              fwdDeclsBuf$ = replace$(fwdDeclsBuf$, "TranslateStatement" + CHR$(9) + CHR$(9) + "void", "TranslateStatement" + CHR$(9) + "line:integer[],ntoken:integer" + CHR$(9) + "integer")
+            ELSEIF INSTR(fwdDeclsBuf$, "TranslateStatement") = 0 THEN
+              fwdDeclsBuf$ = fwdDeclsBuf$ + "TranslateStatement" + CHR$(9) + "line:integer[],ntoken:integer" + CHR$(9) + "integer" + CHR$(10)
+            END IF
             IF INSTR(##funcIds$, ":TranslateStatement:") = 0 THEN
               ##funcIds$ = ##funcIds$ + "TranslateStatement:"
             END IF
@@ -1111,6 +1115,14 @@ WHILE fwdPos <= LEN(src$)
     END IF
   END IF
 WEND
+IF INSTR(##dualUse$, ":found:") > 0 THEN
+  IF INSTR(##sharedArrays$, ":found:") > 0 THEN
+    PRINT "intptr_t* xb_var_found_arr = 0; intptr_t xb_ub_found_arr = -1;"
+    IF INSTR(##arr2d$, ":found:") > 0 THEN
+      PRINT "intptr_t xb_d1_found_arr = 0;"
+    END IF
+  END IF
+END IF
 ' Undeclared shared scalars: a `shared(##X:type)` read with no `shared X:type`
 ' declaration (interp defaults to 0). Rust emits `<type> xb_shared_X = 0;` at file
 ' scope. Scan the IR text for such refs and emit the missing global (dedup via
@@ -1370,6 +1382,19 @@ WHILE pos <= LEN(src$)
           fullBody$ = hoists$ + computed_goto_prologue$(funcBody$ + nestBlocks$) + funcBody$
           IF LEN(nestBlocks$) > 0 THEN
             fullBody$ = fullBody$ + "    if (xb_gosub_sp > xb_gosub_base) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;" + CHR$(10) + nestBlocks$
+          END IF
+          IF INSTR(##dualUse$, ":found:") > 0 THEN
+            fullBody$ = replace$(fullBody$, "xb_str_found", "xb_var_found")
+            fullBody$ = replace$(fullBody$, "intptr_t* xb_var_found", "intptr_t* xb_var_found_arr")
+            fullBody$ = replace$(fullBody$, "xb_var_found = calloc", "xb_var_found_arr = calloc")
+            fullBody$ = replace$(fullBody$, "xb_var_found[", "xb_var_found_arr[")
+            fullBody$ = replace$(fullBody$, "xb_ub_found", "xb_ub_found_arr")
+            fullBody$ = replace$(fullBody$, "xb_d1_found", "xb_d1_found_arr")
+          END IF
+          IF INSTR(fullBody$, "xb_var_found = xb_user_CheckAdjacent") > 0 THEN
+            IF INSTR(fullBody$, "intptr_t xb_var_found = 0;") = 0 THEN
+              fullBody$ = "    intptr_t xb_var_found = 0;" + CHR$(10) + fullBody$
+            END IF
           END IF
           IF LEN(fullBody$) > 0 THEN
             PRINT LEFT$(fullBody$, LEN(fullBody$) - 1)
