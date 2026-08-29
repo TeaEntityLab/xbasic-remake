@@ -4428,7 +4428,17 @@ FUNCTION emit_hoists$(used$, dimmed$)
       IF bar > 0 THEN
         nm$ = LEFT$(entry$, bar - 1)
         ty$ = MID$(entry$, bar + 1, LEN(entry$) - bar)
-        IF INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0) THEN
+        ' IR $-stripping artifact: parser emits symbol(k:string) for k$ where k is
+        ' a shared INTEGER array (dim shared k:integer[...]). The string facet
+        ' xb_str_k is a separate C variable from xb_var_k. Only bypass for
+        ' ##sharedArrays$ members — local string DIMs (dim src:string) already
+        ' declare xb_str_src, so hoisting would redeclare.
+        DIM _strFacet
+        _strFacet = 0
+        IF ty$ = "string" AND RIGHT$(nm$, 1) <> "$" AND INSTR(##sharedArrays$, ":" + nm$ + ":") > 0 THEN
+          _strFacet = 1
+        END IF
+        IF (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1) THEN
           IF INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
             IF (INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
               IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 THEN
