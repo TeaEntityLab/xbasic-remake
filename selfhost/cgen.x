@@ -693,6 +693,7 @@ END IF
 ##dynNames$ = ""
 ##byrefDual$ = ""
 ##undimmed$ = ""
+##sharedDual$ = ""
 ##fileScopeDecls$ = ""
 ##doStack$ = ""
 ##strUbDual$ = ""
@@ -746,6 +747,32 @@ WHILE facetPos <= LEN(src$)
   END IF
 WEND
 ##sharedArrays$ = scan_shared_arr$(src$)
+' Shared dual-use: a shared array also used as a scalar (symbol(X:) somewhere.
+' These get _arr suffix for the array facet, matching Rust is_shared_dual.
+' Must run before the first pass (file-scope declarations at line ~1114).
+##sharedDual$ = ""
+_sdIter$ = ##sharedArrays$
+WHILE LEN(_sdIter$) > 0
+  _sdColon = INSTR(_sdIter$, ":")
+  IF _sdColon = 0 THEN
+    _sdIter$ = ""
+  ELSE
+    _sdIter$ = MID$(_sdIter$, _sdColon + 1, LEN(_sdIter$) - _sdColon)
+    _sdNColon = INSTR(_sdIter$, ":")
+    IF _sdNColon > 0 THEN
+      _sdName$ = LEFT$(_sdIter$, _sdNColon - 1)
+      _sdIter$ = MID$(_sdIter$, _sdNColon + 1, LEN(_sdIter$) - _sdNColon)
+    ELSE
+      _sdName$ = _sdIter$
+      _sdIter$ = ""
+    END IF
+    IF LEN(_sdName$) > 0 THEN
+      IF INSTR(src$, "symbol(" + _sdName$ + ":") > 0 THEN
+        ##sharedDual$ = ##sharedDual$ + ":" + _sdName$ + ":"
+      END IF
+    END IF
+  END IF
+WEND
 ##dynNames$ = scan_dyn$(src$)
 ##byrefDual$ = scan_byref_dual$(src$)
 ##strDual$ = scan_str_dual$(src$)
@@ -1110,9 +1137,17 @@ WHILE fwdPos <= LEN(src$)
         IF INSTR(##sharedArrays$, ":" + fwdSName$ + ":") > 0 THEN
           IF INSTR(##sharedArrDecls$, ":" + fwdSName$ + ":") = 0 THEN
             ##sharedArrDecls$ = ##sharedArrDecls$ + ":" + fwdSName$ + ":"
-            PRINT c_type$(fwdSType$) + "* " + c_var_name$(fwdSName$, fwdSType$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(fwdSName$) + " = -1;"
+            IF INSTR(##sharedDual$, ":" + fwdSName$ + ":") > 0 THEN
+              PRINT c_type$(fwdSType$) + "* " + c_var_name$(fwdSName$, fwdSType$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(fwdSName$) + "_arr = -1;"
+            ELSE
+              PRINT c_type$(fwdSType$) + "* " + c_var_name$(fwdSName$, fwdSType$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(fwdSName$) + " = -1;"
+            END IF
             IF INSTR(##arr2d$, ":" + fwdSName$ + ":") > 0 THEN
-              PRINT "intptr_t xb_d1_" + sanitize_ident$(fwdSName$) + " = 0;"
+              IF INSTR(##sharedDual$, ":" + fwdSName$ + ":") > 0 THEN
+                PRINT "intptr_t xb_d1_" + sanitize_ident$(fwdSName$) + "_arr = 0;"
+              ELSE
+                PRINT "intptr_t xb_d1_" + sanitize_ident$(fwdSName$) + " = 0;"
+              END IF
             END IF
           END IF
         END IF
@@ -1121,20 +1156,20 @@ WHILE fwdPos <= LEN(src$)
   END IF
 WEND
 IF INSTR(##dualUse$, ":found:") > 0 THEN
-  IF INSTR(##sharedArrays$, ":found:") > 0 THEN
+  IF INSTR(##sharedArrays$, ":found:") > 0 AND INSTR(##sharedArrDecls$, ":found:") = 0 THEN
     PRINT "intptr_t* xb_var_found_arr = 0; intptr_t xb_ub_found_arr = -1;"
     IF INSTR(##arr2d$, ":found:") > 0 THEN
       PRINT "intptr_t xb_d1_found_arr = 0;"
     END IF
   END IF
 END IF
-IF INSTR(##sharedArrays$, ":tool:") > 0 THEN
+IF INSTR(##sharedArrays$, ":tool:") > 0 AND INSTR(##sharedArrDecls$, ":tool:") = 0 THEN
   PRINT "intptr_t* xb_var_tool_arr = 0; intptr_t xb_ub_tool_arr = -1;"
   IF INSTR(##arr2d$, ":tool:") > 0 THEN
     PRINT "intptr_t xb_d1_tool_arr = 0;"
   END IF
 END IF
-IF INSTR(##sharedArrays$, ":window:") > 0 THEN
+IF INSTR(##sharedArrays$, ":window:") > 0 AND INSTR(##sharedArrDecls$, ":window:") = 0 THEN
   PRINT "intptr_t* xb_var_window_arr = 0; intptr_t xb_ub_window_arr = -1;"
   IF INSTR(##arr2d$, ":window:") > 0 THEN
     PRINT "intptr_t xb_d1_window_arr = 0;"
@@ -1465,7 +1500,7 @@ WHILE pos <= LEN(src$)
           IF LEN(nestBlocks$) > 0 THEN
             fullBody$ = fullBody$ + "    if (xb_gosub_sp > xb_gosub_base) { goto *xb_gosub_stack[--xb_gosub_sp]; } return 0;" + CHR$(10) + nestBlocks$
           END IF
-          IF INSTR(##dualUse$, ":found:") > 0 THEN
+          IF INSTR(##dualUse$, ":found:") > 0 AND INSTR(##sharedDual$, ":found:") = 0 THEN
             fullBody$ = replace$(fullBody$, "xb_str_found", "xb_var_found")
             fullBody$ = replace$(fullBody$, "intptr_t* xb_var_found", "intptr_t* xb_var_found_arr")
             fullBody$ = replace$(fullBody$, "xb_var_found = calloc", "xb_var_found_arr = calloc")
@@ -1507,11 +1542,20 @@ WHILE pos <= LEN(src$)
             fullBody$ = replace$(fullBody$, "xb_d1_windowInfo", "##D1_WIN_INFO##")
             fullBody$ = replace$(fullBody$, "xb_str_windowDisplay", "##WIN_DISP##")
             fullBody$ = replace$(fullBody$, "xb_ub_windowDisplay", "##UB_WIN_DISP##")
+            ' Protect composite member names (xb_*_window_window, xb_*_window_parent, etc.)
+            ' from the broad xb_*_window → xb_*_window_arr replacements below.
+            fullBody$ = replace$(fullBody$, "xb_var_window_", "##VAR_WIN_MEM##")
+            fullBody$ = replace$(fullBody$, "xb_ub_window_", "##UB_WIN_MEM##")
+            fullBody$ = replace$(fullBody$, "xb_d1_window_", "##D1_WIN_MEM##")
             fullBody$ = replace$(fullBody$, "intptr_t* xb_var_window", "intptr_t* xb_var_window_arr")
             fullBody$ = replace$(fullBody$, "xb_var_window = calloc", "xb_var_window_arr = calloc")
             fullBody$ = replace$(fullBody$, "xb_var_window[", "xb_var_window_arr[")
             fullBody$ = replace$(fullBody$, "xb_ub_window", "xb_ub_window_arr")
             fullBody$ = replace$(fullBody$, "xb_d1_window", "xb_d1_window_arr")
+            ' Restore composite member names.
+            fullBody$ = replace$(fullBody$, "##VAR_WIN_MEM##", "xb_var_window_")
+            fullBody$ = replace$(fullBody$, "##UB_WIN_MEM##", "xb_ub_window_")
+            fullBody$ = replace$(fullBody$, "##D1_WIN_MEM##", "xb_d1_window_")
             fullBody$ = replace$(fullBody$, "##STR_WIN_S##", "xb_str_window_s")
             fullBody$ = replace$(fullBody$, "##UB_WIN_S##", "xb_ub_window_s")
             fullBody$ = replace$(fullBody$, "##D1_WIN_S##", "xb_d1_window_s")
@@ -1789,10 +1833,12 @@ PRINT "        }"
 PRINT "    }"
 IF LEN(mainBody$) > 0 THEN
   ' Fix Kittedy found dual-use (array xb_var_found_arr vs scalar xb_var_found) and qbtoxb TranslateStatement
-  mainBody$ = replace$(mainBody$, "xb_str_found", "xb_var_found")
-  mainBody$ = replace$(mainBody$, "intptr_t* xb_var_found", "intptr_t* xb_var_found_arr")
-  mainBody$ = replace$(mainBody$, "xb_var_found[", "xb_var_found_arr[")
-  mainBody$ = replace$(mainBody$, "xb_ub_found", "xb_ub_found_arr")
+  IF INSTR(##sharedDual$, ":found:") = 0 THEN
+    mainBody$ = replace$(mainBody$, "xb_str_found", "xb_var_found")
+    mainBody$ = replace$(mainBody$, "intptr_t* xb_var_found", "intptr_t* xb_var_found_arr")
+    mainBody$ = replace$(mainBody$, "xb_var_found[", "xb_var_found_arr[")
+    mainBody$ = replace$(mainBody$, "xb_ub_found", "xb_ub_found_arr")
+  END IF
   ' xb_d1_found stays as is (dimension var for found_arr)
   ' (TranslateStatement now handled earlier in forward-decl pass)
   PRINT LEFT$(mainBody$, LEN(mainBody$) - 1)
@@ -3343,7 +3389,9 @@ FUNCTION emit_expr$(e$)
       varType$ = "integer"
       varName$ = t$
     END IF
-    IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
+    IF INSTR(##sharedDual$, ":" + varName$ + ":") > 0 THEN
+      emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$) + "_arr"
+    ELSEIF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 THEN
       _du$ = sanitize_dual$(varName$)
@@ -4577,7 +4625,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
             _strFacet = 1
           END IF
         END IF
-        IF (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1) THEN
+        IF (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0) OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1 OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0)) THEN
           IF INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
             IF (INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
               IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 THEN
@@ -5612,8 +5660,13 @@ FUNCTION scalar_name$(n$, t$)
 END FUNCTION
 
 FUNCTION arr_acc_name$(n$, t$)
-  ' Shared arrays are one file-scope pointer. Never the dual `_arr` facet
-  ' (Rust `is_shared_array` skips `_arr`). `envp$[]` must match `xb_str_envp_s`.
+  ' Shared dual-use: array facet takes _arr (matching Rust is_shared_dual).
+  IF INSTR(##sharedDual$, ":" + n$ + ":") > 0 THEN
+    arr_acc_name$ = c_var_name$(n$, t$) + "_arr"
+    RETURN arr_acc_name$
+  END IF
+  ' Non-dual shared arrays are one file-scope pointer. Never the dual `_arr`
+  ' facet (Rust `is_shared_array` skips `_arr`). `envp$[]` must match `xb_str_envp_s`.
   IF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
     arr_acc_name$ = c_var_name$(n$, t$)
     RETURN arr_acc_name$
@@ -5807,11 +5860,13 @@ FUNCTION facet_has_entry$(tab$, name$, scope$)
   facet_has_entry$ = "0"
 END FUNCTION
 FUNCTION bd$(n$)
-  ' of the current function (##arrParams$) — otherwise a local array in another
-  ' function with the same name as a byref-dual param gets wrongly suffixed.
-  ' A module-shared array is one heap global; dual-use `_arr` would not match
-  ' the global decl (Rust `is_dual_use && !is_shared_array`).
-  IF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
+  ' Shared dual-use: a shared array also used as a scalar → _arr suffix
+  ' (matching Rust is_shared_dual). Must check BEFORE the sharedArrays
+  ' early-return, which would otherwise emit no suffix.
+  IF INSTR(##sharedDual$, ":" + n$ + ":") > 0 THEN
+    bd$ = "_arr"
+  ELSEIF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
+    ' Non-dual shared array: one file-scope pointer, no _arr facet.
     bd$ = ""
   ELSEIF n$ = "null" OR n$ = "window" OR n$ = "host_address" THEN
     ' UBYTE null[] and SHARED window[] vs window index and xin host_address
@@ -5829,6 +5884,11 @@ END FUNCTION
 ' The UBOUND-cell reference for a name: the dual-facet _arr cell for
 ' dyn dual arrays, else the standard name (+ bd\$ suffix).
 FUNCTION ub_ref$(n$, t$)
+  ' Shared dual-use: UBOUND cell takes _arr suffix (matching Rust is_shared_dual).
+  IF INSTR(##sharedDual$, ":" + n$ + ":") > 0 THEN
+    ub_ref$ = "xb_ub_" + sanitize_ident$(n$) + "_arr"
+    RETURN ub_ref$
+  END IF
   IF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
     ub_ref$ = "xb_ub_" + sanitize_ident$(n$)
     RETURN ub_ref$
@@ -6624,13 +6684,13 @@ FUNCTION emit_stmt$(s$)
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
         IF bracketPos > 0 THEN
           IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
-            emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, varType$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(" + c_type$(varType$) + ")); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+            emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)(" + ub_ref$(varName$, varType$) + " + 1), sizeof(" + c_type$(varType$) + ")); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
           ELSE
             cExpr$ = emit_expr$(arrSize$)
             IF varType$ = "string" THEN
-              emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+              emit_stmt$ = "    " + arr_acc_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + arr_acc_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + ub_ref$(varName$, varType$) + " = (" + cExpr$ + ");"
             ELSE
-              emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + c_type$(varType$) + ")); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+              emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + c_type$(varType$) + ")); " + ub_ref$(varName$, varType$) + " = (" + cExpr$ + ");"
             END IF
           END IF
         ELSE
@@ -6653,12 +6713,12 @@ FUNCTION emit_stmt$(s$)
       cExpr$ = emit_expr$(arrSize$)
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
         IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
-          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, varType$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(" + c_type$(varType$) + ")); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+          emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)(" + ub_ref$(varName$, varType$) + " + 1), sizeof(" + c_type$(varType$) + ")); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
           IF varType$ = "string" THEN
-            emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+            emit_stmt$ = "    " + arr_acc_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + arr_acc_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + ub_ref$(varName$, varType$) + " = (" + cExpr$ + ");"
           ELSE
-            emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + c_type$(varType$) + ")); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+            emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + c_type$(varType$) + ")); " + ub_ref$(varName$, varType$) + " = (" + cExpr$ + ");"
           END IF
         END IF
         RETURN emit_stmt$
@@ -6775,7 +6835,7 @@ FUNCTION emit_stmt$(s$)
         varType$ = "integer"
       END IF
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
-        emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = 0; xb_ub_" + sanitize_ident$(varName$) + " = -1;"
+        emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = 0; " + ub_ref$(varName$, varType$) + " = -1;"
       ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(##byrefDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
         emit_stmt$ = ""
       ELSEIF varType$ = "string" THEN
