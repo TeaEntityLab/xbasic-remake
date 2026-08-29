@@ -8,22 +8,47 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
-> Last full re-verification: **2026-08-29** (merged `origin/main fa450b8` + `dedfe25` block-form fix). `./checks/validate-all.sh` not run this session; `cargo test --release --workspace --no-fail-fast` = **281 passed / 1 failed across 33 binaries** — **1 failing is `xbsourcelib_parity::xbsourcelib_ary_compiles_clean`** (inherited at `fa450b8`: Rust CEmitter `ary.x` `C74` byte-array `T*` vs `&T` — `XBSourceLib/ary/ary.x:4503` `Ary_FindCodePrefix` `&prefixIndex[]` vs `T**_dd`); every other suite green. `cgen_cemitter_sync` = **61/61 in 176s** (was 60/60 — now includes `cgen_x_compiles_all_core_libs_cc_clean` 9-lib floor; `positive_corpus` 80/80 byte-identical, `cgen_x_compiles_all_demos_cc_clean` 114/114 via `emit_program_with_facets` narrow `dyn/dual/arr2d`, `cgen_selfhost` 2/2, `native_emit` 5/5 after `ARCH-02` `int main(int argc, char **argv)` assert fixes).
-> `cgen_cemitter_sync` positive-corpus emitted C is **80/80 byte-identical** between Rust CEmitter and `cgen.x`; all **114/114 demos** `cgen_x_compiles_all_demos_cc_clean` (compile-only; `1c2c929` Kittedy/QtboXb) and `native_pipeline` `native_compiler_emits_cgen_ir_for_cgen` now **`IR_IDENTICAL`** (was single-line `IF..THEN..ELSE` ELSE-attachment divergence — fixed block-form in `dedfe25`).
-> Stage 0/1/2 native self-hosting complete for demos; all 15 core libs via Rust CEmitter `checks/link-core-libs.sh` → **1736 `xb_user_*` `ALL OK` in 4s** (7/15 `Version$` smoke, `XB_WEAK_SYMBOLS=1` ordered; re-measured 2026-08-29 at `c601280→92fb1a6→dedfe25`; banner 1736 carried since `14f9c69`).
-
-> **Legacy Library Status [Bar A Compile-Only / Rust CEmitter]:** All 15 core `.x` libraries compile to C via Rust CEmitter and link into one archive with 1690–1736 `xb_user_*` symbols (1690 at `413feba`, 1736 at `93529ff` post-`14f9c69` EXTERNAL unnest). Verification via `checks/link-core-libs.sh` tests 6–7 `Version$` accessor strings only. **Bar B (Runtime Faithful) NOT READY.** Self-hosted `cgen.x` lib compile [UNVERIFIED in CI — 9/15 probe] requires `checks/cgen-lib-compile.sh`. Downstream blockers: `##ARGV$[]` stub → `""`, `UBOUND(##ARGV$[])→-1`, `@argv$[]` descriptor folding (`""=""`), `ATTACH` parser no-op, native `XstQuickSort`/`XstCopyArray` shadowing, headless GUI (`XuiGetNextCallback` synthetic `CloseWindow`, `XgrProcessMessages` `exit(0)`).
+> Last full re-verification: **2026-08-29** (merged `origin/main fa450b8` +
+> `dedfe25` block-form fix, plus `c_emit_expr` shared-composite byref fix for
+> `ARY_VAR_DATA @Ary_varData[]`). `cargo test --release --workspace`
+> reports **282 passed / 0 failed across 33 binaries** (`xbsourcelib_parity`
+> both cases now pass). `cgen_cemitter_sync` is **61/61** and the positive
+> corpus is **80/80 emitted-C byte-identical**. The all-demo guard reports
+> **114/114**, but Kittedy and qbtoxb currently require test-local post-emission
+> C rewrites in `cgen_x_compiles_all_demos_cc_clean`; raw cgen.x output is not
+> yet a 114/114 contract. Native compiler vs Rust frontend for `cgen.x` is
+> `IR_IDENTICAL`. All 15 core libs compile and link through the Rust CEmitter
+> with 1736 `xb_user_*` symbols, but the smoke executes only seven `Version$`
+> accessors under deterministic `XB_WEAK_SYMBOLS=1` first-definition-wins linkage.
+> emitted-C byte-identical**. The all-demo guard reports **114/114**, but
+> Kittedy and qbtoxb currently require test-local post-emission C rewrites in
+> `cgen_x_compiles_all_demos_cc_clean`; raw cgen.x output is not yet a 114/114
+> contract. Native compiler vs Rust frontend for `cgen.x` is `IR_IDENTICAL`.
+> All 15 core libs compile and link through the Rust CEmitter with 1736
+> `xb_user_*` symbols, but the smoke executes only seven `Version$` accessors
+> under deterministic `XB_WEAK_SYMBOLS=1` first-definition-wins linkage.
+>
+> **Legacy Library Status [compile/link scaffolding only]:** Rust CEmitter
+> compile/link is 15/15; compiled legacy bodies are not behavior-ready.
+> Self-hosted cgen.x has a **9/15 regression floor locked by
+> `cgen_x_compiles_core_libs_floor_9_cc_clean`; 15/15 remains open**. Four
+> failures (`xui`, `xin`, `xit`, `xst`) are classification/scope errors; two
+> (`xcol`, `xgr`) are generator resource failures. `ATTACH` remains a parser
+> no-op, GUI is headless, and SHELL/network effects have no capability gate.
+>
 > **NEW: `#var$` typing fix — a `#foo$` SharedName typed String (was Integer), so
 > `acgibin` no longer crashes on `"s" + #foo$` and is now interp==cgen faithful.**
 > **`0b42cf1`: headless Xgr/Xui GUI runtime** — `XuiGetNextCallback`
 > delivers one synthetic `CloseWindow` so the ~37 GUI message-loop demos run to
 > completion + are differential-faithful (74→111); fixed string `SELECT CASE`
-> (pointer→content compare). **Prior (`be03117`): the by-ref array ABI landed**
-> — full `(T** data, intptr_t* ub)` descriptor plus native
-> `XstQuickSort`/`XstCopyArray` helpers. The 11 parity-listed XBSourceLib programs,
-> including `fgr`/`vgr`/`msc`, are byte-faithful; `ary`/`ary1.0001` are
-> compile-only and are not runtime proof. Native helpers shadow the corresponding
-> compiled legacy `xst.x` bodies at emit time.
+> (pointer→content compare). **Prior (`be03117`): the primitive/flat by-ref
+> array ABI landed** — `(T** data, intptr_t* ub)` plus native
+> `XstQuickSort`/`XstCopyArray` helpers. Eleven parity-listed XBSourceLib
+> programs, including `fgr`/`vgr`/`msc`, remain byte-faithful. The separate
+> `ary`/`ary1.0001` compile guard, previously failing on the composite
+> `ARY_VAR_DATA` descriptor, now passes (`xbsourcelib_ary_compiles_clean`
+> 1/1); both sources remain compile-only and are not yet runtime proof
+> (still blocked on `ATTACH` and bounded behavior).
 > Recent: **expression-context side effects** now reach output — a
 > general interpreter `eval` bug (a function called in expression position
 > discarded its output sink) that flipped `XBMerge` (RT-ARGS) + unmasked/fixed
@@ -108,22 +133,33 @@
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
 
-### Full-corpus CI parity locks `[2026-08-24]`
+### Current execution queue `[panel 2026-08-29, updated 2026-08-29 RR-02 done]`
+
+| Order / track | Job | Exit gate |
+|---|---|---|
+| **done** | **RR-02 ARY composite descriptor — shared `ARY_VAR_DATA` member arrays now forward as `T*` (shared `T*` globals) and both ARY sources are cc-clean** | `xbsourcelib_ary_compiles_clean` 2/2, workspace 282/0 |
+| now | **RR-03 scoped facets** and **RR-13 raw demo guard** | scope/name/type collision fixtures; remove Kittedy/qbtoxb post-emit rewrites; raw demos 114/114; sync/bootstrap unchanged |
+| next B (parallel with A) | **RR-05 xcol/xgr scale** | deterministic resource evidence; no signal exit; self-hosted core-lib compile reaches 15/15 with track A |
+| runtime semantics | **RR-06 ATTACH** | alias writes, `REDIM`, and `UBOUND` observable through the alias in interpreter and compiled paths |
+| behavior adoption | **RR-07 binding policy → RR-08a pure libs / RR-08b stateful libs** | tests prove compiled legacy bodies, not native shadows/stubs; RR-08b also requires RR-06 |
+| safe execution | **RR-09 SHELL/network capabilities** | denied by default and explicitly opt-in before untrusted or xrun/xin behavior execution |
+| pre-distribution | **RR-10 harness hardening + RR-11 provenance/licensing** | reproducible clean harness, duplicate report, complete distribution obligations |
+| trigger-gated | **RR-12 GUI/LLVM/JIT/Cranelift reassessment** | reconsider only after the runtime-behavior critical path or a compatibility requirement |
 
 > CI regression-locks the 114 top-level demos, the 13 XBSourceLib programs, and
 > compile/link of all 15 core libraries. `multi_lib_integration` executes seven
 > `Version$` calls only; it does not execute every library implementation.
 > `legacy_corpus` recursively parse/lowers the wider `.x` inventory, but the 19
-> GTK demos and three helpsrc programs have no cc/link/run guard. Re-verified
-> 2026-08-26: **274/0 across 33 binaries**. The later rows in this roadmap are
-> authoritative for feature-level completion and remaining gaps.
+> GTK demos and three helpsrc programs have no cc/link/run guard. The
+> **274/0 across 33 binaries** result from 2026-08-26 is historical; the top
+> banner is authoritative for the current **282/0** workspace state.
+### cgen.x demos: guard 114/114 with two post-emit rewrites; raw gate open
 
-### cgen.x demos: 114/114 compile; 112 comparable matches + 2 I/O skips `[2026-08-26]`
-
-> Current named guards separate two paths: true cgen.x compiles all 114
-> top-level demos, while the Rust CEmitter `demo_parity` guard reports 112
-> comparable matches and two real-I/O skips. No named guard runs all 114 demos
-> through true cgen.x and compares them with the interpreter.
+> The cgen.x compile guard rewrites generated C for Kittedy and qbtoxb before
+> invoking cc, then reports 114/114. Raw cgen.x output is therefore not locked
+> at 114/114; RR-13 removes those rewrites. The Rust CEmitter `demo_parity`
+> guard reports 112 comparable matches and two real-I/O skips. No named guard
+> runs all raw cgen.x demos against the interpreter.
 
 > A 2026-08-23 manual sweep reported **114 byte-faithful**, **0 diverge,
 > 0 cc-fail, 0 crash, 0 timeout** through a true cgen.x run-vs-interpreter
@@ -239,9 +275,9 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~CGEN-ARGC~~ | C backend | ✅ **done** (2026-08-20): arity reconciliation (drop extras, pad missing) via `DEFINED_SIGS` | — | ✅ |
 | ~~CGEN-BUILTINS~~ | C backend | ✅ **done** (2026-08-20): `INLINE$`, `EOF`, `RIGHT$`/`LEFT$` 1-arg, `STRING$` via `xb_string` | — | ✅ |
 | ~~CGEN-AROTATE~~ | C backend | ✅ **done** (2026-08-20): `xb_bin2`/`xb_binb`/`xb_binb2` shifted a signed int (negative rotate results looped forever); unsigned shifts, mirrored in cgen.x | — | ✅ |
-| ~~CGEN-REDIM / CGEN-BYREF-REDIM~~ | C backend | ✅ **done** (2026-08-21, merge `be03117`; guide `docs/18`): full by-ref array descriptor `(T** xb_var_x_d, intptr_t* xb_ub_x)` — resize-seeded + backward-propagated closure (`collect_descriptor_params`), `emit_array_var_name` chokepoint, all emission sites (access/assign/UBOUND/SizeOf/bare-Symbol/REDIM-DIM/swap/call-site passing-consistency/param-decls), dual-use for genuinely-dual descriptor locals, content-preserving `REDIM` (realloc; `DIM` zero-all). **`xbsourcelib` now FAITHFUL** — `fgr`/`vgr`/`msc`/`ary` sort+copy for real. Verified: demo-regression 10/10, sync 5/5 (byte-identity), suite 193/0, differential 74/0. Final `qbtoxb` fix (`d13ee91`): bare descriptor Symbol reads scalar default, not data-ptr address. | ✅ unblocks XstQuickSort/XstCopyArray | ✅ |
+| ~~CGEN-REDIM / CGEN-BYREF-REDIM (primitive/flat arrays)~~ | C backend | ✅ **done** (2026-08-21, merge `be03117`; guide `docs/18`): `(T** data, intptr_t* ub)` descriptors, resize closure, coherent access/UBOUND/SizeOf/REDIM/call emission, content-preserving `REDIM`, and native `XstQuickSort`/`XstCopyArray` helpers are landed for primitive/string arrays. Historical 193/0 and sort/copy evidence applies to this scope, not composite `TYPE` arrays or whole-ARY runtime behavior. | primitive byref arrays | ✅ |
 | ~~CGEN-ANY-PARAM~~ | C backend | ✅ **done** (2026-08-20): array params (`UBYTE gif[]`) thread `is_array` → C pointers; `*AT` memory builtins fold to the interp's 0/no-op stub (aquick faithful) | — | ✅ |
-| COMPOSITE-ARR-BYREF | frontend + all backends | `PM pm[]` composite-array decl lowers to Nop (registers name resolution only). Probed bounded fix (emit per-leaf size-None array Dims) and REVERTED: it creates a 3-way divergence class (caller-side member write without REDIM: interp drops write [empty shape], Rust-C-non-dyn writes [1]-slot = works, cgen folds) where all paths previously agreed; arecord (only corpus user) already byte-faithful via callee-REDIM + sized member DIMs. **Panel 2026-08-27: reclassified next/design-first** — zero failing tests/demos today; contract-first requirement stands (disputed: correctness lens ranked it #1, priority lens argued defer). True fix needs THREE interlocking pieces: (1) consistent size-None member-dim shape contract (interp empty-drop vs C-non-dyn [1]-writable vs C-dyn NULL-crash-on-write; dyn = late/dual registry, per-function), (2) byref transfer of ALL member arrays at call time for callees writing without REDIM (ABI extension beyond dd), (3) module-scope member-dim visibility (size-None arrays not MODULE-DIM-SCOPE-hoistable). Each alone is bounded; interlock makes it a coordinated pass. Repros: /tmp/comp_min8.x (callee write no REDIM), comp_minD/E.x (caller direct write). | ary full parity (also blocked on row-pointer ABI for ATTACH) | feature |
+| COMPOSITE-ARR-BYREF | frontend + Rust CEmitter | **OPEN — ARY shared `ARY_VAR_DATA` forwarding is now done (both ARY sources cc-clean via `is_shared_array` → `emit_raw_array_name`); general composite-array `PM pm[]` etc. still lower as `Nop`/`N` member-DIM divergence remains (panel 2026-08-27).** | general fix remains RR-02 design-first; compile repair for `PM` etc. not yet required (no failing test) |
 
 | ~~CGEN-COMPOSITE-ARR~~ | C backend | ✅ **done** (2026-08-20): composite member arrays hoist once (dyn pointer wins); scalar+array DIM of one name no longer double-declares (arecord/adata faithful) | — | ✅ |
 | ~~CGEN-COMPOSITE-DUAL~~ | C backend | ✅ **done** (2026-08-20, `c2e7300`): a *dual-use* name's scalar facet is declared once by `emit_hoisted_scalars`; a scalar `DIM` of it hit the plain `None` arm and re-declared it → C "redefinition". Fires for a flattened composite array member DIM'd scalar (TYPE decl `SINGLE .x`) but indexed as an array (`px3D.shape[i].x`). The scalar-DIM `None` arm now *resets* (like dyn-scalar) when `is_dual_use`. Byte-neutral (arecord/adata faithful, sync 5/5, suite 186/0); advances 5 XBSourceLib libs (fgr/mergeOut/mergeTest03/vgr/vgrOld) past the redef | XBSourceLib (5) | ✅ |
@@ -293,9 +329,9 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | GUI-RUNTIME | platform | *real* Xgr/Xui runtime (winit + softbuffer per docs/12) — actual window/display, beyond the headless differential stub | live rendering for 43 GUI demos + 3 init overflows + `DrawScaled` + 19 GTK | platform (large) |
 | CG-BYTES | two-C-gen sync | byte-identical emitted C. **Decomposed 2026-08-24** (abs_float probe): total delta 238 lines = **221 prelude** + **17 body**. Prelude classes: (a) helper ORDER (cgen emits unconditionally in its own order; Rust usage-gates in emit_header order), (b) helper TEXT (e.g. cgen `xb_len` lacks the Rust null-guard `if (!s) return 0` — a real robustness gap), (c) gating model (Rust body-contains conditions reproducible in cgen via `INSTR(src$, ...)`). Body classes (4, all tiny): forward-decl `(void)` style, one blank line, cgen emits the return-value variable (`intptr_t xb_var_Main = 0;`) Rust omits, return style. **Slice 1 DONE** (`269920d`): the 17-line body delta is ELIMINATED - parameterless `(void)` prototypes/definitions + forward-decl blank line, lazy return-value variable (declared only when the body assigns the function name, else returns the type default), empty statements emit no blank lines, blank between the last function and main(). Remaining delta is PRELUDE-ONLY: helper order + usage-gating (Rust body-contains conditions -> cgen `INSTR(src$, ...)`) + helper text (e.g. cgen xb_len lacks the null-guard). **Slice 2 DONE** (`3982fd4`): prelude replaced with Rust's exact helper order (462 transcribed PRINT lines; xb_len null-guard text now matches; duplicate data-runtime removed); CONST emits Rust-style `#define XB_CONST_<name> <value>`; blank after each function brace. **36/61 corpus programs BYTE-IDENTICAL** (was 0). **Slice 3+4 DONE** (`225d776`, `a881381`): IR-depth indentation (C indent = 2*IR-lead via add_lead\$) + DO/LOOP exact Rust shapes (lookahead + condition stack) + SELECT CASE Rust-shape lowering (saved _sel, if/else-if chain, 0-based exit ids, intrinsic select indents via ##noLead\$ bypass, multi-value CASE arg trim). **62/80 corpus programs BYTE-IDENTICAL**; select_case/exit_select/comparison/elseif/do_loop all 0. **Slice 5 DONE** (`ed9c792`): builtin result types in expr_type\$ (GMAKE/GIANT giant, DMAKE/SMAKE float), giant print branch, SWAP temps named after the left operand, CONST :type-suffix strip. **65/80 BYTE-IDENTICAL**; bit_reinterp/inc_dec_swap/system_variables at 0. **Slice 6 DONE** (`f9d079e`): PRINT accumulated-string model — each PRINT builds one byte-string (typed xb_str_num/_giant/_float renders, comma = literal-tab concat, TAB(n) = xb_tab(xb_len(_p), n) column pads) printed once via xb_print_str. **68/80 BYTE-IDENTICAL**; bracket_arrays/sub_end_sub/print_formatting at 0. Remaining: data_read (13), ubound_test (13, dual-use string-array dyn/fixed classification), format_shell_library (10), func_modifiers (10), system_variables (10), const_stmt (6), execution_order (6), new_features_test (6), system_constants (6), sub_end_sub (5→0 pending verify), static_redim_doevents (4), funcaddr_type_test (2), type_conv_rotate (4). **Slice 7 DONE** (`f54beac`): CONST defines collected by a pre-scan (function-level consts now emit; printed at the prelude end like Rust) + the decl-block blank gated on decls existing. Remaining 18 programs all <=13 diff lines: data_read (13), ubound_test (13, dual-use string-array dyn/fixed), format_shell_library (10), system_variables (8), print_formatting (23 -> float %g vs shortest-round-trip), static_redim_doevents/type_conv_rotate/system_constants/const_stmt/execution_order/func_modifiers/new_features_test/funcaddr_type_test (2-4 each, mostly blank-position). **Slice 8 DONE** (`bdd47f3`): main() trailing-newline blank - XBasic PRINT appends its own newline; accumulated buffers ending in CHR(10) made a stray blank at block boundaries (the fullBody$ strip pattern applied to mainBody$). **70/80 BYTE-IDENTICAL**. Remaining 10: data_read (12), ubound_test (13, dual-use string-array dyn/fixed), format_shell_library (10), system_variables (8), print_formatting (4, float %g vs shortest-round-trip), static_redim_doevents/type_conv_rotate (4), const_stmt/func_modifiers/new_features_test (2, blank positions). **Slice 9 DONE** (`611d3c7`): GIANT(x) emits `(int64_t)(x)` (was `(x)`) - type_conv_rotate at 0. **71/80 BYTE-IDENTICAL**. Remaining 9: data_read (12), ubound_test (13, dual-use string-array dyn/fixed), format_shell_library (10), system_variables (8), print_formatting (4, float %g vs shortest-round-trip), static_redim_doevents (4), const_stmt/func_modifiers/new_features_test (2, post-prelude blank ordering - an attempt regressed all programs and was reverted; needs Rust emit-order study: gosub_stack, defines, blank, decls exact sequence). **Slice 10 DONE** (`b4e344f`): the const pre-scan + defines print moved to right after the gosub_stack prelude line (Rust: emit_globals immediately follows emit_header, before emit_forward_decls); duplicate defines-print blocks removed. system_variables 8->7, const_stmt 5->2, func_modifiers 4->2 (residual: one blank position between the defines and the decls). Corpus 71/80 held. **Slice 11 DONE** (`1650f3f`): the const-defines buffer's trailing CHR(10) stripped at print (the fwd-decl trailing blank provides the single blank). const_stmt/func_modifiers/new_features_test/system_constants all at 0; system_variables 7->6. **75/80 BYTE-IDENTICAL**. Remaining 5: data_read (12), ubound_test (13, dual-use string-array dyn/fixed), format_shell_library (10), system_variables (6, shared-string init position), print_formatting (4, float %g vs shortest-round-trip), static_redim_doevents (4). **Slice 12 DONE** (`be215a7`): DATA tokens typed 'int' map to xb_data_add_int (was add_str); the mainBody/funcBody/nestBlocks accumulators are newline-aware (multi-line cCode$ ending in CHR(10) gets no separator). data_read at 0. **76/80 BYTE-IDENTICAL**. Remaining 4: ubound_test (13, dual-use string-array dyn/fixed), format_shell_library (10), system_variables (6, shared-string init), static_redim_doevents (4, blank order). **Slice 13 DONE** (`9b257c9`): the shared-string init block dropped - the prelude-transcribed xb_len null-guards, so the `xb_shared_X = xb_str("")` inits are redundant (Rust never emitted them); amakemap parity re-verified. system_variables 6->4. **76/80 BYTE-IDENTICAL**. Remaining 3: ubound_test (13, dual-use string-array dyn/fixed), format_shell_library (10), static_redim_doevents (4, blank order). **Slice 14 DONE** (`0e55373`): FORMAT\$'s string value arg wraps in xb_strdup (the Rust emit_format dispatch - the format retains the arg). format_shell_library at 0; print_formatting at 0. **77/80 BYTE-IDENTICAL**. Remaining 2: ubound_test (13, dual-use string-array dyn/fixed), static_redim_doevents (4, shared/defines blank order). **Slice 15 DONE** (`c659c62`): the prelude blank moved to after the shared-globals pre-scan (emit_globals' unconditional trailing blank). static_redim_doevents at 0. **79/80 BYTE-IDENTICAL**. Remaining 1: ubound_test (13, dual-use string-array 'DIM s\$[5]' - Rust emits the native fixed _arr facet 'char* xb_str_s_s_arr[(5)+1]', cgen classifies it calloc-dyn via strDual). **Slice 16 DONE** (`8e5b822`): dual-use string-array fixed-native facets. **UBOUND-TEST BYTE-IDENTICAL - 80/80 (100%)**. Rust dual-use trigger: a STRING UBOUND read notes a scalar context (c_emit_hoist.rs:128). cgen mirrors: the strUbDual scanner, the hoisted scalar facet, the fixed-native _arr facet (memset + fill), sizeof UBOUND, the _arr access naming, the dollar -> _s dual sanitization, and the dyn-hoist suppression in all three hoist arms. CG-BYTES COMPLETE: both generators emit byte-identical C for the ENTIRE positive corpus. | tightest sync lock (docs/16) | done |
 
-**CGEN-DEMO-CC DONE** (`e09c938` + `20c956e`, 2026-08-26): all 114 demos now COMPILE CLEAN through the self-hosted cgen.x (was 12 cc-fails). Dual-use string arrays completed end-to-end: the dyn/fixed storage dispatch (multi-DIM or BYREF-passed -> calloc-dyn; single sized DIM -> fixed-native), the _arr facet naming everywhere (DIM, UBOUND cell, hoisted decls, scalar reads, byref args, SWAP via the new scalar_name$ helper, XstQuickSort/XstCopyArray via ub_ref$), the ##byrefStrArr$ scanner (byref string arrays get the dyn scheme - the callee may realloc), and the strUbDual/strDual arm exclusions. 
+**CGEN-DEMO-CC PARTIAL (2026-08-26 onward):** the named guard reaches 114/114 only after its harness rewrites Kittedy `found` declarations/usages and qbtoxb `TranslateStatement` forward declarations. The underlying string-array and `_arr` emission work landed, but the remaining rewrites are compiler defects, not fixtures. RR-13 removes the rewrites before promoting this row to done.
 
-**DEMO-BYTES DE-SCOPED (panel 2026-08-27)**: demo-scale emitted-C TEXT identity (was 7/114) is no longer a milestone. 114/114 demos compile through true cgen.x (now test-locked by `cgen_x_compiles_all_demos_cc_clean`) and parity is behavioral — the contract that actually governs the bootstrap. Chasing text identity in cgen.x caused the three reverted gosubDyn attempts. The real signal (cgen.x classifier fragility) is the CGEN-FACET-MANIFEST row; any future text-identity work goes through that route (frontend-emitted facet manifest), never through more text scanning. Historical diff classes, for reference: usage-gated forward decls, byref callback pointer params, prelude spacing.
+**DEMO-BYTES DE-SCOPED (panel 2026-08-27):** demo-scale emitted-C text identity is not a milestone. The positive corpus keeps the byte lock; demos use compile/behavior contracts. The named 114/114 compile guard currently applies explicit post-emission C rewrites for Kittedy (`found`) and qbtoxb (`TranslateStatement`), so raw cgen.x demo compilation remains open as RR-13. Those workarounds must move into the generators before the guard can prove raw 114/114 output. Any future text-identity work still goes through CGEN-FACET-MANIFEST, never more text scanning.
 
 **gosubDyn slice ATTEMPTED + REVERTED (2026-08-26)**: Rust's has_gosub force-dyn rule (GOSUB bypasses VLAs) regressed demos 114 -> 89 cc-clean; reverted. VLAs compile on clang, so dyn is only needed for byte-identity. Prerequisites mapped for the retry: both facets hoisted (afirst's scalar null-check precedes the dim), cross-function facet decls (loop-1 needs the branch too), string _arr naming consistency, type-agnostic dedup, integer names kept out of the dynStr arm,  Second attempt (same day) reached 90/114 with the interactions partially solved (both facets in loop-1+loop-2, strDual exclusion, dynStr/dynNames arm routing, scalar facets) - the residual 24 demos need a COHERENT facet-model design, not patches: (i) name-collision classes (grid$ vs grid share bd$ suffixing; a variable literally named `string`); (ii) multi-dim type conflicts (adjacent integer+float -> _arr redefinition); (iii) the access/assign emitters still emit c_var_name$+"_arr" forms at sites not yet routed through arr_acc_name$; (iv) loop-counter names (o, i) dim'd as arrays in gosub fns + scalar-used elsewhere; (v) used$ may not include array-only-accessed names (loop-1 misses their facet decls).  Third attempt (same day) implemented the helper architecture (g_arr_name$/g_ub_name$/g_scalar_name$/g_type$/g_in$ as the single naming source, arr_acc_name$ delegating, hoist loops + dynStr/dynNames/strDual arms routed) - it FIXED the naming-consistency class (Rust's _s dual form confirmed correct via the gif/aquick oracles: xb_str_code_s_arr/xb_str_grid_s_arr) but the residual failures are the TYPE-CONFLICT class: names dim'd as BOTH integer array and string scalar (aback's user, afirst's Sub) where the per-name single-type facet table cannot serve both uses - Rust solves this because its FN_DYN is keyed by the SEMANTIC analyzer's per-symbol types, not by IR-text scanning. Conclusion: the gosubDyn slice is BLOCKED on semantic-type resolution in the scanner (the IR text does not carry enough information to disambiguate multi-type names); it requires either (a) the Rust frontend exposing per-symbol type maps to the sync harness, or (b) a much smarter cgen-side scan that tracks each name's type PER USE SITE. Parked until then. (name -> {scalar decl, arr decl, ub cell, naming scheme}) computed ONCE in the pre-scan, then have every emitter consult it - mirroring Rust's FN_DYN single-source-of-truth. cgen.x-source constraint: INSTR needles must keep parens out of string literals (the xb_instr3 comma counter lacks the string-literal blind-spot fix).
 | CG-BODY-COVER | two-C-gen sync | computed GOTO (`GotoExpr`/`GOADDRESS`, `1efe782`) + AT-write lvalue (`BuiltinAssign`, `05e9645`) ✅ **done** (2026-08-21): `cemitter_and_cgen_agree_on_{computed_goto,builtin_assign}` lock all three backends. A systematic audit of every `LEFT$(s$, N) = "lit"` dispatch in cgen.x found + fixed **2 off-by-one drops** (`goto_expr`, `builtin_assign`) — the dispatch-length bug class is now fully swept. SUBADDRESS/FUNCADDRESS/computed-GOSUB/sequential-file-IO also corpus-covered. **Remaining** (low pri): AT-deref *reads* (`XLONGAT` rvalue etc. — interp returns 0 vs C real memory, divergent by design) + file mode 2 | drift blind spot (docs/16) | ◑ partial |
@@ -332,12 +368,17 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~C-EMIT-NAN~~ | C backend | ✅ **done** `14f9c69`: `0d7FFF…` (`$$PNAN`/`$$PINF`) `NaN`/`inf` lower to `NAN`/`INFINITY` (`<math.h>` already included) so `xma` `double` returns compile (was 17 `use of undeclared identifier NaN/inf`) | — |
 | CGEN-LIB-SCALE | cgen.x | Heuristic `--emit-ir` probe **9/15 at 8840f2a → 9/15 at `dedfe25` via `checks/cgen-lib-compile.sh`** (was 6/15): `xcol` Killed:9 (OOM even after per-line `scan_undimmed` `85beaef` + `xi_concat` cap `08fc0cb`; 2.6 MiB IR), `xgr` Abort:6/SIGKILL (1.4 MiB IR), `xui` `cc FAIL` (2.6 MiB IR now reaches `cc` after `c45ad80`+`08fc0cb` — was OOM — now `window` subscript `intptr_t*` 20 errs), `xin` `host_address` `intptr_t*` vs `intptr_t` `&0xFF` (4 errs at `xin.c:754`), `xit` 20 errs (`Dump` `DO` `LEFT(pr-1)`→`pr-2` fixed in `92fb1a6`), `xst` 20 errs (OSTOXERROR etc.); `xcm,xdis,xma,xut,xutpde,gdi32,kernel32,user32,xrun` pass (9). Facet probe (`emit_program_with_facets` → cgen) also 9/15 with same 6 fails. `xgr` 1.41 MiB IR reached 6.4 GiB RSS pre-`08fc0cb`. **Probe now test-locked as `checks/cgen-lib-compile.sh` (see CGEN-X-LIB-COMPILE); re-measured 2026-08-29 at `dedfe25` → still 9/15 (cgen 9 + Rust 15 via `link-core-libs.sh` 1736 `ALL OK`).** | `wip-xst-670fec5` branch holds 10 commits for `xst` shared-dim work (`OSTOXERROR`, `#var` shared, `term[]` dual etc.) but regresses `qbtoxb` `cgen_x_compiles_all_demos_cc_clean` 23/114 (Kittedy `reply` vs `str_reply`, `abuffer` subscript) — needs per-scope `facet` `scope:name` not substring `:name:`; fix before re-merge. Otherwise `fix nested-function depth + leaky concat` already landed (`08fc0cb`). Next true 15/15 blocker is `CGEN-FACET-SCOPE` (`window`/`host_address` need `dual` `_arr` split, not just `scan_dyn` needles). |
 | ATTACH-IMPL | interpreter + C backends | `ATTACH` statement (array aliasing/view-binding) is parser-discarded `parser.rs:718-724` → `Compound(vec![])` no-op in all backends. Used in `xcol (~20 sites), xst (~20), xgr (~8-10), xui (~12-15), xit (~15)` — hash tables, file locks, charMaps, window kids, prog/func/tok arrays. Link succeeds but runtime array aliasing is silently wrong (target array never receives source node; subsequent UBOUND/REDIM/index on target sees stale/null). Blocks tier (c) adopt for 5/15 libs. | implement ATTACH (view binding) or explicitly accept semantic divergence + add deterministic ATTACH alias test (see synthesis RC-R3/RC-R6) |
-| CGEN-X-LIB-COMPILE | self-hosted cgen.x | **Probe exists: `checks/cgen-lib-compile.sh` (9/15 at `dedfe25`, 6 fail: `xcol`/`xgr` OOM/abort + `xui`/`xin`/`xit`/`xst` cc errors).** `cgen.x` demo compilation (114/114 at `1c2c929` via `emit_program_with_facets` narrow `dyn/dual/arr2d`) does not cover lib-scale storage patterns (ATTACH-adjacent aliasing, composite member arrays, multi-dim shared arrays). Both heuristic and facet `--emit-ir` probes re-measured 2026-08-29 at `dedfe25` are **9/15** (see CGEN-LIB-SCALE). Blocked by `CGEN-FACET-SCOPE` (`window`/`host_address` need `dual` `_arr` split; `wip-xst-670fec5` holds shared-dim fixes but fails demos). **Next: add cargo-test `cgen_x_compiles_all_core_libs_cc_clean` asserting 15/15 (or ≥9 with warning) gated on facet manifest — now `61/61` includes 9-lib floor.** | `cgen_x_compiles_all_core_libs_cc_clean` now exists (`cgen_cemitter_sync.rs` 61/61 at `dedfe25`); land 15/15 when `CGEN-FACET-SCOPE` complete; do not gate demo-scoped facet slices on it. |
-| SHELL-CAPABILITY | runtime + security | `xb_shell` lowers to `system()` (`c_runtime_bit.rs:97`) with no sandboxing/capability gate; `xrun`/`xst` contain SHELL-reachable paths. `Xin*` builtins lower to real BSD sockets (`c_emit_xin.rs:157+` → `sys/socket.h`). Compiled legacy lib code can execute arbitrary host commands / open network connections if SHELL/Xin paths reached at runtime. | add `XB_ALLOW_SHELL`/`XB_ALLOW_NETWORK` capability flags or document “never reached in smoke” assumption (see provenance RC1) |
+| CGEN-X-LIB-COMPILE | self-hosted cgen.x | The named cargo test `cgen_x_compiles_core_libs_floor_9_cc_clean` locks nine specific passes and a `>=9` floor; 15/15 is not asserted. Classification/scope failures are `xui`/`xin`/`xit`/`xst`; resource failures are `xcol`/`xgr`. Heuristic and narrow-facet probes were both 9/15 at `dedfe25`. | RR-03 targets 13/15 classification-clean; RR-05 independently removes signal/OOM failures and closes 15/15 |
+| CGEN-DEMO-RAW-GATE | self-hosted cgen.x + tests | `cgen_x_compiles_all_demos_cc_clean` rewrites emitted C for Kittedy `found` and qbtoxb `TranslateStatement` before cc. The 114/114 result is a workaround-assisted compile guard, not raw-generator proof. | RR-13: fix both generator defects, delete the rewrites, retain 114/114 |
+| ARY-COMPOSITE-DESCRIPTOR | frontend + Rust CEmitter | **DONE 2026-08-29** — `ARY_VAR_DATA @Ary_varData[]` now forwards shared `T*` member arrays (`xb_var_Ary_varData_*_arr`) at both signature and all four call sites; `xbsourcelib_ary_compiles_clean` 2/2 and `xbsourcelib_interp_matches_compiled` 11/11; runtime `ARY` still blocked on `ATTACH`/bounded behavior. | no further compile action; runtime `ARY` awaits RR-06 |
+| SHELL-CAPABILITY | runtime + security | `xb_shell` lowers to `system()` (`c_runtime_bit.rs:97`) with no sandboxing/capability gate; `xrun`/`xst` contain SHELL-reachable paths. `Xin*` builtins lower to real BSD sockets (`c_emit_xin.rs:157+` → `sys/socket.h`). Compiled legacy lib code can execute arbitrary host commands / open network connections if SHELL/Xin paths reached at runtime. | RR-09: deny by default and require explicit SHELL/network opt-in before untrusted or xrun/xin behavior execution |
 | LEGACY-CORPUS-COMPILE-COVERAGE | tests | 19 GTK demos + three helpsrc programs are parse/lower-only; docs previously overclaimed every `.x` was regression-locked | add explicit compile inventories before any every-legacy-source claim |
-| ARY-STATUS-RECONCILIATION | tests + docs | `xbsourcelib_parity` says runtime crash/composite-byref; banner said performance-only and cgen-faithful; `ATTACH` remains parser-discarded | add a deterministic ATTACH alias test plus bounded ary run/timeout evidence, then choose one status |
+| ARY-STATUS-RECONCILIATION | tests + docs | Two-stage status: RR-02 is compile-only composite-descriptor repair. Runtime ARY remains unready because `ATTACH` is parser-discarded and no bounded behavior run is locked. | after RR-02, require RR-06 alias test + bounded ARY behavior evidence before a runtime-faithful claim |
 
 ### Panel review 2026-08-27 — Candidate Adoption Ledger
+
+> **Historical snapshot.** Metrics and priorities below are preserved for audit;
+> the top banner and 2026-08-29 execution queue/ledger are current.
 
 > Six-lens adversarial review (evidence, architecture, priority, correctness,
 > reproducibility, docs) at `90283be`; **6/6 AGREE WITH CHANGES**. The one
@@ -368,6 +409,9 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | P15 | LLVM CI job | deferred | LLVM-CI-BITROT row | CI capacity |
 
 ### Legacy-library readiness panel 2026-08-27 — Candidate Adoption Ledger
+
+> **Historical snapshot.** The 6/15 result below was current for this panel;
+> the current test-locked floor is 9/15.
 
 > Five read-only lenses (evidence, compiler correctness, runtime semantics,
 > coverage/reproducibility, strategy) independently returned **AGREE WITH
@@ -411,10 +455,118 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | L13 | `scan_undimmed` MID-avoidance 3-arg `INSTR` | **partial — landed 08fc0cb** | Three sites `array_access`/`array_assign`/`array_ubound`: `INSTR(MID$(s$,p+13,…),":")` + `MID$(s$,p+13,e-1)` → `INSTR(s$,":",p+13)` + `MID$(s$,p+13,e-p-13)` (algebra `e-1 = e_abs-p-13`). Still whole-`s$` (not per-line). No quote-skip | name fixture `array_access(` line with `string("a:b")`; xcol still 46s |
 | L14 | `pNames$[32]→[128]` + zap `argv$` nested-DIM facet | **partial — landed 08fc0cb + docs/19 fix** | `selfhost/cgen.x` `pNames$`/`pTypes$`/`pIsStr` 32→128 (xdis/xst depth 5-55). `docs/19` slice 8 corrected: `zap` `DIM argv$[3]` inside nested `IFZ` THEN+ELSE `dim_count==2` ⇒ `storage=dyn` not `fixed`. Residual (docs/19): member 2D hardcodes `rank=2`+`storage=shared` no-op, array params `rank=1`, nested `Function` DIMs leak into parent `dim_info`, `collect_member_2d_expr` misses `Print`/`For`/`SelectCase` | dump `facet argv$:string scope=Entry storage=dyn rank1` + fix member-2D hardcodes before lib facet claim |
 | L15 | License-boundary disclosure for 15 libs | **done — landed 2026-08-28** | §L15 table added (see top): `xcol`/`xit`/`xdis` GPL (`COPYING`); `xst`/`xma`/`xcm`/`xui`/`xgr`/`xin`/`xrun`/`xut`/`xutpde` LGPL (`COPYING_LIB` truncated at §0); `gdi32`/`kernel32`/`user32` no notice; remake crates split `GPL-2.0-or-later` vs `LGPL-2.1-or-later`; `src/shared` 6 vs `src/linux` 9 inventoried; `xblibs` marked **INTERNAL TEST HARNESS ONLY — NOT FOR REDISTRIBUTION** (local smoke run-only, distribution is GPL-covered) | — |
-| L16 | Weak-link-order determinism + `OUT` hygiene | **deferred** | `XB_WEAK_SYMBOLS=1` first-definition-wins now deterministic via `link-core-libs.sh` ordered `xcm,xdis,xma,xui,xut,xutpde,gdi32,kernel32,user32,xcol,xgr,xin,xit,xrun,xst` (not glob), but `OUT` never cleaned in `validate-all.sh` (`/tmp/xblib-validate` persists), `XB_BIN` computed not env (`XB_BIN="${XB_BIN:-...}"` missing), `nm -U` not portable (Darwin `nm -U` vs Linux `nm`); `cgen_x_compiles_all_core_libs_cc_clean` now gates 9/15 but `OUT` hygiene still open | gate any symbol-count headline on `git status --short` clean + empty `OUT` + `ls -l $XB_BIN` + without-weak link check; fix `XB_BIN` env and `nm` portability |
-| L17 | Named 15-lib cgen cc-clean guard (`cgen_x_compiles_all_core_libs_cc_clean`) | **partial — landed 2026-08-28** | `cgen_x_compiles_all_core_libs_cc_clean` now exists in `crates/xb-runtime/tests/cgen_cemitter_sync.rs` (cargo test, 9/15 baseline at `e293b77`: `xcm,xdis,xma,xut,xutpde,gdi32,kernel32,user32,xrun` pass; `xcol` Killed:9 OOM 2.6 MiB IR, `xgr` Abort:6, `xui/xin/xit/xst` cc errors; `checks/cgen-lib-compile.sh` remains shell probe at 9/15). Falsified by SIGKILL/OOM/cc error/hang; `cgen` OOM now counted per-lib via `wait_with_output` not panic. | land 15/15 when L11 leaky concat + facet `CGEN-FACET-SCOPE` complete; do not gate demo-scoped facet slices on it |
+| L16 | Weak-link/harness determinism | **partial** | Deterministic link order, clean `OUT`, and Darwin/Linux `nm` fallbacks are now present in `link-core-libs.sh`/`validate-all.sh`. Remaining: caller `XB_BIN` override is ignored; duplicate weak definitions are not reported; `cgen-lib-compile.sh` remains informational with unconditional exit 0. | RR-10: honor `XB_BIN`, report duplicates, keep the explicit 9/15 floor separate from a future strict 15/15 gate |
+| L17 | Named cgen core-library floor (`cgen_x_compiles_core_libs_floor_9_cc_clean`) | **partial — landed 2026-08-28, renamed 2026-08-29 for contract truth** | Cargo test requires the nine named passing libraries and `passes.len() >= 9`; it reports but tolerates the six known failures. | RR-03/RR-05 close 15/15; add a separately named strict target when all libraries pass |
+
+### Roadmap and known-issues panel 2026-08-29 — Candidate Adoption Ledger
+
+#### Panel Consensus
+
+- **Decision:** **7/7 AGREE WITH CHANGES.** Seven independent read-only reviewer
+  roles examined one shared packet; role names are lenses, not claims about model
+  providers.
+- **Conclusion:** the prior conditional-NO stands. Rust CEmitter compile/link is
+  usable as internal scaffolding; runtime-faithful legacy-library adoption,
+  raw 114-demo cgen proof, self-hosted 15-library generation, and distribution
+  are not ready.
+- **Use-case recommendation:**
+
+| Use case | Recommendation | Governing evidence / missing gate |
+|---|---|---|
+| study code and compiler structure | yes | source and roadmap evidence is available; GitHub tracker was not accessible |
+| reproduce locked compiler claims | yes, with named-test caveats | 80/80 corpus byte lock, 61/61 sync, `IR_IDENTICAL`; demo compile guard uses two post-emit rewrites |
+| adopt Rust-CEmitter library scaffolding | conditional | 15/15 compile/link plus seven trivial `Version$` checks; no general compiled-body authority |
+| adopt self-hosted cgen for core libraries | no | 9/15 floor; two distinct failure classes |
+| deploy or run untrusted legacy code | no | `ATTACH` no-op, native/stub binding ambiguity, ungated SHELL/network, licensing/provenance gaps |
+
+#### Required Wording Changes
+
+1. docs/16 must say demo text identity is de-scoped, not open.
+2. docs/18 and docs/README must bound the landed descriptor to primitive/flat
+   arrays and mark composite `TYPE` arrays open.
+3. docs/19 must say partial/narrow consumption; it has not replaced heuristic
+   scans or implemented scope-qualified lookup.
+4. docs/17 must distinguish the test-locked 9/15 cgen floor from the open 15/15
+   target and split classification from resource failures.
+5. The 114/114 demo headline must disclose Kittedy/qbtoxb post-emission rewrites
+   until RR-13 removes them.
+6. Historical 6/15 panel measurements must be labeled snapshots, not current
+   status. The top banner and execution queue are authoritative.
+
+#### Shared Findings
+
+- The previous sole workspace failure (shared `ARY_VAR_DATA` descriptor) is now
+  compile-clean via `is_shared_array` → `emit_raw_array_name`; `xbsourcelib`
+  is 13/13 and `ary`/`ary1.0001` are 2/2 cc-clean. RR-02 is done for compile;
+  runtime `ARY` remains blocked on `ATTACH`.
+- Composite values already lower as struct-of-arrays. Caller arguments and
+  callee signatures must forward the same member-array shapes; the panel did
+  not settle the eventual ABI representation.
+- `xui`/`xin`/`xit`/`xst` are scope/type classification failures.
+  `xcol`/`xgr` are generator resource failures. These are independent work
+  tracks, not one undifferentiated “scale” bug.
+- The named all-demo test rewrites generated C. Its 114/114 result is valuable
+  as a regression floor but is not raw-generator evidence.
+- `ATTACH` is silently discarded, native helpers can shadow legacy bodies, and
+  seven constant accessors do not establish core-library behavior.
+- SHELL and Xin paths have real host effects. Capability gates precede
+  untrusted execution and xrun/xin behavior testing.
+- License disclosure is present, but shim provenance and distribution
+  obligations remain unresolved.
+
+#### Disagreements / Residual Risks
+
+- **Composite ABI shape:** per-leaf descriptors match the existing
+  struct-of-arrays lowering; a unified structured descriptor may be cleaner
+  long term. RR-02 starts with a focused contract fixture and accepts only a
+  caller/callee-coherent shape, not a source-specific ampersand patch.
+- **Facet vs scaling order:** some lenses preferred RR-03 then RR-05; the
+  architecture lens found them orthogonal. Decision: run them as separate,
+  parallelizable tracks and measure 13/15 classification-clean independently
+  from 15/15 resource closure.
+- **JIT/Cranelift:** one lens recommended dropping them; others recommended
+  defer. Decision: trigger-gate rather than delete without a maintainer/runtime
+  compatibility requirement.
+- **Link-smoke failure propagation:** reproducibility lenses questioned an
+  explicit nonzero check. Coordinator inspection found `set -e` plus direct
+  smoke execution already propagates failure. Remaining RR-10 gaps are
+  `XB_BIN` override, duplicate reporting, and the informational cgen probe.
+
+#### Evidence Actually Checked
+
+- Coordinator-read: docs/README and docs/16–19; prior 2026-08-28 synthesis;
+  `attach_stmt`; both cgen compile guards; ARY declarations/definition/calls;
+  `link-core-libs.sh`, `cgen-lib-compile.sh`, and `validate-all.sh`.
+- Prior executed evidence carried into the packet: workspace 281/1, sync 61/61,
+  corpus 80/80, `IR_IDENTICAL`, Rust libraries 15/15 with 1736 symbols and seven
+  `Version$` checks, self-hosted libraries 9/15. **Update 2026-08-29: `ARY`
+  shared-composite fix lands, workspace now 282/0; self-hosted libs still 9/15.**
+- Not executed during this documentation panel: builds, compiler probes, or the
+  project-wide test suite. GitHub issue listing was unavailable because the CLI
+  was unauthenticated; no claim is made that the external tracker is empty.
+
+| ID | Candidate | Status | Evidence | Next action or trigger |
+|---|---|---|---|---|
+| RR-01 | Reconcile roadmap truth and guard it | **adopted** | contradictions in docs/16/18/19/README/docs17; guard previously omitted docs/18/19 | wording and deterministic needles land with this panel |
+| RR-02 | Composite-array byref ABI compile repair — shared `ARY_VAR_DATA` | **adopted — done 2026-08-29** | `c_emit_expr` now forwards shared `T*` member arrays (`is_shared_array` → `emit_raw_array_name`) and both ARY sources are cc-clean; `xbsourcelib_parity` 2/2, `cgen_cemitter_sync` 61/61, `xbsourcelib_interp_matches_compiled` still 11/11; runtime `ARY` still blocked on `ATTACH` | no further action for compile; runtime `ARY` awaits RR-06 + bounded behavior |
+| RR-03 | Scope-qualified facet lookup | **adopted** | global `:name:` leakage in four C-error libraries | scope+name+type keys; target 13/15; preserve sync/bootstrap |
+| RR-04 | Split cgen failure classes | **adopted as tracking** | four C errors vs two signal/resource exits | keep separate assertions/results; not a blocking implementation phase |
+| RR-05 | Bound and fix xcol/xgr generation | **adopted; parallelizable with RR-03** | xcol Killed:9, xgr abort at recorded IR sizes | record deterministic wall/RSS evidence; eliminate signal exits; close 15/15 |
+| RR-06 | Implement `ATTACH` alias semantics | **adopted** | parser returns empty `Compound`; stateful libraries depend on aliases | parser/IR/interpreter/C tests for write, `REDIM`, and `UBOUND` through aliases |
+| RR-07 | Decide native-vs-legacy binding authority | **adopted** | native shadowing and emit-time default folding | one unshadowed cross-TU contract before behavior claims |
+| RR-08a | Behavior gates for pure libraries | **adopted after RR-07** | Version-only smoke | deterministic non-stub xut/xcm/xma/xdis body calls |
+| RR-08b | Behavior gates for stateful libraries | **adopted after RR-06/RR-07** | ATTACH and binding ambiguity | non-stub xst/xui/xgr/xcol/xit tests; bounded ARY evidence |
+| RR-09 | SHELL/network capability gates | **adopted before unsafe behavior runs** | interpreter/C `sh -c`/`system`; real BSD sockets | denied-by-default plus explicit opt-in tests |
+| RR-10 | Harness reproducibility | **partial** | order/OUT/nm improved; override/duplicates/probe exit remain | honor `XB_BIN`; report weak duplicates; separate floor probe from strict gate |
+| RR-11 | Licensing and shim provenance | **partial** | L15 disclosure done; three shims lack notices | resolve notices/source obligations before packaging or distribution |
+| RR-12 | GUI/LLVM/JIT/Cranelift reassessment | **deferred / trigger-gated** | no dependency on immediate correctness path | reconsider after behavior gates or a demonstrated compatibility need |
+| RR-13 | Remove demo post-emission rewrites | **adopted with RR-03 track** | Kittedy/qbtoxb mutations in `cgen_x_compiles_all_demos_cc_clean` | fix generators, delete mutations, keep raw 114/114 |
+| RR-14 | Reconcile external issue tracker | **deferred (access blocked)** | GitHub CLI unauthenticated during panel | compare tracker to this ledger when authenticated |
 
 ### Parallel-lens review 2026-08-27 — Legacy lib port `review-packet-legacy-lib-port-2026-08-27.md` (4/7 delivered)
+
+> **Historical snapshot.** The 6/15 and L15–L17 statuses below were later
+> superseded; see the 2026-08-29 ledger.
 
 > **Packet target:** "Is the XBasic toolchain actually ready to port the 15 legacy `.x` libs?" Packet HEAD `3c5d9a7` + uncommitted `c_runtime.rs`/`c_emit_stmt.rs`/`selfhost/cgen.x` (now **landed 08fc0cb, see L11–L14 partial**; header fix also landed). **Lenses:** 7 tasked; **4 delivered** = Provenance/Security, Strategic Synthesis, Correctness, Reproducibility — all **AGREE WITH CHANGES** (no DISAGREE, no pure AGREE). **3 stalled** = EvidenceAuditor-3, ArchitectureReviewer, UsabilityActionabilityReviewer — no assistant turns after 14m + DM wake; `history://` shows only the assignment (likely `task`-backend `resource_exhausted`/wall timeout per `parallel-lens-review-packet` recovery note §3); coordinator salvaged via raw evidence + `agent://` reads and disclosed degradation from independent judgment to structured self-review. No provider-persona calls; no mock/unit as e2e.
 > **Answer (synthesis of 4):** Not ready to claim legacy libraries ported. Rust CEmitter is 15/15 **link-ready** (Bar A) only. Self-hosted `cgen.x` Bar B is **unready/slow** (6/15 probe not re-run; xcol wall probe via `cgen_exp` is not a lock). Highest-leverage among the three named options = **CGEN-LIB-SCALE** (nested-fn + leaky concat → then named 15-lib cc-clean lock); facet storage work gated on that lock; GUI-RUNTIME last (deferred via L10). Selected Rust Bar C work (xut/xcm, L2/L3) may run in parallel and is not among those three. Do not use unsuffixed "ready"/"ported" — keep Bars A–E taxonomy (L1).

@@ -1,18 +1,18 @@
 # 18 — By-ref array ABI (`CGEN-BYREF-REDIM`) — turnkey implementation guide
 
-**Status (2026-08-21): ✅ DONE — LANDED on `main`** (merge `be03117`). The full
-by-ref array descriptor (`CGEN-BYREF-REDIM`) is implemented, verified, and green:
-**`cgen_demo_regression` 10/10**, **`cgen_cemitter_sync` 5/5** (byte-identity with
-`cgen.x` preserved — the descriptor is a no-op on the self-host + v0.1 corpus),
-**full suite 193/0**, **demo/lib differential 74 faithful / 0 diverge / 0
-compile-fail**. `xbsourcelib` (`fgr`/`vgr`/`msc`/`ary` + merge variants) now sorts
-and copies arrays for real via `XstQuickSort`/`XstCopyArray`; `REDIM`-through-
-`@array[]` works. The final `qbtoxb` blocker was fixed (`d13ee91`): a bare
-descriptor-array Symbol reads the slot's scalar default (matching interp
-`read_slot`), not the data-pointer address, so `IFZ a[]` no longer `xb_len`s a
-pointer. **RT-XST `XstQuickSort` (14) + `XstCopyArray` (2) are now COMPLETE.**
-
-### What the verified implementation covers (branch `625ce19`)
+**Status (reviewed 2026-08-29, updated 2026-08-29 RR-02): LANDED for
+primitive/flat arrays and for shared composite `ARY_VAR_DATA` member arrays.**
+Merge `be03117` implemented the primitive-array descriptor `(T** data,
+intptr_t* ub)`, content-preserving `REDIM`, and the `XstQuickSort`/
+`XstCopyArray` helper path. Those contracts remain covered. A focused
+follow-on (`c_emit_expr` `is_shared_array` → `emit_raw_array_name`) now forwards
+the five `ARY_VAR_DATA` member arrays (`status` … `numElements`) as shared
+`T*` globals at both definition and all four call sites. The workspace is now
+**282 passed / 0 failed**; both `ary.x` and `ary1.0001.x` are cc-clean
+(`xbsourcelib_ary_compiles_clean` 2/2, `xbsourcelib_interp_matches_compiled`
+11/11). Runtime `ARY` remains compile-only until `ATTACH` alias semantics and a
+bounded behavior test land (see docs/17 `RR-02`/`RR-06`).
+### What the landed primitive-array implementation covers (branch `625ce19`)
 - `collect_descriptor_params` fixpoint — **resize-seeded** (`REDIM`/`DIM`-with-size
   + `XstQuickSort`/`XstCopyArray` pos 0/1), **backward-propagated**; a bare
   `UBOUND`/`SIZE`/empty-`DIM x[]` does NOT seed (keeps qbtoxb's stubbed-Xst arrays
@@ -29,6 +29,21 @@ pointer. **RT-XST `XstQuickSort` (14) + `XstCopyArray` (2) are now COMPLETE.**
   dual-use via `collect_dual_use(extra_array)`; descriptor **params** are never dual.
 - `XstQuickSort`/`XstCopyArray`: interp (`xst::quicksort`/`copyarray`) + gated C
   runtimes (8-byte-slot reorder, `et`-dispatch, `xb_strdup` deep-copy).
+
+
+### Composite `TYPE` array boundary
+
+The compiler represents a composite array as parallel member arrays. A correct
+by-ref ABI must forward every member array in exactly the shape its callee
+declares: a plain element pointer for read-only parameters or a coherent
+`(T** data, intptr_t* ub)` descriptor where resizing/length propagation requires
+it. Declaration/definition differences in `@` syntax must not change the C
+parameter count or indirection level.
+
+The immediate compile-only gate is now **done for the shared `ARY_VAR_DATA`
+case**: both ARY sources are cc-clean and the full workspace is green.
+Runtime-faithful `ARY` remains blocked on `ATTACH` alias semantics and a
+bounded behavior test; see docs/17 `RR-02` (now done for compile) and `RR-06`.
 
 ### Original framing (pre-verification)
 The single remaining high-value C-backend gap. Scale ≈ GIANT: a
@@ -264,7 +279,7 @@ uses it on by-ref **params** (fgr `Ary_AddName(@nameList$[], @nameIndex[])`), wh
 is exactly what this ABI unblocks. `XstCopyArray(@src[], @dst[])` resizes `dst` to
 `src`'s length and copies elements (spec: simple numeric/string only).
 
-## Verification plan + gates
+## Historical verification plan + gates (primitive-array landing)
 
 - Iterate on the minimal repro above (fast) until `interp == cgen` byte-for-byte.
 - Then, in order, all must stay green:

@@ -1,7 +1,8 @@
 # 16 — cgen ↔ CEmitter Sync Roadmap
 
 > Status: living roadmap. Behavioral sync and positive-corpus emitted-C byte
-> identity are **locked by tests**; demo-scale C-text parity remains open.
+> identity are **locked by tests**; demo-scale C-text identity is **de-scoped**
+> (a non-goal; future storage-facet work is tracked in docs/17 and docs/19).
 > Companion to [17-open-work-roadmap.md](17-open-work-roadmap.md) (the umbrella
 > "everything not done yet" list). This doc is scoped to the two C generators.
 >
@@ -87,7 +88,7 @@ corpus: a helper present in one generator only (the `xb_ljust` gap), and a
 signature/type change in one only (the CG-ADDR `int`/`intptr_t` drift). 174
 signatures, identical on both sides.
 
-### CG-BYTES — positive corpus byte-identical ✅ done; demo text parity open
+### CG-BYTES — positive corpus byte-identical ✅ done; demo text identity de-scoped
 All **80/80** programs in `fixtures/corpus/v0.1/positive` now emit byte-identical
 C from the Rust CEmitter and self-hosted `cgen.x`. The sync suite locks this
 contract alongside behavioral parity and helper signatures.

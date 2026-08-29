@@ -1,8 +1,9 @@
 # 19 — CGEN-FACET-MANIFEST: Frontend-Emitted Symbol Facets for cgen.x
 
-> Status: draft spec (2026-08-27). Panel review 2026-08-27 identified this as the sanctioned
-> route for any future DEMO-BYTES or storage work. It replaces cgen.x's ad-hoc text-IR scanning
-> with a single source of truth emitted by the Rust frontend.
+> Status: partial implementation (reviewed 2026-08-29). Slices 1–8 emit and
+> narrowly consume `dyn`/`dual`/`arr2d` facets while keeping all 114 demos in the
+> compile guard. Scope-qualified lookup, comprehensive `strDual`/`allStrArr`/
+> `shared` consumption, and full replacement of heuristic scans remain open.
 
 ## 1. Why this exists
 
@@ -111,9 +112,7 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
 - `fixtures/corpus/v0.1/positive/*.ir` goldens gain the header on next
   regeneration; the change is additive and does not affect interpreter execution.
 
-## 6. Verification
-
-## 9. Implementation progress
+## 6. Implementation progress
 
 - **2026-08-27:** `crates/xb-compiler/src/text_ir_parser_item.rs` now accepts
   `facet` header lines (`facet <name>:<type> ...`) as `IrItem::Nop` — the Text
@@ -184,9 +183,13 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
 
 ## 7. Open decisions
 
-- Exact header keyword: `facet` vs `symbol` vs `storage`.
-- Whether `byref` needs a separate descriptor-forward set or can be folded into `dual`.
-- Minimum header emission: only `dyn`/`dual`/`shared` vs all symbols.
+- The header keyword is adopted as `facet`.
+- Define whether composite-array byref needs per-leaf descriptor facts or a
+  distinct structured descriptor fact.
+- Define the minimum comprehensive emission set after scope-qualified lookup:
+  only non-default storage facets or every symbol.
+- Remove the heuristic fallback only after raw demo compilation, 15-library
+  compilation, positive-corpus byte identity, and bootstrap parity are locked.
 
 ## 8. References
 

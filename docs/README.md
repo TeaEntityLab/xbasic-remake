@@ -51,8 +51,8 @@ Living roadmaps of open work (updated as work lands, not fixed chapters):
 |---|---|
 | [16 — cgen ↔ CEmitter Sync Roadmap](16-cgen-cemitter-sync-roadmap.md) | Keeping the Rust `CEmitter` and self-hosted `cgen.x` in sync: behavioral sync + positive-corpus emitted-C byte identity, both locked by tests |
 | [17 — Open-Work Roadmap](17-open-work-roadmap.md) | Umbrella "everything not done yet": open rows, panel adoption ledger, demo/GUI status, historical session logs |
-| [18 — By-ref Array ABI](18-byref-array-abi.md) | ✅ Landed implementation guide for the `(T** data, intptr_t* ub)` descriptor ABI (`XstQuickSort`/`XstCopyArray`) |
-| [19 — CGEN Facet Manifest](19-cgen-facet-manifest.md) | Draft spec for frontend-emitted per-symbol facets replacing cgen.x text scans |
+| [18 — By-ref Array ABI](18-byref-array-abi.md) | Landed `(T** data, intptr_t* ub)` descriptor ABI for primitive/flat arrays; composite `TYPE` arrays remain open |
+| [19 — CGEN Facet Manifest](19-cgen-facet-manifest.md) | Partial frontend-emitted facet implementation; scope-qualified consumption and full heuristic replacement remain open |
 
 ## The big picture
 

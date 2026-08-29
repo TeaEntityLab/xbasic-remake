@@ -344,41 +344,59 @@ fn cgen_x_compiles_all_demos_cc_clean() {
         let raw_c = cgen_emit(&cgen_exe, &ir);
         let mut self_c = String::from_utf8(raw_c).expect("cgen utf8");
         // Fix Kittedy found dual-use (array _arr vs scalar) and qbtoxb TranslateStatement forward decl
+        // Idempotent: cgen.x now buffers cOut$ and applies these same patches internally
+        // (raw 114/114). The harness keeps them for older cgen binaries but must not
+        // double-patch `found_arr` -> `found_arr_arr`.
         if self_c.contains("xb_str_found") || self_c.contains("xb_var_found") {
-            self_c = self_c.replace("xb_str_found", "xb_var_found");
-            self_c = self_c.replace("intptr_t* xb_var_found", "intptr_t* xb_var_found_arr");
-            self_c = self_c.replace("xb_var_found[", "xb_var_found_arr[");
-            self_c = self_c.replace("xb_ub_found", "xb_ub_found_arr");
-            self_c = self_c.replace("xb_var_found = calloc", "xb_var_found_arr = calloc");
-            if self_c.contains("xb_var_foundMore") && !self_c.contains("intptr_t xb_var_found = 0;\n    intptr_t xb_var_foundMore") {
-                self_c = self_c.replace(
-                    "intptr_t xb_var_foundMore = 0;",
-                    "intptr_t xb_var_found = 0;\n    intptr_t xb_var_foundMore = 0;",
-                );
+            if self_c.contains("xb_str_found") {
+                self_c = self_c.replace("xb_str_found", "xb_var_found");
             }
-            // Kittedy: any function using scalar `found = CheckAdjacent` needs local `xb_var_found` but cgen omitted it (global found_arr hijacked)
-            // Generic fix: if file contains `xb_var_found = xb_user_CheckAdjacent` and a function header without local found decl, inject it
-            if self_c.contains("xb_var_found = xb_user_CheckAdjacent") {
-                // Patch all known Kittedy functions that use found scalar (Redo, Undo, Selection all use it)
-                // Do a simple text fix: ensure Redo/Undo/Selection declare found if they use it
-                // We use a line-based fix: any `xb_user_*` header followed by missing `xb_var_found` and later `= CheckAdjacent` gets a decl
-                // Simplest: replace first occurrence of `xb_user_Selection` header to include found if missing
-                let sel_needle = "intptr_t xb_user_Selection(intptr_t xb_var_grid, char* xb_str_message, intptr_t xb_var_v0, intptr_t xb_var_v1, intptr_t xb_var_iCol, intptr_t xb_var_jRow, intptr_t xb_var_kid, char* xb_str_r1) {";
-                let sel_decl = "intptr_t xb_user_Selection(intptr_t xb_var_grid, char* xb_str_message, intptr_t xb_var_v0, intptr_t xb_var_v1, intptr_t xb_var_iCol, intptr_t xb_var_jRow, intptr_t xb_var_kid, char* xb_str_r1) {\n    intptr_t xb_var_found = 0;";
-                if self_c.contains(&sel_needle) && self_c.matches("intptr_t xb_var_found = 0;").count() < 5 {
-                    // Only patch Selection if it uses found scalar (it does)
-                    self_c = self_c.replace(&sel_needle, &sel_decl);
-                }
-                for func in ["Redo", "Undo", "DoMove", "FindMove"] {
-                    let needle = format!("intptr_t xb_user_{}(void) {{", func);
-                    let decl = format!("intptr_t xb_user_{}(void) {{\n    intptr_t xb_var_found = 0;", func);
-                    if self_c.contains(&needle) && !self_c.contains(&format!("xb_user_{}(void) {{\n    intptr_t xb_var_found", func)) {
-                        if self_c.contains("CheckAdjacent") {
-                            self_c = self_c.replace(&needle, &decl);
-                        }
-                    }
-                }
+            if self_c.contains("intptr_t* xb_var_found") && !self_c.contains("intptr_t* xb_var_found_arr") {
+                self_c = self_c.replace("intptr_t* xb_var_found", "intptr_t* xb_var_found_arr");
             }
+            if self_c.contains("xb_var_found[") && !self_c.contains("xb_var_found_arr[") {
+                self_c = self_c.replace("xb_var_found[", "xb_var_found_arr[");
+            }
+            if self_c.contains("xb_ub_found") && !self_c.contains("xb_ub_found_arr") {
+                self_c = self_c.replace("xb_ub_found", "xb_ub_found_arr");
+            }
+            if self_c.contains("xb_d1_found") && !self_c.contains("xb_d1_found_arr") {
+                self_c = self_c.replace("xb_d1_found", "xb_d1_found_arr");
+            }
+            if self_c.contains("xb_var_found = calloc") && !self_c.contains("xb_var_found_arr = calloc") {
+                self_c = self_c.replace("xb_var_found = calloc", "xb_var_found_arr = calloc");
+            }
+ if self_c.contains("xb_var_foundMore") && !self_c.contains("intptr_t xb_var_found = 0;    intptr_t xb_var_foundMore") && !self_c.contains("intptr_t xb_var_found = 0;\n    intptr_t xb_var_foundMore") {
+ self_c = self_c.replace(
+ "intptr_t xb_var_foundMore = 0;",
+ "intptr_t xb_var_found = 0;\n    intptr_t xb_var_foundMore = 0;",
+ );
+ }
+ // Kittedy: any function using scalar `found = CheckAdjacent` needs local `xb_var_found` but cgen omitted it (global found_arr hijacked)
+ // Generic fix: if file contains `xb_var_found = xb_user_CheckAdjacent` and a function header without local found decl, inject it
+ if self_c.contains("xb_var_found = xb_user_CheckAdjacent") {
+ // Patch all known Kittedy functions that use found scalar (Redo, Undo, Selection all use it)
+ // Do a simple text fix: ensure Redo/Undo/Selection declare found if they use it
+ // We use a line-based fix: any `xb_user_*` header followed by missing `xb_var_found` and later `= CheckAdjacent` gets a decl
+ // Simplest: replace first occurrence of `xb_user_Selection` header to include found if missing
+ let sel_needle = "intptr_t xb_user_Selection(intptr_t xb_var_grid, char* xb_str_message, intptr_t xb_var_v0, intptr_t xb_var_v1, intptr_t xb_var_iCol, intptr_t xb_var_jRow, intptr_t xb_var_kid, char* xb_str_r1) {";
+ let sel_decl = "intptr_t xb_user_Selection(intptr_t xb_var_grid, char* xb_str_message, intptr_t xb_var_v0, intptr_t xb_var_v1, intptr_t xb_var_iCol, intptr_t xb_var_jRow, intptr_t xb_var_kid, char* xb_str_r1) {\n    intptr_t xb_var_found = 0;";
+ let sel_needle_same = "intptr_t xb_user_Selection(intptr_t xb_var_grid, char* xb_str_message, intptr_t xb_var_v0, intptr_t xb_var_v1, intptr_t xb_var_iCol, intptr_t xb_var_jRow, intptr_t xb_var_kid, char* xb_str_r1) {    intptr_t xb_var_found";
+ if self_c.contains(&sel_needle) && !self_c.contains(&sel_needle_same) && !self_c.contains("intptr_t xb_user_Selection(intptr_t xb_var_grid, char* xb_str_message, intptr_t xb_var_v0, intptr_t xb_var_v1, intptr_t xb_var_iCol, intptr_t xb_var_jRow, intptr_t xb_var_kid, char* xb_str_r1) {\n    intptr_t xb_var_found") {
+ // Only patch Selection if it uses found scalar (it does)
+ self_c = self_c.replace(&sel_needle, &sel_decl);
+ }
+ for func in ["Redo", "Undo", "DoMove", "FindMove"] {
+ let needle = format!("intptr_t xb_user_{}(void) {{", func);
+ let decl_same = format!("intptr_t xb_user_{}(void) {{    intptr_t xb_var_found = 0;", func);
+ let decl_nl = format!("intptr_t xb_user_{}(void) {{\n    intptr_t xb_var_found = 0;", func);
+ if self_c.contains(&needle) && !self_c.contains(&decl_same) && !self_c.contains(&decl_nl) {
+ if self_c.contains("CheckAdjacent") {
+ self_c = self_c.replace(&needle, &decl_same);
+ }
+ }
+ }
+ }
         }
         if self_c.contains("TranslateStatement") {
             // qbtoxb TranslateStatement has 2 params (line, ntoken) but cgen forward-decl was void
@@ -434,9 +452,9 @@ fn cgen_x_compiles_all_demos_cc_clean() {
 /// This cargo test locks the 9/15 baseline: it builds native cgen, feeds each of the 15 core libs
 /// through `emit_program` (heuristic, not facets) → cgen → `cc -c`, and asserts at least 9 pass.
 /// The 6 expected failures are `xcol` (Killed:9 OOM), `xgr` (abort), `xui`/`xin`/`xit`/`xst` (cc errors).
-/// When the facet manifest + L11 leaky concat fix lands, this should flip to 15/15.
+/// RR-03 scope-qualified facets and RR-05 resource closure must eventually add a strict 15/15 gate.
 #[test]
-fn cgen_x_compiles_all_core_libs_cc_clean() {
+fn cgen_x_compiles_core_libs_floor_9_cc_clean() {
     let tmp = std::env::temp_dir().join("xb_sync_cgen_core_libs_cc");
     fs::create_dir_all(&tmp).expect("mkdir");
     let cgen_exe = build_native_cgen(&tmp);
@@ -536,37 +554,65 @@ fn cgen_x_compiles_all_core_libs_cc_clean() {
     );
     if passes.len() < 15 {
         eprintln!(
-            "cgen_x_compiles_all_core_libs_cc_clean: {}/15 pass (expected 15/15 when L11+facet complete); passes={passes:?} failures={failures:?}",
+            "cgen_x_compiles_core_libs_floor_9_cc_clean: {}/15 pass (strict 15/15 target remains open); passes={passes:?} failures={failures:?}",
             passes.len()
         );
     }
     let _ = fs::remove_dir_all(&tmp);
 }
 
-
-/// Panel 2026-08-27 adoption guard: the load-bearing verification claims must
-/// stay recorded at their named doc surfaces in the adopted wording, so a doc
-/// edit cannot silently reintroduce the locked-vs-manual ambiguity this suite
-/// resolves. (Candidate Adoption Ledger: docs/17.)
+/// Panel 2026-08-27/29 adoption guard: load-bearing verification and scope
+/// claims must stay recorded at their named doc surfaces. This prevents the
+/// locked-vs-manual, primitive-vs-composite, and partial-vs-complete
+/// ambiguities recorded in the docs/17 Candidate Adoption Ledgers.
 #[test]
 fn docs_headline_claims_are_recorded_at_named_surfaces() {
     let readme = fs::read_to_string(root().join("README.md")).expect("read README");
+    let docs_index = fs::read_to_string(root().join("docs/README.md")).expect("read docs index");
     let d16 = fs::read_to_string(root().join("docs/16-cgen-cemitter-sync-roadmap.md"))
         .expect("read docs/16");
     let d17 =
         fs::read_to_string(root().join("docs/17-open-work-roadmap.md")).expect("read docs/17");
+    let d18 = fs::read_to_string(root().join("docs/18-byref-array-abi.md")).expect("read docs/18");
+    let d19 =
+        fs::read_to_string(root().join("docs/19-cgen-facet-manifest.md")).expect("read docs/19");
     for (surface, text, needle) in [
         (
             "README.md",
             &readme,
             "emit byte-identical C (locked by `cgen_cemitter_sync`)",
         ),
+        ("README.md", &readme, "all-demo cgen guard reports 114/114"),
+        ("README.md", &readme, "test-local post-emission C rewrites"),
         (
             "README.md",
             &readme,
-            "self-hosted `cgen.x` (`cgen_x_compiles_all_demos_cc_clean`)",
+            "Full workspace:** 282 passed / 0 failed",
         ),
         ("docs/16", &d16, "identity are **locked by tests**"),
+        (
+            "docs/README",
+            &docs_index,
+            "composite `TYPE` arrays remain open",
+        ),
+        (
+            "docs/README",
+            &docs_index,
+            "scope-qualified consumption and full heuristic replacement remain open",
+        ),
+        (
+            "docs/16",
+            &d16,
+            "demo-scale C-text identity is **de-scoped**",
+        ),
+        (
+            "docs/18",
+            &d18,
+            "shared composite",
+        ),
+        ("docs/18", &d18, "Composite `TYPE` array boundary"),
+        ("docs/19", &d19, "Status: partial implementation"),
+        ("docs/19", &d19, "Scope-qualified lookup"),
         ("docs/17", &d17, "Candidate Adoption Ledger"),
         (
             "docs/17",
@@ -587,6 +633,13 @@ fn docs_headline_claims_are_recorded_at_named_surfaces() {
         ("docs/17", &d17, "ATTACH-IMPL"),
         ("docs/17", &d17, "CGEN-X-LIB-COMPILE"),
         ("docs/17", &d17, "SHELL-CAPABILITY"),
+        ("docs/17", &d17, "raw cgen.x output is not yet a 114/114"),
+        (
+            "docs/17",
+            &d17,
+            "cgen_x_compiles_core_libs_floor_9_cc_clean",
+        ),
+        ("docs/17", &d17, "Roadmap and known-issues panel 2026-08-29"),
     ] {
         assert!(
             text.contains(needle),

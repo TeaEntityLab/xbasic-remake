@@ -750,7 +750,32 @@ pub(crate) fn emit_call_args(name: &str, args: &[IrExpr], out: &mut String) {
             if let IrExprKind::ByRef(inner) = &arg.kind {
                 match &inner.kind {
                     IrExprKind::Symbol(s) => {
-                        if crate::c_emit::is_dyn_array(&s.name)
+                        let is_array_param = param_arrays
+                            .as_ref()
+                            .is_some_and(|pa| pa.get(i).copied().unwrap_or(false));
+                        if is_array_param {
+                            let caller_is_shared = crate::c_emit::is_shared_array(&s.name);
+                            let caller_is_desc = crate::c_emit::is_descriptor_param(&s.name);
+                            if caller_is_shared || caller_is_desc {
+                                if caller_is_desc {
+                                    out.push_str("(*");
+                                    crate::c_emit::emit_descriptor_data_ptr(s, out);
+                                    out.push(')');
+                                } else if crate::c_emit::is_dyn_array(&s.name) {
+                                    crate::c_emit::emit_raw_array_name(s, out);
+                                } else {
+                                    out.push('&');
+                                    crate::c_emit::emit_raw_array_name(s, out);
+                                }
+                            } else if crate::c_emit::is_dyn_array(&s.name)
+                                && !crate::c_emit::is_dual_use(&s.name)
+                            {
+                                emit_var_name(s, out);
+                            } else {
+                                out.push('&');
+                                emit_var_name(s, out);
+                            }
+                        } else if crate::c_emit::is_dyn_array(&s.name)
                             && !crate::c_emit::is_dual_use(&s.name)
                         {
                             emit_var_name(s, out);

@@ -47,16 +47,16 @@ cargo check -p xb-compiler --features llvm
 
 On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` is 1.97.1 after update. The IDE feature requires Rust ≥1.95 and was checked with explicit rustup cargo/rustc. Homebrew `llvm` is **22.1.8** (`/opt/homebrew/opt/llvm`); the LLVM backend builds and tests with `LLVM_SYS_221_PREFIX=/opt/homebrew/opt/llvm` but stays feature-gated off by default — `./checks/validate-all.sh` covers default features only (no `--features llvm`, no CI LLVM job yet; see docs/17 LLVM-CI-BITROT).
 
-## Verified capabilities (2026-08-28)
+## Recorded verification state (2026-08-29)
 
-- **All 15 core libraries compile cc-clean** (`xbasic-6.4.5/src/{shared,linux}/*.x`) via Rust CEmitter with `XB_WEAK_SYMBOLS=1 -O0 -Wno-incompatible-pointer-types -Wno-int-conversion` (compile-only; `ATTACH` is parser-discarded affecting xcol/xst/xgr/xui/xit runtime; see docs/17 LICENSE-BOUNDARY)
-- **All 15 link into one working binary** — `checks/link-core-libs.sh` (15/15 cc-clean, 1736 `xb_user_*` at 1c2c929; 7 `Version$` smoke, no behavioral differential beyond that; self-hosted cgen.x not yet verified for libs)
-- **114/114 demo programs** compile through the Rust CEmitter (`demo_parity`: 112 match / 2 real-I/O skips) and through the true self-hosted `cgen.x` (`cgen_x_compiles_all_demos_cc_clean`) — requires Kittedy/TranslateStatement workarounds landed at 1c2c929; see review-synthesis-legacy-lib-port-2026-08-28.md
-- **80/80 positive-corpus programs** emit byte-identical C (locked by `cgen_cemitter_sync`)
-- **Byte access `{}`** on string scalars and array elements
-- **INC/DEC + SWAP subscripts** on indexed/composite targets
-- **277 tests across 33 binaries**, 0 failures (`./checks/validate-all.sh` — now also runs `link-core-libs.sh`; 1736 `xb_user_*` at 1c2c929)
-- Self-hosting: compiler.x → cgen.x → native C generator (bootstrap fixed point held)
+- **All 15 core libraries compile cc-clean through the Rust CEmitter** (`xbasic-6.4.5/src/{shared,linux}/*.x`) with `XB_WEAK_SYMBOLS=1 -O0 -Wno-incompatible-pointer-types -Wno-int-conversion`. This is compile-only; `ATTACH` is parser-discarded in xcol/xst/xgr/xui/xit.
+- **All 15 link in the internal test harness** — `checks/link-core-libs.sh` records 1736 `xb_user_*` symbols and seven `Version$` smoke checks, not compiled-body behavior. Self-hosted cgen.x has a test-locked 9/15 floor; 15/15 remains open.
+- **The all-demo cgen guard reports 114/114** (`cgen_x_compiles_all_demos_cc_clean`), but currently applies test-local post-emission C rewrites for Kittedy and qbtoxb. Raw self-hosted cgen.x 114/114 is RR-13 in docs/17. Rust CEmitter `demo_parity` records 112 matches and two real-I/O skips.
+- **80/80 positive-corpus programs** emit byte-identical C (locked by `cgen_cemitter_sync`).
+- **Byte access `{}`** works on string scalars and array elements.
+- **INC/DEC + SWAP subscripts** work on indexed/composite targets.
+- **Full workspace:** 282 passed / 0 failed across 33 binaries. `xbsourcelib_parity` now passes for `ary`/`ary1.0001` (shared `ARY_VAR_DATA` forwarding via `is_shared_array` → `emit_raw_array_name`); both remain compile-only and not runtime proof.
+- Self-hosting: compiler.x → cgen.x → native C generator; bootstrap fixed point and native/Rust IR parity remain locked.
 
 ## License
 
