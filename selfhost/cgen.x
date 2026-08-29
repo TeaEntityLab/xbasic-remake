@@ -3436,6 +3436,12 @@ FUNCTION emit_expr$(e$)
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$) + "_arr"
     ELSEIF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
+    ELSEIF is_xfn_dyn$(varName$) = "1" THEN
+      IF varType$ = "string" THEN
+        emit_expr$ = "(xb_len(" + c_var_name$(varName$, varType$) + ") - 1)"
+      ELSE
+        emit_expr$ = "(-1)"
+      END IF
     ELSEIF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 THEN
       _du$ = sanitize_dual$(varName$)
       IF INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + varName$ + ":") > 0 THEN
@@ -3446,7 +3452,7 @@ FUNCTION emit_expr$(e$)
     ELSEIF INSTR(##sharedStrDual$, ":" + varName$ + ":") > 0 THEN
       _du$ = sanitize_dual$(varName$)
       emit_expr$ = "(int)xb_ub_" + _du$ + "_arr"
-    ELSEIF INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1" THEN
+    ELSEIF INSTR(##undimmed$, ":" + varName$ + ":") > 0 THEN
       IF varType$ = "string" THEN
         emit_expr$ = "(xb_len(" + c_var_name$(varName$, varType$) + ") - 1)"
       ELSE
@@ -4993,7 +4999,7 @@ FUNCTION is_xfn_dyn$(n$)
   is_xfn_dyn$ = ""
   IF ##inFuncScope = 1 THEN
     IF INSTR(##curFnArrays$, ":" + n$ + ":") = 0 THEN
-      IF INSTR(##dynStr$, ":" + n$ + ":") > 0 OR INSTR(##dynNames$, ":" + n$ + ":") > 0 OR INSTR(##strDual$, ":" + n$ + ":") > 0 THEN
+      IF INSTR(##dynStr$, ":" + n$ + ":") > 0 OR INSTR(##dynNames$, ":" + n$ + ":") > 0 OR INSTR(##strDual$, ":" + n$ + ":") > 0 OR INSTR(##strUbDual$, ":" + n$ + ":") > 0 OR INSTR(##allStrArr$, ":" + n$ + ":") > 0 OR INSTR(##xstArrays$, ":" + n$ + ":") > 0 THEN
         is_xfn_dyn$ = "1"
       END IF
     END IF
