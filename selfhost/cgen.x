@@ -1199,6 +1199,60 @@ WHILE dsPos <= LEN(src$)
     END IF
   END IF
 WEND
+' Shared string variables used as arrays (array_ubound(X:string) where X is
+' a shared scalar string, not in ##sharedArrays$). These need file-scope
+' array declarations (xb_str_X_s_arr + xb_ub_X_s_arr) matching Rust CEmitter.
+##sharedStrDual$ = ""
+ssdPos = 1
+WHILE ssdPos <= LEN(src$)
+  ssdLe = INSTR(src$, CHR$(10), ssdPos)
+  IF ssdLe = 0 THEN
+    ssdLe = LEN(src$) + 1
+  END IF
+  ssdLn$ = trim_spaces$(MID$(src$, ssdPos, ssdLe - ssdPos))
+  ssdPos = ssdLe + 1
+  IF INSTR(ssdLn$, "array_ubound(") > 0 THEN
+    ssdUbp = INSTR(ssdLn$, "array_ubound(") + 13
+    ssdInner$ = MID$(ssdLn$, ssdUbp, LEN(ssdLn$) - ssdUbp + 1)
+    ssdIcp = INSTR(ssdInner$, ":")
+    IF ssdIcp > 0 THEN
+      ssdNm$ = LEFT$(ssdInner$, ssdIcp - 1)
+      ssdTy$ = MID$(ssdInner$, ssdIcp + 1, LEN(ssdInner$) - ssdIcp)
+      IF RIGHT$(ssdTy$, 1) = ")" THEN
+        ssdTy$ = LEFT$(ssdTy$, LEN(ssdTy$) - 1)
+      END IF
+      IF ssdTy$ = "string" AND INSTR(##sharedDecls$, ":" + ssdNm$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + ssdNm$ + ":") = 0 THEN
+        IF INSTR(##sharedStrDual$, ":" + ssdNm$ + ":") = 0 THEN
+          ##sharedStrDual$ = ##sharedStrDual$ + ":" + ssdNm$ + ":"
+        END IF
+      END IF
+    END IF
+  END IF
+WEND
+' Shared string dual-use: declare array part at file scope (Rust CEmitter
+' emits char** xb_str_X_s_arr + intptr_t xb_ub_X_s_arr for shared string
+' vars used as arrays via array_ubound).
+IF LEN(##sharedStrDual$) > 0 THEN
+  ssdIter$ = ##sharedStrDual$
+  WHILE LEN(ssdIter$) > 0
+    ssdColon = INSTR(ssdIter$, ":")
+    IF ssdColon = 0 THEN
+      ssdIter$ = ""
+    ELSE
+      ssdIter$ = MID$(ssdIter$, ssdColon + 1, LEN(ssdIter$) - ssdColon)
+      ssdNColon = INSTR(ssdIter$, ":")
+      IF ssdNColon > 0 THEN
+        ssdName$ = LEFT$(ssdIter$, ssdNColon - 1)
+        ssdIter$ = MID$(ssdIter$, ssdNColon + 1, LEN(ssdIter$) - ssdNColon)
+      ELSE
+        ssdName$ = ssdIter$
+        ssdIter$ = ""
+      END IF
+      ssdDu$ = sanitize_dual$(ssdName$)
+      PRINT "char** xb_str_" + ssdDu$ + "_arr = 0; intptr_t xb_ub_" + ssdDu$ + "_arr = -1;"
+    END IF
+  WEND
+END IF
 PRINT ""
 ##funcMixed$ = scan_mixed_byref$(src$)
 ##byrefWB$ = scan_byref_wb$(src$)
@@ -2493,6 +2547,12 @@ FUNCTION emit_expr$(e$)
       emit_expr$ = "xb_str_" + sanitize_dual$(varName$)
       RETURN emit_expr$
     END IF
+    ' Shared scalar: declared as xb_shared_X at file scope, not c_var_name$.
+    ' Shared arrays are excluded (they use c_var_name$ at file scope too).
+    IF INSTR(##sharedDecls$, ":" + varName$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
+      emit_expr$ = "xb_shared_" + sanitize_ident$(varName$)
+      RETURN emit_expr$
+    END IF
     emit_expr$ = c_var_name$(varName$, varType$)
     RETURN emit_expr$
   END IF
@@ -3292,6 +3352,9 @@ FUNCTION emit_expr$(e$)
       ELSE
         emit_expr$ = "(int)(sizeof(xb_str_" + _du$ + "_arr)/sizeof(xb_str_" + _du$ + "_arr[0])-1)"
       END IF
+    ELSEIF INSTR(##sharedStrDual$, ":" + varName$ + ":") > 0 THEN
+      _du$ = sanitize_dual$(varName$)
+      emit_expr$ = "(int)xb_ub_" + _du$ + "_arr"
     ELSEIF INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1" THEN
       IF varType$ = "string" THEN
         emit_expr$ = "(xb_len(" + c_var_name$(varName$, varType$) + ") - 1)"
