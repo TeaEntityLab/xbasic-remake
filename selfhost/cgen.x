@@ -2584,6 +2584,8 @@ FUNCTION emit_expr$(e$)
     END IF
     IF LEFT$(t$, 2) = "0x" OR LEFT$(t$, 2) = "0X" OR LEFT$(t$, 2) = "0b" OR LEFT$(t$, 2) = "0B" THEN
       emit_expr$ = "(int32_t)(" + t$ + ")"
+    ELSEIF LEFT$(t$, 2) = "0o" OR LEFT$(t$, 2) = "0O" THEN
+      emit_expr$ = "(int32_t)(0" + MID$(t$, 2, LEN(t$) - 1) + ")"
     ELSE
       emit_expr$ = strip_zeros$(t$)
     END IF
@@ -4803,8 +4805,17 @@ FUNCTION emit_hoists$(used$, dimmed$)
           _dt$ = dyn_type$(entry$)
           IF INSTR(out$, "    " + c_type$(_dt$) + " xb_var_" + sanitize_ident$(entry$) + " = " + c_default$(_dt$) + ";" + CHR$(10)) = 0 THEN
             IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
-              out$ = out$ + "    " + c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
-            ELSE
+              IF INSTR(out$, c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0;") = 0 THEN
+                out$ = out$ + "    " + c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
+              END IF
+            ELSEIF INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
+              IF INSTR(out$, c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0;") = 0 THEN
+                out$ = out$ + "    " + c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0;" + CHR$(10)
+              END IF
+              IF INSTR(out$, "intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;") = 0 THEN
+                out$ = out$ + "    intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
+              END IF
+            ELSEIF INSTR(out$, "intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;") = 0 THEN
               out$ = out$ + "    intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
             END IF
             IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) > 0 THEN
