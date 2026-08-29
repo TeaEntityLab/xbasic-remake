@@ -1,7 +1,11 @@
 # 12 — Rust + LLVM Rewrite Survey: bootstrapping XBASIC 6.5.0
 
-> Status: Research survey (Aug 2026) — recommendations only, not yet implemented.
-> Inputs: `11-syscall-surface-survey.md` (the `.s`/syscall inventory), `09-version-history.md` + `10-unification-plan.md` (fork lineage), and three live surveys of the current Rust ecosystem (crates.io + GitHub API + official docs, all verified Aug 2026): Rust FFI/syscall crates, Rust GUI frameworks, Rust+LLVM compiler toolchains, plus a feature-mining pass over the 6.3.26-D and 6.4.5 trees.
+> **Lifecycle: historical research survey / reference design.**
+> This August 2026 survey supplied inputs to the implemented Rust bootstrap; it
+> is not the current implementation status. See the root `README.md`, the
+> implemented milestone narrative in docs 13–14, and living docs 16–19.
+> Inputs: `11-syscall-surface-survey.md`, `09-version-history.md`,
+> `10-unification-plan.md`, and the August 2026 ecosystem surveys listed in §8.
 >
 > **User goals for 6.5.0:**
 > 1. Keep cross-platform: **Linux + Win32/64 + macOS**, preserving the core spirit of 6.2.3 (one codebase, platform twins, `.dec`-driven FFI, constant-folding conditionals).

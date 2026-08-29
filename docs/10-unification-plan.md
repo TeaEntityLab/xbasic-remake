@@ -1,5 +1,12 @@
 # 10 — Unification Plan: merging 6.3.26-D + 6.4.5 back into one tree
 
+> **Lifecycle: historical proposal / superseded architecture.**
+> This August 2026 pre-Rust fork-unification plan is preserved as design
+> provenance. The implemented bootstrap architecture is documented in docs 13
+> and 14; current contracts and open work are governed by docs 16–19, with
+> docs/17 as the umbrella authority.
+
+
 This chapter is a **proposal**, not an implemented change. It describes how to
 recombine the two post-6.2.3 forks — `xbasic-6.3.26-D` (Win32) and `xbasic-6.4.5`
 (Linux 64-bit) — into a single cross-platform tree that restores the 6.2.3

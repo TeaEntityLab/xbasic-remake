@@ -6,14 +6,14 @@
 > Companion to [17-open-work-roadmap.md](17-open-work-roadmap.md) (the umbrella
 > "everything not done yet" list). This doc is scoped to the two C generators.
 >
-> Re-verified **2026-08-27** (panel review): the positive-corpus sync test now
-> **asserts emitted-C byte equality per program** (`assert_eq!` in
-> `cemitter_and_cgen_agree_on_positive_corpus`), and a new
-> `cgen_x_compiles_all_demos_cc_clean` locks all-demo compilation through the
-> TRUE cgen.x. CG-BYTES is complete for the positive corpus. Demo-scale C-text
-> identity is DE-SCOPED (docs/17 CGEN-FACET-MANIFEST is the only sanctioned
-> route). CG-BODY-COVER retains only the low-priority AT-read/file-mode blind
-> spots below.
+> Re-verified **2026-08-29**: the positive-corpus sync test asserts emitted-C
+> byte equality per program (`assert_eq!` in
+> `cemitter_and_cgen_agree_on_positive_corpus`). The named all-demo test reports
+> 114/114 through `cgen.x`, but retains transitional Kittedy/qbtoxb
+> post-emission rewrites; RR-13 removes them before raw 114/114 becomes the CI
+> contract. CG-BYTES is complete for the positive corpus. Demo-scale C-text
+> identity remains de-scoped, and CG-BODY-COVER retains only the low-priority
+> AT-read/file-mode blind spots below.
 
 ## 1. Why this exists
 
@@ -98,6 +98,10 @@ The broader demo surface is not text-identical (~7/114 at last measurement) and
 the corpus byte lock are the governing contracts. The residual signal — cgen.x's
 fragile global classifiers — is tracked as CGEN-FACET-MANIFEST in docs/17; any
 future text-identity work goes through that route, never more text scanning.
+*Note on demo emission:* `cgen.x` uses per-function `fullBody$`, top-level
+`mainBody$`, and `fwdDeclsBuf$` transforms without a global `cOut$` buffer.
+The named 114/114 compile test additionally applies transitional harness
+rewrites; that result is not raw-generator proof until RR-13.
 
 ### CG-BODY-COVER — computed GOTO + AT-write lvalue closed; AT-deref reads + file-mode-2 remain (low priority)
 Behavioral coverage of the addr-of / control-flow builtins is now substantial: the

@@ -51,20 +51,26 @@ On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` 
 
 - **All 15 core libraries compile cc-clean through the Rust CEmitter** (`xbasic-6.4.5/src/{shared,linux}/*.x`) with `XB_WEAK_SYMBOLS=1 -O0 -Wno-incompatible-pointer-types -Wno-int-conversion`. This is compile-only; `ATTACH` is parser-discarded in xcol/xst/xgr/xui/xit.
 - **All 15 link in the internal test harness** — `checks/link-core-libs.sh` records 1736 `xb_user_*` symbols and seven `Version$` smoke checks, not compiled-body behavior. Self-hosted cgen.x has a test-locked 9/15 floor; 15/15 remains open.
-- **The all-demo cgen guard reports 114/114** (`cgen_x_compiles_all_demos_cc_clean`), but currently applies test-local post-emission C rewrites for Kittedy and qbtoxb. Raw self-hosted cgen.x 114/114 is RR-13 in docs/17. Rust CEmitter `demo_parity` records 112 matches and two real-I/O skips.
+- **The all-demo cgen guard reports 114/114** (`cgen_x_compiles_all_demos_cc_clean`), but currently applies test-local post-emission C rewrites for Kittedy and qbtoxb. A standalone manual sweep observed raw self-hosted `cgen.x` output compile-clean for 114/114; RR-13 removes the rewrites and makes that result the CI contract. Rust CEmitter `demo_parity` records 112 matches and two real-I/O skips.
 - **80/80 positive-corpus programs** emit byte-identical C (locked by `cgen_cemitter_sync`).
 - **Byte access `{}`** works on string scalars and array elements.
 - **INC/DEC + SWAP subscripts** work on indexed/composite targets.
-- **Full workspace:** 282 passed / 0 failed across 33 binaries. `xbsourcelib_parity` now passes for `ary`/`ary1.0001` (shared `ARY_VAR_DATA` forwarding via `is_shared_array` → `emit_raw_array_name`); both remain compile-only and not runtime proof.
+- **Full workspace:** 282 passed / 0 failed across 33 binaries. `xbsourcelib_interp_matches_compiled` locks runtime parity for 11 non-ARY programs; the separate compile-only guard `xbsourcelib_ary_compiles_clean` compiles `ary` and `ary1.0001` cc-clean via shared `ARY_VAR_DATA` forwarding. ARY runtime behavior remains unproven and blocked on `ATTACH`.
 - Self-hosting: compiler.x → cgen.x → native C generator; bootstrap fixed point and native/Rust IR parity remain locked.
 
 ## License
 
-The original XBasic source tree (`xbasic-6.4.5/`) is dual-licensed: GPL for the
-compiler/IDE (`COPYING`), LGPL for the function libraries (`COPYING_LIB`).
-Three Win32 shim libraries (`gdi32`, `kernel32`, `user32`) carry no license
-notice. The remake crates split `GPL-2.0-or-later` (compiler/IDE/linker) vs
-`LGPL-2.1-or-later` (runtime/GUI). `checks/link-core-libs.sh` links all 15
-libraries into one binary; the combined work is GPL-covered. See docs/17
-LICENSE-BOUNDARY row for the full disclosure. Local `link-core-libs.sh` runs
-are run-only; distribution without GPL notices is not allowed.
+The original library sources carry a mixture of GPL and LGPL headers. Three
+Win32 compatibility shims (`gdi32`, `kernel32`, `user32`) carry no copyright
+notice or license statement. The remake crates independently declare
+`GPL-2.0-or-later` (compiler/frontend/CLI/linker/IDE) or
+`LGPL-2.1-or-later` (runtime/GUI).
+
+`checks/link-core-libs.sh` combines GPL-header, LGPL-header, and no-notice
+inputs into one `xblibs` artifact. Repository evidence is insufficient to
+clear that artifact for redistribution; this is a provenance/compliance risk,
+not a legal determination. Both vendor notice files contain their numbered
+license bodies but omit the GNU title, version line, and Preamble. The harness
+is strictly internal-test-only and must not be packaged or redistributed
+without resolving shim provenance and distribution obligations. See docs/17
+L15.

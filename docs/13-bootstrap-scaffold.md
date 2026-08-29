@@ -1,7 +1,9 @@
 # 13 — 6.5.0 Bootstrap Scaffold
 
-> Status: Stage-0 scaffold created at the repository root (`../`).
-> Decisions recorded from the maintainer on 2026-08-14.
+> **Lifecycle: frozen milestone record — Stage-0/1 baseline.**
+> This document preserves the scaffold decisions recorded on 2026-08-14.
+> Stages 0–2 are complete; current verification and open work live in the root
+> `README.md` and docs/17.
 
 ## Resolved decisions
 
@@ -54,4 +56,4 @@ cargo check -p xb-compiler --features llvm
 cargo check -p xb-ide --features eframe-app
 ```
 
-On the current machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` is 1.97.1 after update. The IDE feature requires Rust ≥1.95 and checks with explicit rustup cargo/rustc. LLVM 22 is not installed (`llvm@21` is present), so LLVM is intentionally default-off.
+On the current machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` is 1.97.1 after update. The IDE feature requires Rust ≥1.95 and checks with explicit rustup cargo/rustc. Homebrew LLVM **22.1.8** is available at `/opt/homebrew/opt/llvm`; the LLVM backend builds and tests with `LLVM_SYS_221_PREFIX=/opt/homebrew/opt/llvm` but remains feature-gated off by default.

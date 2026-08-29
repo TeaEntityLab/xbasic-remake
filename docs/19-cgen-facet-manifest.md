@@ -4,6 +4,12 @@
 > narrowly consume `dyn`/`dual`/`arr2d` facets while keeping all 114 demos in the
 > compile guard. Scope-qualified lookup, comprehensive `strDual`/`allStrArr`/
 > `shared` consumption, and full replacement of heuristic scans remain open.
+> `strDual` and `allStrArr` remain on heuristic scans. RR-03 is complete only
+> when lookups are keyed by `(scope, name, type)` at emission sites rather than
+> flattened back into global `:name:` sets.
+> Single-letter identifier dual-use (`a` vs `align`/`array`, `k` vs `kid`) cannot
+> be fixed reliably with substring replacement; scoped facet ingestion is the
+> required mechanism.
 
 ## 1. Why this exists
 
@@ -172,14 +178,16 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
   `dim argv$:string[3]` (zap) etc. get facets; previously non-top-level nested
   DIMs were missed and fell back to heuristic. `zap`'s `DIM argv$[3]` sits inside nested `IFZ standalone` THEN+ELSE (DIM twice per path) — `DynWalk` nested + `dim_count==2` ⇒ **`facet argv$:string scope=Entry storage=dyn rank1 dual0`** (not `fixed`; earlier draft said `fixed` — corrected per 2026-08-27 parallel-lens Correctness lens). Keeps
   114/114 via narrow facet (`dyn`/`dual`/`arr2d`). Residual gaps (L14): member 2D facets still hardcode `rank=2` + `storage=shared` (`scope=="*" ? "shared" : "shared"` no-op); array params hardcode `rank=1`; nested `Function` DIMs can leak into parent `dim_info` while `DynWalk` does not walk nested functions; `collect_member_2d_expr` misses `Print`/`For`-bounds/`SelectCase` selector.
-- **2026-08-29 (heuristic, not a slice):** `selfhost/cgen.x` `scan_dyn`/`scan_dynstr` now also treat variable-size `DIM varDataAddr[numVars-1]` etc (`symbol(`/`shared(`/`call `/`array_ubound` in `[]`) as heap `dyn` not VLA (fixes `goto` over VLA `varDataAddr`/`textArray$` in `xit`; `DO` `LEFT(pr-1)`→`pr-2` and `ShowError` `##seenLabels` dedup also landed in `92fb1a6`→`dedfe25`), plus `memory.id/addr/size/state`/`null`/`SHARED window[]`/`host.address` needles + `bd$ null→_arr`, `XstQuickSort _arr` keep, tail `window`/`host_address` scalar hoists. These are **heuristic needles** on top of narrow `dyn/dual/arr2d` facet consumption — they keep `cgen_x_compiles_all_demos_cc_clean` 114/114 and `cgen_cemitter_sync` 61/61 green, but `cgen` per-lib probe stays 9/15 (`xui` now `cc FAIL` 20 errs not OOM, `xin` 4 errs) because `window`/`host_address` need the **`dual` scalar+`_arr` split** (`CGEN-FACET-SCOPE`), not just `scan_dyn` + hoist. `wip-xst-670fec5` holds the `xst` shared-dim work but regresses demos 23/114 via substring `:name:` leak — fix needs `scope:name` faceted sets before re-merge.
+- **2026-08-29 follow-up (`ac8ea35`, `54db874`):** narrow Kittedy/qbtoxb `found`/`TranslateStatement` and xui `tool`/`window` repairs preserve the 114/114 harness-assisted demo guard, 61/61 sync, and `IR_IDENTICAL`, but the selfhost core-library floor remains 9/15. `xui` moved past `tool`/`window`; remaining `a`/`k`/`array` prefix collisions, plus `xin`/`xit`/`xst` scope failures, belong to RR-03. `xcol`/`xgr` signal/resource failures belong independently to RR-05. No further whole-body substring masks are admissible.
 - **2026-08-29 (fix):** Single-line `IF..THEN..ELSE` in `selfhost/cgen.x` `host_address` hoist parsed differently by `selfhost/compiler.x` vs Rust `FrontendUnit` (ELSE attachment) — `native_pipeline` `native_compiler_emits_cgen_ir_for_cgen` diverged 6 lines. Fixed block-form `IF/ELSE/END IF` in `dedfe25`; `IR_IDENTICAL` restored. `ARCH-02` (`2b0f6ee`) `int main(int argc, char **argv)` stale asserts in `cgen_selfhost.rs:63` and `native_emit.rs:40` also fixed (`b60640a`).
 - **2026-08-28 (deferred):** `crates/xb-frontend/src/parser.rs` `DIM #name` → `dim shared` (deec869) correctly marks `DIM #OSERROR$`, `#line[]`, `#token[]` etc. as `storage=shared` (xst 20→1 error) but regresses `qbtoxb` `cgen_x_compiles_all_demos_cc_clean` 60/60→59/60 (`qbtoxb.c:2670 array subscript is not an integer` for `line` in `LoadQBasicProgram`). Root cause: `cgen.x` flattens facets globally (`##dynNames$=":line:"` substring of `":ParseSourceLine:line:"`) and emits `dim shared line` forward-decl as global `intptr_t* xb_var_line` at `1118` that collides with scalar `line` in `LoadQBasicProgram` (`FOR line`). Attempted scope-aware `is_dyn_facet$(nm,sc)` + `is_shared_facet$` with `":scope:name:"` for `dyn`/`dual`/`arr2d`/`shared` (plus `LEN(##facetTab$)=0` heuristic fallback) still left `":line:"` substring match for forward-decl and missed `##curFnName$` wiring for shared. Reverted parser to `aea801b` (`shared` only via `DIM SHARED` keyword) to keep 60/60 and 9/15; `xst` returns to 20 errors. **Deferred:** `CGEN-FACET-SCOPE` must make `##sharedArrays$`/`##dynNames$` truly per-function (no `":name:"` substring fallback when `LEN(##facetTab$)>0`, and forward-decl for `dim shared` must check any-scope via separate helper, not `is_shared_facet$` with `##curFnName$`). Until then `xst` `#OSERROR` fix and `qbtoxb` `#line[]` remain via `scan_shared_arr$` heuristic (global), not facets.
 
-- `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` already
-  asserts per-program byte-identical emitted C — the header must not break this.
-- New: `cgen_x_compiles_all_demos_cc_clean` must stay green.
-- Full suite `checks/validate-all.sh` remains the gate (276/0 at `fe67141`).
+- `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` asserts
+  per-program byte-identical emitted C; the header must not break this.
+- `cgen_x_compiles_all_demos_cc_clean` must stay green, but its Kittedy/qbtoxb
+  rewrites remain transitional until RR-13 locks raw output.
+- `checks/validate-all.sh` remains the full default-feature gate; the current
+  carried workspace headline is 282/0 in docs/17.
 
 ## 7. Open decisions
 

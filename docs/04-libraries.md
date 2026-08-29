@@ -309,7 +309,39 @@ symbol names have no leading underscore; Windows uses a `"_"` prefix (lines 2283
 
 ---
 
+## 8. Remake readiness, effects, and provenance boundary
+
+This chapter maps historical source APIs. The current remake can compile and
+link all 15 core libraries through the Rust CEmitter, producing 1736
+`xb_user_*` symbols, but its smoke executes only seven `Version$` accessors.
+**Compile/link is not runtime behavioral fidelity.**
+
+- **`ATTACH` array-aliasing gap (RR-06):** the frontend currently discards
+  `ATTACH` as an empty compound. Stateful code in `xcol`, `xst`, `xgr`, `xui`,
+  `xit`, and ARY therefore compiles while alias writes, `REDIM`, and `UBOUND`
+  through the alias remain unimplemented.
+- **Capability security and host access (RR-09):** interpreted `SHELL` invokes
+  `sh -c`; compiled `SHELL` invokes `system()`. Compiled `Xin*` builtins use
+  live BSD sockets while the interpreter stubs them. Neither effect is denied
+  by default, so untrusted execution and behavior adoption remain blocked.
+- **Headless GUI execution model:** GUI differential tests use synthetic
+  callbacks or immediate clean exit; they do not prove window creation,
+  rendering, input, or a real event loop.
+- **Binding authority (RR-07/RR-08):** selected native Rust/C helpers can
+  shadow compiled legacy bodies. Behavior-ready status requires tests that
+  prove which implementation executed.
+- **Provenance boundary (RR-11):** the 15-file harness inventory is six shared
+  sources (`xcm`, `xdis`, `xma`, `xui`, `xut`, `xutpde`) plus nine Linux
+  sources (`gdi32`, `kernel32`, `user32`, `xcol`, `xgr`, `xin`, `xit`, `xrun`,
+  `xst`). The three shims have no copyright or license statement; `xut` and
+  `xutpde` credit Eddie Penninkhof. The combined harness is internal-test-only
+  pending provenance and distribution review; see docs/17 L15.
+
+
 ## Cross-platform summary
+
+The table below summarizes the historical library families described in this
+chapter; it is not the current 15-file remake harness inventory.
 
 | Library | Location | License | Platform |
 |---|---|---|---|

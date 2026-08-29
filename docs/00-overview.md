@@ -1,7 +1,7 @@
 # XBASIC 6.2.3 — Project Overview
 
 > Source tree analyzed: `xbasic-6.2.3/` (read-only reference distribution, ~8.6 MB, 106 files).
-> This document records the design of XBASIC 6.2.3 as shipped by Max Reason (copyright 1988–2000).
+> This document records the design of XBASIC 6.2.3 as principally shipped by Max Reason (copyright 1988–2000); `xut` and `xutpde` credit Eddie Penninkhof (copyright 2000).
 
 ## What XBASIC Is
 
@@ -49,17 +49,23 @@ shared cross-platform GUI toolkit) is the subject of
 
 ## Licensing Model
 
-Two licenses, applied **per file** (each source file states its license near
-the top):
+The historical source uses two declared license families on files that carry
+license headers:
 
-- **GPL** — the compiler and the edit/run/debug environment
-  (`COPYING`).
-- **LGPL** — the general-purpose XBASIC function libraries: `xst`, `xma`,
-  `xcm`, `xui`, `xgr`, `xin`, `xut` and friends (`COPYING_LIB`).
+- **GPL** — the compiler and the edit/run/debug environment (`COPYING`).
+- **LGPL** — general-purpose function libraries including `xst`, `xma`, `xcm`,
+  `xui`, `xgr`, `xin`, `xut`, and related files (`COPYING_LIB`).
 
-Sample programs shipped with the distribution are public domain unless a
-sample states otherwise. This split lets user programs link against the
-libraries (LGPL) while the toolchain itself stays GPL.
+Not every source has such a header. Three Win32 compatibility shims —
+`gdi32.x`, `kernel32.x`, and `user32.x` — carry no copyright notice or license
+statement in either the 6.2.3 or 6.4.5 tree. No redistribution grant for those
+files is established by repository evidence.
+
+The current remake's 15-library link harness combines GPL-header,
+LGPL-header, and no-notice inputs. It is strictly an internal test artifact,
+not a redistribution-ready library bundle; see docs/17 L15. Sample programs
+are public domain only where their own source or distribution documentation
+says so.
 
 ## Distribution Forms
 

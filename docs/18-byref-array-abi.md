@@ -1,17 +1,17 @@
 # 18 — By-ref array ABI (`CGEN-BYREF-REDIM`) — turnkey implementation guide
 
-**Status (reviewed 2026-08-29, updated 2026-08-29 RR-02): LANDED for
-primitive/flat arrays and for shared composite `ARY_VAR_DATA` member arrays.**
+**Status (reviewed 2026-08-29, updated 2026-08-29 RR-02): LANDED for primitive/flat arrays and for shared composite `ARY_VAR_DATA` member arrays (compile-only). General composite-array by-ref (`PM pm[]`) remains open. Runtime behavior for `ARY` remains blocked on `ATTACH` alias semantics and a bounded behavior test (see docs/17 `RR-02`/`RR-06`).**
 Merge `be03117` implemented the primitive-array descriptor `(T** data,
 intptr_t* ub)`, content-preserving `REDIM`, and the `XstQuickSort`/
 `XstCopyArray` helper path. Those contracts remain covered. A focused
 follow-on (`c_emit_expr` `is_shared_array` → `emit_raw_array_name`) now forwards
 the five `ARY_VAR_DATA` member arrays (`status` … `numElements`) as shared
-`T*` globals at both definition and all four call sites. The workspace is now
-**282 passed / 0 failed**; both `ary.x` and `ary1.0001.x` are cc-clean
-(`xbsourcelib_ary_compiles_clean` 2/2, `xbsourcelib_interp_matches_compiled`
-11/11). Runtime `ARY` remains compile-only until `ATTACH` alias semantics and a
-bounded behavior test land (see docs/17 `RR-02`/`RR-06`).
+`T*` globals at both definition and all four call sites. The last full
+workspace run reports **282 passed / 0 failed**; both `ary.x` and
+`ary1.0001.x` compile cc-clean in `xbsourcelib_ary_compiles_clean`. The
+separate `xbsourcelib_interp_matches_compiled` loop covers 11 non-ARY programs,
+not these sources. Runtime `ARY` remains compile-only until `ATTACH` alias
+semantics and a bounded behavior test land (see docs/17 `RR-02`/`RR-06`).
 ### What the landed primitive-array implementation covers (branch `625ce19`)
 - `collect_descriptor_params` fixpoint — **resize-seeded** (`REDIM`/`DIM`-with-size
   + `XstQuickSort`/`XstCopyArray` pos 0/1), **backward-propagated**; a bare

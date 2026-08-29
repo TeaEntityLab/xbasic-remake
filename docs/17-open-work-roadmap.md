@@ -1,32 +1,33 @@
 # 17 — Open-Work Roadmap (everything not done yet)
 
-> Status: living umbrella roadmap. Consolidates known-but-undocumented gaps from
-> working notes into one tracked place. Each item marks **provenance**:
-> `[verified <session>]` = re-measured with a command shown; `[carried]` =
-> from prior working notes, not re-measured here.
+> Status: living umbrella roadmap and sole current authority for open work.
+> Each item marks provenance: `[verified <session>]` means re-measured with a
+> named command; `[carried]` means retained from prior evidence and not
+> re-measured in the current pass.
 >
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
 > Last full re-verification: **2026-08-29** (merged `origin/main fa450b8` +
-> `dedfe25` block-form fix, plus `c_emit_expr` shared-composite byref fix for
-> `ARY_VAR_DATA @Ary_varData[]`). `cargo test --release --workspace`
-> reports **282 passed / 0 failed across 33 binaries** (`xbsourcelib_parity`
-> both cases now pass). `cgen_cemitter_sync` is **61/61** and the positive
-> corpus is **80/80 emitted-C byte-identical**. The all-demo guard reports
-> **114/114**, but Kittedy and qbtoxb currently require test-local post-emission
-> C rewrites in `cgen_x_compiles_all_demos_cc_clean`; raw cgen.x output is not
-> yet a 114/114 contract. Native compiler vs Rust frontend for `cgen.x` is
-> `IR_IDENTICAL`. All 15 core libs compile and link through the Rust CEmitter
-> with 1736 `xb_user_*` symbols, but the smoke executes only seven `Version$`
-> accessors under deterministic `XB_WEAK_SYMBOLS=1` first-definition-wins linkage.
-> emitted-C byte-identical**. The all-demo guard reports **114/114**, but
-> Kittedy and qbtoxb currently require test-local post-emission C rewrites in
-> `cgen_x_compiles_all_demos_cc_clean`; raw cgen.x output is not yet a 114/114
-> contract. Native compiler vs Rust frontend for `cgen.x` is `IR_IDENTICAL`.
-> All 15 core libs compile and link through the Rust CEmitter with 1736
-> `xb_user_*` symbols, but the smoke executes only seven `Version$` accessors
-> under deterministic `XB_WEAK_SYMBOLS=1` first-definition-wins linkage.
+> `dedfe25`, then `fd78073`, `ac8ea35`, and `54db874`). The last full workspace
+> run reports **282 passed / 0 failed across 33 binaries**. In
+> `xbsourcelib_parity.rs`, `xbsourcelib_interp_matches_compiled` covers 11
+> non-ARY programs; the separate compile-only
+> `xbsourcelib_ary_compiles_clean` covers the two ARY sources.
+>
+> `cgen_cemitter_sync` is **61/61**, the positive corpus is **80/80
+> emitted-C byte-identical**, and native compiler vs Rust frontend for
+> `cgen.x` is `IR_IDENTICAL`. The named all-demo guard reports **114/114**,
+> while retaining transitional post-emission rewrites for Kittedy and qbtoxb.
+> A standalone manual sweep observed raw `cgen.x` output compile-clean for
+> 114/114 with `-O0 -Wno-int-conversion -Wno-incompatible-pointer-types`;
+> that manual raw result is evidence, not yet an unassisted CI contract.
+> RR-13 removes the rewrites.
+>
+> All 15 core libraries compile and link through the Rust CEmitter with 1736
+> `xb_user_*` symbols under deterministic `XB_WEAK_SYMBOLS=1`
+> first-definition-wins object order. The smoke executes seven `Version$`
+> accessors only; it is not compiled-body behavior evidence.
 >
 > **Legacy Library Status [compile/link scaffolding only]:** Rust CEmitter
 > compile/link is 15/15; compiled legacy bodies are not behavior-ready.
@@ -46,9 +47,9 @@
 > `XstQuickSort`/`XstCopyArray` helpers. Eleven parity-listed XBSourceLib
 > programs, including `fgr`/`vgr`/`msc`, remain byte-faithful. The separate
 > `ary`/`ary1.0001` compile guard, previously failing on the composite
-> `ARY_VAR_DATA` descriptor, now passes (`xbsourcelib_ary_compiles_clean`
-> 1/1); both sources remain compile-only and are not yet runtime proof
-> (still blocked on `ATTACH` and bounded behavior).
+> `ARY_VAR_DATA` descriptor, now compiles both sources cc-clean in
+> `xbsourcelib_ary_compiles_clean`; neither source is executed by that test.
+> Runtime remains blocked on `ATTACH` and a bounded behavior gate.
 > Recent: **expression-context side effects** now reach output — a
 > general interpreter `eval` bug (a function called in expression position
 > discarded its output sink) that flipped `XBMerge` (RT-ARGS) + unmasked/fixed
@@ -58,12 +59,11 @@
 > `aarray_ISNODE` (CGEN-GOSUB-SCOPE — per-function GOSUB stack; was misdiagnosed as
 > the array ABI). Beyond demos, **XBSourceLib core libs 13/13 C-compile, 11
 > byte-faithful** (`msc`/`fgr`/`vgr`/`vgrOld`/`geo`/`mergeTest01`/`mergeTest02`/`mergeTest03`/`mergeOut`/`mergeOut02`/`XBMerge`).
-> `ary`/`ary1.0001` are only cc-clean in `xbsourcelib_ary_compiles_clean`; they
-> are not executed by the parity guard. Their remaining runtime status is
-> **contested**: that test documents a crash/composite-byref gap, while later
-> roadmap rows identify `ATTACH` aliasing and O(n²) interpreter lookup. Until a
-> named run or timeout test resolves those accounts, do not claim they migrate
-> faithfully or that interpreter performance is their only blocker.
+> `ary`/`ary1.0001` are not included in
+> `xbsourcelib_interp_matches_compiled`. Their runtime status is therefore
+> unverified: `ATTACH` aliasing and bounded interpreter behavior both need named
+> tests. Do not claim runtime migration or reduce the blocker to performance
+> alone.
 > `XBMerge` is now **byte-faithful** (RT-ARGS resolved 2026-08-21, `1975c75`): the
 > root cause was a general **interpreter** bug — a function called in *expression*
 > position (`x = Foo()`, `IF Foo() THEN`) discarded its output sink, swallowing
@@ -104,29 +104,42 @@
 
 ## L15 — License Boundary (distribution + legal)
 
-> **Status:** `link-core-libs.sh` links GPL+LGPL+unspecified into one `xblibs` binary — **local smoke is run-only**, not redistributable. Any combined binary is GPL-2.0-or-later per GPL §2(b). See `COPYING` (GPL-2.0) and `COPYING_LIB` (LGPL-2.0, truncated at §0, no GNU preamble).
+> **Status:** `link-core-libs.sh` combines GPL-header sources
+> (`xcol`/`xit`/`xdis`), LGPL-header sources
+> (`xcm`/`xma`/`xui`/`xgr`/`xin`/`xrun`/`xst`/`xut`/`xutpde`), and three
+> no-notice shims (`gdi32` 537 lines, `kernel32` 1004, `user32` 669) into one
+> `xblibs` artifact. Repository evidence does not establish redistribution
+> clearance for that aggregate. GPL obligations and shim provenance require
+> resolution; this is a compliance risk assessment, not a legal determination.
+> **The binary and link script are strictly INTERNAL-TEST-ONLY HARNESS
+> ARTIFACTS and must not be packaged or redistributed without that review.**
 
-| Library | File | License (header) | Notice file | Crate license | Notes |
-|---|---|---|---|---|---|
-| `xcol` | `src/linux/xcol.x` | GPL-2.0 (`' subject to GPL license - see COPYING`) | `xbasic-6.4.5/COPYING` (GPL-2.0, full) | `xb-compiler` GPL-2.0-or-later | Compiler, 20 ATTACH sites |
-| `xit` | `src/linux/xit.x` | GPL-2.0 (`COPYING`) | `COPYING` | `xb-compiler` GPL | IDE, 15 ATTACH |
-| `xdis` | `src/shared/xdis.x` | GPL-2.0 (`COPYING`) | `COPYING` | `xb-compiler` GPL | Disassembler |
-| `xcm` | `src/shared/xcm.x` | LGPL-2.0 (`COPYING_LIB`) | `COPYING_LIB` (LGPL-2.0, §0 truncated, no preamble) | `xb-runtime` LGPL-2.1-or-later | Complex math |
-| `xma` | `src/shared/xma.x` | LGPL-2.0 (`COPYING_LIB`) | `COPYING_LIB` truncated | `xb-runtime` LGPL | Math, EXTERNAL unnest 14f9c69 |
-| `xui` | `src/shared/xui.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | GUI, 15 ATTACH |
-| `xgr` | `src/linux/xgr.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | Graphics, 8-10 ATTACH |
-| `xin` | `src/linux/xin.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | Sockets |
-| `xrun` | `src/linux/xrun.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | Exec support |
-| `xst` | `src/linux/xst.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | Stdlib, 20 ATTACH |
-| `xut` | `src/shared/xut.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | Utility |
-| `xutpde` | `src/shared/xutpde.x` | LGPL-2.0 (`COPYING_LIB`) | truncated | `xb-runtime` LGPL | PDE util |
-| `gdi32` | `src/linux/gdi32.x` | **Unspecified** (no header, 537 lines) | none | — | Win32 shim, no notice |
-| `kernel32` | `src/linux/kernel32.x` | **Unspecified** (no header, 1004 lines) | none | — | Win32 shim, no notice |
-| `user32` | `src/linux/user32.x` | **Unspecified** (no header, 669 lines) | none | — | Win32 shim, no notice |
+| Library | File | Source header | Vendor notice evidence | Notes |
+|---|---|---|---|---|
+| `xcol` | `src/linux/xcol.x` | GPL (`COPYING`) | `COPYING` body §§0–12 | Compiler; 20 `ATTACH` sites |
+| `xit` | `src/linux/xit.x` | GPL (`COPYING`) | `COPYING` body §§0–12 | IDE; 15 `ATTACH` sites |
+| `xdis` | `src/shared/xdis.x` | GPL (`COPYING`) | `COPYING` body §§0–12 | Disassembler |
+| `xcm` | `src/shared/xcm.x` | LGPL (`COPYING_LIB`) | `COPYING_LIB` body §§0–16 | Complex math |
+| `xma` | `src/shared/xma.x` | LGPL (`COPYING_LIB`) | `COPYING_LIB` body §§0–16 | Math |
+| `xui` | `src/shared/xui.x` | LGPL (`COPYING_LIB`) | `COPYING_LIB` body §§0–16 | GUI; 15 `ATTACH` sites |
+| `xgr` | `src/linux/xgr.x` | LGPL (`COPYING_LIB`) | `COPYING_LIB` body §§0–16 | Graphics; 8–10 `ATTACH` sites |
+| `xin` | `src/linux/xin.x` | LGPL (`COPYING_LIB`) | `COPYING_LIB` body §§0–16 | Sockets |
+| `xrun` | `src/linux/xrun.x` | LGPL (`COPYING_LIB`) | `COPYING_LIB` body §§0–16 | Exec support |
+| `xst` | `src/linux/xst.x` | LGPL (`COPYING_LIB`) | `COPYING_LIB` body §§0–16 | Stdlib; 20 `ATTACH` sites |
+| `xut` | `src/shared/xut.x` | LGPL (`COPYING_LIB`) | `COPYING_LIB` body §§0–16 | Eddie Penninkhof |
+| `xutpde` | `src/shared/xutpde.x` | LGPL (`COPYING_LIB`) | `COPYING_LIB` body §§0–16 | Eddie Penninkhof |
+| `gdi32` | `src/linux/gdi32.x` | **Unspecified** | no copyright/license statement | Win32 shim |
+| `kernel32` | `src/linux/kernel32.x` | **Unspecified** | no copyright/license statement | Win32 shim |
+| `user32` | `src/linux/user32.x` | **Unspecified** | no copyright/license statement | Win32 shim |
 
-* **Inventory:** `src/shared` 6 (`xcm xdis xma xui xut xutpde`) + `src/linux` 9 (`gdi32 kernel32 user32 xcol xgr xin xit xrun xst`) = 15. Previous `src/shared` vs `src/linux` miscount fixed per L15.
-* **Distribution guard:** `checks/link-core-libs.sh` + `xblibs` are **INTERNAL TEST HARNESS ONLY — NOT FOR REDISTRIBUTION** (local `cc -c` + 7 `Version$` smoke, not behavioral). Distributing the combined `xblibs` without GPL notices + full source violates GPL-2.0 §1-3. Downstream linking against `xst`/`xui` etc. without isolating LGPL from GPL is GPL-infected. `COPYING_LIB` is truncated at §0, so LGPL-2.0 terms are incomplete in the vendor drop.
-* **Remake crates:** `xb-cli`/`xb-compiler`/`xb-frontend`/`xb-link` are `GPL-2.0-or-later`; `xb-runtime`/`xb-gui` are `LGPL-2.1-or-later` — split mirrors vendor mix but does not resolve combined-binary GPL taint.
+* **Notice-file boundary:** both vendor notice files omit the GNU title,
+  version line, and Preamble; their numbered bodies are present as shown.
+* **Inventory:** `src/shared` 6 + `src/linux` 9 = 15. The harness performs
+  local compile/link plus seven `Version$` calls, not behavioral adoption.
+* **Remake crates:** `xb-cli`/`xb-compiler`/`xb-frontend`/`xb-link`/`xb-ide`
+  declare `GPL-2.0-or-later`; `xb-runtime`/`xb-gui` declare
+  `LGPL-2.1-or-later`. Those declarations do not resolve the vendor shim or
+  combined-artifact boundary.
 
 ## 0. Open-gap index (at a glance)
 
@@ -138,13 +151,20 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | Order / track | Job | Exit gate |
 |---|---|---|
 | **done** | **RR-02 ARY composite descriptor — shared `ARY_VAR_DATA` member arrays now forward as `T*` (shared `T*` globals) and both ARY sources are cc-clean** | `xbsourcelib_ary_compiles_clean` 2/2, workspace 282/0 |
-| now | **RR-03 scoped facets** and **RR-13 raw demo guard** | scope/name/type collision fixtures; remove Kittedy/qbtoxb post-emit rewrites; raw demos 114/114; sync/bootstrap unchanged |
+| now | **RR-13 raw demo guard & RR-03 scoped facets** | Strip test-local harness rewrites in `cgen_x_compiles_all_demos_cc_clean` (raw 114/114 already verified in manual sweep); implement scope-qualified facet lookup (scope+name+type) to advance selfhost core libs 9/15 → 13/15 |
 | next B (parallel with A) | **RR-05 xcol/xgr scale** | deterministic resource evidence; no signal exit; self-hosted core-lib compile reaches 15/15 with track A |
 | runtime semantics | **RR-06 ATTACH** | alias writes, `REDIM`, and `UBOUND` observable through the alias in interpreter and compiled paths |
 | behavior adoption | **RR-07 binding policy → RR-08a pure libs / RR-08b stateful libs** | tests prove compiled legacy bodies, not native shadows/stubs; RR-08b also requires RR-06 |
 | safe execution | **RR-09 SHELL/network capabilities** | denied by default and explicitly opt-in before untrusted or xrun/xin behavior execution |
 | pre-distribution | **RR-10 harness hardening + RR-11 provenance/licensing** | reproducible clean harness, duplicate report, complete distribution obligations |
 | trigger-gated | **RR-12 GUI/LLVM/JIT/Cranelift reassessment** | reconsider only after the runtime-behavior critical path or a compatibility requirement |
+
+> **Heuristic patch falsifiability:** any new regex or substring classifier in
+> `selfhost/cgen.x` must pass all four gates: zero demo/corpus/library
+> regressions, `IR_IDENTICAL` bootstrap parity, automated negative collision
+> coverage, and a documented retirement path under RR-03. A candidate that
+> fails the first three gates is closed; single-letter `a`/`k`/`array`
+> replacements are not an admissible substitute for scoped facets.
 
 > CI regression-locks the 114 top-level demos, the 13 XBSourceLib programs, and
 > compile/link of all 15 core libraries. `multi_lib_integration` executes seven
@@ -362,15 +382,15 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | CGEN-INSTR-NEEDLES | cgen.x | ~12 scanner needles still hold literal `(` inside quoted strings (`"array_ubound("`, `"symbol("`) — false-match hazard when scanned IR contains those substrings inside string literals | sweep to CHR$(40)-built needles |
 | LEGACY-LIB-BINDING-POLICY | frontend + C backend + runtime | Calls are bound at emit time: native Xst/Xin/Xui/Xgr/kernel32 helpers shadow compiled `xb_user_*` functions, while unresolved cross-TU calls fold to `0`/`""`/no-op before linking | choose native-vs-legacy authority; prove it with an unshadowed call-site test |
 | CORE-LIB-BEHAVIOR-GATE | tests | All 15 core libraries compile/link, but only seven `Version$` exports execute; no non-Version$ compiled library function is behavior-locked | C driver calls deterministic non-Version$ `xb_user_*` exports and checks non-stub results |
-| LICENSE-BOUNDARY | distribution + legal | 15 libs are a GPL/LGPL/unspecified mix: `xcol`/`xit`/`xdis` GPL (`COPYING`); `xst`/`xma`/`xcm`/`xui`/`xgr`/`xin`/`xrun`/`xut`/`xutpde` LGPL (`COPYING_LIB` truncated at §0, no GNU title/preamble); `gdi32`/`kernel32`/`user32` no notice; remake crates split `GPL-2.0-or-later` vs `LGPL-2.1-or-later` — `link-core-libs.sh` links GPL+LGPL+unspecified into one `xblibs` binary; distribution without GPL notices is not allowed | add § license table per L15; mark "port" claims as GPL-derivative; local smoke is run-only; fix `src/shared` (6: `xcm xdis xma xui xut xutpde`) vs `src/linux` (9) inventory |
+| LICENSE-BOUNDARY | distribution + provenance | Fifteen inputs mix GPL/LGPL headers with three no-notice shims; both vendor notice files contain numbered bodies but omit GNU title/version/Preamble. `xblibs` combines them into one artifact without established redistribution clearance. | Keep internal-test-only; RR-11 resolves shim provenance, complete notices, and documented distribution obligations |
 | ~~EXTERNAL-FUNCTION-PARSE~~ | frontend + all backends | ✅ **done** `14f9c69`: `EXTERNAL FUNCTION` now flat top-level (`External` + `Function` in `is_forward`/`at_function_start`), so `xma` `SIN`/`SQRT`/`TAN`/`EXP10`/`POWER` are emitted (was nested inside `EXP2`, now 46 new `xb_user_*`, 1690→1736) | — |
 | ~~KEYWORD-FUNCTION-TYPING~~ | frontend + all backends | ✅ **done** `14f9c69`: `FUNCTION DOUBLE` prefix/postfix and `DOUBLE` param prefix now map to `TypeSuffix::Double` (`effective_suffix`), so `xma` `ACOS` etc. are `double` not `intptr_t`/`int32_t` | — |
 | ~~C-EMIT-NAN~~ | C backend | ✅ **done** `14f9c69`: `0d7FFF…` (`$$PNAN`/`$$PINF`) `NaN`/`inf` lower to `NAN`/`INFINITY` (`<math.h>` already included) so `xma` `double` returns compile (was 17 `use of undeclared identifier NaN/inf`) | — |
-| CGEN-LIB-SCALE | cgen.x | Heuristic `--emit-ir` probe **9/15 at 8840f2a → 9/15 at `dedfe25` via `checks/cgen-lib-compile.sh`** (was 6/15): `xcol` Killed:9 (OOM even after per-line `scan_undimmed` `85beaef` + `xi_concat` cap `08fc0cb`; 2.6 MiB IR), `xgr` Abort:6/SIGKILL (1.4 MiB IR), `xui` `cc FAIL` (2.6 MiB IR now reaches `cc` after `c45ad80`+`08fc0cb` — was OOM — now `window` subscript `intptr_t*` 20 errs), `xin` `host_address` `intptr_t*` vs `intptr_t` `&0xFF` (4 errs at `xin.c:754`), `xit` 20 errs (`Dump` `DO` `LEFT(pr-1)`→`pr-2` fixed in `92fb1a6`), `xst` 20 errs (OSTOXERROR etc.); `xcm,xdis,xma,xut,xutpde,gdi32,kernel32,user32,xrun` pass (9). Facet probe (`emit_program_with_facets` → cgen) also 9/15 with same 6 fails. `xgr` 1.41 MiB IR reached 6.4 GiB RSS pre-`08fc0cb`. **Probe now test-locked as `checks/cgen-lib-compile.sh` (see CGEN-X-LIB-COMPILE); re-measured 2026-08-29 at `dedfe25` → still 9/15 (cgen 9 + Rust 15 via `link-core-libs.sh` 1736 `ALL OK`).** | `wip-xst-670fec5` branch holds 10 commits for `xst` shared-dim work (`OSTOXERROR`, `#var` shared, `term[]` dual etc.) but regresses `qbtoxb` `cgen_x_compiles_all_demos_cc_clean` 23/114 (Kittedy `reply` vs `str_reply`, `abuffer` subscript) — needs per-scope `facet` `scope:name` not substring `:name:`; fix before re-merge. Otherwise `fix nested-function depth + leaky concat` already landed (`08fc0cb`). Next true 15/15 blocker is `CGEN-FACET-SCOPE` (`window`/`host_address` need `dual` `_arr` split, not just `scan_dyn` needles). |
+| CGEN-LIB-SCALE | cgen.x | **9/15 at `54db874`** through both heuristic and narrow-facet probes. Passing: `xcm,xdis,xma,xut,xutpde,gdi32,kernel32,user32,xrun`. Classification/scope failures: `xui` (past `tool`/`window`, still `a`/`k`/`array` collisions), `xin`, `xit`, `xst`. Independent resource/signal failures: `xcol` (2.6 MiB IR, OOM/Killed:9) and `xgr` (abort/signal). | RR-03 closes classification to 13/15; RR-05 removes resource exits and closes 15/15. No whole-body substring masking. |
 | ATTACH-IMPL | interpreter + C backends | `ATTACH` statement (array aliasing/view-binding) is parser-discarded `parser.rs:718-724` → `Compound(vec![])` no-op in all backends. Used in `xcol (~20 sites), xst (~20), xgr (~8-10), xui (~12-15), xit (~15)` — hash tables, file locks, charMaps, window kids, prog/func/tok arrays. Link succeeds but runtime array aliasing is silently wrong (target array never receives source node; subsequent UBOUND/REDIM/index on target sees stale/null). Blocks tier (c) adopt for 5/15 libs. | implement ATTACH (view binding) or explicitly accept semantic divergence + add deterministic ATTACH alias test (see synthesis RC-R3/RC-R6) |
-| CGEN-X-LIB-COMPILE | self-hosted cgen.x | The named cargo test `cgen_x_compiles_core_libs_floor_9_cc_clean` locks nine specific passes and a `>=9` floor; 15/15 is not asserted. Classification/scope failures are `xui`/`xin`/`xit`/`xst`; resource failures are `xcol`/`xgr`. Heuristic and narrow-facet probes were both 9/15 at `dedfe25`. | RR-03 targets 13/15 classification-clean; RR-05 independently removes signal/OOM failures and closes 15/15 |
+| CGEN-X-LIB-COMPILE | self-hosted cgen.x | The named cargo test `cgen_x_compiles_core_libs_floor_9_cc_clean` locks the nine passing libraries and a `>=9` floor; 15/15 is not asserted. Heuristic and narrow-facet probes remain 9/15 at `54db874`. | RR-03 targets 13/15 classification-clean; RR-05 independently closes 15/15 |
 | CGEN-DEMO-RAW-GATE | self-hosted cgen.x + tests | `cgen_x_compiles_all_demos_cc_clean` rewrites emitted C for Kittedy `found` and qbtoxb `TranslateStatement` before cc. The 114/114 result is a workaround-assisted compile guard, not raw-generator proof. | RR-13: fix both generator defects, delete the rewrites, retain 114/114 |
-| ARY-COMPOSITE-DESCRIPTOR | frontend + Rust CEmitter | **DONE 2026-08-29** — `ARY_VAR_DATA @Ary_varData[]` now forwards shared `T*` member arrays (`xb_var_Ary_varData_*_arr`) at both signature and all four call sites; `xbsourcelib_ary_compiles_clean` 2/2 and `xbsourcelib_interp_matches_compiled` 11/11; runtime `ARY` still blocked on `ATTACH`/bounded behavior. | no further compile action; runtime `ARY` awaits RR-06 |
+| ARY-COMPOSITE-DESCRIPTOR | frontend + Rust CEmitter | **DONE for compile 2026-08-29** — shared `ARY_VAR_DATA` member arrays now forward as `T*`; `xbsourcelib_ary_compiles_clean` compiles both ARY sources. The separate `xbsourcelib_interp_matches_compiled` loop covers 11 non-ARY programs and is not ARY runtime evidence. | runtime ARY awaits RR-06 plus a bounded behavior test |
 | SHELL-CAPABILITY | runtime + security | `xb_shell` lowers to `system()` (`c_runtime_bit.rs:97`) with no sandboxing/capability gate; `xrun`/`xst` contain SHELL-reachable paths. `Xin*` builtins lower to real BSD sockets (`c_emit_xin.rs:157+` → `sys/socket.h`). Compiled legacy lib code can execute arbitrary host commands / open network connections if SHELL/Xin paths reached at runtime. | RR-09: deny by default and require explicit SHELL/network opt-in before untrusted or xrun/xin behavior execution |
 | LEGACY-CORPUS-COMPILE-COVERAGE | tests | 19 GTK demos + three helpsrc programs are parse/lower-only; docs previously overclaimed every `.x` was regression-locked | add explicit compile inventories before any every-legacy-source claim |
 | ARY-STATUS-RECONCILIATION | tests + docs | Two-stage status: RR-02 is compile-only composite-descriptor repair. Runtime ARY remains unready because `ATTACH` is parser-discarded and no bounded behavior run is locked. | after RR-02, require RR-06 alias test + bounded ARY behavior evidence before a runtime-faithful claim |
@@ -454,7 +474,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | L12 | `scan_dyn` per-line `symbol(` walk | **partial — landed 08fc0cb** | `scan_dyn$` now per-line `CHR$(10)` split for `symbol(`+`byref(` with inner `WHILE qp` for multi-`symbol(` per line; `DIM`/`SWAP` already per-line. Change is `INSTR(s$,nSym$)` → `INSTR(qLn$,nSym$)` + `INSTR(qLn$,":",qp+7)` + `MID$(qLn$,qp+7,cp-qp-7)` (same-line colon only; cross-line dropped). No quote-skip for `string("symbol(")` (both old and new) | add fixture `string("symbol(foo:bar)")` + multi-`symbol(` per line; prove no regression; xcol probe still 46s suggests scan not the sole bottleneck |
 | L13 | `scan_undimmed` MID-avoidance 3-arg `INSTR` | **partial — landed 08fc0cb** | Three sites `array_access`/`array_assign`/`array_ubound`: `INSTR(MID$(s$,p+13,…),":")` + `MID$(s$,p+13,e-1)` → `INSTR(s$,":",p+13)` + `MID$(s$,p+13,e-p-13)` (algebra `e-1 = e_abs-p-13`). Still whole-`s$` (not per-line). No quote-skip | name fixture `array_access(` line with `string("a:b")`; xcol still 46s |
 | L14 | `pNames$[32]→[128]` + zap `argv$` nested-DIM facet | **partial — landed 08fc0cb + docs/19 fix** | `selfhost/cgen.x` `pNames$`/`pTypes$`/`pIsStr` 32→128 (xdis/xst depth 5-55). `docs/19` slice 8 corrected: `zap` `DIM argv$[3]` inside nested `IFZ` THEN+ELSE `dim_count==2` ⇒ `storage=dyn` not `fixed`. Residual (docs/19): member 2D hardcodes `rank=2`+`storage=shared` no-op, array params `rank=1`, nested `Function` DIMs leak into parent `dim_info`, `collect_member_2d_expr` misses `Print`/`For`/`SelectCase` | dump `facet argv$:string scope=Entry storage=dyn rank1` + fix member-2D hardcodes before lib facet claim |
-| L15 | License-boundary disclosure for 15 libs | **done — landed 2026-08-28** | §L15 table added (see top): `xcol`/`xit`/`xdis` GPL (`COPYING`); `xst`/`xma`/`xcm`/`xui`/`xgr`/`xin`/`xrun`/`xut`/`xutpde` LGPL (`COPYING_LIB` truncated at §0); `gdi32`/`kernel32`/`user32` no notice; remake crates split `GPL-2.0-or-later` vs `LGPL-2.1-or-later`; `src/shared` 6 vs `src/linux` 9 inventoried; `xblibs` marked **INTERNAL TEST HARNESS ONLY — NOT FOR REDISTRIBUTION** (local smoke run-only, distribution is GPL-covered) | — |
+| L15 | License/provenance boundary for 15 linked inputs | **done for disclosure; clearance deferred** | Six shared + nine Linux inputs inventoried; GPL/LGPL headers separated from three no-notice shims; both notice bodies present but GNU front matter absent; aggregate marked internal-test-only without presenting legal inference as determination | RR-11 resolves shim provenance, complete notices, and distribution obligations |
 | L16 | Weak-link/harness determinism | **partial** | Deterministic link order, clean `OUT`, and Darwin/Linux `nm` fallbacks are now present in `link-core-libs.sh`/`validate-all.sh`. Remaining: caller `XB_BIN` override is ignored; duplicate weak definitions are not reported; `cgen-lib-compile.sh` remains informational with unconditional exit 0. | RR-10: honor `XB_BIN`, report duplicates, keep the explicit 9/15 floor separate from a future strict 15/15 gate |
 | L17 | Named cgen core-library floor (`cgen_x_compiles_core_libs_floor_9_cc_clean`) | **partial — landed 2026-08-28, renamed 2026-08-29 for contract truth** | Cargo test requires the nine named passing libraries and `passes.len() >= 9`; it reports but tolerates the six known failures. | RR-03/RR-05 close 15/15; add a separately named strict target when all libraries pass |
 
@@ -547,8 +567,8 @@ sections below or the named sibling docs; ✅-done items are omitted.
 
 | ID | Candidate | Status | Evidence | Next action or trigger |
 |---|---|---|---|---|
-| RR-01 | Reconcile roadmap truth and guard it | **adopted** | contradictions in docs/16/18/19/README/docs17; guard previously omitted docs/18/19 | wording and deterministic needles land with this panel |
-| RR-02 | Composite-array byref ABI compile repair — shared `ARY_VAR_DATA` | **adopted — done 2026-08-29** | `c_emit_expr` now forwards shared `T*` member arrays (`is_shared_array` → `emit_raw_array_name`) and both ARY sources are cc-clean; `xbsourcelib_parity` 2/2, `cgen_cemitter_sync` 61/61, `xbsourcelib_interp_matches_compiled` still 11/11; runtime `ARY` still blocked on `ATTACH` | no further action for compile; runtime `ARY` awaits RR-06 + bounded behavior |
+| RR-01 | Reconcile roadmap truth and guard it | **adopted — expanded 2026-08-29 second pass** | canonical banner, ARY denominator correction, lifecycle authority, runtime/provenance boundaries | keep deterministic singleton/presence/absence guards green |
+| RR-02 | Composite-array byref ABI compile repair — shared `ARY_VAR_DATA` | **adopted — done for compile 2026-08-29** | both ARY sources compile cc-clean; the 11-program runtime parity loop excludes them; `cgen_cemitter_sync` remains 61/61 | runtime ARY awaits RR-06 plus a bounded behavior test |
 | RR-03 | Scope-qualified facet lookup | **adopted** | global `:name:` leakage in four C-error libraries | scope+name+type keys; target 13/15; preserve sync/bootstrap |
 | RR-04 | Split cgen failure classes | **adopted as tracking** | four C errors vs two signal/resource exits | keep separate assertions/results; not a blocking implementation phase |
 | RR-05 | Bound and fix xcol/xgr generation | **adopted; parallelizable with RR-03** | xcol Killed:9, xgr abort at recorded IR sizes | record deterministic wall/RSS evidence; eliminate signal exits; close 15/15 |
@@ -558,7 +578,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | RR-08b | Behavior gates for stateful libraries | **adopted after RR-06/RR-07** | ATTACH and binding ambiguity | non-stub xst/xui/xgr/xcol/xit tests; bounded ARY evidence |
 | RR-09 | SHELL/network capability gates | **adopted before unsafe behavior runs** | interpreter/C `sh -c`/`system`; real BSD sockets | denied-by-default plus explicit opt-in tests |
 | RR-10 | Harness reproducibility | **partial** | order/OUT/nm improved; override/duplicates/probe exit remain | honor `XB_BIN`; report weak duplicates; separate floor probe from strict gate |
-| RR-11 | Licensing and shim provenance | **partial** | L15 disclosure done; three shims lack notices | resolve notices/source obligations before packaging or distribution |
+| RR-11 | Licensing and shim provenance | **partial** | factual disclosure landed; three shims lack copyright/license statements and both notice files lack GNU front matter | resolve provenance and distribution obligations before packaging |
 | RR-12 | GUI/LLVM/JIT/Cranelift reassessment | **deferred / trigger-gated** | no dependency on immediate correctness path | reconsider after behavior gates or a demonstrated compatibility need |
 | RR-13 | Remove demo post-emission rewrites | **adopted with RR-03 track** | Kittedy/qbtoxb mutations in `cgen_x_compiles_all_demos_cc_clean` | fix generators, delete mutations, keep raw 114/114 |
 | RR-14 | Reconcile external issue tracker | **deferred (access blocked)** | GitHub CLI unauthenticated during panel | compare tracker to this ledger when authenticated |
@@ -571,7 +591,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > **Packet target:** "Is the XBasic toolchain actually ready to port the 15 legacy `.x` libs?" Packet HEAD `3c5d9a7` + uncommitted `c_runtime.rs`/`c_emit_stmt.rs`/`selfhost/cgen.x` (now **landed 08fc0cb, see L11–L14 partial**; header fix also landed). **Lenses:** 7 tasked; **4 delivered** = Provenance/Security, Strategic Synthesis, Correctness, Reproducibility — all **AGREE WITH CHANGES** (no DISAGREE, no pure AGREE). **3 stalled** = EvidenceAuditor-3, ArchitectureReviewer, UsabilityActionabilityReviewer — no assistant turns after 14m + DM wake; `history://` shows only the assignment (likely `task`-backend `resource_exhausted`/wall timeout per `parallel-lens-review-packet` recovery note §3); coordinator salvaged via raw evidence + `agent://` reads and disclosed degradation from independent judgment to structured self-review. No provider-persona calls; no mock/unit as e2e.
 > **Answer (synthesis of 4):** Not ready to claim legacy libraries ported. Rust CEmitter is 15/15 **link-ready** (Bar A) only. Self-hosted `cgen.x` Bar B is **unready/slow** (6/15 probe not re-run; xcol wall probe via `cgen_exp` is not a lock). Highest-leverage among the three named options = **CGEN-LIB-SCALE** (nested-fn + leaky concat → then named 15-lib cc-clean lock); facet storage work gated on that lock; GUI-RUNTIME last (deferred via L10). Selected Rust Bar C work (xut/xcm, L2/L3) may run in parallel and is not among those three. Do not use unsuffixed "ready"/"ported" — keep Bars A–E taxonomy (L1).
 > **Shared findings (4):** weak-link + `OUT` + `nm -U` non-determinism; `xb_append` not a drop-in (NULL UB on `=0` shared strings, aliasing/moved-realloc hazard, empty-chain panic, `cap` not retained — every call still `realloc`s, not exponential buffering); `scan_dyn` per-line `symbol(` only (DIM/SWAP already per-line) and `scan_undimmed` still whole-`s$` — index-equivalent, not a line split, neither skips `string("…:…")`; `abs_float.ir` has no `array_*`/colon-in-literal so not a byte-equivalence witness; zap `argv$` `storage=fixed` citation was wrong (static path = `dyn`); demo 114 text-identity is not a lib lib lock; 60s xcol wall probe (SIGTERM 124 at 15s/30s identical 340K/6620 truncated mid-`xb_shared_lineNumber`) needs **TTFB** of `xb_version_str` vs `T_total` to separate `src$` build from post-`src$` scans/emit + `fwdDeclsBuf` front-delete.
-> **Required wording changes applied to this roadmap:** banner provenance split (1690 observed vs 1736 carried + `validate-all.sh` not re-run this session), `XB_WEAK_SYMBOLS`/`CC`/`XB_BIN`/`OUT`/`nm` guardrails, 15-lib inventory (`shared` 6 vs `linux` 9) + **license-boundary blocker** (L15: GPL `xcol`/`xit`/`xdis` vs LGPL 9 vs 3 unspecified Win32 shims; `COPYING*` truncated; combined link/distribution is GPL-covered; local smoke is run-only), Bar A/B/C wording (Bar A = compile/link not behavior; Bar B = named `cgen_x_compiles_all_core_libs_cc_clean` does not exist), facet wording (slice 8 demo-scoped, `strDual`/`allStrArr` reverted to heuristic per slice 4.1), `xb_append`/`scan_dyn`/`scan_undimmed`/`pNames` **L11–L14 now partial (08fc0cb) — see rows above**. Full per-lens markdown preserved in `agent://` (ProvenanceSecurityReviewer, StrategicSynthesisReviewer, CorrectnessReviewer-2, ReproducibilityEngineer).
+> **Historical wording note:** this panel established the 6+9 inventory and internal-test-only boundary. Its shorthand "`COPYING*` truncated" and "GPL-covered" conclusions are superseded by the factual notice/provenance wording in current L15 above.
 > **L11–L14 now partial, L15–L17 still deferred** per the falsifiability protocol (§4 of `reflective-prompt-library/04-agent/workflow-recipes.md`). Partial adoption without these IDs is the drift this review exists to catch.
 
 

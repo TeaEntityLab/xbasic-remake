@@ -19,11 +19,11 @@ and how it achieves cross-platform portability.
 | 07 | [Build System](07-build-system.md) | Toolchains, OS autodetection, Makefiles, template system, bootstrap order |
 | 08 | [Language Reference](08-language-reference.md) | Types, scoping, statements, operator table, intrinsics, dot commands, grid messages |
 | 09 | [Version History](09-version-history.md) | The post-6.2.3 forks: 6.3.26-D (Win32 unofficial) and 6.4.5 (Linux xb64 64-bit), per-file version tables, the crtl/ C-runtime experiment |
-| 10 | [Unification Plan](10-unification-plan.md) | Proposal for merging 6.3.26-D + 6.4.5 back into one cross-platform tree (6.5.0) |
+| 10 | [Unification Plan — historical proposal](10-unification-plan.md) | Superseded pre-Rust proposal for merging 6.3.26-D + 6.4.5 into one cross-platform tree |
 | 11 | [Syscall Surface Survey](11-syscall-surface-survey.md) | Every `.s`/syscall in the three trees: zero raw syscalls, 6 hand-written `.s` files, FPU-intrinsic / libc / frame-helper classification, signal & exception model |
-| 12 | [Rust + LLVM Rewrite Survey](12-rust-llvm-rewrite-survey.md) | Crates for the 6.5.0 rewrite: inkwell/LLVM pipeline, iced-x86 FPU JIT, rustix/windows-sys FFI, egui+winit GUI, plus what to preserve from 6.3.26-D and 6.4.5 |
-| 13 | [6.5.0 Bootstrap Scaffold](13-bootstrap-scaffold.md) | Resolved decisions (f64/libm, Win64 first, staged self-hosting), stage plan, and the repo-root Rust workspace layout |
-| 14 | [Self-Hosting Progress](14-self-hosting-progress.md) | Full self-hosting: native C code generation, CLI compile modes, cgen.x self-hosting C generator, 3-stage native bootstrap fixed point, cross-platform CI |
+| 12 | [Rust + LLVM Rewrite Survey — historical research](12-rust-llvm-rewrite-survey.md) | Ecosystem survey that informed the implemented Rust bootstrap; not current implementation status |
+| 13 | [6.5.0 Bootstrap Scaffold — frozen milestone](13-bootstrap-scaffold.md) | Stage-0/1 decisions and initial workspace layout |
+| 14 | [Self-Hosting Progress — milestone narrative](14-self-hosting-progress.md) | Stage-2 fixed-point history; current defects and next actions live in docs 16–19 |
 | 15 | [Stage-2 Contract v0.1](stage2-contract-v0.1.md) | Baseline accepted subset: VERSION, PRINT, DIM, assignment, FUNCTION/END FUNCTION, integer/float/string literals |
 | 16 | [Stage-2 Contract v0.2](stage2-contract-v0.2.md) | $$ constants and ## shared variable tokenization: lexer support, constant definitions, constant references |
 | 17 | [Stage-2 Contract v0.3](stage2-contract-v0.3.md) | ## shared system variables: parser, semantic, IR, and runtime support as mutable typed storage |
@@ -43,15 +43,25 @@ and how it achieves cross-platform portability.
 | 31 | [Stage-2 Contract v0.17](stage2-contract-v0.17.md) | String functions INSTR, VAL, STR$ for parsing and conversion |
 | 32 | [Stage-2 Contract v0.18](stage2-contract-v0.18.md) | Runtime input: READLINE$() and EOF() for stdin-style input buffer |
 
+## Roadmap and lifecycle authority
+
+- **Current truth:** the root `README.md` gives the headline; docs 16–19 are
+  living contracts, and docs/17 is the sole umbrella authority for open work.
+- **Frozen milestones:** docs 13–14, Stage-2 contracts v0.1–v0.18,
+  `TASKS.bootstrap.md`, and `TASKS.stage2.md` preserve completed evidence.
+- **Historical reference:** docs 00–12 describe source history, reverse
+  engineering, proposals, and research. Their dated bodies are not execution
+  queues.
+
 ## Roadmaps
 
-Living roadmaps of open work (updated as work lands, not fixed chapters):
+Living roadmaps of open work (current truth; updated as work lands):
 
 | Doc | Covers |
 |---|---|
 | [16 — cgen ↔ CEmitter Sync Roadmap](16-cgen-cemitter-sync-roadmap.md) | Keeping the Rust `CEmitter` and self-hosted `cgen.x` in sync: behavioral sync + positive-corpus emitted-C byte identity, both locked by tests |
 | [17 — Open-Work Roadmap](17-open-work-roadmap.md) | Umbrella "everything not done yet": open rows, panel adoption ledger, demo/GUI status, historical session logs |
-| [18 — By-ref Array ABI](18-byref-array-abi.md) | Landed `(T** data, intptr_t* ub)` descriptor ABI for primitive/flat arrays; composite `TYPE` arrays remain open |
+| [18 — By-ref Array ABI](18-byref-array-abi.md) | Landed descriptor ABI for primitive/flat arrays and shared composite `ARY_VAR_DATA` member arrays (compile-only); general composite `TYPE` array by-ref and runtime behavior remain open |
 | [19 — CGEN Facet Manifest](19-cgen-facet-manifest.md) | Partial frontend-emitted facet implementation; scope-qualified consumption and full heuristic replacement remain open |
 
 ## The big picture

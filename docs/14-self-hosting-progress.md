@@ -1,8 +1,9 @@
 # 14 — Self-Hosting Progress
 
-> Status: Full self-hosting achieved on 2026-08-14.
-> The compiler compiles itself to a native executable, its own C generator (cgen.x) rebuilds the compiler without the Rust host, and all stages produce byte-identical behavior.
-> Cross-platform CI workflow added (`.github/workflows/bootstrap-verify.yml`); activates on push to GitHub.
+> **Lifecycle: milestone progress narrative.**
+> This document records the 2026-08-14 Stage-2 self-hosting milestone and
+> subsequent dated evidence. Current defects and next actions are governed by
+> docs/17; C-generator synchronization is governed by docs/16.
 
 ## 1. Scope and status
 
@@ -135,10 +136,13 @@ It additionally enforces:
 - Workspace MSRV is Rust 1.94.
 - The current environment records Homebrew Rust 1.94 and rustup stable 1.97.1.
 - The IDE feature needs Rust 1.95 or newer.
-- LLVM 22 is absent locally; LLVM 21 is installed.
-- `xb-compiler` uses `default = []`, so LLVM is opt-in.
-- The feature-gated LLVM implementation currently returns an empty `ObjectFile`; real object emission is not implemented.
-- `cargo check -p xb-compiler --features llvm` is outside the successful default verifier and cannot be claimed locally without LLVM 22.
+- Homebrew LLVM 22.1.8 is available locally at `/opt/homebrew/opt/llvm`.
+- `xb-compiler` uses `default = []`, so LLVM remains opt-in.
+- The feature-gated LLVM backend emits a real native object for its supported
+  subset; it is not yet equivalent to the full CEmitter language surface.
+- `cargo check/build/test -p xb-compiler --features llvm` succeeds with
+  `LLVM_SYS_221_PREFIX=/opt/homebrew/opt/llvm`, but the default verifier and CI
+  do not exercise that feature (see docs/17 `LLVM-CI-BITROT` and RR-12).
 - Rust LSP diagnostics repeatedly timed out. Compiler, Clippy, and verifier results are the authoritative local evidence.
 - Cross-platform CI runs on Ubuntu, macOS, and Windows (see §19). Local verification is macOS arm64; CI provides Linux and Windows evidence.
 
@@ -205,7 +209,7 @@ Four tests in `crates/xb-runtime/tests/native_emit.rs` prove:
 
 Key implementation decisions:
 
-- **C code generator instead of LLVM**: Since LLVM 22 is not installed locally, a C code generator that emits C source and compiles with system `cc` achieves native artifact production without LLVM dependency.
+- **C code generator chosen at the milestone:** LLVM 22 was not installed locally on 2026-08-14, so emitting C and invoking system `cc` provided native artifacts without an LLVM dependency. LLVM 22 is now available locally, but the C path remains the default and bootstrap backend.
 - **String comparisons use `strcmp`**: C `==` on `char*` compares pointers, not contents. The emitter uses `strcmp(a, b) == 0` for string equality comparisons.
 - **Bitwise NOT uses `~` not `!`**: XBasic `NOT` is bitwise complement. The emitter uses `~` to match the interpreter's `!n` on integers (Rust `!` on integers is bitwise, but C `!` is logical). Both the Rust C emitter and cgen.x use `~`.
 - **Boolean operators use `&` and `|`**: XBasic `AND`/`OR` are bitwise on 0/1 comparison results, equivalent to logical AND/OR. The emitter uses `&` and `|` to match the interpreter's `a & b` and `a | b` semantics.
@@ -398,15 +402,28 @@ Four lexer/parser extensions to `selfhost/compiler.x` closed the gaps:
 
 The 3-stage fixed point is maintained with the golden IR hash `c8d5c7f1ed32b0287c8f16cbaaf3a73d241d59ec90469046c5b6027b6197967f` (SHA-256 of `fixtures/corpus/v0.1/selfhost/compiler.ir`), matching across Rust host, compA, and compB. Re-verified 2026-08-17: `xb --emit-ir selfhost/compiler.x` hashes identically to the committed fixture; the earlier `f6e21a03…` value predates IR growth from composite/by-ref params and is superseded.
 
-## 21. Closing status at HEAD (2026-08-27)
+## 21. Closing status at HEAD (2026-08-29)
 
-Everything above is a dated historical narrative; this section is the current
-truth. Stage 0, Stage 1, and Stage 2 native self-hosting are complete. The
-positive corpus has grown from the 19 programs of the §16 milestone to **80**,
-all emitting **byte-identical C** from the Rust CEmitter and the self-hosted
-`cgen.x` (test-locked 2026-08-27). All **114 demos** compile through the true
-`cgen.x` (test-locked), with 112 runnable matches / 2 real-I/O skips on the
-CEmitter differential. All 15 core libraries compile and link. The §6
-≤250-LOC module rule is **advisory** in `checks/verify-bootstrap.sh` (not a
-hard gate). Current open work lives in docs/17 (§0 + the 2026-08-27 panel
-ledger); generator-sync scope lives in docs/16.
+Everything in §1–§20 is a dated historical narrative; this section summarizes
+the current evidence. Stage 0, Stage 1, and Stage 2 native self-hosting are
+complete. The positive corpus contains **80 programs**, all emitting
+**byte-identical C** from the Rust CEmitter and self-hosted `cgen.x`.
+
+The CI all-demo guard reports **114/114**, but
+`cgen_x_compiles_all_demos_cc_clean` retains transitional test-local rewrites
+for Kittedy and qbtoxb; a standalone sweep observed raw 114/114, and RR-13
+turns that observation into an unassisted CI contract. The CEmitter
+differential records 112 runnable matches and two real-I/O skips.
+
+All 15 core libraries compile and link through the Rust CEmitter under
+`XB_WEAK_SYMBOLS=1` with 1736 `xb_user_*` symbols; its smoke executes seven
+`Version$` accessors only. Self-hosted `cgen.x` core-library compilation has a
+test-locked **9/15 floor** (`cgen_x_compiles_core_libs_floor_9_cc_clean`);
+RR-03 and RR-05 retain the 15/15 exit gate. Compile/link success is not runtime
+behavioral fidelity: stateful libraries remain blocked on `ATTACH` alias
+semantics (RR-06), binding authority and body-level behavior gates
+(RR-07/RR-08), and capability gates (RR-09).
+
+The §6 ≤250-LOC module rule is advisory in `checks/verify-bootstrap.sh`, not a
+hard gate. Current open work lives in docs/17; generator-sync scope lives in
+docs/16.
