@@ -7440,6 +7440,7 @@ FUNCTION emit_stmt$(s$)
         DIM xsDstData$
         DIM xsDstUb$
         xsSrcLen$ = "(" + ub_ref$(xsN0$, xsT0$) + " + 1)"
+        IF INSTR(##qsIdxNames$, ":" + xsN1$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN1$ + ":" + xsT1$ + ":"
         xsDstData$ = arr_acc_name$(xsN1$, xsT1$)
         IF INSTR(xsDstData$, "xb_str_") = 0 AND INSTR(xsDstData$, "_arr") = 0 THEN
           xsDstData$ = "xb_var_" + sanitize_ident$(xsN1$) + "_arr"
