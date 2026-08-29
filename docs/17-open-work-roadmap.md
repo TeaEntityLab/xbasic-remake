@@ -476,7 +476,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | L13 | `scan_undimmed` MID-avoidance 3-arg `INSTR` | **partial — landed 08fc0cb** | Three sites `array_access`/`array_assign`/`array_ubound`: `INSTR(MID$(s$,p+13,…),":")` + `MID$(s$,p+13,e-1)` → `INSTR(s$,":",p+13)` + `MID$(s$,p+13,e-p-13)` (algebra `e-1 = e_abs-p-13`). Still whole-`s$` (not per-line). No quote-skip | name fixture `array_access(` line with `string("a:b")`; xcol still 46s |
 | L14 | `pNames$[32]→[128]` + zap `argv$` nested-DIM facet | **partial — landed 08fc0cb + docs/19 fix** | `selfhost/cgen.x` `pNames$`/`pTypes$`/`pIsStr` 32→128 (xdis/xst depth 5-55). `docs/19` slice 8 corrected: `zap` `DIM argv$[3]` inside nested `IFZ` THEN+ELSE `dim_count==2` ⇒ `storage=dyn` not `fixed`. Residual (docs/19): member 2D hardcodes `rank=2`+`storage=shared` no-op, array params `rank=1`, nested `Function` DIMs leak into parent `dim_info`, `collect_member_2d_expr` misses `Print`/`For`/`SelectCase` | dump `facet argv$:string scope=Entry storage=dyn rank1` + fix member-2D hardcodes before lib facet claim |
 | L15 | License/provenance boundary for 15 linked inputs | **done for disclosure; clearance deferred** | Six shared + nine Linux inputs inventoried; GPL/LGPL headers separated from three no-notice shims; both notice bodies present but GNU front matter absent; aggregate marked internal-test-only without presenting legal inference as determination | RR-11 resolves shim provenance, complete notices, and distribution obligations |
-| L16 | Weak-link/harness determinism | **partial** | Deterministic link order, clean `OUT`, and Darwin/Linux `nm` fallbacks are now present in `link-core-libs.sh`/`validate-all.sh`. Remaining: caller `XB_BIN` override is ignored; duplicate weak definitions are not reported; `cgen-lib-compile.sh` remains informational with unconditional exit 0. | RR-10: honor `XB_BIN`, report duplicates, keep the explicit 9/15 floor separate from a future strict 15/15 gate |
+| L16 | Weak-link/harness determinism | **partial — XB_BIN override fixed** | Deterministic link order, clean `OUT`, and Darwin/Linux `nm` fallbacks are now present in `link-core-libs.sh`/`validate-all.sh`. `XB_BIN` env override now honored in both scripts (checked before `CARGO_BIN_EXE_xb`). Remaining: duplicate weak definitions are not reported; `cgen-lib-compile.sh` remains informational with unconditional exit 0. | RR-10: report duplicates, keep the explicit 9/15 floor separate from a future strict 15/15 gate |
 | L17 | Named cgen core-library floor (`cgen_x_compiles_core_libs_floor_9_cc_clean`) | **partial — landed 2026-08-28, renamed 2026-08-29 for contract truth** | Cargo test requires the nine named passing libraries and `passes.len() >= 9`; it reports but tolerates the six known failures. | RR-03/RR-05 close 15/15; add a separately named strict target when all libraries pass |
 
 ### Roadmap and known-issues panel 2026-08-29 — Candidate Adoption Ledger
@@ -551,7 +551,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 - **Link-smoke failure propagation:** reproducibility lenses questioned an
   explicit nonzero check. Coordinator inspection found `set -e` plus direct
   smoke execution already propagates failure. Remaining RR-10 gaps are
-  `XB_BIN` override, duplicate reporting, and the informational cgen probe.
+  duplicate reporting and the informational cgen probe (`XB_BIN` override fixed).
 
 #### Evidence Actually Checked
 

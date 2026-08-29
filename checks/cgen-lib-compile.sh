@@ -9,7 +9,9 @@
 set -e
 cd "$(dirname "$0")/.."
 CC=${CC:-cc}
-if [ -n "${CARGO_BIN_EXE_xb:-}" ]; then
+if [ -n "${XB_BIN:-}" ]; then
+    : # honor caller override
+elif [ -n "${CARGO_BIN_EXE_xb:-}" ]; then
     XB_BIN="$CARGO_BIN_EXE_xb"
 elif [ -x "target/release/xb" ]; then
     XB_BIN="target/release/xb"
