@@ -730,6 +730,7 @@ END IF
 ##facetTab$ = ""
 ##facetDynAll$ = ""
 ##scanDynAll$ = ""
+##curHoistFn$ = ""
 facetPos = 1
 WHILE facetPos <= LEN(src$)
   facetE = INSTR(src$, CHR$(10), facetPos)
@@ -1392,6 +1393,7 @@ WHILE pos <= LEN(src$)
         ##inFuncScope = 0
         ##curFnShapes$ = ""
         ' RR-03: restore happens after function body emission (below).
+        ##curHoistFn$ = funcName$
         IF skipFunc = 0 THEN
           hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
           ' body actually assigns the function name; otherwise the function
@@ -3402,6 +3404,7 @@ FUNCTION emit_expr$(e$)
     RETURN emit_expr$
   END IF
 
+
   IF LEFT$(e$, 6) = "byref(" THEN
     t$ = MID$(e$, 7, LEN(e$) - 6)
     IF RIGHT$(t$, 1) = ")" THEN
@@ -3418,7 +3421,7 @@ FUNCTION emit_expr$(e$)
       ' Mixed-function check: if callee has mixed byref/byval calls,
       ' emit value directly (no &) to match Rust CEmitter.
       IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
-        IF INSTR(##funcHasArr$, "," + ##curCallFn$ + ",") = 0 THEN
+        IF INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
           emit_expr$ = "xb_shared_" + sanitize_ident$(varName$)
           RETURN emit_expr$
         END IF
@@ -3449,9 +3452,22 @@ FUNCTION emit_expr$(e$)
       END IF
       ' Mixed-function check: if callee has mixed byref/byval calls,
       ' emit value directly (no &) to match Rust CEmitter (c_emit.rs:659-680).
-      ' Array-param callees still take pointers (CEmitter `to_ptr` for `T[]`).
+      ' Gate: only do variable-level array check when callee HAS array params
+      ' (##funcHasArr$). Callees with no array params take all byref as values.
+      ' Callees with array params need per-variable check to distinguish
+      ' array args (get &) from scalar args (get value).
       IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
         IF INSTR(##funcHasArr$, "," + ##curCallFn$ + ",") = 0 THEN
+          ' Callee has no array params — all byref args are scalar, pass by value
+          IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
+            emit_expr$ = c_var_name$(varName$, "string")
+          ELSE
+            emit_expr$ = c_var_name$(varName$, "integer")
+          END IF
+          RETURN emit_expr$
+        END IF
+        ' Callee has array params — check if THIS variable is an array in scope
+        IF is_array_var_in_scope$(varName$) = "0" THEN
           IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
             emit_expr$ = c_var_name$(varName$, "string")
           ELSE
@@ -3478,6 +3494,47 @@ FUNCTION emit_expr$(e$)
   END IF
 
   emit_expr$ = "0"
+END FUNCTION
+
+' is_array_var_in_scope$ — returns "1" if nm$ is an array in the current scope.
+' Prioritizes scope-specific sets (##dynNames$, ##dynStr$, ##curFnArrays$,
+' ##arrParams$) over global sets. Global set hits are overridden by facet
+' arr1 data: if no facet arr1 entry for this scope, treat as scalar.
+FUNCTION is_array_var_in_scope$(nm$)
+  DIM _arr
+  _arr = 0
+  ' Scalar param of current function — definitely not an array in this scope.
+  ' Overrides scanner dyn detection from other scopes (RR-03 keeps scanner-only
+  ' detections with no facet entries, which can leak across scopes).
+  IF INSTR(CHR$(10) + ##curParams$ + CHR$(10), CHR$(10) + nm$ + CHR$(10)) > 0 THEN
+    IF INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
+      is_array_var_in_scope$ = "0"
+      RETURN is_array_var_in_scope$
+    END IF
+  END IF
+  ' Scope-specific sets: dynNames/dynStr (RR-03 filtered), curFnArrays, arrParams
+  IF INSTR(##dynNames$, ":" + nm$ + ":") > 0 THEN _arr = 1
+  IF INSTR(##dynStr$, ":" + nm$ + ":") > 0 THEN _arr = 1
+  IF INSTR(##curFnArrays$, ":" + nm$ + ":") > 0 THEN _arr = 1
+  IF INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0 THEN _arr = 1
+  IF _arr = 0 THEN
+    ' Global sets (sharedArrays, xstArrays, etc.) — needed for shared arrays
+    ' like xdis kinds that are not DIM'd in the current function but are
+    ' genuinely arrays. The ##funcHasArr$ gate in the caller ensures this
+    ' check only runs for callees with array params, preventing false
+    ' positives for shared arrays used as local scalars (e.g. xui grid).
+    IF INSTR(##sharedArrays$, ":" + nm$ + ":") > 0 THEN _arr = 1
+    IF INSTR(##allStrArr$, ":" + nm$ + ":") > 0 THEN _arr = 1
+    IF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 THEN _arr = 1
+    IF INSTR(##byrefDual$, ":" + nm$ + ":") > 0 THEN _arr = 1
+    IF INSTR(##strDual$, ":" + nm$ + ":") > 0 THEN _arr = 1
+    IF INSTR(##dualUse$, ":" + nm$ + ":") > 0 THEN _arr = 1
+  END IF
+  IF _arr = 0 THEN
+    is_array_var_in_scope$ = "0"
+  ELSE
+    is_array_var_in_scope$ = "1"
+  END IF
 END FUNCTION
 
 FUNCTION emit_args$(a$)
@@ -4400,7 +4457,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
             IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
               out$ = out$ + "    char** " + c_var_name$(nm$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
-          ELSEIF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 AND INSTR(##allStrArr$, ":" + nm$ + ":") = 0 AND INSTR(##dynNames$, ":" + nm$ + ":") = 0 AND ty$ <> "string" AND RIGHT$(nm$, 1) <> "$" THEN
+          ELSEIF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 AND INSTR(##allStrArr$, ":" + nm$ + ":") = 0 AND INSTR(##dynNames$, ":" + nm$ + ":") = 0 AND (LEN(##facetTab$) = 0 OR facet_has_entry$(##facetTab$, nm$, ##curHoistFn$) = 0 OR INSTR(facets_in_scope$(##facetTab$, ##curHoistFn$, "arr1"), ":" + nm$ + ":") > 0) AND ty$ <> "string" AND RIGHT$(nm$, 1) <> "$" THEN
             IF INSTR(out$, " xb_var_" + sanitize_ident$(nm$) + " = 0; intptr_t xb_ub_") = 0 THEN
               out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(nm$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
@@ -4500,7 +4557,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
             out$ = out$ + "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)
           END IF
         END IF
-      ELSEIF INSTR(##xstArrays$, ":" + entry$ + ":") > 0 AND INSTR(##dynNames$, ":" + entry$ + ":") = 0 AND INSTR(##allStrArr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 THEN
+      ELSEIF INSTR(##xstArrays$, ":" + entry$ + ":") > 0 AND INSTR(##dynNames$, ":" + entry$ + ":") = 0 AND (LEN(##facetTab$) = 0 OR facet_has_entry$(##facetTab$, entry$, ##curHoistFn$) = 0 OR INSTR(facets_in_scope$(##facetTab$, ##curHoistFn$, "arr1"), ":" + entry$ + ":") > 0) AND INSTR(##allStrArr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 THEN
         IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
           out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
         END IF
@@ -5487,6 +5544,16 @@ FUNCTION facets_in_scope$(tab$, sc$, field$)
             IF sp > 0 THEN
               val$ = MID$(rest$, sp + 6, 1)
               IF VAL(val$) >= 2 THEN
+                IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
+                  result$ = result$ + ":" + nm$ + ":"
+                END IF
+              END IF
+            END IF
+        ELSEIF field$ = "arr1" THEN
+            sp = INSTR(rest$, " rank=")
+            IF sp > 0 THEN
+              val$ = MID$(rest$, sp + 6, 1)
+              IF VAL(val$) >= 1 THEN
                 IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
                   result$ = result$ + ":" + nm$ + ":"
                 END IF
