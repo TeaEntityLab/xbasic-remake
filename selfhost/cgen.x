@@ -1299,6 +1299,13 @@ DIM _fdLine$
 DIM _fdTab1
 DIM _fdTab2
 DIM _fdRest$
+DIM _fdPos
+DIM _fdLe
+DIM _fdLn$
+DIM _fdCp
+DIM _fdNm$
+DIM _fdSp
+DIM _fdTy$
 WHILE LEN(fwdDeclsBuf$) > 0
   _fdTab1 = INSTR(fwdDeclsBuf$, CHR$(9))
   _fdTab2 = INSTR(fwdDeclsBuf$, CHR$(9), _fdTab1 + 1)
@@ -1324,6 +1331,35 @@ IF ##hadDecls$ = "1" THEN
 END IF
 
 ##dynNames$ = scan_dyn$(src$)
+' Facet-based dyn: add integer/float arrays with storage=dyn facet that
+' scan_dyn missed (e.g. GOSUB-label DIMs with constant size classified
+' as dyn by TextIrEmitter because goto-over-VLA is illegal in C).
+IF LEN(##facetTab$) > 0 THEN
+  _fdPos = 1
+  WHILE _fdPos <= LEN(##facetTab$)
+    _fdLe = INSTR(##facetTab$, CHR$(10), _fdPos)
+    IF _fdLe = 0 THEN
+      _fdLe = LEN(##facetTab$) + 1
+    END IF
+    _fdLn$ = trim_spaces$(MID$(##facetTab$, _fdPos, _fdLe - _fdPos))
+    _fdPos = _fdLe + 1
+    IF INSTR(_fdLn$, " storage=dyn") > 0 AND INSTR(_fdLn$, " rank=") > 0 AND INSTR(_fdLn$, " dual=0") > 0 THEN
+      _fdCp = INSTR(_fdLn$, ":")
+      IF _fdCp > 0 THEN
+        _fdNm$ = LEFT$(_fdLn$, _fdCp - 1)
+        _fdRest$ = MID$(_fdLn$, _fdCp + 1, LEN(_fdLn$) - _fdCp)
+        _fdSp = INSTR(_fdRest$, " ")
+        _fdTy$ = ""
+        IF _fdSp > 0 THEN
+          _fdTy$ = LEFT$(_fdRest$, _fdSp - 1)
+        END IF
+        IF (_fdTy$ = "integer" OR _fdTy$ = "float") AND INSTR(##dynNames$, ":" + _fdNm$ + ":") = 0 AND INSTR(_fdNm$, ".") = 0 AND INSTR(##sharedArrays$, ":" + _fdNm$ + ":") = 0 AND INSTR(##allStrArr$, ":" + _fdNm$ + ":") = 0 AND INSTR(##xstArrays$, ":" + _fdNm$ + ":") = 0 AND (INSTR(src$, "dim " + _fdNm$ + ":" + _fdTy$ + "[") > 0 OR INSTR(src$, "dim shared " + _fdNm$ + ":" + _fdTy$ + "[") > 0) THEN
+          ##dynNames$ = ##dynNames$ + ":" + _fdNm$ + ":" + _fdTy$ + ":"
+        END IF
+      END IF
+    END IF
+  WEND
+END IF
 ##byrefDual$ = scan_byref_dual$(src$)
 ##undimmed$ = scan_undimmed$(src$)
 ##dynStr$ = scan_dynstr$(src$)
@@ -2595,7 +2631,7 @@ FUNCTION emit_expr$(e$)
     END IF
     ' Shared scalar: declared as xb_shared_X at file scope, not c_var_name$.
     ' Shared arrays are excluded (they use c_var_name$ at file scope too).
-    IF INSTR(##sharedDecls$, ":" + varName$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
+    IF INSTR(##sharedDecls$, ":" + varName$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##sharedStrDual$, ":" + varName$ + ":") = 0 THEN
       emit_expr$ = "xb_shared_" + sanitize_ident$(varName$)
       RETURN emit_expr$
     END IF
@@ -4645,7 +4681,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
         ' (e.g., string→xb_str_X vs integer→xb_var_X) — hoist the other facet.
         ' Note: $-suffix names (asm$ vs asm) never collide because sanitize_ident$
         ' maps $ to _s, producing different C names (xb_str_asm_s vs xb_str_asm).
-        IF (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) AND (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0) OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1 OR (INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0)) THEN
+        IF (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) AND (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0) OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1 OR (INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0) OR (INSTR(##sharedStrDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0)) THEN
           IF INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
             IF (INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
               IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 THEN
