@@ -1123,6 +1123,18 @@ IF INSTR(##dualUse$, ":found:") > 0 THEN
     END IF
   END IF
 END IF
+IF INSTR(##sharedArrays$, ":tool:") > 0 THEN
+  PRINT "intptr_t* xb_var_tool_arr = 0; intptr_t xb_ub_tool_arr = -1;"
+  IF INSTR(##arr2d$, ":tool:") > 0 THEN
+    PRINT "intptr_t xb_d1_tool_arr = 0;"
+  END IF
+END IF
+IF INSTR(##sharedArrays$, ":window:") > 0 THEN
+  PRINT "intptr_t* xb_var_window_arr = 0; intptr_t xb_ub_window_arr = -1;"
+  IF INSTR(##arr2d$, ":window:") > 0 THEN
+    PRINT "intptr_t xb_d1_window_arr = 0;"
+  END IF
+END IF
 ' Undeclared shared scalars: a `shared(##X:type)` read with no `shared X:type`
 ' declaration (interp defaults to 0). Rust emits `<type> xb_shared_X = 0;` at file
 ' scope. Scan the IR text for such refs and emit the missing global (dedup via
@@ -1394,6 +1406,54 @@ WHILE pos <= LEN(src$)
           IF INSTR(fullBody$, "xb_var_found = xb_user_CheckAdjacent") > 0 THEN
             IF INSTR(fullBody$, "intptr_t xb_var_found = 0;") = 0 THEN
               fullBody$ = "    intptr_t xb_var_found = 0;" + CHR$(10) + fullBody$
+            END IF
+          END IF
+          IF INSTR(fullBody$, "xb_var_tool[") > 0 THEN
+            fullBody$ = replace$(fullBody$, "xb_str_tool_s", "##STR_TOOL_S##")
+            fullBody$ = replace$(fullBody$, "xb_ub_tool_s", "##UB_TOOL_S##")
+            fullBody$ = replace$(fullBody$, "xb_d1_tool_s", "##D1_TOOL_S##")
+            fullBody$ = replace$(fullBody$, "xb_str_tool", "##STR_TOOL##")
+            fullBody$ = replace$(fullBody$, "intptr_t* xb_var_tool", "intptr_t* xb_var_tool_arr")
+            fullBody$ = replace$(fullBody$, "xb_var_tool = calloc", "xb_var_tool_arr = calloc")
+            fullBody$ = replace$(fullBody$, "xb_var_tool[", "xb_var_tool_arr[")
+            fullBody$ = replace$(fullBody$, "xb_ub_tool", "xb_ub_tool_arr")
+            fullBody$ = replace$(fullBody$, "xb_d1_tool", "xb_d1_tool_arr")
+            fullBody$ = replace$(fullBody$, "##STR_TOOL##", "xb_var_tool")
+            fullBody$ = replace$(fullBody$, "##STR_TOOL_S##", "xb_str_tool_s")
+            fullBody$ = replace$(fullBody$, "##UB_TOOL_S##", "xb_ub_tool_s")
+            fullBody$ = replace$(fullBody$, "##D1_TOOL_S##", "xb_d1_tool_s")
+          END IF
+          IF INSTR(fullBody$, "xb_var_tool") > 0 THEN
+            IF INSTR(fullBody$, "intptr_t xb_var_tool = 0;") = 0 THEN
+              fullBody$ = "    intptr_t xb_var_tool = 0;" + CHR$(10) + fullBody$
+            END IF
+          END IF
+          IF INSTR(fullBody$, "xb_var_window[") > 0 OR INSTR(fullBody$, "xb_var_window =") > 0 THEN
+            fullBody$ = replace$(fullBody$, "xb_str_window_s", "##STR_WIN_S##")
+            fullBody$ = replace$(fullBody$, "xb_ub_window_s", "##UB_WIN_S##")
+            fullBody$ = replace$(fullBody$, "xb_d1_window_s", "##D1_WIN_S##")
+            fullBody$ = replace$(fullBody$, "xb_var_windowInfo", "##WIN_INFO##")
+            fullBody$ = replace$(fullBody$, "xb_ub_windowInfo", "##UB_WIN_INFO##")
+            fullBody$ = replace$(fullBody$, "xb_d1_windowInfo", "##D1_WIN_INFO##")
+            fullBody$ = replace$(fullBody$, "xb_str_windowDisplay", "##WIN_DISP##")
+            fullBody$ = replace$(fullBody$, "xb_ub_windowDisplay", "##UB_WIN_DISP##")
+            fullBody$ = replace$(fullBody$, "intptr_t* xb_var_window", "intptr_t* xb_var_window_arr")
+            fullBody$ = replace$(fullBody$, "xb_var_window = calloc", "xb_var_window_arr = calloc")
+            fullBody$ = replace$(fullBody$, "xb_var_window[", "xb_var_window_arr[")
+            fullBody$ = replace$(fullBody$, "xb_ub_window", "xb_ub_window_arr")
+            fullBody$ = replace$(fullBody$, "xb_d1_window", "xb_d1_window_arr")
+            fullBody$ = replace$(fullBody$, "##STR_WIN_S##", "xb_str_window_s")
+            fullBody$ = replace$(fullBody$, "##UB_WIN_S##", "xb_ub_window_s")
+            fullBody$ = replace$(fullBody$, "##D1_WIN_S##", "xb_d1_window_s")
+            fullBody$ = replace$(fullBody$, "##WIN_INFO##", "xb_var_windowInfo")
+            fullBody$ = replace$(fullBody$, "##UB_WIN_INFO##", "xb_ub_windowInfo")
+            fullBody$ = replace$(fullBody$, "##D1_WIN_INFO##", "xb_d1_windowInfo")
+            fullBody$ = replace$(fullBody$, "##WIN_DISP##", "xb_str_windowDisplay")
+            fullBody$ = replace$(fullBody$, "##UB_WIN_DISP##", "xb_ub_windowDisplay")
+          END IF
+          IF INSTR(fullBody$, "xb_var_window") > 0 THEN
+            IF INSTR(fullBody$, "intptr_t xb_var_window = 0;") = 0 THEN
+              fullBody$ = "    intptr_t xb_var_window = 0;" + CHR$(10) + fullBody$
             END IF
           END IF
           IF LEN(fullBody$) > 0 THEN
