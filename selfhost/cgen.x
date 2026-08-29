@@ -5316,9 +5316,10 @@ FUNCTION bd$(n$)
   ' the global decl (Rust `is_dual_use && !is_shared_array`).
   IF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
     bd$ = ""
-  ELSEIF n$ = "null" THEN
-    ' UBYTE null[] scratch arrays (xit clipboard) collide with scalar null hoists;
-    ' always the _arr facet.
+  ELSEIF n$ = "null" OR n$ = "window" OR n$ = "host_address" THEN
+    ' UBYTE null[] and SHARED window[] vs window index and xin host_address
+    ' GIANT need the dual _arr split even when scan_dual_use does not yet
+    ' see them as dual (they are shared vs local).
     bd$ = "_arr"
   ELSEIF INSTR(##strDual$, ":" + n$ + ":") > 0 OR INSTR(##dualUse$, ":" + n$ + ":") > 0 THEN
     bd$ = "_arr"
