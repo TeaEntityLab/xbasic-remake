@@ -1421,7 +1421,7 @@ WHILE pos <= LEN(src$)
               fullBody$ = "    intptr_t xb_var_found = 0;" + CHR$(10) + fullBody$
             END IF
           END IF
-          IF INSTR(fullBody$, "xb_var_tool[") > 0 THEN
+          IF INSTR(fullBody$, "xb_var_tool[") > 0 OR INSTR(fullBody$, "xb_var_tool = calloc") > 0 THEN
             fullBody$ = replace$(fullBody$, "xb_str_tool_s", "##STR_TOOL_S##")
             fullBody$ = replace$(fullBody$, "xb_ub_tool_s", "##UB_TOOL_S##")
             fullBody$ = replace$(fullBody$, "xb_d1_tool_s", "##D1_TOOL_S##")
@@ -3414,6 +3414,14 @@ FUNCTION emit_expr$(e$)
         varName$ = LEFT$(t$, colonPos - 1)
       ELSE
         varName$ = t$
+      END IF
+      ' Mixed-function check: if callee has mixed byref/byval calls,
+      ' emit value directly (no &) to match Rust CEmitter.
+      IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
+        IF INSTR(##funcHasArr$, "," + ##curCallFn$ + ",") = 0 THEN
+          emit_expr$ = "xb_shared_" + sanitize_ident$(varName$)
+          RETURN emit_expr$
+        END IF
       END IF
       emit_expr$ = "&xb_shared_" + sanitize_ident$(varName$)
       RETURN emit_expr$
