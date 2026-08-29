@@ -728,6 +728,8 @@ END IF
 ##nestFns$ = ""
 ##selectExitStack$ = ""
 ##facetTab$ = ""
+##facetDynAll$ = ""
+##scanDynAll$ = ""
 facetPos = 1
 WHILE facetPos <= LEN(src$)
   facetE = INSTR(src$, CHR$(10), facetPos)
@@ -804,6 +806,8 @@ IF LEN(##facetTab$) > 0 THEN
   ##dynNames$ = fDyn$
   ##dualUse$ = fDual$
   ##arr2d$ = fArr2d$
+  ' RR-03: store full (all-scope) facet-derived dyn set for per-function filtering.
+  ##facetDynAll$ = fDyn$
 END IF
 ' CG-BYTES: string arrays whose UBOUND is read (array_ubound(X:string))
 ' are dual-use in the Rust CEmitter (the string UBOUND notes a scalar
@@ -1240,6 +1244,8 @@ END IF
 ##strDual$ = replace$(##strDual$, "::", ":")
 ##dualUse$ = scan_dual_use$(src$)
 ##arr2d$ = scan_arr2d$(src$)
+' RR-03: save scanner-derived global dyn set for per-function filtering.
+##scanDynAll$ = ##dynNames$
 hasMain = 0
 inFunc = 0
 inNest = 0
@@ -1342,6 +1348,13 @@ WHILE pos <= LEN(src$)
           ##arrParams$ = arr_param_names$(params$)
           ##curParams$ = param_names$(params$)
           ##curFnName$ = funcName$
+          ' RR-03: scope-qualified facet filtering. Filter dynNames to
+          ' remove names that are dyn in OTHER scopes but not THIS scope.
+          ' dualUse/arr2d stay scanner-derived (facet dual classifier is
+          ' incomplete for string UBOUND patterns).
+          IF LEN(##facetTab$) > 0 THEN
+            ##dynNames$ = filter_dyn_scope$(##scanDynAll$, ##facetDynAll$, facets_in_scope$(##facetTab$, funcName$, "dyn"), ##facetTab$, funcName$)
+          END IF
           IF LEN(trim_spaces$(params$)) = 0 THEN
             PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(void) {"
           ELSE
@@ -1378,9 +1391,9 @@ WHILE pos <= LEN(src$)
         inFunc = 0
         ##inFuncScope = 0
         ##curFnShapes$ = ""
+        ' RR-03: restore happens after function body emission (below).
         IF skipFunc = 0 THEN
           hoists$ = emit_hoists$(usedSyms$, dimmedSyms$)
-          ' CG-BYTES: the return-value variable is declared only when the
           ' body actually assigns the function name; otherwise the function
           ' returns the type default directly (matching the Rust CEmitter).
           ' Any reference (the self-DIM is suppressed, so reads of the
@@ -1465,6 +1478,10 @@ WHILE pos <= LEN(src$)
           PRINT retStmt$
           PRINT "}"
           PRINT ""
+        END IF
+        ' RR-03: restore scanner-derived dynNames after function body emission.
+        IF LEN(##facetTab$) > 0 THEN
+          ##dynNames$ = ##scanDynAll$
         END IF
         skipFunc = 0
         nestBlocks$ = ""
@@ -5394,6 +5411,177 @@ FUNCTION arr_acc_name$(n$, t$)
   arr_acc_name$ = c_var_name$(n$, t$) + bd$(n$)
 END FUNCTION
 
+' RR-03: Scope-qualified facet lookup. Returns ":name:name:..." for facets
+' matching scope sc$ (or "*" scope) and the requested field.
+' field$ = "dyn" (storage=dyn), "dual" (dual=1), "arr2d" (rank>=2).
+' When ##facetTab$ is empty, returns "" (caller falls back to scanners).
+FUNCTION facets_in_scope$(tab$, sc$, field$)
+  DIM result$
+  DIM pos
+  DIM le
+  DIM line$
+  DIM cp
+  DIM nm$
+  DIM rest$
+  DIM sp
+  DIM scope$
+  DIM spEnd
+  DIM val$
+  result$ = ""
+  pos = 1
+  WHILE pos <= LEN(tab$)
+    le = INSTR(tab$, CHR$(10), pos)
+    IF le = 0 THEN
+      le = LEN(tab$) + 1
+    END IF
+    line$ = trim_spaces$(MID$(tab$, pos, le - pos))
+    pos = le + 1
+    IF LEN(line$) > 0 THEN
+      cp = INSTR(line$, ":")
+      IF cp > 0 THEN
+        nm$ = LEFT$(line$, cp - 1)
+        rest$ = MID$(line$, cp + 1, LEN(line$) - cp)
+        ' Parse scope
+        sp = INSTR(rest$, " scope=")
+        IF sp > 0 THEN
+          scope$ = MID$(rest$, sp + 7, LEN(rest$) - sp - 6)
+          spEnd = INSTR(scope$, " ")
+          IF spEnd > 0 THEN
+            scope$ = LEFT$(scope$, spEnd - 1)
+          END IF
+        ELSE
+          scope$ = "*"
+        END IF
+        ' Check scope match (current function or module-shared *)
+        IF scope$ = sc$ OR scope$ = "*" THEN
+          IF field$ = "dyn" THEN
+            sp = INSTR(rest$, " storage=")
+            IF sp > 0 THEN
+              val$ = MID$(rest$, sp + 9, 3)
+              IF val$ = "dyn" THEN
+                IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
+                  result$ = result$ + ":" + nm$ + ":"
+                END IF
+              END IF
+            END IF
+          ELSEIF field$ = "dual" THEN
+            sp = INSTR(rest$, " dual=")
+            IF sp > 0 THEN
+              val$ = MID$(rest$, sp + 6, 1)
+              IF val$ = "1" THEN
+                IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
+                  result$ = result$ + ":" + nm$ + ":"
+                END IF
+              END IF
+            END IF
+          ELSEIF field$ = "arr2d" THEN
+            sp = INSTR(rest$, " rank=")
+            IF sp > 0 THEN
+              val$ = MID$(rest$, sp + 6, 1)
+              IF VAL(val$) >= 2 THEN
+                IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
+                  result$ = result$ + ":" + nm$ + ":"
+                END IF
+              END IF
+            END IF
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  facets_in_scope$ = result$
+END FUNCTION
+' RR-03: filter_dyn_scope$ — like filter_scope$ but handles :name:type: format.
+' scanAll$ is :name:type:name:type:... (from scan_dyn$)
+' facetAll$ and facetThis$ are :name: format (from facet consumption)
+' Returns :name:type: entries from scanAll$ where name is scanner-only
+' (not in facetAll$) OR facet-confirmed for this scope (in facetThis$).
+FUNCTION filter_dyn_scope$(scanAll$, facetAll$, facetThis$, tab$, scope$)
+  DIM result$
+  DIM pos
+  DIM le
+  DIM name$
+  DIM typeStart
+  DIM typeEnd
+  DIM type$
+  result$ = ""
+  pos = 1
+  WHILE pos <= LEN(scanAll$)
+    le = INSTR(scanAll$, ":", pos + 1)
+    IF le = 0 THEN
+      le = LEN(scanAll$) + 1
+    END IF
+    name$ = MID$(scanAll$, pos + 1, le - pos - 1)
+    typeStart = le + 1
+    typeEnd = INSTR(scanAll$, ":", typeStart)
+    IF typeEnd = 0 THEN
+      typeEnd = LEN(scanAll$) + 1
+    END IF
+    type$ = MID$(scanAll$, typeStart, typeEnd - typeStart)
+    IF LEN(name$) > 0 THEN
+      IF INSTR(facetAll$, ":" + name$ + ":") = 0 THEN
+        ' Scanner-only detection (not in any facet) → keep
+        result$ = result$ + ":" + name$ + ":" + type$ + ":"
+      ELSEIF INSTR(facetThis$, ":" + name$ + ":") > 0 THEN
+        ' Facet confirms dyn in this scope → keep
+        result$ = result$ + ":" + name$ + ":" + type$ + ":"
+      ELSEIF facet_has_entry$(tab$, name$, scope$) = 0 THEN
+        ' No facet entry at all for this scope → safe to remove (scope leak)
+        ' (don't add to result = removed)
+      ELSE
+        ' Has a facet entry (e.g. storage=fixed) in this scope → keep
+        ' to avoid fixed-array/scalar declaration conflict
+        result$ = result$ + ":" + name$ + ":" + type$ + ":"
+      END IF
+    END IF
+    pos = typeEnd + 1
+  WEND
+  filter_dyn_scope$ = result$
+END FUNCTION
+' RR-03: facet_has_entry$ — returns "1" if any facet entry exists for name$
+' in scope scope$ (or "*" scope), "0" otherwise.
+FUNCTION facet_has_entry$(tab$, name$, scope$)
+  DIM pos
+  DIM le
+  DIM line$
+  DIM cp
+  DIM fname$
+  DIM rest$
+  DIM sp
+  DIM fscope$
+  DIM spEnd
+  pos = 1
+  WHILE pos <= LEN(tab$)
+    le = INSTR(tab$, CHR$(10), pos)
+    IF le = 0 THEN
+      le = LEN(tab$) + 1
+    END IF
+    line$ = trim_spaces$(MID$(tab$, pos, le - pos))
+    pos = le + 1
+    cp = INSTR(line$, ":")
+    IF cp > 0 THEN
+      fname$ = LEFT$(line$, cp - 1)
+      IF fname$ = name$ THEN
+        rest$ = MID$(line$, cp + 1, LEN(line$) - cp)
+        sp = INSTR(rest$, " scope=")
+        IF sp > 0 THEN
+          fscope$ = MID$(rest$, sp + 7, LEN(rest$) - sp - 6)
+          spEnd = INSTR(fscope$, " ")
+          IF spEnd > 0 THEN
+            fscope$ = LEFT$(fscope$, spEnd - 1)
+          END IF
+        ELSE
+          fscope$ = "*"
+        END IF
+        IF fscope$ = scope$ OR fscope$ = "*" THEN
+          facet_has_entry$ = "1"
+          RETURN facet_has_entry$
+        END IF
+      END IF
+    END IF
+  WEND
+  facet_has_entry$ = "0"
+END FUNCTION
 FUNCTION bd$(n$)
   ' of the current function (##arrParams$) — otherwise a local array in another
   ' function with the same name as a byref-dual param gets wrongly suffixed.

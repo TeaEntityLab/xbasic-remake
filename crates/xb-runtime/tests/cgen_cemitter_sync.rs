@@ -416,7 +416,7 @@ fn cgen_x_compiles_core_libs_floor_9_cc_clean() {
                 continue;
             }
         };
-        let ir = TextIrEmitter::new().emit_program(&prog);
+        let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
         let raw_c = {
             let mut child = Command::new(common::exe_path(&cgen_exe))
                 .stdin(Stdio::piped())
