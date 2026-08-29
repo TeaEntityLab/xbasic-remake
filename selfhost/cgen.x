@@ -710,7 +710,7 @@ END IF
 ##fwdScalars$ = ""
 ##curFnArrays$ = ""
 ##curFnShapes$ = ""
-##curParams$ = ""
+##curParamTypes$ = ""
 ##arrParams$ = ""
 ##funcMixed$ = ","
 ##funcHasArr$ = ","
@@ -1348,6 +1348,7 @@ WHILE pos <= LEN(src$)
           retType$ = MID$(afterParen$, closeParen + 5, LEN(afterParen$) - closeParen - 4)
           ##arrParams$ = arr_param_names$(params$)
           ##curParams$ = param_names$(params$)
+          ##curParamTypes$ = param_types$(params$)
           ##curFnName$ = funcName$
           ' RR-03: scope-qualified facet filtering. Filter dynNames to
           ' remove names that are dyn in OTHER scopes but not THIS scope.
@@ -1466,8 +1467,8 @@ WHILE pos <= LEN(src$)
             fullBody$ = replace$(fullBody$, "##WIN_DISP##", "xb_str_windowDisplay")
             fullBody$ = replace$(fullBody$, "##UB_WIN_DISP##", "xb_ub_windowDisplay")
           END IF
-          IF INSTR(fullBody$, "xb_var_window") > 0 THEN
-            IF INSTR(fullBody$, "intptr_t xb_var_window = 0;") = 0 THEN
+          IF INSTR(fullBody$, "xb_var_window") > 0 AND INSTR(CHR$(10) + ##curParams$ + CHR$(10), CHR$(10) + "window" + CHR$(10)) = 0 THEN
+            IF INSTR(fullBody$, "intptr_t xb_var_window = 0;") = 0 AND INSTR(fullBody$, "intptr_t* xb_var_window") = 0 THEN
               fullBody$ = "    intptr_t xb_var_window = 0;" + CHR$(10) + fullBody$
             END IF
           END IF
@@ -4260,6 +4261,54 @@ FUNCTION param_names$(p$)
   WEND
   param_names$ = out$
 END FUNCTION
+' Extract name:type pairs from a raw IR param list.
+' Returns newline-delimited "name:type" entries.
+FUNCTION param_types$(p$)
+  DIM out$
+  DIM rest$
+  DIM cm
+  DIM one$
+  DIM cp
+  DIM nm$
+  DIM ty$
+  out$ = ""
+  rest$ = p$
+  WHILE LEN(rest$) > 0
+    cm = INSTR(rest$, ",")
+    IF cm > 0 THEN
+      one$ = LEFT$(rest$, cm - 1)
+      rest$ = MID$(rest$, cm + 1, LEN(rest$) - cm)
+    ELSE
+      one$ = rest$
+      rest$ = ""
+    END IF
+    one$ = trim_spaces$(one$)
+    IF LEFT$(one$, 1) = "@" THEN
+      one$ = MID$(one$, 2, LEN(one$) - 1)
+    END IF
+    cp = INSTR(one$, ":")
+    IF cp > 0 THEN
+      nm$ = LEFT$(one$, cp - 1)
+      ty$ = MID$(one$, cp + 1, LEN(one$) - cp)
+    ELSE
+      nm$ = one$
+      ty$ = "integer"
+    END IF
+    cp = INSTR(ty$, "[")
+    IF cp > 0 THEN
+      ty$ = LEFT$(ty$, cp - 1)
+    END IF
+    cp = INSTR(nm$, "[")
+    IF cp > 0 THEN
+      nm$ = LEFT$(nm$, cp - 1)
+    END IF
+    nm$ = trim_spaces$(nm$)
+    IF LEN(nm$) > 0 THEN
+      out$ = out$ + nm$ + ":" + ty$ + CHR$(10)
+    END IF
+  WEND
+  param_types$ = out$
+END FUNCTION
 ' Extract names of ARRAY parameters (type contains []) from a raw IR param list.
 ' Returns newline-delimited names, matching param_names$ format.
 FUNCTION arr_param_names$(p$)
@@ -4440,6 +4489,46 @@ FUNCTION emit_hoists$(used$, dimmed$)
         ' so _strFacet stays 0 and the dimmed check blocks the redeclaration.
         DIM _strFacet
         _strFacet = 0
+        DIM _typeMismatch
+        _typeMismatch = 0
+        ' If nm$ is a parameter whose type differs from ty$, the C variable
+        ' names differ (xb_str_X vs xb_var_X) and the param's dimmed$ entry
+        ' should NOT block hoisting the other-typed facet. But if ANY param
+        ' entry for nm$ matches ty$, the param already declares this C
+        ' variable and we must NOT hoist (would redeclare).
+        DIM _ptMatch
+        _ptMatch = 0
+        DIM _ptRest$
+        DIM _ptType$
+        _ptType$ = ""
+        _ptRest$ = CHR$(10) + ##curParamTypes$
+        WHILE INSTR(_ptRest$, CHR$(10) + nm$ + ":") > 0
+          DIM _ptPos
+          _ptPos = INSTR(_ptRest$, CHR$(10) + nm$ + ":")
+          DIM _ptLine$
+          _ptLine$ = MID$(_ptRest$, _ptPos + 1, LEN(_ptRest$) - _ptPos)
+          DIM _ptNl
+          _ptNl = INSTR(_ptLine$, CHR$(10))
+          IF _ptNl > 0 THEN
+            _ptLine$ = LEFT$(_ptLine$, _ptNl - 1)
+          END IF
+          DIM _ptColon
+          _ptColon = INSTR(_ptLine$, ":")
+            _ptType$ = MID$(_ptLine$, _ptColon + 1, LEN(_ptLine$) - _ptColon)
+            IF _ptType$ = ty$ THEN
+              _ptMatch = 1
+            END IF
+          END IF
+          _ptRest$ = MID$(_ptRest$, _ptPos + LEN(nm$) + 2, LEN(_ptRest$) - _ptPos - LEN(nm$) - 1)
+        WEND
+        IF _ptMatch = 0 AND INSTR(CHR$(10) + ##curParamTypes$, CHR$(10) + nm$ + ":") > 0 THEN
+          ' Only bypass if the C variable names actually differ (e.g., string
+          ' vs integer → xb_str_X vs xb_var_X). Integer/float map to the same
+          ' xb_var_X name and must NOT bypass (would redeclare with wrong type).
+          IF c_var_name$(nm$, ty$) <> c_var_name$(nm$, _ptType$) THEN
+            _typeMismatch = 1
+          END IF
+        END IF
         IF ty$ = "string" AND RIGHT$(nm$, 1) <> "$" AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
           IF INSTR(##sharedArrays$, ":" + nm$ + ":") > 0 THEN
             _strFacet = 1
@@ -4447,7 +4536,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
             _strFacet = 1
           END IF
         END IF
-        IF (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1) THEN
+        IF (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1) THEN
           IF INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
             IF (INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
               IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 THEN
