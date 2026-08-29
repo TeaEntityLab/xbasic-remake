@@ -713,6 +713,7 @@ END IF
 ##curFnShapes$ = ""
 ##curParamTypes$ = ""
 ##arrParams$ = ""
+##qsIdxNames$ = ""
 ##funcMixed$ = ","
 ##funcHasArr$ = ","
 ##curCallFn$ = ""
@@ -1504,6 +1505,7 @@ WHILE pos <= LEN(src$)
           ##seenLabels$ = ""
           ##fwdScalars$ = ""
           ##curFnArrays$ = fn_array_dims$(src$, pos)
+          ##qsIdxNames$ = ""
           ##curFnShapes$ = fn_array_shapes$(src$, pos)
           ##inFuncScope = 1
           nestBlocks$ = ""
@@ -4730,6 +4732,9 @@ FUNCTION emit_hoists$(used$, dimmed$)
             IF INSTR(out$, " " + c_var_name$(nm$, ty$) + " = ") = 0 THEN
               out$ = out$ + "    " + c_type$(ty$) + " " + c_var_name$(nm$, ty$) + " = " + c_default$(ty$) + ";" + CHR$(10)
             END IF
+            IF INSTR(##dualUse$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 AND INSTR(out$, "xb_var_" + sanitize_ident$(nm$) + "_arr") = 0 THEN
+              out$ = out$ + "    " + c_type$(ty$) + "* xb_var_" + sanitize_ident$(nm$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + "_arr = -1;" + CHR$(10)
+            END IF
           END IF
         END IF
       END IF
@@ -4806,11 +4811,11 @@ FUNCTION emit_hoists$(used$, dimmed$)
           _dt$ = dyn_type$(entry$)
           IF INSTR(out$, "    " + c_type$(_dt$) + " xb_var_" + sanitize_ident$(entry$) + " = " + c_default$(_dt$) + ";" + CHR$(10)) = 0 THEN
             IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
-              IF INSTR(out$, c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0;") = 0 THEN
+              IF INSTR(out$, "xb_var_" + sanitize_ident$(entry$) + "_arr") = 0 THEN
                 out$ = out$ + "    " + c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
               END IF
             ELSEIF INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
-              IF INSTR(out$, c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0;") = 0 THEN
+              IF INSTR(out$, "xb_var_" + sanitize_ident$(entry$) + "_arr") = 0 THEN
                 out$ = out$ + "    " + c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0;" + CHR$(10)
               END IF
               IF INSTR(out$, "intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;") = 0 THEN
@@ -4869,6 +4874,38 @@ FUNCTION emit_hoists$(used$, dimmed$)
     ELSE
       out$ = out$ + "    intptr_t xb_var_host_address = 0;" + CHR$(10)
     END IF
+  END IF
+  ' XstQuickSort/XstCopyArray index variables: the handler emits xb_var_X_arr
+  ' via arr_acc_name$ but doesn't go through emit_expr$ (so add_sym$ is never
+  ' called and the variable is not in used$). Emit _arr pointer + UBOUND for
+  ' ##dualUse$ variables in ##qsIdxNames$ that are not already declared.
+  IF LEN(##qsIdxNames$) > 0 THEN
+    DIM _qiRest$
+    DIM _qiEntry$
+    DIM _qiNl
+    DIM _qiColon
+    DIM _qiNm$
+    DIM _qiTy$
+    _qiRest$ = ##qsIdxNames$
+    WHILE LEN(_qiRest$) > 0
+      _qiColon = INSTR(_qiRest$, ":", 2)
+      IF _qiColon > 0 THEN
+        _qiNm$ = MID$(_qiRest$, 2, _qiColon - 2)
+        _qiRest$ = MID$(_qiRest$, _qiColon + 1, LEN(_qiRest$) - _qiColon)
+      ELSE
+        _qiRest$ = ""
+      END IF
+      _qiColon = INSTR(_qiRest$, ":", 2)
+      IF _qiColon > 0 THEN
+        _qiTy$ = MID$(_qiRest$, 2, _qiColon - 2)
+        _qiRest$ = MID$(_qiRest$, _qiColon + 1, LEN(_qiRest$) - _qiColon)
+      ELSE
+        _qiRest$ = ""
+      END IF
+      IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + _qiNm$ + CHR$(10)) = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + _qiNm$ + CHR$(10)) = 0 AND INSTR(out$, "xb_var_" + sanitize_ident$(_qiNm$) + "_arr") = 0 THEN
+        out$ = out$ + "    " + c_type$(_qiTy$) + "* xb_var_" + sanitize_ident$(_qiNm$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(_qiNm$) + "_arr = -1;" + CHR$(10)
+      END IF
+    WEND
   END IF
   emit_hoists$ = out$
 END FUNCTION
@@ -6646,8 +6683,6 @@ FUNCTION computed_goto_prologue$(body$)
 END FUNCTION
 
 FUNCTION emit_stmt$(s$)
-  DIM rest$
-  DIM spacePos
   DIM varName$
   DIM varType$
   DIM colonPos
@@ -7389,10 +7424,14 @@ FUNCTION emit_stmt$(s$)
         DIM xsIdxUb$
         xsLen0$ = "(" + ub_ref$(xsN0$, xsT0$) + " + 1)"
         xsIdxData$ = arr_acc_name$(xsN1$, xsT1$)
+        IF INSTR(##qsIdxNames$, ":" + xsN1$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN1$ + ":" + xsT1$ + ":"
         IF INSTR(xsIdxData$, "xb_str_") = 0 AND INSTR(xsIdxData$, "_arr") = 0 THEN
-          xsIdxData$ = "xb_var_" + sanitize_ident$(xsN1$)
+          xsIdxData$ = "xb_var_" + sanitize_ident$(xsN1$) + "_arr"
         END IF
         xsIdxUb$ = ub_ref$(xsN1$, xsT1$)
+        IF INSTR(xsIdxUb$, "_arr") = 0 THEN
+          xsIdxUb$ = "xb_ub_" + sanitize_ident$(xsN1$) + "_arr"
+        END IF
         emit_stmt$ = "    xb_quicksort((void*)" + arr_acc_name$(xsN0$, xsT0$) + ", " + xsEt0$ + ", " + xsLen0$ + ", (intptr_t**)&" + xsIdxData$ + ", (intptr_t*)&" + xsIdxUb$ + ", (intptr_t)(" + emit_expr$(xsArgs$[2]) + "), (intptr_t)(" + emit_expr$(xsArgs$[3]) + "), (intptr_t)(" + emit_expr$(xsArgs$[4]) + "));"
         RETURN emit_stmt$
       END IF
@@ -7403,9 +7442,12 @@ FUNCTION emit_stmt$(s$)
         xsSrcLen$ = "(" + ub_ref$(xsN0$, xsT0$) + " + 1)"
         xsDstData$ = arr_acc_name$(xsN1$, xsT1$)
         IF INSTR(xsDstData$, "xb_str_") = 0 AND INSTR(xsDstData$, "_arr") = 0 THEN
-          xsDstData$ = "xb_var_" + sanitize_ident$(xsN1$)
+          xsDstData$ = "xb_var_" + sanitize_ident$(xsN1$) + "_arr"
         END IF
         xsDstUb$ = ub_ref$(xsN1$, xsT1$)
+        IF INSTR(xsDstUb$, "_arr") = 0 THEN
+          xsDstUb$ = "xb_ub_" + sanitize_ident$(xsN1$) + "_arr"
+        END IF
         emit_stmt$ = "    xb_copyarray((void*)" + arr_acc_name$(xsN0$, xsT0$) + ", " + xsSrcLen$ + ", " + xsEt0$ + ", (void**)&" + xsDstData$ + ", &" + xsDstUb$ + ");"
         RETURN emit_stmt$
       END IF
