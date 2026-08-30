@@ -2131,6 +2131,14 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     out.push_str("    return 0;\n");
     out.push_str("}\n");
 }
+/// Escape a string for safe embedding in a C double-quoted string literal.
+fn c_escape(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\t', "\\t")
+        .replace('\r', "\\r")
+}
 
 fn emit_data_init(program: &IrProgram, out: &mut String) {
     for (tag, val) in &program.data_values {
@@ -2138,13 +2146,7 @@ fn emit_data_init(program: &IrProgram, out: &mut String) {
             "int" => out.push_str(&format!("    xb_data_add_int({val});\n")),
             "float" => out.push_str(&format!("    xb_data_add_float({val});\n")),
             _ => {
-                let escaped = val
-                    .replace('\\', "\\\\")
-                    .replace('"', "\\\"")
-                    .replace('\n', "\\n")
-                    .replace('\t', "\\t")
-                    .replace('\r', "\\r");
-                out.push_str(&format!("    xb_data_add_str(\"{escaped}\");\n"));
+                out.push_str(&format!("    xb_data_add_str(\"{}\");\n", c_escape(val)));
             }
         }
     }
@@ -2162,7 +2164,10 @@ fn emit_version_global(program: &IrProgram, out: &mut String) {
             }
         })
         .unwrap_or("");
-    out.push_str(&format!("static const char* xb_version_str = \"{ver}\";\n"));
+    out.push_str(&format!(
+        "static const char* xb_version_str = \"{}\";\n",
+        c_escape(ver)
+    ));
 }
 
 fn emit_program_name_global(program: &IrProgram, out: &mut String) {
@@ -2178,7 +2183,8 @@ fn emit_program_name_global(program: &IrProgram, out: &mut String) {
         })
         .unwrap_or("");
     out.push_str(&format!(
-        "static const char* xb_program_name_str = \"{name}\";\n"
+        "static const char* xb_program_name_str = \"{}\";\n",
+        c_escape(name)
     ));
 }
 
