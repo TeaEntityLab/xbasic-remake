@@ -57,8 +57,13 @@ mod platform {
     use std::process::Command;
 
     pub fn linker_command(request: &LinkRequest) -> Command {
-        let mut cmd = Command::new("link.exe");
-        cmd.arg(format!("/OUT:{}", request.output().display()));
+        let cc = std::env::var("CC").unwrap_or_else(|_| "link.exe".to_string());
+        let mut cmd = Command::new(cc);
+        if std::env::var("CC").is_ok() {
+            cmd.arg("-o").arg(request.output());
+        } else {
+            cmd.arg(format!("/OUT:{}", request.output().display()));
+        }
         for object in request.objects() {
             cmd.arg(object);
         }

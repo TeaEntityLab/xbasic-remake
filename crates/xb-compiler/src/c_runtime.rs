@@ -867,7 +867,7 @@ pub(crate) fn emit_copyarray_runtime(out: &mut String) {
 pub(crate) fn emit_gui_runtime(out: &mut String) {
     out.push_str("static int xb_gui_close_sent = 0;\n");
     out.push_str("static int xb_gui_next_callback(intptr_t* grid, char** msg) {\n");
-    out.push_str("    if (!xb_gui_close_sent) { xb_gui_close_sent = 1; *grid = 1; *msg = xb_from_cstr(\"CloseWindow\"); return -1; }\n");
+    out.push_str("    if (!xb_gui_close_sent) { xb_gui_close_sent = 1; if (grid) *grid = 1; if (msg) *msg = xb_from_cstr(\"CloseWindow\"); return -1; }\n");
     out.push_str("    return 0;\n");
     out.push_str("}\n");
 }

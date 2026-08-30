@@ -1009,7 +1009,7 @@ END IF
 IF INSTR(src$, "XuiGetNextCallback") > 0 THEN
   PRINT "static int xb_gui_close_sent = 0;"
   PRINT "static int xb_gui_next_callback(intptr_t* grid, char** msg) {"
-  PRINT "    if (!xb_gui_close_sent) { xb_gui_close_sent = 1; *grid = 1; *msg = xb_from_cstr(" + CHR$(34) + "CloseWindow" + CHR$(34) + "); return -1; }"
+  PRINT "    if (!xb_gui_close_sent) { xb_gui_close_sent = 1; if (grid) *grid = 1; if (msg) *msg = xb_from_cstr(" + CHR$(34) + "CloseWindow" + CHR$(34) + "); return -1; }"
   PRINT "    return 0;"
   PRINT "}"
   PRINT ""
