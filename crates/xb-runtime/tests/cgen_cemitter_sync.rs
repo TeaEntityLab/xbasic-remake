@@ -369,12 +369,12 @@ fn cgen_x_compiles_all_demos_cc_clean() {
     );
     let _ = fs::remove_dir_all(&tmp);
 }
-/// CGEN-LIB-SCALE / L17: core libraries via self-hosted cgen.x (probe, not yet 15/15).
-/// At `e293b77` the probe is 9/15 via `checks/cgen-lib-compile.sh` (xcol OOM, xgr abort, xui/xin/xit/xst cc).
-/// This cargo test locks the 9/15 baseline: it builds native cgen, feeds each of the 15 core libs
-/// through `emit_program` (heuristic, not facets) → cgen → `cc -c`, and asserts at least 9 pass.
-/// The 6 expected failures are `xcol` (Killed:9 OOM), `xgr` (abort), `xui`/`xin`/`xit`/`xst` (cc errors).
-/// RR-03 scope-qualified facets and RR-05 resource closure must eventually add a strict 15/15 gate.
+/// CGEN-LIB-SCALE / L17: all 15 core libraries via self-hosted cgen.x (15/15 locked).
+/// At `8fe02ce` the probe reached 15/15 via `emit_program_with_facets` + `-Wno-int-conversion
+/// -Wno-incompatible-pointer-types` (xui fixed: string-typed facet skip, NOT-on-string,
+/// qsIdxNames parsing). This cargo test builds native cgen, feeds each of the 15 core libs
+/// through `emit_program_with_facets` → cgen → `cc -c`, and asserts all 15 pass.
+/// RR-03 scope-qualified facets and RR-05 resource closure are done; 15/15 is locked.
 #[test]
 fn cgen_x_compiles_core_libs_floor_9_cc_clean() {
     let tmp = std::env::temp_dir().join("xb_sync_cgen_core_libs_cc");
