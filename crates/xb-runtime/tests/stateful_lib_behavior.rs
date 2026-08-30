@@ -212,6 +212,13 @@ intptr_t xb_user_XstSetSystemError(intptr_t xb_var_sysError);
 /* XstMatchWild: pure function — wildcard pattern matching.
    Returns match position (1-based) or 0 for no match. */
 intptr_t xb_user_XstMatchWild(char* xb_str_searchMe, char* xb_str_searchFor, intptr_t xb_var_start, intptr_t xb_var_matchCase);
+/* XstGetOSVersion: byref int+int (DECLARE @major,@minor). version=0x0400,
+   major=extu(0x0400,8,8)=4, minor=extu(0x0400,8,0)=0. */
+void xb_user_XstGetOSVersion(intptr_t *xb_var_major_ref, intptr_t *xb_var_minor_ref);
+/* XstGetPrintTab: byref int (DECLARE @pixels). Reads ##TABSAT (init 0). */
+void xb_user_XstGetPrintTab(intptr_t *xb_var_pixels_ref);
+/* XstGetSystemError: byref int (DECLARE @sysError). Reads xb_geterrno(). */
+void xb_user_XstGetSystemError(intptr_t *xb_var_error_ref);
 /* XstGetNewline: byref int+int — reads sysSaveNewline/sysPasteNewline SHARED.
    Never called inside xst.x; DECLARE @ markers mark save,paste as byref.
    With ##WHOMASK=0, reads sys* vars; if 0, returns $$NewlineDefault=1. */
@@ -581,6 +588,14 @@ int main(void) {
        impl in harness overrides weak stub). Verify via xb_user_xb_geterrno. */
     xb_user_XstSetSystemError(42);
     check_i("XstSetSystemError(42)", xb_user_xb_geterrno(), 42);
+    /* XstGetOSVersion: byref int+int (DECLARE @major,@minor).
+       version=0x0400 → major=4, minor=0. */
+    { intptr_t major=-1, minor=-1; xb_user_XstGetOSVersion(&major, &minor); check_i("XstGetOSVersion(major)", major, 4); check_i("XstGetOSVersion(minor)", minor, 0); }
+    /* XstGetPrintTab: byref int (DECLARE @pixels). ##TABSAT init 0. */
+    { intptr_t pixels=-1; xb_user_XstGetPrintTab(&pixels); check_i("XstGetPrintTab", pixels, 0); }
+    /* XstGetSystemError: byref int (DECLARE @sysError). Reads xb_geterrno().
+       After XstSetSystemError(42), errno should be 42. */
+    { intptr_t err=-1; xb_user_XstGetSystemError(&err); check_i("XstGetSystemError", err, 42); }
     /* XstSetProgramName: byref string (DECLARE @program$). ##WHOMASK=0 → sys path.
        Writes xb_strdup(prog$) to xb_shared_sysProgram. */
     { char* prog = xb_str("MyApp"); xb_user_XstSetProgramName(&prog); }
@@ -588,7 +603,7 @@ int main(void) {
     /* XstGetProgramName: byref string — reads sysProgram$ set by
        XstSetProgramName. ##WHOMASK=0 → sys path. Round-trip verification. */
     { char* prog = (char*)0; xb_user_XstGetProgramName(&prog); check_s("XstGetProgramName", prog, "MyApp"); }
-    printf("\n%d checks, %d failures\n", 124, fails);
+    printf("\n%d checks, %d failures\n", 128, fails);
     return fails;
 }
 "#).unwrap();
