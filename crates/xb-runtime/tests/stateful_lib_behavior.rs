@@ -104,7 +104,7 @@ fn xst_stateful_library_behavior() {
             .arg("--emit-c")
             .arg(&xst_src)
             .env("XB_WEAK_SYMBOLS", "1")
-            .env("XB_BYREF_HINTS", "XstSystemExceptionToException:0,1;XstGetNewline:1,1;XstGetException:1;XstGetExceptionFunction:1;XstGetProgramName:1")
+            .env("XB_BYREF_HINTS", "XstSystemExceptionToException:0,1;XstGetNewline:1,1;XstGetException:1;XstGetExceptionFunction:1;XstGetProgramName:1;XstDecomposePathname:0,1,1,1,1,1")
             .output()
             .expect("emit-c");
         assert!(
@@ -222,6 +222,14 @@ void xb_user_XstGetNewline(intptr_t *xb_var_save_ref, intptr_t *xb_var_paste_ref
 void xb_user_XstGetException(intptr_t *xb_var_exception_ref);
 void xb_user_XstGetExceptionFunction(intptr_t *xb_var_function_ref);
 void xb_user_XstGetProgramName(char* *xb_str_prog_ref);
+/* XstDecomposePathname: 1 byval string input + 5 byref string outputs.
+   Decomposes a pathname into path/parent/fileName/file/extent components.
+   Uses $$PathSlash$ which is a $$ string constant emitted as a weak SHARED
+   variable (CEmitter bug with $$ string constants). We initialize it in
+   the harness to work around this. */
+intptr_t xb_user_XstDecomposePathname(char* xb_str_pathname, char* *xb_str_path_ref, char* *xb_str_parent_ref,
+    char* *xb_str_fileName_ref, char* *xb_str_file_ref, char* *xb_str_extent_ref);
+extern __attribute__((weak)) char* xb_shared__s_sPathSlash;
 /* Weak globals set by the setter functions, readable from the harness. */
 extern __attribute__((weak)) intptr_t xb_shared_EXCEPTION;
 extern __attribute__((weak)) intptr_t xb_shared_TABSAT;
@@ -420,6 +428,40 @@ int main(void) {
     check_s("XxxPathString(a/b/c)", ps2, "a/b/c");
     char* ps3 = xb_user_XxxPathString(xb_str("C:\\dir\\file"));
     check_s("XxxPathString(C:\\dir\\file)", ps3, "C:/dir/file");
+    /* XstDecomposePathname: decomposes a pathname into components.
+       Initialize $$PathSlash$ (weak SHARED) to "/" for correct behavior.
+       "/dir/file.txt" → path="/dir", parent="dir", fileName="file.txt",
+       file="file", extent=".txt" */
+    xb_shared__s_sPathSlash = xb_str("/");
+    {
+        char* path = xb_str(""); char* parent = xb_str("");
+        char* fileName = xb_str(""); char* file = xb_str(""); char* extent = xb_str("");
+        xb_user_XstDecomposePathname(xb_str("/dir/file.txt"), &path, &parent, &fileName, &file, &extent);
+        check_s("DecomposePath(/dir/file.txt) path", path, "/dir");
+        check_s("DecomposePath(/dir/file.txt) parent", parent, "dir");
+        check_s("DecomposePath(/dir/file.txt) fileName", fileName, "file.txt");
+        check_s("DecomposePath(/dir/file.txt) file", file, "file");
+        check_s("DecomposePath(/dir/file.txt) extent", extent, ".txt");
+    }
+    {
+        char* path = xb_str(""); char* parent = xb_str("");
+        char* fileName = xb_str(""); char* file = xb_str(""); char* extent = xb_str("");
+        xb_user_XstDecomposePathname(xb_str("file.txt"), &path, &parent, &fileName, &file, &extent);
+        check_s("DecomposePath(file.txt) path", path, "");
+        check_s("DecomposePath(file.txt) fileName", fileName, "file.txt");
+        check_s("DecomposePath(file.txt) file", file, "file");
+        check_s("DecomposePath(file.txt) extent", extent, ".txt");
+    }
+    {
+        char* path = xb_str(""); char* parent = xb_str("");
+        char* fileName = xb_str(""); char* file = xb_str(""); char* extent = xb_str("");
+        xb_user_XstDecomposePathname(xb_str("/a/b/c"), &path, &parent, &fileName, &file, &extent);
+        check_s("DecomposePath(/a/b/c) path", path, "/a/b");
+        check_s("DecomposePath(/a/b/c) parent", parent, "b");
+        check_s("DecomposePath(/a/b/c) fileName", fileName, "c");
+        check_s("DecomposePath(/a/b/c) file", file, "c");
+        check_s("DecomposePath(/a/b/c) extent", extent, "");
+    }
     /* XstMatchWild: pure wildcard matching function. Returns 1-based match
        position or 0 for no match. * matches any chars, ? matches one char.
        Case-insensitive when matchCase=0.
@@ -531,7 +573,7 @@ int main(void) {
     /* XstGetProgramName: byref string — reads sysProgram$ set by
        XstSetProgramName. ##WHOMASK=0 → sys path. Round-trip verification. */
     { char* prog = (char*)0; xb_user_XstGetProgramName(&prog); check_s("XstGetProgramName", prog, "MyApp"); }
-    printf("\n%d checks, %d failures\n", 105, fails);
+    printf("\n%d checks, %d failures\n", 119, fails);
     return fails;
 }
 "#).unwrap();
