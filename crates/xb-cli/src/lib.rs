@@ -177,16 +177,79 @@ fn resolve_import_constants(
     use xb_compiler::Statement;
     for statement in unit.program().statements.iter() {
         if let Statement::Import(lib_name) = statement {
-            // Look for the library file in the same directory as the source.
-            let lib_path = source_dir.join(format!("{lib_name}.x"));
-            if let Ok(lib_source) = fs::read_to_string(&lib_path) {
-                if let Ok(lib_unit) = FrontendUnit::parse(&lib_source) {
-                    extract_constants(&lib_unit, &mut constants);
+            // Search order: same-dir .x, same-dir .dec, ../shared/*.x,
+            // ../../include/*.dec — matching the XBasic library layout.
+            let candidates = [
+                source_dir.join(format!("{lib_name}.x")),
+                source_dir.join(format!("{lib_name}.dec")),
+                source_dir.join("..").join("shared").join(format!("{lib_name}.x")),
+                source_dir.join("..").join("..").join("include").join(format!("{lib_name}.dec")),
+                source_dir.join("..").join("include").join(format!("{lib_name}.dec")),
+            ];
+            for lib_path in &candidates {
+                if let Ok(lib_source) = fs::read_to_string(lib_path) {
+                    if lib_path.extension().is_some_and(|e| e == "dec") {
+                        // .dec files contain C declarations our parser can't handle;
+                        // extract $$ constants via text scan instead.
+                        extract_constants_from_text(&lib_source, &mut constants);
+                    } else if let Ok(lib_unit) = FrontendUnit::parse(&lib_source) {
+                        extract_constants(&lib_unit, &mut constants);
+                    }
                 }
             }
         }
     }
     constants
+}
+
+/// Extract `$$` constant definitions from raw text (for `.dec` files that
+/// can't be fully parsed). Matches lines like `$$NAME = value` after stripping
+/// trailing comments. Handles hex (0x), decimal, and negative values.
+/// Resolves alias chains: `$$A = $$B` where `$$B = 0x80` → `$$A = 0x80`.
+fn extract_constants_from_text(source: &str, out: &mut std::collections::BTreeMap<String, String>) {
+    // First pass: collect raw name→value pairs.
+    let mut raw: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+        if !trimmed.starts_with("$$") {
+            continue;
+        }
+        // Strip trailing comment
+        let line_no_comment = match trimmed.find('\'') {
+            Some(pos) => &trimmed[..pos],
+            None => trimmed,
+        };
+        if let Some(eq_pos) = line_no_comment.find('=') {
+            let name = line_no_comment[..eq_pos].trim().trim_start_matches("$$").to_string();
+            let value = line_no_comment[eq_pos + 1..].trim();
+            if !name.is_empty() && !value.is_empty() {
+                raw.entry(name).or_insert(value.to_string());
+            }
+        }
+    }
+    // Second pass: resolve alias chains ($$A = $$B = ... = literal).
+    for (name, value) in &raw {
+        let resolved = resolve_alias(value, &raw);
+        out.entry(name.clone()).or_insert(resolved);
+    }
+}
+
+/// Resolve a `$$` constant alias chain to its literal value.
+/// `$$B` → looks up `B` in `raw`, follows until a non-`$$` value is found.
+fn resolve_alias(value: &str, raw: &std::collections::BTreeMap<String, String>) -> String {
+    let mut current = value.to_string();
+    let mut seen = std::collections::HashSet::new();
+    while let Some(rest) = current.strip_prefix("$$") {
+        let ref_name = rest.trim();
+        if !seen.insert(ref_name.to_string()) {
+            break; // cycle guard
+        }
+        match raw.get(ref_name) {
+            Some(v) => current = v.clone(),
+            None => break, // unresolved $$ reference — keep as-is
+        }
+    }
+    current
 }
 
 /// Extract `$$` constant definitions from a parsed program.

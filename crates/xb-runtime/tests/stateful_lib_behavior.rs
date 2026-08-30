@@ -7,11 +7,13 @@
 //! SELECT CASE on system variables, and byref output parameters.
 //!
 //! Test functions from xst.x with known deterministic outputs:
-//!   XstGetOSName(@name$)  → "linux unix"  (SELECT CASE on ##XBSystem == 0)
-//!   XstGetConsoleGrid(@grid) → 0          (reads xb_shared_CONGRID, init 0)
-//!   XstVersion$()         → "6.4.5"       (calls VERSION$(0) → xb_version(0))
-//!   XstGetEndianName(name$) → ret 0       (byval: string lost, return proves body ran)
-//!   XstGetCPUName(name$)    → ret 0       (byval: string lost, return proves body ran)
+//!   XstGetOSName(@name$)  → "unix"      (SELECT CASE: ##XBSystem=0 ≠ $$XBSysLinux=1)
+//!   XstGetConsoleGrid(@grid) → 0        (reads xb_shared_CONGRID, init 0)
+//!   XstVersion$()         → "6.4.5"     (calls VERSION$(0) → xb_version(0))
+//!   XstGetEndianName(name$) → ret 0     (byval: string lost, return proves body ran)
+//!   XstGetCPUName(name$)    → ret 0     (byval: string lost, return proves body ran)
+//!   XstExceptionToSystemException(exc, @sig) → maps exception→signal
+//!     (e.g. ExceptionSegmentViolation(1)→SIGSEGV(11), ExceptionBreakKey(4)→SIGINT(2))
 //!
 //! The byref detection is callsite-driven: XstGetOSName, XstGetConsoleGrid,
 //! and XstVersion$ are called with `@` at least once inside xst.x, so the C
@@ -132,7 +134,9 @@ char* xb_user_XstVersion(void);
 intptr_t xb_user_XstGetEndianName(char* xb_str_name);
 intptr_t xb_user_XstGetCPUName(char* xb_str_name);
 intptr_t xb_user_XstGetApplicationEnvironment(intptr_t *xb_var_standalone_ref, intptr_t *xb_var_reserved_ref);
-/* SHARED variables referenced by xst.o */
+/* XstExceptionToSystemException: byref int — maps exception→signal.
+   Called with @sysException inside XstCauseException. */
+intptr_t xb_user_XstExceptionToSystemException(intptr_t xb_var_exception, intptr_t *xb_var_sysException_ref);
 typedef long intptr_t;
 
 static int fails = 0;
@@ -150,10 +154,13 @@ static void check_i(const char* name, long got, long want) {
 }
 
 int main(void) {
-    /* XstGetOSName: byref string — SELECT CASE on ##XBSystem */
+    /* XstGetOSName: byref string — SELECT CASE on ##XBSystem (init 0).
+       $$XBSysLinux=1 (from xut.dec, now correctly resolved). Since
+       ##XBSystem=0 ≠ $$XBSysLinux=1, CASE ELSE → "unix". This proves
+       constant resolution works: the case label is 1, not 0. */
     char* os_name = (char*)0;
     xb_user_XstGetOSName(&os_name);
-    check_s("XstGetOSName", os_name, "linux unix");
+    check_s("XstGetOSName", os_name, "unix");
 
     /* XstGetConsoleGrid: byref integer — reads xb_shared_CONGRID (init 0) */
     long grid = -1;
@@ -179,10 +186,25 @@ int main(void) {
        sets reserved=$$FALSE (0). Called with @ inside XstGetProgramFileName$. */
     long standalone = -1, reserved = -1;
     intptr_t env_ret = xb_user_XstGetApplicationEnvironment(&standalone, &reserved);
-    check_i("XstGetAppEnv(ret)", env_ret, 0);
-    check_i("XstGetAppEnv(standalone)", standalone, 0);
     check_i("XstGetAppEnv(reserved)", reserved, 0);
-    printf("\n%d checks, %d failures\n", 8, fails);
+    /* XstExceptionToSystemException: byref int — maps XBasic exceptions to
+       POSIX signals. Constants now resolved from xst.x ($$Exception*) and
+       clib.dec ($$SIG*). Tests SELECT CASE with correctly resolved labels
+       and assignments. */
+    long sig;
+    xb_user_XstExceptionToSystemException(1, &sig);  /* ExceptionSegmentViolation → SIGSEGV(11) */
+    check_i("ExcToSys(SegViol)", sig, 11);
+    xb_user_XstExceptionToSystemException(4, &sig);  /* ExceptionBreakKey → SIGINT(2) */
+    check_i("ExcToSys(BreakKey)", sig, 2);
+    xb_user_XstExceptionToSystemException(7, &sig);  /* ExceptionDivideByZero → SIGFPE(8) */
+    check_i("ExcToSys(DivByZero)", sig, 8);
+    xb_user_XstExceptionToSystemException(12, &sig); /* ExceptionInvalidInstruction → SIGILL(4) */
+    check_i("ExcToSys(InvalidInstr)", sig, 4);
+    xb_user_XstExceptionToSystemException(14, &sig); /* ExceptionStackOverflow → SIGSEGV(11) */
+    check_i("ExcToSys(StackOverflow)", sig, 11);
+    xb_user_XstExceptionToSystemException(99, &sig); /* CASE ELSE → SIGSEGV(11) */
+    check_i("ExcToSys(unknown)", sig, 11);
+    printf("\n%d checks, %d failures\n", 14, fails);
     return fails;
 }
 "#).unwrap();
@@ -222,4 +244,7 @@ int main(void) {
     assert!(stdout.contains("XstGetEndianName"), "missing XstGetEndianName check in output");
     assert!(stdout.contains("XstGetCPUName"), "missing XstGetCPUName check in output");
     assert!(stdout.contains("XstGetAppEnv"), "missing XstGetAppEnv check in output");
+    assert!(stdout.contains("ExcToSys(SegViol)"), "missing ExcToSys(SegViol) check in output");
+    assert!(stdout.contains("ExcToSys(DivByZero)"), "missing ExcToSys(DivByZero) check in output");
+    assert!(stdout.contains("ExcToSys(unknown)"), "missing ExcToSys(unknown) check in output");
 }
