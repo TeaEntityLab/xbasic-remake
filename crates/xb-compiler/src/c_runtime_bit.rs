@@ -31,7 +31,7 @@ pub(crate) fn emit_str_misc_runtime(out: &mut String) {
     out.push_str("static char* xb_bin2(int v, int d) { char buf[33]; int n = 0; unsigned int t = (unsigned int)v; while (t) { n++; t >>= 1; } if (n < d) n = d; if (v == 0) { if (d > 0) n = d; else { buf[0] = '0'; buf[1] = 0; return xb_from_cstr(buf); } } buf[n] = 0; t = (unsigned int)v; int pos = n - 1; while (pos >= 0) { buf[pos--] = (t & 1) ? '1' : '0'; t >>= 1; } return xb_from_cstr(buf); }\n");
     out.push_str("static char* xb_oct2(int v, int d) { char buf[18]; if (d > 0) snprintf(buf, 18, \"%0*o\", d, v); else snprintf(buf, 18, \"%o\", v); return xb_from_cstr(buf); }\n");
     out.push_str("static int xb_quit(int code) { exit(code); return 0; }\n");
-    out.push_str("static char* xb_cjust(const char* s, int w) { int len = xb_len(s); if (len >= w) { char* r = xb_alloc((size_t)w); memcpy(r, s, (size_t)w); return r; } int total = w - len, left = total / 2, right = total - left; char* r = xb_alloc((size_t)w); memset(r, ' ', (size_t)left); memcpy(r + left, s, (size_t)len); memset(r + left + len, ' ', (size_t)right); return r; }\n");
+    out.push_str("static char* xb_cjust(const char* s, int w) { int len = xb_len(s); if (len >= w) { char* r = xb_alloc((size_t)w); if (w) memcpy(r, s, (size_t)w); return r; } int total = w - len, left = total / 2, right = total - left; char* r = xb_alloc((size_t)w); memset(r, ' ', (size_t)left); if (len) memcpy(r + left, s, (size_t)len); memset(r + left + len, ' ', (size_t)right); return r; }\n");
     emit_format_runtime(out);
 }
 
@@ -42,12 +42,12 @@ pub(crate) fn emit_format_runtime(out: &mut String) {
     out.push_str("    if (fmt[0] == '&') return xb_strdup(sval);\n");
     out.push_str("    if (fmt[0] == '<' || fmt[0] == '>' || fmt[0] == '|') {\n");
     out.push_str("      int w = 0; for (int i = 0; fmt[i] == fmt[0]; i++) w++;\n");
-    out.push_str("      if (slen >= w) { char* r = xb_alloc((size_t)w); memcpy(r, sval, (size_t)w); return r; }\n");
+    out.push_str("      if (slen >= w) { char* r = xb_alloc((size_t)w); if (w) memcpy(r, sval, (size_t)w); return r; }\n");
     out.push_str("      int total = w - slen, left = total / 2, right = total - left;\n");
     out.push_str("      char* r = xb_alloc((size_t)w); int pos = 0;\n");
-    out.push_str("      if (fmt[0] == '>') { for (int i = 0; i < total; i++) r[pos++] = ' '; memcpy(r + pos, sval, slen); }\n");
-    out.push_str("      else if (fmt[0] == '|') { for (int i = 0; i < left; i++) r[pos++] = ' '; memcpy(r + pos, sval, slen); pos += slen; for (int i = 0; i < right; i++) r[pos++] = ' '; }\n");
-    out.push_str("      else { memcpy(r, sval, slen); pos += slen; for (int i = 0; i < total; i++) r[pos++] = ' '; }\n");
+    out.push_str("      if (fmt[0] == '>') { for (int i = 0; i < total; i++) r[pos++] = ' '; if (slen) memcpy(r + pos, sval, slen); }\n");
+    out.push_str("      else if (fmt[0] == '|') { for (int i = 0; i < left; i++) r[pos++] = ' '; if (slen) memcpy(r + pos, sval, slen); pos += slen; for (int i = 0; i < right; i++) r[pos++] = ' '; }\n");
+    out.push_str("      else { if (slen) memcpy(r, sval, slen); pos += slen; for (int i = 0; i < total; i++) r[pos++] = ' '; }\n");
     out.push_str("      return r;\n");
     out.push_str("    }\n");
     out.push_str("    return xb_strdup(sval);\n");

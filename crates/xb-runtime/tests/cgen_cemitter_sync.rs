@@ -1061,7 +1061,9 @@ fn run_c_with_timeout(tmp: &Path, name: &str, c: &[u8], timeout: std::time::Dura
 fn cemitter_and_cgen_apply_nonblock_to_fifo() {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
-    let tmp = std::env::temp_dir().join("xb_sync_open_nonblock_fifo");
+    let tmp =
+        std::env::temp_dir().join(format!("xb_sync_open_nonblock_fifo_{}", std::process::id()));
+    let _ = fs::remove_dir_all(&tmp);
     fs::create_dir_all(&tmp).expect("mkdir fifo test");
     let cgen_exe = build_native_cgen(&tmp);
     let check = |tag: &str, cgen: Option<&Path>| {

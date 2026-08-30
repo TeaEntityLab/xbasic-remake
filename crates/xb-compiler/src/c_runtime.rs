@@ -212,7 +212,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("}\n");
     out.push_str("static void xb_print_int(int v) { printf(\"%d\\n\", v); }\n");
     out.push_str("static void xb_print_giant(int64_t v) { printf(\"%lld\\n\", (long long)v); }\n");
-    out.push_str("static void xb_print_str(const char* s) { fwrite(s, 1, (size_t)xb_len(s), stdout); putchar('\\n'); }\n");
+    out.push_str("static void xb_print_str(const char* s) { int n = xb_len(s); if (n) fwrite(s, 1, (size_t)n, stdout); putchar('\\n'); }\n");
     out.push_str("static void xb_print_float(double v) { char buf[400]; xb_fmt_float(v, buf, 400); printf(\"%s\\n\", buf); }\n");
     out.push_str("static char* xb_ucase(const char* s) { char* r = xb_strdup(s); int n = xb_len(r); for (int i = 0; i < n; i++) r[i] = (char)toupper((unsigned char)r[i]); return r; }\n");
     out.push_str("static char* xb_lcase(const char* s) { char* r = xb_strdup(s); int n = xb_len(r); for (int i = 0; i < n; i++) r[i] = (char)tolower((unsigned char)r[i]); return r; }\n");
@@ -252,8 +252,10 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("static int xb_error_code = 0;\n");
     out.push_str("static int xb_error(int n) { int old = xb_error_code; if (n != -1) xb_error_code = n; return old; }\n");
     out.push_str("static char* xb_error_str(int n) { char buf[32]; snprintf(buf, 32, \"error %d\", n); return xb_from_cstr(buf); }\n");
-    out.push_str("static int xb_csize(const char* s) { const char* p = s; while (*p) p++; return (int)(p - s); }\n");
-    out.push_str("static char* xb_csize_str(const char* s) { return xb_from_cstr(s); }\n");
+    out.push_str("static int xb_csize(const char* s) { if (!s) return 0; const char* p = s; while (*p) p++; return (int)(p - s); }\n");
+    out.push_str(
+        "static char* xb_csize_str(const char* s) { return s ? xb_from_cstr(s) : xb_str(\"\"); }\n",
+    );
     out.push_str(
         "static char* xb_program_name(int _) { (void)_; return xb_from_cstr(xb_program_name_str); }\n",
     );
