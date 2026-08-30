@@ -120,6 +120,19 @@ double xb_user_ACOS(double v);
 double xb_user_ASIN(double v);
 double xb_user_ATANH(double v);
 double xb_user_LOG10(double v);
+double xb_user_ACOSH(double v);
+double xb_user_ACOT(double v);
+double xb_user_ACOTH(double v);
+double xb_user_ACSC(double v);
+double xb_user_ACSCH(double v);
+double xb_user_ASEC(double v);
+double xb_user_ASECH(double v);
+double xb_user_COTH(double v);
+double xb_user_CSC(double a);
+double xb_user_CSCH(double v);
+double xb_user_SEC(double a);
+double xb_user_SECH(double v);
+double xb_user_LOG(double v);
 char* xb_user_XmaVersion(void);
 
 static int fails = 0;
@@ -164,8 +177,45 @@ int main(void) {
        to get the IEEE 754 exponent. The CEmitter now lowers this to
        `xb_extu(upper, 11, 20)` (previously emitted as `exp = 0`). */
     check_d("LOG10(10.0)", xb_user_LOG10(10.0), 1.0);
+    /* SINH(1) = 1.175... — full path via Expmo (Hart approximation), not the v=0 shortcut.
+       Previously returned 0 because EXP was a zero-stub; now EXP maps to C's exp(). */
+    check_d("SINH(1.0)", xb_user_SINH(1.0), 1.1752011936438014);
+    /* COSH(1) = 1.543... — full path: (EXP(1)+EXP(-1))*0.5, now EXP works. */
+    check_d("COSH(1.0)", xb_user_COSH(1.0), 1.5430806348152437);
+    /* TANH(1) = 0.761... — full path: (EXP(1)-EXP(-1))/(EXP(1)+EXP(-1)), now EXP works. */
+    check_d("TANH(1.0)", xb_user_TANH(1.0), 0.7615941559557649);
+    /* ACOSH(1) = 0 — SELECT CASE: v=1 → RETURN 0 */
+    check_d("ACOSH(1.0)", xb_user_ACOSH(1.0), 0.0);
+    /* ACOSH(2) = 1.316... — full path: LOG(v + SQRT(v*v-1)), now SQRT/LOG work */
+    check_d("ACOSH(2.0)", xb_user_ACOSH(2.0), 1.3169578969248166);
+    /* ACOT(1) = PI/4 — full path: ATAN(1/v), now ATAN maps to C's atan() */
+    check_d("ACOT(1.0)", xb_user_ACOT(1.0), M_PI_4);
+    /* ACOTH(2) = 0.549... — full path: 0.5*LOG((v+1)/(v-1)), now LOG works */
+    check_d("ACOTH(2.0)", xb_user_ACOTH(2.0), 0.5493061443340549);
+    /* ACSC(2) = PI/6 — full path: ASIN(1/v), now ASIN works */
+    check_d("ACSC(2.0)", xb_user_ACSC(2.0), M_PI / 6.0);
+    /* ACSCH(1) = 0.881... — full path: ASINH(1/v), now ASINH works via SQRT/LOG */
+    check_d("ACSCH(1.0)", xb_user_ACSCH(1.0), 0.8813735870195430);
+    /* ASEC(2) = PI/3 — full path: PIDIV2 - ASIN(1/v), now ASIN works */
+    check_d("ASEC(2.0)", xb_user_ASEC(2.0), M_PI / 3.0);
+    /* ASECH(0.5) = 1.316... — full path: ACOSH(1/v), now ACOSH works via SQRT/LOG */
+    check_d("ASECH(0.5)", xb_user_ASECH(0.5), 1.3169578969248166);
+    /* COTH(2) = 1.037... — full path: (EXP(2)+EXP(-2))/(EXP(2)-EXP(-2)), now EXP works */
+    check_d("COTH(2.0)", xb_user_COTH(2.0), 1.0373147207275482);
+    /* CSC(PI/2) = 1 — full path: 1/SIN(PI/2), now SIN maps to C's sin() */
+    check_d("CSC(PI/2)", xb_user_CSC(M_PI_2), 1.0);
+    /* CSCH(1) = 0.850... — full path: 1/SINH(1), now SINH works */
+    check_d("CSCH(1.0)", xb_user_CSCH(1.0), 0.8509181282393216);
+    /* SEC(0) = 1 — full path: 1/COS(0), now COS maps to C's cos() */
+    check_d("SEC(0.0)", xb_user_SEC(0.0), 1.0);
+    /* SECH(0) = 1 — full path: 1/COSH(0), now COSH works */
+    check_d("SECH(0.0)", xb_user_SECH(0.0), 1.0);
+    /* LOG(1) = 0 — xma's LOG returns 0 for v=1 */
+    check_d("LOG(1.0)", xb_user_LOG(1.0), 0.0);
+    /* LOG(e) = 1 — xma's LOG full path: bit-field extraction + Log0 Hart approximation */
+    check_d("LOG(M_E)", xb_user_LOG(M_E), 1.0);
 
-    printf("\n%d checks, %d failures\n", 12, fails);
+    printf("\n%d checks, %d failures\n", 30, fails);
     return fails;
 }
 "#).unwrap();
@@ -207,6 +257,16 @@ int main(void) {
     assert!(stdout.contains("ASIN(1.0)"), "missing ASIN(1.0) check in output");
     assert!(stdout.contains("ATANH(0.0)"), "missing ATANH check in output");
     assert!(stdout.contains("LOG10(10.0)"), "missing LOG10(10.0) check in output");
+    assert!(stdout.contains("SINH(1.0)"), "missing SINH(1.0) check in output");
+    assert!(stdout.contains("COSH(1.0)"), "missing COSH(1.0) check in output");
+    assert!(stdout.contains("TANH(1.0)"), "missing TANH(1.0) check in output");
+    assert!(stdout.contains("ACOSH(2.0)"), "missing ACOSH(2.0) check in output");
+    assert!(stdout.contains("ACOT(1.0)"), "missing ACOT(1.0) check in output");
+    assert!(stdout.contains("ACSCH(1.0)"), "missing ACSCH(1.0) check in output");
+    assert!(stdout.contains("COTH(2.0)"), "missing COTH(2.0) check in output");
+    assert!(stdout.contains("CSC(PI/2)"), "missing CSC(PI/2) check in output");
+    assert!(stdout.contains("SEC(0.0)"), "missing SEC(0.0) check in output");
+    assert!(stdout.contains("LOG(M_E)"), "missing LOG(M_E) check in output");
 }
 
 #[test]
