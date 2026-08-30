@@ -1490,7 +1490,27 @@ WHILE pos <= LEN(src$)
           ELSEIF dataType$ = "float" THEN
             mainBody$ = mainBody$ + "    xb_data_add_float(" + dataVal$ + ");" + CHR$(10)
           ELSE
-            mainBody$ = mainBody$ + "    xb_data_add_str(" + CHR$(34) + dataVal$ + CHR$(34) + ");" + CHR$(10)
+            DIM escapedDataVal$
+            escapedDataVal$ = ""
+            DIM edi
+            FOR edi = 1 TO LEN(dataVal$)
+              DIM edch
+              edch = ASC(MID$(dataVal$, edi, 1))
+              IF edch = 92 THEN
+                escapedDataVal$ = escapedDataVal$ + CHR$(92) + CHR$(92)
+              ELSEIF edch = 34 THEN
+                escapedDataVal$ = escapedDataVal$ + CHR$(92) + CHR$(34)
+              ELSEIF edch = 10 THEN
+                escapedDataVal$ = escapedDataVal$ + CHR$(92) + "n"
+              ELSEIF edch = 9 THEN
+                escapedDataVal$ = escapedDataVal$ + CHR$(92) + "t"
+              ELSEIF edch = 13 THEN
+                escapedDataVal$ = escapedDataVal$ + CHR$(92) + "r"
+              ELSE
+                escapedDataVal$ = escapedDataVal$ + CHR$(edch)
+              END IF
+            NEXT edi
+            mainBody$ = mainBody$ + "    xb_data_add_str(" + CHR$(34) + escapedDataVal$ + CHR$(34) + ");" + CHR$(10)
           END IF
         END IF
         IF dataSpace = 0 THEN

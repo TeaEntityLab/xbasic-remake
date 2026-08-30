@@ -2137,7 +2137,15 @@ fn emit_data_init(program: &IrProgram, out: &mut String) {
         match tag.as_str() {
             "int" => out.push_str(&format!("    xb_data_add_int({val});\n")),
             "float" => out.push_str(&format!("    xb_data_add_float({val});\n")),
-            _ => out.push_str(&format!("    xb_data_add_str(\"{val}\");\n")),
+            _ => {
+                let escaped = val
+                    .replace('\\', "\\\\")
+                    .replace('"', "\\\"")
+                    .replace('\n', "\\n")
+                    .replace('\t', "\\t")
+                    .replace('\r', "\\r");
+                out.push_str(&format!("    xb_data_add_str(\"{escaped}\");\n"));
+            }
         }
     }
 }
