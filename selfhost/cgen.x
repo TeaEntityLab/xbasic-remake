@@ -768,7 +768,26 @@ WHILE LEN(_sdIter$) > 0
       _sdIter$ = ""
     END IF
     IF LEN(_sdName$) > 0 THEN
+      ' Check if this shared array is also DIM'd as a scalar (dim shared NAME:type
+      ' without [), or used as symbol(NAME:) — either means dual-use.
+      _sdIsDual = 0
       IF INSTR(src$, "symbol(" + _sdName$ + ":") > 0 THEN
+        _sdIsDual = 1
+      END IF
+      IF _sdIsDual = 0 THEN
+        _sdPat$ = "dim shared " + _sdName$ + ":"
+        _sdPp = INSTR(src$, _sdPat$)
+        WHILE _sdPp > 0 AND _sdIsDual = 0
+          _sdPe = INSTR(src$, CHR$(10), _sdPp)
+          IF _sdPe = 0 THEN _sdPe = LEN(src$) + 1
+          _sdLine$ = MID$(src$, _sdPp, _sdPe - _sdPp)
+          IF INSTR(_sdLine$, "[") = 0 THEN
+            _sdIsDual = 1
+          END IF
+          _sdPp = INSTR(src$, _sdPat$, _sdPe)
+        WEND
+      END IF
+      IF _sdIsDual = 1 THEN
         ##sharedDual$ = ##sharedDual$ + ":" + _sdName$ + ":"
       END IF
     END IF
@@ -5715,6 +5734,9 @@ FUNCTION scan_dyn$(s$)
         IF cp > 0 THEN
           nm$ = LEFT$(nm$, cp - 1)
         END IF
+        IF LEFT$(nm$, 7) = "shared " THEN
+          nm$ = MID$(nm$, 8, LEN(nm$) - 7)
+        END IF
         sc$ = sc$ + ":" + nm$ + ":"
       END IF
     END IF
@@ -5807,6 +5829,9 @@ FUNCTION scan_dyn$(s$)
         IF cp > 0 THEN
           ty$ = MID$(nm$, cp + 1, LEN(nm$) - cp)
           nm$ = LEFT$(nm$, cp - 1)
+        END IF
+        IF LEFT$(nm$, 7) = "shared " THEN
+          nm$ = MID$(nm$, 8, LEN(nm$) - 7)
         END IF
         sub$ = MID$(r$, bp + 1, LEN(r$) - bp)
         ncomma = 0
@@ -6019,6 +6044,31 @@ FUNCTION scan_dual_use$(s$)
       p = sp + 1
     END IF
   WEND
+  ' Also add scalar DIM names (dim X:type without [) to scalarSet$,
+  ' matching scan_dyn$ line 5710-5718. A name DIM'd as both scalar and
+  ' array in the same function needs the _arr dual-use split.
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 4) = "dim " AND LEFT$(ln$, 11) <> "dim shared " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      IF INSTR(r$, "[") = 0 THEN
+        nm$ = r$
+        cp = INSTR(nm$, ":")
+        IF cp > 0 THEN
+          nm$ = LEFT$(nm$, cp - 1)
+        END IF
+        IF INSTR(scalarSet$, ":" + nm$ + ":") = 0 THEN
+          scalarSet$ = scalarSet$ + ":" + nm$ + ":"
+        END IF
+      END IF
+    END IF
+  WEND
   p = 1
   WHILE p <= LEN(s$)
     sp = INSTR(s$, "array_access" + CHR$(40), p)
@@ -6114,6 +6164,9 @@ FUNCTION scan_dual_use$(s$)
         cp = INSTR(nm$, ":")
         IF cp > 0 THEN
           nm$ = LEFT$(nm$, cp - 1)
+        END IF
+        IF LEFT$(nm$, 7) = "shared " THEN
+          nm$ = MID$(nm$, 8, LEN(nm$) - 7)
         END IF
         IF INSTR(arraySet$, ":" + nm$ + ":") = 0 THEN
           arraySet$ = arraySet$ + ":" + nm$ + ":"
