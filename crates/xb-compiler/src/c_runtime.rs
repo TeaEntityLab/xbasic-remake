@@ -833,9 +833,9 @@ pub(crate) fn emit_quicksort_runtime(out: &mut String) {
     out.push_str("        for (intptr_t k = 0; k < rng; k++) tmp[k] = a[idx[k]];\n");
     out.push_str("        for (intptr_t k = 0; k < rng; k++) a[low + k] = tmp[k];\n");
     out.push_str("        if (nd && nub && *nub >= 0) {\n");
-    out.push_str("            *nd = (intptr_t*)realloc(*nd, (size_t)alen * sizeof(intptr_t)); *nub = alen - 1;\n");
+    out.push_str("            intptr_t* _new_nd = (intptr_t*)realloc(*nd, (size_t)alen * sizeof(intptr_t)); if (!_new_nd) { *nub = -1; } else { *nd = _new_nd; *nub = alen - 1;\n");
     out.push_str("            for (intptr_t k = 0; k < alen; k++) (*nd)[k] = k;\n");
-    out.push_str("            for (intptr_t k = 0; k < rng; k++) (*nd)[low + k] = idx[k];\n");
+    out.push_str("            for (intptr_t k = 0; k < rng; k++) (*nd)[low + k] = idx[k]; }\n");
     out.push_str("        }\n");
     out.push_str("        free(idx); free(tmp);\n");
     out.push_str("    }\n");
@@ -849,7 +849,7 @@ pub(crate) fn emit_copyarray_runtime(out: &mut String) {
     out.push_str("static int xb_copyarray(void* srcp, intptr_t srclen, int et, void** dst_d, intptr_t* dst_ub) {\n");
     out.push_str("    if (!dst_d || !dst_ub) return 0;\n");
     out.push_str("    uint64_t* src = (uint64_t*)srcp;\n");
-    out.push_str("    *dst_d = realloc(*dst_d, (size_t)(srclen < 1 ? 1 : srclen) * 8); *dst_ub = srclen - 1;\n");
+    out.push_str("    void* _new_d = realloc(*dst_d, (size_t)(srclen < 1 ? 1 : srclen) * 8); if (!_new_d) { *dst_ub = -1; return 0; } *dst_d = _new_d; *dst_ub = srclen - 1;\n");
     out.push_str("    uint64_t* dst = (uint64_t*)*dst_d;\n");
     out.push_str("    for (intptr_t k = 0; k < srclen; k++) {\n");
     out.push_str(
