@@ -1124,6 +1124,18 @@ impl Parser {
                     | Some(Keyword::Program)
                     | Some(Keyword::Export)
             )
+            || (self.peek_keyword() == Some(Keyword::End)
+                && !matches!(self.peek_next_kind(), Some(TokenKind::Keyword(Keyword::Function))))
+            || (self.peek_keyword() == Some(Keyword::External)
+                && matches!(self.peek_next_kind(), Some(TokenKind::SystemVariable { .. }))
+                && !self.peek_next_kind().is_some_and(|k| {
+                    matches!(
+                        k,
+                        TokenKind::Keyword(Keyword::Function)
+                            | TokenKind::Keyword(Keyword::CFunction)
+                            | TokenKind::Keyword(Keyword::Internal)
+                    )
+                }))
             || next_is_external_function;
         if is_forward {
             let mut decl = FunctionDecl::new(name, effective_suffix, params, body);
