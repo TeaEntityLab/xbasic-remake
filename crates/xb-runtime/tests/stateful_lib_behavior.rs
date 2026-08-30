@@ -208,6 +208,9 @@ intptr_t xb_user_XstKillTask(intptr_t xb_var_taskNum);
 intptr_t xb_user_XstGetTaskInfo(intptr_t xb_var_taskNum, intptr_t xb_var_count, intptr_t xb_var_msec, intptr_t xb_var_func, intptr_t xb_var_timer, intptr_t xb_var_skips);
 intptr_t xb_user_XstSetProgramName(char* xb_str_prog);
 intptr_t xb_user_XstSetSystemError(intptr_t xb_var_sysError);
+/* XstMatchWild: pure function — wildcard pattern matching.
+   Returns match position (1-based) or 0 for no match. */
+intptr_t xb_user_XstMatchWild(char* xb_str_searchMe, char* xb_str_searchFor, intptr_t xb_var_start, intptr_t xb_var_matchCase);
 /* Weak globals set by the setter functions, readable from the harness. */
 extern __attribute__((weak)) intptr_t xb_shared_EXCEPTION;
 extern __attribute__((weak)) intptr_t xb_shared_TABSAT;
@@ -406,6 +409,22 @@ int main(void) {
     check_s("XxxPathString(a/b/c)", ps2, "a/b/c");
     char* ps3 = xb_user_XxxPathString(xb_str("C:\\dir\\file"));
     check_s("XxxPathString(C:\\dir\\file)", ps3, "C:/dir/file");
+    /* XstMatchWild: pure wildcard matching function. Returns 1-based match
+       position or 0 for no match. * matches any chars, ? matches one char.
+       Case-insensitive when matchCase=0.
+       NOTE: Avoid patterns where * matches a char that later fails to match
+       the next filter char — XBasic source has a `DO LOOP` (infinite loop)
+       bug in that branch (xst.x XstMatchWild CASE ELSE with match!=0). */
+    check_i("XstMatchWild(hello,*,1,0)", xb_user_XstMatchWild(xb_str("hello"), xb_str("*"), 1, 0), 1);
+    check_i("XstMatchWild(hello,h?llo,1,1)", xb_user_XstMatchWild(xb_str("hello"), xb_str("h?llo"), 1, 1), 1);
+    check_i("XstMatchWild(hello,h*l,1,1)", xb_user_XstMatchWild(xb_str("hello"), xb_str("h*l"), 1, 1), 1);
+    check_i("XstMatchWild(hello,world,1,1)", xb_user_XstMatchWild(xb_str("hello"), xb_str("world"), 1, 1), 0);
+    check_i("XstMatchWild(HELLO,hello,1,0)", xb_user_XstMatchWild(xb_str("HELLO"), xb_str("hello"), 1, 0), 1);
+    check_i("XstMatchWild(HELLO,hello,1,1)", xb_user_XstMatchWild(xb_str("HELLO"), xb_str("hello"), 1, 1), 0);
+    check_i("XstMatchWild(hello,h*o,1,1)", xb_user_XstMatchWild(xb_str("hello"), xb_str("h*o"), 1, 1), 1);
+    check_i("XstMatchWild(hello,*x,1,1)", xb_user_XstMatchWild(xb_str("hello"), xb_str("*x"), 1, 1), 0);
+    check_i("XstMatchWild(abc,?b?,1,1)", xb_user_XstMatchWild(xb_str("abc"), xb_str("?b?"), 1, 1), 2);
+    check_i("XstMatchWild(ab,?b?,1,1)", xb_user_XstMatchWild(xb_str("ab"), xb_str("?b?"), 1, 1), 0);
     /* XstErrorNumberToName: byref string output. SHARED arrays are uninitialized
        (UBOUND returns -1), so object > upperObject (0 > -1) is always true.
        Returns "$$ErrorObject too large" for any error value. This tests the
@@ -472,7 +491,7 @@ int main(void) {
        Writes xb_strdup(prog$) to xb_shared_sysProgram. */
     xb_user_XstSetProgramName(xb_str("MyApp"));
     check_s("XstSetProgramName(MyApp)", xb_shared_sysProgram, "MyApp");
-    printf("\n%d checks, %d failures\n", 86, fails);
+    printf("\n%d checks, %d failures\n", 96, fails);
     return fails;
 }
 "#).unwrap();
@@ -608,6 +627,10 @@ int main(void) {
     assert!(
         stdout.contains("XxxPathString(a\\b\\c)"),
         "missing XxxPathString check in output"
+    );
+    assert!(
+        stdout.contains("XstMatchWild(hello,*,1,0)"),
+        "missing XstMatchWild check in output"
     );
     assert!(
         stdout.contains("XstRandomRange(5,5)"),

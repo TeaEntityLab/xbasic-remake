@@ -88,11 +88,13 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("}\n");
     out.push_str("static int xb_instr2(const char* s, const char* sub) {\n");
     out.push_str("    if (!s || !sub) return 0;\n");
+    out.push_str("    if (xb_len(sub) == 0) return 0;\n");
     out.push_str("    const char* p = strstr(s, sub);\n");
     out.push_str("    return p ? (int)(p - s) + 1 : 0;\n");
     out.push_str("}\n");
     out.push_str("static int xb_instr3(const char* s, const char* sub, int start) {\n");
     out.push_str("    if (!s || !sub) return 0;\n");
+    out.push_str("    if (xb_len(sub) == 0) return 0;\n");
     out.push_str("    if (start < 1) start = 1;\n");
     out.push_str("    const char* base = s + start - 1;\n");
     out.push_str("    const char* p = strstr(base, sub);\n");
