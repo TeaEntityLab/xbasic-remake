@@ -241,9 +241,9 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("static char* xb_null(int n) { if (n < 0) n = 0; char* r = xb_alloc((size_t)n); memset(r, 0, (size_t)n); return r; }\n");
     crate::c_runtime_math::emit_math_functions(out);
     out.push_str("static int xb_data_int[256]; static double xb_data_float[256]; static char* xb_data_str[256]; static int xb_data_tag[256]; static int xb_data_count = 0; static int xb_data_pos = 0;\n");
-    out.push_str("static void xb_data_add_int(int v) { xb_data_tag[xb_data_count] = 0; xb_data_int[xb_data_count] = v; xb_data_count++; }\n");
-    out.push_str("static void xb_data_add_float(double v) { xb_data_tag[xb_data_count] = 1; xb_data_float[xb_data_count] = v; xb_data_count++; }\n");
-    out.push_str("static void xb_data_add_str(const char* v) { xb_data_tag[xb_data_count] = 2; xb_data_str[xb_data_count] = xb_from_cstr(v); xb_data_count++; }\n");
+    out.push_str("static void xb_data_add_int(int v) { if (xb_data_count < 256) { xb_data_tag[xb_data_count] = 0; xb_data_int[xb_data_count] = v; xb_data_count++; } }\n");
+    out.push_str("static void xb_data_add_float(double v) { if (xb_data_count < 256) { xb_data_tag[xb_data_count] = 1; xb_data_float[xb_data_count] = v; xb_data_count++; } }\n");
+    out.push_str("static void xb_data_add_str(const char* v) { if (xb_data_count < 256) { xb_data_tag[xb_data_count] = 2; xb_data_str[xb_data_count] = xb_from_cstr(v); xb_data_count++; } }\n");
     out.push_str("static void xb_read_int(int* v) { if (!v) return; if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 0) *v = xb_data_int[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 1) *v = (int)xb_data_float[xb_data_pos]; else *v = (int)strtol(xb_data_str[xb_data_pos], 0, 0); xb_data_pos++; }\n");
     out.push_str("static void xb_read_giant(int64_t* v) { if (!v) return; if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 0) *v = xb_data_int[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 1) *v = (int64_t)xb_data_float[xb_data_pos]; else *v = (int64_t)strtoll(xb_data_str[xb_data_pos], 0, 0); xb_data_pos++; }\n");
     out.push_str("static void xb_read_float(double* v) { if (!v) return; if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 1) *v = xb_data_float[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 0) *v = (double)xb_data_int[xb_data_pos]; else *v = atof(xb_data_str[xb_data_pos]); xb_data_pos++; }\n");
