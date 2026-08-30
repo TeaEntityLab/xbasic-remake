@@ -524,18 +524,20 @@ impl Parser {
             _ => self.expect_name_or_keyword()?,
         };
         let (size, is_array, extra_dims) = self.parse_array_size()?;
-        self.skip_to_line_end();
+        // Collect comma-separated additional variables: `SHARED a, b, c`
+        // Each gets its own Dim with shared=true. Only the first may carry
+        // a composite type qualifier; the rest are plain shared scalars/arrays.
+        let mut dims: Vec<Statement> = Vec::new();
         if let Some(type_name) = composite_type {
-            // Register the composite variable; for a sized array decl also emit a
-            // shared sizing DIM so `dim()` flattens it into shared member arrays.
             let decl = Statement::CompositeDecl {
                 type_name,
                 var: name.clone(),
                 shared: is_shared,
                 is_array,
             };
+            dims.push(decl);
             if is_array && size.is_some() {
-                let dim = Statement::Dim {
+                dims.push(Statement::Dim {
                     name,
                     suffix,
                     size,
@@ -543,20 +545,49 @@ impl Parser {
                     is_array: true,
                     redim: false,
                     shared: is_shared,
-                };
-                return Ok(Statement::Compound(vec![decl, dim]));
+                });
             }
-            return Ok(decl);
+        } else {
+            dims.push(Statement::Dim {
+                name,
+                suffix,
+                size,
+                extra_dims,
+                is_array,
+                redim: false,
+                shared: is_shared,
+            });
         }
-        Ok(Statement::Dim {
-            name,
-            suffix,
-            size,
-            extra_dims,
-            is_array,
-            redim: false,
-            shared: is_shared,
-        })
+        // Parse additional comma-separated variables
+        while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+            self.index += 1; // consume comma
+            let (n2, s2) = match self.peek_kind().clone() {
+                TokenKind::SharedName(n) => {
+                    self.index += 1;
+                    (n, None)
+                }
+                TokenKind::SystemVariable { name, suffix } => {
+                    self.index += 1;
+                    (name, suffix)
+                }
+                _ => self.expect_name_or_keyword()?,
+            };
+            let (sz2, ia2, ed2) = self.parse_array_size()?;
+            dims.push(Statement::Dim {
+                name: n2,
+                suffix: s2,
+                size: sz2,
+                extra_dims: ed2,
+                is_array: ia2,
+                redim: false,
+                shared: is_shared,
+            });
+        }
+        self.skip_to_line_end();
+        if dims.len() == 1 {
+            return Ok(dims.pop().unwrap());
+        }
+        Ok(Statement::Compound(dims))
     }
 
     pub(crate) fn redim_stmt(&mut self) -> Result<Statement, crate::ParseError> {

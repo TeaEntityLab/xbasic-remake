@@ -720,6 +720,8 @@ END IF
 ##funcIds$ = ":"
 ##gosubRetCount$ = ""
 ##sharedDecls$ = ""
+##keywordSharedStr$ = ""
+##keywordShared$ = ""
 ##sharedArrays$ = ""
 ##sharedArrDecls$ = ""
 ##dynNames$ = ""
@@ -1278,6 +1280,10 @@ WHILE dsPos <= LEN(src$)
       END IF
       IF INSTR(##sharedDecls$, ":" + dsRefName$ + ":") = 0 AND INSTR(##sharedArrays$, ":" + dsRefName$ + ":") = 0 THEN
         ##sharedDecls$ = ##sharedDecls$ + ":" + dsRefName$ + ":"
+        ##keywordShared$ = ##keywordShared$ + ":" + dsRefName$ + ":"
+        IF dsRefType$ = "string" THEN
+          ##keywordSharedStr$ = ##keywordSharedStr$ + ":" + dsRefName$ + ":"
+        END IF
         PRINT c_type$(dsRefType$) + " xb_shared_" + sanitize_ident$(dsRefName$) + " = 0;"
         IF dsRefType$ = "string" THEN
           ##sharedStrInits$ = ##sharedStrInits$ + sanitize_ident$(dsRefName$) + ","
@@ -1765,9 +1771,9 @@ WHILE pos <= LEN(src$)
         END IF
         IF inNest > 0 THEN
           usedSyms$ = scan_used$(stmt$, usedSyms$)
-          IF LEFT$(stmt$, 4) = "dim " THEN
+          IF LEFT$(stmt$, 4) = "dim " AND INSTR(stmt$, " shared ") = 0 THEN
             dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
-          ELSEIF LEFT$(stmt$, 6) = "redim " THEN
+          ELSEIF LEFT$(stmt$, 6) = "redim " AND INSTR(stmt$, " shared ") = 0 THEN
             dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
           END IF
           IF LEN(cCode$) > 0 THEN
@@ -1891,9 +1897,9 @@ WHILE pos <= LEN(src$)
               funcBody$ = funcBody$ + cCode$ + CHR$(10)
             END IF
           ELSE
-          IF LEFT$(stmt$, 4) = "dim " THEN
+          IF LEFT$(stmt$, 4) = "dim " AND INSTR(stmt$, " shared ") = 0 THEN
             dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
-          ELSEIF LEFT$(stmt$, 6) = "redim " THEN
+          ELSEIF LEFT$(stmt$, 6) = "redim " AND INSTR(stmt$, " shared ") = 0 THEN
             dimmedSyms$ = dimmedSyms$ + dim_name$(stmt$) + CHR$(10)
           END IF
           IF LEN(cCode$) > 0 THEN
@@ -2006,6 +2012,19 @@ FUNCTION c_var_name$(n$, t$)
     c_var_name$ = "xb_str_" + sn$
   ELSE
     c_var_name$ = "xb_var_" + sn$
+  END IF
+END FUNCTION
+' c_ref_name$: like c_var_name$ but checks ##keywordShared$ first.
+' Use for variable references in statements (for-loop vars, assignments)
+' where the variable might be a shared scalar declared at file scope.
+' c_var_name$ itself is NOT changed (used by hoisting for local decls).
+' String variables without $ suffix fall through to c_var_name$ (local
+' string facet), matching Rust CEmitter which hoists a local char*.
+FUNCTION c_ref_name$(n$, t$)
+  IF INSTR(##keywordShared$, ":" + n$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + n$ + ":") = 0 AND INSTR(##sharedStrDual$, ":" + n$ + ":") = 0 AND NOT (t$ = "string" AND RIGHT$(n$, 1) <> "$") THEN
+    c_ref_name$ = "xb_shared_" + sanitize_ident$(n$)
+  ELSE
+    c_ref_name$ = c_var_name$(n$, t$)
   END IF
 END FUNCTION
 
@@ -3791,16 +3810,16 @@ FUNCTION emit_expr$(e$)
       END IF
       IF INSTR(##byrefDual$, ":" + varName$ + ":") > 0 THEN
         IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
-          emit_expr$ = "&" + c_var_name$(varName$, "string")
+          emit_expr$ = "&" + c_ref_name$(varName$, "string")
         ELSE
-          emit_expr$ = "&" + c_var_name$(varName$, "integer")
+          emit_expr$ = "&" + c_ref_name$(varName$, "integer")
         END IF
         RETURN emit_expr$
       ELSEIF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
-        emit_expr$ = "&" + c_var_name$(varName$, "string")
+        emit_expr$ = "&" + c_ref_name$(varName$, "string")
         RETURN emit_expr$
       ELSE
-        emit_expr$ = "&" + c_var_name$(varName$, "integer")
+        emit_expr$ = "&" + c_ref_name$(varName$, "integer")
         RETURN emit_expr$
       END IF
     END IF
@@ -4892,6 +4911,15 @@ FUNCTION emit_hoists$(used$, dimmed$)
         ' (e.g., string→xb_str_X vs integer→xb_var_X) — hoist the other facet.
         ' Note: $-suffix names (asm$ vs asm) never collide because sanitize_ident$
         ' maps $ to _s, producing different C names (xb_str_asm_s vs xb_str_asm).
+        ' Skip hoisting for shared scalars declared via SHARED keyword
+        ' (dim shared X:type at file scope as xb_shared_X).
+        ' Shared arrays are handled by the existing ##sharedArrays$ check below.
+        ' Dual-use and string-facet variables still need hoisting.
+        ' Note: #SharedName refs (##sharedDecls$) are NOT skipped because
+        ' the same name can be used as a regular local in other functions.
+        IF INSTR(##keywordShared$, ":" + nm$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 AND INSTR(##sharedStrDual$, ":" + nm$ + ":") = 0 AND INSTR(##sharedDual$, ":" + nm$ + ":") = 0 AND _strFacet = 0 AND NOT (ty$ = "string" AND RIGHT$(nm$, 1) <> "$") THEN
+          ' Shared scalar — don't hoist, it's a file-scope global
+        ELSE
         IF (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR (_ptMatch = 0 AND c_var_name$(nm$, ty$) <> c_var_name$(nm$, _ptType$)) OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) AND (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0)) OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1 OR (INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0)) OR (INSTR(##sharedStrDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0)) THEN
           IF INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
             IF (INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
@@ -4936,6 +4964,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
               out$ = out$ + "    " + c_type$(ty$) + "* xb_var_" + sanitize_ident$(nm$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + "_arr = -1;" + CHR$(10)
             END IF
           END IF
+        END IF
         END IF
       END IF
     ELSE
@@ -7694,7 +7723,7 @@ FUNCTION emit_stmt$(s$)
       varType$ = "integer"
     END IF
     cExpr$ = emit_expr$(rest$)
-    emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = " + cExpr$ + ";"
+    emit_stmt$ = "    " + c_ref_name$(varName$, varType$) + " = " + cExpr$ + ";"
     RETURN emit_stmt$
   END IF
 
@@ -7945,12 +7974,12 @@ FUNCTION emit_stmt$(s$)
       IF negStep THEN
         cmpOp$ = " >= "
       END IF
-      emit_stmt$ = "    for (" + c_var_name$(varName$, varType$) + " = " + cExpr$ + "; " + c_var_name$(varName$, varType$) + cmpOp$ + c2$ + "; " + c_var_name$(varName$, varType$) + " += " + cStep$ + ") {"
+      emit_stmt$ = "    for (" + c_ref_name$(varName$, varType$) + " = " + cExpr$ + "; " + c_ref_name$(varName$, varType$) + cmpOp$ + c2$ + "; " + c_ref_name$(varName$, varType$) + " += " + cStep$ + ") {"
     ELSE
       end$ = afterTo$
       cExpr$ = emit_expr$(start$)
       c2$ = emit_expr$(end$)
-      emit_stmt$ = "    for (" + c_var_name$(varName$, varType$) + " = " + cExpr$ + "; " + c_var_name$(varName$, varType$) + " <= " + c2$ + "; " + c_var_name$(varName$, varType$) + "++) {"
+      emit_stmt$ = "    for (" + c_ref_name$(varName$, varType$) + " = " + cExpr$ + "; " + c_ref_name$(varName$, varType$) + " <= " + c2$ + "; " + c_ref_name$(varName$, varType$) + "++) {"
     END IF
     RETURN emit_stmt$
   END IF
