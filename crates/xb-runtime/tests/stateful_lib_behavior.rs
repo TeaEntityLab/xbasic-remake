@@ -104,7 +104,7 @@ fn xst_stateful_library_behavior() {
             .arg("--emit-c")
             .arg(&xst_src)
             .env("XB_WEAK_SYMBOLS", "1")
-            .env("XB_BYREF_HINTS", "XstSystemExceptionToException:0,1;XstGetNewline:1,1;XstGetException:1;XstGetExceptionFunction:1;XstGetProgramName:1;XstDecomposePathname:0,1,1,1,1,1")
+            .env("XB_BYREF_HINTS", "XstSystemExceptionToException:0,1;XstGetNewline:1,1;XstGetException:1;XstGetExceptionFunction:1;XstGetProgramName:1;XstDecomposePathname:0,1,1,1,1,1;XstFileTimeToDateAndTime:0,1,1,1,1,1,1,1,1")
             .output()
             .expect("emit-c");
         assert!(
@@ -230,6 +230,14 @@ void xb_user_XstGetProgramName(char* *xb_str_prog_ref);
 intptr_t xb_user_XstDecomposePathname(char* xb_str_pathname, char* *xb_str_path_ref, char* *xb_str_parent_ref,
     char* *xb_str_fileName_ref, char* *xb_str_file_ref, char* *xb_str_extent_ref);
 extern __attribute__((weak)) char* xb_shared__s_sPathSlash;
+/* XstFileTimeToDateAndTime: 1 byval int64 input + 8 byref int outputs.
+   Converts Windows filetime (100ns units since 1601) to date/time.
+   gmtime() call is emitted as 0 (CEmitter doesn't handle composite-returning
+   external functions), so time fields stay 0 — but int64 arithmetic
+   (subtraction, division, nanos calculation) is testable. */
+intptr_t xb_user_XstFileTimeToDateAndTime(int64_t xb_var_filetime, intptr_t *xb_var_year_ref, intptr_t *xb_var_month_ref,
+    intptr_t *xb_var_day_ref, intptr_t *xb_var_weekDay_ref, intptr_t *xb_var_hour_ref,
+    intptr_t *xb_var_minute_ref, intptr_t *xb_var_second_ref, intptr_t *xb_var_nanos_ref);
 /* Weak globals set by the setter functions, readable from the harness. */
 extern __attribute__((weak)) intptr_t xb_shared_EXCEPTION;
 extern __attribute__((weak)) intptr_t xb_shared_TABSAT;
@@ -363,6 +371,28 @@ int main(void) {
     check_i("XstGetDateAndTime(month)", month, 1);
     check_i("XstGetDateAndTime(day)", day, 0);
     check_i("XstGetDateAndTime(nanos)", nanos, 0);
+    /* XstFileTimeToDateAndTime: int64 arithmetic path test.
+       gmtime() not called (emitted as 0), so time fields stay 0.
+       filetime=0: time<0 → time=0, secs=0, nanos=0.
+       filetime=Windows epoch: time=0, secs=0, nanos=0.
+       filetime=epoch+10000500: time=10000500, secs=1, year=1900 (gmtime not called). */
+    {
+        long ft_y=-1, ft_mo=-1, ft_d=-1, ft_wd=-1, ft_h=-1, ft_mi=-1, ft_s=-1, ft_ns=-1;
+        xb_user_XstFileTimeToDateAndTime(0, &ft_y, &ft_mo, &ft_d, &ft_wd, &ft_h, &ft_mi, &ft_s, &ft_ns);
+        check_i("FileTimeToDate(0) year", ft_y, 1900);
+        check_i("FileTimeToDate(0) nanos", ft_ns, 0);
+    }
+    {
+        long ft_y=-1, ft_mo=-1, ft_d=-1, ft_wd=-1, ft_h=-1, ft_mi=-1, ft_s=-1, ft_ns=-1;
+        xb_user_XstFileTimeToDateAndTime(116444736000000000LL, &ft_y, &ft_mo, &ft_d, &ft_wd, &ft_h, &ft_mi, &ft_s, &ft_ns);
+        check_i("FileTimeToDate(epoch) year", ft_y, 1900);
+        check_i("FileTimeToDate(epoch) nanos", ft_ns, 0);
+    }
+    {
+        long ft_y=-1, ft_mo=-1, ft_d=-1, ft_wd=-1, ft_h=-1, ft_mi=-1, ft_s=-1, ft_ns=-1;
+        xb_user_XstFileTimeToDateAndTime(11644473601000500LL, &ft_y, &ft_mo, &ft_d, &ft_wd, &ft_h, &ft_mi, &ft_s, &ft_ns);
+        check_i("FileTimeToDate(epoch+1s) year", ft_y, 1900);
+    }
     /* XstGetOSVersionName: byval string — return 0 proves body ran. */
     char osver_buf[64] = {0};
     intptr_t osver_ret = xb_user_XstGetOSVersionName(osver_buf);
@@ -573,7 +603,7 @@ int main(void) {
     /* XstGetProgramName: byref string — reads sysProgram$ set by
        XstSetProgramName. ##WHOMASK=0 → sys path. Round-trip verification. */
     { char* prog = (char*)0; xb_user_XstGetProgramName(&prog); check_s("XstGetProgramName", prog, "MyApp"); }
-    printf("\n%d checks, %d failures\n", 119, fails);
+    printf("\n%d checks, %d failures\n", 124, fails);
     return fails;
 }
 "#).unwrap();
