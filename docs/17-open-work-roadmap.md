@@ -8,8 +8,8 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
-> Last full re-verification: **2026-08-30** (`6bbfd11`: xit `null_arr`/
-> `orderArray_arr` + xst `ttt1_arr` fixed; xin/xit/xst now
+> Last full re-verification: **2026-08-30** (`7980b0e`: xcol/xgr/xst
+> real code errors fixed; all 5 failing libs now
 > `-Wint-conversion`-only). The last full workspace run reports
 > **282 passed / 0 failed across 33 binaries**. In
 > `xbsourcelib_parity.rs`, `xbsourcelib_interp_matches_compiled` covers 11
@@ -32,12 +32,15 @@
 > **Legacy Library Status [compile/link scaffolding only]:** Rust CEmitter
 > compile/link is 15/15; compiled legacy bodies are not behavior-ready.
 > Self-hosted cgen.x has a **9/15 regression floor locked by
-> `cgen_x_compiles_core_libs_floor_9_cc_clean`; 15/15 remains open**. Three
-> failures (`xin`, `xit`, `xst`) are `-Wint-conversion`-only (pre-existing in
-> both cgen.x and Rust CEmitter; all real code errors fixed as of `6bbfd11`);
-> two (`xcol`, `xgr`) have real generator errors (composite member flattening
-> and byref array param ABI). `ATTACH` remains a parser no-op, GUI is
-> headless, and SHELL/network effects have no capability gate.
+> `cgen_x_compiles_core_libs_floor_9_cc_clean`; 15/15 remains open**. All
+> five failing libs (`xin`, `xit`, `xst`, `xcol`, `xgr`) are now
+> `-Wint-conversion`/`-Wincompatible-pointer-types`-only (pre-existing in
+> both cgen.x and Rust CEmitter; all real code errors fixed as of
+> `7980b0e`). The floor test uses `-w` without `-Wno-int-conversion`, and
+> Apple clang 21 promotes these to errors. With `-Wno-int-conversion
+> -Wno-incompatible-pointer-types`, all 15/15 compile clean. `ATTACH`
+> remains a parser no-op, GUI is headless, and SHELL/network effects have
+> no capability gate.
 >
 > **NEW: `#var$` typing fix — a `#foo$` SharedName typed String (was Integer), so
 > `acgibin` no longer crashes on `"s" + #foo$` and is now interp==cgen faithful.**
