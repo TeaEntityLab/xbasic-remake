@@ -560,7 +560,12 @@ xb_scomplex xb_user_SCPOWERRC(double z, double n_R, double n_I);
         check_d("Atan2(1,1)", xb_user_Atan2(1.0, 1.0), M_PI_4);
         /* Atan2(1, 0) = PI/2 — x=0, y>0 → inv path: PI/2 - atan(0) = PI/2 */
         check_d("Atan2(1,0)", xb_user_Atan2(1.0, 0.0), M_PI_2);
-        /* DCABS(3,4) = 5 — |z| = sqrt(R^2 + I^2) = sqrt(9+16) = 5 */
+        /* Atan2(0,-1) = PI — y=0, x<0 → special case returns $$PI */
+        check_d("Atan2(0,-1)", xb_user_Atan2(0.0, -1.0), M_PI);
+        /* Atan2(-1,-1) = -3PI/4 — y<0, x<0 → -(PI - PI/4) = -3PI/4 */
+        check_d("Atan2(-1,-1)", xb_user_Atan2(-1.0, -1.0), -3.0 * M_PI_4);
+        /* Atan2(1,-1) = 3PI/4 — y>0, x<0 → PI - PI/4 = 3PI/4 */
+        check_d("Atan2(1,-1)", xb_user_Atan2(1.0, -1.0), 3.0 * M_PI_4);
         check_d("DCABS(3,4)", xb_user_DCABS(3.0, 4.0), 5.0);
         /* DCABS(0,0) = 0 */
         check_d("DCABS(0,0)", xb_user_DCABS(0.0, 0.0), 0.0);
@@ -730,7 +735,7 @@ xb_scomplex xb_user_SCPOWERRC(double z, double n_R, double n_I);
           check_d("SCPOWERRC(1,2,0).R", (double)_s.R, 1.0);
           check_d("SCPOWERRC(1,2,0).I", (double)_s.I, 0.0); }
 
-        printf("\n%d checks, %d failures\n", 87, fails);
+        printf("\n%d checks, %d failures\n", 91, fails);
         return fails;
     }
     "#).unwrap();
@@ -763,7 +768,9 @@ xb_scomplex xb_user_SCPOWERRC(double z, double n_R, double n_I);
 
     assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
     assert!(stdout.contains("Atan2(1,1)"), "missing Atan2(1,1) check in output");
-    assert!(stdout.contains("DCABS(3,4)"), "missing DCABS(3,4) check in output");
+    assert!(stdout.contains("Atan2(0,-1)"), "missing Atan2(0,-1) check in output");
+    assert!(stdout.contains("Atan2(-1,-1)"), "missing Atan2(-1,-1) check in output");
+    assert!(stdout.contains("Atan2(1,-1)"), "missing Atan2(1,-1) check in output");
     assert!(stdout.contains("DCARG(0,1)"), "missing DCARG(0,1) check in output");
     assert!(stdout.contains("DCNORM(3,4)"), "missing DCNORM(3,4) check in output");
     assert!(stdout.contains("DCCONJ(3,4).R"), "missing DCCONJ(3,4).R check in output");
