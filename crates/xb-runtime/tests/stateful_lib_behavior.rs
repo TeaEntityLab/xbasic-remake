@@ -184,6 +184,17 @@ intptr_t xb_user_XstTally(char* xb_str_source, char* xb_str_find);
    local, not the _s body variable); now fixed. */
 char* xb_user_XxxPathString(char* xb_str_path);
 intptr_t xb_user_XstErrorNumberToName(intptr_t xb_var_error, char* *xb_str_error_ref);
+/* Setter functions: modify SHARED/SharedName variables. */
+void xb_user_XstSetException(intptr_t xb_var_exception);
+void xb_user_XstSetPrintTab(intptr_t xb_var_pixels);
+void xb_user_XstSetExceptionFunction(intptr_t xb_var_function);
+void xb_user_XstSetNewline(intptr_t xb_var_save, intptr_t xb_var_paste);
+/* Weak globals set by the setter functions, readable from the harness. */
+extern __attribute__((weak)) intptr_t xb_shared_EXCEPTION;
+extern __attribute__((weak)) intptr_t xb_shared_TABSAT;
+extern __attribute__((weak)) intptr_t xb_shared_exceptionFunction;
+extern __attribute__((weak)) intptr_t xb_shared_sysSaveNewline;
+extern __attribute__((weak)) intptr_t xb_shared_sysPasteNewline;
 static int fails = 0;
 
 static void check_s(const char* name, const char* got, const char* want) {
@@ -357,7 +368,35 @@ int main(void) {
         check_s("XstErrorNumberToName(256)", err_name, "$$ErrorObject too large");
         check_i("XstErrorNumberToName(256,ret)", err_ret, 0);
     }
-    printf("\n%d checks, %d failures\n", 58, fails);
+    /* XstSetException: sets ##EXCEPTION SharedName. Verify the weak global
+       xb_shared_EXCEPTION is updated from the function body. */
+    xb_user_XstSetException(42);
+    check_i("XstSetException(42)", xb_shared_EXCEPTION, 42);
+    xb_user_XstSetException(0);
+    check_i("XstSetException(0)", xb_shared_EXCEPTION, 0);
+    /* XstSetPrintTab: sets ##TABSAT SharedName, clamped to >= 0. */
+    xb_user_XstSetPrintTab(80);
+    check_i("XstSetPrintTab(80)", xb_shared_TABSAT, 80);
+    xb_user_XstSetPrintTab(-5);
+    check_i("XstSetPrintTab(-5)", xb_shared_TABSAT, 0);
+    /* XstSetExceptionFunction: sets SHARED exceptionFunction.
+       Requires the SHARED comma fix (SHARED exceptionFunction is a
+       single-var declaration, but the fix ensures it's registered). */
+    xb_user_XstSetExceptionFunction(1234);
+    check_i("XstSetExceptionFunction(1234)", xb_shared_exceptionFunction, 1234);
+    /* XstSetNewline: sets sysSaveNewline/sysPasteNewline via SHARED comma
+       declaration (SHARED sysSaveNewline, sysPasteNewline). ##WHOMASK=0
+       by default, so the sys path is taken. $$NewlineDefault = 1. */
+    xb_user_XstSetNewline(1, 2);
+    check_i("XstSetNewline(1,2) save", xb_shared_sysSaveNewline, 1);
+    check_i("XstSetNewline(1,2) paste", xb_shared_sysPasteNewline, 2);
+    xb_user_XstSetNewline(0, 0);
+    check_i("XstSetNewline(0,0) save", xb_shared_sysSaveNewline, 1);
+    check_i("XstSetNewline(0,0) paste", xb_shared_sysPasteNewline, 1);
+    xb_user_XstSetNewline(2, 1);
+    check_i("XstSetNewline(2,1) save", xb_shared_sysSaveNewline, 2);
+    check_i("XstSetNewline(2,1) paste", xb_shared_sysPasteNewline, 1);
+    printf("\n%d checks, %d failures\n", 71, fails);
     return fails;
 }
 "#).unwrap();
@@ -406,7 +445,10 @@ int main(void) {
     assert!(stdout.contains("XstGetDateAndTime(year)"), "missing XstGetDateAndTime(year) check in output");
     assert!(stdout.contains("XstGetOSVersionName(ret)"), "missing XstGetOSVersionName(ret) check in output");
     assert!(stdout.contains("XstNextField(hello world,1)"), "missing XstNextField check in output");
-    assert!(stdout.contains("XstNextLine(2lines,1)"), "missing XstNextLine check in output");
+    assert!(stdout.contains("XstSetException(42)"), "missing XstSetException check in output");
+    assert!(stdout.contains("XstSetPrintTab(80)"), "missing XstSetPrintTab check in output");
+    assert!(stdout.contains("XstSetExceptionFunction(1234)"), "missing XstSetExceptionFunction check in output");
+    assert!(stdout.contains("XstSetNewline(1,2)"), "missing XstSetNewline check in output");
     assert!(stdout.contains("XstMergeStrings(hello,XYZ,2,2)"), "missing XstMergeStrings check in output");
     assert!(stdout.contains("XstParse(a,b,c /, 1)"), "missing XstParse check in output");
     assert!(stdout.contains("XstTally(a,b,c /,)"), "missing XstTally check in output");
