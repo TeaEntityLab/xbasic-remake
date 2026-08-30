@@ -515,14 +515,26 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                     out.push('0');
                 }
             } else if is_user_defined {
-                // RR-07: User-defined function takes precedence over the
                 // builtin name mapping (e.g. xma's SINH → xb_user_SINH,
                 // not the runtime's xb_sinh wrapper).
+                // Composite return: extract .R when used in expression context.
+                // (Assignment context is handled in c_emit_stmt.rs.)
+                let comp_ret = if crate::c_emit::is_suppress_comp_r() {
+                    None
+                } else {
+                    crate::c_emit::func_return_composite(name)
+                };
+                if comp_ret.is_some() {
+                    out.push('(');
+                }
                 out.push_str("xb_user_");
                 out.push_str(name);
                 out.push('(');
                 emit_call_args(name, args, out);
                 out.push(')');
+                if comp_ret.is_some() {
+                    out.push_str(").R");
+                }
             } else {
                 emit_c_function_name(name, out);
                 out.push('(');

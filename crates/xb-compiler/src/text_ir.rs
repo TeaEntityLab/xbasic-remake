@@ -643,6 +643,7 @@ impl TextIrEmitter {
                 name,
                 params,
                 return_type,
+                return_type_name: _,
                 body,
             } => {
                 let ps: Vec<String> = params

@@ -100,6 +100,9 @@ pub enum IrItem {
         name: String,
         params: Vec<IrParam>,
         return_type: ValueType,
+        /// Composite TYPE name when the function returns a composite (e.g. `DCOMPLEX`);
+        /// `None` for primitive return types.
+        return_type_name: Option<String>,
         body: Vec<IrItem>,
     },
     Return {

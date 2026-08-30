@@ -18,6 +18,7 @@ impl Analyzer {
             shared: self.shared.clone(),
             functions: self.functions.clone(),
             return_type: Some(ret),
+            return_composite: f.return_type_name.clone(),
             composites: self.composites.clone(),
             composite_vars: self.composite_vars.clone(),
             permissive: self.permissive,
@@ -65,13 +66,28 @@ impl Analyzer {
             }
             cps.push(CheckedParam::from_ast(p));
         }
-        scoped.symbols.insert(f.name.clone(), ret);
+        // When the function returns a composite TYPE (e.g. `FUNCTION DCOMPLEX DCCONJ`),
+        // the function name itself acts as a composite local variable: assignments
+        // like `DCCONJ.R = ...` and `RETURN (ans)` (where ans is composite) flatten
+        // through the struct-of-arrays model. Register the function name as a
+        // composite variable and insert its member symbols, mirroring composite_decl.
+        if let Some(tn) = &f.return_type_name {
+            if let Some(layout) = scoped.composites.get(tn).cloned() {
+                scoped.composite_vars.insert(f.name.clone(), tn.clone());
+                let mut leaves = Vec::new();
+                scoped.flatten_composite(&f.name, &layout, &mut leaves);
+                for (mname, mvt) in &leaves {
+                    scoped.symbols.insert(mname.clone(), *mvt);
+                }
+            }
+        }
         let body = scoped.blk(&inlined, Scope::Function)?;
         self.shared = scoped.shared;
         Ok(CheckedItem::Function {
             name: f.name.clone(),
             params: cps,
             return_type: ret,
+            return_type_name: f.return_type_name.clone(),
             body,
         })
     }

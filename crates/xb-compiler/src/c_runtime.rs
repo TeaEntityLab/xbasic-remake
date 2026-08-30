@@ -398,6 +398,7 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
             name,
             params,
             return_type,
+            return_type_name,
             ..
         } = item
         {
@@ -407,7 +408,15 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
             if !seen.insert(name.clone()) {
                 continue;
             }
-            out.push_str(c_type(*return_type));
+            if let Some(tn) = return_type_name.as_deref() {
+                if tn == "DCOMPLEX" || tn == "SCOMPLEX" {
+                    out.push_str(crate::c_emit::composite_c_type(tn));
+                } else {
+                    out.push_str(c_type(*return_type));
+                }
+            } else {
+                out.push_str(c_type(*return_type));
+            }
             out.push(' ');
             out.push_str("xb_user_");
             out.push_str(name);

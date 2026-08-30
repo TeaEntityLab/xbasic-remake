@@ -16,6 +16,9 @@ pub(crate) struct FuncSig {
     /// Composite TYPE name per parameter (`None` for scalars); drives call-site
     /// flattening of composite arguments.
     pub(crate) param_composites: Vec<Option<String>>,
+    /// Composite TYPE name when the function returns a composite (`None` for
+    /// primitive returns); drives call-site flattening of composite return values.
+    pub(crate) return_composite: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -47,7 +50,9 @@ pub struct Analyzer {
     pub(crate) shared: BTreeMap<String, ValueType>,
     pub(crate) functions: BTreeMap<String, FuncSig>,
     pub(crate) return_type: Option<ValueType>,
-    /// Registry of composite TYPE layouts, keyed by type name.
+    /// Composite TYPE name when the current function returns a composite
+    /// (e.g. `DCOMPLEX`); `None` for primitive return types. Set per-function.
+    pub(crate) return_composite: Option<String>,
     pub(crate) composites: BTreeMap<String, CompositeLayout>,
     /// Map from a composite variable name to its declared type name.
     pub(crate) composite_vars: BTreeMap<String, String>,
@@ -132,6 +137,7 @@ impl Analyzer {
                     params: param_types,
                     return_type: ret,
                     param_composites,
+                    return_composite: f.return_type_name.clone(),
                 };
                 self.functions.insert(f.name.clone(), sig.clone());
                 self.functions

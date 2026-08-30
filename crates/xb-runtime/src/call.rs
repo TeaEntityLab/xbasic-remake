@@ -878,6 +878,7 @@ fn find_function<'a>(program: &'a IrProgram, name: &str) -> Result<FuncInfo<'a>,
             params,
             body,
             return_type,
+            return_type_name: _,
         } = item
         {
             if fname == name {

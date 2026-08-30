@@ -1052,6 +1052,7 @@ impl Parser {
             self.expect_keyword(Keyword::Function)?;
         }
         let mut prefix_suffix: Option<TypeSuffix> = None;
+        let mut return_type_name: Option<String> = None;
         if let TokenKind::Identifier { name, .. } = self.peek_kind().clone() {
             let name = name.clone();
             let save = self.index;
@@ -1060,13 +1061,19 @@ impl Parser {
             if matches!(self.peek_kind(), TokenKind::Identifier { .. })
                 || matches!(self.peek_kind(), TokenKind::Keyword(_))
             {
-                prefix_suffix = match upper.as_str() {
-                    "STRING" => Some(TypeSuffix::String),
-                    "SINGLE" | "FLOAT" => Some(TypeSuffix::Single),
-                    "DOUBLE" => Some(TypeSuffix::Double),
-                    "GIANT" => Some(TypeSuffix::Giant),
-                    _ => None,
-                };
+                // A composite TYPE name as prefix (e.g. `FUNCTION DCOMPLEX DCCONJ`)
+                // captures the return type; primitive type names become prefix_suffix.
+                if self.composite_types.contains(&upper) {
+                    return_type_name = Some(upper);
+                } else {
+                    prefix_suffix = match upper.as_str() {
+                        "STRING" => Some(TypeSuffix::String),
+                        "SINGLE" | "FLOAT" => Some(TypeSuffix::Single),
+                        "DOUBLE" => Some(TypeSuffix::Double),
+                        "GIANT" => Some(TypeSuffix::Giant),
+                        _ => None,
+                    };
+                }
             } else {
                 self.index = save;
             }
@@ -1119,9 +1126,9 @@ impl Parser {
             )
             || next_is_external_function;
         if is_forward {
-            return Ok(Statement::Function(FunctionDecl::new(
-                name, effective_suffix, params, body,
-            )));
+            let mut decl = FunctionDecl::new(name, effective_suffix, params, body);
+            decl.return_type_name = return_type_name;
+            return Ok(Statement::Function(decl));
         }
         while !self.at_eof() && !self.starts_end_function() {
             // If we encounter a new function declaration, this is a forward declaration
@@ -1163,9 +1170,9 @@ impl Parser {
         } else if self.at_eof() {
             return Err(self.expected("keyword"));
         }
-        Ok(Statement::Function(FunctionDecl::new(
-            name, effective_suffix, params, body,
-        )))
+        let mut decl = FunctionDecl::new(name, effective_suffix, params, body);
+        decl.return_type_name = return_type_name;
+        Ok(Statement::Function(decl))
     }
     fn if_stmt(&mut self) -> Result<Statement, ParseError> {
         self.expect_keyword(Keyword::If)?;

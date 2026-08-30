@@ -303,6 +303,7 @@ pub(crate) fn parse_item(
             name,
             params,
             return_type: rt,
+            return_type_name: None,
             body,
         });
     }

@@ -315,7 +315,10 @@ fn xcm_pure_library_behavior() {
     /* DCOMPLEX params are flattened to .R, .I member slots */
     double xb_user_DCABS(double z_R, double z_I);
     double xb_user_DCARG(double z_R, double z_I);
-    double xb_user_DCNORM(double z_R, double z_I);
+double xb_user_DCNORM(double z_R, double z_I);
+/* DCOMPLEX return type — struct typedef matches CEmitter output */
+typedef struct { double R; double I; } xb_dcomplex;
+xb_dcomplex xb_user_DCCONJ(double z_R, double z_I);
 
     static int fails = 0;
 
@@ -352,8 +355,16 @@ fn xcm_pure_library_behavior() {
         check_d("DCARG(0,1)", xb_user_DCARG(0.0, 1.0), M_PI_2);
         /* DCNORM(3,4) = 25 — R^2 + I^2 = 9+16 = 25 */
         check_d("DCNORM(3,4)", xb_user_DCNORM(3.0, 4.0), 25.0);
+        /* DCCONJ(3,4) = (3,-4) — conjugate: R unchanged, I negated */
+        { xb_dcomplex _r = xb_user_DCCONJ(3.0, 4.0);
+          check_d("DCCONJ(3,4).R", _r.R, 3.0);
+          check_d("DCCONJ(3,4).I", _r.I, -4.0); }
+        /* DCCONJ(0,0) = (0,0) */
+        { xb_dcomplex _r = xb_user_DCCONJ(0.0, 0.0);
+          check_d("DCCONJ(0,0).R", _r.R, 0.0);
+          check_d("DCCONJ(0,0).I", _r.I, 0.0); }
 
-        printf("\n%d checks, %d failures\n", 9, fails);
+        printf("\n%d checks, %d failures\n", 13, fails);
         return fails;
     }
     "#).unwrap();
@@ -389,4 +400,6 @@ fn xcm_pure_library_behavior() {
     assert!(stdout.contains("DCABS(3,4)"), "missing DCABS(3,4) check in output");
     assert!(stdout.contains("DCARG(0,1)"), "missing DCARG(0,1) check in output");
     assert!(stdout.contains("DCNORM(3,4)"), "missing DCNORM(3,4) check in output");
+    assert!(stdout.contains("DCCONJ(3,4).R"), "missing DCCONJ(3,4).R check in output");
+    assert!(stdout.contains("DCCONJ(3,4).I"), "missing DCCONJ(3,4).I check in output");
 }

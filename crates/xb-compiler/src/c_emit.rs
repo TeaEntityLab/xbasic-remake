@@ -82,6 +82,18 @@ thread_local! {
     /// Per-param descriptor flag per function (positional), so a call site passes
     /// the descriptor form at a descriptor position.
     static DEFINED_PARAM_DESC: RefCell<HashMap<String, Vec<bool>>> = RefCell::new(HashMap::new());
+    /// The current function's composite return type name (e.g. `DCOMPLEX`), if any.
+    /// Set per-function by `set_fn_context`; read by the Return emitter to
+    /// assemble the struct from member variables before returning.
+    static FN_COMPOSITE_RET: RefCell<Option<String>> = const { RefCell::new(None) };
+    /// The current function's name (for use in Return emission).
+    static FN_NAME: RefCell<String> = const { RefCell::new(String::new()) };
+    /// Map from function name to composite return type name, for functions
+    /// that return a composite (e.g. DCOMPLEX). Populated once per `emit_program`.
+    static DEFINED_COMPOSITE_RET: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    /// When true, suppress `.R` extraction on composite-returning calls
+    /// (the assignment handler needs the full struct, not just .R).
+    static SUPPRESS_COMP_R: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// Record every user-defined function name for `program`. Called once per
@@ -168,7 +180,22 @@ fn set_defined_funcs(program: &IrProgram) {
             }
         }
     });
-    SHARED_DUAL.with(|d| d.borrow_mut().clear());
+    DEFINED_COMPOSITE_RET.with(|s| {
+        let mut m = s.borrow_mut();
+        m.clear();
+        for item in &program.items {
+            if let IrItem::Function {
+                name,
+                return_type_name: Some(tn),
+                ..
+            } = item
+            {
+                if tn == "DCOMPLEX" || tn == "SCOMPLEX" {
+                    m.entry(name.clone()).or_insert_with(|| tn.clone());
+                }
+            }
+        }
+    });
     SHARED_ARRAYS.with(|s| {
         let mut m = s.borrow_mut();
         m.clear();
@@ -729,7 +756,12 @@ pub(crate) fn func_addr_id(name: &str) -> i32 {
 
 /// Establish the per-function emit context for `items` (a function body, or the
 /// whole program's items for `main` — the walkers skip nested `Function` bodies).
-fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
+fn set_fn_context(
+    name: &str,
+    items: &[IrItem],
+    params: &[crate::ir::IrParam],
+    return_type_name: Option<&str>,
+) {
     let mut refs = HashSet::new();
     crate::c_emit_hoist::collect_array_refs(items, &mut refs);
     // Array storage comes only from an *array* `Dim`; a name with only a scalar
@@ -750,6 +782,14 @@ fn set_fn_context(name: &str, items: &[IrItem], params: &[crate::ir::IrParam]) {
         let mut set = s.borrow_mut();
         set.clear();
         set.extend(descriptors.iter().cloned());
+    });
+    FN_COMPOSITE_RET.with(|s| {
+        *s.borrow_mut() = return_type_name
+            .filter(|tn| *tn == "DCOMPLEX" || *tn == "SCOMPLEX")
+            .map(|tn| tn.to_string());
+    });
+    FN_NAME.with(|s| {
+        *s.borrow_mut() = name.to_string();
     });
     FN_DYN.with(|s| {
         let mut dyn_names =
@@ -1144,10 +1184,45 @@ pub(crate) fn fn_has_label(name: &str) -> bool {
     FN_LABELS.with(|s| s.borrow().contains(name))
 }
 
+/// The current function's name, for use in Return emission.
+pub(crate) fn current_fn_name() -> Option<String> {
+    FN_NAME.with(|s| {
+        let name = s.borrow();
+        if name.is_empty() {
+            None
+        } else {
+            Some(name.clone())
+        }
+    })
+}
+
+/// The current function's composite return type name, if any.
+pub(crate) fn current_composite_ret() -> Option<String> {
+    FN_COMPOSITE_RET.with(|s| s.borrow().clone())
+}
+
+/// The composite return type name of a user-defined function, if any.
+pub(crate) fn func_return_composite(name: &str) -> Option<String> {
+    DEFINED_COMPOSITE_RET.with(|s| s.borrow().get(name).cloned())
+}
+
+pub(crate) fn set_suppress_comp_r(v: bool) {
+    SUPPRESS_COMP_R.with(|s| s.set(v));
+}
+
+pub(crate) fn is_suppress_comp_r() -> bool {
+    SUPPRESS_COMP_R.with(|s| s.get())
+}
+
 /// Whether `name` is a parameter of the current function — a `Dim` of a param
 /// name must not re-declare it in C (would be a redefinition).
 pub(crate) fn is_fn_param(name: &str) -> bool {
     FN_PARAMS.with(|s| s.borrow().contains(name))
+}
+
+pub(crate) fn next_comp_tmp_id() -> usize {
+    static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 /// An array whose `Dim` is late/repeated: declared at function top as a pointer
@@ -1556,6 +1631,7 @@ impl CEmitter {
         emit_version_global(program, &mut out);
         emit_program_name_global(program, &mut out);
         emit_header(&mut out);
+        emit_composite_typedefs(program, &mut out);
         if body.contains("xb_inline(") {
             // INLINE$: a literal prompt becomes its own output line, then the
             // next stdin line (or "" at EOF) — call.rs "INLINE$".
@@ -1603,6 +1679,69 @@ impl CEmitter {
     }
 }
 
+/// Emit struct typedefs for built-in composite types (DCOMPLEX, SCOMPLEX) when
+/// any function in the program returns that type. The C emitter flattens
+/// composite *parameters* into member scalars, but composite *returns* need a
+/// real struct type so `return funcname;` can return the assembled value.
+fn emit_composite_typedefs(program: &IrProgram, out: &mut String) {
+    let mut needed: HashSet<&str> = HashSet::new();
+    for item in &program.items {
+        if let IrItem::Function {
+            return_type_name: Some(tn),
+            ..
+        } = item
+        {
+            needed.insert(tn.as_str());
+        }
+    }
+    for tn in &needed {
+        match *tn {
+            "DCOMPLEX" => out.push_str(
+                "typedef struct { double R; double I; } xb_dcomplex;\n",
+            ),
+            "SCOMPLEX" => out.push_str(
+                "typedef struct { float R; float I; } xb_scomplex;\n",
+            ),
+            _ => {}
+        }
+    }
+}
+
+/// Map a composite TYPE name to its C struct typedef name.
+pub(crate) fn composite_c_type(type_name: &str) -> &'static str {
+    match type_name {
+        "DCOMPLEX" => "xb_dcomplex",
+        "SCOMPLEX" => "xb_scomplex",
+        _ => "intptr_t",
+    }
+}
+
+/// Emit the fallback return for a composite-returning function: assemble the
+/// struct from the function name's member variables and return it.
+/// Called at the end of the function body (fall-through path).
+fn emit_composite_fallback_return(name: &str, type_name: &str, out: &mut String) {
+    let members: &[(&str, &str)] = match type_name {
+        "DCOMPLEX" => &[("R", "xb_var_"), ("I", "xb_var_")],
+        "SCOMPLEX" => &[("R", "xb_var_"), ("I", "xb_var_")],
+        _ => &[],
+    };
+    out.push_str("    xb_var_");
+    out.push_str(name);
+    out.push_str(".R = ");
+    out.push_str(members[0].1);
+    out.push_str(name);
+    out.push_str("_R;\n");
+    out.push_str("    xb_var_");
+    out.push_str(name);
+    out.push_str(".I = ");
+    out.push_str(members[1].1);
+    out.push_str(name);
+    out.push_str("_I;\n");
+    out.push_str("    return xb_var_");
+    out.push_str(name);
+    out.push_str(";\n");
+}
+
 fn emit_functions(program: &IrProgram, out: &mut String) {
     let mut seen = HashSet::new();
     for item in &program.items {
@@ -1610,6 +1749,7 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             name,
             params,
             return_type,
+            return_type_name,
             body,
         } = item
         {
@@ -1632,11 +1772,21 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             };
             // Establish the per-function context BEFORE the signature so a
             // dual-use array param is emitted with its `_arr` array name.
-            set_fn_context(name, body, params);
+            set_fn_context(name, body, params, return_type_name.as_deref());
             if weak_symbols_enabled() {
                 out.push_str("__attribute__((weak)) ");
             }
-            out.push_str(c_type(*return_type));
+            // Composite return type: emit the struct typedef name instead of
+            // the primitive C type (e.g. `xb_dcomplex` instead of `double`).
+            if let Some(tn) = return_type_name.as_deref() {
+                if tn == "DCOMPLEX" || tn == "SCOMPLEX" {
+                    out.push_str(composite_c_type(tn));
+                } else {
+                    out.push_str(c_type(*return_type));
+                }
+            } else {
+                out.push_str(c_type(*return_type));
+            }
             out.push_str(" xb_user_");
             out.push_str(name);
             out.push('(');
@@ -1715,7 +1865,22 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             let own_name_used = *return_type == ValueType::Integer
                 && crate::c_emit_hoist::body_uses_name(body, name)
                 && !crate::c_emit_hoist::body_dims_name(body, name);
-            if *return_type != ValueType::Integer || own_name_used {
+            let is_composite_ret = return_type_name
+                .as_deref()
+                .map(|tn| tn == "DCOMPLEX" || tn == "SCOMPLEX")
+                .unwrap_or(false);
+            if is_composite_ret {
+                // Composite return: declare the function name as a struct local.
+                // The member variables (funcname.R, funcname.I) are already
+                // hoisted as separate doubles by emit_hoisted_scalars; the struct
+                // local is assembled from them at the return point.
+                let tn = return_type_name.as_deref().unwrap();
+                out.push_str("    ");
+                out.push_str(composite_c_type(tn));
+                out.push_str(" xb_var_");
+                out.push_str(name);
+                out.push_str(" = {0};\n");
+            } else if *return_type != ValueType::Integer || own_name_used {
                 crate::c_emit_expr::emit_return_var_decl(name, *return_type, out);
             }
             // Isolate this function's GOSUB frames from a caller's: a function-level
@@ -1728,7 +1893,9 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             crate::c_emit_goto::emit_computed_goto_prologue(body, out, 1);
             emit_body(body, out, 1);
             emit_byref_copy_out(out, 1);
-            if *return_type != ValueType::Integer || own_name_used {
+            if is_composite_ret {
+                emit_composite_fallback_return(name, return_type_name.as_deref().unwrap(), out);
+            } else if *return_type != ValueType::Integer || own_name_used {
                 emit_fallback_return(name, *return_type, out);
             } else {
                 out.push_str("    return 0;\n");
@@ -1881,7 +2048,7 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     out.push_str("        }\n");
     out.push_str("    }\n");
     emit_data_init(program, out);
-    set_fn_context("", &program.items, &[]);
+    set_fn_context("", &program.items, &[], None);
     // Top-level scalars (walk_items ignores nested Function bodies).
     crate::c_emit_hoist::emit_hoisted_scalars(&program.items, &[], None, out, 1);
     emit_dyn_decls(out, 1);

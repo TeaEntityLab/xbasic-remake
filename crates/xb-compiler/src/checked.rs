@@ -163,6 +163,9 @@ pub enum CheckedItem {
         name: String,
         params: Vec<CheckedParam>,
         return_type: ValueType,
+        /// Composite TYPE name when the function returns a composite (e.g. `DCOMPLEX`);
+        /// `None` for primitive return types.
+        return_type_name: Option<String>,
         body: Vec<CheckedItem>,
     },
     Nop,

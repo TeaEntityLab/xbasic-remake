@@ -220,6 +220,10 @@ pub struct FunctionDecl {
     pub suffix: Option<TypeSuffix>,
     pub params: Vec<Param>,
     pub body: Vec<Statement>,
+    /// Composite TYPE name when the function returns a composite (e.g. `DCOMPLEX`);
+    /// `None` for primitive return types. Captured from the prefix type qualifier
+    /// in `FUNCTION DCOMPLEX DCCONJ (...)`.
+    pub return_type_name: Option<String>,
 }
 
 impl FunctionDecl {
@@ -234,6 +238,7 @@ impl FunctionDecl {
             suffix,
             params,
             body,
+            return_type_name: None,
         }
     }
 }

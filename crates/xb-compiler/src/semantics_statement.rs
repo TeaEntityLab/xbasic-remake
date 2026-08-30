@@ -3,8 +3,8 @@ use xb_frontend::{Expression, Statement, TypeSuffix};
 use crate::semantics_expr::ref_value_type;
 
 use crate::semantics::{
-    Analyzer, CheckedExpr, CheckedItem, CheckedSymbol, CompositeLayout, ItemResult, Scope,
-    SemanticError, ValueType,
+    Analyzer, CheckedExpr, CheckedExprKind, CheckedItem, CheckedSymbol, CompositeLayout,
+    ItemResult, Scope, SemanticError, ValueType,
 };
 
 impl Analyzer {
@@ -312,6 +312,22 @@ impl Analyzer {
         let checked = match value {
             Some(e) => {
                 let v = self.expr(e)?;
+                // Composite return: `RETURN (ans)` where `ans` is a composite
+                // variable (e.g. DCOMPLEX). Flatten to per-member assignments
+                // into the function name's composite slots, then RETURN the
+                // function name. The C emitter emits the function name as a
+                // struct local, so `return funcname` returns the assembled struct.
+                if let Some(ret_tn) = self.return_composite_type().cloned() {
+                    if (ret_tn == "DCOMPLEX" || ret_tn == "SCOMPLEX")
+                        && self.composites.contains_key(&ret_tn)
+                    {
+                        if let Some(var_tn) = self.composite_var_of_expr(e) {
+                            if var_tn == ret_tn {
+                                return self.flatten_composite_return(&v, &ret_tn);
+                            }
+                        }
+                    }
+                }
                 if !self.permissive && !crate::semantics_expr::types_coercible(v.value_type, ret) {
                     return Err(SemanticError::ReturnTypeMismatch {
                         expected: ret,
@@ -455,5 +471,85 @@ impl Analyzer {
             right_indices: right_checked,
             right_is_row,
         })
+    }
+
+    /// The composite TYPE name of the current function's return type, if any.
+    fn return_composite_type(&self) -> Option<&String> {
+        self.return_composite.as_ref()
+    }
+
+    /// If the expression is a bare identifier naming a composite variable,
+    /// return its composite TYPE name.
+    fn composite_var_of_expr(&self, e: &xb_frontend::Expression) -> Option<String> {
+        let name = match e {
+            xb_frontend::Expression::Identifier { name, .. } => name,
+            _ => return None,
+        };
+        self.composite_vars.get(name).cloned()
+    }
+
+    /// Flatten `RETURN (composite_var)` into per-member assignments from the
+    /// composite variable to the function name's composite slots, followed by
+    /// `RETURN funcname`. The C emitter declares `funcname` as a struct local,
+    /// so `return funcname` returns the assembled struct.
+    fn flatten_composite_return(
+        &mut self,
+        v: &CheckedExpr,
+        ret_tn: &str,
+    ) -> ItemResult {
+        // Extract the source variable name from the checked expression.
+        let src_name = match &v.kind {
+            CheckedExprKind::Symbol(s) => &s.name,
+            _ => return Ok(CheckedItem::Return { value: Some(v.clone()) }),
+        };
+        let layout = match self.composites.get(ret_tn) {
+            Some(l) => l.clone(),
+            None => return Ok(CheckedItem::Return { value: Some(v.clone()) }),
+        };
+        // We need the function name — it's the composite var registered for the
+        // return type. Find it by scanning composite_vars for a var whose type
+        // matches ret_tn and whose name matches the function's return variable.
+        // The function name was registered as a composite var in function().
+        // Find the func name: it's the key in composite_vars whose value == ret_tn
+        // and whose name matches the return variable pattern (funcname.R etc).
+        // We stored it with the function name as the key.
+        let func_name = self
+            .composite_vars
+            .iter()
+            .find(|(_, tn)| tn.as_str() == ret_tn)
+            .map(|(n, _)| n.clone())
+            .unwrap_or_default();
+        if func_name.is_empty() {
+            return Ok(CheckedItem::Return { value: Some(v.clone()) });
+        }
+        let mut items: Vec<CheckedItem> = Vec::new();
+        let mut leaves = Vec::new();
+        self.flatten_composite(src_name, &layout, &mut leaves);
+        let func_layout = self.composites.get(ret_tn).cloned().unwrap_or(layout);
+        let mut func_leaves = Vec::new();
+        self.flatten_composite(&func_name, &func_layout, &mut func_leaves);
+        for (src_member, mvt) in &leaves {
+            // Find the corresponding func member with the same suffix.
+            if let Some((func_member, _)) = func_leaves
+                .iter()
+                .find(|(fm, fvt)| fm.ends_with(&src_member[src_name.len()..]) && fvt == mvt)
+            {
+                items.push(CheckedItem::Assignment {
+                    target: CheckedSymbol::new(func_member.clone(), *mvt),
+                    value: CheckedExpr::new(
+                        CheckedExprKind::Symbol(CheckedSymbol::new(src_member.clone(), *mvt)),
+                        *mvt,
+                    ),
+                });
+            }
+        }
+        // RETURN funcname — the C emitter returns the struct variable.
+        items.push(CheckedItem::Return {
+            value: Some(CheckedExpr::new(
+                CheckedExprKind::Symbol(CheckedSymbol::new(func_name, v.value_type)),
+                v.value_type,
+            )),
+        });
+        Ok(CheckedItem::Compound(items))
     }
 }

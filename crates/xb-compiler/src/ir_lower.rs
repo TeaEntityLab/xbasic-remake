@@ -183,11 +183,13 @@ impl IrItem {
                 name,
                 params,
                 return_type,
+                return_type_name,
                 body,
             } => Self::Function {
                 name: name.clone(),
                 params: params.iter().map(IrParam::lower).collect(),
                 return_type: *return_type,
+                return_type_name: return_type_name.clone(),
                 body: body.iter().map(Self::lower_item).collect(),
             },
             CheckedItem::Return { value } => Self::Return {
