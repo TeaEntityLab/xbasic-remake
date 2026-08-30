@@ -714,7 +714,7 @@ IF LEN(##constDefines$) > 0 THEN
 END IF
 
 IF INSTR(src$, CHR$(92) + "0") > 0 THEN
-  PRINT "static char* xb_str_n(const char* s, size_t n) { char* d = xb_alloc(n); memcpy(d, s, n); return d; }"
+  PRINT "static char* xb_str_n(const char* s, size_t n) { char* d = xb_alloc(n); if (n) memcpy(d, s, n); return d; }"
 END IF
 IF INSTR(src$, "INLINE$(") > 0 THEN
   PRINT "static char* xb_inline(const char* prompt) { if (prompt) xb_print_str(prompt); return xb_readline(); }"

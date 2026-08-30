@@ -1697,7 +1697,7 @@ impl CEmitter {
             // (xb_str/strlen would truncate). Usage-gated: byte-neutral for
             // programs without NUL literals (the entire shared corpus).
             out.push_str(
-                "static char* xb_str_n(const char* s, size_t n) { char* d = xb_alloc(n); memcpy(d, s, n); return d; }\n",
+                "static char* xb_str_n(const char* s, size_t n) { char* d = xb_alloc(n); if (n) memcpy(d, s, n); return d; }\n",
             );
         }
         if body.contains("xb_xst_str_to_num(") {
