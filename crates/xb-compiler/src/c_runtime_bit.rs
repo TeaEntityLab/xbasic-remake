@@ -94,6 +94,6 @@ pub(crate) fn emit_format_runtime(out: &mut String) {
     out.push_str("  else if (trailing_plus) r[pos++] = neg ? '-' : '+';\n");
     out.push_str("  else if (trailing_minus && neg) r[pos++] = '-';\n");
     out.push_str("  r[pos] = 0; return xb_from_cstr(r);\n}\n");
-    out.push_str("static int xb_shell(const char* cmd) { if (!getenv(\"XB_ALLOW_SHELL\")) return -1; return system(cmd); }\n");
+    out.push_str("static int xb_shell(const char* cmd) { if (!cmd || !getenv(\"XB_ALLOW_SHELL\")) return -1; return system(cmd); }\n");
     out.push_str("static int xb_library(int n) { return 0; }\n");
 }

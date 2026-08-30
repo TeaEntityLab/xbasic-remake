@@ -261,6 +261,7 @@ pub(crate) fn emit_header(out: &mut String) {
     );
     out.push_str("static FILE* xb_files[256]; static int xb_file_count = 3;\n");
     out.push_str("static int xb_open(const char* name, int mode) {\n");
+    out.push_str("    if (!name) return -1;\n");
     out.push_str("    int nonblock = (mode & 0x0800) != 0;\n");
     out.push_str("    int base = mode & ~0x0800;\n");
     out.push_str("    FILE* f = NULL;\n");
