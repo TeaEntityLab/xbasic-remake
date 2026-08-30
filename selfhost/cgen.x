@@ -668,8 +668,10 @@ PRINT "    if (copy > slen) copy = slen;"
 PRINT "    if (si + copy > dlen) copy = dlen - si;"
 PRINT "    memcpy(dst + si, src, copy);"
 PRINT "}"
+PRINT "static void xb_setch(char* s, intptr_t index, intptr_t ch) {"
+PRINT "    if (index >= 0 && index < xb_len(s)) s[index] = (char)ch;"
+PRINT "}"
 PRINT "static void* xb_gosub_stack[256]; static int xb_gosub_sp = 0;"
-##constDefines$ = ""
 cpos = 1
 WHILE cpos <= LEN(src$)
   cle = INSTR(src$, CHR$(10), cpos)
@@ -7608,7 +7610,15 @@ FUNCTION emit_stmt$(s$)
     right$ = MID$(tmp$, spacePos + 2, LEN(tmp$) - spacePos - 1)
     c2$ = emit_expr$(right$)
     IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
-      emit_stmt$ = "    (void)(" + c2$ + ");"
+      IF varType$ = "string" AND INSTR(cExpr$, ",") = 0 THEN
+        IF INSTR(##sharedDecls$, ":" + varName$ + ":") > 0 THEN
+          emit_stmt$ = "    xb_setch(xb_shared_" + sanitize_ident$(varName$) + ", " + emit_expr$(cExpr$) + ", " + c2$ + ");"
+        ELSE
+          emit_stmt$ = "    xb_setch(xb_str_" + sanitize_ident$(varName$) + ", " + emit_expr$(cExpr$) + ", " + c2$ + ");"
+        END IF
+      ELSE
+        emit_stmt$ = "    (void)(" + c2$ + ");"
+      END IF
     ELSE
       _ndShape$ = shape_of$(varName$)
       _ndRank = top_part_count(_ndShape$)

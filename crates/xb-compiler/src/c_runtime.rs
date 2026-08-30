@@ -375,6 +375,9 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    if (si + copy > dlen) copy = dlen - si;\n");
     out.push_str("    memcpy(dst + si, src, copy);\n");
     out.push_str("}\n");
+    out.push_str("static void xb_setch(char* s, intptr_t index, intptr_t ch) {\n");
+    out.push_str("    if (index >= 0 && index < xb_len(s)) s[index] = (char)ch;\n");
+    out.push_str("}\n");
     out.push_str("static void* xb_gosub_stack[256]; static int xb_gosub_sp = 0;\n");
 }
 

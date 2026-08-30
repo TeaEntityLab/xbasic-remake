@@ -435,9 +435,22 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             value,
         } => {
             if crate::c_emit::is_undimmed_array(&target.name) {
-                // Write to a never-`Dim`'d array: the interpreter errors only when
-                // this *executes* (UnknownSlot) — interpreter-clean programs never
-                // reach it. Evaluate+discard the value so the statement compiles.
+                // A 1-D String target with no array DIM is byte-level character
+                // access (XBasic `s${i} = charCode`). Emit xb_setch instead
+                // of discarding. Multi-dimensional or non-string undimmed
+                // arrays are genuinely unreachable (interpreter errors) —
+                // evaluate+discard.
+                if target.value_type == ValueType::String && extra_indices.is_empty() {
+                    out.push_str(&ind);
+                    out.push_str("xb_setch(");
+                    crate::c_emit_expr::emit_var_name(target, out);
+                    out.push_str(", ");
+                    emit_expr(index, out);
+                    out.push_str(", ");
+                    emit_expr(value, out);
+                    out.push_str(");\n");
+                    return;
+                }
                 out.push_str(&ind);
                 out.push_str("(void)(");
                 emit_expr(value, out);
