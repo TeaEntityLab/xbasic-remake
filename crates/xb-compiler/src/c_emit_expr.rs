@@ -475,7 +475,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 } else {
                     out.push('0');
                 }
-            } else if crate::c_emit::is_builtin_without_helper(name) {
+            } else if !is_user_defined && crate::c_emit::is_builtin_without_helper(name) {
                 // Recognized builtin with no emitter arm and no C helper (the name
                 // maps to xb_user_*, e.g. a call-form UBOUND): the interpreter
                 // errors only if this executes — yield the zero-default.
@@ -484,6 +484,15 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 } else {
                     out.push('0');
                 }
+            } else if is_user_defined {
+                // RR-07: User-defined function takes precedence over the
+                // builtin name mapping (e.g. xma's SINH → xb_user_SINH,
+                // not the runtime's xb_sinh wrapper).
+                out.push_str("xb_user_");
+                out.push_str(name);
+                out.push('(');
+                emit_call_args(name, args, out);
+                out.push(')');
             } else {
                 emit_c_function_name(name, out);
                 out.push('(');

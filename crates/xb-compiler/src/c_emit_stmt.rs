@@ -749,7 +749,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 // external statement calls (GUI Xgr*/Xui*, etc.) compiling.
                 return;
             }
-            if crate::c_emit::is_builtin_without_helper(name) {
+            if !is_user_defined && crate::c_emit::is_builtin_without_helper(name) {
                 // Builtin with no emitter arm / C helper (maps to xb_user_*):
                 // interp errors only if executed; no-op like the unknown stub.
                 return;
@@ -767,11 +767,21 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 out.push_str(");\n");
                 return;
             }
-            out.push_str(&ind);
-            crate::c_emit_helpers::emit_c_function_name(name, out);
-            out.push('(');
-            crate::c_emit_expr::emit_call_args(name, args, out);
-            out.push_str(");\n");
+            if is_user_defined {
+                // RR-07: User-defined function takes precedence over builtin.
+                out.push_str(&ind);
+                out.push_str("xb_user_");
+                out.push_str(name);
+                out.push('(');
+                crate::c_emit_expr::emit_call_args(name, args, out);
+                out.push_str(");\n");
+            } else {
+                out.push_str(&ind);
+                crate::c_emit_helpers::emit_c_function_name(name, out);
+                out.push('(');
+                crate::c_emit_expr::emit_call_args(name, args, out);
+                out.push_str(");\n");
+            }
         }
         IrItem::ExitLoop => {
             out.push_str(&ind);

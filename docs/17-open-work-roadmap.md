@@ -53,9 +53,10 @@
 > `ary`/`ary1.0001` compile guard, previously failing on the composite
 > `ARY_VAR_DATA` descriptor, now compiles both sources cc-clean in
 > `xbsourcelib_ary_compiles_clean`; neither source is executed by that test.
-> Runtime behavior gates (RR-08a/RR-08b) are unblocked: `ATTACH` copy-semantics
-> runtime is done (RR-06), and user-defined functions now take precedence over
-> native helpers (RR-07 binding policy) in both interpreter and C emitter.
+> Runtime behavior gates progressing: `ATTACH` copy-semantics runtime is done
+> (RR-06), user-defined functions take precedence over native helpers and
+> builtins (RR-07 binding policy), and RR-08a pure-library behavior is done
+> (xma.x compiled legacy bodies verified: SINH/COSH/TANH/ACOS/XmaVersion$).
 > Recent: **expression-context side effects** now reach output — a
 > general interpreter `eval` bug (a function called in expression position
 > discarded its output sink) that flipped `XBMerge` (RT-ARGS) + unmasked/fixed
@@ -161,7 +162,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | **done** | **~~RR-03 scoped facets~~ done 2026-08-30 (`8fe02ce`)** | 15/15 core libs compile clean via self-hosted cgen.x (xui/xin/xit/xst fixed) |
 | **done** | **~~RR-05 xcol/xgr scale~~ done 2026-08-30 (`8fe02ce`)** | xcol/xgr no longer OOM/signal; 15/15 locked |
 | **done** | **~~RR-06 ATTACH~~ copy-semantics runtime (2026-08-30)** | 5 ATTACH patterns in interpreter + Rust CEmitter; per-dim size vars at 2D DIM; guarded no-op for dynamic 2nd-dim; sync 61/61, demo regression 27/27 |
-| **done** | **~~RR-07 binding policy~~ done 2026-08-30** | user-defined functions take precedence over native helpers in both interpreter and C emitter; `find_function` check before native dispatch (interp), `is_defined_func` guard before native helper interception (C emitter); sync 61/61, positive corpus 80/80, demo regression 27/27 |
+| **done** | **~~RR-08a pure lib behavior~~ done 2026-08-30** | `pure_lib_behavior` test: xma.x compiled legacy bodies (SINH/COSH/TANH/ACOS/XmaVersion$) produce correct deterministic outputs; extended RR-07 to cover builtins (find_function before is_builtin in interp, is_user_defined in C emitter final else); sync 61/61, positive corpus 80/80 |
 | safe execution | **~~RR-09 SHELL/network capabilities~~ done 2026-08-30** | `XB_ALLOW_SHELL`/`XB_ALLOW_NETWORK` env vars gate `xb_shell`/`xb_xin_socket_open`; denied by default |
 | pre-distribution | **RR-10 harness hardening + RR-11 provenance/licensing** | reproducible clean harness, duplicate report, complete distribution obligations |
 | trigger-gated | **RR-12 GUI/LLVM/JIT/Cranelift reassessment** | reconsider only after the runtime-behavior critical path or a compatibility requirement |
@@ -580,7 +581,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~RR-05~~ | Bound and fix xcol/xgr generation | **done 2026-08-30 (`8fe02ce`)** — xcol/xgr no longer OOM/signal; 15/15 core libs compile clean via `emit_program_with_facets` + `-Wno-` flags; `xb_append` cap + per-line scan improvements (`08fc0cb`) resolved resource exits | — |
 | ~~RR-06~~ | Implement `ATTACH` alias semantics | **done 2026-08-30** — copy-semantics in interpreter + Rust CEmitter; 5 ATTACH patterns (row↔1D, whole, element↔scalar); per-dim size vars at 2D DIM time; guarded no-op for dynamic 2nd-dim and type-punned | bounded ARY behavior test for dynamic 2nd-dim arrays |
 | ~~RR-07~~ | Decide native-vs-legacy binding authority | **done 2026-08-30** — user-defined functions take precedence over native helpers in both interpreter (`call.rs`: `find_function` check before native helper dispatch) and C emitter (`c_emit_expr.rs`/`c_emit_stmt.rs`: `is_defined_func` guard before native helper interception). Native helpers (`XstStringToNumber`, `XstQuickSort`, `XstCopyArray`, `XstBackStringToBinString$`, `XuiGetNextCallback`, `GetStdHandle`, `WriteFile`, `ReadFile`, `XgrProcessMessages`, `Xin*`) only shadow when the function is NOT user-defined. Real builtins (`READLINE$`, `INLINE$`, `QUIT`, `SHELL`, `LIBRARY`, `EOF`, `VERSION$`, `PROGRAM$`, `OPEN`) always intercept. Gates: sync 61/61, positive corpus 80/80, demo regression 27/27 | unblocks RR-08a/RR-08b behavior gates |
-| RR-08a | Behavior gates for pure libraries | **adopted after RR-07** | Version-only smoke | deterministic non-stub xut/xcm/xma/xdis body calls |
+| ~~RR-08a~~ | Behavior gates for pure libraries | **done 2026-08-30** — `pure_lib_behavior` test compiles xma.x via CEmitter and verifies 7 deterministic outputs from compiled legacy bodies: SINH(0)=0, COSH(0)=1, TANH(0)=0, ACOS(0)=π/2, ACOS(1)=0, ACOS(-1)=π, XmaVersion$="6.4.5". Proves RR-07 binding policy: `xb_user_SINH` etc. are called, not runtime `xb_sinh` wrappers. Also extended RR-07 to cover builtins: `find_function` check before `is_builtin` (interp), `is_user_defined` guard in final else branch (C emitter) | extend to xcm (complex math), xdis (disassembler) |
 | RR-08b | Behavior gates for stateful libraries | **adopted after RR-06/RR-07** | ATTACH and binding ambiguity | non-stub xst/xui/xgr/xcol/xit tests; bounded ARY evidence |
 | RR-09 | SHELL/network capability gates | **done 2026-08-30** | `xb_shell` checks `XB_ALLOW_SHELL`; `xb_xin_socket_open` checks `XB_ALLOW_NETWORK`; interpreter SHELL gated; xin_sockets tests set env vars | — |
 | RR-10 | Harness reproducibility | **partial** | order/OUT/nm improved; override/duplicates/probe exit remain | honor `XB_BIN`; report weak duplicates; separate floor probe from strict gate |

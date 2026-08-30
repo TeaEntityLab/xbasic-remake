@@ -406,7 +406,13 @@ pub(crate) fn call_function(
             _ => {}
         }
     }
-    if is_builtin(name) {
+    // RR-07: User-defined functions take precedence over builtins too.
+    // When the program defines its own SINH, COSH, etc., the compiled legacy
+    // body must be called, not the builtin wrapper. This enables behavior-port
+    // testing (RR-08a/RR-08b) by ensuring compiled legacy bodies are exercised.
+    if find_function(program, name).is_ok() {
+        // Fall through to the user-defined function body below.
+    } else if is_builtin(name) {
         let mut vals = Vec::with_capacity(args.len());
         for arg in args {
             vals.push(eval(program, arg, state, output)?);

@@ -47,7 +47,7 @@ fn docs_adopted_wording_is_present() {
     // Current compiler queue and falsifiability.
     assert_contains(open_work, "RR-03 scoped facets");
     assert_contains(open_work, "Heuristic patch falsifiability");
-    assert_contains(open_work, "15/15 core-library compile floor");
+    assert_contains(open_work, "RR-08a pure-library behavior");
 
     // ARY compile-only evidence is separate from the 11-program parity loop.
     assert_contains("README.md", "locks runtime parity for 11 non-ARY programs");
