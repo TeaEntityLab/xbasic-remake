@@ -714,10 +714,10 @@ END IF
 ##curParamTypes$ = ""
 ##arrParams$ = ""
 ##qsIdxNames$ = ""
-##funcMixed$ = ","
 ##funcHasArr$ = ","
+##funcMixed$ = ","
+##byrefParamSet$ = ""
 ##curCallFn$ = ""
-##byrefWB$ = ","
 ##curFnName$ = ""
 ##byrefWBCopy$ = ""
 ##sharedStrInits$ = ""
@@ -1292,6 +1292,7 @@ END IF
 PRINT ""
 ##funcMixed$ = scan_mixed_byref$(src$)
 ##byrefWB$ = scan_byref_wb$(src$)
+##byrefParamSet$ = scan_byref_params$(src$)
 ' Emit deferred forward declarations (now that ##byrefWB$ is set for pointer params)
 DIM _fdName$
 DIM _fdParams$
@@ -3617,14 +3618,9 @@ FUNCTION emit_expr$(e$)
       ELSE
         varName$ = t$
       END IF
-      ' Mixed-function check: if callee has mixed byref/byval calls,
-      ' emit value directly (no &) to match Rust CEmitter.
-      IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
-        IF INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
-          emit_expr$ = "xb_shared_" + sanitize_ident$(varName$)
-          RETURN emit_expr$
-        END IF
-      END IF
+      ' Mixed-function: byref() was already stripped in emit_args$/
+      ' emit_args_n$ for non-byref positions. Shared args that still have
+      ' byref() are at consistently-byref positions — keep &.
       emit_expr$ = "&xb_shared_" + sanitize_ident$(varName$)
       RETURN emit_expr$
     END IF
@@ -3653,25 +3649,12 @@ FUNCTION emit_expr$(e$)
       ' (##funcHasArr$). Callees with no array params take all byref as values.
       ' Callees with array params need per-variable check to distinguish
       ' array args (get &) from scalar args (get value).
+      ' Mixed-function: byref() wrapper was already stripped in emit_args$/
+      ' emit_args_n$ for non-byref positions. Args that still have byref()
+      ' are at consistently-byref positions and need & (Rust to_ptr logic).
+      ' Fall through to normal byref handler below.
       IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
-        IF INSTR(##funcHasArr$, "," + ##curCallFn$ + ",") = 0 THEN
-          ' Callee has no array params — all byref args are scalar, pass by value
-          IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
-            emit_expr$ = c_var_name$(varName$, "string")
-          ELSE
-            emit_expr$ = c_var_name$(varName$, "integer")
-          END IF
-          RETURN emit_expr$
-        END IF
-        ' Callee has array params — check if THIS variable is an array in scope
-        IF is_array_var_in_scope$(varName$) = "0" THEN
-          IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
-            emit_expr$ = c_var_name$(varName$, "string")
-          ELSE
-            emit_expr$ = c_var_name$(varName$, "integer")
-          END IF
-          RETURN emit_expr$
-        END IF
+        ' Fall through — per-position stripping handles byval vs byref
       END IF
       IF INSTR(##byrefDual$, ":" + varName$ + ":") > 0 THEN
         IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
@@ -3739,9 +3722,8 @@ FUNCTION emit_args$(a$)
   DIM ch
   DIM depth
   DIM start
-  DIM parts$
   DIM arg$
-
+  DIM emitted
   IF LEN(a$) = 0 THEN
     emit_args$ = ""
     RETURN emit_args$
@@ -3773,10 +3755,22 @@ FUNCTION emit_args$(a$)
     ELSEIF ch = 44 AND depth = 0 THEN
       arg$ = MID$(a$, start, i - start)
       arg$ = trim_spaces$(arg$)
+      ' Per-param byref: strip byref() for non-byref positions in mixed funcs
+      IF LEFT$(arg$, 6) = "byref(" + "" THEN
+        IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
+          IF INSTR(##byrefParamSet$, ":" + ##curCallFn$ + ":" + STR$(emitted) + ":") = 0 THEN
+            arg$ = MID$(arg$, 7, LEN(arg$) - 6)
+            IF RIGHT$(arg$, 1) = ")" THEN
+              arg$ = LEFT$(arg$, LEN(arg$) - 1)
+            END IF
+          END IF
+        END IF
+      END IF
       IF LEN(parts$) > 0 THEN
         parts$ = parts$ + ", "
       END IF
       parts$ = parts$ + emit_expr$(arg$)
+      emitted = emitted + 1
       start = i + 1
     END IF
     i = i + 1
@@ -3785,6 +3779,17 @@ FUNCTION emit_args$(a$)
   IF start <= LEN(a$) THEN
     arg$ = MID$(a$, start, LEN(a$) - start + 1)
     arg$ = trim_spaces$(arg$)
+    ' Per-param byref: strip byref() for non-byref positions in mixed funcs
+    IF LEFT$(arg$, 6) = "byref(" + "" THEN
+      IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
+        IF INSTR(##byrefParamSet$, ":" + ##curCallFn$ + ":" + STR$(emitted) + ":") = 0 THEN
+          arg$ = MID$(arg$, 7, LEN(arg$) - 6)
+          IF RIGHT$(arg$, 1) = ")" THEN
+            arg$ = LEFT$(arg$, LEN(arg$) - 1)
+          END IF
+        END IF
+      END IF
+    END IF
     IF LEN(parts$) > 0 THEN
       parts$ = parts$ + ", "
     END IF
@@ -4234,6 +4239,9 @@ FUNCTION emit_params$(params$)
     ELSEIF INSTR(##byrefWB$, "," + ##curFnName$ + ",") > 0 THEN
       ' CGEN-BYREF-WRITEBACK: all-byref scalar param → pointer with _ref suffix
       result$ = result$ + c_type$(pType$) + "* " + baseName$ + "_ref"
+    ELSEIF INSTR(##funcMixed$, "," + ##curFnName$ + ",") > 0 AND INSTR(##byrefParamSet$, ":" + ##curFnName$ + ":" + STR$(i) + ":") > 0 THEN
+      ' Per-param byref: mixed function, this position is consistently byref
+      result$ = result$ + c_type$(pType$) + "* " + baseName$ + "_ref"
     ELSE
       result$ = result$ + c_type$(pType$) + " " + baseName$
     END IF
@@ -4609,6 +4617,17 @@ FUNCTION emit_args_n$(a$, n)
       ELSEIF ch = 44 AND depth = 0 THEN
         arg$ = trim_spaces$(MID$(a$, start, i - start))
         IF emitted < n THEN
+          ' Per-param byref: strip byref() for positions NOT consistently byref
+          IF LEFT$(arg$, 6) = "byref(" + "" THEN
+            IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
+              IF INSTR(##byrefParamSet$, ":" + ##curCallFn$ + ":" + STR$(emitted) + ":") = 0 THEN
+                arg$ = MID$(arg$, 7, LEN(arg$) - 6)
+                IF RIGHT$(arg$, 1) = ")" THEN
+                  arg$ = LEFT$(arg$, LEN(arg$) - 1)
+                END IF
+              END IF
+            END IF
+          END IF
           IF LEN(parts$) > 0 THEN
             parts$ = parts$ + ", "
           END IF
@@ -4621,6 +4640,17 @@ FUNCTION emit_args_n$(a$, n)
     WEND
     arg$ = trim_spaces$(MID$(a$, start, LEN(a$) - start + 1))
     IF emitted < n THEN
+      ' Per-param byref: strip byref() for non-byref positions in mixed funcs
+      IF LEFT$(arg$, 6) = "byref(" + "" THEN
+        IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
+          IF INSTR(##byrefParamSet$, ":" + ##curCallFn$ + ":" + STR$(emitted) + ":") = 0 THEN
+            arg$ = MID$(arg$, 7, LEN(arg$) - 6)
+            IF RIGHT$(arg$, 1) = ")" THEN
+              arg$ = LEFT$(arg$, LEN(arg$) - 1)
+            END IF
+          END IF
+        END IF
+      END IF
       IF LEN(parts$) > 0 THEN
         parts$ = parts$ + ", "
       END IF
@@ -5192,7 +5222,20 @@ FUNCTION scan_mixed_byref$(s$)
       msI2 = msPP + 1
       WHILE msI2 <= LEN(s$) AND msD > 0
         msC2 = ASC(MID$(s$, msI2, 1))
-        IF msC2 = 40 THEN
+        IF msC2 = 34 THEN
+          ' Skip string literal (Rust {:?} format: "..." with \" escapes)
+          msI2 = msI2 + 1
+          WHILE msI2 <= LEN(s$)
+            msC2 = ASC(MID$(s$, msI2, 1))
+            IF msC2 = 92 THEN
+              msI2 = msI2 + 2
+            ELSEIF msC2 = 34 THEN
+              EXIT WHILE
+            ELSE
+              msI2 = msI2 + 1
+            END IF
+          WEND
+        ELSEIF msC2 = 40 THEN
           msD = msD + 1
         ELSEIF msC2 = 41 THEN
           msD = msD - 1
@@ -5200,7 +5243,6 @@ FUNCTION scan_mixed_byref$(s$)
         msI2 = msI2 + 1
       WEND
       msAA$ = MID$(s$, msPP + 1, msI2 - msPP - 2)
-      IF LEN(msAA$) > 0 THEN
         msAP = 1
         msAS = 1
         msAD = 0
@@ -5212,7 +5254,7 @@ FUNCTION scan_mixed_byref$(s$)
           ELSEIF msAC = 41 THEN
             msAD = msAD - 1
           ELSEIF msAC = 44 AND msAD = 0 THEN
-            msOneArg$ = MID$(msAA$, msAS, msAP - msAS)
+            msOneArg$ = trim_spaces$(MID$(msAA$, msAS, msAP - msAS))
             IF LEFT$(msOneArg$, 6) <> "byref" + CHR$(40) THEN
               msHasByval = 1
             END IF
@@ -5220,7 +5262,7 @@ FUNCTION scan_mixed_byref$(s$)
           END IF
           msAP = msAP + 1
         WEND
-        msOneArg$ = MID$(msAA$, msAS, LEN(msAA$) - msAS + 1)
+        msOneArg$ = trim_spaces$(MID$(msAA$, msAS, LEN(msAA$) - msAS + 1))
         IF LEFT$(msOneArg$, 6) <> "byref" + CHR$(40) THEN
           msHasByval = 1
         END IF
@@ -5277,7 +5319,20 @@ FUNCTION scan_byref_wb$(s$)
         wbI2 = wbPP + 1
         WHILE wbI2 <= LEN(s$) AND wbD > 0
           wbC2 = ASC(MID$(s$, wbI2, 1))
-          IF wbC2 = 40 THEN
+          IF wbC2 = 34 THEN
+            ' Skip string literal
+            wbI2 = wbI2 + 1
+            WHILE wbI2 <= LEN(s$)
+              wbC2 = ASC(MID$(s$, wbI2, 1))
+              IF wbC2 = 92 THEN
+                wbI2 = wbI2 + 2
+              ELSEIF wbC2 = 34 THEN
+                EXIT WHILE
+              ELSE
+                wbI2 = wbI2 + 1
+              END IF
+            WEND
+          ELSEIF wbC2 = 40 THEN
             wbD = wbD + 1
           ELSEIF wbC2 = 41 THEN
             wbD = wbD - 1
@@ -5297,7 +5352,7 @@ FUNCTION scan_byref_wb$(s$)
             ELSEIF wbAC = 41 THEN
               wbAD = wbAD - 1
             ELSEIF wbAC = 44 AND wbAD = 0 THEN
-              wbOneArg$ = MID$(wbAA$, wbAS, wbAP - wbAS)
+              wbOneArg$ = trim_spaces$(MID$(wbAA$, wbAS, wbAP - wbAS))
               IF LEFT$(wbOneArg$, 6) <> "byref" + CHR$(40) THEN
                 wbHasByval = 1
               END IF
@@ -5305,7 +5360,7 @@ FUNCTION scan_byref_wb$(s$)
             END IF
             wbAP = wbAP + 1
           WEND
-          wbOneArg$ = MID$(wbAA$, wbAS, LEN(wbAA$) - wbAS + 1)
+          wbOneArg$ = trim_spaces$(MID$(wbAA$, wbAS, LEN(wbAA$) - wbAS + 1))
           IF LEFT$(wbOneArg$, 6) <> "byref" + CHR$(40) THEN
             wbHasByval = 1
           END IF
@@ -5326,6 +5381,223 @@ FUNCTION scan_byref_wb$(s$)
   scan_byref_wb$ = wbRes$
 END FUNCTION
 
+' Per-param byref detection: scan all call sites and record which param
+' positions are ALWAYS passed as byref() (never byval) for each user-defined
+' function. Returns ":funcName:pos:pos:..." entries.
+' Mirrors Rust CEmitter: a param is byref iff *br && !*bv (all byref, no byval).
+FUNCTION scan_byref_params$(s$)
+  DIM bpPat$
+  DIM bpSP
+  DIM bpCP
+  DIM bpNS
+  DIM bpPP
+  DIM bpFN$
+  DIM bpD
+  DIM bpI2
+  DIM bpC2
+  DIM bpAA$
+  DIM bpAP
+  DIM bpAS
+  DIM bpAD
+  DIM bpAC
+  DIM bpPos
+  DIM bpByval$
+  DIM _finRes$
+  DIM bpOneArg$
+  bpPat$ = "call "
+  bpRes$ = ""
+  bpByval$ = ""
+  WHILE bpSP <= LEN(s$)
+    bpCP = INSTR(s$, bpPat$, bpSP)
+    IF bpCP = 0 THEN
+      EXIT WHILE
+    END IF
+    bpNS = bpCP + 5
+    bpPP = INSTR(s$, CHR$(40), bpNS)
+    IF bpPP = 0 THEN
+      bpSP = bpNS
+    ELSE
+      bpFN$ = MID$(s$, bpNS, bpPP - bpNS)
+      ' Only user-defined functions
+      IF INSTR(##funcTypes$, "," + bpFN$ + ":") > 0 THEN
+        bpD = 1
+        bpI2 = bpPP + 1
+        bpAA$ = ""
+        WHILE bpI2 <= LEN(s$) AND bpD > 0
+          bpC2 = ASC(MID$(s$, bpI2, 1))
+          IF bpC2 = 34 THEN
+            ' Skip string literal — copy as-is to bpAA$
+            bpAA$ = bpAA$ + CHR$(34)
+            bpI2 = bpI2 + 1
+            WHILE bpI2 <= LEN(s$)
+              bpC2 = ASC(MID$(s$, bpI2, 1))
+              IF bpC2 = 92 THEN
+                bpAA$ = bpAA$ + CHR$(92) + CHR$(ASC(MID$(s$, bpI2 + 1, 1)))
+                bpI2 = bpI2 + 2
+              ELSEIF bpC2 = 34 THEN
+                bpAA$ = bpAA$ + CHR$(34)
+                EXIT WHILE
+              ELSE
+                bpAA$ = bpAA$ + CHR$(bpC2)
+                bpI2 = bpI2 + 1
+              END IF
+            WEND
+          ELSEIF bpC2 = 40 THEN
+            bpD = bpD + 1
+            bpAA$ = bpAA$ + CHR$(40)
+          ELSEIF bpC2 = 41 THEN
+            bpD = bpD - 1
+            IF bpD > 0 THEN
+              bpAA$ = bpAA$ + CHR$(41)
+            END IF
+          ELSE
+            bpAA$ = bpAA$ + CHR$(bpC2)
+          END IF
+          bpI2 = bpI2 + 1
+        WEND
+        bpSP = bpI2
+        ' Parse args, track byref/byval per position
+        bpAP = 1
+        bpAS = 1
+        bpAD = 0
+        bpPos = 0
+        WHILE bpAP <= LEN(bpAA$)
+          bpAC = ASC(MID$(bpAA$, bpAP, 1))
+          IF bpAC = 40 THEN
+            bpAD = bpAD + 1
+          ELSEIF bpAC = 41 THEN
+            bpAD = bpAD - 1
+          ELSEIF bpAC = 44 AND bpAD = 0 THEN
+            bpOneArg$ = trim_spaces$(MID$(bpAA$, bpAS, bpAP - bpAS))
+            IF LEFT$(bpOneArg$, 6) = "byref" + CHR$(40) THEN
+              ' byref at this position — do nothing (byval is permanent)
+            ELSE
+              ' byval at this position — add to byval set
+              IF INSTR(bpByval$, ":" + bpFN$ + ":" + STR$(bpPos) + ":") = 0 THEN
+                bpByval$ = bpByval$ + ":" + bpFN$ + ":" + STR$(bpPos) + ":"
+              END IF
+            END IF
+            bpPos = bpPos + 1
+            bpAS = bpAP + 1
+          END IF
+          bpAP = bpAP + 1
+        WEND
+        ' Last arg
+        IF bpAS <= LEN(bpAA$) THEN
+          bpOneArg$ = trim_spaces$(MID$(bpAA$, bpAS, LEN(bpAA$) - bpAS + 1))
+          IF LEFT$(bpOneArg$, 6) = "byref" + CHR$(40) THEN
+            ' byref at this position — do nothing (byval is permanent)
+          ELSE
+            IF INSTR(bpByval$, ":" + bpFN$ + ":" + STR$(bpPos) + ":") = 0 THEN
+              bpByval$ = bpByval$ + ":" + bpFN$ + ":" + STR$(bpPos) + ":"
+            END IF
+          END IF
+        END IF
+      ELSE
+        bpSP = bpNS
+      END IF
+    END IF
+  WEND
+  ' Build result: for each function:pos NOT in byval set, add to result
+  ' We need to re-scan to find all function:pos combinations and check
+  _finRes$ = ""
+  ' Re-scan to collect all seen function:pos pairs
+  bpSP = 1
+  DIM bp2Seen$
+  bp2Seen$ = ""
+  WHILE bpSP <= LEN(s$)
+    bpCP = INSTR(s$, bpPat$, bpSP)
+    IF bpCP = 0 THEN
+      EXIT WHILE
+    END IF
+    bpNS = bpCP + 5
+    bpPP = INSTR(s$, CHR$(40), bpNS)
+    IF bpPP = 0 THEN
+      bpSP = bpNS
+    ELSE
+      bpFN$ = MID$(s$, bpNS, bpPP - bpNS)
+      IF INSTR(##funcTypes$, "," + bpFN$ + ":") > 0 THEN
+        bpD = 1
+        bpI2 = bpPP + 1
+        bpAA$ = ""
+        WHILE bpI2 <= LEN(s$) AND bpD > 0
+          bpC2 = ASC(MID$(s$, bpI2, 1))
+          IF bpC2 = 34 THEN
+            ' Skip string literal — copy as-is to bpAA$
+            bpAA$ = bpAA$ + CHR$(34)
+            bpI2 = bpI2 + 1
+            WHILE bpI2 <= LEN(s$)
+              bpC2 = ASC(MID$(s$, bpI2, 1))
+              IF bpC2 = 92 THEN
+                bpAA$ = bpAA$ + CHR$(92) + CHR$(ASC(MID$(s$, bpI2 + 1, 1)))
+                bpI2 = bpI2 + 2
+              ELSEIF bpC2 = 34 THEN
+                bpAA$ = bpAA$ + CHR$(34)
+                EXIT WHILE
+              ELSE
+                bpAA$ = bpAA$ + CHR$(bpC2)
+                bpI2 = bpI2 + 1
+              END IF
+            WEND
+          ELSEIF bpC2 = 40 THEN
+            bpD = bpD + 1
+            bpAA$ = bpAA$ + CHR$(40)
+          ELSEIF bpC2 = 41 THEN
+            bpD = bpD - 1
+            IF bpD > 0 THEN
+              bpAA$ = bpAA$ + CHR$(41)
+            END IF
+          ELSE
+            bpAA$ = bpAA$ + CHR$(bpC2)
+          END IF
+          bpI2 = bpI2 + 1
+        WEND
+        bpSP = bpI2
+        bpAP = 1
+        bpAS = 1
+        bpAD = 0
+        bpPos = 0
+        WHILE bpAP <= LEN(bpAA$)
+          bpAC = ASC(MID$(bpAA$, bpAP, 1))
+          IF bpAC = 40 THEN
+            bpAD = bpAD + 1
+          ELSEIF bpAC = 41 THEN
+            bpAD = bpAD - 1
+          ELSEIF bpAC = 44 AND bpAD = 0 THEN
+            bpOneArg$ = trim_spaces$(MID$(bpAA$, bpAS, bpAP - bpAS))
+            IF LEFT$(bpOneArg$, 6) = "byref" + CHR$(40) THEN
+              IF INSTR(bpByval$, ":" + bpFN$ + ":" + STR$(bpPos) + ":") = 0 THEN
+                IF INSTR(bp2Seen$, ":" + bpFN$ + ":" + STR$(bpPos) + ":") = 0 THEN
+                  bp2Seen$ = bp2Seen$ + ":" + bpFN$ + ":" + STR$(bpPos) + ":"
+                  _finRes$ = _finRes$ + ":" + bpFN$ + ":" + STR$(bpPos) + ":"
+                END IF
+              END IF
+            END IF
+            bpPos = bpPos + 1
+            bpAS = bpAP + 1
+          END IF
+          bpAP = bpAP + 1
+        WEND
+        IF bpAS <= LEN(bpAA$) THEN
+          bpOneArg$ = trim_spaces$(MID$(bpAA$, bpAS, LEN(bpAA$) - bpAS + 1))
+          IF LEFT$(bpOneArg$, 6) = "byref" + CHR$(40) THEN
+            IF INSTR(bpByval$, ":" + bpFN$ + ":" + STR$(bpPos) + ":") = 0 THEN
+              IF INSTR(bp2Seen$, ":" + bpFN$ + ":" + STR$(bpPos) + ":") = 0 THEN
+                bp2Seen$ = bp2Seen$ + ":" + bpFN$ + ":" + STR$(bpPos) + ":"
+                _finRes$ = _finRes$ + ":" + bpFN$ + ":" + STR$(bpPos) + ":"
+              END IF
+            END IF
+          END IF
+        END IF
+      ELSE
+        bpSP = bpNS
+      END IF
+    END IF
+  WEND
+  scan_byref_params$ = _finRes$
+END FUNCTION
+
+
 ' CGEN-BYREF-WRITEBACK: generate copy-in lines for the current function's
 ' all-byref scalar params. Stores copy-out lines in ##byrefWBCopy$.
 ' Returns copy-in lines (each ending with CHR$(10)), or "" if not a WB function.
@@ -5342,13 +5614,20 @@ FUNCTION gen_byref_cio$(params$)
   DIM gioCName$
   gioIn$ = ""
   gioOut$ = ""
-  IF INSTR(##byrefWB$, "," + ##curFnName$ + ",") = 0 THEN
+  IF INSTR(##byrefWB$, "," + ##curFnName$ + ",") = 0 AND INSTR(##funcMixed$, "," + ##curFnName$ + ",") = 0 THEN
     ##byrefWBCopy$ = ""
     gen_byref_cio$ = ""
     RETURN gen_byref_cio$
   END IF
+  DIM _isMixedByref
+  _isMixedByref = 0
+  IF INSTR(##funcMixed$, "," + ##curFnName$ + ",") > 0 AND INSTR(##byrefWB$, "," + ##curFnName$ + ",") = 0 THEN
+    _isMixedByref = 1
+  END IF
   gioArr$ = arr_param_names$(params$)
   gioRest$ = params$
+  DIM gioPos
+  gioPos = 0
   WHILE LEN(gioRest$) > 0
     gioCm = INSTR(gioRest$, ",")
     IF gioCm > 0 THEN
@@ -5374,11 +5653,22 @@ FUNCTION gen_byref_cio$(params$)
     IF INSTR(gioTy$, "[]") = 0 THEN
       ' Skip if name is in arr_param_names (array param without [] in type)
       IF INSTR(gioArr$, gioNm$ + CHR$(10)) = 0 THEN
-        gioCName$ = c_var_name$(gioNm$, gioTy$)
-        gioIn$ = gioIn$ + "    " + c_type$(gioTy$) + " " + gioCName$ + " = *" + gioCName$ + "_ref;" + CHR$(10)
-        gioOut$ = gioOut$ + "    *" + gioCName$ + "_ref = " + gioCName$ + ";" + CHR$(10)
+        ' For mixed functions, only generate copy-in/out for byref positions
+        DIM _doCio
+        _doCio = 1
+        IF _isMixedByref = 1 THEN
+          IF INSTR(##byrefParamSet$, ":" + ##curFnName$ + ":" + STR$(gioPos) + ":") = 0 THEN
+            _doCio = 0
+          END IF
+        END IF
+        IF _doCio = 1 THEN
+          gioCName$ = c_var_name$(gioNm$, gioTy$)
+          gioIn$ = gioIn$ + "    " + c_type$(gioTy$) + " " + gioCName$ + " = *" + gioCName$ + "_ref;" + CHR$(10)
+          gioOut$ = gioOut$ + "    *" + gioCName$ + "_ref = " + gioCName$ + ";" + CHR$(10)
+        END IF
       END IF
     END IF
+    gioPos = gioPos + 1
   WEND
   ##byrefWBCopy$ = gioOut$
   gen_byref_cio$ = gioIn$
