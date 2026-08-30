@@ -103,7 +103,14 @@ fn set_defined_funcs(program: &IrProgram) {
         let mut set = s.borrow_mut();
         set.clear();
         for item in &program.items {
-            if let IrItem::Function { name, .. } = item {
+            if let IrItem::Function { name, body, .. } = item {
+                // EXTERNAL FUNCTION declarations for recognized builtins
+                // (SQRT, SIN, COS, EXP, etc.) have empty bodies. Skip them
+                // so call sites use the C runtime helper (xb_sqrt, xb_sin)
+                // instead of a zero-returning weak stub (xb_user_SQRT).
+                if body.is_empty() && crate::is_builtin::is_builtin(name) {
+                    continue;
+                }
                 set.insert(name.clone());
             }
         }
@@ -1757,6 +1764,12 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             // interpreter's find_function resolves the FIRST occurrence, so emit each
             // name once (first-wins) to match and avoid a C redefinition.
             if !seen.insert(name.clone()) {
+                continue;
+            }
+            // Skip EXTERNAL FUNCTION declarations for recognized builtins —
+            // their call sites use the C runtime helper (xb_sqrt, xb_sin),
+            // not a zero-returning weak stub.
+            if body.is_empty() && crate::is_builtin::is_builtin(name) {
                 continue;
             }
             // Disambiguate duplicate labels (SUB name colliding with an explicit

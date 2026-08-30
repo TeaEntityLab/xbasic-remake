@@ -408,6 +408,15 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
             if !seen.insert(name.clone()) {
                 continue;
             }
+            // Skip EXTERNAL FUNCTION declarations for recognized builtins —
+            // their call sites use the C runtime helper, not xb_user_*.
+            let body_empty = match item {
+                IrItem::Function { body, .. } => body.is_empty(),
+                _ => true,
+            };
+            if body_empty && crate::is_builtin::is_builtin(name) {
+                continue;
+            }
             if let Some(tn) = return_type_name.as_deref() {
                 if tn == "DCOMPLEX" || tn == "SCOMPLEX" {
                     out.push_str(crate::c_emit::composite_c_type(tn));
