@@ -175,7 +175,9 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                         out.push_str(&crate::c_emit::array_ident(&symbol.name));
                         out.push_str(" + 1), sizeof(*");
                         crate::c_emit::emit_array_var_name(symbol, out);
-                        out.push_str("));\n");
+                        out.push_str(")); if (!");
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push_str(") abort();\n");
                     } else {
                         out.push_str(c_type(symbol.value_type));
                         out.push(' ');
@@ -253,7 +255,9 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     out.push_str(&crate::c_emit::array_ident(&symbol.name));
                     out.push_str(" + 1), sizeof(*");
                     crate::c_emit::emit_array_var_name(symbol, out);
-                    out.push_str("));\n");
+                    out.push_str(")); if (!");
+                    crate::c_emit::emit_array_var_name(symbol, out);
+                    out.push_str(") abort();\n");
                     if symbol.value_type == ValueType::String {
                         out.push_str(&ind);
                         out.push_str("for (intptr_t _i = 0; _i <= xb_ub_");
