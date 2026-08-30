@@ -8,18 +8,17 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
-> Last full re-verification: **2026-08-30** (comprehensive NULL-safety sweep
-> of all C runtime string functions — memcpy/memcmp/fwrite/strchr guards
-> added to ~30 call sites across c_runtime.rs, c_runtime_math.rs,
-> c_runtime_bit.rs, and cgen.x; flaky FIFO test stabilized with unique
-> temp dir. XLONG/VAL/GIANT now handle hex strings via strtol/strtoll
-> with base 0; xit MakeStringHex behavior test added — first xit.x
-> behavior test, 6 checks. Compiler warnings cleaned to zero; LLVM CI
-> job added; Log0 Hart approximation behavior checks added.
-> ATTACH fixed-size array copy semantics locked; negative-corpus harness
-> locks frontend diagnostics; GTK/helpsrc compile inventory locked.
+> Last full re-verification: **2026-08-31** (extended NULL-safety sweep to
+> all malloc/calloc/realloc calls and all byref output pointer dereferences
+> in the C runtime — xb_alloc aborts on OOM, quicksort/copyarray/back_to_bin
+> graceful-fail on alloc failure, ARGV/ENVP calloc guarded, dynamic array
+> resize realloc guarded, xb_read_int/giant/float, xb_xst_str_to_num,
+> xb_gui_next_callback, xb_xin_socket_bind, xb_xin_address_number_to_string
+> all NULL-guarded. localtime returns checked in xb_timer/xb_time/xb_date.
+> 8 x87 FPU wrapper *y params NULL-guarded. Windows xb-link now respects
+> $CC env var. All mirrored in cgen.x where applicable.
 > sync 63/63, positive corpus 80/80, demo regression 27/27,
-> frontend 24/24, compiler 68/68, zero compiler warnings).
+> frontend 24/24, compiler 68/68, zero compiler warnings, zero clippy warnings).
 > The last full workspace run reports **285 passed / 0 failed across 34 binaries**. In
 > `xbsourcelib_parity.rs`, `xbsourcelib_interp_matches_compiled` covers 11
 > non-ARY programs; the separate compile-only

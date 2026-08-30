@@ -385,6 +385,7 @@ PRINT "static char* xb_oct2(int v, int d) { char buf[18]; if (d > 0) snprintf(bu
 PRINT "static int xb_quit(int code) { exit(code); return 0; }"
 PRINT "static char* xb_cjust(const char* s, int w) { int len = xb_len(s); if (len >= w) { char* r = xb_alloc((size_t)w); if (w) memcpy(r, s, (size_t)w); return r; } int total = w - len, left = total / 2, right = total - left; char* r = xb_alloc((size_t)w); memset(r, ' ', (size_t)left); if (len) memcpy(r + left, s, (size_t)len); memset(r + left + len, ' ', (size_t)right); return r; }"
 PRINT "static char* xb_format(const char* fmt, const char* sval, int ival, double fval, int is_float, int is_str) {"
+PRINT "  if (!fmt) return xb_str(" + CHR$(34) + "" + CHR$(34) + ");"
 PRINT "  if (is_str) {"
 PRINT "    int slen = xb_len(sval);"
 PRINT "    if (fmt[0] == '&') return xb_strdup(sval);"

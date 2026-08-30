@@ -37,6 +37,7 @@ pub(crate) fn emit_str_misc_runtime(out: &mut String) {
 
 pub(crate) fn emit_format_runtime(out: &mut String) {
     out.push_str("static char* xb_format(const char* fmt, const char* sval, int ival, double fval, int is_float, int is_str) {\n");
+    out.push_str("  if (!fmt) return xb_str(\"\");\n");
     out.push_str("  if (is_str) {\n");
     out.push_str("    int slen = xb_len(sval);\n");
     out.push_str("    if (fmt[0] == '&') return xb_strdup(sval);\n");
