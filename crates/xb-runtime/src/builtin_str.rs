@@ -216,7 +216,7 @@ pub(crate) fn eval_int_to_str2(
         let RuntimeValue::Integer(w) = &args[1] else {
             return Err(type_err(args[1].value_type()));
         };
-        let width = *w as usize;
+        let width = (*w).max(0) as usize;
         let padded = if digits.len() >= width {
             digits
         } else {
