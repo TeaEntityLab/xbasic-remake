@@ -148,9 +148,20 @@ pub(crate) fn eval_to_int(args: &[RuntimeValue]) -> Result<RuntimeValue, Runtime
         RuntimeValue::Integer(n) => Ok(RuntimeValue::Integer(*n)),
         RuntimeValue::Giant(n) => Ok(RuntimeValue::Integer(*n as i32)),
         RuntimeValue::Float(n) => Ok(RuntimeValue::Integer(*n as i32)),
-        RuntimeValue::String(s) => Ok(RuntimeValue::Integer(
-            String::from_utf8_lossy(s).parse().unwrap_or(0),
-        )),
+        RuntimeValue::String(s) => {
+            let text = String::from_utf8_lossy(s);
+            let trimmed = text.trim();
+            // XBasic XLONG() handles hex (0x), octal (0), and decimal strings.
+            let v = if let Some(hex) = trimmed
+                .strip_prefix("0x")
+                .or_else(|| trimmed.strip_prefix("0X"))
+            {
+                i32::from_str_radix(hex, 16).unwrap_or(0)
+            } else {
+                trimmed.parse().unwrap_or(0)
+            };
+            Ok(RuntimeValue::Integer(v))
+        }
     }
 }
 
@@ -160,9 +171,19 @@ pub(crate) fn eval_to_giant(args: &[RuntimeValue]) -> Result<RuntimeValue, Runti
         RuntimeValue::Integer(n) => Ok(RuntimeValue::Giant(*n as i64)),
         RuntimeValue::Giant(n) => Ok(RuntimeValue::Giant(*n)),
         RuntimeValue::Float(n) => Ok(RuntimeValue::Giant(*n as i64)),
-        RuntimeValue::String(s) => Ok(RuntimeValue::Giant(
-            String::from_utf8_lossy(s).trim().parse().unwrap_or(0),
-        )),
+        RuntimeValue::String(s) => {
+            let text = String::from_utf8_lossy(s);
+            let trimmed = text.trim();
+            let v = if let Some(hex) = trimmed
+                .strip_prefix("0x")
+                .or_else(|| trimmed.strip_prefix("0X"))
+            {
+                i64::from_str_radix(hex, 16).unwrap_or(0)
+            } else {
+                trimmed.parse().unwrap_or(0)
+            };
+            Ok(RuntimeValue::Giant(v))
+        }
     }
 }
 

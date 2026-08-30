@@ -1274,3 +1274,134 @@ int main(void) {
 
     eprintln!("{stdout}");
 }
+
+#[test]
+fn xit_makestringhex_behavior() {
+    let root = repo_root();
+    let tmp = std::env::temp_dir().join("xb_pure_lib_behavior_xit");
+    let _ = fs::remove_dir_all(&tmp);
+    fs::create_dir_all(&tmp).unwrap();
+
+    // Compile xit.x through CEmitter.
+    let xit_src = root.join("xbasic-6.4.5/src/linux/xit.x");
+    assert!(xit_src.exists(), "xit.x not found at {xit_src:?}");
+
+    let xit_c = emit_c(&xit_src, &tmp, true);
+    let xit_o = compile_c(&xit_c, &tmp);
+
+    // MakeStringHex(numstr$) prepends "0x" if not present, then calls XLONG().
+    // XLONG maps to strtol(s, 0, 0) which handles hex (0x prefix), decimal,
+    // and octal. This tests:
+    //   - String manipulation (LEFT$, LCASE$, concatenation)
+    //   - XLONG hex string conversion (strtol with base 0)
+    //   - Byref string parameter (modifies input string)
+    //   - Conditional logic (IFF ... THEN ... END IF)
+    let harness = tmp.join("harness.c");
+    fs::write(
+        &harness,
+        r#"#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+typedef long intptr_t;
+
+/* XBasic string: [size_t len, size_t cap, char data[]] */
+typedef struct { size_t len; size_t cap; char data[]; } xb_str_t;
+static char* xb_str(const char* s) {
+    size_t n = s ? strlen(s) : 0;
+    xb_str_t* p = malloc(sizeof(xb_str_t) + n + 1);
+    p->len = n; p->cap = n;
+    memcpy(p->data, s ? s : "", n + 1);
+    return p->data;
+}
+
+/* Forward declaration — byref string param */
+intptr_t xb_user_MakeStringHex(char* *xb_str_numstr_ref);
+
+static int fails = 0;
+
+static void check_i(const char* name, intptr_t got, intptr_t want) {
+    int ok = got == want;
+    printf("%-30s = %ld  (want %ld)  %s\n", name, (long)got, (long)want, ok ? "ok" : "FAIL");
+    if (!ok) fails++;
+}
+
+int main(void) {
+    /* MakeStringHex("1234") → prepends "0x" → XLONG("0x1234") = 0x1234 = 4660 */
+    char* s1 = xb_str("1234");
+    check_i("MakeStringHex(\"1234\")", xb_user_MakeStringHex(&s1), 4660);
+
+    /* MakeStringHex("0x1234") → already has "0x" → XLONG("0x1234") = 4660 */
+    char* s2 = xb_str("0x1234");
+    check_i("MakeStringHex(\"0x1234\")", xb_user_MakeStringHex(&s2), 4660);
+
+    /* MakeStringHex("0XABC") → already has "0X" (uppercase) → XLONG("0XABC") = 2748 */
+    char* s3 = xb_str("0XABC");
+    check_i("MakeStringHex(\"0XABC\")", xb_user_MakeStringHex(&s3), 2748);
+
+    /* MakeStringHex("0xFF") → prepends "0x" → XLONG("0x0xFF") = 255
+       Wait — "0xFF" already starts with "0x" (lowercase), so no prepend.
+       XLONG("0xFF") = 255 */
+    char* s4 = xb_str("0xFF");
+    check_i("MakeStringHex(\"0xFF\")", xb_user_MakeStringHex(&s4), 255);
+
+    /* MakeStringHex("0") → non-empty, "0x" prefix check: LCASE$(LEFT$("0",2))="0" != "0x"
+       → prepends "0x" → "0x0" → XLONG("0x0") = 0 */
+    char* s5 = xb_str("0");
+    check_i("MakeStringHex(\"0\")", xb_user_MakeStringHex(&s5), 0);
+
+    /* MakeStringHex("") → empty string, IFZ → skip → XLONG("") = 0 */
+    char* s6 = xb_str("");
+    check_i("MakeStringHex(\"\")", xb_user_MakeStringHex(&s6), 0);
+
+    printf("\n%d checks, %d failures\n", 6, fails);
+    return fails;
+}
+"#,
+    )
+    .unwrap();
+
+    let bin = tmp.join("xit_test");
+    let link = Command::new(cc())
+        .args([
+            "-O0",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+        ])
+        .arg(&harness)
+        .arg(&xit_o)
+        .arg("-lm")
+        .arg("-o")
+        .arg(&bin)
+        .output()
+        .expect("link");
+    assert!(
+        link.status.success(),
+        "link failed:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+
+    let run = Command::new(&bin).output().expect("run");
+    let stdout = String::from_utf8_lossy(&run.stdout);
+    let stderr = String::from_utf8_lossy(&run.stderr);
+
+    assert!(
+        run.status.success(),
+        "xit behavior test failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    );
+
+    assert!(
+        stdout.contains("0 failures"),
+        "test reported failures:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("MakeStringHex(\"1234\")"),
+        "missing MakeStringHex(\"1234\") check"
+    );
+    assert!(
+        stdout.contains("MakeStringHex(\"0xFF\")"),
+        "missing MakeStringHex(\"0xFF\") check"
+    );
+
+    eprintln!("{stdout}");
+}

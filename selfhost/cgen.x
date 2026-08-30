@@ -286,7 +286,7 @@ PRINT "    for (int i = end - sublen; i >= 0; i--)"
 PRINT "        if (strncasecmp(s + i, sub, sublen) == 0) return i + 1;"
 PRINT "    return 0;"
 PRINT "}"
-PRINT "static int xb_val(const char* s) { return atoi(s); }"
+PRINT "static int xb_val(const char* s) { return (int)strtol(s, 0, 0); }"
 PRINT "static char* xb_str_num(int v) { char buf[16]; snprintf(buf, 16, " + CHR$(34) + "%d" + CHR$(34) + ", v); return xb_from_cstr(buf); }"
 PRINT "static char* xb_str_giant(int64_t v) { char buf[24]; snprintf(buf, 24, " + CHR$(34) + "%lld" + CHR$(34) + ", (long long)v); return xb_from_cstr(buf); }"
 PRINT "static void xb_fmt_float(double v, char* out, int outn) {"
@@ -540,8 +540,8 @@ PRINT "static int xb_data_int[256]; static double xb_data_float[256]; static cha
 PRINT "static void xb_data_add_int(int v) { xb_data_tag[xb_data_count] = 0; xb_data_int[xb_data_count] = v; xb_data_count++; }"
 PRINT "static void xb_data_add_float(double v) { xb_data_tag[xb_data_count] = 1; xb_data_float[xb_data_count] = v; xb_data_count++; }"
 PRINT "static void xb_data_add_str(const char* v) { xb_data_tag[xb_data_count] = 2; xb_data_str[xb_data_count] = xb_from_cstr(v); xb_data_count++; }"
-PRINT "static void xb_read_int(int* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 0) *v = xb_data_int[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 1) *v = (int)xb_data_float[xb_data_pos]; else *v = atoi(xb_data_str[xb_data_pos]); xb_data_pos++; }"
-PRINT "static void xb_read_giant(int64_t* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 0) *v = xb_data_int[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 1) *v = (int64_t)xb_data_float[xb_data_pos]; else *v = (int64_t)atoll(xb_data_str[xb_data_pos]); xb_data_pos++; }"
+PRINT "static void xb_read_int(int* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 0) *v = xb_data_int[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 1) *v = (int)xb_data_float[xb_data_pos]; else *v = (int)strtol(xb_data_str[xb_data_pos], 0, 0); xb_data_pos++; }"
+PRINT "static void xb_read_giant(int64_t* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 0) *v = xb_data_int[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 1) *v = (int64_t)xb_data_float[xb_data_pos]; else *v = (int64_t)strtoll(xb_data_str[xb_data_pos], 0, 0); xb_data_pos++; }"
 PRINT "static void xb_read_float(double* v) { if (xb_data_pos >= xb_data_count) { *v = 0; return; } if (xb_data_tag[xb_data_pos] == 1) *v = xb_data_float[xb_data_pos]; else if (xb_data_tag[xb_data_pos] == 0) *v = (double)xb_data_int[xb_data_pos]; else *v = atof(xb_data_str[xb_data_pos]); xb_data_pos++; }"
 PRINT "static char* xb_read_str(void) { if (xb_data_pos >= xb_data_count) return xb_str(" + CHR$(34) + "" + CHR$(34) + "); char* r; if (xb_data_tag[xb_data_pos] == 2) r = xb_strdup(xb_data_str[xb_data_pos]); else { char buf[400]; if (xb_data_tag[xb_data_pos] == 0) snprintf(buf, 400, " + CHR$(34) + "%d" + CHR$(34) + ", xb_data_int[xb_data_pos]); else xb_fmt_float(xb_data_float[xb_data_pos], buf, 400); r = xb_from_cstr(buf); } xb_data_pos++; return r; }"
 PRINT "static void xb_restore(int idx) { xb_data_pos = idx; }"
@@ -3300,7 +3300,7 @@ FUNCTION emit_expr$(e$)
       DIM xargType$
       xargType$ = expr_type$(args$)
       IF xargType$ = "string" THEN
-        emit_expr$ = "atoi(" + emittedArgs$ + ")"
+        IF fn$ = "GIANT" THEN emit_expr$ = "strtoll(" + emittedArgs$ + ", 0, 0)" ELSE emit_expr$ = "strtol(" + emittedArgs$ + ", 0, 0)"
       ELSEIF xargType$ = "float" THEN
         emit_expr$ = "(int)(" + emittedArgs$ + ")"
       ELSEIF fn$ = "GIANT" THEN

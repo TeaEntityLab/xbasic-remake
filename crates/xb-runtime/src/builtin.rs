@@ -71,9 +71,17 @@ pub(crate) fn eval_builtin(
             let RuntimeValue::String(s) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::Integer(
-                String::from_utf8_lossy(s).trim().parse().unwrap_or(0),
-            ))
+            let text = String::from_utf8_lossy(s);
+            let trimmed = text.trim();
+            let v = if let Some(hex) = trimmed
+                .strip_prefix("0x")
+                .or_else(|| trimmed.strip_prefix("0X"))
+            {
+                i32::from_str_radix(hex, 16).unwrap_or(0)
+            } else {
+                trimmed.parse().unwrap_or(0)
+            };
+            Ok(RuntimeValue::Integer(v))
         }
         "STR$" => match &args[0] {
             RuntimeValue::Integer(n) => Ok(RuntimeValue::from_string(n.to_string())),
