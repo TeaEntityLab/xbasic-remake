@@ -131,7 +131,7 @@ intptr_t xb_user_XstGetConsoleGrid(intptr_t *xb_var_grid_ref);
 char* xb_user_XstVersion(void);
 intptr_t xb_user_XstGetEndianName(char* xb_str_name);
 intptr_t xb_user_XstGetCPUName(char* xb_str_name);
-
+intptr_t xb_user_XstGetApplicationEnvironment(intptr_t *xb_var_standalone_ref, intptr_t *xb_var_reserved_ref);
 /* SHARED variables referenced by xst.o */
 typedef long intptr_t;
 
@@ -175,7 +175,14 @@ int main(void) {
     char cpu_buf[64] = {0};
     intptr_t cpu_ret = xb_user_XstGetCPUName(cpu_buf);
     check_i("XstGetCPUName(ret)", cpu_ret, 0);
-    printf("\n%d checks, %d failures\n", 5, fails);
+    /* XstGetApplicationEnvironment: byref int+int — reads ##STANDALONE (init 0),
+       sets reserved=$$FALSE (0). Called with @ inside XstGetProgramFileName$. */
+    long standalone = -1, reserved = -1;
+    intptr_t env_ret = xb_user_XstGetApplicationEnvironment(&standalone, &reserved);
+    check_i("XstGetAppEnv(ret)", env_ret, 0);
+    check_i("XstGetAppEnv(standalone)", standalone, 0);
+    check_i("XstGetAppEnv(reserved)", reserved, 0);
+    printf("\n%d checks, %d failures\n", 8, fails);
     return fails;
 }
 "#).unwrap();
@@ -214,5 +221,5 @@ int main(void) {
     assert!(stdout.contains("XstVersion$"), "missing XstVersion$ check in output");
     assert!(stdout.contains("XstGetEndianName"), "missing XstGetEndianName check in output");
     assert!(stdout.contains("XstGetCPUName"), "missing XstGetCPUName check in output");
-    eprintln!("{stdout}");
+    assert!(stdout.contains("XstGetAppEnv"), "missing XstGetAppEnv check in output");
 }

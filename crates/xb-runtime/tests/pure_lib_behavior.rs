@@ -214,8 +214,21 @@ int main(void) {
     check_d("LOG(1.0)", xb_user_LOG(1.0), 0.0);
     /* LOG(e) = 1 — xma's LOG full path: bit-field extraction + Log0 Hart approximation */
     check_d("LOG(M_E)", xb_user_LOG(M_E), 1.0);
+    /* Non-trivial inputs exercising full EXP/SQRT/LOG paths */
+    /* SINH(2) = 3.626... — (EXP(2)-EXP(-2))*0.5, full EXP path */
+    check_d("SINH(2.0)", xb_user_SINH(2.0), 3.626860407847019);
+    /* COSH(2) = 3.762... — (EXP(2)+EXP(-2))*0.5, full EXP path */
+    check_d("COSH(2.0)", xb_user_COSH(2.0), 3.762195691083631);
+    /* TANH(2) = 0.964... — (EXP(2)-EXP(-2))/(EXP(2)+EXP(-2)), full EXP path */
+    check_d("TANH(2.0)", xb_user_TANH(2.0), 0.964027580075817);
+    /* LOG(2) = 0.693... — xma's bit-field extraction + Log0 Hart approximation */
+    check_d("LOG(2.0)", xb_user_LOG(2.0), 0.6931471805599453);
+    /* LOG10(100) = 2 — LOG(100)*LOG10E, full LOG path */
+    check_d("LOG10(100.0)", xb_user_LOG10(100.0), 2.0);
+    /* ACOSH(3) = 1.762... — LOG(3+SQRT(3*3-1)), full LOG+SQRT path */
+    check_d("ACOSH(3.0)", xb_user_ACOSH(3.0), 1.762747174039086);
 
-    printf("\n%d checks, %d failures\n", 30, fails);
+    printf("\n%d checks, %d failures\n", 36, fails);
     return fails;
 }
 "#).unwrap();
@@ -267,6 +280,10 @@ int main(void) {
     assert!(stdout.contains("CSC(PI/2)"), "missing CSC(PI/2) check in output");
     assert!(stdout.contains("SEC(0.0)"), "missing SEC(0.0) check in output");
     assert!(stdout.contains("LOG(M_E)"), "missing LOG(M_E) check in output");
+    assert!(stdout.contains("SINH(2.0)"), "missing SINH(2.0) check in output");
+    assert!(stdout.contains("LOG(2.0)"), "missing LOG(2.0) check in output");
+    assert!(stdout.contains("LOG10(100.0)"), "missing LOG10(100.0) check in output");
+    assert!(stdout.contains("ACOSH(3.0)"), "missing ACOSH(3.0) check in output");
 }
 
 #[test]
