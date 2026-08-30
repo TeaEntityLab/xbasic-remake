@@ -8,10 +8,13 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
-> Last full re-verification: **2026-08-30** (RR-07 binding policy: user-defined
-> functions take precedence over native helpers in interpreter + C emitter;
-> sync 61/61, positive corpus 80/80, demo regression 27/27). The last full
-> workspace run reports **282 passed / 0 failed across 33 binaries**. In
+> Last full re-verification: **2026-08-30** (ATTACH string-array name fix:
+> semantics `attach_stmt` now uses type suffix for array operands so
+> `auto_symbol` resolves to the DIM-declared `text$` array symbol; C emitter
+> Case 4 missing `)` for `xb_strdup` fixed; `multi_lib_integration` and
+> `demo_parity` now pass — workspace fully green. sync 61/61, positive
+> corpus 80/80, demo regression 27/27). The last full
+> workspace run reports **284 passed / 0 failed across 33 binaries**. In
 > `xbsourcelib_parity.rs`, `xbsourcelib_interp_matches_compiled` covers 11
 > non-ARY programs; the separate compile-only
 > `xbsourcelib_ary_compiles_clean` covers the two ARY sources.
@@ -37,6 +40,8 @@
 > `-Wno-int-conversion -Wno-incompatible-pointer-types`. `ATTACH`
 > is parsed (AST `Statement::Attach`) with copy-semantics runtime
 > (row→1D memcpy, 1D→row writeback, whole-array copy, element assign);
+> string-array name mismatch fixed (`8ab10c0`): `attach_stmt` uses type
+> suffix for array operands, C emitter sanitizes names correctly;
 > guarded to known-dimension arrays only (dynamic 2nd-dim trailing-comma
 > arrays and type-punned ATTACHs emit no-op). GUI is headless, and
 > gated by `XB_ALLOW_SHELL`/`XB_ALLOW_NETWORK` env vars (denied by default).
@@ -153,15 +158,16 @@
 Everything still open, one line each — the "what's left" view. Details live in the
 sections below or the named sibling docs; ✅-done items are omitted.
 
-### Current execution queue `[panel 2026-08-29, updated 2026-08-30 RR-13 done]`
+### Current execution queue `[panel 2026-08-29, updated 2026-08-30 ATTACH name fix]`
 
 | Order / track | Job | Exit gate |
 |---|---|---|
-| **done** | **RR-02 ARY composite descriptor — shared `ARY_VAR_DATA` member arrays now forward as `T*` (shared `T*` globals) and both ARY sources are cc-clean** | `xbsourcelib_ary_compiles_clean` 2/2, workspace 282/0 |
+| **done** | **RR-02 ARY composite descriptor — shared `ARY_VAR_DATA` member arrays now forward as `T*` (shared `T*` globals) and both ARY sources are cc-clean** | `xbsourcelib_ary_compiles_clean` 2/2, workspace 284/0 |
 | **done** | **RR-13 raw demo guard — harness post-emission rewrites removed; `cgen_x_compiles_all_demos_cc_clean` is now a raw-generator contract (114/114, no C mutation)** | raw 114/114 verified 2026-08-30 |
 | **done** | **~~RR-03 scoped facets~~ done 2026-08-30 (`8fe02ce`)** | 15/15 core libs compile clean via self-hosted cgen.x (xui/xin/xit/xst fixed) |
 | **done** | **~~RR-05 xcol/xgr scale~~ done 2026-08-30 (`8fe02ce`)** | xcol/xgr no longer OOM/signal; 15/15 locked |
 | **done** | **~~RR-06 ATTACH~~ copy-semantics runtime (2026-08-30)** | 5 ATTACH patterns in interpreter + Rust CEmitter; per-dim size vars at 2D DIM; guarded no-op for dynamic 2nd-dim; sync 61/61, demo regression 27/27 |
+| **done** | **~~ATTACH string-array name fix~~ done 2026-08-30 (`8ab10c0`)** | `attach_stmt` uses type suffix for array operands (full_name with `$`); C emitter Case 4 `xb_strdup` missing `)` fixed; `multi_lib_integration` + `demo_parity` now pass; workspace 284/0 fully green |
 | **done** | **~~RR-08a pure lib behavior~~ done 2026-08-30** | `pure_lib_behavior` test: xma.x compiled legacy bodies (SINH/COSH/TANH/ACOS/XmaVersion$) produce correct deterministic outputs; extended RR-07 to cover builtins (find_function before is_builtin in interp, is_user_defined in C emitter final else); sync 61/61, positive corpus 80/80 |
 | safe execution | **~~RR-09 SHELL/network capabilities~~ done 2026-08-30** | `XB_ALLOW_SHELL`/`XB_ALLOW_NETWORK` env vars gate `xb_shell`/`xb_xin_socket_open`; denied by default |
 | pre-distribution | **RR-10 harness hardening + RR-11 provenance/licensing** | reproducible clean harness, duplicate report, complete distribution obligations |
@@ -180,7 +186,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > `legacy_corpus` recursively parse/lowers the wider `.x` inventory, but the 19
 > GTK demos and three helpsrc programs have no cc/link/run guard. The
 > **274/0 across 33 binaries** result from 2026-08-26 is historical; the top
-> banner is authoritative for the current **282/0** workspace state.
+> banner is authoritative for the current **284/0** workspace state.
 ### cgen.x demos: raw 114/114 guard (RR-13 done 2026-08-30)
 
 > The cgen.x compile guard (`cgen_x_compiles_all_demos_cc_clean`) is now a
@@ -579,7 +585,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~RR-03~~ | Scope-qualified facet lookup | **done 2026-08-30 (`8fe02ce`)** — xui/xin/xit/xst classification failures fixed (string-typed facet skip, NOT-on-string, qsIdxNames parsing); 15/15 core libs compile clean | — |
 | RR-04 | Split cgen failure classes | **adopted as tracking** | four C errors vs two signal/resource exits | keep separate assertions/results; not a blocking implementation phase |
 | ~~RR-05~~ | Bound and fix xcol/xgr generation | **done 2026-08-30 (`8fe02ce`)** — xcol/xgr no longer OOM/signal; 15/15 core libs compile clean via `emit_program_with_facets` + `-Wno-` flags; `xb_append` cap + per-line scan improvements (`08fc0cb`) resolved resource exits | — |
-| ~~RR-06~~ | Implement `ATTACH` alias semantics | **done 2026-08-30** — copy-semantics in interpreter + Rust CEmitter; 5 ATTACH patterns (row↔1D, whole, element↔scalar); per-dim size vars at 2D DIM time; guarded no-op for dynamic 2nd-dim and type-punned | bounded ARY behavior test for dynamic 2nd-dim arrays |
+| ~~RR-06~~ | Implement `ATTACH` alias semantics | **done 2026-08-30** — copy-semantics in interpreter + Rust CEmitter; 5 ATTACH patterns (row↔1D, whole, element↔scalar); per-dim size vars at 2D DIM time; guarded no-op for dynamic 2nd-dim and type-punned; string-array name mismatch fixed (`8ab10c0`): `attach_stmt` uses type suffix for array operands, C emitter Case 4 `xb_strdup` missing `)` fixed | bounded ARY behavior test for dynamic 2nd-dim arrays |
 | ~~RR-07~~ | Decide native-vs-legacy binding authority | **done 2026-08-30** — user-defined functions take precedence over native helpers in both interpreter (`call.rs`: `find_function` check before native helper dispatch) and C emitter (`c_emit_expr.rs`/`c_emit_stmt.rs`: `is_defined_func` guard before native helper interception). Native helpers (`XstStringToNumber`, `XstQuickSort`, `XstCopyArray`, `XstBackStringToBinString$`, `XuiGetNextCallback`, `GetStdHandle`, `WriteFile`, `ReadFile`, `XgrProcessMessages`, `Xin*`) only shadow when the function is NOT user-defined. Real builtins (`READLINE$`, `INLINE$`, `QUIT`, `SHELL`, `LIBRARY`, `EOF`, `VERSION$`, `PROGRAM$`, `OPEN`) always intercept. Gates: sync 61/61, positive corpus 80/80, demo regression 27/27 | unblocks RR-08a/RR-08b behavior gates |
 | ~~RR-08a~~ | Behavior gates for pure libraries | **done 2026-08-30** — `pure_lib_behavior` test compiles xma.x via CEmitter and verifies 7 deterministic outputs from compiled legacy bodies: SINH(0)=0, COSH(0)=1, TANH(0)=0, ACOS(0)=π/2, ACOS(1)=0, ACOS(-1)=π, XmaVersion$="6.4.5". Proves RR-07 binding policy: `xb_user_SINH` etc. are called, not runtime `xb_sinh` wrappers. Also extended RR-07 to cover builtins: `find_function` check before `is_builtin` (interp), `is_user_defined` guard in final else branch (C emitter) | extend to xcm (complex math), xdis (disassembler) |
 | RR-08b | Behavior gates for stateful libraries | **adopted after RR-06/RR-07** | ATTACH and binding ambiguity | non-stub xst/xui/xgr/xcol/xit tests; bounded ARY evidence |
