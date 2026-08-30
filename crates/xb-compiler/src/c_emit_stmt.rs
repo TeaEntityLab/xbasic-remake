@@ -483,7 +483,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 out.push_str(&ind);
                 out.push_str(&format!(
                     "if (({idx_c}) > {ub}) {{ intptr_t _oldub = {ub}; {ub} = ({idx_c}); \
-                     {ptr} = realloc({ptr}, (size_t)({ub} + 1) * sizeof(*{ptr})); \
+                     {ptr} = realloc({ptr}, (size_t)({ub} + 1) * sizeof(*{ptr})); if (!{ptr}) abort(); \
                      for (intptr_t _i = _oldub + 1; _i <= {ub}; _i++) {ptr}[_i] = {fill}; }}\n"
                 ));
             }
