@@ -342,6 +342,87 @@ int main(void) {
 }
 
 #[test]
+fn xit_pure_library_behavior() {
+    let root = repo_root();
+    let tmp = std::env::temp_dir().join("xb_pure_lib_behavior_xit");
+    let _ = fs::remove_dir_all(&tmp);
+    fs::create_dir_all(&tmp).unwrap();
+
+    // Compile xit.x (and its dependency xst.x) through CEmitter.
+    let xit_src = root.join("xbasic-6.4.5/src/linux/xit.x");
+    let xst_src = root.join("xbasic-6.4.5/src/linux/xst.x");
+    assert!(xit_src.exists(), "xit.x not found at {xit_src:?}");
+    assert!(xst_src.exists(), "xst.x not found at {xst_src:?}");
+
+    let xit_c = emit_c(&xit_src, &tmp, true);
+    let xst_c = emit_c(&xst_src, &tmp, true);
+    let xit_o = compile_c(&xit_c, &tmp);
+    let xst_o = compile_c(&xst_c, &tmp);
+
+    // XitVersion$() calls VERSION$(0) and returns "6.4.5".
+    // Welcome() returns $$FALSE (0).
+    let harness = tmp.join("harness.c");
+    fs::write(&harness, r#"#include <stdio.h>
+#include <string.h>
+
+/* Forward declarations for user-defined functions from xit.x */
+char* xb_user_XitVersion(void);
+long xb_user_Welcome(void);
+
+static int fails = 0;
+
+static void check_s(const char* name, const char* got, const char* want) {
+    int ok = got && strcmp(got, want) == 0;
+    printf("%-20s = [%s]  (want [%s])  %s\n", name, got ? got : "(null)", want, ok ? "ok" : "FAIL");
+    if (!ok) fails++;
+}
+
+int main(void) {
+    /* XitVersion$() = "6.4.5" — calls VERSION$(0) */
+    check_s("XitVersion$", xb_user_XitVersion(), "6.4.5");
+    /* Welcome() = 0 — returns $$FALSE */
+    long ret = xb_user_Welcome();
+    int ok = (ret == 0);
+    printf("%-20s = %ld  (want 0)  %s\n", "Welcome()", ret, ok ? "ok" : "FAIL");
+    if (!ok) fails++;
+
+    printf("\n%d checks, %d failures\n", 2, fails);
+    return fails;
+}
+"#).unwrap();
+
+    let bin = tmp.join("xit_test");
+    let link = Command::new(cc())
+        .args(["-O0", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .arg(&harness)
+        .arg(&xit_o)
+        .arg(&xst_o)
+        .arg("-lm")
+        .arg("-o")
+        .arg(&bin)
+        .output()
+        .expect("link");
+    assert!(
+        link.status.success(),
+        "link failed:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+
+    let run = Command::new(&bin).output().expect("run");
+    let stdout = String::from_utf8_lossy(&run.stdout);
+    let stderr = String::from_utf8_lossy(&run.stderr);
+
+    assert!(
+        run.status.success(),
+        "xit behavior test failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    );
+
+    assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
+    assert!(stdout.contains("XitVersion$"), "missing XitVersion$ check in output");
+    assert!(stdout.contains("Welcome()"), "missing Welcome() check in output");
+}
+
+#[test]
 fn xcm_pure_library_behavior() {
     let root = repo_root();
     let tmp = std::env::temp_dir().join("xb_pure_lib_behavior_xcm");
