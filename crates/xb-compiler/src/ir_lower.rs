@@ -247,6 +247,21 @@ impl IrItem {
             CheckedItem::GosubReturn => Self::GosubReturn,
             CheckedItem::GosubExpr(expr) => Self::GosubExpr(IrExpr::lower(expr)),
             CheckedItem::GotoExpr(expr) => Self::GotoExpr(IrExpr::lower(expr)),
+            CheckedItem::Attach {
+                left,
+                left_indices,
+                left_is_row,
+                right,
+                right_indices,
+                right_is_row,
+            } => Self::Attach {
+                left: IrSymbol::lower(left),
+                left_indices: left_indices.iter().map(IrExpr::lower).collect(),
+                left_is_row: *left_is_row,
+                right: IrSymbol::lower(right),
+                right_indices: right_indices.iter().map(IrExpr::lower).collect(),
+                right_is_row: *right_is_row,
+            },
         }
     }
 }

@@ -471,7 +471,27 @@ pub(crate) fn exec_items(
                 crate::interpreter_select::exec_swap(left, right, state)?
             }
             IrItem::Function { .. } => {}
-            IrItem::Nop | IrItem::Attach { .. } => {}
+            IrItem::Nop => {}
+            IrItem::Attach {
+                left,
+                left_indices,
+                left_is_row,
+                right,
+                right_indices,
+                right_is_row,
+            } => {
+                crate::interpreter_attach::exec_attach(
+                    program,
+                    left,
+                    left_indices,
+                    *left_is_row,
+                    right,
+                    right_indices,
+                    *right_is_row,
+                    state,
+                    output,
+                )?;
+            }
             IrItem::SelectCase {
                 selector,
                 cases,

@@ -406,20 +406,38 @@ impl Analyzer {
         }
     }
 
-    /// Lower `ATTACH src TO dst` — array row aliasing.
-    /// Currently emits as Nop (parser correctness; runtime semantics follow
-    /// once shared-array dimension tracking lands).
+    /// Lower `ATTACH src TO dst` — array row aliasing (copy semantics).
+    /// `ATTACH A TO B` copies B's data into A (A becomes a copy of B's view).
+    /// `ATTACH A[] TO B[i,]` copies row i of 2D array B into 1D array A.
+    /// `ATTACH B[i,] TO A[]` copies 1D array A back into row i of 2D array B.
     pub(crate) fn attach_stmt(
         &self,
-        _left_name: &str,
-        _left_suffix: Option<TypeSuffix>,
-        _left_indices: &[Expression],
-        _left_is_row: bool,
-        _right_name: &str,
+        left_name: &str,
+        left_suffix: Option<TypeSuffix>,
+        left_indices: &[Expression],
+        left_is_row: bool,
+        right_name: &str,
         _right_suffix: Option<TypeSuffix>,
-        _right_indices: &[Expression],
-        _right_is_row: bool,
+        right_indices: &[Expression],
+        right_is_row: bool,
     ) -> ItemResult {
-        Ok(CheckedItem::Nop)
+        let left_sym = self.auto_symbol(left_name);
+        let right_sym = self.auto_symbol(right_name);
+        let left_checked: Vec<CheckedExpr> = left_indices
+            .iter()
+            .map(|e| self.expr(e))
+            .collect::<Result<_, _>>()?;
+        let right_checked: Vec<CheckedExpr> = right_indices
+            .iter()
+            .map(|e| self.expr(e))
+            .collect::<Result<_, _>>()?;
+        Ok(CheckedItem::Attach {
+            left: left_sym,
+            left_indices: left_checked,
+            left_is_row,
+            right: right_sym,
+            right_indices: right_checked,
+            right_is_row,
+        })
     }
 }

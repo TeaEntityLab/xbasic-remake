@@ -14,6 +14,7 @@ mod exec_helpers;
 pub mod fault;
 mod helpers;
 pub mod interpreter;
+mod interpreter_attach;
 mod interpreter_select;
 mod is_builtin;
 mod rng;

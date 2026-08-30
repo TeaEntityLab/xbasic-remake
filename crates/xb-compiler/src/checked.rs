@@ -181,6 +181,14 @@ pub enum CheckedItem {
     GosubReturn,
     GosubExpr(CheckedExpr),
     GotoExpr(CheckedExpr),
+    Attach {
+        left: CheckedSymbol,
+        left_indices: Vec<CheckedExpr>,
+        left_is_row: bool,
+        right: CheckedSymbol,
+        right_indices: Vec<CheckedExpr>,
+        right_is_row: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

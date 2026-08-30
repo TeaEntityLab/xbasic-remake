@@ -7,6 +7,7 @@ mod c_emit_goto;
 mod c_emit_helpers;
 mod c_emit_hoist;
 mod c_emit_logical;
+mod c_emit_attach;
 mod c_emit_select;
 mod c_emit_stmt;
 mod c_emit_str2;

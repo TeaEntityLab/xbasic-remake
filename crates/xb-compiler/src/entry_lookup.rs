@@ -48,7 +48,7 @@ impl CheckedProgram {
                 | CheckedItem::Goto(_)
                 | CheckedItem::GosubReturn
                 | CheckedItem::GosubExpr(_)
-                | CheckedItem::GotoExpr(_) => None,
+                | CheckedItem::GotoExpr(_) | CheckedItem::Attach { .. } => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),

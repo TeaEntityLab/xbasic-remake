@@ -425,7 +425,7 @@ impl Analyzer {
         let tmp_vt = left_vt;
         let tmp_sym = CheckedSymbol::new(tmp_name, tmp_vt);
         let mut items: Vec<CheckedItem> = Vec::new();
-        let left_read = if left_indices.is_empty() {
+        let _left_read = if left_indices.is_empty() {
             self.expr(&Expression::Identifier {
                 name: left.to_owned(),
                 suffix: None,

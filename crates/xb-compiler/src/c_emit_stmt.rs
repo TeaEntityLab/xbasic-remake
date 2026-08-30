@@ -145,7 +145,24 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     let mut dims = vec![sz.clone()];
                     dims.extend(extra_dims.iter().cloned());
                     let dyn_array = crate::c_emit::is_dyn_array(&symbol.name);
+                    // Emit per-dimension size variables for ATTACH stride computation.
+                    let ident = crate::c_emit::array_ident(&symbol.name);
                     out.push_str(&ind);
+                    out.push_str("intptr_t xb_dim_");
+                    out.push_str(&ident);
+                    out.push_str("_0 = ");
+                    crate::c_emit_expr::emit_expr(sz, out);
+                    out.push_str(";\n");
+                    for (di, ed) in extra_dims.iter().enumerate() {
+                        out.push_str(&ind);
+                        out.push_str("intptr_t xb_dim_");
+                        out.push_str(&ident);
+                        out.push_str("_");
+                        out.push_str(&(di + 1).to_string());
+                        out.push_str(" = ");
+                        crate::c_emit_expr::emit_expr(ed, out);
+                        out.push_str(";\n");
+                    }
                     if dyn_array {
                         out.push_str("xb_ub_");
                         out.push_str(&crate::c_emit::array_ident(&symbol.name));
@@ -767,7 +784,26 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         IrItem::Swap { left, right } => {
             crate::c_emit_select::emit_swap(left, right, out, &ind);
         }
-        IrItem::Nop | IrItem::Attach { .. } => {}
+        IrItem::Nop => {}
+        IrItem::Attach {
+            left,
+            left_indices,
+            left_is_row,
+            right,
+            right_indices,
+            right_is_row,
+        } => {
+            crate::c_emit_attach::emit_attach(
+                left,
+                left_indices,
+                *left_is_row,
+                right,
+                right_indices,
+                *right_is_row,
+                out,
+                &ind,
+            );
+        }
         IrItem::SelectCase {
             selector,
             cases,
