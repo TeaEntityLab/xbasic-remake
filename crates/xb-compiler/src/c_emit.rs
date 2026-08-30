@@ -163,8 +163,7 @@ fn set_defined_funcs(program: &IrProgram) {
         // use DECLARE `@` markers from the program's `declare_byref` map.
         // Only insert when at least one param has `@` — a DECLARE with no
         // @ markers carries no byref info and should not block the env var
-        // fallback (some legacy source has mismatched DECLARE, e.g. xst.x
-        // XstDecomposePathname omits @ on output params).
+        // fallback for any future legacy source bugs.
         for (fname, flags) in &program.declare_byref {
             if !m.contains_key(fname) && flags.iter().any(|&f| f) {
                 m.insert(fname.clone(), flags.clone());
