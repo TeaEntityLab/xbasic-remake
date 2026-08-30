@@ -971,7 +971,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             let suffix = crate::c_emit::gosub_ret_suffix(name);
             out.push_str(&ind);
             out.push_str(&format!(
-                "xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_{name}{suffix}; goto xb_label_{name};\n"
+                "if (xb_gosub_sp < 256) xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_{name}{suffix}; goto xb_label_{name};\n"
             ));
             out.push_str(&format!("xb_gosub_ret_{name}{suffix}:\n"));
         }
@@ -1014,7 +1014,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             out.push_str("{ intptr_t _xb_ge = ");
             emit_expr(expr, out);
             out.push_str(&format!(
-                "; if (_xb_ge) {{ xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_expr{suffix}; goto *(void*)_xb_ge; }} xb_gosub_ret_expr{suffix}: (void)0; }}\n"
+                "; if (_xb_ge && xb_gosub_sp < 256) {{ xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_expr{suffix}; goto *(void*)_xb_ge; }} xb_gosub_ret_expr{suffix}: (void)0; }}\n"
             ));
         }
         IrItem::GotoExpr(expr) => {

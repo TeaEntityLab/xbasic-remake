@@ -8421,7 +8421,7 @@ FUNCTION emit_stmt$(s$)
     gosubName$ = MID$(s$, 7, LEN(s$) - 6)
     DIM grSuf$
     grSuf$ = gosub_ret_suffix$(gosubName$)
-    emit_stmt$ = "    xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_" + gosubName$ + grSuf$ + "; goto xb_label_" + gosubName$ + ";" + CHR$(10) + "xb_gosub_ret_" + gosubName$ + grSuf$ + ":"
+    emit_stmt$ = "    if (xb_gosub_sp < 256) xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_" + gosubName$ + grSuf$ + "; goto xb_label_" + gosubName$ + ";" + CHR$(10) + "xb_gosub_ret_" + gosubName$ + grSuf$ + ":"
     RETURN emit_stmt$
   END IF
 
@@ -8461,7 +8461,7 @@ FUNCTION emit_stmt$(s$)
     gosubExpr$ = MID$(s$, 12, LEN(s$) - 11)
     DIM geSuf$
     geSuf$ = gosub_ret_suffix$("expr")
-    emit_stmt$ = "    { intptr_t _xb_ge = " + emit_expr$(gosubExpr$) + "; if (_xb_ge) { xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_expr" + geSuf$ + "; goto *(void*)_xb_ge; } xb_gosub_ret_expr" + geSuf$ + ": (void)0; }"
+    emit_stmt$ = "    { intptr_t _xb_ge = " + emit_expr$(gosubExpr$) + "; if (_xb_ge && xb_gosub_sp < 256) { xb_gosub_stack[xb_gosub_sp++] = &&xb_gosub_ret_expr" + geSuf$ + "; goto *(void*)_xb_ge; } xb_gosub_ret_expr" + geSuf$ + ": (void)0; }"
     RETURN emit_stmt$
   END IF
 
