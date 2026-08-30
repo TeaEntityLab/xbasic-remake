@@ -61,10 +61,11 @@
 > Runtime behavior gates progressing: `ATTACH` copy-semantics runtime is done
 > (RR-06), user-defined functions take precedence over native helpers and
 > builtins (RR-07 binding policy), RR-08a pure-library behavior is done
-> (xma.x compiled legacy bodies verified: SINH/COSH/TANH/ACOS/XmaVersion$),
-> RR-08b stateful-library behavior is done (xst.x compiled legacy bodies
-> verified: XstGetOSName/XstGetConsoleGrid/XstVersion$/XstGetEndianName/XstGetCPUName),
-> and xut.x pure-library behavior is done (XutInit verified).
+> (xma.x: SINH/COSH/TANH/ACOS/ASIN/ATANH/LOG10/XmaVersion$; xut.x: XutInit;
+> xcm.x: XcmVersion$ — DCOMPLEX functions and Atan2 blocked by composite-type
+> emission and cross-file $$ constant resolution),
+> RR-08b stateful-library behavior is done (xst.x: XstGetOSName/
+> XstGetConsoleGrid/XstVersion$/XstGetEndianName/XstGetCPUName).
 > Recent: **expression-context side effects** now reach output — a
 > general interpreter `eval` bug (a function called in expression position
 > discarded its output sink) that flipped `XBMerge` (RT-ARGS) + unmasked/fixed

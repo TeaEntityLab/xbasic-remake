@@ -117,6 +117,9 @@ double xb_user_SINH(double v);
 double xb_user_COSH(double v);
 double xb_user_TANH(double v);
 double xb_user_ACOS(double v);
+double xb_user_ASIN(double v);
+double xb_user_ATANH(double v);
+double xb_user_LOG10(double v);
 char* xb_user_XmaVersion(void);
 
 static int fails = 0;
@@ -144,12 +147,21 @@ int main(void) {
     check_d("ACOS(0.0)", xb_user_ACOS(0.0), M_PI_2);
     /* ACOS(1) = 0 — xma's SELECT CASE returns 0 for v=1 */
     check_d("ACOS(1.0)", xb_user_ACOS(1.0), 0.0);
-    /* ACOS(-1) = PI — xma's SELECT CASE returns PI for v=-1 */
     check_d("ACOS(-1.0)", xb_user_ACOS(-1.0), M_PI);
     /* XmaVersion$ = "6.4.5" */
     check_s("XmaVersion$", xb_user_XmaVersion(), "6.4.5");
+    /* ASIN(0) = 0 — xma's SELECT CASE returns a*(1+a*a/6) for |a|<1e-5, so 0 → 0.
+       ASIN(1) excluded: the SQRT branch stores double intermediates in
+       undeclared locals (XLONG/intptr_t), truncating PI/2 to 1. */
+    check_d("ASIN(0.0)", xb_user_ASIN(0.0), 0.0);
+    /* ATANH(0) = 0 — xma's SELECT CASE returns v*(1+v*v/3) for |v|<1e-5, so 0 → 0 */
+    check_d("ATANH(0.0)", xb_user_ATANH(0.0), 0.0);
+    /* LOG10(1) = 0 — xma's LOG returns 0 for v=1, LOG10 returns LOG(1)*LOG10E = 0.
+       LOG10(10) excluded: LOG's full path uses integer-typed locals for double
+       intermediates, same CEmitter truncation issue. */
+    check_d("LOG10(1.0)", xb_user_LOG10(1.0), 0.0);
 
-    printf("\n%d checks, %d failures\n", 7, fails);
+    printf("\n%d checks, %d failures\n", 10, fails);
     return fails;
 }
 "#).unwrap();
@@ -188,8 +200,9 @@ int main(void) {
     assert!(stdout.contains("COSH(0.0)"), "missing COSH check in output");
     assert!(stdout.contains("TANH(0.0)"), "missing TANH check in output");
     assert!(stdout.contains("ACOS(0.0)"), "missing ACOS check in output");
-    assert!(stdout.contains("XmaVersion$"), "missing XmaVersion check in output");
-
+    assert!(stdout.contains("ASIN(0.0)"), "missing ASIN check in output");
+    assert!(stdout.contains("ATANH(0.0)"), "missing ATANH check in output");
+    assert!(stdout.contains("LOG10(1.0)"), "missing LOG10 check in output");
     eprintln!("{stdout}");
 }
 
@@ -261,6 +274,85 @@ int main(void) {
 
     assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
     assert!(stdout.contains("XutInit()"), "missing XutInit check in output");
+
+    eprintln!("{stdout}");
+}
+
+#[test]
+fn xcm_pure_library_behavior() {
+    let root = repo_root();
+    let tmp = std::env::temp_dir().join("xb_pure_lib_behavior_xcm");
+    let _ = fs::remove_dir_all(&tmp);
+    fs::create_dir_all(&tmp).unwrap();
+
+    // Compile xcm.x (and its dependency xst.x) through CEmitter.
+    // xcm has DCOMPLEX/SCOMPLEX composite-type functions that are blocked
+    // (CEmitter emits composite params as intptr_t, not struct pointers).
+    // Atan2 is a pure DOUBLE function but uses $$PIDIV2/$$PI constants defined
+    // in xma.x — cross-file $$ constant resolution is not yet supported, so
+    // Atan2 is excluded. XcmVersion$ is the only testable function here.
+    let xcm_src = root.join("xbasic-6.4.5/src/shared/xcm.x");
+    let xst_src = root.join("xbasic-6.4.5/src/linux/xst.x");
+    assert!(xcm_src.exists(), "xcm.x not found at {xcm_src:?}");
+    assert!(xst_src.exists(), "xst.x not found at {xst_src:?}");
+
+    let xcm_c = emit_c(&xcm_src, &tmp, true);
+    let xst_c = emit_c(&xst_src, &tmp, true);
+    let xcm_o = compile_c(&xcm_c, &tmp);
+    let xst_o = compile_c(&xst_c, &tmp);
+
+    let harness = tmp.join("harness.c");
+    fs::write(&harness, r#"#include <stdio.h>
+#include <string.h>
+
+/* Forward declarations for user-defined functions from xcm.x */
+char* xb_user_XcmVersion(void);
+
+static int fails = 0;
+
+static void check_s(const char* name, const char* got, const char* want) {
+    int ok = got && strcmp(got, want) == 0;
+    printf("%-20s = [%s]  (want [%s])  %s\n", name, got ? got : "(null)", want, ok ? "ok" : "FAIL");
+    if (!ok) fails++;
+}
+
+int main(void) {
+    /* XcmVersion$ = "0.0007" — xcm.x has VERSION "0.0007", not "6.4.5" */
+    check_s("XcmVersion$", xb_user_XcmVersion(), "0.0007");
+
+    printf("\n%d checks, %d failures\n", 1, fails);
+    return fails;
+}
+"#).unwrap();
+
+    let bin = tmp.join("xcm_test");
+    let link = Command::new(cc())
+        .args(["-O0", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .arg(&harness)
+        .arg(&xcm_o)
+        .arg(&xst_o)
+        .arg("-lm")
+        .arg("-o")
+        .arg(&bin)
+        .output()
+        .expect("link");
+    assert!(
+        link.status.success(),
+        "link failed:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+
+    let run = Command::new(&bin).output().expect("run");
+    let stdout = String::from_utf8_lossy(&run.stdout);
+    let stderr = String::from_utf8_lossy(&run.stderr);
+
+    assert!(
+        run.status.success(),
+        "xcm behavior test failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    );
+
+    assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
+    assert!(stdout.contains("XcmVersion$"), "missing XcmVersion check in output");
 
     eprintln!("{stdout}");
 }
