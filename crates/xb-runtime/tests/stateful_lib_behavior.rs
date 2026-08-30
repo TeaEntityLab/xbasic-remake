@@ -172,8 +172,13 @@ intptr_t xb_user_XstGetOSVersionName(char* xb_str_name);
 char* xb_user_XstNextField(char* xb_str_source, intptr_t xb_var_index, intptr_t xb_var_done);
 char* xb_user_XstNextLine(char* xb_str_source, intptr_t xb_var_index, intptr_t xb_var_done);
 char* xb_user_XstMergeStrings(char* xb_str_string, char* xb_str_add, intptr_t xb_var_start, intptr_t xb_var_replace);
+/* XstParse: returns n-th field from delimited string. Pure string ops, no InitProgram().
+   XstTally: counts delimiter occurrences in source. Returns -1 for empty source.
+   XxxPathString: converts path separators (\ → / on Linux). Returns NULL for empty path. */
+char* xb_user_XstParse(char* xb_str_source, char* xb_str_delimiter, intptr_t xb_var_n);
+intptr_t xb_user_XstTally(char* xb_str_source, char* xb_str_find);
+char* xb_user_XxxPathString(char* xb_str_path);
 static int fails = 0;
-
 static void check_s(const char* name, const char* got, const char* want) {
     int ok = got && strcmp(got, want) == 0;
     printf("%-25s = [%s]  (want [%s])  %s\n", name, got ? got : "(null)", want, ok ? "ok" : "FAIL");
@@ -295,7 +300,40 @@ int main(void) {
     check_s("XstMergeStrings(abc,D,1,0)", ms2, "Dabc");
     char* ms3 = xb_user_XstMergeStrings(xb_str("abc"), xb_str("D"), 4, 0);
     check_s("XstMergeStrings(abc,D,4,0)", ms3, "abcD");
-    printf("\n%d checks, %d failures\n", 35, fails);
+    /* XstParse: extracts n-th field from delimited string.
+       Uses XstTally to count delimiters, then instr3 to find positions.
+       Empty delimiter defaults to " ". n=0 defaults to 1. */
+    char* xp1 = xb_user_XstParse(xb_str("a,b,c"), xb_str(","), 1);
+    check_s("XstParse(a,b,c /, 1)", xp1, "a");
+    char* xp2 = xb_user_XstParse(xb_str("a,b,c"), xb_str(","), 2);
+    check_s("XstParse(a,b,c /, 2)", xp2, "b");
+    char* xp3 = xb_user_XstParse(xb_str("a,b,c"), xb_str(","), 3);
+    check_s("XstParse(a,b,c /, 3)", xp3, "c");
+    char* xp4 = xb_user_XstParse(xb_str("a,b,c"), xb_str(","), 4);
+    check_s("XstParse(a,b,c /, 4)", xp4, "");
+    char* xp5 = xb_user_XstParse(xb_str("hello world"), xb_str(" "), 1);
+    check_s("XstParse(hello world sp,1)", xp5, "hello");
+    char* xp6 = xb_user_XstParse(xb_str("hello world"), xb_str(" "), 2);
+    check_s("XstParse(hello world sp,2)", xp6, "world");
+    char* xp7 = xb_user_XstParse(xb_str("hello"), xb_str(","), 1);
+    check_s("XstParse(hello /, 1)", xp7, "hello");
+    char* xp8 = xb_user_XstParse(xb_str("hello"), xb_str(","), 2);
+    check_s("XstParse(hello /, 2)", xp8, "");
+    /* XstTally: counts occurrences of find$ in source$. Returns -1 for empty source. */
+    check_i("XstTally(a,b,c /,)", xb_user_XstTally(xb_str("a,b,c"), xb_str(",")), 2);
+    check_i("XstTally(hello sp)", xb_user_XstTally(xb_str("hello world"), xb_str(" ")), 1);
+    check_i("XstTally(hello /,)", xb_user_XstTally(xb_str("hello"), xb_str(",")), 0);
+    check_i("XstTally(empty /,)", xb_user_XstTally(xb_str(""), xb_str(",")), -1);
+    check_i("XstTally(aaa a)", xb_user_XstTally(xb_str("aaa"), xb_str("a")), 3);
+    /* XxxPathString: converts path separators. On Linux: \ (92) → / (47).
+       Returns NULL for empty path (return 0), so skip that case. */
+    char* ps1 = xb_user_XxxPathString(xb_str("a\\b\\c"));
+    check_s("XxxPathString(a\\b\\c)", ps1, "a/b/c");
+    char* ps2 = xb_user_XxxPathString(xb_str("a/b/c"));
+    check_s("XxxPathString(a/b/c)", ps2, "a/b/c");
+    char* ps3 = xb_user_XxxPathString(xb_str("C:\\dir\\file"));
+    check_s("XxxPathString(C:\\dir\\file)", ps3, "C:/dir/file");
+    printf("\n%d checks, %d failures\n", 51, fails);
     return fails;
 }
 "#).unwrap();
@@ -346,4 +384,7 @@ int main(void) {
     assert!(stdout.contains("XstNextField(hello world,1)"), "missing XstNextField check in output");
     assert!(stdout.contains("XstNextLine(2lines,1)"), "missing XstNextLine check in output");
     assert!(stdout.contains("XstMergeStrings(hello,XYZ,2,2)"), "missing XstMergeStrings check in output");
+    assert!(stdout.contains("XstParse(a,b,c /, 1)"), "missing XstParse check in output");
+    assert!(stdout.contains("XstTally(a,b,c /,)"), "missing XstTally check in output");
+    assert!(stdout.contains("XxxPathString(a\\b\\c)"), "missing XxxPathString check in output");
 }
