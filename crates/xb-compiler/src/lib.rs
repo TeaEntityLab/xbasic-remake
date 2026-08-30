@@ -7085,6 +7085,10 @@ pub mod llvm_backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Returns the C compiler to use, respecting the `CC` env var.
+    fn cc() -> String {
+        std::env::var("CC").unwrap_or_else(|_| "cc".to_string())
+    }
 
     #[test]
     fn parses_frontend_unit_when_source_has_statements() {
@@ -7136,7 +7140,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7170,7 +7174,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7218,7 +7222,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7252,7 +7256,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7296,7 +7300,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7337,7 +7341,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7377,7 +7381,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7420,7 +7424,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7453,7 +7457,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7494,7 +7498,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7538,7 +7542,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7581,7 +7585,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7623,7 +7627,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7668,7 +7672,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7710,7 +7714,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7764,7 +7768,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7813,7 +7817,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7860,7 +7864,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7903,7 +7907,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7947,7 +7951,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -7989,7 +7993,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8032,7 +8036,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8081,7 +8085,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8129,7 +8133,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8175,7 +8179,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8220,7 +8224,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8277,7 +8281,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8330,7 +8334,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8380,7 +8384,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8428,7 +8432,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8479,7 +8483,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8527,7 +8531,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8568,7 +8572,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8619,7 +8623,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8671,7 +8675,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8716,7 +8720,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8763,7 +8767,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8805,7 +8809,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8852,7 +8856,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8884,7 +8888,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = std::process::Command::new("cc")
+        let link = std::process::Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -8989,7 +8993,7 @@ mod tests {
         let objp = root.join("fifo.o");
         let exep = root.join("fifo.bin");
         std::fs::write(&objp, obj.as_bytes()).unwrap();
-        let link = std::process::Command::new("cc")
+        let link = std::process::Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -9043,7 +9047,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -9103,7 +9107,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -9160,7 +9164,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -9208,7 +9212,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -9256,7 +9260,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -9310,7 +9314,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -9354,7 +9358,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -9401,7 +9405,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -9448,7 +9452,7 @@ mod tests {
             .unwrap()
             .write_all(obj.as_bytes())
             .unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)
@@ -9498,7 +9502,7 @@ mod tests {
         let objp = dir.join("xb_llvm_k32.o");
         let exep = dir.join("xb_llvm_k32.bin");
         std::fs::write(&objp, obj.as_bytes()).unwrap();
-        let link = Command::new("cc")
+        let link = Command::new(cc())
             .arg(&objp)
             .arg("-o")
             .arg(&exep)

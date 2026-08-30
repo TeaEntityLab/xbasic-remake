@@ -41,7 +41,8 @@ mod platform {
     use std::process::Command;
 
     pub fn linker_command(request: &LinkRequest) -> Command {
-        let mut cmd = Command::new("cc");
+        let cc = std::env::var("CC").unwrap_or_else(|_| "cc".to_string());
+        let mut cmd = Command::new(cc);
         for object in request.objects() {
             cmd.arg(object);
         }
@@ -79,5 +80,22 @@ mod tests {
     fn builds_request_when_object_exists_in_request() {
         let request = LinkRequest::new(vec![PathBuf::from("main.o")], PathBuf::from("xb")).unwrap();
         assert_eq!(request.objects(), &[PathBuf::from("main.o")]);
+    }
+
+    #[test]
+    fn linker_respects_cc_env_var() {
+        // On non-Windows, the linker should use $CC if set.
+        #[cfg(not(windows))]
+        {
+            std::env::set_var("CC", "my-custom-cc");
+            let request = LinkRequest::new(
+                vec![PathBuf::from("main.o")],
+                PathBuf::from("xb"),
+            )
+            .unwrap();
+            let cmd = linker_command(&request);
+            assert_eq!(cmd.get_program(), std::ffi::OsStr::new("my-custom-cc"));
+            std::env::remove_var("CC");
+        }
     }
 }

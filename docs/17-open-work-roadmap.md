@@ -409,7 +409,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | CGEN-FACET-MANIFEST | frontend + cgen.x | Replace cgen.x's ~30 global `##` text classifiers (47 `##` globals, 18 scanner sets, 72 multi-set predicates) with a frontend-emitted per-symbol facet manifest (name, scope, elem type, storage class, dual-use, rank) consumed deterministically | three reverted gosubDyn attempts + cross-function scope leakage; architectural prerequisite for ANY further cgen.x storage work |
 | C-BACKEND-PORTABILITY | both C generators | Emitted C relies on `$` in identifiers (cgen.x demo paths), GNU `&&label` + computed goto; MSVC (docs/13 Win64 goal) rejects all three | clang-cl mandate or identifier sanitization + switch-dispatch fallback |
 | LLVM-CI-BITROT | CI | `--features llvm` is never built in CI on any platform; local LLVM claims are machine-dependent (Homebrew llvm 22.1.8 present here) | add an LLVM CI job or scheduled check |
-| TEST-HARNESS-HARDENING | tests/checks | Named parity/link harnesses now use `common::xb_bin()`, `$CC`, and release/debug fallbacks; residual package-only `xb-runtime` runs can still miss an `xb` binary, and `xb-link` still invokes bare `cc` | make the CLI artifact explicit for `xb-runtime`; respect `$CC` in `xb-link` |
+| ~~TEST-HARNESS-HARDENING~~ | tests/checks | ✅ **done 2026-08-30** — `xb-link` now respects `$CC` env var (was bare `cc`); 51 bare `Command::new("cc")` in `xb-compiler` tests replaced with `cc()` helper that reads `$CC`. Behavior tests already had `cc()` helpers. | — |
 | NEGATIVE-CORPUS-HARNESS | frontend | no fuzz/negative-syntax harness asserting the XB-L/P/C diagnostics fire without panics | lock the diagnostic surface |
 | PACKAGING | distribution | no packaging story (xb CLI, runtime lib, headers, .dec surface) | first external consumer or post-GUI-RUNTIME |
 | INTERP-PERF-ARY | interpreter | `ary` TestAryPerformance is O(n²) name-buffer scanning (>90s interp-side) | hash-accelerated lookup; unlocks interp-side ary tests |
@@ -461,7 +461,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | P11 | docs/14 closing section (§21) | adopted | docs/14 §21 | — |
 | P12 | docs/README Roadmaps table refresh + docs/18 row | adopted | docs/README.md | — |
 | P13 | Supersede banners on stale historical sections | partial | RT-KERNEL32 §2 + DEMO-RUNTIME §4 banners added; DocsReviewer's qbtoxb ~520 citation did not exist at HEAD | — |
-| P14 | Test-harness hardening ($CC, release-bin dep) | deferred | TEST-HARNESS-HARDENING row | next harness edit |
+| ~~P14~~ | Test-harness hardening ($CC, release-bin dep) | **done 2026-08-30** | `xb-link` respects `$CC`; 51 `xb-compiler` test `cc` calls respect `$CC` | — |
 | P15 | LLVM CI job | deferred | LLVM-CI-BITROT row | CI capacity |
 
 ### Legacy-library readiness panel 2026-08-27 — Candidate Adoption Ledger
