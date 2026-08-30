@@ -118,6 +118,7 @@ double xb_user_COSH(double v);
 double xb_user_TANH(double v);
 double xb_user_ACOS(double v);
 double xb_user_ASIN(double v);
+double xb_user_ASINH(double v);
 double xb_user_ATANH(double v);
 double xb_user_LOG10(double v);
 double xb_user_ACOSH(double v);
@@ -227,8 +228,16 @@ int main(void) {
     check_d("LOG10(100.0)", xb_user_LOG10(100.0), 2.0);
     /* ACOSH(3) = 1.762... — LOG(3+SQRT(3*3-1)), full LOG+SQRT path */
     check_d("ACOSH(3.0)", xb_user_ACOSH(3.0), 1.762747174039086);
+    /* ASINH(2) = 1.443... — SIGN(2)*LOG(2+SQRT(4+1)), full LOG+SQRT path */
+    check_d("ASINH(2.0)", xb_user_ASINH(2.0), 1.443635475178810);
+    /* ATANH(0.5) = 0.549... — LOG((1+0.5)/(1-0.5))*0.5, full LOG path */
+    check_d("ATANH(0.5)", xb_user_ATANH(0.5), 0.549306144334055);
+    /* ASIN(0.5) = PI/6 — full ASIN computation path */
+    check_d("ASIN(0.5)", xb_user_ASIN(0.5), M_PI / 6.0);
+    /* ACOS(0.5) = PI/3 — PIDIV2 - ASIN(0.5) */
+    check_d("ACOS(0.5)", xb_user_ACOS(0.5), M_PI / 3.0);
 
-    printf("\n%d checks, %d failures\n", 36, fails);
+    printf("\n%d checks, %d failures\n", 40, fails);
     return fails;
 }
 "#).unwrap();
@@ -284,6 +293,10 @@ int main(void) {
     assert!(stdout.contains("LOG(2.0)"), "missing LOG(2.0) check in output");
     assert!(stdout.contains("LOG10(100.0)"), "missing LOG10(100.0) check in output");
     assert!(stdout.contains("ACOSH(3.0)"), "missing ACOSH(3.0) check in output");
+    assert!(stdout.contains("ASINH(2.0)"), "missing ASINH(2.0) check in output");
+    assert!(stdout.contains("ATANH(0.5)"), "missing ATANH(0.5) check in output");
+    assert!(stdout.contains("ASIN(0.5)"), "missing ASIN(0.5) check in output");
+    assert!(stdout.contains("ACOS(0.5)"), "missing ACOS(0.5) check in output");
 }
 
 #[test]
