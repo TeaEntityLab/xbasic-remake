@@ -170,7 +170,7 @@ pub(crate) fn emit_xin_runtime(out: &mut String) {
     );
     out.push_str("static int64_t xb_xin_set_debug(int32_t d) { (void)d; return 0; }\n");
     out.push_str(
-        "static int64_t xb_xin_socket_open(int32_t* sock, int32_t* atype, int32_t* stype, int32_t flags) { (void)flags; int s = (int)socket(AF_INET, SOCK_STREAM, 0); if(atype)*atype=AF_INET; if(stype)*stype=SOCK_STREAM; if(sock)*sock=s; return s<0 ? -1 : 0; }\n",
+        "static int64_t xb_xin_socket_open(int32_t* sock, int32_t* atype, int32_t* stype, int32_t flags) { (void)flags; if (!getenv(\"XB_ALLOW_NETWORK\")) { if(atype)*atype=0; if(stype)*stype=0; if(sock)*sock=-1; return -1; } int s = (int)socket(AF_INET, SOCK_STREAM, 0); if(atype)*atype=AF_INET; if(stype)*stype=SOCK_STREAM; if(sock)*sock=s; return s<0 ? -1 : 0; }\n",
     );
     out.push_str(
         "static int64_t xb_xin_socket_bind(int32_t sock, int32_t block, int64_t* address, int32_t* port) { (void)block; struct sockaddr_in a; memset(&a,0,sizeof a); a.sin_family=AF_INET; a.sin_addr.s_addr=htonl(INADDR_ANY); a.sin_port=htons((uint16_t)*port); int r = bind(sock,(struct sockaddr*)&a,sizeof a); if(r==0){ socklen_t n=sizeof a; if(getsockname(sock,(struct sockaddr*)&a,&n)==0 && port) *port=(int32_t)ntohs(a.sin_port); } return r<0 ? -1 : 0; }\n",

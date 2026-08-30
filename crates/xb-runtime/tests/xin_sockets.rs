@@ -126,6 +126,7 @@ fn xin_sockets_xbasic_client_roundtrip() {
 
     // Run server, then client; capture the client's stdout.
     let mut server = Command::new(&server_bin)
+        .env("XB_ALLOW_NETWORK", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -139,7 +140,7 @@ fn xin_sockets_xbasic_client_roundtrip() {
         // Retry the client: early runs may race the server's accept loop.
         let mut last = None;
         for _ in 0..3 {
-            let out = Command::new(&client_bin).stdin(Stdio::null()).output()?;
+            let out = Command::new(&client_bin).env("XB_ALLOW_NETWORK", "1").stdin(Stdio::null()).output()?;
             let ok = out.status.success()
                 && String::from_utf8_lossy(&out.stdout).contains("connect error=0");
             if ok {
@@ -218,6 +219,7 @@ fn xin_sockets_aserver_serves_timestamp() {
 
     // Start the server (port 0x2020 = 8224).
     let mut server = Command::new(&bin)
+        .env("XB_ALLOW_NETWORK", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())

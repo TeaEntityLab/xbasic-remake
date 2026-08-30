@@ -341,6 +341,9 @@ pub(crate) fn call_function(
                 });
             };
             let cmd = String::from_utf8_lossy(&cmd).into_owned();
+            if std::env::var("XB_ALLOW_SHELL").is_err() {
+                return Ok(RuntimeValue::Integer(-1));
+            }
             let code = std::process::Command::new("sh")
                 .arg("-c")
                 .arg(&cmd)

@@ -39,8 +39,8 @@
 > `7980b0e`). The floor test uses `-w` without `-Wno-int-conversion`, and
 > Apple clang 21 promotes these to errors. With `-Wno-int-conversion
 > -Wno-incompatible-pointer-types`, all 15/15 compile clean. `ATTACH`
-> remains a parser no-op, GUI is headless, and SHELL/network effects have
-> no capability gate.
+> remains a parser no-op, GUI is headless, and SHELL/network effects are
+> gated by `XB_ALLOW_SHELL`/`XB_ALLOW_NETWORK` env vars (denied by default).
 >
 > **NEW: `#var$` typing fix — a `#foo$` SharedName typed String (was Integer), so
 > `acgibin` no longer crashes on `"s" + #foo$` and is now interp==cgen faithful.**
@@ -161,7 +161,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | next B (parallel with A) | **RR-05 xcol/xgr scale** | deterministic resource evidence; no signal exit; self-hosted core-lib compile reaches 15/15 with track A |
 | runtime semantics | **RR-06 ATTACH** | alias writes, `REDIM`, and `UBOUND` observable through the alias in interpreter and compiled paths |
 | behavior adoption | **RR-07 binding policy → RR-08a pure libs / RR-08b stateful libs** | tests prove compiled legacy bodies, not native shadows/stubs; RR-08b also requires RR-06 |
-| safe execution | **RR-09 SHELL/network capabilities** | denied by default and explicitly opt-in before untrusted or xrun/xin behavior execution |
+| safe execution | **~~RR-09 SHELL/network capabilities~~ done 2026-08-30** | `XB_ALLOW_SHELL`/`XB_ALLOW_NETWORK` env vars gate `xb_shell`/`xb_xin_socket_open`; denied by default |
 | pre-distribution | **RR-10 harness hardening + RR-11 provenance/licensing** | reproducible clean harness, duplicate report, complete distribution obligations |
 | trigger-gated | **RR-12 GUI/LLVM/JIT/Cranelift reassessment** | reconsider only after the runtime-behavior critical path or a compatibility requirement |
 
@@ -398,7 +398,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | CGEN-X-LIB-COMPILE | self-hosted cgen.x | The named cargo test `cgen_x_compiles_core_libs_floor_9_cc_clean` locks the nine passing libraries and a `>=9` floor; 15/15 is not asserted. Heuristic and narrow-facet probes remain 9/15 at `54db874`. | RR-03 targets 13/15 classification-clean; RR-05 independently closes 15/15 |
 | ~~CGEN-DEMO-RAW-GATE~~ | self-hosted cgen.x + tests | ✅ **done (RR-13, 2026-08-30)** — `cgen_x_compiles_all_demos_cc_clean` is now a raw-generator contract. cgen.x handles Kittedy `found` and qbtoxb `TranslateStatement` internally; no post-emission C mutation. Raw 114/114 verified. | — |
 | ARY-COMPOSITE-DESCRIPTOR | frontend + Rust CEmitter | **DONE for compile 2026-08-29** — shared `ARY_VAR_DATA` member arrays now forward as `T*`; `xbsourcelib_ary_compiles_clean` compiles both ARY sources. The separate `xbsourcelib_interp_matches_compiled` loop covers 11 non-ARY programs and is not ARY runtime evidence. | runtime ARY awaits RR-06 plus a bounded behavior test |
-| SHELL-CAPABILITY | runtime + security | `xb_shell` lowers to `system()` (`c_runtime_bit.rs:97`) with no sandboxing/capability gate; `xrun`/`xst` contain SHELL-reachable paths. `Xin*` builtins lower to real BSD sockets (`c_emit_xin.rs:157+` → `sys/socket.h`). Compiled legacy lib code can execute arbitrary host commands / open network connections if SHELL/Xin paths reached at runtime. | RR-09: deny by default and require explicit SHELL/network opt-in before untrusted or xrun/xin behavior execution |
+| ~~SHELL-CAPABILITY~~ | runtime + security | ✅ **done (RR-09, 2026-08-30)** — `xb_shell` checks `getenv("XB_ALLOW_SHELL")` before `system()`; `xb_xin_socket_open` checks `getenv("XB_ALLOW_NETWORK")` before `socket()`; interpreter SHELL handler gated. Both denied by default. `xin_sockets` tests set `XB_ALLOW_NETWORK=1`. | — |
 | LEGACY-CORPUS-COMPILE-COVERAGE | tests | 19 GTK demos + three helpsrc programs are parse/lower-only; docs previously overclaimed every `.x` was regression-locked | add explicit compile inventories before any every-legacy-source claim |
 | ARY-STATUS-RECONCILIATION | tests + docs | Two-stage status: RR-02 is compile-only composite-descriptor repair. Runtime ARY remains unready because `ATTACH` is parser-discarded and no bounded behavior run is locked. | after RR-02, require RR-06 alias test + bounded ARY behavior evidence before a runtime-faithful claim |
 
@@ -504,7 +504,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | reproduce locked compiler claims | yes, with named-test caveats | 80/80 corpus byte lock, 61/61 sync, `IR_IDENTICAL`; demo compile guard uses two post-emit rewrites |
 | adopt Rust-CEmitter library scaffolding | conditional | 15/15 compile/link plus seven trivial `Version$` checks; no general compiled-body authority |
 | adopt self-hosted cgen for core libraries | no | 9/15 floor; two distinct failure classes |
-| deploy or run untrusted legacy code | no | `ATTACH` no-op, native/stub binding ambiguity, ungated SHELL/network, licensing/provenance gaps |
+| deploy or run untrusted legacy code | no | `ATTACH` no-op, native/stub binding ambiguity, SHELL/network gated (RR-09 done), licensing/provenance gaps |
 
 #### Required Wording Changes
 
@@ -583,7 +583,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | RR-07 | Decide native-vs-legacy binding authority | **adopted** | native shadowing and emit-time default folding | one unshadowed cross-TU contract before behavior claims |
 | RR-08a | Behavior gates for pure libraries | **adopted after RR-07** | Version-only smoke | deterministic non-stub xut/xcm/xma/xdis body calls |
 | RR-08b | Behavior gates for stateful libraries | **adopted after RR-06/RR-07** | ATTACH and binding ambiguity | non-stub xst/xui/xgr/xcol/xit tests; bounded ARY evidence |
-| RR-09 | SHELL/network capability gates | **adopted before unsafe behavior runs** | interpreter/C `sh -c`/`system`; real BSD sockets | denied-by-default plus explicit opt-in tests |
+| RR-09 | SHELL/network capability gates | **done 2026-08-30** | `xb_shell` checks `XB_ALLOW_SHELL`; `xb_xin_socket_open` checks `XB_ALLOW_NETWORK`; interpreter SHELL gated; xin_sockets tests set env vars | — |
 | RR-10 | Harness reproducibility | **partial** | order/OUT/nm improved; override/duplicates/probe exit remain | honor `XB_BIN`; report weak duplicates; separate floor probe from strict gate |
 | RR-11 | Licensing and shim provenance | **partial** | factual disclosure landed; three shims lack copyright/license statements and both notice files lack GNU front matter | resolve provenance and distribution obligations before packaging |
 | RR-12 | GUI/LLVM/JIT/Cranelift reassessment | **deferred / trigger-gated** | no dependency on immediate correctness path | reconsider after behavior gates or a demonstrated compatibility need |
