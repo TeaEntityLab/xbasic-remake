@@ -61,8 +61,8 @@
 > Runtime behavior gates progressing: `ATTACH` copy-semantics runtime is done
 > (RR-06), user-defined functions take precedence over native helpers and
 > (xma.x: SINH/COSH/TANH/ACOS/ASIN(0)+ASIN(1)=PI/2/ATANH/LOG10(1)+LOG10(10)=1/XmaVersion$;
-> xut.x: XutInit; xcm.x: XcmVersion$ — DCOMPLEX functions and Atan2 blocked
-> by composite-type emission and cross-file $$ constant resolution),
+> xut.x: XutInit; xcm.x: XcmVersion$+Atan2(0,1)=0+Atan2(1,1)=PI/4+Atan2(1,0)=PI/2
+> — DCOMPLEX/SCOMPLEX functions still blocked by composite-type emission),
 > RR-08b stateful-library behavior is done (xst.x: XstGetOSName/
 > XstGetConsoleGrid/XstVersion$/XstGetEndianName/XstGetCPUName).
 > CEmitter type inference fix: undeclared locals now infer Float from Float
@@ -71,6 +71,9 @@
 > CEmitter bitfield extraction fix: `upper {11, 20}` now lowers to
 > `xb_extu(upper, 11, 20)` via re-enabled `scalar_bitfield_call` with
 > all-integer-literal arg check (avoids xit dispatch regression).
+> Cross-file $$ constant resolution: CLI resolves IMPORTed libraries' `$$`
+> constants at compile time (e.g. xcm.x imports xma.x → `$$PI`/`$$PIDIV2`
+> available during C emission), unblocking xcm Atan2.
 > Recent: **expression-context side effects** now reach output — a
 > general interpreter `eval` bug (a function called in expression position
 > discarded its output sink) that flipped `XBMerge` (RT-ARGS) + unmasked/fixed

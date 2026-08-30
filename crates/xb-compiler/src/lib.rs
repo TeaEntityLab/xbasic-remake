@@ -65,6 +65,7 @@ pub use ir::{IrCaseClause, IrExpr, IrExprKind, IrItem, IrParam, IrProgram, IrSym
 pub use semantics::Analyzer;
 pub use text_ir::TextIrEmitter;
 pub use text_ir_parser::{TextIrParseError, TextIrParser};
+pub use xb_frontend::Statement;
 
 use thiserror::Error;
 use xb_frontend::{parse_program, ParseError, Program};
@@ -103,6 +104,16 @@ impl FrontendUnit {
 
     pub fn lower_ir(&self) -> Result<IrProgram, CompileError> {
         Ok(IrProgram::lower(&self.analyze()?))
+    }
+
+    pub fn lower_ir_with_constants(
+        &self,
+        constants: std::collections::BTreeMap<String, String>,
+    ) -> Result<IrProgram, CompileError> {
+        Ok(IrProgram::lower(&Analyzer::analyze_with_constants(
+            &self.program,
+            constants,
+        )?))
     }
 
     pub fn analyze_strict(&self) -> Result<CheckedProgram, CompileError> {

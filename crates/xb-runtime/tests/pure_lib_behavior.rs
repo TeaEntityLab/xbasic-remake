@@ -291,9 +291,9 @@ fn xcm_pure_library_behavior() {
     // Compile xcm.x (and its dependency xst.x) through CEmitter.
     // xcm has DCOMPLEX/SCOMPLEX composite-type functions that are blocked
     // (CEmitter emits composite params as intptr_t, not struct pointers).
-    // Atan2 is a pure DOUBLE function but uses $$PIDIV2/$$PI constants defined
-    // in xma.x — cross-file $$ constant resolution is not yet supported, so
-    // Atan2 is excluded. XcmVersion$ is the only testable function here.
+    // Atan2 is a pure DOUBLE function that uses $$PIDIV2/$$PI constants from
+    // xma.x — cross-file $$ constant resolution now works via import resolution
+    // in the CLI. Atan2(0,1)=0, Atan2(1,1)=PI/4, Atan2(1,0)=PI/2.
     let xcm_src = root.join("xbasic-6.4.5/src/shared/xcm.x");
     let xst_src = root.join("xbasic-6.4.5/src/linux/xst.x");
     assert!(xcm_src.exists(), "xcm.x not found at {xcm_src:?}");
@@ -306,27 +306,43 @@ fn xcm_pure_library_behavior() {
 
     let harness = tmp.join("harness.c");
     fs::write(&harness, r#"#include <stdio.h>
-#include <string.h>
+    #include <string.h>
+    #include <math.h>
 
-/* Forward declarations for user-defined functions from xcm.x */
-char* xb_user_XcmVersion(void);
+    /* Forward declarations for user-defined functions from xcm.x */
+    char* xb_user_XcmVersion(void);
+    double xb_user_Atan2(double y, double x);
 
-static int fails = 0;
+    static int fails = 0;
 
-static void check_s(const char* name, const char* got, const char* want) {
-    int ok = got && strcmp(got, want) == 0;
-    printf("%-20s = [%s]  (want [%s])  %s\n", name, got ? got : "(null)", want, ok ? "ok" : "FAIL");
-    if (!ok) fails++;
-}
+    static void check_s(const char* name, const char* got, const char* want) {
+        int ok = got && strcmp(got, want) == 0;
+        printf("%-20s = [%s]  (want [%s])  %s\n", name, got ? got : "(null)", want, ok ? "ok" : "FAIL");
+        if (!ok) fails++;
+    }
 
-int main(void) {
-    /* XcmVersion$ = "0.0007" — xcm.x has VERSION "0.0007", not "6.4.5" */
-    check_s("XcmVersion$", xb_user_XcmVersion(), "0.0007");
+    static void check_d(const char* name, double got, double want) {
+        double diff = got - want;
+        if (diff < 0) diff = -diff;
+        int ok = diff < 1e-10;
+        printf("%-20s = %.15g  (want %.15g)  %s\n", name, got, want, ok ? "ok" : "FAIL");
+        if (!ok) fails++;
+    }
 
-    printf("\n%d checks, %d failures\n", 1, fails);
-    return fails;
-}
-"#).unwrap();
+    int main(void) {
+        /* XcmVersion$ = "0.0007" — xcm.x has VERSION "0.0007", not "6.4.5" */
+        check_s("XcmVersion$", xb_user_XcmVersion(), "0.0007");
+        /* Atan2(0, 1) = 0 — y=0, x>0 → atan(0/1) = 0 */
+        check_d("Atan2(0,1)", xb_user_Atan2(0.0, 1.0), 0.0);
+        /* Atan2(1, 1) = PI/4 — y=x → atan(1) = PI/4 */
+        check_d("Atan2(1,1)", xb_user_Atan2(1.0, 1.0), M_PI_4);
+        /* Atan2(1, 0) = PI/2 — x=0, y>0 → inv path: PI/2 - atan(0) = PI/2 */
+        check_d("Atan2(1,0)", xb_user_Atan2(1.0, 0.0), M_PI_2);
+
+        printf("\n%d checks, %d failures\n", 4, fails);
+        return fails;
+    }
+    "#).unwrap();
 
     let bin = tmp.join("xcm_test");
     let link = Command::new(cc())
@@ -355,7 +371,7 @@ int main(void) {
     );
 
     assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
-    assert!(stdout.contains("XcmVersion$"), "missing XcmVersion check in output");
-
+    assert!(stdout.contains("Atan2(1,1)"), "missing Atan2(1,1) check in output");
+    assert!(stdout.contains("Atan2(1,0)"), "missing Atan2(1,0) check in output");
     eprintln!("{stdout}");
 }

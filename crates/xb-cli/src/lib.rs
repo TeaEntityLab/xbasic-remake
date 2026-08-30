@@ -153,8 +153,55 @@ fn emit_ir_facets_for_path(path: &Path) -> Result<String, CliError> {
 fn emit_c_for_path(path: &Path) -> Result<String, CliError> {
     let source = read_source(path)?;
     let unit = FrontendUnit::parse(&source)?;
-    let program = unit.lower_ir()?;
+    let constants = resolve_import_constants(path, &unit);
+    let program = if constants.is_empty() {
+        unit.lower_ir()?
+    } else {
+        unit.lower_ir_with_constants(constants)?
+    };
     Ok(CEmitter::new().emit_program(&program))
+}
+
+/// Extract `$$` constant definitions from IMPORTed libraries.
+/// XBasic `$$` constants are compile-time, not link-time. When a library
+/// like xcm.x does `IMPORT "xma"`, the `$$PI`/`$$PIDIV2` constants defined
+/// in xma.x must be available during C emission of xcm.x. This function
+/// finds imported library files, parses them, and extracts their `$$`
+/// constant definitions.
+fn resolve_import_constants(
+    source_path: &Path,
+    unit: &FrontendUnit,
+) -> std::collections::BTreeMap<String, String> {
+    let mut constants = std::collections::BTreeMap::new();
+    let source_dir = source_path.parent().unwrap_or(Path::new("."));
+    use xb_compiler::Statement;
+    for statement in unit.program().statements.iter() {
+        if let Statement::Import(lib_name) = statement {
+            // Look for the library file in the same directory as the source.
+            let lib_path = source_dir.join(format!("{lib_name}.x"));
+            if let Ok(lib_source) = fs::read_to_string(&lib_path) {
+                if let Ok(lib_unit) = FrontendUnit::parse(&lib_source) {
+                    extract_constants(&lib_unit, &mut constants);
+                }
+            }
+        }
+    }
+    constants
+}
+
+/// Extract `$$` constant definitions from a parsed program.
+fn extract_constants(
+    unit: &FrontendUnit,
+    out: &mut std::collections::BTreeMap<String, String>,
+) {
+    use xb_compiler::Statement;
+    for statement in unit.program().statements.iter() {
+        if let Statement::ConstantDefinition { name, value } = statement {
+            // Only import constants not already defined (first-definition-wins,
+            // matching XBasic's duplicate constant handling).
+            out.entry(name.clone()).or_insert(value.clone());
+        }
+    }
 }
 
 /// A process-unique temp path under `xb_cli_compile/` for intermediate artifacts,

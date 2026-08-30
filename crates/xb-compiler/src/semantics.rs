@@ -91,6 +91,19 @@ impl Analyzer {
         analyzer.program(program)
     }
 
+    /// Permissive analysis with pre-populated constants (from IMPORTed libs).
+    pub fn analyze_with_constants(
+        program: &Program,
+        constants: BTreeMap<String, String>,
+    ) -> Result<CheckedProgram, SemanticError> {
+        let mut analyzer = Self {
+            permissive: true,
+            constants,
+            ..Self::default()
+        };
+        analyzer.program(program)
+    }
+
     /// Strict analysis enforcing the full v0.1 diagnostic contract.
     pub fn analyze_strict(program: &Program) -> Result<CheckedProgram, SemanticError> {
         let mut analyzer = Self::default();
