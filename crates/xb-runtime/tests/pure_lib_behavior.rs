@@ -337,6 +337,9 @@ typedef struct { float R; float I; } xb_scomplex;
 xb_scomplex xb_user_SCCONJ(double z_R, double z_I);
 xb_scomplex xb_user_SCSIN(double z_R, double z_I);
 xb_scomplex xb_user_SCCOS(double z_R, double z_I);
+xb_dcomplex xb_user_DCACOS(double z_R, double z_I);
+xb_dcomplex xb_user_DCASIN(double z_R, double z_I);
+xb_dcomplex xb_user_DCATAN(double z_R, double z_I);
 
     static int fails = 0;
 
@@ -445,8 +448,20 @@ xb_scomplex xb_user_SCCOS(double z_R, double z_I);
         { xb_scomplex _s = xb_user_SCCOS(0.0, 0.0);
           check_d("SCCOS(0,0).R", (double)_s.R, 1.0);
           check_d("SCCOS(0,0).I", (double)_s.I, 0.0); }
+        /* DCACOS(0,0) = (PI/2, 0) — ACOS(XdcGetBeta(0,0))=ACOS(0)=PI/2, -alpha=0 */
+        { xb_dcomplex _r = xb_user_DCACOS(0.0, 0.0);
+          check_d("DCACOS(0,0).R", _r.R, M_PI_2);
+          check_d("DCACOS(0,0).I", _r.I, 0.0); }
+        /* DCASIN(0,0) = (0, 0) — ASIN(XdcGetBeta(0,0))=ASIN(0)=0, alpha=0 */
+        { xb_dcomplex _r = xb_user_DCASIN(0.0, 0.0);
+          check_d("DCASIN(0,0).R", _r.R, 0.0);
+          check_d("DCASIN(0,0).I", _r.I, 0.0); }
+        /* DCATAN(0,0) = (0, 0) — ATAN(0/(1-0-0))*0.5=0, LOG((0+1)/(0+1))*0.25=0 */
+        { xb_dcomplex _r = xb_user_DCATAN(0.0, 0.0);
+          check_d("DCATAN(0,0).R", _r.R, 0.0);
+          check_d("DCATAN(0,0).I", _r.I, 0.0); }
 
-        printf("\n%d checks, %d failures\n", 45, fails);
+        printf("\n%d checks, %d failures\n", 51, fails);
         return fails;
     }
     "#).unwrap();
@@ -495,4 +510,7 @@ xb_scomplex xb_user_SCCOS(double z_R, double z_I);
     assert!(stdout.contains("DCPOWERCR(1,0,2).R"), "missing DCPOWERCR(1,0,2).R check in output");
     assert!(stdout.contains("SCCONJ(3,4).R"), "missing SCCONJ(3,4).R check in output");
     assert!(stdout.contains("SCCOS(0,0).R"), "missing SCCOS(0,0).R check in output");
+    assert!(stdout.contains("DCACOS(0,0).R"), "missing DCACOS(0,0).R check in output");
+    assert!(stdout.contains("DCASIN(0,0).R"), "missing DCASIN(0,0).R check in output");
+    assert!(stdout.contains("DCATAN(0,0).R"), "missing DCATAN(0,0).R check in output");
 }
