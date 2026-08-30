@@ -78,6 +78,9 @@ pub struct CheckedProgram {
     pub items: Vec<CheckedItem>,
     pub data_values: Vec<xb_frontend::DataValue>,
     pub string_constants: Vec<(String, String)>,
+    /// Per-function byref flags from DECLARE `@` markers, used as fallback
+    /// by the CEmitter when no callsite info is available.
+    pub declare_byref: std::collections::HashMap<String, Vec<bool>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

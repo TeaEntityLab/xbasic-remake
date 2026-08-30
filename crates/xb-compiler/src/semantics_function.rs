@@ -28,6 +28,7 @@ impl Analyzer {
             // single-`#` reads inside this function resolve to the shared slot.
             shared_writes: self.shared_writes.clone(),
             shared_scalars: BTreeSet::new(),
+            declare_byref: self.declare_byref.clone(),
         };
         // Register params. A composite param flattens into member slots/params
         // (struct-of-arrays), matching how composite call-args are flattened so

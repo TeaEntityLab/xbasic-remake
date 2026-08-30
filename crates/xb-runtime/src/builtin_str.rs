@@ -34,7 +34,7 @@ pub(crate) fn eval_hexx(name: &str, args: &[RuntimeValue]) -> Result<RuntimeValu
         let padded = format!(
             "{prefix}{:0>width$}",
             format!("{:X}", *n),
-        width = (*w).max(0) as usize
+            width = (*w).max(0) as usize
         );
         Ok(RuntimeValue::from_string(padded))
     } else {

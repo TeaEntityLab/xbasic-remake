@@ -632,14 +632,10 @@ pub(crate) fn emit_globals(program: &IrProgram, out: &mut String) {
             out.push_str(&format!("char* xb_const_{name} = 0;\n"));
             let _ = escaped;
         }
-        out.push_str(
-            "__attribute__((constructor)) static void xb_init_string_constants(void) {\n",
-        );
+        out.push_str("__attribute__((constructor)) static void xb_init_string_constants(void) {\n");
         for (name, value) in &program.string_constants {
             let escaped = crate::c_emit::c_escape(value);
-            out.push_str(&format!(
-                "    xb_const_{name} = xb_str(\"{escaped}\");\n"
-            ));
+            out.push_str(&format!("    xb_const_{name} = xb_str(\"{escaped}\");\n"));
         }
         out.push_str("}\n");
     }

@@ -459,9 +459,10 @@ impl Parser {
     pub(crate) fn constant_definition_stmt(&mut self) -> Result<Statement, ParseError> {
         let name = match self.peek_kind().clone() {
             TokenKind::SystemConstant(name) => name,
-            TokenKind::SystemVariable { name, suffix: Some(TypeSuffix::String) }
-                if name.starts_with("$$") =>
-            {
+            TokenKind::SystemVariable {
+                name,
+                suffix: Some(TypeSuffix::String),
+            } if name.starts_with("$$") => {
                 // $$Name$ = "string" — string constant definition.
                 // Strip the $$ prefix so the constant name is `Name$`.
                 let base = name.strip_prefix("$$").unwrap_or(&name);

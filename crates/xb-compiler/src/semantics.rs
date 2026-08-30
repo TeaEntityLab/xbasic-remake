@@ -79,6 +79,9 @@ pub struct Analyzer {
     /// slot (classic BASIC `SHARED y` refers to module-level storage);
     /// functions without the declaration keep their own locals.
     pub(crate) shared_scalars: BTreeSet<String>,
+    /// Per-function byref flags from DECLARE `@` markers (collected in
+    /// `program()`, used as CEmitter fallback when no callsite info exists).
+    pub(crate) declare_byref: std::collections::HashMap<String, Vec<bool>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,6 +151,13 @@ impl Analyzer {
                 self.register_type(name, members);
             }
         }
+        // Collect DECLARE @ byref flags for CEmitter fallback.
+        for statement in &program.statements {
+            if let Statement::Declare { name, args } = statement {
+                self.declare_byref
+                    .insert(name.clone(), args.iter().map(|(_, br)| *br).collect());
+            }
+        }
         let mut items = Vec::with_capacity(program.statements.len());
         let mut data_values = Vec::new();
         for (i, statement) in program.statements.iter().enumerate() {
@@ -183,6 +193,7 @@ impl Analyzer {
             items,
             data_values,
             string_constants,
+            declare_byref: std::mem::take(&mut self.declare_byref),
         })
     }
     /// Recursively collect SharedAssignment (`#name = value`) target names —

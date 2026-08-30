@@ -135,6 +135,8 @@ fn reads_unassigned_variable_as_default() {
             separators: vec![],
         }],
         data_values: Vec::new(),
+        string_constants: Vec::new(),
+        declare_byref: Default::default(),
     };
     let mut output = Vec::new();
 
@@ -169,6 +171,8 @@ fn allows_redimension_of_slot() {
             },
         ],
         data_values: Vec::new(),
+        string_constants: Vec::new(),
+        declare_byref: Default::default(),
     };
     let mut output = Vec::new();
 
@@ -191,6 +195,8 @@ fn rejects_invalid_integer_literal() {
             separators: vec![],
         }],
         data_values: Vec::new(),
+        string_constants: Vec::new(),
+        declare_byref: Default::default(),
     };
     let mut output = Vec::new();
 
@@ -234,6 +240,8 @@ fn coerces_string_value_to_integer_target() {
             },
         ],
         data_values: Vec::new(),
+        string_constants: Vec::new(),
+        declare_byref: Default::default(),
     };
     let mut output = Vec::new();
     Interpreter::new().execute(&program, &mut output).unwrap();

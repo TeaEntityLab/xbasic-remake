@@ -31,7 +31,10 @@ fn extract_width_offset(args: &[RuntimeValue]) -> (u32, u32) {
         let RuntimeValue::Integer(bs) = &args[1] else {
             return (0, 0);
         };
-        (((*bs as u32 >> 8) & 0xFF).min(32), (*bs as u32 & 0xFF).min(31))
+        (
+            ((*bs as u32 >> 8) & 0xFF).min(32),
+            (*bs as u32 & 0xFF).min(31),
+        )
     }
 }
 

@@ -123,7 +123,8 @@ pub enum Statement {
     Import(String),
     Declare {
         name: String,
-        args: Vec<String>,
+        /// Parameter name and whether it had an `@` (byref) prefix.
+        args: Vec<(String, bool)>,
     },
     Program(String),
     EndProgram,

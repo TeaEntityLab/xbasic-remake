@@ -8,6 +8,8 @@ pub struct IrProgram {
     pub items: Vec<IrItem>,
     pub data_values: Vec<(String, String)>,
     pub string_constants: Vec<(String, String)>,
+    /// Per-function byref flags from DECLARE `@` markers.
+    pub declare_byref: std::collections::HashMap<String, Vec<bool>>,
 }
 impl IrProgram {
     pub fn lower(program: &CheckedProgram) -> Self {
@@ -23,6 +25,7 @@ impl IrProgram {
                 })
                 .collect(),
             string_constants: program.string_constants.clone(),
+            declare_byref: program.declare_byref.clone(),
         }
     }
 

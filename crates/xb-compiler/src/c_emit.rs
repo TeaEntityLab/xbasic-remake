@@ -160,10 +160,16 @@ fn set_defined_funcs(program: &IrProgram) {
             m.insert(name, states.iter().map(|(br, bv)| *br && !*bv).collect());
         }
         // Fallback for functions with NO callsites in the compiled unit:
-        // check XB_BYREF_HINTS env var for explicit byref overrides.
-        // Format: "Func1:0,1;Func2:2" meaning Func1 params 0,1 are byref,
-        // Func2 param 2 is byref. Used by behavior tests to test functions
-        // that are never called with @ inside their own library.
+        // use DECLARE `@` markers from the program's `declare_byref` map.
+        // Only insert when at least one param has `@` — a DECLARE with no
+        // @ markers carries no byref info and should not block the env var
+        // fallback (some legacy source has mismatched DECLARE, e.g. xst.x
+        // XstDecomposePathname omits @ on output params).
+        for (fname, flags) in &program.declare_byref {
+            if !m.contains_key(fname) && flags.iter().any(|&f| f) {
+                m.insert(fname.clone(), flags.clone());
+            }
+        }
         if let Ok(hints) = std::env::var("XB_BYREF_HINTS") {
             for entry in hints.split(';') {
                 let parts: Vec<&str> = entry.splitn(2, ':').collect();
@@ -171,10 +177,7 @@ fn set_defined_funcs(program: &IrProgram) {
                     continue;
                 }
                 let fname = parts[0];
-                let positions: Vec<bool> = parts[1]
-                    .split(',')
-                    .map(|s| s.trim() == "1")
-                    .collect();
+                let positions: Vec<bool> = parts[1].split(',').map(|s| s.trim() == "1").collect();
                 if !m.contains_key(fname) {
                     m.insert(fname.to_string(), positions);
                 }
@@ -778,7 +781,6 @@ fn collect_callsite_byref(items: &[IrItem], m: &mut HashMap<String, Vec<(bool, b
         }
     }
 }
-
 
 /// Declared param types of a user-defined function, or `None` for builtins /
 /// unknown names (whose call sites are emitted as-is / stubbed).

@@ -1,6 +1,6 @@
 use crate::ir::{IrItem, IrProgram};
-use crate::ValueType;
 use crate::text_ir_parser_item::parse_item;
+use crate::ValueType;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextIrParseError {
@@ -30,11 +30,11 @@ impl TextIrParser {
         let string_constants: Vec<(String, String)> = items
             .iter()
             .filter_map(|i| match i {
-                IrItem::ConstantDefinition { name, value, value_type }
-                    if *value_type == ValueType::String =>
-                {
-                    Some((name.clone(), value.clone()))
-                }
+                IrItem::ConstantDefinition {
+                    name,
+                    value,
+                    value_type,
+                } if *value_type == ValueType::String => Some((name.clone(), value.clone())),
                 _ => None,
             })
             .collect();
@@ -50,7 +50,12 @@ impl TextIrParser {
             }
             idx += 1;
         }
-        Ok(IrProgram { items, data_values, string_constants })
+        Ok(IrProgram {
+            items,
+            data_values,
+            string_constants,
+            declare_byref: Default::default(),
+        })
     }
 }
 

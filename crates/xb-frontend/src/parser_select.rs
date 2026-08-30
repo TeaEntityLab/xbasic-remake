@@ -301,12 +301,15 @@ impl Parser {
                             self.index = save;
                         }
                     }
-                    // Allow @ prefix
-                    if matches!(self.peek_kind(), TokenKind::Symbol('@')) {
+                    // Allow @ prefix — record byref flag
+                    let byref = if matches!(self.peek_kind(), TokenKind::Symbol('@')) {
                         self.index += 1;
-                    }
+                        true
+                    } else {
+                        false
+                    };
                     let (arg_name, _) = self.expect_name_or_keyword()?;
-                    args.push(arg_name);
+                    args.push((arg_name, byref));
                     // Skip optional array brackets
                     if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
                         self.index += 1;

@@ -166,13 +166,15 @@ pub(crate) fn parse_item(
             .ok_or_else(|| err("missing = in const".into(), l))?;
         let vt = parse_type(after[..eq].trim()).map_err(|e| err(e, l))?;
         let vs = after[eq + 3..].trim();
-        let val = if let Some(s) = vs.strip_prefix("integer(").and_then(|s| s.strip_suffix(')')) {
+        let val = if let Some(s) = vs
+            .strip_prefix("integer(")
+            .and_then(|s| s.strip_suffix(')'))
+        {
             s.to_string()
         } else if let Some(s) = vs.strip_prefix("string(").and_then(|s| s.strip_suffix(')')) {
             // String values are serialized as Rust debug format: "value"
             // (with quotes and escaped special chars). Unescape.
-            crate::text_ir_parser_helpers::parse_rust_string(s)
-                .map_err(|e| err(e, l))?
+            crate::text_ir_parser_helpers::parse_rust_string(s).map_err(|e| err(e, l))?
         } else {
             return Err(err("const value not integer() or string()".into(), l));
         };

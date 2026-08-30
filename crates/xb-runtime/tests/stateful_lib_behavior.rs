@@ -61,7 +61,6 @@ fn cc() -> &'static str {
         .leak()
 }
 
-
 /// Compile a .c file to a .o object file.
 fn compile_c(c_file: &std::path::Path, out: &std::path::Path) -> PathBuf {
     let stem = c_file.file_stem().unwrap().to_str().unwrap();
@@ -104,7 +103,9 @@ fn xst_stateful_library_behavior() {
             .arg("--emit-c")
             .arg(&xst_src)
             .env("XB_WEAK_SYMBOLS", "1")
-            .env("XB_BYREF_HINTS", "XstSystemExceptionToException:0,1;XstGetNewline:1,1;XstGetException:1;XstGetExceptionFunction:1;XstGetProgramName:1;XstDecomposePathname:0,1,1,1,1,1;XstFileTimeToDateAndTime:0,1,1,1,1,1,1,1,1")
+            // XstDecomposePathname's DECLARE in xst.x omits @ on output params
+            // (source bug); all other functions now use DECLARE @ markers.
+            .env("XB_BYREF_HINTS", "XstDecomposePathname:0,1,1,1,1,1")
             .output()
             .expect("emit-c");
         assert!(
@@ -147,14 +148,14 @@ static char* xb_str(const char* s) {
 intptr_t xb_user_XstGetOSName(char* *xb_str_name_ref);
 intptr_t xb_user_XstGetConsoleGrid(intptr_t *xb_var_grid_ref);
 char* xb_user_XstVersion(void);
-intptr_t xb_user_XstGetEndianName(char* xb_str_name);
-intptr_t xb_user_XstGetCPUName(char* xb_str_name);
+intptr_t xb_user_XstGetEndianName(char* *xb_str_name_ref);
+intptr_t xb_user_XstGetCPUName(char* *xb_str_name_ref);
 intptr_t xb_user_XstGetApplicationEnvironment(intptr_t *xb_var_standalone_ref, intptr_t *xb_var_reserved_ref);
 /* XstExceptionToSystemException: byref int — maps exception→signal.
    Called with @sysException inside XstCauseException. */
 intptr_t xb_user_XstExceptionToSystemException(intptr_t xb_var_exception, intptr_t *xb_var_sysException_ref);
 /* XstSystemExceptionToException: byref int — maps POSIX signal→XBasic exception.
-   Never called inside xst.x; XB_BYREF_HINTS env var marks exception as byref.
+   Never called inside xst.x; DECLARE @ markers mark exception as byref.
    Constants: $$SIGNONE=0,$$SIGHUP=1,$$SIGINT=2,$$SIGILL=4,$$SIGTRAP=5,
    $$SIGABRT=6,$$SIGBUS=7,$$SIGFPE=8,$$SIGSEGV=11,$$SIGSTKFLT=16,$$SIGVTALRM=26.
    Exceptions: None=0,SegViol=1,Breakpoint=3,BreakKey=4,Alignment=5,
@@ -175,14 +176,14 @@ intptr_t xb_user_DeltaTimeZone(intptr_t *xb_var_delta_ref);
 intptr_t xb_user_XstGetDateAndTime(intptr_t *xb_var_year_ref, intptr_t *xb_var_month_ref,
     intptr_t *xb_var_day_ref, intptr_t *xb_var_weekDay_ref, intptr_t *xb_var_hour_ref,
     intptr_t *xb_var_minute_ref, intptr_t *xb_var_second_ref, intptr_t *xb_var_nanos_ref);
-/* XstGetOSVersionName: byval string — return 0 proves body ran.
-   Would produce "4.0" if byref (xb_extu(0x0400,8,8)=4, xb_extu(0x0400,8,0)=0). */
-intptr_t xb_user_XstGetOSVersionName(char* xb_str_name);
+/* XstGetOSVersionName: byref string (DECLARE @name$) — return 0 proves body ran.
+   Would produce "4.0" if output read (xb_extu(0x0400,8,8)=4, xb_extu(0x0400,8,0)=0). */
+intptr_t xb_user_XstGetOSVersionName(char* *xb_str_name_ref);
 /* String functions: return char* — deterministic output for known inputs.
-   index/done params are byval (never called with @ in xst.x), but the
+   index/done params are byref (DECLARE @index,@done), but the
    return value is the extracted/merged string. */
-char* xb_user_XstNextField(char* xb_str_source, intptr_t xb_var_index, intptr_t xb_var_done);
-char* xb_user_XstNextLine(char* xb_str_source, intptr_t xb_var_index, intptr_t xb_var_done);
+char* xb_user_XstNextField(char* xb_str_source, intptr_t *xb_var_index_ref, intptr_t *xb_var_done_ref);
+char* xb_user_XstNextLine(char* xb_str_source, intptr_t *xb_var_index_ref, intptr_t *xb_var_done_ref);
 char* xb_user_XstMergeStrings(char* xb_str_string, char* xb_str_add, intptr_t xb_var_start, intptr_t xb_var_replace);
 /* XstParse: returns n-th field from delimited string. Pure string ops, no InitProgram().
    XstTally: counts delimiter occurrences in source. Returns -1 for empty source.
@@ -205,20 +206,20 @@ void xb_user_XstSetNewline(intptr_t xb_var_save, intptr_t xb_var_paste);
 intptr_t xb_user_XstRandomRange(intptr_t xb_var_n1, intptr_t xb_var_n2);
 intptr_t xb_user_XstBinWrite(intptr_t xb_var_fileNumber, intptr_t xb_var_bufferAddr, intptr_t xb_var_numBytes);
 intptr_t xb_user_XstKillTask(intptr_t xb_var_taskNum);
-intptr_t xb_user_XstGetTaskInfo(intptr_t xb_var_taskNum, intptr_t xb_var_count, intptr_t xb_var_msec, intptr_t xb_var_func, intptr_t xb_var_timer, intptr_t xb_var_skips);
-intptr_t xb_user_XstSetProgramName(char* xb_str_prog);
+intptr_t xb_user_XstGetTaskInfo(intptr_t xb_var_taskNum, intptr_t *xb_var_count_ref, intptr_t *xb_var_msec_ref, intptr_t *xb_var_func_ref, intptr_t *xb_var_timer_ref, intptr_t *xb_var_skips_ref);
+intptr_t xb_user_XstSetProgramName(char* *xb_str_prog_ref);
 intptr_t xb_user_XstSetSystemError(intptr_t xb_var_sysError);
 /* XstMatchWild: pure function — wildcard pattern matching.
    Returns match position (1-based) or 0 for no match. */
 intptr_t xb_user_XstMatchWild(char* xb_str_searchMe, char* xb_str_searchFor, intptr_t xb_var_start, intptr_t xb_var_matchCase);
 /* XstGetNewline: byref int+int — reads sysSaveNewline/sysPasteNewline SHARED.
-   Never called inside xst.x; XB_BYREF_HINTS marks save,paste as byref.
+   Never called inside xst.x; DECLARE @ markers mark save,paste as byref.
    With ##WHOMASK=0, reads sys* vars; if 0, returns $$NewlineDefault=1. */
 void xb_user_XstGetNewline(intptr_t *xb_var_save_ref, intptr_t *xb_var_paste_ref);
 /* XstGetException: byref int — reads ##EXCEPTION SharedName.
    XstGetExceptionFunction: byref int — reads SHARED exceptionFunction.
    XstGetProgramName: byref string — reads sysProgram$ (##WHOMASK=0).
-   All never called inside xst.x; XB_BYREF_HINTS marks output as byref. */
+   All never called inside xst.x; DECLARE @ markers mark output as byref. */
 void xb_user_XstGetException(intptr_t *xb_var_exception_ref);
 void xb_user_XstGetExceptionFunction(intptr_t *xb_var_function_ref);
 void xb_user_XstGetProgramName(char* *xb_str_prog_ref);
@@ -280,17 +281,12 @@ int main(void) {
     char* ver = xb_user_XstVersion();
     check_s("XstVersion$", ver, "6.4.5");
 
-    /* XstGetEndianName: byval string (never called with @ in xst.x, so byval).
-       The string output is lost (local copy), but the return value 0 proves
-       the function body executed (sets name$ = "LittleEndian", returns 0). */
-    char endian_buf[64] = {0};
-    intptr_t endian_ret = xb_user_XstGetEndianName(endian_buf);
-    check_i("XstGetEndianName(ret)", endian_ret, 0);
+    /* XstGetEndianName: byref string (DECLARE @endian$). Return 0 proves body ran.
+       The string output is written via pointer, but we only check the return. */
+    { char* endian_buf = xb_str(""); intptr_t endian_ret = xb_user_XstGetEndianName(&endian_buf); check_i("XstGetEndianName(ret)", endian_ret, 0); }
 
-    /* XstGetCPUName: byval string. Returns 0. Body sets name$ = "80386". */
-    char cpu_buf[64] = {0};
-    intptr_t cpu_ret = xb_user_XstGetCPUName(cpu_buf);
-    check_i("XstGetCPUName(ret)", cpu_ret, 0);
+    /* XstGetCPUName: byref string (DECLARE @cpu$). Returns 0. */
+    { char* cpu_buf = xb_str(""); intptr_t cpu_ret = xb_user_XstGetCPUName(&cpu_buf); check_i("XstGetCPUName(ret)", cpu_ret, 0); }
     /* XstGetApplicationEnvironment: byref int+int — reads ##STANDALONE (init 0),
        sets reserved=$$FALSE (0). Called with @ inside XstGetProgramFileName$. */
     long standalone = -1, reserved = -1;
@@ -317,7 +313,7 @@ int main(void) {
     check_i("ExcToSys(unknown)", sig, 11);
     /* XstSystemExceptionToException: byref int — maps POSIX signals to
        XBasic exceptions (reverse of XstExceptionToSystemException).
-       Never called inside xst.x; XB_BYREF_HINTS marks exception as byref. */
+       Never called inside xst.x; DECLARE @ markers mark exception as byref. */
     long exc;
     xb_user_XstSystemExceptionToException(0, &exc);   /* SIGNONE → ExceptionNone(0) */
     check_i("SysExcToExc(SIGNONE)", exc, 0);
@@ -391,30 +387,20 @@ int main(void) {
         xb_user_XstFileTimeToDateAndTime(11644473601000500LL, &ft_y, &ft_mo, &ft_d, &ft_wd, &ft_h, &ft_mi, &ft_s, &ft_ns);
         check_i("FileTimeToDate(epoch+1s) year", ft_y, 1900);
     }
-    /* XstGetOSVersionName: byval string — return 0 proves body ran. */
-    char osver_buf[64] = {0};
-    intptr_t osver_ret = xb_user_XstGetOSVersionName(osver_buf);
-    check_i("XstGetOSVersionName(ret)", osver_ret, 0);
+    /* XstGetOSVersionName: byref string (DECLARE @name$) — return 0 proves body ran. */
+    { char* osver_buf = xb_str(""); intptr_t osver_ret = xb_user_XstGetOSVersionName(&osver_buf); check_i("XstGetOSVersionName(ret)", osver_ret, 0); }
     /* XstNextField: extracts next whitespace-delimited field from source.
-       Skips leading whitespace, extracts non-whitespace chars.
-       Must use xb_str() to convert C literals to XBasic managed strings. */
-    char* nf1 = xb_user_XstNextField(xb_str("hello world"), 1, 0);
-    check_s("XstNextField(hello world,1)", nf1, "hello");
-    char* nf2 = xb_user_XstNextField(xb_str("hello world"), 7, 0);
-    check_s("XstNextField(hello world,7)", nf2, "world");
-    char* nf3 = xb_user_XstNextField(xb_str("  hello  "), 1, 0);
-    check_s("XstNextField(spaces,1)", nf3, "hello");
-    char* nf4 = xb_user_XstNextField(xb_str(""), 1, 0);
-    check_s("XstNextField(empty,1)", nf4, "");
-    /* XstNextLine: extracts next line from newline-delimited string. */
-    char* nl1 = xb_user_XstNextLine(xb_str("line1\nline2\n"), 1, 0);
-    check_s("XstNextLine(2lines,1)", nl1, "line1");
-    char* nl2 = xb_user_XstNextLine(xb_str("line1\nline2\n"), 7, 0);
-    check_s("XstNextLine(2lines,7)", nl2, "line2");
-    char* nl3 = xb_user_XstNextLine(xb_str("hello"), 1, 0);
-    check_s("XstNextLine(noNL,1)", nl3, "hello");
-    char* nl4 = xb_user_XstNextLine(xb_str(""), 1, 0);
-    check_s("XstNextLine(empty,1)", nl4, "");
+       index/done are byref (DECLARE @index,@done). Must use xb_str() for C literals. */
+    { intptr_t idx=1, done=0; char* nf1 = xb_user_XstNextField(xb_str("hello world"), &idx, &done); check_s("XstNextField(hello world,1)", nf1, "hello"); }
+    { intptr_t idx=7, done=0; char* nf2 = xb_user_XstNextField(xb_str("hello world"), &idx, &done); check_s("XstNextField(hello world,7)", nf2, "world"); }
+    { intptr_t idx=1, done=0; char* nf3 = xb_user_XstNextField(xb_str("  hello  "), &idx, &done); check_s("XstNextField(spaces,1)", nf3, "hello"); }
+    { intptr_t idx=1, done=0; char* nf4 = xb_user_XstNextField(xb_str(""), &idx, &done); check_s("XstNextField(empty,1)", nf4, ""); }
+    /* XstNextLine: extracts next line from newline-delimited string.
+       index/done are byref (DECLARE @index,@done). */
+    { intptr_t idx=1, done=0; char* nl1 = xb_user_XstNextLine(xb_str("line1\nline2\n"), &idx, &done); check_s("XstNextLine(2lines,1)", nl1, "line1"); }
+    { intptr_t idx=7, done=0; char* nl2 = xb_user_XstNextLine(xb_str("line1\nline2\n"), &idx, &done); check_s("XstNextLine(2lines,7)", nl2, "line2"); }
+    { intptr_t idx=1, done=0; char* nl3 = xb_user_XstNextLine(xb_str("hello"), &idx, &done); check_s("XstNextLine(noNL,1)", nl3, "hello"); }
+    { intptr_t idx=1, done=0; char* nl4 = xb_user_XstNextLine(xb_str(""), &idx, &done); check_s("XstNextLine(empty,1)", nl4, ""); }
     /* XstMergeStrings: insert/replace in string.
        MID$(string,1,start-1) + add + MID$(string,start+replace) */
     char* ms1 = xb_user_XstMergeStrings(xb_str("hello"), xb_str("XYZ"), 2, 2);
@@ -587,16 +573,17 @@ int main(void) {
     check_i("XstBinWrite(2,0,0)", xb_user_XstBinWrite(2, 0, 0), -1);
     /* XstKillTask: byval, RETURN. taskNum<1 returns -1 before GOSUB. */
     check_i("XstKillTask(0)", xb_user_XstKillTask(0), -1);
-    /* XstGetTaskInfo: byval, RETURN. UBOUND(task[])= -1 (uninit SHARED array),
-       so taskNum=999 > -1 → returns 0. Tests SHARED array UBOUND read. */
-    check_i("XstGetTaskInfo(999)", xb_user_XstGetTaskInfo(999, 0, 0, 0, 0, 0), 0);
+    /* XstGetTaskInfo: byref outputs (DECLARE @count,@msec,@func,@timer,@skips).
+       UBOUND(task[])= -1 (uninit SHARED array), so taskNum=999 > -1 → returns 0.
+       Tests SHARED array UBOUND read. Pass dummy vars for byref outputs. */
+    { intptr_t c=0,m=0,f=0,t=0,s=0; check_i("XstGetTaskInfo(999)", xb_user_XstGetTaskInfo(999, &c, &m, &f, &t, &s), 0); }
     /* XstSetSystemError: byval, no RETURN. Calls xb_user_xb_seterrno (strong
        impl in harness overrides weak stub). Verify via xb_user_xb_geterrno. */
     xb_user_XstSetSystemError(42);
     check_i("XstSetSystemError(42)", xb_user_xb_geterrno(), 42);
-    /* XstSetProgramName: byval string input. ##WHOMASK=0 → sys path.
+    /* XstSetProgramName: byref string (DECLARE @program$). ##WHOMASK=0 → sys path.
        Writes xb_strdup(prog$) to xb_shared_sysProgram. */
-    xb_user_XstSetProgramName(xb_str("MyApp"));
+    { char* prog = xb_str("MyApp"); xb_user_XstSetProgramName(&prog); }
     check_s("XstSetProgramName(MyApp)", xb_shared_sysProgram, "MyApp");
     /* XstGetProgramName: byref string — reads sysProgram$ set by
        XstSetProgramName. ##WHOMASK=0 → sys path. Round-trip verification. */

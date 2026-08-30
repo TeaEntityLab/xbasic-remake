@@ -81,10 +81,18 @@ pub(crate) fn emit_math_functions(out: &mut String) {
     out.push_str("static double xb_xxx_fldln2(void) { return M_LN2; }\n");
     out.push_str("static double xb_xxx_fldpi(void) { return M_PI; }\n");
     out.push_str("static double xb_xxx_fldz(void) { return 0.0; }\n");
-    out.push_str("static double xb_xxx_fpatan(double x, double *y) { return atan2(y ? *y : 0.0, x); }\n");
-    out.push_str("static double xb_xxx_fprem(double x, double *y) { return fmod(x, y ? *y : 1.0); }\n");
-    out.push_str("static double xb_xxx_fprem1(double x, double *y) { return remainder(x, y ? *y : 1.0); }\n");
-    out.push_str("static double xb_xxx_fptan(double x, double *y) { if (y) *y = 1.0; return tan(x); }\n");
+    out.push_str(
+        "static double xb_xxx_fpatan(double x, double *y) { return atan2(y ? *y : 0.0, x); }\n",
+    );
+    out.push_str(
+        "static double xb_xxx_fprem(double x, double *y) { return fmod(x, y ? *y : 1.0); }\n",
+    );
+    out.push_str(
+        "static double xb_xxx_fprem1(double x, double *y) { return remainder(x, y ? *y : 1.0); }\n",
+    );
+    out.push_str(
+        "static double xb_xxx_fptan(double x, double *y) { if (y) *y = 1.0; return tan(x); }\n",
+    );
     out.push_str("static double xb_xxx_frndint(double x) { return round(x); }\n");
     out.push_str("static double xb_xxx_fscale(double x, double y) { return ldexp(x, (int)y); }\n");
     out.push_str("static double xb_xxx_fsin(double x) { return sin(x); }\n");
@@ -96,7 +104,9 @@ pub(crate) fn emit_math_functions(out: &mut String) {
     out.push_str("static double xb_xxx_fstsw(void) { return 0.0; }\n");
     out.push_str("static double xb_xxx_ftentox(double x) { return pow(10.0, x); }\n");
     out.push_str("static double xb_xxx_fxtract(double x, double *y) { int e; double m = frexp(x, &e); if (y) *y = (double)e; return m; }\n");
-    out.push_str("static double xb_xxx_fyl2x(double x, double *y) { return (y ? *y : 0.0) * log2(x); }\n");
+    out.push_str(
+        "static double xb_xxx_fyl2x(double x, double *y) { return (y ? *y : 0.0) * log2(x); }\n",
+    );
     out.push_str(
         "static double xb_xxx_fyl2xp1(double x, double *y) { return (y ? *y : 0.0) * log2(x + 1.0); }\n",
     );
