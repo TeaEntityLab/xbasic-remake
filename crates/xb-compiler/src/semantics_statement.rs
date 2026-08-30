@@ -413,16 +413,32 @@ impl Analyzer {
     pub(crate) fn attach_stmt(
         &self,
         left_name: &str,
-        _left_suffix: Option<TypeSuffix>,
+        left_suffix: Option<TypeSuffix>,
         left_indices: &[Expression],
         left_is_row: bool,
         right_name: &str,
-        _right_suffix: Option<TypeSuffix>,
+        right_suffix: Option<TypeSuffix>,
         right_indices: &[Expression],
         right_is_row: bool,
     ) -> ItemResult {
-        let left_sym = self.auto_symbol(left_name);
-        let right_sym = self.auto_symbol(right_name);
+        // Build full name with type suffix ONLY for array operands (those
+        // with indices or row markers). DIM stores `text$[]` as symbol
+        // `text$`, but the parser strips `$` into a separate suffix. Scalar
+        // operands use the base name so auto_symbol resolves to the scalar
+        // slot (e.g. `text` not `text$`), avoiding `xb_str_text_s` vs
+        // `xb_str_text` mismatch.
+        let left_full = if left_indices.is_empty() && !left_is_row {
+            left_name.to_owned()
+        } else {
+            xb_frontend::full_name(left_name.to_owned(), left_suffix)
+        };
+        let right_full = if right_indices.is_empty() && !right_is_row {
+            right_name.to_owned()
+        } else {
+            xb_frontend::full_name(right_name.to_owned(), right_suffix)
+        };
+        let left_sym = self.auto_symbol(&left_full);
+        let right_sym = self.auto_symbol(&right_full);
         let left_checked: Vec<CheckedExpr> = left_indices
             .iter()
             .map(|e| self.expr(e))

@@ -111,17 +111,21 @@ pub(crate) fn emit_attach(
             out.push_str(ind);
             if left.value_type == ValueType::String {
                 out.push_str("xb_str_");
-                out.push_str(&left.name);
+                out.push_str(&crate::c_emit_expr::sanitize_c_ident(&left.name));
                 out.push_str(" = xb_strdup(");
             } else {
                 out.push_str("xb_var_");
-                out.push_str(&left.name);
+                out.push_str(&crate::c_emit_expr::sanitize_c_ident(&left.name));
                 out.push_str(" = ");
             }
             emit_array_var_name(right, out);
             out.push('[');
             emit_expr(&right_indices[0], out);
-            out.push_str("];\n");
+            if left.value_type == ValueType::String {
+                out.push_str("]);\n");
+            } else {
+                out.push_str("];\n");
+            }
         }
         return;
     }
@@ -137,11 +141,11 @@ pub(crate) fn emit_attach(
             out.push_str("] = ");
             if right.value_type == ValueType::String {
                 out.push_str("xb_strdup(xb_str_");
-                out.push_str(&right.name);
+                out.push_str(&crate::c_emit_expr::sanitize_c_ident(&right.name));
                 out.push_str(");\n");
             } else {
                 out.push_str("xb_var_");
-                out.push_str(&right.name);
+                out.push_str(&crate::c_emit_expr::sanitize_c_ident(&right.name));
                 out.push_str(";\n");
             }
         }
