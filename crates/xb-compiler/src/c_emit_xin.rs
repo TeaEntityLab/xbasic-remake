@@ -206,7 +206,7 @@ pub(crate) fn emit_xin_runtime(out: &mut String) {
         "static int64_t xb_xin_address_string_to_number(char* s, int64_t* num) { if(num)*num = s ? (int64_t)ntohl(inet_addr(s)) : 0; return 0; }\n",
     );
     out.push_str(
-        "static int64_t xb_xin_address_number_to_string(int64_t* num, char** s) { if(s){ struct in_addr a; a.s_addr=htonl((uint32_t)*num); char* d = xb_alloc(16); snprintf(d,16,\"%s\",inet_ntoa(a)); *s=d; } return 0; }\n",
+        "static int64_t xb_xin_address_number_to_string(int64_t* num, char** s) { if(s && num){ struct in_addr a; a.s_addr=htonl((uint32_t)*num); char* d = xb_alloc(16); snprintf(d,16,\"%s\",inet_ntoa(a)); *s=d; } return 0; }\n",
     );
     out.push_str(
         "static int64_t xb_xin_host_number_to_info(int32_t n, int32_t* host) { (void)n; if(host)*host=0; return 0; }\n",
