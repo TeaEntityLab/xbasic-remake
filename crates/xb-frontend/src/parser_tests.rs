@@ -368,3 +368,62 @@ fn negative_corpus_produces_diagnostics_without_panics() {
         cases.len()
     );
 }
+
+#[test]
+fn declare_statement_records_byref_markers() {
+    use crate::ast::Statement;
+    let src = "\
+DECLARE FUNCTION Foo (x, @y, z, @w)
+";
+    let prog = parse_program(src).expect("parse DECLARE");
+    let decl = prog
+        .statements
+        .iter()
+        .find_map(|s| {
+            if let Statement::Declare { name, args } = s {
+                Some((name, args))
+            } else {
+                None
+            }
+        })
+        .expect("found Declare statement");
+    assert_eq!(decl.0, "Foo");
+    assert_eq!(
+        decl.1,
+        &vec![
+            ("x".to_string(), false),
+            ("y".to_string(), true),
+            ("z".to_string(), false),
+            ("w".to_string(), true),
+        ]
+    );
+}
+
+#[test]
+fn declare_statement_without_at_markers() {
+    use crate::ast::Statement;
+    let src = "\
+DECLARE FUNCTION Bar (a, b, c)
+";
+    let prog = parse_program(src).expect("parse DECLARE");
+    let decl = prog
+        .statements
+        .iter()
+        .find_map(|s| {
+            if let Statement::Declare { name, args } = s {
+                Some((name, args))
+            } else {
+                None
+            }
+        })
+        .expect("found Declare statement");
+    assert_eq!(decl.0, "Bar");
+    assert_eq!(
+        decl.1,
+        &vec![
+            ("a".to_string(), false),
+            ("b".to_string(), false),
+            ("c".to_string(), false),
+        ]
+    );
+}
