@@ -38,9 +38,9 @@ pub(crate) fn emit_math_functions(out: &mut String) {
     out.push_str("static double xb_ceil(double v) { return ceil(v); }\n");
     out.push_str("static double xb_floor(double v) { return floor(v); }\n");
     out.push_str("static double xb_round(double v) { return round(v); }\n");
-    out.push_str("static double xb_timer(void) { time_t t = time(NULL); struct tm *tm = localtime(&t); return tm->tm_hour*3600.0 + tm->tm_min*60.0 + tm->tm_sec; }\n");
-    out.push_str("static char* xb_time(void) { time_t t = time(NULL); struct tm *tm = localtime(&t); char buf[9]; snprintf(buf, 9, \"%02d:%02d:%02d\", tm->tm_hour, tm->tm_min, tm->tm_sec); return xb_from_cstr(buf); }\n");
-    out.push_str("static char* xb_date(void) { time_t t = time(NULL); struct tm *tm = localtime(&t); char buf[11]; snprintf(buf, 11, \"%04d-%02d-%02d\", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday); return xb_from_cstr(buf); }\n");
+    out.push_str("static double xb_timer(void) { time_t t = time(NULL); struct tm *tm = localtime(&t); if (!tm) return 0; return tm->tm_hour*3600.0 + tm->tm_min*60.0 + tm->tm_sec; }\n");
+    out.push_str("static char* xb_time(void) { time_t t = time(NULL); struct tm *tm = localtime(&t); if (!tm) return xb_str(\"\"); char buf[9]; snprintf(buf, 9, \"%02d:%02d:%02d\", tm->tm_hour, tm->tm_min, tm->tm_sec); return xb_from_cstr(buf); }\n");
+    out.push_str("static char* xb_date(void) { time_t t = time(NULL); struct tm *tm = localtime(&t); if (!tm) return xb_str(\"\"); char buf[11]; snprintf(buf, 11, \"%04d-%02d-%02d\", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday); return xb_from_cstr(buf); }\n");
     out.push_str("static char* xb_hexx(int v, int w) { char buf[34]; buf[0]='0'; buf[1]='x'; if (w > 0) snprintf(buf+2, 32, \"%0*X\", w, v); else snprintf(buf+2, 32, \"%X\", v); return xb_from_cstr(buf); }\n");
     out.push_str("static char* xb_rjust(const char* s, int w) { int len = xb_len(s); if (len >= w) return xb_strdup(s); char* r = xb_alloc((size_t)w); int pad = w - len; for (int i = 0; i < pad; i++) r[i] = ' '; if (len) memcpy(r + pad, s, (size_t)len); return r; }\n");
     out.push_str("static char* xb_ljust(const char* s, int w) { int len = xb_len(s); if (len >= w) return xb_strdup(s); char* r = xb_alloc((size_t)w); if (len) memcpy(r, s, (size_t)len); for (int i = len; i < w; i++) r[i] = ' '; return r; }\n");
@@ -81,24 +81,24 @@ pub(crate) fn emit_math_functions(out: &mut String) {
     out.push_str("static double xb_xxx_fldln2(void) { return M_LN2; }\n");
     out.push_str("static double xb_xxx_fldpi(void) { return M_PI; }\n");
     out.push_str("static double xb_xxx_fldz(void) { return 0.0; }\n");
-    out.push_str("static double xb_xxx_fpatan(double x, double *y) { return atan2(*y, x); }\n");
-    out.push_str("static double xb_xxx_fprem(double x, double *y) { return fmod(x, *y); }\n");
-    out.push_str("static double xb_xxx_fprem1(double x, double *y) { return remainder(x, *y); }\n");
-    out.push_str("static double xb_xxx_fptan(double x, double *y) { *y = 1.0; return tan(x); }\n");
+    out.push_str("static double xb_xxx_fpatan(double x, double *y) { return atan2(y ? *y : 0.0, x); }\n");
+    out.push_str("static double xb_xxx_fprem(double x, double *y) { return fmod(x, y ? *y : 1.0); }\n");
+    out.push_str("static double xb_xxx_fprem1(double x, double *y) { return remainder(x, y ? *y : 1.0); }\n");
+    out.push_str("static double xb_xxx_fptan(double x, double *y) { if (y) *y = 1.0; return tan(x); }\n");
     out.push_str("static double xb_xxx_frndint(double x) { return round(x); }\n");
     out.push_str("static double xb_xxx_fscale(double x, double y) { return ldexp(x, (int)y); }\n");
     out.push_str("static double xb_xxx_fsin(double x) { return sin(x); }\n");
     out.push_str(
-        "static double xb_xxx_fsincos(double x, double *y) { *y = cos(x); return sin(x); }\n",
+        "static double xb_xxx_fsincos(double x, double *y) { if (y) *y = cos(x); return sin(x); }\n",
     );
     out.push_str("static double xb_xxx_fsqrt(double x) { return sqrt(x); }\n");
     out.push_str("static double xb_xxx_fstcw(void) { return 0.0; }\n");
     out.push_str("static double xb_xxx_fstsw(void) { return 0.0; }\n");
     out.push_str("static double xb_xxx_ftentox(double x) { return pow(10.0, x); }\n");
-    out.push_str("static double xb_xxx_fxtract(double x, double *y) { int e; double m = frexp(x, &e); *y = (double)e; return m; }\n");
-    out.push_str("static double xb_xxx_fyl2x(double x, double *y) { return *y * log2(x); }\n");
+    out.push_str("static double xb_xxx_fxtract(double x, double *y) { int e; double m = frexp(x, &e); if (y) *y = (double)e; return m; }\n");
+    out.push_str("static double xb_xxx_fyl2x(double x, double *y) { return (y ? *y : 0.0) * log2(x); }\n");
     out.push_str(
-        "static double xb_xxx_fyl2xp1(double x, double *y) { return *y * log2(x + 1.0); }\n",
+        "static double xb_xxx_fyl2xp1(double x, double *y) { return (y ? *y : 0.0) * log2(x + 1.0); }\n",
     );
     out.push_str("static double xb_xxx_fytox(double x) { return pow(2.0, x); }\n");
 }
