@@ -54,7 +54,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    r[new_len] = 0;\n");
     out.push_str("    return r;\n");
     out.push_str("}\n");
-    out.push_str("static int xb_asc(const char* s) { return (unsigned char)s[0]; }\n");
+    out.push_str("static int xb_asc(const char* s) { return s ? (unsigned char)s[0] : 0; }\n");
     out.push_str(
         "static char* xb_chr(int c, int count) { if (count < 1) count = 1; char* r = xb_alloc((size_t)count); for (int i = 0; i < count; i++) r[i] = (char)c; return r; }\n",
     );
@@ -87,24 +87,26 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    return r;\n");
     out.push_str("}\n");
     out.push_str("static int xb_instr2(const char* s, const char* sub) {\n");
+    out.push_str("    if (!s || !sub) return 0;\n");
     out.push_str("    const char* p = strstr(s, sub);\n");
     out.push_str("    return p ? (int)(p - s) + 1 : 0;\n");
     out.push_str("}\n");
     out.push_str("static int xb_instr3(const char* s, const char* sub, int start) {\n");
+    out.push_str("    if (!s || !sub) return 0;\n");
     out.push_str("    if (start < 1) start = 1;\n");
     out.push_str("    const char* base = s + start - 1;\n");
     out.push_str("    const char* p = strstr(base, sub);\n");
     out.push_str("    return p ? (int)(p - s) + 1 : 0;\n");
     out.push_str("}\n");
     out.push_str("static int xb_rinstr2(const char* s, const char* sub) {\n");
-    out.push_str("    int slen = strlen(s), sublen = strlen(sub);\n");
+    out.push_str("    int slen = xb_len(s), sublen = xb_len(sub);\n");
     out.push_str("    if (sublen == 0 || sublen > slen) return 0;\n");
     out.push_str("    for (int i = slen - sublen; i >= 0; i--)\n");
     out.push_str("        if (strncmp(s + i, sub, sublen) == 0) return i + 1;\n");
     out.push_str("    return 0;\n");
     out.push_str("}\n");
     out.push_str("static int xb_rinstr3(const char* s, const char* sub, int end) {\n");
-    out.push_str("    int slen = strlen(s), sublen = strlen(sub);\n");
+    out.push_str("    int slen = xb_len(s), sublen = xb_len(sub);\n");
     out.push_str("    if (sublen == 0) return 0;\n");
     out.push_str("    if (end > slen) end = slen;\n");
     out.push_str("    for (int i = end - sublen; i >= 0; i--)\n");
@@ -112,14 +114,14 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    return 0;\n");
     out.push_str("}\n");
     out.push_str("static int xb_instri2(const char* s, const char* sub) {\n");
-    out.push_str("    int slen = strlen(s), sublen = strlen(sub);\n");
+    out.push_str("    int slen = xb_len(s), sublen = xb_len(sub);\n");
     out.push_str("    if (sublen == 0 || sublen > slen) return 0;\n");
     out.push_str("    for (int i = 0; i <= slen - sublen; i++)\n");
     out.push_str("        if (strncasecmp(s + i, sub, sublen) == 0) return i + 1;\n");
     out.push_str("    return 0;\n");
     out.push_str("}\n");
     out.push_str("static int xb_instri3(const char* s, const char* sub, int start) {\n");
-    out.push_str("    int slen = strlen(s), sublen = strlen(sub);\n");
+    out.push_str("    int slen = xb_len(s), sublen = xb_len(sub);\n");
     out.push_str("    if (start < 1) start = 1;\n");
     out.push_str("    if (sublen == 0) return 0;\n");
     out.push_str("    for (int i = start - 1; i <= slen - sublen; i++)\n");
@@ -127,21 +129,21 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    return 0;\n");
     out.push_str("}\n");
     out.push_str("static int xb_rinstri2(const char* s, const char* sub) {\n");
-    out.push_str("    int slen = strlen(s), sublen = strlen(sub);\n");
+    out.push_str("    int slen = xb_len(s), sublen = xb_len(sub);\n");
     out.push_str("    if (sublen == 0 || sublen > slen) return 0;\n");
     out.push_str("    for (int i = slen - sublen; i >= 0; i--)\n");
     out.push_str("        if (strncasecmp(s + i, sub, sublen) == 0) return i + 1;\n");
     out.push_str("    return 0;\n");
     out.push_str("}\n");
     out.push_str("static int xb_rinstri3(const char* s, const char* sub, int end) {\n");
-    out.push_str("    int slen = strlen(s), sublen = strlen(sub);\n");
+    out.push_str("    int slen = xb_len(s), sublen = xb_len(sub);\n");
     out.push_str("    if (sublen == 0) return 0;\n");
     out.push_str("    if (end > slen) end = slen;\n");
     out.push_str("    for (int i = end - sublen; i >= 0; i--)\n");
     out.push_str("        if (strncasecmp(s + i, sub, sublen) == 0) return i + 1;\n");
     out.push_str("    return 0;\n");
     out.push_str("}\n");
-    out.push_str("static int xb_val(const char* s) { return (int)strtol(s, 0, 0); }\n");
+    out.push_str("static int xb_val(const char* s) { return s ? (int)strtol(s, 0, 0) : 0; }\n");
     out.push_str(
         "static char* xb_str_num(int v) { char buf[16]; snprintf(buf, 16, \"%d\", v); return xb_from_cstr(buf); }\n",
     );
