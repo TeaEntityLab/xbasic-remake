@@ -1715,7 +1715,7 @@ fn cemitter_and_cgen_agree_on_non_main_entry() {
 /// cc error, blocking ~85 demos. cgen.x now drops an unknown statement call and
 /// zero-defaults an unknown expression call (predicate: not in `##funcTypes$` AND
 /// `c_func_name$` falls through to `xb_user_`). Byte-neutral on the selfhost tools
-/// + v0.1 corpus (they call only user functions / known builtins). This flipped the
+/// and v0.1 corpus (they call only user functions / known builtins). This flipped the
 /// cgen.x demo differential from faithful=7 to faithful=42.
 #[test]
 fn cemitter_and_cgen_agree_on_unknown_call() {
@@ -2349,7 +2349,7 @@ fn cemitter_and_cgen_agree_on_version_after_program_name() {
     assert!(
         ir.lines()
             .nth(1)
-            .map_or(false, |l| l.starts_with("version ")),
+            .is_some_and(|l| l.starts_with("version ")),
         "test setup: version should be the 2nd IR line, got IR:\n{ir}"
     );
 

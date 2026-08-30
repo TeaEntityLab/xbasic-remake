@@ -7086,6 +7086,7 @@ pub mod llvm_backend {
 mod tests {
     use super::*;
     /// Returns the C compiler to use, respecting the `CC` env var.
+    #[cfg(feature = "llvm")]
     fn cc() -> String {
         std::env::var("CC").unwrap_or_else(|_| "cc".to_string())
     }

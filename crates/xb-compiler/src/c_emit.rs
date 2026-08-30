@@ -2193,7 +2193,7 @@ pub(crate) fn c_type(vt: ValueType) -> &'static str {
 }
 #[cfg(test)]
 mod c_emit_argv_tests {
-    use super::*;
+    
     #[test]
     fn c_emit_argv_init_and_main_signature() {
         // Lock ARCH-02: xst's ##ARGV$[] should be a shared heap global with

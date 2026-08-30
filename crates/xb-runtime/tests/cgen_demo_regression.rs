@@ -19,7 +19,6 @@
 mod common;
 
 use std::fs;
-use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use xb_compiler::{CEmitter, FrontendUnit};
@@ -537,7 +536,7 @@ fn cgen_matches_interpreter_on_xbsourcelib() {
 
 /// By-ref array descriptor (CGEN-BYREF-REDIM, docs/18): a `@array[]` param the
 /// callee `REDIM`s must be a `(T** data, intptr_t* ub)` descriptor so the resize
-/// + writes reach the caller; `XstQuickSort(@a[], @n[], …)` sorts `a[]` in place
+/// and writes reach the caller; `XstQuickSort(@a[], @n[], …)` sorts `a[]` in place
 /// and fills/resizes the index array `@n[]` through it. Both duplicated in the
 /// interpreter (`call.rs`/`xst.rs`) and the gated C runtimes; this locks
 /// interp==cgen for the whole descriptor path (params, REDIM realloc, UBOUND,
