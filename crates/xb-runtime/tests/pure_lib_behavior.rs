@@ -136,8 +136,11 @@ double xb_user_SEC(double a);
 double xb_user_SECH(double v);
 double xb_user_LOG(double v);
 char* xb_user_XmaVersion(void);
-static int fails = 0;
+/* Internal helper functions (Hart approximations, called by ASIN/SINH) */
+double xb_user_Asin0(double aa);
+double xb_user_Expmo(double v);
 
+static int fails = 0;
 static void check_d(const char* name, double got, double want) {
     int ok = fabs(got - want) < 1e-10;
     printf("%-20s = %.15g  (want %.15g)  %s\n", name, got, want, ok ? "ok" : "FAIL");
@@ -256,8 +259,16 @@ int main(void) {
     check_d("SECH(1.0)", xb_user_SECH(1.0), 1.0 / cosh(1.0));
     /* ASINH(0.5) = 0.481 — LOG(0.5+SQRT(0.25+1)) */
     check_d("ASINH(0.5)", xb_user_ASINH(0.5), asinh(0.5));
+    /* Asin0(0.25) = asin(0.5)/0.5 — Hart approximation, takes a*a as input */
+    check_d("Asin0(0.25)", xb_user_Asin0(0.25), asin(0.5) / 0.5);
+    /* Asin0(0) = 1.0 — limit of asin(a)/a as a→0 */
+    check_d("Asin0(0)", xb_user_Asin0(0.0), 1.0);
+    /* Expmo(0.25) = exp(0.25)-1 — Hart approximation for exp(v)-1 */
+    check_d("Expmo(0.25)", xb_user_Expmo(0.25), exp(0.25) - 1.0);
+    /* Expmo(-0.25) = exp(-0.25)-1 */
+    check_d("Expmo(-0.25)", xb_user_Expmo(-0.25), exp(-0.25) - 1.0);
 
-    printf("\n%d checks, %d failures\n", 50, fails);
+    printf("\n%d checks, %d failures\n", 54, fails);
     return fails;
 }
 "#).unwrap();
@@ -324,6 +335,8 @@ int main(void) {
     assert!(stdout.contains("ASEC(sqrt2)"), "missing ASEC(sqrt2) check in output");
     assert!(stdout.contains("SECH(1.0)"), "missing SECH(1.0) check in output");
     assert!(stdout.contains("ASINH(0.5)"), "missing ASINH(0.5) check in output");
+    assert!(stdout.contains("Asin0(0.25)"), "missing Asin0(0.25) check in output");
+    assert!(stdout.contains("Expmo(0.25)"), "missing Expmo(0.25) check in output");
 }
 
 #[test]
@@ -530,7 +543,8 @@ xb_dcomplex xb_user_DCLOG10(double z_R, double z_I);
 xb_dcomplex xb_user_DCTAN(double z_R, double z_I);
 xb_dcomplex xb_user_DCTANH(double z_R, double z_I);
 xb_dcomplex xb_user_DCPOWERCR(double z_R, double z_I, double n);
-/* SCOMPLEX return type — float members, but params flatten to double */
+xb_dcomplex xb_user_DCPOWERCC(double z_R, double z_I, double n_R, double n_I);
+xb_dcomplex xb_user_DCPOWERRC(double z, double n_R, double n_I);
 typedef struct { float R; float I; } xb_scomplex;
 xb_scomplex xb_user_SCCONJ(double z_R, double z_I);
 xb_scomplex xb_user_SCSIN(double z_R, double z_I);
@@ -538,8 +552,12 @@ xb_scomplex xb_user_SCCOS(double z_R, double z_I);
 xb_dcomplex xb_user_DCACOS(double z_R, double z_I);
 xb_dcomplex xb_user_DCASIN(double z_R, double z_I);
 xb_dcomplex xb_user_DCATAN(double z_R, double z_I);
-xb_dcomplex xb_user_DCPOWERCC(double z_R, double z_I, double n_R, double n_I);
-xb_dcomplex xb_user_DCPOWERRC(double z, double n_R, double n_I);
+double xb_user_SCNORM(double z_R, double z_I);
+/* Internal helper functions (INTERNAL FUNCTION, still emitted as weak) */
+double xb_user_XdcGetAlpha(double z_R, double z_I);
+double xb_user_XdcGetBeta(double z_R, double z_I);
+double xb_user_XscGetAlpha(double z_R, double z_I);
+double xb_user_XscGetBeta(double z_R, double z_I);
 xb_scomplex xb_user_SCCOSH(double z_R, double z_I);
 xb_scomplex xb_user_SCSINH(double z_R, double z_I);
 xb_scomplex xb_user_SCEXP(double z_R, double z_I);
@@ -616,6 +634,18 @@ double xb_user_SCNORM(double z_R, double z_I);
         check_d("SCNORM(3,4)", xb_user_SCNORM(3.0, 4.0), 25.0);
         /* SCNORM(1,0) = 1 — R^2 + I^2 = 1+0 = 1 */
         check_d("SCNORM(1,0)", xb_user_SCNORM(1.0, 0.0), 1.0);
+        /* XdcGetAlpha(0,0) = LOG(1+SQRT(0)) = LOG(1) = 0 — internal helper for DCASIN/DCACOS */
+        check_d("XdcGetAlpha(0,0)", xb_user_XdcGetAlpha(0.0, 0.0), 0.0);
+        /* XdcGetBeta(0,0) = (SQRT(1)-SQRT(1))*0.5 = 0 — internal helper for DCASIN/DCACOS */
+        check_d("XdcGetBeta(0,0)", xb_user_XdcGetBeta(0.0, 0.0), 0.0);
+        /* XdcGetBeta(1,0) = (SQRT(4)-SQRT(0))*0.5 = 1 */
+        check_d("XdcGetBeta(1,0)", xb_user_XdcGetBeta(1.0, 0.0), 1.0);
+        /* XscGetAlpha(0,0) = 0 — SINGLE version of XdcGetAlpha */
+        check_d("XscGetAlpha(0,0)", xb_user_XscGetAlpha(0.0, 0.0), 0.0);
+        /* XscGetBeta(0,0) = 0 — SINGLE version of XdcGetBeta */
+        check_d("XscGetBeta(0,0)", xb_user_XscGetBeta(0.0, 0.0), 0.0);
+        /* XscGetBeta(1,0) = 1 */
+        check_d("XscGetBeta(1,0)", xb_user_XscGetBeta(1.0, 0.0), 1.0);
         { xb_dcomplex _r = xb_user_DCCONJ(3.0, 4.0);
           check_d("DCCONJ(3,4).R", _r.R, 3.0);
           check_d("DCCONJ(3,4).I", _r.I, -4.0); }
@@ -775,7 +805,7 @@ double xb_user_SCNORM(double z_R, double z_I);
           check_d("SCPOWERRC(1,2,0).R", (double)_s.R, 1.0);
           check_d("SCPOWERRC(1,2,0).I", (double)_s.I, 0.0); }
 
-        printf("\n%d checks, %d failures\n", 100, fails);
+        printf("\n%d checks, %d failures\n", 107, fails);
         return fails;
     }
     "#).unwrap();
@@ -805,6 +835,8 @@ double xb_user_SCNORM(double z_R, double z_I);
     assert!(stdout.contains("SCABS(3,4)"), "missing SCABS(3,4) check in output");
     assert!(stdout.contains("SCARG(0,1)"), "missing SCARG(0,1) check in output");
     assert!(stdout.contains("SCNORM(3,4)"), "missing SCNORM(3,4) check in output");
+    assert!(stdout.contains("XdcGetAlpha(0,0)"), "missing XdcGetAlpha(0,0) check in output");
+    assert!(stdout.contains("XscGetBeta(1,0)"), "missing XscGetBeta(1,0) check in output");
     assert!(
         run.status.success(),
         "xcm behavior test failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
