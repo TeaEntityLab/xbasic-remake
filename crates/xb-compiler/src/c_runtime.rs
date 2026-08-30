@@ -14,7 +14,7 @@ pub(crate) fn emit_header(out: &mut String) {
     // Byte-strings: a string is a char* to its data with TWO size_t header words
     // before the data: [0]=length (xb_len), [1]=capacity (for xb_append doubling).
     // This makes CHR$(0)/embedded/high bytes byte-accurate and gives O(1) amortized append.
-    out.push_str("static char* xb_alloc(size_t n) { size_t* p = (size_t*)malloc(2*sizeof(size_t) + n + 1); p[0] = n; p[1] = n; char* d = (char*)(p + 2); d[n] = 0; return d; }\n");
+    out.push_str("static char* xb_alloc(size_t n) { size_t* p = (size_t*)malloc(2*sizeof(size_t) + n + 1); if (!p) abort(); p[0] = n; p[1] = n; char* d = (char*)(p + 2); d[n] = 0; return d; }\n");
     out.push_str(
         "static int xb_len(const char* s) { if (!s) return 0; return (int)((size_t*)s)[-2]; }\n",
     );
@@ -774,7 +774,7 @@ pub(crate) fn emit_xst_runtime(out: &mut String) {
 pub(crate) fn emit_back_to_bin_runtime(out: &mut String) {
     out.push_str("static char* xb_back_to_bin(const char* s) {\n");
     out.push_str(
-        "    int n = xb_len(s); char* tmp = (char*)malloc((size_t)n + 1); int oi = 0, i = 0;\n",
+        "    int n = xb_len(s); char* tmp = (char*)malloc((size_t)n + 1); if (!tmp) return xb_str(\"\"); int oi = 0, i = 0;\n",
     );
     out.push_str("    while (i < n) {\n");
     out.push_str("        if (s[i] == '\\\\' && i + 1 < n) {\n");
@@ -826,10 +826,10 @@ pub(crate) fn emit_quicksort_runtime(out: &mut String) {
     );
     out.push_str("    if (low <= high && high < alen) {\n");
     out.push_str("        intptr_t rng = high - low + 1;\n");
-    out.push_str("        intptr_t* idx = (intptr_t*)malloc((size_t)rng * sizeof(intptr_t));\n");
+    out.push_str("        intptr_t* idx = (intptr_t*)malloc((size_t)rng * sizeof(intptr_t)); if (!idx) return 0;\n");
     out.push_str("        for (intptr_t k = 0; k < rng; k++) idx[k] = low + k;\n");
     out.push_str("        for (intptr_t k = 1; k < rng; k++) { intptr_t cur = idx[k]; intptr_t m = k - 1; while (m >= 0 && xb_qs_gt(a, et, idx[m], cur, decr, ci)) { idx[m+1] = idx[m]; m--; } idx[m+1] = cur; }\n");
-    out.push_str("        uint64_t* tmp = (uint64_t*)malloc((size_t)rng * 8);\n");
+    out.push_str("        uint64_t* tmp = (uint64_t*)malloc((size_t)rng * 8); if (!tmp) { free(idx); return 0; }\n");
     out.push_str("        for (intptr_t k = 0; k < rng; k++) tmp[k] = a[idx[k]];\n");
     out.push_str("        for (intptr_t k = 0; k < rng; k++) a[low + k] = tmp[k];\n");
     out.push_str("        if (nd && nub && *nub >= 0) {\n");

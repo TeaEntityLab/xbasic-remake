@@ -2088,9 +2088,11 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     out.push_str("        xb_ub_ARGV_s_arr = (intptr_t)argc - 1;\n");
     out.push_str("        if (argc > 0) {\n");
     out.push_str("            xb_str_ARGV_s_arr = (char**)calloc((size_t)argc, sizeof(char*));\n");
+    out.push_str("            if (xb_str_ARGV_s_arr) {\n");
     out.push_str(
-        "            for (int _i = 0; _i < argc; _i++) xb_str_ARGV_s_arr[_i] = xb_str(argv[_i]);\n",
+        "                for (int _i = 0; _i < argc; _i++) xb_str_ARGV_s_arr[_i] = xb_str(argv[_i]);\n",
     );
+    out.push_str("            } else { xb_ub_ARGV_s_arr = -1; }\n");
     out.push_str("        }\n");
     out.push_str("    }\n");
     out.push_str("    {\n");
@@ -2102,7 +2104,9 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     out.push_str(
         "                xb_str_ENVP_s_arr = (char**)calloc((size_t)_envc, sizeof(char*));\n",
     );
-    out.push_str("                for (int _i = 0; _i < _envc; _i++) xb_str_ENVP_s_arr[_i] = xb_str(environ[_i]);\n");
+    out.push_str("                if (xb_str_ENVP_s_arr) {\n");
+    out.push_str("                    for (int _i = 0; _i < _envc; _i++) xb_str_ENVP_s_arr[_i] = xb_str(environ[_i]);\n");
+    out.push_str("                } else { xb_ub_ENVP_s_arr = -1; }\n");
     out.push_str("            }\n");
     out.push_str("        }\n");
     out.push_str("    }\n");
