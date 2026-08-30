@@ -408,7 +408,16 @@ xb_scomplex xb_user_SCEXP(double z_R, double z_I);
 xb_scomplex xb_user_SCLOG(double z_R, double z_I);
 xb_scomplex xb_user_SCSQRT(double z_R, double z_I);
 xb_scomplex xb_user_SCRMUL(double x_R, double x_I, double y);
-
+xb_scomplex xb_user_SCACOS(double z_R, double z_I);
+xb_scomplex xb_user_SCASIN(double z_R, double z_I);
+xb_scomplex xb_user_SCATAN(double z_R, double z_I);
+xb_scomplex xb_user_SCLOG10(double z_R, double z_I);
+xb_scomplex xb_user_SCPOLAR(double mag, double angle);
+xb_scomplex xb_user_SCTAN(double z_R, double z_I);
+xb_scomplex xb_user_SCTANH(double z_R, double z_I);
+xb_scomplex xb_user_SCPOWERCC(double z_R, double z_I, double n_R, double n_I);
+xb_scomplex xb_user_SCPOWERCR(double z_R, double z_I, double n);
+xb_scomplex xb_user_SCPOWERRC(double z, double n_R, double n_I);
     static int fails = 0;
 
     static void check_s(const char* name, const char* got, const char* want) {
@@ -562,8 +571,49 @@ xb_scomplex xb_user_SCRMUL(double x_R, double x_I, double y);
         { xb_scomplex _s = xb_user_SCRMUL(3.0, 4.0, 2.0);
           check_d("SCRMUL(3,4,2).R", (double)_s.R, 6.0);
           check_d("SCRMUL(3,4,2).I", (double)_s.I, 8.0); }
+        /* SCACOS(0,0) = (PI/2, 0) — SCOMPLEX arccos: ACOS(0)=PI/2, -alpha=0.
+           Expected value cast to float to match SCOMPLEX's float member precision. */
+        { xb_scomplex _s = xb_user_SCACOS(0.0, 0.0);
+          check_d("SCACOS(0,0).R", (double)_s.R, (double)(float)M_PI_2);
+          check_d("SCACOS(0,0).I", (double)_s.I, 0.0); }
+        /* SCASIN(0,0) = (0, 0) — SCOMPLEX arcsin: ASIN(0)=0, alpha=0 */
+        { xb_scomplex _s = xb_user_SCASIN(0.0, 0.0);
+          check_d("SCASIN(0,0).R", (double)_s.R, 0.0);
+          check_d("SCASIN(0,0).I", (double)_s.I, 0.0); }
+        /* SCATAN(0,0) = (0, 0) — SCOMPLEX arctan: ATAN(0)=0, LOG(1)*0.25=0 */
+        { xb_scomplex _s = xb_user_SCATAN(0.0, 0.0);
+          check_d("SCATAN(0,0).R", (double)_s.R, 0.0);
+          check_d("SCATAN(0,0).I", (double)_s.I, 0.0); }
+        /* SCLOG10(1,0) = (0,0) — SCOMPLEX log10: SCLOG(1,0)*LOG10E=0 */
+        { xb_scomplex _s = xb_user_SCLOG10(1.0, 0.0);
+          check_d("SCLOG10(1,0).R", (double)_s.R, 0.0);
+          check_d("SCLOG10(1,0).I", (double)_s.I, 0.0); }
+        /* SCPOLAR(1,0) = (1,0) — SCOMPLEX polar: mag*cos(angle)=1, mag*sin(angle)=0 */
+        { xb_scomplex _s = xb_user_SCPOLAR(1.0, 0.0);
+          check_d("SCPOLAR(1,0).R", (double)_s.R, 1.0);
+          check_d("SCPOLAR(1,0).I", (double)_s.I, 0.0); }
+        /* SCTAN(0,0) = (0,0) — SCOMPLEX tan: SIN(0,0)/COS(0,0)=(0,0)/(1,0)=(0,0) */
+        { xb_scomplex _s = xb_user_SCTAN(0.0, 0.0);
+          check_d("SCTAN(0,0).R", (double)_s.R, 0.0);
+          check_d("SCTAN(0,0).I", (double)_s.I, 0.0); }
+        /* SCTANH(0,0) = (0,0) — SCOMPLEX tanh: SINH(0,0)/COSH(0,0)=(0,0)/(1,0)=(0,0) */
+        { xb_scomplex _s = xb_user_SCTANH(0.0, 0.0);
+          check_d("SCTANH(0,0).R", (double)_s.R, 0.0);
+          check_d("SCTANH(0,0).I", (double)_s.I, 0.0); }
+        /* SCPOWERCC(1,0, 2,0) = (1,0) — SCEXP(2*SCLOG(1,0))=SCEXP(0,0)=(1,0) */
+        { xb_scomplex _s = xb_user_SCPOWERCC(1.0, 0.0, 2.0, 0.0);
+          check_d("SCPOWERCC(1,0,2,0).R", (double)_s.R, 1.0);
+          check_d("SCPOWERCC(1,0,2,0).I", (double)_s.I, 0.0); }
+        /* SCPOWERCR(1,0, 2) = (1,0) — SCEXP(SCRMUL(SCLOG(1,0),2))=SCEXP(0,0)=(1,0) */
+        { xb_scomplex _s = xb_user_SCPOWERCR(1.0, 0.0, 2.0);
+          check_d("SCPOWERCR(1,0,2).R", (double)_s.R, 1.0);
+          check_d("SCPOWERCR(1,0,2).I", (double)_s.I, 0.0); }
+        /* SCPOWERRC(1, 2,0) = (1,0) — SCEXP(SCRMUL((2,0), LOG(1)))=SCEXP(0,0)=(1,0) */
+        { xb_scomplex _s = xb_user_SCPOWERRC(1.0, 2.0, 0.0);
+          check_d("SCPOWERRC(1,2,0).R", (double)_s.R, 1.0);
+          check_d("SCPOWERRC(1,2,0).I", (double)_s.I, 0.0); }
 
-        printf("\n%d checks, %d failures\n", 67, fails);
+        printf("\n%d checks, %d failures\n", 87, fails);
         return fails;
     }
     "#).unwrap();
@@ -621,4 +671,14 @@ xb_scomplex xb_user_SCRMUL(double x_R, double x_I, double y);
     assert!(stdout.contains("SCEXP(0,0).R"), "missing SCEXP(0,0).R check in output");
     assert!(stdout.contains("SCSQRT(4,0).R"), "missing SCSQRT(4,0).R check in output");
     assert!(stdout.contains("SCRMUL(3,4,2).R"), "missing SCRMUL(3,4,2).R check in output");
+    assert!(stdout.contains("SCACOS(0,0).R"), "missing SCACOS(0,0).R check in output");
+    assert!(stdout.contains("SCASIN(0,0).R"), "missing SCASIN(0,0).R check in output");
+    assert!(stdout.contains("SCATAN(0,0).R"), "missing SCATAN(0,0).R check in output");
+    assert!(stdout.contains("SCLOG10(1,0).R"), "missing SCLOG10(1,0).R check in output");
+    assert!(stdout.contains("SCPOLAR(1,0).R"), "missing SCPOLAR(1,0).R check in output");
+    assert!(stdout.contains("SCTAN(0,0).R"), "missing SCTAN(0,0).R check in output");
+    assert!(stdout.contains("SCTANH(0,0).R"), "missing SCTANH(0,0).R check in output");
+    assert!(stdout.contains("SCPOWERCC(1,0,2,0).R"), "missing SCPOWERCC(1,0,2,0).R check in output");
+    assert!(stdout.contains("SCPOWERCR(1,0,2).R"), "missing SCPOWERCR(1,0,2).R check in output");
+    assert!(stdout.contains("SCPOWERRC(1,2,0).R"), "missing SCPOWERRC(1,2,0).R check in output");
 }
