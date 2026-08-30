@@ -104,7 +104,7 @@ fn xst_stateful_library_behavior() {
             .arg("--emit-c")
             .arg(&xst_src)
             .env("XB_WEAK_SYMBOLS", "1")
-            .env("XB_BYREF_HINTS", "XstSystemExceptionToException:0,1")
+            .env("XB_BYREF_HINTS", "XstSystemExceptionToException:0,1;XstGetNewline:1,1")
             .output()
             .expect("emit-c");
         assert!(
@@ -211,6 +211,10 @@ intptr_t xb_user_XstSetSystemError(intptr_t xb_var_sysError);
 /* XstMatchWild: pure function — wildcard pattern matching.
    Returns match position (1-based) or 0 for no match. */
 intptr_t xb_user_XstMatchWild(char* xb_str_searchMe, char* xb_str_searchFor, intptr_t xb_var_start, intptr_t xb_var_matchCase);
+/* XstGetNewline: byref int+int — reads sysSaveNewline/sysPasteNewline SHARED.
+   Never called inside xst.x; XB_BYREF_HINTS marks save,paste as byref.
+   With ##WHOMASK=0, reads sys* vars; if 0, returns $$NewlineDefault=1. */
+void xb_user_XstGetNewline(intptr_t *xb_var_save_ref, intptr_t *xb_var_paste_ref);
 /* Weak globals set by the setter functions, readable from the harness. */
 extern __attribute__((weak)) intptr_t xb_shared_EXCEPTION;
 extern __attribute__((weak)) intptr_t xb_shared_TABSAT;
@@ -470,6 +474,23 @@ int main(void) {
     xb_user_XstSetNewline(2, 1);
     check_i("XstSetNewline(2,1) save", xb_shared_sysSaveNewline, 2);
     check_i("XstSetNewline(2,1) paste", xb_shared_sysPasteNewline, 1);
+    /* XstGetNewline: byref int+int — reads back the SHARED state set by
+       XstSetNewline. Verifies SHARED state is shared between functions.
+       After XstSetNewline(2,1) above, sysSaveNewline=2, sysPasteNewline=1. */
+    {
+        long g_save = -1, g_paste = -1;
+        xb_user_XstGetNewline(&g_save, &g_paste);
+        check_i("XstGetNewline save", g_save, 2);
+        check_i("XstGetNewline paste", g_paste, 1);
+    }
+    /* Reset to defaults and verify default behavior */
+    xb_user_XstSetNewline(0, 0);
+    {
+        long g_save = -1, g_paste = -1;
+        xb_user_XstGetNewline(&g_save, &g_paste);
+        check_i("XstGetNewline default save", g_save, 1);
+        check_i("XstGetNewline default paste", g_paste, 1);
+    }
     /* XstRandomRange: byval, RETURN. n1=n2 short-circuits before XstRandom()
        (which uses GOSUB + SHARED). Tests IF n1=n2 THEN RETURN n1 path. */
     check_i("XstRandomRange(5,5)", xb_user_XstRandomRange(5, 5), 5);
@@ -491,7 +512,7 @@ int main(void) {
        Writes xb_strdup(prog$) to xb_shared_sysProgram. */
     xb_user_XstSetProgramName(xb_str("MyApp"));
     check_s("XstSetProgramName(MyApp)", xb_shared_sysProgram, "MyApp");
-    printf("\n%d checks, %d failures\n", 96, fails);
+    printf("\n%d checks, %d failures\n", 100, fails);
     return fails;
 }
 "#).unwrap();
