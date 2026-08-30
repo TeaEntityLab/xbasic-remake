@@ -179,6 +179,7 @@ char* xb_user_XstParse(char* xb_str_source, char* xb_str_delimiter, intptr_t xb_
 intptr_t xb_user_XstTally(char* xb_str_source, char* xb_str_find);
 char* xb_user_XxxPathString(char* xb_str_path);
 static int fails = 0;
+
 static void check_s(const char* name, const char* got, const char* want) {
     int ok = got && strcmp(got, want) == 0;
     printf("%-25s = [%s]  (want [%s])  %s\n", name, got ? got : "(null)", want, ok ? "ok" : "FAIL");
@@ -333,6 +334,11 @@ int main(void) {
     check_s("XxxPathString(a/b/c)", ps2, "a/b/c");
     char* ps3 = xb_user_XxxPathString(xb_str("C:\\dir\\file"));
     check_s("XxxPathString(C:\\dir\\file)", ps3, "C:/dir/file");
+    /* XstErrorNumberToName: CEmitter bug — function computes error message into
+       xb_str_error_s (local storage) but writes back xb_str_error (input pointer)
+       to the byref output. The _s suffix writeback is broken, so the byref string
+       always returns the input value (NULL), not the computed message.
+       Not testable until the _s suffix byref writeback bug is fixed. */
     printf("\n%d checks, %d failures\n", 51, fails);
     return fails;
 }
