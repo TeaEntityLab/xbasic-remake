@@ -2,9 +2,8 @@
 # Probe: compile all 15 core libs through self-hosted cgen.x (CGEN-LIB-SCALE).
 # Builds native cgen from selfhost/cgen.x via Rust CEmitter, then feeds
 # Text IR (xb --emit-ir) to cgen and cc's the output. Reports passes/fails
-# per lib; currently EXPECTED 9/15 at 8840f2a (xcol OOM, xgr abort, xui/xin/xit/xst
-# cc errors — see docs/17 CGEN-LIB-SCALE). Exit 0 if probe completes (even with
-# failures); CI can gate on count via grep.
+# per lib. Exits non-zero if any lib fails; set CGEN_LIB_STRICT=0 for the
+# old informational exit-0 behavior. CI can gate on exit code or grep count.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -87,7 +86,9 @@ fi
 
 # Keep artifacts for inspection
 echo "artifacts: $OUT" >&2
-# Exit 0 always for now — probe is informational until CGEN-FACET-MANIFEST lands.
-# CI gate (when adopted): [ "$FAIL" -eq 0 ] or [ "$PASS" -ge 15 ]
-# Falsified by SIGKILL/OOM/cc error/hang
-exit 0
+# Exit non-zero if any lib failed (CI can gate on this).
+# Use CGEN_LIB_STRICT=0 to keep the old informational exit-0 behavior.
+if [ "${CGEN_LIB_STRICT:-1}" = "0" ]; then
+    exit 0
+fi
+exit "$FAIL"

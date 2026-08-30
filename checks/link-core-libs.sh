@@ -36,6 +36,14 @@ echo "int main(void){return 0;}" > "$OUT/stub_main.c"
 # Deterministic link order matching cc loop (was "$OUT"/*.o glob — filesystem-dependent for weak symbols, see L16)
 $CC "$OUT/stub_main.c" "$OUT/xcm.o" "$OUT/xdis.o" "$OUT/xma.o" "$OUT/xui.o" "$OUT/xut.o" "$OUT/xutpde.o" "$OUT/gdi32.o" "$OUT/kernel32.o" "$OUT/user32.o" "$OUT/xcol.o" "$OUT/xgr.o" "$OUT/xin.o" "$OUT/xit.o" "$OUT/xrun.o" "$OUT/xst.o" -o "$OUT/xblibs"
 echo "linked: $OUT/xblibs ($(nm -U "$OUT/xblibs" 2>/dev/null | grep -c '_xb_user_' || nm "$OUT/xblibs" | grep -c '_xb_user_') xb_user_ symbols)"
+# Report duplicate weak definitions (informational — first-definition-wins is correct).
+DUPS=$(nm -m "$OUT"/*.o 2>/dev/null | grep 'weak external' | awk '{print $NF}' | sort | uniq -d | wc -l | tr -d ' ')
+if [ "$DUPS" -gt 0 ] 2>/dev/null; then
+    echo "weak-dups: $DUPS duplicate weak symbols (first-definition-wins, informational)"
+    nm -m "$OUT"/*.o 2>/dev/null | grep 'weak external' | awk '{print $NF}' | sort | uniq -d | head -10 >&2
+else
+    echo "weak-dups: 0"
+fi
 
 # Execute a cross-TU smoke: each lib's Version$ must return its source value.
 cat > "$OUT/smoke.c" <<'EOF'
