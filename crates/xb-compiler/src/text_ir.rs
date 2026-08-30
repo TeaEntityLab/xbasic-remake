@@ -81,7 +81,10 @@ impl TextIrEmitter {
             self.emit_facets_for_scope(&top_items, "*", &[], &HashMap::new(), out, seen);
         }
         for item in &program.items {
-            if let IrItem::Function { name, params, body, .. } = item {
+            if let IrItem::Function {
+                name, params, body, ..
+            } = item
+            {
                 let desc_locals: HashMap<String, crate::checked::ValueType> = desc_map
                     .get(name)
                     .map(|(_, m)| m.clone())
@@ -97,19 +100,39 @@ impl TextIrEmitter {
         items: &[IrItem],
         out: &mut Vec<String>,
         seen: &mut std::collections::HashSet<String>,
-        desc_map: &std::collections::HashMap<String, (std::collections::HashSet<String>, std::collections::HashMap<String, crate::checked::ValueType>)>,
+        desc_map: &std::collections::HashMap<
+            String,
+            (
+                std::collections::HashSet<String>,
+                std::collections::HashMap<String, crate::checked::ValueType>,
+            ),
+        >,
     ) {
         for item in items {
-            if let IrItem::Function { name, params, body, .. } = item {
-                let desc_locals = desc_map.get(name).map(|(_, m)| m.clone()).unwrap_or_default();
+            if let IrItem::Function {
+                name, params, body, ..
+            } = item
+            {
+                let desc_locals = desc_map
+                    .get(name)
+                    .map(|(_, m)| m.clone())
+                    .unwrap_or_default();
                 self.emit_facets_for_scope(body, name, params, &desc_locals, out, seen);
                 self.collect_facets_nested(body, out, seen, desc_map);
-            } else if let IrItem::If { then_body, else_body, .. } = item {
+            } else if let IrItem::If {
+                then_body,
+                else_body,
+                ..
+            } = item
+            {
                 self.collect_facets_nested(then_body, out, seen, desc_map);
                 if let Some(eb) = else_body {
                     self.collect_facets_nested(eb, out, seen, desc_map);
                 }
-            } else if let IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } = item {
+            } else if let IrItem::While { body, .. }
+            | IrItem::For { body, .. }
+            | IrItem::DoLoop { body, .. } = item
+            {
                 self.collect_facets_nested(body, out, seen, desc_map);
             } else if let IrItem::SelectCase { cases, default, .. } = item {
                 for cl in cases {
@@ -138,7 +161,8 @@ impl TextIrEmitter {
         let mut array_dimmed: HashSet<String> = HashSet::new();
         crate::c_emit_hoist::collect_array_dimmed_names(items, &mut array_dimmed);
         let dual_use = crate::c_emit_hoist::collect_dual_use(items, &array_dimmed);
-        let dyn_names = crate::c_emit_hoist::collect_dyn_names(items, params, has_gosub, desc_locals);
+        let dyn_names =
+            crate::c_emit_hoist::collect_dyn_names(items, params, has_gosub, desc_locals);
         let mut dim_info: HashMap<String, (bool, usize, ValueType, String)> = HashMap::new();
         self.collect_dims_recursive(items, &dyn_names, &dual_use, &mut dim_info);
         for (name, (is_shared, rank, vt, storage)) in &dim_info {
@@ -166,7 +190,8 @@ impl TextIrEmitter {
         // array_access is squareInfo.grid:integer with 2 indices. Emit a
         // facet for the flattened member name when we see a 2D access.
         {
-            let mut member_2d: std::collections::HashMap<String, ValueType> = std::collections::HashMap::new();
+            let mut member_2d: std::collections::HashMap<String, ValueType> =
+                std::collections::HashMap::new();
             self.collect_member_2d(items, &mut member_2d);
             for (mname, vt) in member_2d {
                 if dim_info.contains_key(&mname) {
@@ -233,7 +258,14 @@ impl TextIrEmitter {
     ) {
         for it in items {
             match it {
-                IrItem::Dim { symbol, size, extra_dims, is_array, shared, .. } => {
+                IrItem::Dim {
+                    symbol,
+                    size,
+                    extra_dims,
+                    is_array,
+                    shared,
+                    ..
+                } => {
                     if *is_array {
                         let rank = if size.is_some() {
                             1 + extra_dims.len()
@@ -245,12 +277,17 @@ impl TextIrEmitter {
                         let is_shared = *shared;
                         let storage = if is_shared {
                             "shared".to_string()
-                        } else if dyn_names.arrays.contains_key(&symbol.name) || dual_use.contains(&symbol.name) {
+                        } else if dyn_names.arrays.contains_key(&symbol.name)
+                            || dual_use.contains(&symbol.name)
+                        {
                             "dyn".to_string()
                         } else {
                             "fixed".to_string()
                         };
-                        out.insert(symbol.name.clone(), (is_shared, rank, symbol.value_type, storage));
+                        out.insert(
+                            symbol.name.clone(),
+                            (is_shared, rank, symbol.value_type, storage),
+                        );
                     }
                 }
                 IrItem::Function { .. } => {
@@ -261,13 +298,19 @@ impl TextIrEmitter {
                     // for host.address etc. and contributing to L11 OOM via
                     // inflated facet tables).
                 }
-                IrItem::If { then_body, else_body, .. } => {
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     self.collect_dims_recursive(then_body, dyn_names, dual_use, out);
                     if let Some(eb) = else_body {
                         self.collect_dims_recursive(eb, dyn_names, dual_use, out);
                     }
                 }
-                IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
+                IrItem::While { body, .. }
+                | IrItem::For { body, .. }
+                | IrItem::DoLoop { body, .. } => {
                     self.collect_dims_recursive(body, dyn_names, dual_use, out);
                 }
                 IrItem::SelectCase { cases, default, .. } => {
@@ -297,13 +340,19 @@ impl TextIrEmitter {
                     // Composite member accesses inside nested Functions belong
                     // to that Function's scope, not the parent.
                 }
-                IrItem::If { then_body, else_body, .. } => {
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     self.collect_member_2d(then_body, out);
                     if let Some(eb) = else_body {
                         self.collect_member_2d(eb, out);
                     }
                 }
-                IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
+                IrItem::While { body, .. }
+                | IrItem::For { body, .. }
+                | IrItem::DoLoop { body, .. } => {
                     self.collect_member_2d(body, out);
                 }
                 IrItem::SelectCase { cases, default, .. } => {
@@ -325,12 +374,20 @@ impl TextIrEmitter {
         }
     }
 
-    fn collect_member_2d_expr(self, item: &IrItem, out: &mut std::collections::HashMap<String, ValueType>) {
+    fn collect_member_2d_expr(
+        self,
+        item: &IrItem,
+        out: &mut std::collections::HashMap<String, ValueType>,
+    ) {
         match item {
             IrItem::Assignment { value, .. }
             | IrItem::Return { value: Some(value) }
-            | IrItem::If { condition: value, .. }
-            | IrItem::While { condition: value, .. } => {
+            | IrItem::If {
+                condition: value, ..
+            }
+            | IrItem::While {
+                condition: value, ..
+            } => {
                 self.walk_expr_2d(value, out);
             }
             IrItem::ArrayAssignment { .. } => {}
@@ -343,9 +400,17 @@ impl TextIrEmitter {
         }
     }
 
-    fn walk_expr_2d(self, expr: &crate::ir::IrExpr, out: &mut std::collections::HashMap<String, ValueType>) {
+    fn walk_expr_2d(
+        self,
+        expr: &crate::ir::IrExpr,
+        out: &mut std::collections::HashMap<String, ValueType>,
+    ) {
         match &expr.kind {
-            crate::ir::IrExprKind::ArrayAccess { symbol, extra_indices, .. } => {
+            crate::ir::IrExprKind::ArrayAccess {
+                symbol,
+                extra_indices,
+                ..
+            } => {
                 if !extra_indices.is_empty() && symbol.name.contains('.') {
                     out.entry(symbol.name.clone()).or_insert(symbol.value_type);
                 }
@@ -373,8 +438,6 @@ impl TextIrEmitter {
             _ => {}
         }
     }
-
-
 
     #[allow(dead_code)]
     fn collect_facets(
@@ -420,9 +483,7 @@ impl TextIrEmitter {
                         }
                     }
                 }
-                IrItem::Function {
-                    name, body, ..
-                } => {
+                IrItem::Function { name, body, .. } => {
                     self.collect_facets(body, name, out, seen);
                 }
                 IrItem::If {
@@ -444,7 +505,6 @@ impl TextIrEmitter {
             }
         }
     }
-
 
     fn emit_item(self, item: &IrItem, out: &mut String, indent: usize) {
         let prefix = "  ".repeat(indent);

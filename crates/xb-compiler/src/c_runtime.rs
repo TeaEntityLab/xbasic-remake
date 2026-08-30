@@ -18,7 +18,9 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str(
         "static int xb_len(const char* s) { if (!s) return 0; return (int)((size_t*)s)[-2]; }\n",
     );
-    out.push_str("static size_t xb_cap(const char* s) { if (!s) return 0; return ((size_t*)s)[-1]; }\n");
+    out.push_str(
+        "static size_t xb_cap(const char* s) { if (!s) return 0; return ((size_t*)s)[-1]; }\n",
+    );
     out.push_str("static char* xb_from_cstr(const char* s) { size_t n = strlen(s); char* d = xb_alloc(n); memcpy(d, s, n); return d; }\n");
     out.push_str("static char* xb_strdup(const char* s) { int n = xb_len(s); char* d = xb_alloc((size_t)n); memcpy(d, s, (size_t)n); return d; }\n");
     out.push_str("static char* xb_str(const char* s) { return xb_from_cstr(s); }\n");

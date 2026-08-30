@@ -45,10 +45,7 @@ pub(crate) fn exec_attach(
         .collect();
 
     // Helper: get a mutable slot from either shared or local slots.
-    fn get_slot_mut<'a>(
-        state: &'a mut ExecutionState,
-        name: &str,
-    ) -> Option<&'a mut TypedSlot> {
+    fn get_slot_mut<'a>(state: &'a mut ExecutionState, name: &str) -> Option<&'a mut TypedSlot> {
         if state.shared.contains_key(name) {
             state.shared.get_mut(name)
         } else {
@@ -88,8 +85,7 @@ pub(crate) fn exec_attach(
     // Case 2: ATTACH dst[i,] TO src[] — copy src back into row i of dst
     if left_is_row && !right_is_row && left_idx_vals.len() == 1 && right_indices.is_empty() {
         let row = left_idx_vals[0] as usize;
-        let src_data = get_slot(state, &right.name)
-            .and_then(|rs| rs.array.clone());
+        let src_data = get_slot(state, &right.name).and_then(|rs| rs.array.clone());
         if let Some(src_arr) = src_data {
             if let Some(ls) = get_slot_mut(state, &left.name) {
                 if let Some(ref mut dst_arr) = ls.array {
@@ -111,9 +107,8 @@ pub(crate) fn exec_attach(
 
     // Case 3: ATTACH src[] TO dst[] — whole array copy
     if !left_is_row && !right_is_row && left_indices.is_empty() && right_indices.is_empty() {
-        let right_data = get_slot(state, &right.name).and_then(|rs| {
-            rs.array.as_ref().map(|a| (a.clone(), rs.dims.clone()))
-        });
+        let right_data = get_slot(state, &right.name)
+            .and_then(|rs| rs.array.as_ref().map(|a| (a.clone(), rs.dims.clone())));
         if let Some((arr, dims)) = right_data {
             if let Some(ls) = get_slot_mut(state, &left.name) {
                 ls.array = Some(arr);

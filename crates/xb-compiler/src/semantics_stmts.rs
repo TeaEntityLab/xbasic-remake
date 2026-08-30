@@ -145,17 +145,17 @@ impl Analyzer {
             CheckedSymbol::new(self.slot_name(name, suffix), suffix_vt)
         } else if self.symbols.contains_key(name) {
             let sym = self.checked_symbol(name)?;
-                // A composite member slot (dotted name) has an authoritative
-                // declared type and no suffix; trust it. An unsuffixed name
-                // also trusts the declared type — `DOUBLE a` in a function
-                // parameter list declares `a` as Float, and assigning to `a`
-                // (no suffix) must keep Float, not the Integer default.
-                // A differing *suffix* denotes a distinct variable (`v0` vs `v0$`).
-                if suffix.is_none() || sym.value_type == suffix_vt || name.contains('.') {
-                    sym
-                } else {
-                    CheckedSymbol::new(xb_frontend::full_name(name.to_owned(), suffix), suffix_vt)
-                }
+            // A composite member slot (dotted name) has an authoritative
+            // declared type and no suffix; trust it. An unsuffixed name
+            // also trusts the declared type — `DOUBLE a` in a function
+            // parameter list declares `a` as Float, and assigning to `a`
+            // (no suffix) must keep Float, not the Integer default.
+            // A differing *suffix* denotes a distinct variable (`v0` vs `v0$`).
+            if suffix.is_none() || sym.value_type == suffix_vt || name.contains('.') {
+                sym
+            } else {
+                CheckedSymbol::new(xb_frontend::full_name(name.to_owned(), suffix), suffix_vt)
+            }
         } else {
             // Auto-declare unknown variables based on type suffix
             CheckedSymbol::new(name.to_owned(), suffix_vt)
@@ -169,28 +169,28 @@ impl Analyzer {
         // precision in computations (e.g. ASIN's `theSign = +1#`). The C
         // emitter adds explicit casts where Float variables are used in integer
         // contexts (array subscripts, MOD).
-        let (target, value) = if !was_known && suffix.is_none() && value.value_type != target.value_type
-        {
-            self.symbols.insert(name.to_owned(), value.value_type);
-            let target = CheckedSymbol::new(target.name.clone(), value.value_type);
-            (target, value)
-        } else {
-            if !self.permissive
-                && !crate::semantics_expr::types_coercible(value.value_type, target.value_type)
-            {
-                return Err(crate::checked::SemanticError::TypeMismatch {
-                    name: name.to_owned(),
-                    expected: target.value_type,
-                    actual: value.value_type,
-                });
-            }
-            let value = if target.value_type != value.value_type {
-                CheckedExpr::new(value.kind.clone(), target.value_type)
+        let (target, value) =
+            if !was_known && suffix.is_none() && value.value_type != target.value_type {
+                self.symbols.insert(name.to_owned(), value.value_type);
+                let target = CheckedSymbol::new(target.name.clone(), value.value_type);
+                (target, value)
             } else {
-                value
+                if !self.permissive
+                    && !crate::semantics_expr::types_coercible(value.value_type, target.value_type)
+                {
+                    return Err(crate::checked::SemanticError::TypeMismatch {
+                        name: name.to_owned(),
+                        expected: target.value_type,
+                        actual: value.value_type,
+                    });
+                }
+                let value = if target.value_type != value.value_type {
+                    CheckedExpr::new(value.kind.clone(), target.value_type)
+                } else {
+                    value
+                };
+                (target, value)
             };
-            (target, value)
-        };
         Ok(CheckedItem::Assignment { target, value })
     }
 

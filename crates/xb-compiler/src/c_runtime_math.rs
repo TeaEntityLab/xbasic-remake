@@ -88,13 +88,17 @@ pub(crate) fn emit_math_functions(out: &mut String) {
     out.push_str("static double xb_xxx_frndint(double x) { return round(x); }\n");
     out.push_str("static double xb_xxx_fscale(double x, double y) { return ldexp(x, (int)y); }\n");
     out.push_str("static double xb_xxx_fsin(double x) { return sin(x); }\n");
-    out.push_str("static double xb_xxx_fsincos(double x, double *y) { *y = cos(x); return sin(x); }\n");
+    out.push_str(
+        "static double xb_xxx_fsincos(double x, double *y) { *y = cos(x); return sin(x); }\n",
+    );
     out.push_str("static double xb_xxx_fsqrt(double x) { return sqrt(x); }\n");
     out.push_str("static double xb_xxx_fstcw(void) { return 0.0; }\n");
     out.push_str("static double xb_xxx_fstsw(void) { return 0.0; }\n");
     out.push_str("static double xb_xxx_ftentox(double x) { return pow(10.0, x); }\n");
     out.push_str("static double xb_xxx_fxtract(double x, double *y) { int e; double m = frexp(x, &e); *y = (double)e; return m; }\n");
     out.push_str("static double xb_xxx_fyl2x(double x, double *y) { return *y * log2(x); }\n");
-    out.push_str("static double xb_xxx_fyl2xp1(double x, double *y) { return *y * log2(x + 1.0); }\n");
+    out.push_str(
+        "static double xb_xxx_fyl2xp1(double x, double *y) { return *y * log2(x + 1.0); }\n",
+    );
     out.push_str("static double xb_xxx_fytox(double x) { return pow(2.0, x); }\n");
 }

@@ -352,9 +352,7 @@ fn program_references_array(name: &str, items: &[IrItem]) -> bool {
                     }
                 }
             }
-            IrItem::While { body, .. }
-            | IrItem::For { body, .. }
-            | IrItem::DoLoop { body, .. } => {
+            IrItem::While { body, .. } | IrItem::For { body, .. } | IrItem::DoLoop { body, .. } => {
                 if program_references_array(name, body) {
                     return true;
                 }
@@ -423,24 +421,39 @@ fn item_references_array(name: &str, item: &IrItem) -> bool {
         }
         IrItem::If { condition, .. } => expr_references_array(name, condition),
         IrItem::While { condition, .. } => expr_references_array(name, condition),
-        IrItem::For { start, end, step, .. } => {
+        IrItem::For {
+            start, end, step, ..
+        } => {
             expr_references_array(name, start)
                 || expr_references_array(name, end)
-                || step.as_ref().is_some_and(|s| expr_references_array(name, s))
+                || step
+                    .as_ref()
+                    .is_some_and(|s| expr_references_array(name, s))
         }
-        IrItem::DoLoop { pre_condition, post_condition, .. } => {
-            pre_condition.as_ref().is_some_and(|(c, _)| expr_references_array(name, c))
-                || post_condition.as_ref().is_some_and(|(c, _)| expr_references_array(name, c))
+        IrItem::DoLoop {
+            pre_condition,
+            post_condition,
+            ..
+        } => {
+            pre_condition
+                .as_ref()
+                .is_some_and(|(c, _)| expr_references_array(name, c))
+                || post_condition
+                    .as_ref()
+                    .is_some_and(|(c, _)| expr_references_array(name, c))
         }
         IrItem::SelectCase { selector, .. } => expr_references_array(name, selector),
-        IrItem::Return { value } => value.as_ref().is_some_and(|v| expr_references_array(name, v)),
+        IrItem::Return { value } => value
+            .as_ref()
+            .is_some_and(|v| expr_references_array(name, v)),
         IrItem::Call { args, .. } => args.iter().any(|a| expr_references_array(name, a)),
         IrItem::Swap { left, right } => left.name == name || right.name == name,
         IrItem::SharedAssignment { target, value } => {
             target.name == name || expr_references_array(name, value)
         }
         IrItem::BuiltinAssign { args, value, .. } => {
-            args.iter().any(|a| expr_references_array(name, a)) || expr_references_array(name, value)
+            args.iter().any(|a| expr_references_array(name, a))
+                || expr_references_array(name, value)
         }
         _ => false,
     }
@@ -1250,7 +1263,6 @@ pub(crate) fn func_return_composite(name: &str) -> Option<String> {
     DEFINED_COMPOSITE_RET.with(|s| s.borrow().get(name).cloned())
 }
 
-
 pub(crate) fn is_suppress_comp_r() -> bool {
     SUPPRESS_COMP_R.with(|s| s.get())
 }
@@ -1737,12 +1749,8 @@ fn emit_composite_typedefs(program: &IrProgram, out: &mut String) {
     }
     for tn in &needed {
         match *tn {
-            "DCOMPLEX" => out.push_str(
-                "typedef struct { double R; double I; } xb_dcomplex;\n",
-            ),
-            "SCOMPLEX" => out.push_str(
-                "typedef struct { float R; float I; } xb_scomplex;\n",
-            ),
+            "DCOMPLEX" => out.push_str("typedef struct { double R; double I; } xb_dcomplex;\n"),
+            "SCOMPLEX" => out.push_str("typedef struct { float R; float I; } xb_scomplex;\n"),
             _ => {}
         }
     }
@@ -2080,7 +2088,9 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     out.push_str("        xb_ub_ARGV_s_arr = (intptr_t)argc - 1;\n");
     out.push_str("        if (argc > 0) {\n");
     out.push_str("            xb_str_ARGV_s_arr = (char**)calloc((size_t)argc, sizeof(char*));\n");
-    out.push_str("            for (int _i = 0; _i < argc; _i++) xb_str_ARGV_s_arr[_i] = xb_str(argv[_i]);\n");
+    out.push_str(
+        "            for (int _i = 0; _i < argc; _i++) xb_str_ARGV_s_arr[_i] = xb_str(argv[_i]);\n",
+    );
     out.push_str("        }\n");
     out.push_str("    }\n");
     out.push_str("    {\n");
@@ -2089,7 +2099,9 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     out.push_str("            int _envc = 0; while (environ[_envc]) _envc++;\n");
     out.push_str("            xb_ub_ENVP_s_arr = (intptr_t)_envc - 1;\n");
     out.push_str("            if (_envc > 0) {\n");
-    out.push_str("                xb_str_ENVP_s_arr = (char**)calloc((size_t)_envc, sizeof(char*));\n");
+    out.push_str(
+        "                xb_str_ENVP_s_arr = (char**)calloc((size_t)_envc, sizeof(char*));\n",
+    );
     out.push_str("                for (int _i = 0; _i < _envc; _i++) xb_str_ENVP_s_arr[_i] = xb_str(environ[_i]);\n");
     out.push_str("            }\n");
     out.push_str("        }\n");
@@ -2193,7 +2205,7 @@ pub(crate) fn c_type(vt: ValueType) -> &'static str {
 }
 #[cfg(test)]
 mod c_emit_argv_tests {
-    
+
     #[test]
     fn c_emit_argv_init_and_main_signature() {
         // Lock ARCH-02: xst's ##ARGV$[] should be a shared heap global with

@@ -140,7 +140,10 @@ fn xin_sockets_xbasic_client_roundtrip() {
         // Retry the client: early runs may race the server's accept loop.
         let mut last = None;
         for _ in 0..3 {
-            let out = Command::new(&client_bin).env("XB_ALLOW_NETWORK", "1").stdin(Stdio::null()).output()?;
+            let out = Command::new(&client_bin)
+                .env("XB_ALLOW_NETWORK", "1")
+                .stdin(Stdio::null())
+                .output()?;
             let ok = out.status.success()
                 && String::from_utf8_lossy(&out.stdout).contains("connect error=0");
             if ok {

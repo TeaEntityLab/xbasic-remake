@@ -28,9 +28,9 @@
 //!   - RETURN value path for string functions (XstVersion$)
 //!   - Byval string function body execution (return value only)
 
-use std::process::Command;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 fn repo_root() -> PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -56,7 +56,9 @@ fn xb_bin() -> PathBuf {
 }
 
 fn cc() -> &'static str {
-    std::env::var("CC").unwrap_or_else(|_| "cc".to_string()).leak()
+    std::env::var("CC")
+        .unwrap_or_else(|_| "cc".to_string())
+        .leak()
 }
 
 /// Compile a single .x library through the Rust CEmitter into a .c file.
@@ -83,7 +85,11 @@ fn compile_c(c_file: &std::path::Path, out: &std::path::Path) -> PathBuf {
     let stem = c_file.file_stem().unwrap().to_str().unwrap();
     let o_file = out.join(format!("{stem}.o"));
     let output = Command::new(cc())
-        .args(["-O0", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .args([
+            "-O0",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+        ])
         .arg("-c")
         .arg(c_file)
         .arg("-o")
@@ -437,7 +443,11 @@ int main(void) {
 
     let bin = tmp.join("xst_test");
     let link = Command::new(cc())
-        .args(["-O0", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .args([
+            "-O0",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+        ])
         .arg(&harness)
         .arg(&xst_o)
         .arg("-lm")
@@ -461,36 +471,126 @@ int main(void) {
     );
 
     // Verify each check passed.
-    assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
+    assert!(
+        stdout.contains("0 failures"),
+        "test reported failures:\n{stdout}"
+    );
 
     // Verify specific expected outputs (proves legacy bodies ran, not stubs).
-    assert!(stdout.contains("XstGetOSName"), "missing XstGetOSName check in output");
-    assert!(stdout.contains("XstGetConsoleGrid"), "missing XstGetConsoleGrid check in output");
-    assert!(stdout.contains("XstVersion$"), "missing XstVersion$ check in output");
-    assert!(stdout.contains("XstGetEndianName"), "missing XstGetEndianName check in output");
-    assert!(stdout.contains("XstGetCPUName"), "missing XstGetCPUName check in output");
-    assert!(stdout.contains("XstGetAppEnv"), "missing XstGetAppEnv check in output");
-    assert!(stdout.contains("ExcToSys(SegViol)"), "missing ExcToSys(SegViol) check in output");
-    assert!(stdout.contains("ExcToSys(DivByZero)"), "missing ExcToSys(DivByZero) check in output");
-    assert!(stdout.contains("ExcToSys(unknown)"), "missing ExcToSys(unknown) check in output");
-    assert!(stdout.contains("SysErrToErr(0)"), "missing SysErrToErr(0) check in output");
-    assert!(stdout.contains("XstGetSystemTime"), "missing XstGetSystemTime check in output");
-    assert!(stdout.contains("DeltaTimeZone"), "missing DeltaTimeZone check in output");
-    assert!(stdout.contains("XstGetDateAndTime(year)"), "missing XstGetDateAndTime(year) check in output");
-    assert!(stdout.contains("XstGetOSVersionName(ret)"), "missing XstGetOSVersionName(ret) check in output");
-    assert!(stdout.contains("XstNextField(hello world,1)"), "missing XstNextField check in output");
-    assert!(stdout.contains("XstSetException(42)"), "missing XstSetException check in output");
-    assert!(stdout.contains("XstSetPrintTab(80)"), "missing XstSetPrintTab check in output");
-    assert!(stdout.contains("XstSetExceptionFunction(1234)"), "missing XstSetExceptionFunction check in output");
-    assert!(stdout.contains("XstSetNewline(1,2)"), "missing XstSetNewline check in output");
-    assert!(stdout.contains("XstMergeStrings(hello,XYZ,2,2)"), "missing XstMergeStrings check in output");
-    assert!(stdout.contains("XstParse(a,b,c /, 1)"), "missing XstParse check in output");
-    assert!(stdout.contains("XstTally(a,b,c /,)"), "missing XstTally check in output");
-    assert!(stdout.contains("XstErrorNumberToName(0)"), "missing XstErrorNumberToName(0) check in output");
-    assert!(stdout.contains("XxxPathString(a\\b\\c)"), "missing XxxPathString check in output");
-    assert!(stdout.contains("XstRandomRange(5,5)"), "missing XstRandomRange check in output");
-    assert!(stdout.contains("XstBinWrite(0,0,0)"), "missing XstBinWrite check in output");
-    assert!(stdout.contains("XstKillTask(0)"), "missing XstKillTask check in output");
-    assert!(stdout.contains("XstSetSystemError(42)"), "missing XstSetSystemError check in output");
-    assert!(stdout.contains("XstSetProgramName(MyApp)"), "missing XstSetProgramName check in output");
+    assert!(
+        stdout.contains("XstGetOSName"),
+        "missing XstGetOSName check in output"
+    );
+    assert!(
+        stdout.contains("XstGetConsoleGrid"),
+        "missing XstGetConsoleGrid check in output"
+    );
+    assert!(
+        stdout.contains("XstVersion$"),
+        "missing XstVersion$ check in output"
+    );
+    assert!(
+        stdout.contains("XstGetEndianName"),
+        "missing XstGetEndianName check in output"
+    );
+    assert!(
+        stdout.contains("XstGetCPUName"),
+        "missing XstGetCPUName check in output"
+    );
+    assert!(
+        stdout.contains("XstGetAppEnv"),
+        "missing XstGetAppEnv check in output"
+    );
+    assert!(
+        stdout.contains("ExcToSys(SegViol)"),
+        "missing ExcToSys(SegViol) check in output"
+    );
+    assert!(
+        stdout.contains("ExcToSys(DivByZero)"),
+        "missing ExcToSys(DivByZero) check in output"
+    );
+    assert!(
+        stdout.contains("ExcToSys(unknown)"),
+        "missing ExcToSys(unknown) check in output"
+    );
+    assert!(
+        stdout.contains("SysErrToErr(0)"),
+        "missing SysErrToErr(0) check in output"
+    );
+    assert!(
+        stdout.contains("XstGetSystemTime"),
+        "missing XstGetSystemTime check in output"
+    );
+    assert!(
+        stdout.contains("DeltaTimeZone"),
+        "missing DeltaTimeZone check in output"
+    );
+    assert!(
+        stdout.contains("XstGetDateAndTime(year)"),
+        "missing XstGetDateAndTime(year) check in output"
+    );
+    assert!(
+        stdout.contains("XstGetOSVersionName(ret)"),
+        "missing XstGetOSVersionName(ret) check in output"
+    );
+    assert!(
+        stdout.contains("XstNextField(hello world,1)"),
+        "missing XstNextField check in output"
+    );
+    assert!(
+        stdout.contains("XstSetException(42)"),
+        "missing XstSetException check in output"
+    );
+    assert!(
+        stdout.contains("XstSetPrintTab(80)"),
+        "missing XstSetPrintTab check in output"
+    );
+    assert!(
+        stdout.contains("XstSetExceptionFunction(1234)"),
+        "missing XstSetExceptionFunction check in output"
+    );
+    assert!(
+        stdout.contains("XstSetNewline(1,2)"),
+        "missing XstSetNewline check in output"
+    );
+    assert!(
+        stdout.contains("XstMergeStrings(hello,XYZ,2,2)"),
+        "missing XstMergeStrings check in output"
+    );
+    assert!(
+        stdout.contains("XstParse(a,b,c /, 1)"),
+        "missing XstParse check in output"
+    );
+    assert!(
+        stdout.contains("XstTally(a,b,c /,)"),
+        "missing XstTally check in output"
+    );
+    assert!(
+        stdout.contains("XstErrorNumberToName(0)"),
+        "missing XstErrorNumberToName(0) check in output"
+    );
+    assert!(
+        stdout.contains("XxxPathString(a\\b\\c)"),
+        "missing XxxPathString check in output"
+    );
+    assert!(
+        stdout.contains("XstRandomRange(5,5)"),
+        "missing XstRandomRange check in output"
+    );
+    assert!(
+        stdout.contains("XstBinWrite(0,0,0)"),
+        "missing XstBinWrite check in output"
+    );
+    assert!(
+        stdout.contains("XstKillTask(0)"),
+        "missing XstKillTask check in output"
+    );
+    assert!(
+        stdout.contains("XstSetSystemError(42)"),
+        "missing XstSetSystemError check in output"
+    );
+    assert!(
+        stdout.contains("XstSetProgramName(MyApp)"),
+        "missing XstSetProgramName check in output"
+    );
 }

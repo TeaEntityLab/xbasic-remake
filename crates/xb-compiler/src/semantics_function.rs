@@ -148,8 +148,7 @@ impl Analyzer {
             Statement::Gosub(e) | Statement::Goto(e) => {
                 Self::collect_expr_gosub_targets(e, out);
             }
-            Statement::Assignment { value, .. }
-            | Statement::SharedAssignment { value, .. } => {
+            Statement::Assignment { value, .. } | Statement::SharedAssignment { value, .. } => {
                 Self::collect_expr_gosub_targets(value, out);
             }
             Statement::ArrayAssignment {

@@ -182,9 +182,19 @@ fn resolve_import_constants(
             let candidates = [
                 source_dir.join(format!("{lib_name}.x")),
                 source_dir.join(format!("{lib_name}.dec")),
-                source_dir.join("..").join("shared").join(format!("{lib_name}.x")),
-                source_dir.join("..").join("..").join("include").join(format!("{lib_name}.dec")),
-                source_dir.join("..").join("include").join(format!("{lib_name}.dec")),
+                source_dir
+                    .join("..")
+                    .join("shared")
+                    .join(format!("{lib_name}.x")),
+                source_dir
+                    .join("..")
+                    .join("..")
+                    .join("include")
+                    .join(format!("{lib_name}.dec")),
+                source_dir
+                    .join("..")
+                    .join("include")
+                    .join(format!("{lib_name}.dec")),
             ];
             for lib_path in &candidates {
                 if let Ok(lib_source) = fs::read_to_string(lib_path) {
@@ -220,7 +230,10 @@ fn extract_constants_from_text(source: &str, out: &mut std::collections::BTreeMa
             None => trimmed,
         };
         if let Some(eq_pos) = line_no_comment.find('=') {
-            let name = line_no_comment[..eq_pos].trim().trim_start_matches("$$").to_string();
+            let name = line_no_comment[..eq_pos]
+                .trim()
+                .trim_start_matches("$$")
+                .to_string();
             let value = line_no_comment[eq_pos + 1..].trim();
             if !name.is_empty() && !value.is_empty() {
                 raw.entry(name).or_insert(value.to_string());
@@ -253,10 +266,7 @@ fn resolve_alias(value: &str, raw: &std::collections::BTreeMap<String, String>) 
 }
 
 /// Extract `$$` constant definitions from a parsed program.
-fn extract_constants(
-    unit: &FrontendUnit,
-    out: &mut std::collections::BTreeMap<String, String>,
-) {
+fn extract_constants(unit: &FrontendUnit, out: &mut std::collections::BTreeMap<String, String>) {
     use xb_compiler::Statement;
     for statement in unit.program().statements.iter() {
         if let Statement::ConstantDefinition { name, value } = statement {

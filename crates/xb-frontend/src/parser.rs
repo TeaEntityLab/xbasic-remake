@@ -34,7 +34,10 @@ impl Parser {
             tokens,
             index: 0,
             in_single_line_if: false,
-            composite_types: ["DCOMPLEX", "SCOMPLEX"].into_iter().map(String::from).collect(),
+            composite_types: ["DCOMPLEX", "SCOMPLEX"]
+                .into_iter()
+                .map(String::from)
+                .collect(),
         }
     }
 
@@ -719,7 +722,8 @@ impl Parser {
         self.index += 1; // ATTACH
         let (left_name, left_suffix, left_indices, left_is_row) = self.parse_attach_operand()?;
         self.expect_keyword(Keyword::To)?;
-        let (right_name, right_suffix, right_indices, right_is_row) = self.parse_attach_operand()?;
+        let (right_name, right_suffix, right_indices, right_is_row) =
+            self.parse_attach_operand()?;
         self.expect_line_end()?;
         Ok(Statement::Attach {
             left_name,
@@ -1125,9 +1129,15 @@ impl Parser {
                     | Some(Keyword::Export)
             )
             || (self.peek_keyword() == Some(Keyword::End)
-                && !matches!(self.peek_next_kind(), Some(TokenKind::Keyword(Keyword::Function))))
+                && !matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::Keyword(Keyword::Function))
+                ))
             || (self.peek_keyword() == Some(Keyword::External)
-                && matches!(self.peek_next_kind(), Some(TokenKind::SystemVariable { .. }))
+                && matches!(
+                    self.peek_next_kind(),
+                    Some(TokenKind::SystemVariable { .. })
+                )
                 && !self.peek_next_kind().is_some_and(|k| {
                     matches!(
                         k,
@@ -1153,11 +1163,12 @@ impl Parser {
                             | TokenKind::Keyword(Keyword::Internal)
                     )
                 });
-            let at_function_start = (matches!(
-                self.peek_keyword(),
-                Some(Keyword::Function) | Some(Keyword::Internal) | Some(Keyword::CFunction)
-            ) && !matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))))
-                || at_external_function;
+            let at_function_start =
+                (matches!(
+                    self.peek_keyword(),
+                    Some(Keyword::Function) | Some(Keyword::Internal) | Some(Keyword::CFunction)
+                ) && !matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))))
+                    || at_external_function;
             if at_function_start {
                 break;
             }

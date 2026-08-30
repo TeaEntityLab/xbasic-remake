@@ -88,11 +88,8 @@ mod tests {
         #[cfg(not(windows))]
         {
             std::env::set_var("CC", "my-custom-cc");
-            let request = LinkRequest::new(
-                vec![PathBuf::from("main.o")],
-                PathBuf::from("xb"),
-            )
-            .unwrap();
+            let request =
+                LinkRequest::new(vec![PathBuf::from("main.o")], PathBuf::from("xb")).unwrap();
             let cmd = linker_command(&request);
             assert_eq!(cmd.get_program(), std::ffi::OsStr::new("my-custom-cc"));
             std::env::remove_var("CC");

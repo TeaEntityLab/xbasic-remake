@@ -48,7 +48,8 @@ impl CheckedProgram {
                 | CheckedItem::Goto(_)
                 | CheckedItem::GosubReturn
                 | CheckedItem::GosubExpr(_)
-                | CheckedItem::GotoExpr(_) | CheckedItem::Attach { .. } => None,
+                | CheckedItem::GotoExpr(_)
+                | CheckedItem::Attach { .. } => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),
@@ -95,7 +96,9 @@ impl IrProgram {
                 | IrItem::Label(_)
                 | IrItem::Goto(_)
                 | IrItem::GosubReturn
-                | IrItem::GosubExpr(_) | IrItem::GotoExpr(_) | IrItem::Attach { .. } => None,
+                | IrItem::GosubExpr(_)
+                | IrItem::GotoExpr(_)
+                | IrItem::Attach { .. } => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),

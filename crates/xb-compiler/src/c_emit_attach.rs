@@ -9,8 +9,8 @@ use crate::c_emit::array_dims;
 
 use crate::c_emit::{array_ident, emit_array_var_name};
 use crate::c_emit_expr::emit_expr;
-use crate::ir::{IrExpr, IrSymbol};
 use crate::checked::ValueType;
+use crate::ir::{IrExpr, IrSymbol};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_attach(
@@ -116,7 +116,8 @@ pub(crate) fn emit_attach(
             out.push_str(" = xb_ub_");
             out.push_str(&array_ident(&right.name));
             out.push_str(";\n");
-        } else if !left_dyn && !right_dyn
+        } else if !left_dyn
+            && !right_dyn
             && array_dims(&left.name).is_some()
             && array_dims(&right.name).is_some()
         {
@@ -167,23 +168,27 @@ pub(crate) fn emit_attach(
 
     // Case 5: ATTACH dst[k] TO src  (left=indexed element, right=scalar)
     // Copy scalar src into element k of dst. Only for same-type.
-    if !left_is_row && !right_is_row && left_indices.len() == 1 && right_indices.is_empty()
-        && left.value_type == right.value_type {
-            out.push_str(ind);
-            emit_array_var_name(left, out);
-            out.push('[');
-            emit_expr(&left_indices[0], out);
-            out.push_str("] = ");
-            if right.value_type == ValueType::String {
-                out.push_str("xb_strdup(xb_str_");
-                out.push_str(&crate::c_emit_expr::sanitize_c_ident(&right.name));
-                out.push_str(");\n");
-            } else {
-                out.push_str("xb_var_");
-                out.push_str(&crate::c_emit_expr::sanitize_c_ident(&right.name));
-                out.push_str(";\n");
-            }
+    if !left_is_row
+        && !right_is_row
+        && left_indices.len() == 1
+        && right_indices.is_empty()
+        && left.value_type == right.value_type
+    {
+        out.push_str(ind);
+        emit_array_var_name(left, out);
+        out.push('[');
+        emit_expr(&left_indices[0], out);
+        out.push_str("] = ");
+        if right.value_type == ValueType::String {
+            out.push_str("xb_strdup(xb_str_");
+            out.push_str(&crate::c_emit_expr::sanitize_c_ident(&right.name));
+            out.push_str(");\n");
+        } else {
+            out.push_str("xb_var_");
+            out.push_str(&crate::c_emit_expr::sanitize_c_ident(&right.name));
+            out.push_str(";\n");
         }
+    }
 
     // Fallback: no-op for unhandled patterns (e.g. 3D ATTACH, type-punning).
     // These are rare and will be handled as needed.

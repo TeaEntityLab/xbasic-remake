@@ -60,8 +60,16 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             let lower = v.to_ascii_lowercase();
             if lower == "nan" || lower == "-nan" {
                 out.push_str(v.strip_prefix('-').map_or("NAN", |_| "-NAN"));
-            } else if lower == "inf" || lower == "-inf" || lower == "infinity" || lower == "-infinity" {
-                out.push_str(if v.starts_with('-') { "-INFINITY" } else { "INFINITY" });
+            } else if lower == "inf"
+                || lower == "-inf"
+                || lower == "infinity"
+                || lower == "-infinity"
+            {
+                out.push_str(if v.starts_with('-') {
+                    "-INFINITY"
+                } else {
+                    "INFINITY"
+                });
             } else {
                 out.push_str(v);
             }
@@ -70,8 +78,16 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
             let lower = value.to_ascii_lowercase();
             if lower == "nan" || lower == "-nan" {
                 out.push_str(value.strip_prefix('-').map_or("NAN", |_| "-NAN"));
-            } else if lower == "inf" || lower == "-inf" || lower == "infinity" || lower == "-infinity" {
-                out.push_str(if value.starts_with('-') { "-INFINITY" } else { "INFINITY" });
+            } else if lower == "inf"
+                || lower == "-inf"
+                || lower == "infinity"
+                || lower == "-infinity"
+            {
+                out.push_str(if value.starts_with('-') {
+                    "-INFINITY"
+                } else {
+                    "INFINITY"
+                });
             } else {
                 out.push_str(value);
             }
@@ -158,8 +174,11 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(" / ");
                 emit_expr(right, out);
                 out.push(')');
-            } else if matches!(op, ArithmeticOp::Mod | ArithmeticOp::Shl | ArithmeticOp::Shr)
-                && (left.value_type == ValueType::Float || right.value_type == ValueType::Float)
+            } else if matches!(
+                op,
+                ArithmeticOp::Mod | ArithmeticOp::Shl | ArithmeticOp::Shr
+            ) && (left.value_type == ValueType::Float
+                || right.value_type == ValueType::Float)
             {
                 // Integer-only C operators (% << >>) with a Float operand:
                 // XBasic's variant type system allows MOD/shift on float-stored
@@ -491,7 +510,10 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push('(');
                 emit_expr(&args[0], out);
                 out.push_str(", 0)");
-            } else if !is_user_defined && name.starts_with("Xin") && crate::c_emit_xin::emit_xin_call(name, args, out) {
+            } else if !is_user_defined
+                && name.starts_with("Xin")
+                && crate::c_emit_xin::emit_xin_call(name, args, out)
+            {
                 // RT-XIN-SOCKETS: real BSD-socket lowering (C backend only;
                 // interp keeps zero-stubs — no raw-address memory model).
             } else if crate::c_emit::is_unknown_call(name) {

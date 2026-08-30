@@ -831,7 +831,10 @@ impl Analyzer {
         // All args must be integer literals — a bitfield spec like `{11, 20}`
         // or `{$MODE}`. Non-constant args (array access, identifier, etc.) mean
         // this is a real function call, not a bitfield extract.
-        if !args.iter().all(|a| matches!(a, Expression::IntegerLiteral(_))) {
+        if !args
+            .iter()
+            .all(|a| matches!(a, Expression::IntegerLiteral(_)))
+        {
             return None;
         }
         let is_scalar = self.symbols.contains_key(name)

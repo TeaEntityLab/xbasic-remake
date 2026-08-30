@@ -492,19 +492,23 @@ impl Analyzer {
     /// composite variable to the function name's composite slots, followed by
     /// `RETURN funcname`. The C emitter declares `funcname` as a struct local,
     /// so `return funcname` returns the assembled struct.
-    fn flatten_composite_return(
-        &mut self,
-        v: &CheckedExpr,
-        ret_tn: &str,
-    ) -> ItemResult {
+    fn flatten_composite_return(&mut self, v: &CheckedExpr, ret_tn: &str) -> ItemResult {
         // Extract the source variable name from the checked expression.
         let src_name = match &v.kind {
             CheckedExprKind::Symbol(s) => &s.name,
-            _ => return Ok(CheckedItem::Return { value: Some(v.clone()) }),
+            _ => {
+                return Ok(CheckedItem::Return {
+                    value: Some(v.clone()),
+                })
+            }
         };
         let layout = match self.composites.get(ret_tn) {
             Some(l) => l.clone(),
-            None => return Ok(CheckedItem::Return { value: Some(v.clone()) }),
+            None => {
+                return Ok(CheckedItem::Return {
+                    value: Some(v.clone()),
+                })
+            }
         };
         // We need the function name — it's the composite var registered for the
         // return type. Find it by scanning composite_vars for a var whose type
@@ -520,7 +524,9 @@ impl Analyzer {
             .map(|(n, _)| n.clone())
             .unwrap_or_default();
         if func_name.is_empty() {
-            return Ok(CheckedItem::Return { value: Some(v.clone()) });
+            return Ok(CheckedItem::Return {
+                value: Some(v.clone()),
+            });
         }
         let mut items: Vec<CheckedItem> = Vec::new();
         let mut leaves = Vec::new();

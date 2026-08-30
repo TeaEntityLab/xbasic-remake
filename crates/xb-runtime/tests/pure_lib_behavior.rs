@@ -15,9 +15,9 @@
 //!   ACOS(-1.0) = PI        (SELECT CASE: v = -1 → RETURN PI)
 //!   XmaVersion$() = "6.4.5"
 
-use std::process::Command;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 fn repo_root() -> PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -44,7 +44,9 @@ fn xb_bin() -> PathBuf {
 }
 
 fn cc() -> &'static str {
-    std::env::var("CC").unwrap_or_else(|_| "cc".to_string()).leak()
+    std::env::var("CC")
+        .unwrap_or_else(|_| "cc".to_string())
+        .leak()
 }
 
 /// Compile a single .x library through the Rust CEmitter into a .c file.
@@ -71,7 +73,11 @@ fn compile_c(c_file: &std::path::Path, out: &std::path::Path) -> PathBuf {
     let stem = c_file.file_stem().unwrap().to_str().unwrap();
     let o_file = out.join(format!("{stem}.o"));
     let output = Command::new(cc())
-        .args(["-O0", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .args([
+            "-O0",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+        ])
         .arg("-c")
         .arg(c_file)
         .arg("-o")
@@ -108,7 +114,9 @@ fn xma_pure_library_behavior() {
     // The RR-07 binding policy ensures these call xb_user_* functions,
     // not the runtime's xb_sinh/xb_cosh/etc. wrappers.
     let harness = tmp.join("harness.c");
-    fs::write(&harness, r#"#include <stdio.h>
+    fs::write(
+        &harness,
+        r#"#include <stdio.h>
 #include <string.h>
 #include <math.h>
 
@@ -278,11 +286,17 @@ int main(void) {
     printf("\n%d checks, %d failures\n", 56, fails);
     return fails;
 }
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
     let bin = tmp.join("xma_test");
     let link = Command::new(cc())
-        .args(["-O0", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .args([
+            "-O0",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+        ])
         .arg(&harness)
         .arg(&xma_o)
         .arg(&xst_o)
@@ -307,43 +321,136 @@ int main(void) {
     );
 
     // Verify each check passed.
-    assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
+    assert!(
+        stdout.contains("0 failures"),
+        "test reported failures:\n{stdout}"
+    );
 
     // Verify specific expected outputs (proves legacy bodies ran, not stubs).
     assert!(stdout.contains("SINH(0.0)"), "missing SINH check in output");
     assert!(stdout.contains("COSH(0.0)"), "missing COSH check in output");
     assert!(stdout.contains("TANH(0.0)"), "missing TANH check in output");
     assert!(stdout.contains("ACOS(0.0)"), "missing ACOS check in output");
-    assert!(stdout.contains("ASIN(1.0)"), "missing ASIN(1.0) check in output");
-    assert!(stdout.contains("ATANH(0.0)"), "missing ATANH check in output");
-    assert!(stdout.contains("LOG10(10.0)"), "missing LOG10(10.0) check in output");
-    assert!(stdout.contains("SINH(1.0)"), "missing SINH(1.0) check in output");
-    assert!(stdout.contains("COSH(1.0)"), "missing COSH(1.0) check in output");
-    assert!(stdout.contains("TANH(1.0)"), "missing TANH(1.0) check in output");
-    assert!(stdout.contains("ACOSH(2.0)"), "missing ACOSH(2.0) check in output");
-    assert!(stdout.contains("ACOT(1.0)"), "missing ACOT(1.0) check in output");
-    assert!(stdout.contains("ACSCH(1.0)"), "missing ACSCH(1.0) check in output");
-    assert!(stdout.contains("COTH(2.0)"), "missing COTH(2.0) check in output");
-    assert!(stdout.contains("CSC(PI/2)"), "missing CSC(PI/2) check in output");
-    assert!(stdout.contains("SEC(0.0)"), "missing SEC(0.0) check in output");
-    assert!(stdout.contains("LOG(M_E)"), "missing LOG(M_E) check in output");
-    assert!(stdout.contains("SINH(2.0)"), "missing SINH(2.0) check in output");
-    assert!(stdout.contains("LOG(2.0)"), "missing LOG(2.0) check in output");
-    assert!(stdout.contains("LOG10(100.0)"), "missing LOG10(100.0) check in output");
-    assert!(stdout.contains("ACOSH(3.0)"), "missing ACOSH(3.0) check in output");
-    assert!(stdout.contains("ASINH(2.0)"), "missing ASINH(2.0) check in output");
-    assert!(stdout.contains("ATANH(0.5)"), "missing ATANH(0.5) check in output");
-    assert!(stdout.contains("ASIN(0.5)"), "missing ASIN(0.5) check in output");
-    assert!(stdout.contains("ACOS(0.5)"), "missing ACOS(0.5) check in output");
-    assert!(stdout.contains("COT(M_PI/4)"), "missing COT(M_PI/4) check in output");
-    assert!(stdout.contains("COT(M_PI/6)"), "missing COT(M_PI/6) check in output");
-    assert!(stdout.contains("ACOT(2.0)"), "missing ACOT(2.0) check in output");
-    assert!(stdout.contains("ACOTH(3.0)"), "missing ACOTH(3.0) check in output");
-    assert!(stdout.contains("ASEC(sqrt2)"), "missing ASEC(sqrt2) check in output");
-    assert!(stdout.contains("SECH(1.0)"), "missing SECH(1.0) check in output");
-    assert!(stdout.contains("ASINH(0.5)"), "missing ASINH(0.5) check in output");
-    assert!(stdout.contains("Asin0(0.25)"), "missing Asin0(0.25) check in output");
-    assert!(stdout.contains("Expmo(0.25)"), "missing Expmo(0.25) check in output");
+    assert!(
+        stdout.contains("ASIN(1.0)"),
+        "missing ASIN(1.0) check in output"
+    );
+    assert!(
+        stdout.contains("ATANH(0.0)"),
+        "missing ATANH check in output"
+    );
+    assert!(
+        stdout.contains("LOG10(10.0)"),
+        "missing LOG10(10.0) check in output"
+    );
+    assert!(
+        stdout.contains("SINH(1.0)"),
+        "missing SINH(1.0) check in output"
+    );
+    assert!(
+        stdout.contains("COSH(1.0)"),
+        "missing COSH(1.0) check in output"
+    );
+    assert!(
+        stdout.contains("TANH(1.0)"),
+        "missing TANH(1.0) check in output"
+    );
+    assert!(
+        stdout.contains("ACOSH(2.0)"),
+        "missing ACOSH(2.0) check in output"
+    );
+    assert!(
+        stdout.contains("ACOT(1.0)"),
+        "missing ACOT(1.0) check in output"
+    );
+    assert!(
+        stdout.contains("ACSCH(1.0)"),
+        "missing ACSCH(1.0) check in output"
+    );
+    assert!(
+        stdout.contains("COTH(2.0)"),
+        "missing COTH(2.0) check in output"
+    );
+    assert!(
+        stdout.contains("CSC(PI/2)"),
+        "missing CSC(PI/2) check in output"
+    );
+    assert!(
+        stdout.contains("SEC(0.0)"),
+        "missing SEC(0.0) check in output"
+    );
+    assert!(
+        stdout.contains("LOG(M_E)"),
+        "missing LOG(M_E) check in output"
+    );
+    assert!(
+        stdout.contains("SINH(2.0)"),
+        "missing SINH(2.0) check in output"
+    );
+    assert!(
+        stdout.contains("LOG(2.0)"),
+        "missing LOG(2.0) check in output"
+    );
+    assert!(
+        stdout.contains("LOG10(100.0)"),
+        "missing LOG10(100.0) check in output"
+    );
+    assert!(
+        stdout.contains("ACOSH(3.0)"),
+        "missing ACOSH(3.0) check in output"
+    );
+    assert!(
+        stdout.contains("ASINH(2.0)"),
+        "missing ASINH(2.0) check in output"
+    );
+    assert!(
+        stdout.contains("ATANH(0.5)"),
+        "missing ATANH(0.5) check in output"
+    );
+    assert!(
+        stdout.contains("ASIN(0.5)"),
+        "missing ASIN(0.5) check in output"
+    );
+    assert!(
+        stdout.contains("ACOS(0.5)"),
+        "missing ACOS(0.5) check in output"
+    );
+    assert!(
+        stdout.contains("COT(M_PI/4)"),
+        "missing COT(M_PI/4) check in output"
+    );
+    assert!(
+        stdout.contains("COT(M_PI/6)"),
+        "missing COT(M_PI/6) check in output"
+    );
+    assert!(
+        stdout.contains("ACOT(2.0)"),
+        "missing ACOT(2.0) check in output"
+    );
+    assert!(
+        stdout.contains("ACOTH(3.0)"),
+        "missing ACOTH(3.0) check in output"
+    );
+    assert!(
+        stdout.contains("ASEC(sqrt2)"),
+        "missing ASEC(sqrt2) check in output"
+    );
+    assert!(
+        stdout.contains("SECH(1.0)"),
+        "missing SECH(1.0) check in output"
+    );
+    assert!(
+        stdout.contains("ASINH(0.5)"),
+        "missing ASINH(0.5) check in output"
+    );
+    assert!(
+        stdout.contains("Asin0(0.25)"),
+        "missing Asin0(0.25) check in output"
+    );
+    assert!(
+        stdout.contains("Expmo(0.25)"),
+        "missing Expmo(0.25) check in output"
+    );
 }
 
 #[test]
@@ -367,7 +474,9 @@ fn xut_pure_library_behavior() {
     // XutInit() is a no-op that returns 0. This proves compilation + linking +
     // calling works for the xut library (platform-independent utility library).
     let harness = tmp.join("harness.c");
-    fs::write(&harness, r#"#include <stdio.h>
+    fs::write(
+        &harness,
+        r#"#include <stdio.h>
 
 /* Forward declaration for user-defined function from xut.x */
 long xb_user_XutInit(void);
@@ -384,11 +493,17 @@ int main(void) {
     printf("\n%d checks, %d failures\n", 1, fails);
     return fails;
 }
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
     let bin = tmp.join("xut_test");
     let link = Command::new(cc())
-        .args(["-O0", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .args([
+            "-O0",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+        ])
         .arg(&harness)
         .arg(&xut_o)
         .arg(&xst_o)
@@ -412,8 +527,14 @@ int main(void) {
         "xut behavior test failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
     );
 
-    assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
-    assert!(stdout.contains("XutInit()"), "missing XutInit check in output");
+    assert!(
+        stdout.contains("0 failures"),
+        "test reported failures:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("XutInit()"),
+        "missing XutInit check in output"
+    );
 
     eprintln!("{stdout}");
 }
@@ -439,7 +560,9 @@ fn xit_pure_library_behavior() {
     // XitVersion$() calls VERSION$(0) and returns "6.4.5".
     // Welcome() returns $$FALSE (0).
     let harness = tmp.join("harness.c");
-    fs::write(&harness, r#"#include <stdio.h>
+    fs::write(
+        &harness,
+        r#"#include <stdio.h>
 #include <string.h>
 
 /* Forward declarations for user-defined functions from xit.x */
@@ -466,11 +589,17 @@ int main(void) {
     printf("\n%d checks, %d failures\n", 2, fails);
     return fails;
 }
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
     let bin = tmp.join("xit_test");
     let link = Command::new(cc())
-        .args(["-O0", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .args([
+            "-O0",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+        ])
         .arg(&harness)
         .arg(&xit_o)
         .arg(&xst_o)
@@ -494,9 +623,18 @@ int main(void) {
         "xit behavior test failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
     );
 
-    assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
-    assert!(stdout.contains("XitVersion$"), "missing XitVersion$ check in output");
-    assert!(stdout.contains("Welcome()"), "missing Welcome() check in output");
+    assert!(
+        stdout.contains("0 failures"),
+        "test reported failures:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("XitVersion$"),
+        "missing XitVersion$ check in output"
+    );
+    assert!(
+        stdout.contains("Welcome()"),
+        "missing Welcome() check in output"
+    );
 }
 
 #[test]
@@ -819,7 +957,11 @@ double xb_user_SCNORM(double z_R, double z_I);
 
     let bin = tmp.join("xcm_test");
     let link = Command::new(cc())
-        .args(["-O0", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .args([
+            "-O0",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+        ])
         .arg(&harness)
         .arg(&xcm_o)
         .arg(&xst_o)
@@ -838,56 +980,191 @@ double xb_user_SCNORM(double z_R, double z_I);
     let stdout = String::from_utf8_lossy(&run.stdout);
     let stderr = String::from_utf8_lossy(&run.stderr);
 
-    assert!(stdout.contains("DCNORM(3,4)"), "missing DCNORM(3,4) check in output");
-    assert!(stdout.contains("SCABS(3,4)"), "missing SCABS(3,4) check in output");
-    assert!(stdout.contains("SCARG(0,1)"), "missing SCARG(0,1) check in output");
-    assert!(stdout.contains("SCNORM(3,4)"), "missing SCNORM(3,4) check in output");
-    assert!(stdout.contains("XdcGetAlpha(0,0)"), "missing XdcGetAlpha(0,0) check in output");
-    assert!(stdout.contains("XscGetBeta(1,0)"), "missing XscGetBeta(1,0) check in output");
+    assert!(
+        stdout.contains("DCNORM(3,4)"),
+        "missing DCNORM(3,4) check in output"
+    );
+    assert!(
+        stdout.contains("SCABS(3,4)"),
+        "missing SCABS(3,4) check in output"
+    );
+    assert!(
+        stdout.contains("SCARG(0,1)"),
+        "missing SCARG(0,1) check in output"
+    );
+    assert!(
+        stdout.contains("SCNORM(3,4)"),
+        "missing SCNORM(3,4) check in output"
+    );
+    assert!(
+        stdout.contains("XdcGetAlpha(0,0)"),
+        "missing XdcGetAlpha(0,0) check in output"
+    );
+    assert!(
+        stdout.contains("XscGetBeta(1,0)"),
+        "missing XscGetBeta(1,0) check in output"
+    );
     assert!(
         run.status.success(),
         "xcm behavior test failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
     );
 
-    assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
-    assert!(stdout.contains("Atan2(1,1)"), "missing Atan2(1,1) check in output");
-    assert!(stdout.contains("Atan2(0,-1)"), "missing Atan2(0,-1) check in output");
-    assert!(stdout.contains("Atan2(-1,-1)"), "missing Atan2(-1,-1) check in output");
-    assert!(stdout.contains("Atan2(1,-1)"), "missing Atan2(1,-1) check in output");
-    assert!(stdout.contains("DCARG(0,1)"), "missing DCARG(0,1) check in output");
-    assert!(stdout.contains("DCNORM(3,4)"), "missing DCNORM(3,4) check in output");
-    assert!(stdout.contains("DCCONJ(3,4).R"), "missing DCCONJ(3,4).R check in output");
-    assert!(stdout.contains("DCCONJ(3,4).I"), "missing DCCONJ(3,4).I check in output");
-    assert!(stdout.contains("DCSIN(0,0).R"), "missing DCSIN(0,0).R check in output");
-    assert!(stdout.contains("DCCOS(0,0).R"), "missing DCCOS(0,0).R check in output");
-    assert!(stdout.contains("DCEXP(0,0).R"), "missing DCEXP(0,0).R check in output");
-    assert!(stdout.contains("DCSQRT(4,0).R"), "missing DCSQRT(4,0).R check in output");
-    assert!(stdout.contains("DCRMUL(3,4,2).R"), "missing DCRMUL(3,4,2).R check in output");
-    assert!(stdout.contains("DCPOLAR(1,0).R"), "missing DCPOLAR(1,0).R check in output");
-    assert!(stdout.contains("DCLOG10(1,0).R"), "missing DCLOG10(1,0).R check in output");
-    assert!(stdout.contains("DCTAN(0,0).R"), "missing DCTAN(0,0).R check in output");
-    assert!(stdout.contains("DCPOWERCR(1,0,2).R"), "missing DCPOWERCR(1,0,2).R check in output");
-    assert!(stdout.contains("SCCONJ(3,4).R"), "missing SCCONJ(3,4).R check in output");
-    assert!(stdout.contains("SCCOS(0,0).R"), "missing SCCOS(0,0).R check in output");
-    assert!(stdout.contains("DCACOS(0,0).R"), "missing DCACOS(0,0).R check in output");
-    assert!(stdout.contains("DCASIN(0,0).R"), "missing DCASIN(0,0).R check in output");
-    assert!(stdout.contains("DCATAN(0,0).R"), "missing DCATAN(0,0).R check in output");
-    assert!(stdout.contains("DCPOWERCC(1,0,2,0).R"), "missing DCPOWERCC(1,0,2,0).R check in output");
-    assert!(stdout.contains("DCPOWERRC(1,2,0).R"), "missing DCPOWERRC(1,2,0).R check in output");
-    assert!(stdout.contains("SCCOSH(0,0).R"), "missing SCCOSH(0,0).R check in output");
-    assert!(stdout.contains("SCEXP(0,0).R"), "missing SCEXP(0,0).R check in output");
-    assert!(stdout.contains("SCSQRT(4,0).R"), "missing SCSQRT(4,0).R check in output");
-    assert!(stdout.contains("SCRMUL(3,4,2).R"), "missing SCRMUL(3,4,2).R check in output");
-    assert!(stdout.contains("SCACOS(0,0).R"), "missing SCACOS(0,0).R check in output");
-    assert!(stdout.contains("SCASIN(0,0).R"), "missing SCASIN(0,0).R check in output");
-    assert!(stdout.contains("SCATAN(0,0).R"), "missing SCATAN(0,0).R check in output");
-    assert!(stdout.contains("SCLOG10(1,0).R"), "missing SCLOG10(1,0).R check in output");
-    assert!(stdout.contains("SCPOLAR(1,0).R"), "missing SCPOLAR(1,0).R check in output");
-    assert!(stdout.contains("SCTAN(0,0).R"), "missing SCTAN(0,0).R check in output");
-    assert!(stdout.contains("SCTANH(0,0).R"), "missing SCTANH(0,0).R check in output");
-    assert!(stdout.contains("SCPOWERCC(1,0,2,0).R"), "missing SCPOWERCC(1,0,2,0).R check in output");
-    assert!(stdout.contains("SCPOWERCR(1,0,2).R"), "missing SCPOWERCR(1,0,2).R check in output");
-    assert!(stdout.contains("SCPOWERRC(1,2,0).R"), "missing SCPOWERRC(1,2,0).R check in output");
+    assert!(
+        stdout.contains("0 failures"),
+        "test reported failures:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("Atan2(1,1)"),
+        "missing Atan2(1,1) check in output"
+    );
+    assert!(
+        stdout.contains("Atan2(0,-1)"),
+        "missing Atan2(0,-1) check in output"
+    );
+    assert!(
+        stdout.contains("Atan2(-1,-1)"),
+        "missing Atan2(-1,-1) check in output"
+    );
+    assert!(
+        stdout.contains("Atan2(1,-1)"),
+        "missing Atan2(1,-1) check in output"
+    );
+    assert!(
+        stdout.contains("DCARG(0,1)"),
+        "missing DCARG(0,1) check in output"
+    );
+    assert!(
+        stdout.contains("DCNORM(3,4)"),
+        "missing DCNORM(3,4) check in output"
+    );
+    assert!(
+        stdout.contains("DCCONJ(3,4).R"),
+        "missing DCCONJ(3,4).R check in output"
+    );
+    assert!(
+        stdout.contains("DCCONJ(3,4).I"),
+        "missing DCCONJ(3,4).I check in output"
+    );
+    assert!(
+        stdout.contains("DCSIN(0,0).R"),
+        "missing DCSIN(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("DCCOS(0,0).R"),
+        "missing DCCOS(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("DCEXP(0,0).R"),
+        "missing DCEXP(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("DCSQRT(4,0).R"),
+        "missing DCSQRT(4,0).R check in output"
+    );
+    assert!(
+        stdout.contains("DCRMUL(3,4,2).R"),
+        "missing DCRMUL(3,4,2).R check in output"
+    );
+    assert!(
+        stdout.contains("DCPOLAR(1,0).R"),
+        "missing DCPOLAR(1,0).R check in output"
+    );
+    assert!(
+        stdout.contains("DCLOG10(1,0).R"),
+        "missing DCLOG10(1,0).R check in output"
+    );
+    assert!(
+        stdout.contains("DCTAN(0,0).R"),
+        "missing DCTAN(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("DCPOWERCR(1,0,2).R"),
+        "missing DCPOWERCR(1,0,2).R check in output"
+    );
+    assert!(
+        stdout.contains("SCCONJ(3,4).R"),
+        "missing SCCONJ(3,4).R check in output"
+    );
+    assert!(
+        stdout.contains("SCCOS(0,0).R"),
+        "missing SCCOS(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("DCACOS(0,0).R"),
+        "missing DCACOS(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("DCASIN(0,0).R"),
+        "missing DCASIN(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("DCATAN(0,0).R"),
+        "missing DCATAN(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("DCPOWERCC(1,0,2,0).R"),
+        "missing DCPOWERCC(1,0,2,0).R check in output"
+    );
+    assert!(
+        stdout.contains("DCPOWERRC(1,2,0).R"),
+        "missing DCPOWERRC(1,2,0).R check in output"
+    );
+    assert!(
+        stdout.contains("SCCOSH(0,0).R"),
+        "missing SCCOSH(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("SCEXP(0,0).R"),
+        "missing SCEXP(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("SCSQRT(4,0).R"),
+        "missing SCSQRT(4,0).R check in output"
+    );
+    assert!(
+        stdout.contains("SCRMUL(3,4,2).R"),
+        "missing SCRMUL(3,4,2).R check in output"
+    );
+    assert!(
+        stdout.contains("SCACOS(0,0).R"),
+        "missing SCACOS(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("SCASIN(0,0).R"),
+        "missing SCASIN(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("SCATAN(0,0).R"),
+        "missing SCATAN(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("SCLOG10(1,0).R"),
+        "missing SCLOG10(1,0).R check in output"
+    );
+    assert!(
+        stdout.contains("SCPOLAR(1,0).R"),
+        "missing SCPOLAR(1,0).R check in output"
+    );
+    assert!(
+        stdout.contains("SCTAN(0,0).R"),
+        "missing SCTAN(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("SCTANH(0,0).R"),
+        "missing SCTANH(0,0).R check in output"
+    );
+    assert!(
+        stdout.contains("SCPOWERCC(1,0,2,0).R"),
+        "missing SCPOWERCC(1,0,2,0).R check in output"
+    );
+    assert!(
+        stdout.contains("SCPOWERCR(1,0,2).R"),
+        "missing SCPOWERCR(1,0,2).R check in output"
+    );
+    assert!(
+        stdout.contains("SCPOWERRC(1,2,0).R"),
+        "missing SCPOWERRC(1,2,0).R check in output"
+    );
 }
 
 #[test]
@@ -911,7 +1188,9 @@ fn xdis_pure_library_behavior() {
     //   - xb_hexx formatting (0x + zero-padded 8-digit hex)
     //   - String return path (char* function)
     let harness = tmp.join("harness.c");
-    fs::write(&harness, r#"#include <stdio.h>
+    fs::write(
+        &harness,
+        r#"#include <stdio.h>
 #include <string.h>
 
 typedef long intptr_t;
@@ -943,11 +1222,17 @@ int main(void) {
     printf("\n%d checks, %d failures\n", 3, fails);
     return fails;
 }
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
     let bin = tmp.join("xdis_test");
     let link = Command::new(cc())
-        .args(["-O0", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .args([
+            "-O0",
+            "-Wno-incompatible-pointer-types",
+            "-Wno-int-conversion",
+        ])
         .arg(&harness)
         .arg(&xdis_o)
         .arg("-lm")
@@ -970,10 +1255,22 @@ int main(void) {
         "xdis behavior test failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
     );
 
-    assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
-    assert!(stdout.contains("GetAddrLabel64(0x1234)"), "missing GetAddrLabel64(0x1234) check in output");
-    assert!(stdout.contains("GetAddrLabel64(0)"), "missing GetAddrLabel64(0) check in output");
-    assert!(stdout.contains("GetAddrLabel64(0xDEAD)"), "missing GetAddrLabel64(0xDEAD) check in output");
+    assert!(
+        stdout.contains("0 failures"),
+        "test reported failures:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("GetAddrLabel64(0x1234)"),
+        "missing GetAddrLabel64(0x1234) check in output"
+    );
+    assert!(
+        stdout.contains("GetAddrLabel64(0)"),
+        "missing GetAddrLabel64(0) check in output"
+    );
+    assert!(
+        stdout.contains("GetAddrLabel64(0xDEAD)"),
+        "missing GetAddrLabel64(0xDEAD) check in output"
+    );
 
     eprintln!("{stdout}");
 }

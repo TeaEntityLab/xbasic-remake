@@ -2347,9 +2347,7 @@ fn cemitter_and_cgen_agree_on_version_after_program_name() {
     // Precondition: `version` is the 2nd IR line (a `program_name` precedes it),
     // which is exactly the path that had the off-by-one.
     assert!(
-        ir.lines()
-            .nth(1)
-            .is_some_and(|l| l.starts_with("version ")),
+        ir.lines().nth(1).is_some_and(|l| l.starts_with("version ")),
         "test setup: version should be the 2nd IR line, got IR:\n{ir}"
     );
 
