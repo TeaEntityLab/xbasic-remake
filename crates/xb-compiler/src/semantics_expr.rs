@@ -679,14 +679,14 @@ impl Analyzer {
     }
 
     fn byref_symbol(&self, name: &str, suffix: Option<xb_frontend::TypeSuffix>) -> ExprResult {
-        let suffix_vt = ref_value_type(name, suffix);
+        let _suffix_vt = ref_value_type(name, suffix);
         // Keyword-`SHARED` scalar: the byref "address" is the shared slot's —
         // callee writebacks must land in `xb_shared_<name>` / state.shared.
         if self.shared_scalars.contains(&self.slot_name(name, suffix)) {
             let slot = self.slot_name(name, suffix);
             return self.shared_variable(slot.as_str(), None);
         }
-        let suffix_vt = ref_value_type(name, suffix);
+        let _suffix_vt = ref_value_type(name, suffix);
         // sites (see `call_arg`), where write-back into the caller is meaningful.
         // Resolve the name exactly like `symbol()` so `@line$` (byref arg) and a
         // plain `line$` read canonicalize to the SAME slot on a type conflict

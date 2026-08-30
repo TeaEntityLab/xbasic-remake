@@ -69,7 +69,7 @@ impl TextIrEmitter {
         out: &mut Vec<String>,
         seen: &mut std::collections::HashSet<String>,
     ) {
-        use std::collections::{HashMap, HashSet};
+        use std::collections::HashMap;
         let desc_map = crate::c_emit_hoist::collect_descriptor_params(program);
         let top_items: Vec<IrItem> = program
             .items

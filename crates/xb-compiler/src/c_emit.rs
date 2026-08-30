@@ -457,7 +457,7 @@ fn collect_scalar_dimmed_names(items: &[IrItem], out: &mut HashSet<String>) {
             // the same name (xui's `window` is SHARED in one function and a
             // plain auto-local in several others).
             IrItem::Dim {
-                symbol,
+                symbol: _,
                 is_array: false,
                 shared: true,
                 ..
@@ -1249,9 +1249,6 @@ pub(crate) fn func_return_composite(name: &str) -> Option<String> {
     DEFINED_COMPOSITE_RET.with(|s| s.borrow().get(name).cloned())
 }
 
-pub(crate) fn set_suppress_comp_r(v: bool) {
-    SUPPRESS_COMP_R.with(|s| s.set(v));
-}
 
 pub(crate) fn is_suppress_comp_r() -> bool {
     SUPPRESS_COMP_R.with(|s| s.get())

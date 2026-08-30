@@ -357,7 +357,7 @@ fn collect_dimmed(items: &[IrItem], dimmed: &mut HashSet<(String, bool)>) {
     for it in items {
         match it {
             IrItem::Dim {
-                symbol,
+                symbol: _,
                 shared: true,
                 is_array: false,
                 ..

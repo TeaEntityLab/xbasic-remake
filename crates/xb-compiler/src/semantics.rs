@@ -18,6 +18,7 @@ pub(crate) struct FuncSig {
     pub(crate) param_composites: Vec<Option<String>>,
     /// Composite TYPE name when the function returns a composite (`None` for
     /// primitive returns); drives call-site flattening of composite return values.
+    #[allow(dead_code)]
     pub(crate) return_composite: Option<String>,
 }
 
