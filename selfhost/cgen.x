@@ -1521,7 +1521,21 @@ WHILE pos <= LEN(src$)
                 IF INSTR(##dynNames$, ":" + _fdNm$ + ":") = 0 THEN
                   DIM _fdTy$
                   _fdTy$ = dyn_type$(_fdNm$)
-                  IF _fdTy$ <> "" THEN
+                  ' Skip string-typed facets: ##dynNames$ is for integer/float
+                  ' dyn arrays. String dyn arrays are handled by ##dynStr$.
+                  ' Adding string-typed names to ##dynNames$ suppresses their
+                  ' scalar DIM (char* xb_str_X = xb_str("")) without providing
+                  ' an alternative declaration, causing undeclared-identifier
+                  ' errors (e.g. copy.name in xui).
+                  IF LEN(##facetTab$) > 0 THEN
+                    DIM _fdFacetTy$
+                    _fdFacetTy$ = facet_type$(##facetTab$, _fdNm$, funcName$)
+                    IF _fdFacetTy$ = "string" THEN
+                      ' Skip — let the scalar DIM emit normally
+                    ELSEIF _fdTy$ <> "" THEN
+                      ##dynNames$ = ##dynNames$ + ":" + _fdNm$ + ":" + _fdTy$ + ":"
+                    END IF
+                  ELSEIF _fdTy$ <> "" THEN
                     ##dynNames$ = ##dynNames$ + ":" + _fdNm$ + ":" + _fdTy$ + ":"
                   END IF
                 END IF
@@ -2783,7 +2797,15 @@ FUNCTION emit_expr$(e$)
     IF RIGHT$(t$, 1) = ")" THEN
       t$ = LEFT$(t$, LEN(t$) - 1)
     END IF
-    emit_expr$ = "(int32_t)(~" + emit_expr$(t$) + ")"
+    ' Rust CEmitter: NOT on String = (-(!(expr))) — truthiness complement.
+    ' The interpreter's bit_operand errors on String, so there is no numeric
+    ' parity to preserve; !ptr matches how a bare string Symbol condition is
+    ' emitted (if (xb_str_x)). NOT on integer/float = (int32_t)(~expr).
+    IF expr_type$(t$) = "string" THEN
+      emit_expr$ = "(-(!(" + emit_expr$(t$) + ")))"
+    ELSE
+      emit_expr$ = "(int32_t)(~" + emit_expr$(t$) + ")"
+    END IF
     RETURN emit_expr$
   END IF
 
@@ -4987,19 +5009,28 @@ FUNCTION emit_hoists$(used$, dimmed$)
       _qiColon = INSTR(_qiRest$, ":", 2)
       IF _qiColon > 0 THEN
         _qiNm$ = MID$(_qiRest$, 2, _qiColon - 2)
-        _qiRest$ = MID$(_qiRest$, _qiColon + 1, LEN(_qiRest$) - _qiColon)
+        _qiRest$ = MID$(_qiRest$, _qiColon, LEN(_qiRest$) - _qiColon + 1)
       ELSE
         _qiRest$ = ""
       END IF
       _qiColon = INSTR(_qiRest$, ":", 2)
       IF _qiColon > 0 THEN
         _qiTy$ = MID$(_qiRest$, 2, _qiColon - 2)
-        _qiRest$ = MID$(_qiRest$, _qiColon + 1, LEN(_qiRest$) - _qiColon)
+        _qiRest$ = MID$(_qiRest$, _qiColon, LEN(_qiRest$) - _qiColon + 1)
       ELSE
         _qiRest$ = ""
       END IF
-      IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + _qiNm$ + CHR$(10)) = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + _qiNm$ + CHR$(10)) = 0 AND INSTR(out$, "xb_var_" + sanitize_ident$(_qiNm$) + "_arr") = 0 THEN
-        out$ = out$ + "    " + c_type$(_qiTy$) + "* xb_var_" + sanitize_ident$(_qiNm$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(_qiNm$) + "_arr = -1;" + CHR$(10)
+      ' String vars in qsIdxNames need char** _arr declarations (not intptr_t*)
+      ' to avoid type collision on the shared xb_ub_ variable. Guard against
+      ' duplicates from strDual/strUbDual/allStrArr paths using xb_str_ prefix.
+      IF _qiTy$ = "string" THEN
+        IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + _qiNm$ + CHR$(10)) = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + _qiNm$ + CHR$(10)) = 0 AND INSTR(out$, "xb_str_" + sanitize_ident$(_qiNm$) + "_arr") = 0 THEN
+          out$ = out$ + "    char** xb_str_" + sanitize_ident$(_qiNm$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(_qiNm$) + "_arr = -1;" + CHR$(10)
+        END IF
+      ELSE
+        IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + _qiNm$ + CHR$(10)) = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + _qiNm$ + CHR$(10)) = 0 AND INSTR(out$, "xb_var_" + sanitize_ident$(_qiNm$) + "_arr") = 0 THEN
+          out$ = out$ + "    " + c_type$(_qiTy$) + "* xb_var_" + sanitize_ident$(_qiNm$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(_qiNm$) + "_arr = -1;" + CHR$(10)
+        END IF
       END IF
     WEND
   END IF
@@ -6419,6 +6450,55 @@ FUNCTION facet_has_entry$(tab$, name$, scope$)
     END IF
   WEND
   facet_has_entry$ = "0"
+END FUNCTION
+' Look up a name's type from the facet table in a given scope.
+' Returns "integer" if not found (matching dyn_type$ default).
+FUNCTION facet_type$(tab$, name$, scope$)
+  DIM pos
+  DIM le
+  DIM line$
+  DIM cp
+  DIM rest$
+  DIM sp
+  DIM fscope$
+  DIM spEnd
+  DIM spTy
+  DIM ty$
+  ' Fast path: search for the name followed by ':' using INSTR
+  pos = INSTR(tab$, CHR$(10) + name$ + ":")
+  WHILE pos > 0
+    le = INSTR(tab$, CHR$(10), pos + 1)
+    IF le = 0 THEN
+      le = LEN(tab$) + 1
+    END IF
+    line$ = trim_spaces$(MID$(tab$, pos + 1, le - pos - 1))
+    cp = INSTR(line$, ":")
+    IF cp > 0 THEN
+      rest$ = MID$(line$, cp + 1, LEN(line$) - cp)
+      sp = INSTR(rest$, " scope=")
+      IF sp > 0 THEN
+        fscope$ = MID$(rest$, sp + 7, LEN(rest$) - sp - 6)
+        spEnd = INSTR(fscope$, " ")
+        IF spEnd > 0 THEN
+          fscope$ = LEFT$(fscope$, spEnd - 1)
+        END IF
+      ELSE
+        fscope$ = "*"
+      END IF
+      IF fscope$ = scope$ OR fscope$ = "*" THEN
+        spTy = INSTR(rest$, " ")
+        IF spTy > 0 THEN
+          ty$ = LEFT$(rest$, spTy - 1)
+        ELSE
+          ty$ = rest$
+        END IF
+        facet_type$ = ty$
+        RETURN facet_type$
+      END IF
+    END IF
+    pos = INSTR(tab$, CHR$(10) + name$ + ":", le)
+  WEND
+  facet_type$ = "integer"
 END FUNCTION
 FUNCTION bd$(n$)
   ' Shared dual-use: a shared array also used as a scalar → _arr suffix
@@ -7871,7 +7951,7 @@ FUNCTION emit_stmt$(s$)
         DIM xsIdxUb$
         xsLen0$ = "(" + ub_ref$(xsN0$, xsT0$) + " + 1)"
         xsIdxData$ = arr_acc_name$(xsN1$, xsT1$)
-        IF INSTR(##qsIdxNames$, ":" + xsN1$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN1$ + ":" + xsT1$ + ":"
+        IF INSTR(##qsIdxNames$, ":" + xsN1$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN1$ + ":" + xsT1$
         IF INSTR(xsIdxData$, "xb_str_") = 0 AND INSTR(xsIdxData$, "_arr") = 0 THEN
           xsIdxData$ = "xb_var_" + sanitize_ident$(xsN1$) + "_arr"
         END IF
@@ -7887,7 +7967,7 @@ FUNCTION emit_stmt$(s$)
         DIM xsDstData$
         DIM xsDstUb$
         xsSrcLen$ = "(" + ub_ref$(xsN0$, xsT0$) + " + 1)"
-        IF INSTR(##qsIdxNames$, ":" + xsN0$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN0$ + ":" + xsT0$ + ":"
+        IF INSTR(##qsIdxNames$, ":" + xsN0$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN0$ + ":" + xsT0$
         DIM xsSrcData$
         xsSrcData$ = arr_acc_name$(xsN0$, xsT0$)
         IF INSTR(xsSrcData$, "xb_str_") = 0 AND INSTR(xsSrcData$, "_arr") = 0 THEN
@@ -7899,7 +7979,7 @@ FUNCTION emit_stmt$(s$)
           xsSrcUb$ = "xb_ub_" + sanitize_ident$(xsN0$) + "_arr"
         END IF
         xsSrcLen$ = "(" + xsSrcUb$ + " + 1)"
-        IF INSTR(##qsIdxNames$, ":" + xsN1$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN1$ + ":" + xsT1$ + ":"
+        IF INSTR(##qsIdxNames$, ":" + xsN1$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN1$ + ":" + xsT1$
         xsDstData$ = arr_acc_name$(xsN1$, xsT1$)
         IF INSTR(xsDstData$, "xb_str_") = 0 AND INSTR(xsDstData$, "_arr") = 0 THEN
           xsDstData$ = "xb_var_" + sanitize_ident$(xsN1$) + "_arr"
