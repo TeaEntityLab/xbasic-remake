@@ -240,8 +240,24 @@ int main(void) {
     check_d("COT(M_PI/4)", xb_user_COT(M_PI / 4.0), 1.0);
     /* COT(PI/6) = 1/tan(PI/6) = sqrt(3) ≈ 1.732 — FPU wrapper path */
     check_d("COT(M_PI/6)", xb_user_COT(M_PI / 6.0), sqrt(3.0));
+    /* ACOT(2) = PI/2 - ATAN(2) ≈ 0.464 — non-trivial ATAN path */
+    check_d("ACOT(2.0)", xb_user_ACOT(2.0), M_PI_2 - atan(2.0));
+    /* ACOTH(3) = ATANH(1/3) ≈ 0.347 — non-trivial LOG path */
+    check_d("ACOTH(3.0)", xb_user_ACOTH(3.0), atanh(1.0 / 3.0));
+    /* ASEC(sqrt(2)) = PI/4 — 1/cos(PI/4) = sqrt(2) */
+    check_d("ASEC(sqrt2)", xb_user_ASEC(sqrt(2.0)), M_PI_4);
+    /* ASECH(0.25) = ACOSH(4) ≈ 2.063 — non-trivial LOG path */
+    check_d("ASECH(0.25)", xb_user_ASECH(0.25), acosh(4.0));
+    /* COTH(1) = 1/TANH(1) ≈ 1.313 — non-trivial EXP path */
+    check_d("COTH(1.0)", xb_user_COTH(1.0), 1.0 / tanh(1.0));
+    /* SEC(PI/3) = 1/cos(PI/3) = 2.0 — non-trivial COS path */
+    check_d("SEC(M_PI/3)", xb_user_SEC(M_PI / 3.0), 2.0);
+    /* SECH(1) = 1/COSH(1) ≈ 0.648 — non-trivial EXP path */
+    check_d("SECH(1.0)", xb_user_SECH(1.0), 1.0 / cosh(1.0));
+    /* ASINH(0.5) = 0.481 — LOG(0.5+SQRT(0.25+1)) */
+    check_d("ASINH(0.5)", xb_user_ASINH(0.5), asinh(0.5));
 
-    printf("\n%d checks, %d failures\n", 42, fails);
+    printf("\n%d checks, %d failures\n", 50, fails);
     return fails;
 }
 "#).unwrap();
@@ -303,6 +319,11 @@ int main(void) {
     assert!(stdout.contains("ACOS(0.5)"), "missing ACOS(0.5) check in output");
     assert!(stdout.contains("COT(M_PI/4)"), "missing COT(M_PI/4) check in output");
     assert!(stdout.contains("COT(M_PI/6)"), "missing COT(M_PI/6) check in output");
+    assert!(stdout.contains("ACOT(2.0)"), "missing ACOT(2.0) check in output");
+    assert!(stdout.contains("ACOTH(3.0)"), "missing ACOTH(3.0) check in output");
+    assert!(stdout.contains("ASEC(sqrt2)"), "missing ASEC(sqrt2) check in output");
+    assert!(stdout.contains("SECH(1.0)"), "missing SECH(1.0) check in output");
+    assert!(stdout.contains("ASINH(0.5)"), "missing ASINH(0.5) check in output");
 }
 
 #[test]
