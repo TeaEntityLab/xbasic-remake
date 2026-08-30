@@ -60,12 +60,15 @@
 > `xbsourcelib_ary_compiles_clean`; neither source is executed by that test.
 > Runtime behavior gates progressing: `ATTACH` copy-semantics runtime is done
 > (RR-06), user-defined functions take precedence over native helpers and
-> builtins (RR-07 binding policy), RR-08a pure-library behavior is done
-> (xma.x: SINH/COSH/TANH/ACOS/ASIN/ATANH/LOG10/XmaVersion$; xut.x: XutInit;
-> xcm.x: XcmVersion$ — DCOMPLEX functions and Atan2 blocked by composite-type
-> emission and cross-file $$ constant resolution),
+> (xma.x: SINH/COSH/TANH/ACOS/ASIN(0)+ASIN(1)=PI/2/ATANH/LOG10(1)/XmaVersion$;
+> xut.x: XutInit; xcm.x: XcmVersion$ — DCOMPLEX functions and Atan2 blocked
+> by composite-type emission and cross-file $$ constant resolution; LOG10(10)
+> blocked by bit-field extraction `{w,p}` CEmitter limitation),
 > RR-08b stateful-library behavior is done (xst.x: XstGetOSName/
 > XstGetConsoleGrid/XstVersion$/XstGetEndianName/XstGetCPUName).
+> CEmitter type inference fix: undeclared locals now infer Float from Float
+> RHS (matching XBasic's variant runtime), with C emitter casts for Float
+> values in integer contexts (array subscripts, MOD, shifts).
 > Recent: **expression-context side effects** now reach output — a
 > general interpreter `eval` bug (a function called in expression position
 > discarded its output sink) that flipped `XBMerge` (RT-ARGS) + unmasked/fixed

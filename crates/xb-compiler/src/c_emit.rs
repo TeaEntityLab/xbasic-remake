@@ -1131,7 +1131,13 @@ pub(crate) fn emit_array_subscript(
             }
         }
     }
-    crate::c_emit_expr::emit_expr(index, out);
+    if index.value_type == ValueType::Float {
+        out.push_str("(intptr_t)(");
+        crate::c_emit_expr::emit_expr(index, out);
+        out.push(')');
+    } else {
+        crate::c_emit_expr::emit_expr(index, out);
+    }
 }
 /// Whether the current C function will contain `xb_label_<name>:`.
 pub(crate) fn fn_has_label(name: &str) -> bool {

@@ -158,6 +158,36 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(" / ");
                 emit_expr(right, out);
                 out.push(')');
+            } else if matches!(op, ArithmeticOp::Mod | ArithmeticOp::Shl | ArithmeticOp::Shr)
+                && (left.value_type == ValueType::Float || right.value_type == ValueType::Float)
+            {
+                // Integer-only C operators (% << >>) with a Float operand:
+                // XBasic's variant type system allows MOD/shift on float-stored
+                // values (truncating to int at runtime). Cast both operands to
+                // intptr_t so the C operator is valid.
+                let mask = expr.value_type == ValueType::Integer;
+                if mask {
+                    out.push_str("(int32_t)");
+                }
+                out.push('(');
+                if left.value_type == ValueType::Float {
+                    out.push_str("(intptr_t)(");
+                    emit_expr(left, out);
+                    out.push(')');
+                } else {
+                    emit_expr(left, out);
+                }
+                out.push(' ');
+                out.push_str(arith_op(*op));
+                out.push(' ');
+                if right.value_type == ValueType::Float {
+                    out.push_str("(intptr_t)(");
+                    emit_expr(right, out);
+                    out.push(')');
+                } else {
+                    emit_expr(right, out);
+                }
+                out.push(')');
             } else {
                 // Integer arithmetic wraps at 32 bits (XBasic INTEGER is i32;
                 // interp `wrapping_*`). Values are stored as `intptr_t` (i64) so

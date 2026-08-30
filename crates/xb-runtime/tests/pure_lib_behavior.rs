@@ -150,18 +150,22 @@ int main(void) {
     check_d("ACOS(-1.0)", xb_user_ACOS(-1.0), M_PI);
     /* XmaVersion$ = "6.4.5" */
     check_s("XmaVersion$", xb_user_XmaVersion(), "6.4.5");
-    /* ASIN(0) = 0 — xma's SELECT CASE returns a*(1+a*a/6) for |a|<1e-5, so 0 → 0.
-       ASIN(1) excluded: the SQRT branch stores double intermediates in
-       undeclared locals (XLONG/intptr_t), truncating PI/2 to 1. */
+    /* ASIN(0) = 0 — xma's SELECT CASE returns a*(1+a*a/6) for |a|<1e-5, so 0 → 0 */
     check_d("ASIN(0.0)", xb_user_ASIN(0.0), 0.0);
+    /* ASIN(1) = PI/2 — full computation path: undeclared locals now inferred
+       as DOUBLE from DOUBLE parameter `a` (CEmitter type inference fix).
+       Previously blocked by intptr_t truncation; now works. */
+    check_d("ASIN(1.0)", xb_user_ASIN(1.0), M_PI_2);
     /* ATANH(0) = 0 — xma's SELECT CASE returns v*(1+v*v/3) for |v|<1e-5, so 0 → 0 */
     check_d("ATANH(0.0)", xb_user_ATANH(0.0), 0.0);
-    /* LOG10(1) = 0 — xma's LOG returns 0 for v=1, LOG10 returns LOG(1)*LOG10E = 0.
-       LOG10(10) excluded: LOG's full path uses integer-typed locals for double
-       intermediates, same CEmitter truncation issue. */
+    /* LOG10(1) = 0 — xma's LOG returns 0 for v=1, LOG10 returns LOG(1)*LOG10E = 0 */
     check_d("LOG10(1.0)", xb_user_LOG10(1.0), 0.0);
+    /* LOG10(10) excluded: LOG's full path uses XBasic bit-field extraction
+       (`exp = upper {11, 20}`) to get the IEEE 754 exponent. The CEmitter
+       emits this as `exp = 0`, producing wrong results. Separate CEmitter
+       limitation from type inference — not fixed by the type inference fix. */
 
-    printf("\n%d checks, %d failures\n", 10, fails);
+    printf("\n%d checks, %d failures\n", 11, fails);
     return fails;
 }
 "#).unwrap();
@@ -200,7 +204,7 @@ int main(void) {
     assert!(stdout.contains("COSH(0.0)"), "missing COSH check in output");
     assert!(stdout.contains("TANH(0.0)"), "missing TANH check in output");
     assert!(stdout.contains("ACOS(0.0)"), "missing ACOS check in output");
-    assert!(stdout.contains("ASIN(0.0)"), "missing ASIN check in output");
+    assert!(stdout.contains("ASIN(1.0)"), "missing ASIN(1.0) check in output");
     assert!(stdout.contains("ATANH(0.0)"), "missing ATANH check in output");
     assert!(stdout.contains("LOG10(1.0)"), "missing LOG10 check in output");
     eprintln!("{stdout}");

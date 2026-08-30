@@ -170,7 +170,6 @@ impl Analyzer {
         let rv = self.expr(r)?;
         let l_str = lv.value_type == ValueType::String;
         let r_str = rv.value_type == ValueType::String;
-        // String + String is concatenation in both modes.
         if l_str && r_str && op == ArithmeticOp::Add {
             return Ok(CheckedExpr::new(
                 CheckedExprKind::Arithmetic {
@@ -613,9 +612,12 @@ impl Analyzer {
         match self.checked_symbol(name) {
             Ok(s) => {
                 // A composite member slot (dotted name) has an authoritative
-                // declared type and no suffix; trust it. Otherwise a differing
-                // suffix denotes a distinct variable (`v0` vs `v0$`).
-                if s.value_type == suffix_vt || name.contains('.') {
+                // declared type and no suffix; trust it. An unsuffixed name
+                // also trusts the declared type — `DOUBLE a` in a function
+                // parameter list declares `a` as Float, and referencing `a`
+                // (no suffix) must resolve to Float, not the Integer default.
+                // A differing *suffix* denotes a distinct variable (`v0` vs `v0$`).
+                if suffix.is_none() || s.value_type == suffix_vt || name.contains('.') {
                     Ok(CheckedExpr::new(
                         CheckedExprKind::Symbol(s.clone()),
                         s.value_type,
