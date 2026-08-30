@@ -344,6 +344,21 @@ impl Analyzer {
     ) -> crate::semantics::ExprResult {
         use crate::checked::{CheckedExpr, CheckedExprKind, CheckedSymbol};
         use crate::semantics::ValueType;
+        // $$Name$ string constants: parser stores them as `Name$` in the
+        // constants table. Check there first before falling back to shared.
+        if s == Some(xb_frontend::TypeSuffix::String) {
+            let base = name.strip_prefix("$$").unwrap_or(name);
+            let const_name = format!("{base}$");
+            if let Some(value) = self.constants.get(&const_name) {
+                return Ok(CheckedExpr::new(
+                    CheckedExprKind::Constant {
+                        name: const_name,
+                        value: value.clone(),
+                    },
+                    ValueType::String,
+                ));
+            }
+        }
         let Some(declared) = self.shared.get(name).copied() else {
             if !self.permissive {
                 return Err(SemanticError::UnknownSharedVariable {

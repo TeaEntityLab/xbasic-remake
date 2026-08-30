@@ -100,7 +100,8 @@ fn parse_sub_expr(s: &str) -> Result<(IrExpr, &str), String> {
             let (val_expr, _) = parse_sub_expr(val_str)?;
             let value = match val_expr.kind {
                 IrExprKind::IntegerLiteral(v) => v,
-                _ => return Err("constant value is not integer".into()),
+                IrExprKind::StringLiteral(v) => v,
+                _ => return Err("constant value is not integer or string".into()),
             };
             IrExpr::new(
                 IrExprKind::Constant {

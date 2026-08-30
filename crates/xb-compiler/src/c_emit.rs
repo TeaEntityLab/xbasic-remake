@@ -2154,7 +2154,7 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     out.push_str("}\n");
 }
 /// Escape a string for safe embedding in a C double-quoted string literal.
-fn c_escape(s: &str) -> String {
+pub(crate) fn c_escape(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\n")

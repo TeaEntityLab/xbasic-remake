@@ -1,4 +1,5 @@
 use crate::ir::{IrItem, IrProgram};
+use crate::ValueType;
 use crate::text_ir_parser_item::parse_item;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,6 +25,19 @@ impl TextIrParser {
         let lines: Vec<&str> = text.lines().collect();
         let mut idx = 0;
         let items = parse_items(&lines, &mut idx, 0)?;
+        // Collect string constants from ConstantDefinition items.
+        // In text IR, string constants appear as `const $$Name$:string = string(value)`.
+        let string_constants: Vec<(String, String)> = items
+            .iter()
+            .filter_map(|i| match i {
+                IrItem::ConstantDefinition { name, value, value_type }
+                    if *value_type == ValueType::String =>
+                {
+                    Some((name.clone(), value.clone()))
+                }
+                _ => None,
+            })
+            .collect();
         let mut data_values = Vec::new();
         while idx < lines.len() {
             let line = lines[idx].trim();
@@ -36,7 +50,7 @@ impl TextIrParser {
             }
             idx += 1;
         }
-        Ok(IrProgram { items, data_values })
+        Ok(IrProgram { items, data_values, string_constants })
     }
 }
 

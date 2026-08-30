@@ -7,6 +7,7 @@ use crate::text_ir::TextIrEmitter;
 pub struct IrProgram {
     pub items: Vec<IrItem>,
     pub data_values: Vec<(String, String)>,
+    pub string_constants: Vec<(String, String)>,
 }
 impl IrProgram {
     pub fn lower(program: &CheckedProgram) -> Self {
@@ -21,6 +22,7 @@ impl IrProgram {
                     xb_frontend::DataValue::String(s) => ("string".to_string(), s.clone()),
                 })
                 .collect(),
+            string_constants: program.string_constants.clone(),
         }
     }
 

@@ -614,10 +614,26 @@ impl TextIrEmitter {
                 name,
                 value,
                 value_type,
-            } => out.push_str(&format!(
-                "{prefix}const $${name}:{} = integer({value})\n",
-                self.emit_type(*value_type)
-            )),
+            } => {
+                let kind = if *value_type == ValueType::String {
+                    "string"
+                } else {
+                    "integer"
+                };
+                let val_str = if *value_type == ValueType::String {
+                    // Use Rust debug format to escape special chars (newline,
+                    // tab, quotes) so the text IR stays single-line and
+                    // parseable. The parser strips the surrounding quotes.
+                    format!("{:?}", value)
+                } else {
+                    value.clone()
+                };
+                out.push_str(&format!(
+                    "{prefix}const $${name}:{} = {}({val_str})\n",
+                    self.emit_type(*value_type),
+                    kind
+                ));
+            }
             IrItem::SharedAssignment { target, value } => {
                 out.push_str(&format!(
                     "{prefix}shared ##{} = {}\n",

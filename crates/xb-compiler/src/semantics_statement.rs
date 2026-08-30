@@ -234,6 +234,11 @@ impl Analyzer {
                 name: name.to_owned(),
             });
         }
+        let vt = if name.ends_with('$') {
+            ValueType::String
+        } else {
+            ValueType::Integer
+        };
         if self.constants.contains_key(name) {
             if !self.permissive {
                 return Err(SemanticError::DuplicateConstant {
@@ -244,7 +249,7 @@ impl Analyzer {
                 return Ok(CheckedItem::ConstantDefinition {
                     name: name.to_owned(),
                     value: value.to_owned(),
-                    value_type: ValueType::Integer,
+                    value_type: vt,
                 });
             }
         }
@@ -255,7 +260,7 @@ impl Analyzer {
             None => Ok(CheckedItem::ConstantDefinition {
                 name: name.to_owned(),
                 value: value.to_owned(),
-                value_type: ValueType::Integer,
+                value_type: vt,
             }),
         }
     }

@@ -295,8 +295,15 @@ impl Parser {
             && matches!(self.peek_next_kind(), Some(TokenKind::Symbol(':')))
     }
     pub(crate) fn starts_constant_definition(&self) -> bool {
-        matches!(self.peek_kind(), TokenKind::SystemConstant(_))
-            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('=')))
+        (matches!(self.peek_kind(), TokenKind::SystemConstant(_))
+            && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))))
+            || (matches!(
+                self.peek_kind(),
+                TokenKind::SystemVariable {
+                    name,
+                    suffix: Some(TypeSuffix::String),
+                } if name.starts_with("$$"),
+            ) && matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))))
     }
     pub(crate) fn starts_typed_dim(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Identifier { .. })
@@ -450,14 +457,31 @@ impl Parser {
     }
 
     pub(crate) fn constant_definition_stmt(&mut self) -> Result<Statement, ParseError> {
-        let TokenKind::SystemConstant(name) = self.peek_kind().clone() else {
-            return Err(self.expected("system constant"));
+        let name = match self.peek_kind().clone() {
+            TokenKind::SystemConstant(name) => name,
+            TokenKind::SystemVariable { name, suffix: Some(TypeSuffix::String) }
+                if name.starts_with("$$") =>
+            {
+                // $$Name$ = "string" — string constant definition.
+                // Strip the $$ prefix so the constant name is `Name$`.
+                let base = name.strip_prefix("$$").unwrap_or(&name);
+                format!("{base}$")
+            }
+            _ => return Err(self.expected("system constant")),
         };
         self.index += 1;
         self.expect_symbol('=')?;
         let value = self.expression()?;
         // Allow next $ constant on same line without separator
-        if !matches!(self.peek_kind(), TokenKind::SystemConstant(_)) {
+        if !matches!(self.peek_kind(), TokenKind::SystemConstant(_))
+            && !matches!(
+                self.peek_kind(),
+                TokenKind::SystemVariable {
+                    suffix: Some(TypeSuffix::String),
+                    ..
+                }
+            )
+        {
             self.expect_line_end()?;
         }
         // Extract string representation from the expression for ConstantDefinition

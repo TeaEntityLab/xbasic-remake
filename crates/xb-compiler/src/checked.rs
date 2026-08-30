@@ -77,6 +77,7 @@ pub enum SemanticError {
 pub struct CheckedProgram {
     pub items: Vec<CheckedItem>,
     pub data_values: Vec<xb_frontend::DataValue>,
+    pub string_constants: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

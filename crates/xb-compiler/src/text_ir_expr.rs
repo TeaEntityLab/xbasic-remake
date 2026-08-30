@@ -9,10 +9,23 @@ impl TextIrEmitter {
             IrExprKind::StringLiteral(value) => format!("string({value:?})"),
             IrExprKind::IntegerLiteral(value) => format!("integer({value})"),
             IrExprKind::FloatLiteral(value) => format!("float({value})"),
-            IrExprKind::Constant { name, value } => format!(
-                "constant($${name}:{} = integer({value}))",
-                self.emit_type(expr.value_type)
-            ),
+            IrExprKind::Constant { name, value } => {
+                let kind = if expr.value_type == ValueType::String {
+                    "string"
+                } else {
+                    "integer"
+                };
+                let val_str = if expr.value_type == ValueType::String {
+                    format!("{:?}", value)
+                } else {
+                    value.clone()
+                };
+                format!(
+                    "constant($${name}:{} = {}({val_str}))",
+                    self.emit_type(expr.value_type),
+                    kind
+                )
+            }
             IrExprKind::SharedVariable(symbol) => format!("shared(##{})", self.emit_symbol(symbol)),
             IrExprKind::Symbol(symbol) => format!("symbol({})", self.emit_symbol(symbol)),
             IrExprKind::ByRef(inner) => format!("byref({})", self.emit_expr(inner)),

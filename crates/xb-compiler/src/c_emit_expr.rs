@@ -74,22 +74,28 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(v);
             }
         }
-        IrExprKind::Constant { value, .. } => {
-            let lower = value.to_ascii_lowercase();
-            if lower == "nan" || lower == "-nan" {
-                out.push_str(value.strip_prefix('-').map_or("NAN", |_| "-NAN"));
-            } else if lower == "inf"
-                || lower == "-inf"
-                || lower == "infinity"
-                || lower == "-infinity"
-            {
-                out.push_str(if value.starts_with('-') {
-                    "-INFINITY"
-                } else {
-                    "INFINITY"
-                });
+        IrExprKind::Constant { name, value } => {
+            if name.ends_with('$') {
+                // String constant: emit the global variable reference.
+                // The global is initialized via __attribute__((constructor)).
+                out.push_str(&format!("xb_const_{name}"));
             } else {
-                out.push_str(value);
+                let lower = value.to_ascii_lowercase();
+                if lower == "nan" || lower == "-nan" {
+                    out.push_str(value.strip_prefix('-').map_or("NAN", |_| "-NAN"));
+                } else if lower == "inf"
+                    || lower == "-inf"
+                    || lower == "infinity"
+                    || lower == "-infinity"
+                {
+                    out.push_str(if value.starts_with('-') {
+                        "-INFINITY"
+                    } else {
+                        "INFINITY"
+                    });
+                } else {
+                    out.push_str(value);
+                }
             }
         }
         IrExprKind::SharedVariable(s) => {

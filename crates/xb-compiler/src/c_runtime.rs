@@ -411,7 +411,7 @@ fn sanitize_c_name(name: &str) -> String {
 }
 
 use crate::c_emit::c_type;
-use crate::ir::{IrItem, IrProgram};
+use crate::ir::{IrExpr, IrExprKind, IrItem, IrProgram};
 use crate::ValueType;
 
 pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
@@ -499,14 +499,149 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
             out.push_str(");\n");
         }
     }
+    // Emit extern declarations for string constants referenced in expressions
+    // but not defined in this file (imported from other translation units).
+    let mut str_const_refs = std::collections::HashSet::new();
+    collect_string_const_refs(program, &mut str_const_refs);
+    let defined: std::collections::HashSet<&str> = program
+        .string_constants
+        .iter()
+        .map(|(n, _)| n.as_str())
+        .collect();
+    let mut emitted_extern = false;
+    for name in &str_const_refs {
+        if !defined.contains(name.as_str()) {
+            out.push_str(&format!("extern char* xb_const_{name};\n"));
+            emitted_extern = true;
+        }
+    }
+    // Blank line after forward declarations (matching cgen.x ##hadDecls$).
+    // Extra blank line if extern declarations were emitted.
     out.push('\n');
+    if emitted_extern {
+        out.push('\n');
+    }
+}
+
+fn collect_string_const_refs(program: &IrProgram, out: &mut std::collections::HashSet<String>) {
+    for item in &program.items {
+        collect_string_const_refs_item(item, out);
+    }
+}
+
+fn collect_string_const_refs_item(item: &IrItem, out: &mut std::collections::HashSet<String>) {
+    match item {
+        IrItem::Function { body, .. } => {
+            for stmt in body {
+                collect_string_const_refs_item(stmt, out);
+            }
+        }
+        IrItem::Assignment { value, .. } => collect_string_const_refs_expr(value, out),
+        IrItem::If {
+            condition,
+            then_body,
+            else_body,
+        } => {
+            collect_string_const_refs_expr(condition, out);
+            for s in then_body {
+                collect_string_const_refs_item(s, out);
+            }
+            if let Some(eb) = else_body {
+                for s in eb {
+                    collect_string_const_refs_item(s, out);
+                }
+            }
+        }
+        IrItem::While { condition, body } => {
+            collect_string_const_refs_expr(condition, out);
+            for s in body {
+                collect_string_const_refs_item(s, out);
+            }
+        }
+        IrItem::For {
+            start,
+            end,
+            step,
+            body,
+            ..
+        } => {
+            collect_string_const_refs_expr(start, out);
+            collect_string_const_refs_expr(end, out);
+            if let Some(s) = step {
+                collect_string_const_refs_expr(s, out);
+            }
+            for s in body {
+                collect_string_const_refs_item(s, out);
+            }
+        }
+        IrItem::Return { value: Some(v), .. } => {
+            collect_string_const_refs_expr(v, out);
+        }
+        IrItem::Call { args, .. } => {
+            for a in args {
+                collect_string_const_refs_expr(a, out);
+            }
+        }
+        IrItem::SharedAssignment { value, .. } => {
+            collect_string_const_refs_expr(value, out);
+        }
+        _ => {}
+    }
+}
+
+fn collect_string_const_refs_expr(expr: &IrExpr, out: &mut std::collections::HashSet<String>) {
+    match &expr.kind {
+        IrExprKind::Constant { name, .. } if name.ends_with('$') => {
+            out.insert(name.clone());
+        }
+        IrExprKind::Comparison { left, right, .. }
+        | IrExprKind::Arithmetic { left, right, .. }
+        | IrExprKind::Boolean { left, right, .. }
+        | IrExprKind::Logical { left, right, .. } => {
+            collect_string_const_refs_expr(left, out);
+            collect_string_const_refs_expr(right, out);
+        }
+        IrExprKind::Unary { operand, .. } | IrExprKind::Not(operand) => {
+            collect_string_const_refs_expr(operand, out);
+        }
+        IrExprKind::FunctionCall { args, .. } => {
+            for a in args {
+                collect_string_const_refs_expr(a, out);
+            }
+        }
+        IrExprKind::ByRef(inner) => collect_string_const_refs_expr(inner, out),
+        _ => {}
+    }
 }
 
 pub(crate) fn emit_globals(program: &IrProgram, out: &mut String) {
+    // Integer constants: emit as #define macros.
     for item in &program.items {
         if let IrItem::ConstantDefinition { name, value, .. } = item {
-            out.push_str(&format!("#define XB_CONST_{name} {value}\n"));
+            if !name.ends_with('$') {
+                out.push_str(&format!("#define XB_CONST_{name} {value}\n"));
+            }
         }
+    }
+    // String constants: emit as char* globals with constructor initialization.
+    // Includes both locally-defined and imported (from .dec files) constants.
+    if !program.string_constants.is_empty() {
+        for (name, value) in &program.string_constants {
+            let escaped = crate::c_emit::c_escape(value);
+            out.push_str("__attribute__((weak)) ");
+            out.push_str(&format!("char* xb_const_{name} = 0;\n"));
+            let _ = escaped;
+        }
+        out.push_str(
+            "__attribute__((constructor)) static void xb_init_string_constants(void) {\n",
+        );
+        for (name, value) in &program.string_constants {
+            let escaped = crate::c_emit::c_escape(value);
+            out.push_str(&format!(
+                "    xb_const_{name} = xb_str(\"{escaped}\");\n"
+            ));
+        }
+        out.push_str("}\n");
     }
     let mut seen = std::collections::HashSet::new();
     collect_shared(&program.items, &mut seen, out);

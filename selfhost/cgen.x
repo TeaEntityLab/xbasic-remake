@@ -707,12 +707,45 @@ WHILE cpos <= LEN(src$)
       IF cvp > 0 THEN
         cvl$ = MID$(cvl$, cvp + 1, LEN(cvl$) - cvp - 1)
       END IF
-      ##constDefines$ = ##constDefines$ + "#define XB_CONST_" + cnm$ + " " + cvl$ + CHR$(10)
+      ' String constants (name ends with $): emit as char* global + constructor.
+      ' Matches Rust CEmitter emit_globals string constant handling.
+      IF RIGHT$(cnm$, 1) = "$" THEN
+        ##strConsts$ = ##strConsts$ + cnm$ + CHR$(10)
+        ##strConstVals$ = ##strConstVals$ + cvl$ + CHR$(10)
+      ELSE
+        ##constDefines$ = ##constDefines$ + "#define XB_CONST_" + cnm$ + " " + cvl$ + CHR$(10)
+      END IF
     END IF
   END IF
 WEND
 IF LEN(##constDefines$) > 0 THEN
   PRINT LEFT$(##constDefines$, LEN(##constDefines$) - 1)
+END IF
+' Emit string constants as char* globals with constructor initialization.
+' Matches Rust CEmitter: weak char* globals + __attribute__((constructor)).
+IF LEN(##strConsts$) > 0 THEN
+  ' First pass: emit all global declarations (before constructor).
+  _scIter$ = ##strConsts$
+  WHILE LEN(_scIter$) > 0
+    _scNl = INSTR(_scIter$, CHR$(10))
+    _scName$ = LEFT$(_scIter$, _scNl - 1)
+    _scIter$ = MID$(_scIter$, _scNl + 1, LEN(_scIter$) - _scNl)
+    PRINT "__attribute__((weak)) char* xb_const_" + _scName$ + " = 0;"
+  WEND
+  ' Second pass: constructor with initialization lines.
+  _scIter$ = ##strConsts$
+  _scValIter$ = ##strConstVals$
+  PRINT "__attribute__((constructor)) static void xb_init_string_constants(void) {"
+  WHILE LEN(_scIter$) > 0
+    _scNl = INSTR(_scIter$, CHR$(10))
+    _scName$ = LEFT$(_scIter$, _scNl - 1)
+    _scIter$ = MID$(_scIter$, _scNl + 1, LEN(_scIter$) - _scNl)
+    _scVnl = INSTR(_scValIter$, CHR$(10))
+    _scVal$ = LEFT$(_scValIter$, _scVnl - 1)
+    _scValIter$ = MID$(_scValIter$, _scVnl + 1, LEN(_scValIter$) - _scVnl)
+    PRINT "    xb_const_" + _scName$ + " = xb_str(" + _scVal$ + ");"
+  WEND
+  PRINT "}"
 END IF
 
 IF INSTR(src$, CHR$(92) + "0") > 0 THEN
@@ -739,6 +772,8 @@ END IF
 ##strUbDual$ = ""
 ##curLead$ = "0"
 ##constDefines$ = ""
+##strConsts$ = ""
+##strConstVals$ = ""
 ##hadDecls$ = "0"
 ##selLead$ = ""
 ##noLead$ = "0"
@@ -2609,6 +2644,23 @@ FUNCTION expr_type$(e$)
     ELSE
       expr_type$ = "integer"
     END IF
+  ELSEIF LEFT$(e$, 9) = "constant(" THEN
+    ' constant($$Name:type = ...) — extract type from after the colon.
+    rest$ = MID$(e$, 10, LEN(e$) - 9)
+    IF RIGHT$(rest$, 1) = ")" THEN
+      rest$ = LEFT$(rest$, LEN(rest$) - 1)
+    END IF
+    colonPos = INSTR(rest$, ":")
+    IF colonPos > 0 THEN
+      eqPos = INSTR(rest$, " = ")
+      IF eqPos > 0 THEN
+        expr_type$ = MID$(rest$, colonPos + 1, eqPos - colonPos - 1)
+      ELSE
+        expr_type$ = MID$(rest$, colonPos + 1, LEN(rest$) - colonPos)
+      END IF
+    ELSE
+      expr_type$ = "integer"
+    END IF
   ELSE
     expr_type$ = "integer"
   END IF
@@ -3750,9 +3802,26 @@ FUNCTION emit_expr$(e$)
     IF RIGHT$(rest$, 1) = ")" THEN
       rest$ = LEFT$(rest$, LEN(rest$) - 1)
     END IF
+    ' Extract the constant name (before the " = ").
     sp = INSTR(rest$, " = ")
     IF sp > 0 THEN
-      emit_expr$ = emit_expr$(MID$(rest$, sp + 3, LEN(rest$) - sp - 2))
+      cname$ = LEFT$(rest$, sp - 1)
+      ' Strip $$ prefix and :type suffix to get the bare name.
+      chp = INSTR(cname$, "$$")
+      IF chp > 0 THEN
+        cname$ = MID$(cname$, chp + 2, LEN(cname$) - chp)
+      END IF
+      ccp = INSTR(cname$, ":")
+      IF ccp > 0 THEN
+        cname$ = LEFT$(cname$, ccp - 1)
+      END IF
+      ' String constants (name ends with $): emit global variable reference.
+      ' Integer constants: emit the raw value.
+      IF RIGHT$(cname$, 1) = "$" THEN
+        emit_expr$ = "xb_const_" + cname$
+      ELSE
+        emit_expr$ = emit_expr$(MID$(rest$, sp + 3, LEN(rest$) - sp - 2))
+      END IF
     ELSE
       emit_expr$ = "0"
     END IF

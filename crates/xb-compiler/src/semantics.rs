@@ -173,7 +173,17 @@ impl Analyzer {
             }
             items.push(self.statement(statement, Scope::TopLevel)?);
         }
-        Ok(CheckedProgram { items, data_values })
+        let string_constants: Vec<(String, String)> = self
+            .constants
+            .iter()
+            .filter(|(name, _)| name.ends_with('$'))
+            .map(|(n, v)| (n.clone(), v.clone()))
+            .collect();
+        Ok(CheckedProgram {
+            items,
+            data_values,
+            string_constants,
+        })
     }
     /// Recursively collect SharedAssignment (`#name = value`) target names —
     /// functions, control flow, and compound statements included.

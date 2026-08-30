@@ -1,0 +1,5 @@
+const $$Greeting$:string = string("Hello")
+function Main() -> integer
+  print constant($$Greeting$:string = string("Hello"))
+  return integer(0)
+end function

@@ -224,12 +224,10 @@ void xb_user_XstGetExceptionFunction(intptr_t *xb_var_function_ref);
 void xb_user_XstGetProgramName(char* *xb_str_prog_ref);
 /* XstDecomposePathname: 1 byval string input + 5 byref string outputs.
    Decomposes a pathname into path/parent/fileName/file/extent components.
-   Uses $$PathSlash$ which is a $$ string constant emitted as a weak SHARED
-   variable (CEmitter bug with $$ string constants). We initialize it in
-   the harness to work around this. */
+   Uses $$PathSlash$ which is now properly emitted as xb_const_PathSlash$
+   by the CEmitter (initialized via constructor). */
 intptr_t xb_user_XstDecomposePathname(char* xb_str_pathname, char* *xb_str_path_ref, char* *xb_str_parent_ref,
     char* *xb_str_fileName_ref, char* *xb_str_file_ref, char* *xb_str_extent_ref);
-extern __attribute__((weak)) char* xb_shared__s_sPathSlash;
 /* XstFileTimeToDateAndTime: 1 byval int64 input + 8 byref int outputs.
    Converts Windows filetime (100ns units since 1601) to date/time.
    gmtime() call is emitted as 0 (CEmitter doesn't handle composite-returning
@@ -459,10 +457,10 @@ int main(void) {
     char* ps3 = xb_user_XxxPathString(xb_str("C:\\dir\\file"));
     check_s("XxxPathString(C:\\dir\\file)", ps3, "C:/dir/file");
     /* XstDecomposePathname: decomposes a pathname into components.
-       Initialize $$PathSlash$ (weak SHARED) to "/" for correct behavior.
+       $$PathSlash$ is now properly emitted as xb_const_PathSlash$ by the
+       CEmitter (initialized via constructor). No manual init needed.
        "/dir/file.txt" → path="/dir", parent="dir", fileName="file.txt",
        file="file", extent=".txt" */
-    xb_shared__s_sPathSlash = xb_str("/");
     {
         char* path = xb_str(""); char* parent = xb_str("");
         char* fileName = xb_str(""); char* file = xb_str(""); char* extent = xb_str("");
