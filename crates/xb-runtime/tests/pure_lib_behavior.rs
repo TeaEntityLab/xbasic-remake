@@ -328,6 +328,15 @@ xb_dcomplex xb_user_DCLOG(double z_R, double z_I);
 xb_dcomplex xb_user_DCSQRT(double z_R, double z_I);
 xb_dcomplex xb_user_DCRMUL(double x_R, double x_I, double y);
 xb_dcomplex xb_user_DCPOLAR(double mag, double angle);
+xb_dcomplex xb_user_DCLOG10(double z_R, double z_I);
+xb_dcomplex xb_user_DCTAN(double z_R, double z_I);
+xb_dcomplex xb_user_DCTANH(double z_R, double z_I);
+xb_dcomplex xb_user_DCPOWERCR(double z_R, double z_I, double n);
+/* SCOMPLEX return type — float members, but params flatten to double */
+typedef struct { float R; float I; } xb_scomplex;
+xb_scomplex xb_user_SCCONJ(double z_R, double z_I);
+xb_scomplex xb_user_SCSIN(double z_R, double z_I);
+xb_scomplex xb_user_SCCOS(double z_R, double z_I);
 
     static int fails = 0;
 
@@ -408,8 +417,36 @@ xb_dcomplex xb_user_DCPOLAR(double mag, double angle);
         { xb_dcomplex _r = xb_user_DCPOLAR(1.0, 0.0);
           check_d("DCPOLAR(1,0).R", _r.R, 1.0);
           check_d("DCPOLAR(1,0).I", _r.I, 0.0); }
+        /* DCLOG10(1,0) = (0,0) — DCLOG(1,0)*LOG10E = 0*LOG10E = 0 */
+        { xb_dcomplex _r = xb_user_DCLOG10(1.0, 0.0);
+          check_d("DCLOG10(1,0).R", _r.R, 0.0);
+          check_d("DCLOG10(1,0).I", _r.I, 0.0); }
+        /* DCTAN(0,0) = (0,0) — sin(0)/(cos(0)+cosh(0))=0, sinh(0)/(...)=0 */
+        { xb_dcomplex _r = xb_user_DCTAN(0.0, 0.0);
+          check_d("DCTAN(0,0).R", _r.R, 0.0);
+          check_d("DCTAN(0,0).I", _r.I, 0.0); }
+        /* DCTANH(0,0) = (0,0) — sinh(0)/(cosh(0)+cos(0))=0, sin(0)/(...)=0 */
+        { xb_dcomplex _r = xb_user_DCTANH(0.0, 0.0);
+          check_d("DCTANH(0,0).R", _r.R, 0.0);
+          check_d("DCTANH(0,0).I", _r.I, 0.0); }
+        /* DCPOWERCR(1,0,2) = (1,0) — exp(2*log(1))=exp(0)=1, imag=0 */
+        { xb_dcomplex _r = xb_user_DCPOWERCR(1.0, 0.0, 2.0);
+          check_d("DCPOWERCR(1,0,2).R", _r.R, 1.0);
+          check_d("DCPOWERCR(1,0,2).I", _r.I, 0.0); }
+        /* SCCONJ(3,4) = (3,-4) — SCOMPLEX conjugate: float R/I members */
+        { xb_scomplex _s = xb_user_SCCONJ(3.0, 4.0);
+          check_d("SCCONJ(3,4).R", (double)_s.R, 3.0);
+          check_d("SCCONJ(3,4).I", (double)_s.I, -4.0); }
+        /* SCSIN(0,0) = (0,0) — SCOMPLEX sin */
+        { xb_scomplex _s = xb_user_SCSIN(0.0, 0.0);
+          check_d("SCSIN(0,0).R", (double)_s.R, 0.0);
+          check_d("SCSIN(0,0).I", (double)_s.I, 0.0); }
+        /* SCCOS(0,0) = (1,0) — SCOMPLEX cos: cos(0)*cosh(0)=1, -sin(0)*sinh(0)=0 */
+        { xb_scomplex _s = xb_user_SCCOS(0.0, 0.0);
+          check_d("SCCOS(0,0).R", (double)_s.R, 1.0);
+          check_d("SCCOS(0,0).I", (double)_s.I, 0.0); }
 
-        printf("\n%d checks, %d failures\n", 31, fails);
+        printf("\n%d checks, %d failures\n", 45, fails);
         return fails;
     }
     "#).unwrap();
@@ -453,4 +490,9 @@ xb_dcomplex xb_user_DCPOLAR(double mag, double angle);
     assert!(stdout.contains("DCSQRT(4,0).R"), "missing DCSQRT(4,0).R check in output");
     assert!(stdout.contains("DCRMUL(3,4,2).R"), "missing DCRMUL(3,4,2).R check in output");
     assert!(stdout.contains("DCPOLAR(1,0).R"), "missing DCPOLAR(1,0).R check in output");
+    assert!(stdout.contains("DCLOG10(1,0).R"), "missing DCLOG10(1,0).R check in output");
+    assert!(stdout.contains("DCTAN(0,0).R"), "missing DCTAN(0,0).R check in output");
+    assert!(stdout.contains("DCPOWERCR(1,0,2).R"), "missing DCPOWERCR(1,0,2).R check in output");
+    assert!(stdout.contains("SCCONJ(3,4).R"), "missing SCCONJ(3,4).R check in output");
+    assert!(stdout.contains("SCCOS(0,0).R"), "missing SCCOS(0,0).R check in output");
 }
