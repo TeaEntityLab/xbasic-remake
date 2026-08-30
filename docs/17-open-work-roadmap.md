@@ -8,18 +8,20 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
-> Last full re-verification: **2026-08-30** (ATTACH string-array name fix:
-> semantics `attach_stmt` now uses type suffix for array operands so
-> `auto_symbol` resolves to the DIM-declared `text$` array symbol; C emitter
-> Case 4 missing `)` for `xb_strdup` fixed; `multi_lib_integration` and
-> `demo_parity` now pass — workspace fully green. sync 61/61, positive
-> corpus 80/80, demo regression 27/27). The last full
-> workspace run reports **285 passed / 0 failed across 34 binaries**. In
+> Last full re-verification: **2026-08-30** (ATTACH fixed-size array copy
+> semantics: Case 3 now handles fixed-size stack arrays via sizeof-based
+> memcpy; Case 1 ubound gated on `is_dyn_array`; Case 2 copy size uses
+> `sizeof` for fixed-size source; `collect_array_dims` extended to track
+> 1-D fixed arrays; bounded ATTACH behavior test locks Cases 1–5.
+> Negative-corpus harness locks frontend diagnostics. GTK/helpsrc
+> compile inventory locked. sync 62/62, positive
+> corpus 80/80, demo regression 27/27, frontend 24/24, compiler 68/68).
+> The last full workspace run reports **285 passed / 0 failed across 34 binaries**. In
 > `xbsourcelib_parity.rs`, `xbsourcelib_interp_matches_compiled` covers 11
 > non-ARY programs; the separate compile-only
 > `xbsourcelib_ary_compiles_clean` covers the two ARY sources.
 >
-> `cgen_cemitter_sync` is **61/61**, the positive corpus is **80/80
+> `cgen_cemitter_sync` is **62/62**, the positive corpus is **80/80
 > emitted-C byte-identical**, and native compiler vs Rust frontend for
 > `cgen.x` is `IR_IDENTICAL`. The named all-demo guard reports **114/114**
 > as a raw-generator contract — no post-emission C rewrites (RR-13 done
@@ -483,9 +485,11 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > only seven `Version$` exports execute, and demo call sites are native-shadowed
 > or stubbed at emit time. Self-hosted cgen.x is below class (a) for this corpus
 > (6/15). Eleven XBSourceLib programs have class-(c) differential coverage;
-> `ary`/`ary1.0001` are class-(a) compile-only. **GTK/helpsrc remain
-> parse/lower-only.** No path is class (d): real GUI, `ATTACH`, `XxxMain`, and
-> packaging remain open.
+> `ary`/`ary1.0001` are class-(a) compile-only. **GTK/helpsrc have a
+> compile-clean guard** (`cemitter_compiles_gtk_and_helpsrc_clean`):
+> 19 GTK demos + 3 helpsrc programs compile via Rust CEmitter but are
+> not behavior-tested. No path is class (d): real GUI, `ATTACH`,
+> `XxxMain`, and packaging remain open.
 >
 > Decision: ready to start **behavior-port work on selected non-GUI surfaces**
 > through the Rust CEmitter, not ready to claim every legacy library is ported.
@@ -504,7 +508,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | L6 | Keep CGEN-FACET-MANIFEST as storage-work prerequisite only | partial | facets cannot fix EXTERNAL nesting or whole-string OOM | finish strDual/allStrArr before the next storage change |
 | L7 | Port order: xut/xcm first; xst and GUI libs not first | adopted | xst uses ATTACH/*AT/TYPE/ARGV and imports xma/xgr/xui | binding policy → xut/xcm → EXTERNAL/type fixes → remaining non-GUI → GUI last |
 | ~~L8~~ | GTK/helpsrc coverage carve-out | **done 2026-08-30** | `cemitter_compiles_gtk_and_helpsrc_clean` test: 19 GTK + 3 helpsrc compile clean via Rust CEmitter | — |
-| L9 | Ary status changed from performance-only to contested | adopted | parity test comment conflicts with roadmap claims; ATTACH is a no-op | deterministic alias test + bounded run evidence |
+| ~~L9~~ | Ary status changed from performance-only to contested | **resolved 2026-08-30** | Bounded ATTACH behavior test (`cemitter_attach_copy_semantics_match_interp`) locks Cases 1–5: row copy, row writeback, whole-array copy, element→scalar, scalar→element. ATTACH is no longer a no-op for known-dimension arrays. `ARY-STATUS-RECONCILIATION` done. | dynamic 2nd-dim arrays still no-op (no known corpus) |
 | L10 | Production readiness deferred | adopted | GUI-RUNTIME, ENTRY-SCAFFOLD, PACKAGING, portability remain open | revisit after a real windowed callback and `XxxMain` execution |
 | L11 | `xb_append` cap + `collect_append_chain` | **partial — landed 08fc0cb** | Two-word header `[len,cap]` (`malloc(2*sizeof(size_t)+n+1)`, `xb_len` via `[-2]`, `xb_cap` via `[-1]`) + `xb_append` O(1) amortized (cap check, doubling after 4096, `realloc` of 2-word header, NULL guard `if (!a) return xb_strdup(b)`, alias/empty-chain guards, deep `xb_strdup` for string Symbol copy to avoid dangling after `b$=a$`+`a$=a$+...`). `cgen_new` 154 appends + 139 strdups, `cgen_cap2` header correct. Evidence: `cgen` sync 60/60 88s (was 100s), `xcm` now cc OK (was FAIL missing xb_str), `xui` 16.6s (27.5s), `xit` 10.9s (14s), `xst` 2.1s (3.3s), `xcol` still **SIGKILL 46.4s** (was 54s), `xgr` **SIGABRT 3.4s** (was 6.8s) — throughput up but CGEN-LIB-SCALE not yet 15/15; CC fails remain for xdis/xin/xit/xrun/xst/xui (logic, not throughput) | finish xcol OOM (profile src$ vs scans; 45 GiB copy → 5M with cap but still 46s suggests scan or other string accumulations) + xgr abort (heap corruption via alias? deep copy fixed one path, but xgr still aborts after 110K); add `cgen_x_compiles_all_core_libs_cc_clean` guard (L17) to lock |
 | L12 | `scan_dyn` per-line `symbol(` walk | **partial — landed 08fc0cb** | `scan_dyn$` now per-line `CHR$(10)` split for `symbol(`+`byref(` with inner `WHILE qp` for multi-`symbol(` per line; `DIM`/`SWAP` already per-line. Change is `INSTR(s$,nSym$)` → `INSTR(qLn$,nSym$)` + `INSTR(qLn$,":",qp+7)` + `MID$(qLn$,qp+7,cp-qp-7)` (same-line colon only; cross-line dropped). No quote-skip for `string("symbol(")` (both old and new) | add fixture `string("symbol(foo:bar)")` + multi-`symbol(` per line; prove no regression; xcol probe still 46s suggests scan not the sole bottleneck |

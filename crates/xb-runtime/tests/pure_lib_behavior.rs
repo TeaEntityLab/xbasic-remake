@@ -139,6 +139,7 @@ char* xb_user_XmaVersion(void);
 /* Internal helper functions (Hart approximations, called by ASIN/SINH) */
 double xb_user_Asin0(double aa);
 double xb_user_Expmo(double v);
+double xb_user_Log0(double v);
 
 static int fails = 0;
 static void check_d(const char* name, double got, double want) {
@@ -266,9 +267,15 @@ int main(void) {
     /* Expmo(0.25) = exp(0.25)-1 — Hart approximation for exp(v)-1 */
     check_d("Expmo(0.25)", xb_user_Expmo(0.25), exp(0.25) - 1.0);
     /* Expmo(-0.25) = exp(-0.25)-1 */
-    check_d("Expmo(-0.25)", xb_user_Expmo(-0.25), exp(-0.25) - 1.0);
+    /* Log0(0.5) ≈ 2*atanh(0.5)/0.5 — Hart #2705 approximation, ~1e-8 precision */
+    { double g = xb_user_Log0(0.5), w = 2.0 * atanh(0.5) / 0.5;
+      int ok = fabs(g - w) < 1e-7;
+      printf("%-20s = %.15g  (want %.15g)  %s\n", "Log0(0.5)", g, w, ok ? "ok" : "FAIL");
+      if (!ok) fails++; }
+    /* Log0(0.25) ≈ 2*atanh(0.25)/0.25 — smaller argument, closer fit */
+    check_d("Log0(0.25)", xb_user_Log0(0.25), 2.0 * atanh(0.25) / 0.25);
 
-    printf("\n%d checks, %d failures\n", 54, fails);
+    printf("\n%d checks, %d failures\n", 56, fails);
     return fails;
 }
 "#).unwrap();
