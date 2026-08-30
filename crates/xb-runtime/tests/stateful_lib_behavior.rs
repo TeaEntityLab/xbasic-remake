@@ -189,12 +189,25 @@ void xb_user_XstSetException(intptr_t xb_var_exception);
 void xb_user_XstSetPrintTab(intptr_t xb_var_pixels);
 void xb_user_XstSetExceptionFunction(intptr_t xb_var_function);
 void xb_user_XstSetNewline(intptr_t xb_var_save, intptr_t xb_var_paste);
+/* Byval functions with RETURN values — deterministic short-circuit paths. */
+intptr_t xb_user_XstRandomRange(intptr_t xb_var_n1, intptr_t xb_var_n2);
+intptr_t xb_user_XstBinWrite(intptr_t xb_var_fileNumber, intptr_t xb_var_bufferAddr, intptr_t xb_var_numBytes);
+intptr_t xb_user_XstKillTask(intptr_t xb_var_taskNum);
+intptr_t xb_user_XstGetTaskInfo(intptr_t xb_var_taskNum, intptr_t xb_var_count, intptr_t xb_var_msec, intptr_t xb_var_func, intptr_t xb_var_timer, intptr_t xb_var_skips);
+intptr_t xb_user_XstSetProgramName(char* xb_str_prog);
+intptr_t xb_user_XstSetSystemError(intptr_t xb_var_sysError);
 /* Weak globals set by the setter functions, readable from the harness. */
 extern __attribute__((weak)) intptr_t xb_shared_EXCEPTION;
 extern __attribute__((weak)) intptr_t xb_shared_TABSAT;
 extern __attribute__((weak)) intptr_t xb_shared_exceptionFunction;
 extern __attribute__((weak)) intptr_t xb_shared_sysSaveNewline;
 extern __attribute__((weak)) intptr_t xb_shared_sysPasteNewline;
+extern __attribute__((weak)) char* xb_shared_sysProgram;
+/* Strong errno implementations override the weak stubs in xst.o.
+   XstSetSystemError calls xb_user_xb_seterrno; we verify via xb_user_xb_geterrno. */
+static int s_errno = 0;
+intptr_t xb_user_xb_seterrno(intptr_t value) { s_errno = (int)value; return 0; }
+intptr_t xb_user_xb_geterrno(void) { return s_errno; }
 static int fails = 0;
 
 static void check_s(const char* name, const char* got, const char* want) {
@@ -396,7 +409,28 @@ int main(void) {
     xb_user_XstSetNewline(2, 1);
     check_i("XstSetNewline(2,1) save", xb_shared_sysSaveNewline, 2);
     check_i("XstSetNewline(2,1) paste", xb_shared_sysPasteNewline, 1);
-    printf("\n%d checks, %d failures\n", 71, fails);
+    /* XstRandomRange: byval, RETURN. n1=n2 short-circuits before XstRandom()
+       (which uses GOSUB + SHARED). Tests IF n1=n2 THEN RETURN n1 path. */
+    check_i("XstRandomRange(5,5)", xb_user_XstRandomRange(5, 5), 5);
+    check_i("XstRandomRange(100,100)", xb_user_XstRandomRange(100, 100), 100);
+    /* XstBinWrite: byval, RETURN. fileNumber<1 or ==2 returns -1 before
+       XxxWriteFile. Tests || short-circuit in IF condition. */
+    check_i("XstBinWrite(0,0,0)", xb_user_XstBinWrite(0, 0, 0), -1);
+    check_i("XstBinWrite(2,0,0)", xb_user_XstBinWrite(2, 0, 0), -1);
+    /* XstKillTask: byval, RETURN. taskNum<1 returns -1 before GOSUB. */
+    check_i("XstKillTask(0)", xb_user_XstKillTask(0), -1);
+    /* XstGetTaskInfo: byval, RETURN. UBOUND(task[])= -1 (uninit SHARED array),
+       so taskNum=999 > -1 → returns 0. Tests SHARED array UBOUND read. */
+    check_i("XstGetTaskInfo(999)", xb_user_XstGetTaskInfo(999, 0, 0, 0, 0, 0), 0);
+    /* XstSetSystemError: byval, no RETURN. Calls xb_user_xb_seterrno (strong
+       impl in harness overrides weak stub). Verify via xb_user_xb_geterrno. */
+    xb_user_XstSetSystemError(42);
+    check_i("XstSetSystemError(42)", xb_user_xb_geterrno(), 42);
+    /* XstSetProgramName: byval string input. ##WHOMASK=0 → sys path.
+       Writes xb_strdup(prog$) to xb_shared_sysProgram. */
+    xb_user_XstSetProgramName(xb_str("MyApp"));
+    check_s("XstSetProgramName(MyApp)", xb_shared_sysProgram, "MyApp");
+    printf("\n%d checks, %d failures\n", 73, fails);
     return fails;
 }
 "#).unwrap();
@@ -454,4 +488,9 @@ int main(void) {
     assert!(stdout.contains("XstTally(a,b,c /,)"), "missing XstTally check in output");
     assert!(stdout.contains("XstErrorNumberToName(0)"), "missing XstErrorNumberToName(0) check in output");
     assert!(stdout.contains("XxxPathString(a\\b\\c)"), "missing XxxPathString check in output");
+    assert!(stdout.contains("XstRandomRange(5,5)"), "missing XstRandomRange check in output");
+    assert!(stdout.contains("XstBinWrite(0,0,0)"), "missing XstBinWrite check in output");
+    assert!(stdout.contains("XstKillTask(0)"), "missing XstKillTask check in output");
+    assert!(stdout.contains("XstSetSystemError(42)"), "missing XstSetSystemError check in output");
+    assert!(stdout.contains("XstSetProgramName(MyApp)"), "missing XstSetProgramName check in output");
 }
