@@ -101,6 +101,16 @@ pub(crate) fn emit_hoisted_scalars(
         out.push_str(" = ");
         emit_default(*vt, out);
         out.push_str(";\n");
+        // If this is a `$`-suffixed String local whose base name is a byref
+        // String param, record it so the copy-out reads from this `_s`
+        // variable (the body writes here, not to the copy-in local).
+        if *is_str {
+            if let Some(base) = name.strip_suffix('$') {
+                if crate::c_emit::is_byref_str_param(base) {
+                    crate::c_emit::record_byref_str_s(base);
+                }
+            }
+        }
     }
 }
 

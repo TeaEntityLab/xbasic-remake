@@ -607,7 +607,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | RR-04 | Split cgen failure classes | **adopted as tracking** | four C errors vs two signal/resource exits | keep separate assertions/results; not a blocking implementation phase |
 | ~~RR-05~~ | Bound and fix xcol/xgr generation | **done 2026-08-30 (`8fe02ce`)** — xcol/xgr no longer OOM/signal; 15/15 core libs compile clean via `emit_program_with_facets` + `-Wno-` flags; `xb_append` cap + per-line scan improvements (`08fc0cb`) resolved resource exits | — |
 | ~~RR-08a~~ | Behavior gates for pure libraries | **done 2026-08-30** — `pure_lib_behavior` test compiles xma.x + xcm.x + xut.x + xit.x via CEmitter and verifies 167 deterministic outputs: xma (54: 27 scalar math functions including COT via FPU wrapper mapping, at 0/1/2/0.5/PI/sqrt2 inputs exercising full EXP/SQRT/LOG/ATAN/tan paths, plus internal Hart approximation helpers Asin0/Expmo), xcm (107: all 22 DCOMPLEX + all 19 SCOMPLEX-returning functions + 3 SINGLE-returning scalar functions (SCABS/SCARG/SCNORM) + 4 internal helpers (XdcGetAlpha/XdcGetBeta/XscGetAlpha/XscGetBeta) + Atan2 edge cases + XcmVersion$), xut (1), xit (2), xdis (3: GetAddrLabel64 hex formatting via xb_hexx). CEmitter fixes: EXTERNAL builtin mapping (SQRT/SIN/COS→C helpers), x87 FPU wrapper mapping (XxxFPTAN→tan(), XxxFCOS→cos(), 30 wrappers total). Gates: sync 61/61, demo regression 27/27 | xdis |
-| ~~RR-08b~~ | Behavior gates for stateful libraries | **done 2026-08-30** — `stateful_lib_behavior` test compiles xst.x via CEmitter and verifies 51 deterministic outputs: XstGetOSName(@name$)="unix" (SELECT CASE: ##XBSystem=0 != $$XBSysLinux=1, now correctly resolved from xut.dec), XstGetConsoleGrid(@grid)=0, XstVersion$()="6.4.5", XstGetEndianName(ret)=0, XstGetCPUName(ret)=0, XstGetApplicationEnvironment(@standalone,@reserved)=(0,0,0), XstExceptionToSystemException(1,@sig)=11 (SegViolation->SIGSEGV), (4,@sig)=2 (BreakKey->SIGINT), (7,@sig)=8 (DivByZero->SIGFPE), (12,@sig)=4 (InvalidInstr->SIGILL), (14,@sig)=11 (StackOverflow->SIGSEGV), (99,@sig)=11 (CASE ELSE->SIGSEGV). Parser fix (725a833): `is_forward` detection for `END EXPORT` and `EXTERNAL ##` prevents swallowing $$ constant definitions into function bodies. CLI fix (9e3f884): `resolve_import_constants` now searches .dec files in include/ with alias chain resolution. Tests byref string/int output params, SHARED variable reads, SELECT CASE lowering with correctly resolved $$ constants, RETURN value path. String functions (XstNextField/XstNextLine/XstMergeStrings) test char* return with byval index/done params, using local xb_str() wrapper for XBasic managed string conversion. Gates: sync 61/61, demo regression 27/27 | extend to xui/xgr/xcol; bounded ARY evidence |
+| ~~RR-08b~~ | Behavior gates for stateful libraries | **done 2026-08-30** — `stateful_lib_behavior` test compiles xst.x via CEmitter and verifies 58 deterministic outputs: XstGetOSName(@name$)="unix" (SELECT CASE: ##XBSystem=0 != $$XBSysLinux=1, now correctly resolved from xut.dec), XstGetConsoleGrid(@grid)=0, XstVersion$()="6.4.5", XstGetEndianName(ret)=0, XstGetCPUName(ret)=0, XstGetApplicationEnvironment(@standalone,@reserved)=(0,0,0), XstExceptionToSystemException(1,@sig)=11 (SegViolation->SIGSEGV), (4,@sig)=2 (BreakKey->SIGINT), (7,@sig)=8 (DivByZero->SIGFPE), (12,@sig)=4 (InvalidInstr->SIGILL), (14,@sig)=11 (StackOverflow->SIGSEGV), (99,@sig)=11 (CASE ELSE->SIGSEGV). Parser fix (725a833): `is_forward` detection for `END EXPORT` and `EXTERNAL ##` prevents duplicate function emission. CEMITTER-S-SUFFIX-BYREF fix: byref string copy-out now reads from `_s` body variable when name collision creates a `$`-suffixed local (XstErrorNumberToName(0)="$$ErrorObject too large", XstErrorNumberToName(256)="$$ErrorObject too large"). String functions: XstNextField (4), XstNextLine (4), XstMergeStrings (3), XstParse (8), XstTally (5), XxxPathString (3). Total: 58 checks (was 51, +4 XstErrorNumberToName +3 XxxPathString restored). All gates green: frontend 23/23, compiler 68/68, demo 27/27, sync 61/61. |
 | RR-09 | SHELL/network capability gates | **done 2026-08-30** | `xb_shell` checks `XB_ALLOW_SHELL`; `xb_xin_socket_open` checks `XB_ALLOW_NETWORK`; interpreter SHELL gated; xin_sockets tests set env vars | — |
 | ~~RR-10~~ | Harness reproducibility | **done 2026-08-30** | Deterministic link order, `OUT` clean, `nm` fallbacks, `XB_BIN` override honored. Duplicate weak definitions reported (198 dups, informational). `cgen-lib-compile.sh` exits non-zero on failure by default; `CGEN_LIB_STRICT=0` for old behavior. | — |
 | RR-11 | Licensing and shim provenance | **partial** | factual disclosure landed; three shims lack copyright/license statements and both notice files lack GNU front matter | resolve provenance and distribution obligations before packaging |
@@ -743,22 +743,25 @@ program uses it (§2 RT-FUNCPTR).
 > exists).** cgen.x's own `byref(` gap (CGEN-EXPR-GAPS) is likewise a non-issue: its
 > demos need undimmed `&x`, which the pre-existing default already approximates.
 
-### CEMITTER-S-SUFFIX-BYREF — `_s` suffix byref string writeback bug `[2026-08-30]`
+### ~~CEMITTER-S-SUFFIX-BYREF~~ — `_s` suffix byref string writeback ✅ done `[2026-08-30]`
 
-> **Discovered during RR-08b behavior testing.** `XstErrorNumberToName(error, @error$)`
-> computes the error message into `xb_str_error_s` (local string storage with `_s`
-> suffix) but writes back `xb_str_error` (the original input pointer) to the byref
-> output `*xb_str_error_ref`. The byref string always returns the input value (NULL),
-> not the computed message. Root cause: when a byref string param has a local `_s`
-> storage variant (created when the function body assigns to the string), the CEmitter
-> routes assignments to `xb_str_error_s` but the end-of-function writeback still uses
-> `xb_str_error` (the input pointer). The writeback should use `xb_str_error_s` when
-> the `_s` storage was modified. This affects any byref string function where the
-> param has a `_s` suffix variant — `XstGetOSName` works because it assigns directly
-> to `xb_str_name` (no `_s` variant). Not blocking: the affected functions
-> (`XstErrorNumberToName`, potentially others with `_s` byref string params) are not
-> in the demo corpus. Fix: in the byref writeback code, check if a `_s` storage
-> variant exists for the param and write back that instead of the input pointer.
+> **FIXED** (2026-08-30): `XstErrorNumberToName(error, @error$)` computes the error
+> message into `xb_str_error_s` (local string storage with `_s` suffix) but the
+> copy-out writeback read from `xb_str_error` (the copy-in local), returning the
+> input value (NULL) instead of the computed message. Root cause: when a function
+> has a name collision (e.g. `error` Integer + `error$` String), the analyzer's
+> `scan_body_collisions` detects it and the body uses the `$`-suffixed name
+> (`error$` → `xb_str_error_s`), while the byref copy-in/out uses the bare param
+> name (`error` → `xb_str_error`). The fix: `emit_hoisted_scalars` records which
+> byref String params have a `$`-suffixed hoisted scalar (via `record_byref_str_s`),
+> and `emit_byref_copy_out` reads from the `_s` variable for those params
+> (`*xb_str_error_ref = xb_str_error_s`). The `_ref` pointer name stays unchanged
+> (matching the signature). Non-collision cases like Kittedy's `@reply$` are
+> unaffected (no `_s` hoisted scalar → copy-out reads from `xb_str_reply` as
+> before). Verified: `XstErrorNumberToName(0)` → "$$ErrorObject too large",
+> `XstErrorNumberToName(256)` → "$$ErrorObject too large" (SHARED arrays
+> uninitialized, UBOUND=-1, object > upperObject always true). All gates green:
+> frontend 23/23, compiler 68/68, behavior 58 checks, demo 27/27, sync 61/61.
 
 ### ~~CGEN-ARGSPLIT-STRLIT~~ — call-arg splitter string-literal-aware ✅ done `[2026-08-23, d9d665b]`
 

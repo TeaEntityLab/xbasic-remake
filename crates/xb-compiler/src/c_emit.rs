@@ -73,6 +73,11 @@ thread_local! {
     /// copy-out (`*x_ref = x;`) before every return, so writes reach the caller
     /// (CGEN-BYREF-WRITEBACK). Empty for the corpus (no by-ref param).
     static FN_BYREF_PARAMS: RefCell<Vec<(String, ValueType)>> = const { RefCell::new(Vec::new()) };
+    /// By-ref String params whose body uses the `$`-suffixed name (collision
+    /// case): the copy-out must read from the `_s`-suffixed C variable, not the
+    /// copy-in local. Populated by `emit_hoisted_scalars` when a String scalar
+    /// whose base name matches a byref param is hoisted with the `$` suffix.
+    static FN_BYREF_STR_S: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
     /// By-ref-array descriptor closure (docs/18): fn name → (descriptor params,
     /// must-be-dyn locals). A descriptor param is emitted `(T** xb_var_x_d,
     /// intptr_t* xb_ub_x)`. Populated once per `emit_program`; empty for the corpus.
@@ -944,7 +949,7 @@ fn set_fn_context(
                 .map(|(_, p)| (p.name.clone(), p.value_type)),
         );
     });
-    GOSUB_RET_SEEN.with(|s| s.borrow_mut().clear());
+    FN_BYREF_STR_S.with(|s| s.borrow_mut().clear());
 }
 
 /// Copy-in prologue: `T x = *x_ref;` for each by-ref scalar param, so the body
@@ -975,20 +980,51 @@ pub(crate) fn emit_byref_copy_out(out: &mut String, indent: usize) {
     let ind = "    ".repeat(indent);
     FN_BYREF_PARAMS.with(|s| {
         for (name, vt) in s.borrow().iter() {
-            let sym = IrSymbol {
+            // For String byref params with a name collision (e.g. `error` Integer
+            // + `error$` String), the body uses the `$`-suffixed name (`error$` →
+            // `xb_str_error_s`), while the copy-in uses the bare param name
+            // (`error` → `xb_str_error`). The copy-out must read from the `_s`
+            // variable to pick up the body's writes.
+            let read_name = if *vt == crate::ValueType::String
+                && FN_BYREF_STR_S.with(|s| s.borrow().contains(name))
+            {
+                format!("{}$", name)
+            } else {
+                name.clone()
+            };
+            let ref_sym = IrSymbol {
                 name: name.clone(),
+                value_type: *vt,
+            };
+            let read_sym = IrSymbol {
+                name: read_name,
                 value_type: *vt,
             };
             out.push_str(&ind);
             out.push('*');
-            crate::c_emit_expr::emit_var_name(&sym, out);
+            crate::c_emit_expr::emit_var_name(&ref_sym, out);
             out.push_str("_ref = ");
-            crate::c_emit_expr::emit_var_name(&sym, out);
+            crate::c_emit_expr::emit_var_name(&read_sym, out);
             out.push_str(";\n");
         }
     });
 }
 
+/// Record that a byref String param's body uses the `$`-suffixed name (the
+pub(crate) fn record_byref_str_s(base_name: &str) {
+    FN_BYREF_STR_S.with(|s| {
+        s.borrow_mut().insert(base_name.to_owned());
+    });
+}
+
+/// Whether `base_name` is a byref String param of the current function.
+pub(crate) fn is_byref_str_param(base_name: &str) -> bool {
+    FN_BYREF_PARAMS.with(|s| {
+        s.borrow()
+            .iter()
+            .any(|(n, vt)| n == base_name && *vt == crate::ValueType::String)
+    })
+}
 /// An array referenced in the current function without any `Dim` — reads fold to
 /// the type default, `UBOUND` to -1, writes to a discarded evaluation (matching
 /// the interpreter's missing-slot semantics; an *executed* write errors there,

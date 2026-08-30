@@ -177,7 +177,13 @@ char* xb_user_XstMergeStrings(char* xb_str_string, char* xb_str_add, intptr_t xb
    XxxPathString: converts path separators (\ → / on Linux). Returns NULL for empty path. */
 char* xb_user_XstParse(char* xb_str_source, char* xb_str_delimiter, intptr_t xb_var_n);
 intptr_t xb_user_XstTally(char* xb_str_source, char* xb_str_find);
+/* XstErrorNumberToName: byref string output — SHARED arrays uninitialized,
+   so UBOUND returns -1 and object > upperObject is always true.
+   Returns "$$ErrorObject too large" for any error value.
+   Previously broken by CEMITTER-S-SUFFIX-BYREF (copy-out read from copy-in
+   local, not the _s body variable); now fixed. */
 char* xb_user_XxxPathString(char* xb_str_path);
+intptr_t xb_user_XstErrorNumberToName(intptr_t xb_var_error, char* *xb_str_error_ref);
 static int fails = 0;
 
 static void check_s(const char* name, const char* got, const char* want) {
@@ -334,12 +340,24 @@ int main(void) {
     check_s("XxxPathString(a/b/c)", ps2, "a/b/c");
     char* ps3 = xb_user_XxxPathString(xb_str("C:\\dir\\file"));
     check_s("XxxPathString(C:\\dir\\file)", ps3, "C:/dir/file");
-    /* XstErrorNumberToName: CEmitter bug — function computes error message into
-       xb_str_error_s (local storage) but writes back xb_str_error (input pointer)
-       to the byref output. The _s suffix writeback is broken, so the byref string
-       always returns the input value (NULL), not the computed message.
-       Not testable until the _s suffix byref writeback bug is fixed. */
-    printf("\n%d checks, %d failures\n", 51, fails);
+    /* XstErrorNumberToName: byref string output. SHARED arrays are uninitialized
+       (UBOUND returns -1), so object > upperObject (0 > -1) is always true.
+       Returns "$$ErrorObject too large" for any error value. This tests the
+       CEMITTER-S-SUFFIX-BYREF fix: copy-out now reads from xb_str_error_s
+       (the body's local), not xb_str_error (the copy-in local). */
+    {
+        char* err_name = xb_str("");
+        intptr_t err_ret = xb_user_XstErrorNumberToName(0, &err_name);
+        check_s("XstErrorNumberToName(0)", err_name, "$$ErrorObject too large");
+        check_i("XstErrorNumberToName(0,ret)", err_ret, 0);
+    }
+    {
+        char* err_name = xb_str("");
+        intptr_t err_ret = xb_user_XstErrorNumberToName(0x0100, &err_name);
+        check_s("XstErrorNumberToName(256)", err_name, "$$ErrorObject too large");
+        check_i("XstErrorNumberToName(256,ret)", err_ret, 0);
+    }
+    printf("\n%d checks, %d failures\n", 58, fails);
     return fails;
 }
 "#).unwrap();
@@ -392,5 +410,6 @@ int main(void) {
     assert!(stdout.contains("XstMergeStrings(hello,XYZ,2,2)"), "missing XstMergeStrings check in output");
     assert!(stdout.contains("XstParse(a,b,c /, 1)"), "missing XstParse check in output");
     assert!(stdout.contains("XstTally(a,b,c /,)"), "missing XstTally check in output");
+    assert!(stdout.contains("XstErrorNumberToName(0)"), "missing XstErrorNumberToName(0) check in output");
     assert!(stdout.contains("XxxPathString(a\\b\\c)"), "missing XxxPathString check in output");
 }
