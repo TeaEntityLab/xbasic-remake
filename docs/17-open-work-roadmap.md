@@ -8,10 +8,14 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
-> Last full re-verification: **2026-08-30** (XLONG/VAL/GIANT now handle hex
-> strings via strtol/strtoll with base 0; xit MakeStringHex behavior test
-> added — first xit.x behavior test, 6 checks. Compiler warnings cleaned to
-> zero; LLVM CI job added; Log0 Hart approximation behavior checks added.
+> Last full re-verification: **2026-08-30** (comprehensive NULL-safety sweep
+> of all C runtime string functions — memcpy/memcmp/fwrite/strchr guards
+> added to ~30 call sites across c_runtime.rs, c_runtime_math.rs,
+> c_runtime_bit.rs, and cgen.x; flaky FIFO test stabilized with unique
+> temp dir. XLONG/VAL/GIANT now handle hex strings via strtol/strtoll
+> with base 0; xit MakeStringHex behavior test added — first xit.x
+> behavior test, 6 checks. Compiler warnings cleaned to zero; LLVM CI
+> job added; Log0 Hart approximation behavior checks added.
 > ATTACH fixed-size array copy semantics locked; negative-corpus harness
 > locks frontend diagnostics; GTK/helpsrc compile inventory locked.
 > sync 63/63, positive corpus 80/80, demo regression 27/27,
