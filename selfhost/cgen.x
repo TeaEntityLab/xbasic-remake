@@ -506,6 +506,36 @@ PRINT "static int xb_rinchri2(const char* s, const char* set) { return xb_rinchr
 PRINT "static char* xb_mid2(const char* s, int start) { int slen = xb_len(s); if (start < 1) start = 1; int off = start - 1; if (off >= slen) return xb_str(" + CHR$(34) + "" + CHR$(34) + "); int len = slen - off; char* r = xb_alloc((size_t)len); memcpy(r, s + off, (size_t)len); return r; }"
 PRINT "static char* xb_stuff(const char* into, const char* from, int start, int len) { int ilen = xb_len(into); int flen = xb_len(from); int si = start - 1; if (si < 0) si = 0; if (si > ilen) si = ilen; int avail = ilen - si; int max_from = (len < 0) ? flen : (len < flen ? len : flen); int p2 = max_from < avail ? max_from : avail; char* r = xb_alloc((size_t)ilen); memcpy(r, into, (size_t)si); memcpy(r + si, from, (size_t)p2); memcpy(r + si + p2, into + si + p2, (size_t)(ilen - si - p2)); return r; }"
 PRINT "static char* xb_version(int _) { (void)_; return xb_from_cstr(xb_version_str); }"
+PRINT "static double xb_xxx_f2xm1(double x) { return exp2(x) - 1.0; }"
+PRINT "static double xb_xxx_fabs(double x) { return fabs(x); }"
+PRINT "static double xb_xxx_fchs(double x) { return -x; }"
+PRINT "static double xb_xxx_fclex(void) { return 0.0; }"
+PRINT "static double xb_xxx_fcos(double x) { return cos(x); }"
+PRINT "static double xb_xxx_fetox(double x) { return exp(x); }"
+PRINT "static double xb_xxx_finit(void) { return 0.0; }"
+PRINT "static double xb_xxx_fld1(void) { return 1.0; }"
+PRINT "static double xb_xxx_fldl2e(void) { return M_LOG2E; }"
+PRINT "static double xb_xxx_fldl2t(void) { return log2(10.0); }"
+PRINT "static double xb_xxx_fldlg2(void) { return log10(2.0); }"
+PRINT "static double xb_xxx_fldln2(void) { return M_LN2; }"
+PRINT "static double xb_xxx_fldpi(void) { return M_PI; }"
+PRINT "static double xb_xxx_fldz(void) { return 0.0; }"
+PRINT "static double xb_xxx_fpatan(double x, double *y) { return atan2(*y, x); }"
+PRINT "static double xb_xxx_fprem(double x, double *y) { return fmod(x, *y); }"
+PRINT "static double xb_xxx_fprem1(double x, double *y) { return remainder(x, *y); }"
+PRINT "static double xb_xxx_fptan(double x, double *y) { *y = 1.0; return tan(x); }"
+PRINT "static double xb_xxx_frndint(double x) { return round(x); }"
+PRINT "static double xb_xxx_fscale(double x, double y) { return ldexp(x, (int)y); }"
+PRINT "static double xb_xxx_fsin(double x) { return sin(x); }"
+PRINT "static double xb_xxx_fsincos(double x, double *y) { *y = cos(x); return sin(x); }"
+PRINT "static double xb_xxx_fsqrt(double x) { return sqrt(x); }"
+PRINT "static double xb_xxx_fstcw(void) { return 0.0; }"
+PRINT "static double xb_xxx_fstsw(void) { return 0.0; }"
+PRINT "static double xb_xxx_ftentox(double x) { return pow(10.0, x); }"
+PRINT "static double xb_xxx_fxtract(double x, double *y) { int e; double m = frexp(x, &e); *y = (double)e; return m; }"
+PRINT "static double xb_xxx_fyl2x(double x, double *y) { return *y * log2(x); }"
+PRINT "static double xb_xxx_fyl2xp1(double x, double *y) { return *y * log2(x + 1.0); }"
+PRINT "static double xb_xxx_fytox(double x) { return pow(2.0, x); }"
 PRINT "static int xb_data_int[256]; static double xb_data_float[256]; static char* xb_data_str[256]; static int xb_data_tag[256]; static int xb_data_count = 0; static int xb_data_pos = 0;"
 PRINT "static void xb_data_add_int(int v) { xb_data_tag[xb_data_count] = 0; xb_data_int[xb_data_count] = v; xb_data_count++; }"
 PRINT "static void xb_data_add_float(double v) { xb_data_tag[xb_data_count] = 1; xb_data_float[xb_data_count] = v; xb_data_count++; }"
@@ -2280,6 +2310,66 @@ FUNCTION c_func_name$(n$)
     c_func_name$ = "xb_gui_next_callback"
   ELSEIF n$ = "XgrProcessMessages" THEN
     c_func_name$ = "xb_xgr_process_messages"
+  ELSEIF n$ = "XxxF2XM1" THEN
+    c_func_name$ = "xb_xxx_f2xm1"
+  ELSEIF n$ = "XxxFABS" THEN
+    c_func_name$ = "xb_xxx_fabs"
+  ELSEIF n$ = "XxxFCHS" THEN
+    c_func_name$ = "xb_xxx_fchs"
+  ELSEIF n$ = "XxxFCLEX" THEN
+    c_func_name$ = "xb_xxx_fclex"
+  ELSEIF n$ = "XxxFCOS" THEN
+    c_func_name$ = "xb_xxx_fcos"
+  ELSEIF n$ = "XxxFETOX" THEN
+    c_func_name$ = "xb_xxx_fetox"
+  ELSEIF n$ = "XxxFINIT" THEN
+    c_func_name$ = "xb_xxx_finit"
+  ELSEIF n$ = "XxxFLD1" THEN
+    c_func_name$ = "xb_xxx_fld1"
+  ELSEIF n$ = "XxxFLDL2E" THEN
+    c_func_name$ = "xb_xxx_fldl2e"
+  ELSEIF n$ = "XxxFLDL2T" THEN
+    c_func_name$ = "xb_xxx_fldl2t"
+  ELSEIF n$ = "XxxFLDLG2" THEN
+    c_func_name$ = "xb_xxx_fldlg2"
+  ELSEIF n$ = "XxxFLDLN2" THEN
+    c_func_name$ = "xb_xxx_fldln2"
+  ELSEIF n$ = "XxxFLDPI" THEN
+    c_func_name$ = "xb_xxx_fldpi"
+  ELSEIF n$ = "XxxFLDZ" THEN
+    c_func_name$ = "xb_xxx_fldz"
+  ELSEIF n$ = "XxxFPATAN" THEN
+    c_func_name$ = "xb_xxx_fpatan"
+  ELSEIF n$ = "XxxFPREM" THEN
+    c_func_name$ = "xb_xxx_fprem"
+  ELSEIF n$ = "XxxFPREM1" THEN
+    c_func_name$ = "xb_xxx_fprem1"
+  ELSEIF n$ = "XxxFPTAN" THEN
+    c_func_name$ = "xb_xxx_fptan"
+  ELSEIF n$ = "XxxFRNDINT" THEN
+    c_func_name$ = "xb_xxx_frndint"
+  ELSEIF n$ = "XxxFSCALE" THEN
+    c_func_name$ = "xb_xxx_fscale"
+  ELSEIF n$ = "XxxFSIN" THEN
+    c_func_name$ = "xb_xxx_fsin"
+  ELSEIF n$ = "XxxFSINCOS" THEN
+    c_func_name$ = "xb_xxx_fsincos"
+  ELSEIF n$ = "XxxFSQRT" THEN
+    c_func_name$ = "xb_xxx_fsqrt"
+  ELSEIF n$ = "XxxFSTCW" THEN
+    c_func_name$ = "xb_xxx_fstcw"
+  ELSEIF n$ = "XxxFSTSW" THEN
+    c_func_name$ = "xb_xxx_fstsw"
+  ELSEIF n$ = "XxxFTENTOX" THEN
+    c_func_name$ = "xb_xxx_ftentox"
+  ELSEIF n$ = "XxxFXTRACT" THEN
+    c_func_name$ = "xb_xxx_fxtract"
+  ELSEIF n$ = "XxxFYL2X" THEN
+    c_func_name$ = "xb_xxx_fyl2x"
+  ELSEIF n$ = "XxxFYL2XP1" THEN
+    c_func_name$ = "xb_xxx_fyl2xp1"
+  ELSEIF n$ = "XxxFYTOX" THEN
+    c_func_name$ = "xb_xxx_fytox"
   ELSE
     c_func_name$ = "xb_user_" + n$
   END IF

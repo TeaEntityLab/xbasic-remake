@@ -65,4 +65,36 @@ pub(crate) fn emit_math_functions(out: &mut String) {
     out.push_str(
         "static char* xb_version(int _) { (void)_; return xb_from_cstr(xb_version_str); }\n",
     );
+    // x87 FPU instruction wrappers (XxxF* in xma.x). These are EXTERNAL FUNCTION
+    // declarations with empty bodies; the CEmitter maps call sites to these helpers.
+    out.push_str("static double xb_xxx_f2xm1(double x) { return exp2(x) - 1.0; }\n");
+    out.push_str("static double xb_xxx_fabs(double x) { return fabs(x); }\n");
+    out.push_str("static double xb_xxx_fchs(double x) { return -x; }\n");
+    out.push_str("static double xb_xxx_fclex(void) { return 0.0; }\n");
+    out.push_str("static double xb_xxx_fcos(double x) { return cos(x); }\n");
+    out.push_str("static double xb_xxx_fetox(double x) { return exp(x); }\n");
+    out.push_str("static double xb_xxx_finit(void) { return 0.0; }\n");
+    out.push_str("static double xb_xxx_fld1(void) { return 1.0; }\n");
+    out.push_str("static double xb_xxx_fldl2e(void) { return M_LOG2E; }\n");
+    out.push_str("static double xb_xxx_fldl2t(void) { return log2(10.0); }\n");
+    out.push_str("static double xb_xxx_fldlg2(void) { return log10(2.0); }\n");
+    out.push_str("static double xb_xxx_fldln2(void) { return M_LN2; }\n");
+    out.push_str("static double xb_xxx_fldpi(void) { return M_PI; }\n");
+    out.push_str("static double xb_xxx_fldz(void) { return 0.0; }\n");
+    out.push_str("static double xb_xxx_fpatan(double x, double *y) { return atan2(*y, x); }\n");
+    out.push_str("static double xb_xxx_fprem(double x, double *y) { return fmod(x, *y); }\n");
+    out.push_str("static double xb_xxx_fprem1(double x, double *y) { return remainder(x, *y); }\n");
+    out.push_str("static double xb_xxx_fptan(double x, double *y) { *y = 1.0; return tan(x); }\n");
+    out.push_str("static double xb_xxx_frndint(double x) { return round(x); }\n");
+    out.push_str("static double xb_xxx_fscale(double x, double y) { return ldexp(x, (int)y); }\n");
+    out.push_str("static double xb_xxx_fsin(double x) { return sin(x); }\n");
+    out.push_str("static double xb_xxx_fsincos(double x, double *y) { *y = cos(x); return sin(x); }\n");
+    out.push_str("static double xb_xxx_fsqrt(double x) { return sqrt(x); }\n");
+    out.push_str("static double xb_xxx_fstcw(void) { return 0.0; }\n");
+    out.push_str("static double xb_xxx_fstsw(void) { return 0.0; }\n");
+    out.push_str("static double xb_xxx_ftentox(double x) { return pow(10.0, x); }\n");
+    out.push_str("static double xb_xxx_fxtract(double x, double *y) { int e; double m = frexp(x, &e); *y = (double)e; return m; }\n");
+    out.push_str("static double xb_xxx_fyl2x(double x, double *y) { return *y * log2(x); }\n");
+    out.push_str("static double xb_xxx_fyl2xp1(double x, double *y) { return *y * log2(x + 1.0); }\n");
+    out.push_str("static double xb_xxx_fytox(double x) { return pow(2.0, x); }\n");
 }

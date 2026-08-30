@@ -128,6 +128,7 @@ double xb_user_ACSC(double v);
 double xb_user_ACSCH(double v);
 double xb_user_ASEC(double v);
 double xb_user_ASECH(double v);
+double xb_user_COT(double a);
 double xb_user_COTH(double v);
 double xb_user_CSC(double a);
 double xb_user_CSCH(double v);
@@ -135,7 +136,6 @@ double xb_user_SEC(double a);
 double xb_user_SECH(double v);
 double xb_user_LOG(double v);
 char* xb_user_XmaVersion(void);
-
 static int fails = 0;
 
 static void check_d(const char* name, double got, double want) {
@@ -236,8 +236,12 @@ int main(void) {
     check_d("ASIN(0.5)", xb_user_ASIN(0.5), M_PI / 6.0);
     /* ACOS(0.5) = PI/3 — PIDIV2 - ASIN(0.5) */
     check_d("ACOS(0.5)", xb_user_ACOS(0.5), M_PI / 3.0);
+    /* COT(PI/4) = 1/tan(PI/4) = 1.0 — uses XxxFPTAN FPU wrapper → tan() */
+    check_d("COT(M_PI/4)", xb_user_COT(M_PI / 4.0), 1.0);
+    /* COT(PI/6) = 1/tan(PI/6) = sqrt(3) ≈ 1.732 — FPU wrapper path */
+    check_d("COT(M_PI/6)", xb_user_COT(M_PI / 6.0), sqrt(3.0));
 
-    printf("\n%d checks, %d failures\n", 40, fails);
+    printf("\n%d checks, %d failures\n", 42, fails);
     return fails;
 }
 "#).unwrap();
@@ -297,6 +301,8 @@ int main(void) {
     assert!(stdout.contains("ATANH(0.5)"), "missing ATANH(0.5) check in output");
     assert!(stdout.contains("ASIN(0.5)"), "missing ASIN(0.5) check in output");
     assert!(stdout.contains("ACOS(0.5)"), "missing ACOS(0.5) check in output");
+    assert!(stdout.contains("COT(M_PI/4)"), "missing COT(M_PI/4) check in output");
+    assert!(stdout.contains("COT(M_PI/6)"), "missing COT(M_PI/6) check in output");
 }
 
 #[test]
