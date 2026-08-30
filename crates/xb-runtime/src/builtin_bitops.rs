@@ -26,12 +26,12 @@ fn extract_width_offset(args: &[RuntimeValue]) -> (u32, u32) {
         let RuntimeValue::Integer(o) = &args[2] else {
             return (0, 0);
         };
-        (*w as u32, *o as u32)
+        ((*w as u32).min(32), (*o as u32).min(31))
     } else {
         let RuntimeValue::Integer(bs) = &args[1] else {
             return (0, 0);
         };
-        ((*bs as u32 >> 8) & 0xFF, *bs as u32 & 0xFF)
+        (((*bs as u32 >> 8) & 0xFF).min(32), (*bs as u32 & 0xFF).min(31))
     }
 }
 
@@ -54,7 +54,7 @@ pub(crate) fn eval_exts(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeEr
     let (w, o) = extract_width_offset(args);
     let mask = if w >= 32 { 0xFFFFFFFF } else { (1u32 << w) - 1 };
     let bits = (*v as u32 >> o) & mask;
-    if bits & (1 << (w - 1)) != 0 && w < 32 {
+    if w > 0 && w < 32 && bits & (1 << (w - 1)) != 0 {
         Ok(RuntimeValue::Integer((bits | !mask) as i32))
     } else {
         Ok(RuntimeValue::Integer(bits as i32))

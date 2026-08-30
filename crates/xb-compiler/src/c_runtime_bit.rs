@@ -11,11 +11,11 @@ pub(crate) fn emit_bit_reinterp_runtime(out: &mut String) {
 
 pub(crate) fn emit_bit_ops_runtime(out: &mut String) {
     out.push_str("static int xb_bitfield(int w, int o) { return (w << 8) | o; }\n");
-    out.push_str("static int xb_exts(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); unsigned bits = ((unsigned)v >> o) & mask; if (w<32 && (bits & (1u<<(w-1)))) bits |= ~mask; return (int)bits; }\n");
-    out.push_str("static int xb_extu(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)(((unsigned)v >> o) & mask); }\n");
-    out.push_str("static int xb_clr(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)((unsigned)v & ~(mask << o)); }\n");
-    out.push_str("static int xb_set(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)((unsigned)v | (mask << o)); }\n");
-    out.push_str("static int xb_make(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)(((unsigned)v & mask) << o); }\n");
+    out.push_str("static int xb_exts(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } if(w<0) w=0; if(w>32) w=32; if(o<0||o>31) o=0; unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); unsigned bits = ((unsigned)v >> o) & mask; if(w>0 && w<32 && (bits & (1u<<(w-1)))) bits |= ~mask; return (int)bits; }\n");
+    out.push_str("static int xb_extu(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } if(w<0) w=0; if(w>32) w=32; if(o<0||o>31) o=0; unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)(((unsigned)v >> o) & mask); }\n");
+    out.push_str("static int xb_clr(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } if(w<0) w=0; if(w>32) w=32; if(o<0||o>31) o=0; unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)((unsigned)v & ~(mask << o)); }\n");
+    out.push_str("static int xb_set(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } if(w<0) w=0; if(w>32) w=32; if(o<0||o>31) o=0; unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)((unsigned)v | (mask << o)); }\n");
+    out.push_str("static int xb_make(int v, int a, int b) { int w,o; if (b==-99999) { w=(a>>8)&0xFF; o=a&0xFF; } else { w=a; o=b; } if(w<0) w=0; if(w>32) w=32; if(o<0||o>31) o=0; unsigned mask = (w>=32)?0xFFFFFFFF:((1u<<w)-1); return (int)(((unsigned)v & mask) << o); }\n");
     out.push_str("static int xb_high0(int v) { unsigned b = ~(unsigned)v; int i; for (i=31; i>=0; i--) if (b & (1u<<i)) return i; return 0; }\n");
     out.push_str("static int xb_high1(int v) { unsigned b = (unsigned)v; int i; for (i=31; i>=0; i--) if (b & (1u<<i)) return i; return 0; }\n");
     out.push_str("static int xb_ghigh(int64_t v) { return (int)(v >> 32); }\n");
