@@ -87,14 +87,14 @@ pub(crate) fn emit_format_runtime(out: &mut String) {
     out.push_str("  char fill = star_fill ? '*' : (zero_fill ? '0' : ' ');\n");
     out.push_str("  int commas = has_commas ? (orig_int_len - 1) / 3 : 0;\n");
     out.push_str("  int pad = int_digits > (orig_int_len + commas) ? int_digits - (orig_int_len + commas) : 0;\n");
-    out.push_str("  for (int p = 0; p < pad; p++) r[pos++] = fill;\n");
-    out.push_str("  if (has_commas) { for (int i = 0; i < orig_int_len; i++) { if (i > 0 && (orig_int_len - i) % 3 == 0) r[pos++] = ','; r[pos++] = numbuf[i]; } }\n");
-    out.push_str("  else { memcpy(r + pos, numbuf, orig_int_len); pos += orig_int_len; }\n");
-    out.push_str("  if (dot) { r[pos++] = '.'; int flen = (int)strlen(dot + 1); memcpy(r + pos, dot + 1, flen); pos += flen; }\n");
-    out.push_str("  if (paren_neg && neg) r[pos++] = ')';\n");
-    out.push_str("  else if (trailing_plus) r[pos++] = neg ? '-' : '+';\n");
-    out.push_str("  else if (trailing_minus && neg) r[pos++] = '-';\n");
-    out.push_str("  r[pos] = 0; return xb_from_cstr(r);\n}\n");
+    out.push_str("  for (int p = 0; p < pad && pos < 127; p++) r[pos++] = fill;\n");
+    out.push_str("  if (has_commas) { for (int i = 0; i < orig_int_len && pos < 127; i++) { if (i > 0 && (orig_int_len - i) % 3 == 0) r[pos++] = ','; r[pos++] = numbuf[i]; } }\n");
+    out.push_str("  else { int cpy = orig_int_len; if (pos + cpy > 127) cpy = 127 - pos; memcpy(r + pos, numbuf, (size_t)cpy); pos += cpy; }\n");
+    out.push_str("  if (dot && pos < 127) { r[pos++] = '.'; int flen = (int)strlen(dot + 1); if (pos + flen > 127) flen = 127 - pos; if (flen > 0) memcpy(r + pos, dot + 1, (size_t)flen); pos += flen; }\n");
+    out.push_str("  if (paren_neg && neg && pos < 127) r[pos++] = ')';\n");
+    out.push_str("  else if (trailing_plus && pos < 127) r[pos++] = neg ? '-' : '+';\n");
+    out.push_str("  else if (trailing_minus && neg && pos < 127) r[pos++] = '-';\n");
+    out.push_str("  if (pos > 127) pos = 127; r[pos] = 0; return xb_from_cstr(r);\n}\n");
     out.push_str("static int xb_shell(const char* cmd) { if (!cmd || !getenv(\"XB_ALLOW_SHELL\")) return -1; return system(cmd); }\n");
     out.push_str("static int xb_library(int n) { return 0; }\n");
 }
