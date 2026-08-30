@@ -252,14 +252,14 @@ pub(crate) fn exec_items(
                 if let Some(slot) = state.slots.get_mut(&target.name) {
                     if let Some(off) = slot.array_offset(&idxs) {
                         slot.array_set(off, v)?;
-                    } else if grow {
+                    } else if grow && idxs[0] < (1 << 20) {
                         slot.array_reshape(vec![idxs[0] + 1]);
                         slot.array_set(idxs[0], v)?;
                     }
                 } else if let Some(slot) = state.shared.get_mut(&target.name) {
                     if let Some(off) = slot.array_offset(&idxs) {
                         slot.array_set(off, v)?;
-                    } else if grow {
+                    } else if grow && idxs[0] < (1 << 20) {
                         slot.array_reshape(vec![idxs[0] + 1]);
                         slot.array_set(idxs[0], v)?;
                     }
