@@ -61,24 +61,6 @@ fn cc() -> &'static str {
         .leak()
 }
 
-/// Compile a single .x library through the Rust CEmitter into a .c file.
-fn emit_c(lib_path: &std::path::Path, out: &std::path::Path, weak: bool) -> PathBuf {
-    let stem = lib_path.file_stem().unwrap().to_str().unwrap();
-    let c_file = out.join(format!("{stem}.c"));
-    let mut cmd = Command::new(xb_bin());
-    cmd.arg("--emit-c").arg(lib_path);
-    if weak {
-        cmd.env("XB_WEAK_SYMBOLS", "1");
-    }
-    let output = cmd.output().expect("emit-c");
-    assert!(
-        output.status.success(),
-        "emit-c failed for {lib_path:?}:\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    fs::write(&c_file, &output.stdout).unwrap();
-    c_file
-}
 
 /// Compile a .c file to a .o object file.
 fn compile_c(c_file: &std::path::Path, out: &std::path::Path) -> PathBuf {
@@ -115,7 +97,24 @@ fn xst_stateful_library_behavior() {
     let xst_src = root.join("xbasic-6.4.5/src/linux/xst.x");
     assert!(xst_src.exists(), "xst.x not found at {xst_src:?}");
 
-    let xst_c = emit_c(&xst_src, &tmp, true);
+    let xst_c = {
+        let stem = xst_src.file_stem().unwrap().to_str().unwrap();
+        let c_file = tmp.join(format!("{stem}.c"));
+        let output = Command::new(xb_bin())
+            .arg("--emit-c")
+            .arg(&xst_src)
+            .env("XB_WEAK_SYMBOLS", "1")
+            .env("XB_BYREF_HINTS", "XstSystemExceptionToException:0,1")
+            .output()
+            .expect("emit-c");
+        assert!(
+            output.status.success(),
+            "emit-c failed for xst.x:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fs::write(&c_file, &output.stdout).unwrap();
+        c_file
+    };
     let xst_o = compile_c(&xst_c, &tmp);
 
     // Write a C test harness that calls the compiled legacy bodies.
@@ -154,6 +153,13 @@ intptr_t xb_user_XstGetApplicationEnvironment(intptr_t *xb_var_standalone_ref, i
 /* XstExceptionToSystemException: byref int — maps exception→signal.
    Called with @sysException inside XstCauseException. */
 intptr_t xb_user_XstExceptionToSystemException(intptr_t xb_var_exception, intptr_t *xb_var_sysException_ref);
+/* XstSystemExceptionToException: byref int — maps POSIX signal→XBasic exception.
+   Never called inside xst.x; XB_BYREF_HINTS env var marks exception as byref.
+   Constants: $$SIGNONE=0,$$SIGHUP=1,$$SIGINT=2,$$SIGILL=4,$$SIGTRAP=5,
+   $$SIGABRT=6,$$SIGBUS=7,$$SIGFPE=8,$$SIGSEGV=11,$$SIGSTKFLT=16,$$SIGVTALRM=26.
+   Exceptions: None=0,SegViol=1,Breakpoint=3,BreakKey=4,Alignment=5,
+   InvalidOp=8,InvalidInstr=12,StackOverflow=14,Timer=16,Unknown=17. */
+intptr_t xb_user_XstSystemExceptionToException(intptr_t xb_var_signal, intptr_t *xb_var_exception_ref);
 /* XstSystemErrorToError: byref int — maps system error number to XBasic error.
    UBOUND(#OSERROR$[]) returns -1 (uninitialized SHARED array), so upper=-1.
    Any sysError >= 0 triggers sysError > upper → error = (24<<8)|3 = 6147. */
@@ -281,6 +287,36 @@ int main(void) {
     check_i("ExcToSys(StackOverflow)", sig, 11);
     xb_user_XstExceptionToSystemException(99, &sig); /* CASE ELSE → SIGSEGV(11) */
     check_i("ExcToSys(unknown)", sig, 11);
+    /* XstSystemExceptionToException: byref int — maps POSIX signals to
+       XBasic exceptions (reverse of XstExceptionToSystemException).
+       Never called inside xst.x; XB_BYREF_HINTS marks exception as byref. */
+    long exc;
+    xb_user_XstSystemExceptionToException(0, &exc);   /* SIGNONE → ExceptionNone(0) */
+    check_i("SysExcToExc(SIGNONE)", exc, 0);
+    xb_user_XstSystemExceptionToException(1, &exc);   /* SIGHUP → ExceptionUnknown(17) */
+    check_i("SysExcToExc(SIGHUP)", exc, 17);
+    xb_user_XstSystemExceptionToException(2, &exc);   /* SIGINT → ExceptionBreakKey(4) */
+    check_i("SysExcToExc(SIGINT)", exc, 4);
+    xb_user_XstSystemExceptionToException(4, &exc);   /* SIGILL → ExceptionInvalidInstruction(12) */
+    check_i("SysExcToExc(SIGILL)", exc, 12);
+    xb_user_XstSystemExceptionToException(5, &exc);   /* SIGTRAP → ExceptionBreakpoint(3) */
+    check_i("SysExcToExc(SIGTRAP)", exc, 3);
+    xb_user_XstSystemExceptionToException(6, &exc);   /* SIGABRT → ExceptionBreakKey(4) */
+    check_i("SysExcToExc(SIGABRT)", exc, 4);
+    xb_user_XstSystemExceptionToException(7, &exc);   /* SIGBUS → ExceptionAlignment(5) */
+    check_i("SysExcToExc(SIGBUS)", exc, 5);
+    xb_user_XstSystemExceptionToException(8, &exc);   /* SIGFPE → ExceptionInvalidOperation(8) */
+    check_i("SysExcToExc(SIGFPE)", exc, 8);
+    xb_user_XstSystemExceptionToException(11, &exc);  /* SIGSEGV → ExceptionSegmentViolation(1) */
+    check_i("SysExcToExc(SIGSEGV)", exc, 1);
+    xb_user_XstSystemExceptionToException(14, &exc);  /* SIGALRM → ExceptionTimer(16) */
+    check_i("SysExcToExc(SIGALRM)", exc, 16);
+    xb_user_XstSystemExceptionToException(16, &exc);  /* SIGSTKFLT → ExceptionStackOverflow(14) */
+    check_i("SysExcToExc(SIGSTKFLT)", exc, 14);
+    xb_user_XstSystemExceptionToException(26, &exc);  /* SIGVTALRM → ExceptionTimer(16) */
+    check_i("SysExcToExc(SIGVTALRM)", exc, 16);
+    xb_user_XstSystemExceptionToException(99, &exc);  /* CASE ELSE → ExceptionUnknown(17) */
+    check_i("SysExcToExc(unknown)", exc, 17);
     /* XstSystemErrorToError: byref int — upper=UBOUND(#OSERROR$[])=-1.
        sysError=0: 0 > -1 → error = (24<<8)|3 = 6147.
        sysError=5: 5 > -1 → error = 6147. */
@@ -436,7 +472,7 @@ int main(void) {
        Writes xb_strdup(prog$) to xb_shared_sysProgram. */
     xb_user_XstSetProgramName(xb_str("MyApp"));
     check_s("XstSetProgramName(MyApp)", xb_shared_sysProgram, "MyApp");
-    printf("\n%d checks, %d failures\n", 73, fails);
+    printf("\n%d checks, %d failures\n", 86, fails);
     return fails;
 }
 "#).unwrap();

@@ -159,6 +159,27 @@ fn set_defined_funcs(program: &IrProgram) {
         for (name, states) in seen {
             m.insert(name, states.iter().map(|(br, bv)| *br && !*bv).collect());
         }
+        // Fallback for functions with NO callsites in the compiled unit:
+        // check XB_BYREF_HINTS env var for explicit byref overrides.
+        // Format: "Func1:0,1;Func2:2" meaning Func1 params 0,1 are byref,
+        // Func2 param 2 is byref. Used by behavior tests to test functions
+        // that are never called with @ inside their own library.
+        if let Ok(hints) = std::env::var("XB_BYREF_HINTS") {
+            for entry in hints.split(';') {
+                let parts: Vec<&str> = entry.splitn(2, ':').collect();
+                if parts.len() != 2 {
+                    continue;
+                }
+                let fname = parts[0];
+                let positions: Vec<bool> = parts[1]
+                    .split(',')
+                    .map(|s| s.trim() == "1")
+                    .collect();
+                if !m.contains_key(fname) {
+                    m.insert(fname.to_string(), positions);
+                }
+            }
+        }
     });
     FUNC_IDS.with(|s| {
         let mut ids = s.borrow_mut();
@@ -757,6 +778,7 @@ fn collect_callsite_byref(items: &[IrItem], m: &mut HashMap<String, Vec<(bool, b
         }
     }
 }
+
 
 /// Declared param types of a user-defined function, or `None` for builtins /
 /// unknown names (whose call sites are emitted as-is / stubbed).
