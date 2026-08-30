@@ -103,9 +103,6 @@ fn xst_stateful_library_behavior() {
             .arg("--emit-c")
             .arg(&xst_src)
             .env("XB_WEAK_SYMBOLS", "1")
-            // XstDecomposePathname's DECLARE in xst.x omits @ on output params
-            // (source bug); all other functions now use DECLARE @ markers.
-            .env("XB_BYREF_HINTS", "XstDecomposePathname:0,1,1,1,1,1")
             .output()
             .expect("emit-c");
         assert!(
