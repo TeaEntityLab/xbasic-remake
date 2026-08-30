@@ -552,7 +552,7 @@ fn docs_headline_claims_are_recorded_at_named_surfaces() {
         (
             "docs/17",
             &d17,
-            "**GTK/helpsrc remain\n> parse/lower-only.**",
+            "GTK demos and three helpsrc programs now have a compile-clean guard",
         ),
         ("docs/17", &d17, "LICENSE-BOUNDARY"),
         ("docs/17", &d17, "ATTACH-IMPL"),
@@ -3717,6 +3717,80 @@ fn cemitter_and_cgen_agree_on_do_loop_until() {
     assert_eq!(
         self_out, interp_out,
         "cgen.x mishandled DO ... LOOP UNTIL/WHILE"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// LEGACY-CORPUS-COMPILE-COVERAGE: verify that the 19 GTK demos and 3 helpsrc
+/// programs — previously only parse/lower-tested by `legacy_corpus` — compile
+/// clean through the Rust CEmitter. This locks the compile inventory so no
+/// every-legacy-source claim can regress without a test failure.
+#[test]
+fn cemitter_compiles_gtk_and_helpsrc_clean() {
+    let tmp = std::env::temp_dir().join("xb_sync_gtk_helpsrc_cc");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let r = root();
+    let dirs = [
+        r.join("xbasic-6.4.5/demo/gtk"),
+        r.join("xbasic-6.4.5/src/helpsrc/help_program"),
+    ];
+    let mut files: Vec<PathBuf> = Vec::new();
+    for dir in &dirs {
+        for entry in fs::read_dir(dir).expect("read_dir") {
+            let path = entry.expect("dir entry").path();
+            if path.extension().and_then(|e| e.to_str()) == Some("x") {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    assert!(
+        files.len() >= 22,
+        "expected >=22 GTK+helpsrc .x files, found {}",
+        files.len()
+    );
+    let mut failures: Vec<String> = Vec::new();
+    for path in &files {
+        let stem = path.file_stem().unwrap().to_str().unwrap();
+        let src = fs::read_to_string(path).expect("read .x");
+        let prog = match FrontendUnit::parse(&src) {
+            Ok(u) => match u.lower_ir() {
+                Ok(p) => p,
+                Err(e) => {
+                    failures.push(format!("{stem}: lower failed: {e:?}"));
+                    continue;
+                }
+            },
+            Err(e) => {
+                failures.push(format!("{stem}: parse failed: {e:?}"));
+                continue;
+            }
+        };
+        let c = CEmitter::new().emit_program(&prog);
+        let c_path = tmp.join(format!("{stem}.c"));
+        fs::write(&c_path, &c).expect("write c");
+        let cc = Command::new(common::cc::cc())
+            .args([
+                "-fsyntax-only",
+                "-Wno-int-conversion",
+                "-Wno-incompatible-pointer-types",
+                "-Wno-c23-extensions",
+                c_path.to_str().unwrap(),
+            ])
+            .output()
+            .expect("run cc");
+        if !cc.status.success() {
+            failures.push(format!(
+                "{stem}: cc failed: {}",
+                String::from_utf8_lossy(&cc.stderr)
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} GTK/helpsrc compile failure(s):\n{}",
+        failures.len(),
+        failures.join("\n")
     );
     let _ = fs::remove_dir_all(&tmp);
 }

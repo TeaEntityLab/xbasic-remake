@@ -204,10 +204,10 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > CI regression-locks the 114 top-level demos, the 13 XBSourceLib programs, and
 > compile/link of all 15 core libraries. `multi_lib_integration` executes seven
 > `Version$` calls only; it does not execute every library implementation.
-> `legacy_corpus` recursively parse/lowers the wider `.x` inventory, but the 19
-> GTK demos and three helpsrc programs have no cc/link/run guard. The
-> **274/0 across 33 binaries** result from 2026-08-26 is historical; the top
-> banner is authoritative for the current \*\*285/0\*\* workspace state.
+> `legacy_corpus` recursively parse/lowers the wider `.x` inventory. The 19
+> GTK demos and three helpsrc programs now have a compile-clean guard
+> (`cemitter_compiles_gtk_and_helpsrc_clean`); they are not behavior-tested.
+> The **285/0 across 34 binaries** is the current workspace state.
 ### cgen.x demos: raw 114/114 guard (RR-13 done 2026-08-30)
 
 > The cgen.x compile guard (`cgen_x_compiles_all_demos_cc_clean`) is now a
@@ -428,7 +428,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~CGEN-DEMO-RAW-GATE~~ | self-hosted cgen.x + tests | ✅ **done (RR-13, 2026-08-30)** — `cgen_x_compiles_all_demos_cc_clean` is now a raw-generator contract. cgen.x handles Kittedy `found` and qbtoxb `TranslateStatement` internally; no post-emission C mutation. Raw 114/114 verified. | — |
 | ARY-COMPOSITE-DESCRIPTOR | frontend + Rust CEmitter | **DONE for compile 2026-08-29** — shared `ARY_VAR_DATA` member arrays now forward as `T*`; `xbsourcelib_ary_compiles_clean` compiles both ARY sources. The separate `xbsourcelib_interp_matches_compiled` loop covers 11 non-ARY programs and is not ARY runtime evidence. | runtime ARY awaits RR-06 plus a bounded behavior test |
 | ~~SHELL-CAPABILITY~~ | runtime + security | ✅ **done (RR-09, 2026-08-30)** — `xb_shell` checks `getenv("XB_ALLOW_SHELL")` before `system()`; `xb_xin_socket_open` checks `getenv("XB_ALLOW_NETWORK")` before `socket()`; interpreter SHELL handler gated. Both denied by default. `xin_sockets` tests set `XB_ALLOW_NETWORK=1`. | — |
-| LEGACY-CORPUS-COMPILE-COVERAGE | tests | 19 GTK demos + three helpsrc programs are parse/lower-only; docs previously overclaimed every `.x` was regression-locked | add explicit compile inventories before any every-legacy-source claim |
+| ~~LEGACY-CORPUS-COMPILE-COVERAGE~~ | tests | ✅ **done 2026-08-30** — `cemitter_compiles_gtk_and_helpsrc_clean` test locks compile inventory: all 19 GTK demos + 3 helpsrc programs compile clean through Rust CEmitter (cc -fsyntax-only). Previously only parse/lower-tested by `legacy_corpus`. | — |
 | ARY-STATUS-RECONCILIATION | tests + docs | Two-stage status: RR-02 is compile-only composite-descriptor repair. Runtime ARY copy-semantics now implemented (RR-06 done 2026-08-30) for known-dimension 2D arrays; dynamic 2nd-dim arrays still no-op. No bounded behavior run is locked yet. | require bounded ARY behavior evidence (including dynamic 2nd-dim arrays) before a runtime-faithful claim |
 
 ### Panel review 2026-08-27 — Candidate Adoption Ledger
@@ -503,7 +503,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~L5~~ | cgen.x nested-function and memory fixes | **done 2026-08-30 (`8fe02ce`)** | 15/15 core libs compile clean; former orphaned-body failures + xgr OOM resolved by `xb_append` cap + per-line scan improvements + string-typed facet skip | — |
 | L6 | Keep CGEN-FACET-MANIFEST as storage-work prerequisite only | partial | facets cannot fix EXTERNAL nesting or whole-string OOM | finish strDual/allStrArr before the next storage change |
 | L7 | Port order: xut/xcm first; xst and GUI libs not first | adopted | xst uses ATTACH/*AT/TYPE/ARGV and imports xma/xgr/xui | binding policy → xut/xcm → EXTERNAL/type fixes → remaining non-GUI → GUI last |
-| L8 | GTK/helpsrc coverage carve-out | adopted | only `legacy_corpus` parse/lowers them | compile inventory before expanding readiness claim |
+| ~~L8~~ | GTK/helpsrc coverage carve-out | **done 2026-08-30** | `cemitter_compiles_gtk_and_helpsrc_clean` test: 19 GTK + 3 helpsrc compile clean via Rust CEmitter | — |
 | L9 | Ary status changed from performance-only to contested | adopted | parity test comment conflicts with roadmap claims; ATTACH is a no-op | deterministic alias test + bounded run evidence |
 | L10 | Production readiness deferred | adopted | GUI-RUNTIME, ENTRY-SCAFFOLD, PACKAGING, portability remain open | revisit after a real windowed callback and `XxxMain` execution |
 | L11 | `xb_append` cap + `collect_append_chain` | **partial — landed 08fc0cb** | Two-word header `[len,cap]` (`malloc(2*sizeof(size_t)+n+1)`, `xb_len` via `[-2]`, `xb_cap` via `[-1]`) + `xb_append` O(1) amortized (cap check, doubling after 4096, `realloc` of 2-word header, NULL guard `if (!a) return xb_strdup(b)`, alias/empty-chain guards, deep `xb_strdup` for string Symbol copy to avoid dangling after `b$=a$`+`a$=a$+...`). `cgen_new` 154 appends + 139 strdups, `cgen_cap2` header correct. Evidence: `cgen` sync 60/60 88s (was 100s), `xcm` now cc OK (was FAIL missing xb_str), `xui` 16.6s (27.5s), `xit` 10.9s (14s), `xst` 2.1s (3.3s), `xcol` still **SIGKILL 46.4s** (was 54s), `xgr` **SIGABRT 3.4s** (was 6.8s) — throughput up but CGEN-LIB-SCALE not yet 15/15; CC fails remain for xdis/xin/xit/xrun/xst/xui (logic, not throughput) | finish xcol OOM (profile src$ vs scans; 45 GiB copy → 5M with cap but still 46s suggests scan or other string accumulations) + xgr abort (heap corruption via alias? deep copy fixed one path, but xgr still aborts after 110K); add `cgen_x_compiles_all_core_libs_cc_clean` guard (L17) to lock |
