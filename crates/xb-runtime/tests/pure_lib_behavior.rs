@@ -535,8 +535,12 @@ xb_scomplex xb_user_SCTANH(double z_R, double z_I);
 xb_scomplex xb_user_SCPOWERCC(double z_R, double z_I, double n_R, double n_I);
 xb_scomplex xb_user_SCPOWERCR(double z_R, double z_I, double n);
 xb_scomplex xb_user_SCPOWERRC(double z, double n_R, double n_I);
-    static int fails = 0;
+/* SINGLE-returning scalar functions (flatten to double like DCOMPLEX) */
+double xb_user_SCABS(double z_R, double z_I);
+double xb_user_SCARG(double z_R, double z_I);
+double xb_user_SCNORM(double z_R, double z_I);
 
+    static int fails = 0;
     static void check_s(const char* name, const char* got, const char* want) {
         int ok = got && strcmp(got, want) == 0;
         printf("%-20s = [%s]  (want [%s])  %s\n", name, got ? got : "(null)", want, ok ? "ok" : "FAIL");
@@ -575,7 +579,22 @@ xb_scomplex xb_user_SCPOWERRC(double z, double n_R, double n_I);
         check_d("DCARG(0,1)", xb_user_DCARG(0.0, 1.0), M_PI_2);
         /* DCNORM(3,4) = 25 — R^2 + I^2 = 9+16 = 25 */
         check_d("DCNORM(3,4)", xb_user_DCNORM(3.0, 4.0), 25.0);
-        /* DCCONJ(3,4) = (3,-4) — conjugate: R unchanged, I negated */
+        /* SCABS(3,4) = 5 — |z| = sqrt(R^2+I^2), same algorithm as DCABS but SINGLE return */
+        check_d("SCABS(3,4)", xb_user_SCABS(3.0, 4.0), 5.0);
+        /* SCABS(0,0) = 0 */
+        check_d("SCABS(0,0)", xb_user_SCABS(0.0, 0.0), 0.0);
+        /* SCABS(1,0) = 1 — x>0,y=0 → return x */
+        check_d("SCABS(1,0)", xb_user_SCABS(1.0, 0.0), 1.0);
+        /* SCARG(1,0) = 0 — Atan2(0,1) = 0 */
+        check_d("SCARG(1,0)", xb_user_SCARG(1.0, 0.0), 0.0);
+        /* SCARG(0,1) = PI/2 — Atan2(1,0) = PI/2 */
+        check_d("SCARG(0,1)", xb_user_SCARG(0.0, 1.0), M_PI_2);
+        /* SCARG(0,0) = 0 — special case: both zero → RETURN () (0) */
+        check_d("SCARG(0,0)", xb_user_SCARG(0.0, 0.0), 0.0);
+        /* SCNORM(3,4) = 25 — R^2 + I^2 = 9+16 = 25 */
+        check_d("SCNORM(3,4)", xb_user_SCNORM(3.0, 4.0), 25.0);
+        /* SCNORM(1,0) = 1 — R^2 + I^2 = 1+0 = 1 */
+        check_d("SCNORM(1,0)", xb_user_SCNORM(1.0, 0.0), 1.0);
         { xb_dcomplex _r = xb_user_DCCONJ(3.0, 4.0);
           check_d("DCCONJ(3,4).R", _r.R, 3.0);
           check_d("DCCONJ(3,4).I", _r.I, -4.0); }
@@ -735,7 +754,7 @@ xb_scomplex xb_user_SCPOWERRC(double z, double n_R, double n_I);
           check_d("SCPOWERRC(1,2,0).R", (double)_s.R, 1.0);
           check_d("SCPOWERRC(1,2,0).I", (double)_s.I, 0.0); }
 
-        printf("\n%d checks, %d failures\n", 91, fails);
+        printf("\n%d checks, %d failures\n", 100, fails);
         return fails;
     }
     "#).unwrap();
@@ -761,6 +780,10 @@ xb_scomplex xb_user_SCPOWERRC(double z, double n_R, double n_I);
     let stdout = String::from_utf8_lossy(&run.stdout);
     let stderr = String::from_utf8_lossy(&run.stderr);
 
+    assert!(stdout.contains("DCNORM(3,4)"), "missing DCNORM(3,4) check in output");
+    assert!(stdout.contains("SCABS(3,4)"), "missing SCABS(3,4) check in output");
+    assert!(stdout.contains("SCARG(0,1)"), "missing SCARG(0,1) check in output");
+    assert!(stdout.contains("SCNORM(3,4)"), "missing SCNORM(3,4) check in output");
     assert!(
         run.status.success(),
         "xcm behavior test failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
