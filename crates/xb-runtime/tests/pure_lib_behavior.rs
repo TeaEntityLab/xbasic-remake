@@ -340,6 +340,8 @@ xb_scomplex xb_user_SCCOS(double z_R, double z_I);
 xb_dcomplex xb_user_DCACOS(double z_R, double z_I);
 xb_dcomplex xb_user_DCASIN(double z_R, double z_I);
 xb_dcomplex xb_user_DCATAN(double z_R, double z_I);
+xb_dcomplex xb_user_DCPOWERCC(double z_R, double z_I, double n_R, double n_I);
+xb_dcomplex xb_user_DCPOWERRC(double z, double n_R, double n_I);
 
     static int fails = 0;
 
@@ -460,8 +462,18 @@ xb_dcomplex xb_user_DCATAN(double z_R, double z_I);
         { xb_dcomplex _r = xb_user_DCATAN(0.0, 0.0);
           check_d("DCATAN(0,0).R", _r.R, 0.0);
           check_d("DCATAN(0,0).I", _r.I, 0.0); }
+        /* DCPOWERCC(1,0, 2,0) = (1,0) — DCEXP(2*DCLOG(1,0))=DCEXP(2*(0,0))=DCEXP(0,0)=(1,0).
+           Tests composite return → complex multiply → composite param chain. */
+        { xb_dcomplex _r = xb_user_DCPOWERCC(1.0, 0.0, 2.0, 0.0);
+          check_d("DCPOWERCC(1,0,2,0).R", _r.R, 1.0);
+          check_d("DCPOWERCC(1,0,2,0).I", _r.I, 0.0); }
+        /* DCPOWERRC(1, 2,0) = (1,0) — DCEXP(DCRMUL((2,0), LOG(1)))=DCEXP(DCRMUL((2,0),0))=DCEXP(0,0)=(1,0).
+           Tests DOUBLE param + DCOMPLEX param → DCRMUL → DCEXP chain. */
+        { xb_dcomplex _r = xb_user_DCPOWERRC(1.0, 2.0, 0.0);
+          check_d("DCPOWERRC(1,2,0).R", _r.R, 1.0);
+          check_d("DCPOWERRC(1,2,0).I", _r.I, 0.0); }
 
-        printf("\n%d checks, %d failures\n", 51, fails);
+        printf("\n%d checks, %d failures\n", 55, fails);
         return fails;
     }
     "#).unwrap();
@@ -513,4 +525,6 @@ xb_dcomplex xb_user_DCATAN(double z_R, double z_I);
     assert!(stdout.contains("DCACOS(0,0).R"), "missing DCACOS(0,0).R check in output");
     assert!(stdout.contains("DCASIN(0,0).R"), "missing DCASIN(0,0).R check in output");
     assert!(stdout.contains("DCATAN(0,0).R"), "missing DCATAN(0,0).R check in output");
+    assert!(stdout.contains("DCPOWERCC(1,0,2,0).R"), "missing DCPOWERCC(1,0,2,0).R check in output");
+    assert!(stdout.contains("DCPOWERRC(1,2,0).R"), "missing DCPOWERRC(1,2,0).R check in output");
 }
