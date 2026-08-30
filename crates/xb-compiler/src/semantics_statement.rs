@@ -413,7 +413,7 @@ impl Analyzer {
     pub(crate) fn attach_stmt(
         &self,
         left_name: &str,
-        left_suffix: Option<TypeSuffix>,
+        _left_suffix: Option<TypeSuffix>,
         left_indices: &[Expression],
         left_is_row: bool,
         right_name: &str,

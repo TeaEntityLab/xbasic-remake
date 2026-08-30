@@ -353,49 +353,58 @@ pub(crate) fn call_function(
             return Ok(RuntimeValue::Integer(code));
         }
         "LIBRARY" => return Ok(RuntimeValue::Integer(0)),
-        "XstStringToNumber" => return xst_string_to_number(program, args, state, output),
-        "XstBackStringToBinString$" => {
-            let s = match eval(program, &args[0], state, output)? {
-                RuntimeValue::String(bytes) => bytes,
-                other => other.render().into_bytes(),
-            };
-            return Ok(RuntimeValue::String(crate::xst::back_to_bin(&s)));
-        }
-        "XstQuickSort" => return xst_quicksort(program, args, state, output),
-        "XstCopyArray" => return xst_copyarray(program, args, state, output),
-        "XuiGetNextCallback" if args.len() >= 2 => {
-            return gui_next_callback(args, state);
-        }
-        "GetStdHandle" if args.len() == 1 => {
-            // RT-KERNEL32: Win32-CGI stdio handles. -10 stdin, -11 stdout,
-            // -12 stderr; anything else is invalid (-1).
-            let dev = match eval(program, &args[0], state, output)? {
-                RuntimeValue::Integer(v) => v,
-                other => other.render().parse::<i32>().unwrap_or(0),
-            };
-            let h = match dev {
-                -10 => 0,
-                -11 => 1,
-                -12 => 2,
-                _ => -1,
-            };
-            return Ok(RuntimeValue::Integer(h));
-        }
-        "WriteFile" if args.len() == 5 => {
-            return kernel32_write_file(program, args, state, output);
-        }
-        "ReadFile" if args.len() == 5 => {
-            return kernel32_read_file(program, args, state, output);
-        }
-        "XgrProcessMessages" => {
-            // Headless: the real Xgr library processes GUI events and dispatches
-            // callbacks; without it the demo would hang forever in its event loop.
-            // Terminate immediately (exit 0) so the demo's output (produced before
-            // the loop) is flushed and becomes differential-testable. Mirrors the
-            // C backend's `xb_xgr_process_messages` which calls `exit(0)`.
-            return Err(RuntimeError::Quit { code: 0 });
-        }
         _ => {}
+    }
+    // RR-07: Native helper shadows. If the function is user-defined in the
+    // current program, prefer the compiled legacy body over the native helper.
+    // This enables behavior-port testing (RR-08a/RR-08b) by ensuring compiled
+    // legacy bodies are exercised, not native shadows.
+    if find_function(program, name).is_err() {
+        match name {
+            "XstStringToNumber" => return xst_string_to_number(program, args, state, output),
+            "XstBackStringToBinString$" => {
+                let s = match eval(program, &args[0], state, output)? {
+                    RuntimeValue::String(bytes) => bytes,
+                    other => other.render().into_bytes(),
+                };
+                return Ok(RuntimeValue::String(crate::xst::back_to_bin(&s)));
+            }
+            "XstQuickSort" => return xst_quicksort(program, args, state, output),
+            "XstCopyArray" => return xst_copyarray(program, args, state, output),
+            "XuiGetNextCallback" if args.len() >= 2 => {
+                return gui_next_callback(args, state);
+            }
+            "GetStdHandle" if args.len() == 1 => {
+                // RT-KERNEL32: Win32-CGI stdio handles. -10 stdin, -11 stdout,
+                // -12 stderr; anything else is invalid (-1).
+                let dev = match eval(program, &args[0], state, output)? {
+                    RuntimeValue::Integer(v) => v,
+                    other => other.render().parse::<i32>().unwrap_or(0),
+                };
+                let h = match dev {
+                    -10 => 0,
+                    -11 => 1,
+                    -12 => 2,
+                    _ => -1,
+                };
+                return Ok(RuntimeValue::Integer(h));
+            }
+            "WriteFile" if args.len() == 5 => {
+                return kernel32_write_file(program, args, state, output);
+            }
+            "ReadFile" if args.len() == 5 => {
+                return kernel32_read_file(program, args, state, output);
+            }
+            "XgrProcessMessages" => {
+                // Headless: the real Xgr library processes GUI events and dispatches
+                // callbacks; without it the demo would hang forever in its event loop.
+                // Terminate immediately (exit 0) so the demo's output (produced before
+                // the loop) is flushed and becomes differential-testable. Mirrors the
+                // C backend's `xb_xgr_process_messages` which calls `exit(0)`.
+                return Err(RuntimeError::Quit { code: 0 });
+            }
+            _ => {}
+        }
     }
     if is_builtin(name) {
         let mut vals = Vec::with_capacity(args.len());

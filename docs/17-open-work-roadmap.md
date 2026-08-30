@@ -8,10 +8,10 @@
 > Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
 > (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
 
-> Last full re-verification: **2026-08-30** (`7980b0e`: xcol/xgr/xst
-> real code errors fixed; all 5 failing libs now
-> `-Wint-conversion`-only). The last full workspace run reports
-> **282 passed / 0 failed across 33 binaries**. In
+> Last full re-verification: **2026-08-30** (RR-07 binding policy: user-defined
+> functions take precedence over native helpers in interpreter + C emitter;
+> sync 61/61, positive corpus 80/80, demo regression 27/27). The last full
+> workspace run reports **282 passed / 0 failed across 33 binaries**. In
 > `xbsourcelib_parity.rs`, `xbsourcelib_interp_matches_compiled` covers 11
 > non-ARY programs; the separate compile-only
 > `xbsourcelib_ary_compiles_clean` covers the two ARY sources.
@@ -53,7 +53,9 @@
 > `ary`/`ary1.0001` compile guard, previously failing on the composite
 > `ARY_VAR_DATA` descriptor, now compiles both sources cc-clean in
 > `xbsourcelib_ary_compiles_clean`; neither source is executed by that test.
-> Runtime remains blocked on `ATTACH` and a bounded behavior gate.
+> Runtime behavior gates (RR-08a/RR-08b) are unblocked: `ATTACH` copy-semantics
+> runtime is done (RR-06), and user-defined functions now take precedence over
+> native helpers (RR-07 binding policy) in both interpreter and C emitter.
 > Recent: **expression-context side effects** now reach output — a
 > general interpreter `eval` bug (a function called in expression position
 > discarded its output sink) that flipped `XBMerge` (RT-ARGS) + unmasked/fixed
@@ -159,7 +161,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | **done** | **~~RR-03 scoped facets~~ done 2026-08-30 (`8fe02ce`)** | 15/15 core libs compile clean via self-hosted cgen.x (xui/xin/xit/xst fixed) |
 | **done** | **~~RR-05 xcol/xgr scale~~ done 2026-08-30 (`8fe02ce`)** | xcol/xgr no longer OOM/signal; 15/15 locked |
 | **done** | **~~RR-06 ATTACH~~ copy-semantics runtime (2026-08-30)** | 5 ATTACH patterns in interpreter + Rust CEmitter; per-dim size vars at 2D DIM; guarded no-op for dynamic 2nd-dim; sync 61/61, demo regression 27/27 |
-| behavior adoption | **RR-07 binding policy → RR-08a pure libs / RR-08b stateful libs** | tests prove compiled legacy bodies, not native shadows/stubs; RR-08b also requires RR-06 |
+| **done** | **~~RR-07 binding policy~~ done 2026-08-30** | user-defined functions take precedence over native helpers in both interpreter and C emitter; `find_function` check before native dispatch (interp), `is_defined_func` guard before native helper interception (C emitter); sync 61/61, positive corpus 80/80, demo regression 27/27 |
 | safe execution | **~~RR-09 SHELL/network capabilities~~ done 2026-08-30** | `XB_ALLOW_SHELL`/`XB_ALLOW_NETWORK` env vars gate `xb_shell`/`xb_xin_socket_open`; denied by default |
 | pre-distribution | **RR-10 harness hardening + RR-11 provenance/licensing** | reproducible clean harness, duplicate report, complete distribution obligations |
 | trigger-gated | **RR-12 GUI/LLVM/JIT/Cranelift reassessment** | reconsider only after the runtime-behavior critical path or a compatibility requirement |
@@ -577,7 +579,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | RR-04 | Split cgen failure classes | **adopted as tracking** | four C errors vs two signal/resource exits | keep separate assertions/results; not a blocking implementation phase |
 | ~~RR-05~~ | Bound and fix xcol/xgr generation | **done 2026-08-30 (`8fe02ce`)** — xcol/xgr no longer OOM/signal; 15/15 core libs compile clean via `emit_program_with_facets` + `-Wno-` flags; `xb_append` cap + per-line scan improvements (`08fc0cb`) resolved resource exits | — |
 | ~~RR-06~~ | Implement `ATTACH` alias semantics | **done 2026-08-30** — copy-semantics in interpreter + Rust CEmitter; 5 ATTACH patterns (row↔1D, whole, element↔scalar); per-dim size vars at 2D DIM time; guarded no-op for dynamic 2nd-dim and type-punned | bounded ARY behavior test for dynamic 2nd-dim arrays |
-| RR-07 | Decide native-vs-legacy binding authority | **adopted** | native shadowing and emit-time default folding | one unshadowed cross-TU contract before behavior claims |
+| ~~RR-07~~ | Decide native-vs-legacy binding authority | **done 2026-08-30** — user-defined functions take precedence over native helpers in both interpreter (`call.rs`: `find_function` check before native helper dispatch) and C emitter (`c_emit_expr.rs`/`c_emit_stmt.rs`: `is_defined_func` guard before native helper interception). Native helpers (`XstStringToNumber`, `XstQuickSort`, `XstCopyArray`, `XstBackStringToBinString$`, `XuiGetNextCallback`, `GetStdHandle`, `WriteFile`, `ReadFile`, `XgrProcessMessages`, `Xin*`) only shadow when the function is NOT user-defined. Real builtins (`READLINE$`, `INLINE$`, `QUIT`, `SHELL`, `LIBRARY`, `EOF`, `VERSION$`, `PROGRAM$`, `OPEN`) always intercept. Gates: sync 61/61, positive corpus 80/80, demo regression 27/27 | unblocks RR-08a/RR-08b behavior gates |
 | RR-08a | Behavior gates for pure libraries | **adopted after RR-07** | Version-only smoke | deterministic non-stub xut/xcm/xma/xdis body calls |
 | RR-08b | Behavior gates for stateful libraries | **adopted after RR-06/RR-07** | ATTACH and binding ambiguity | non-stub xst/xui/xgr/xcol/xit tests; bounded ARY evidence |
 | RR-09 | SHELL/network capability gates | **done 2026-08-30** | `xb_shell` checks `XB_ALLOW_SHELL`; `xb_xin_socket_open` checks `XB_ALLOW_NETWORK`; interpreter SHELL gated; xin_sockets tests set env vars | — |

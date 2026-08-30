@@ -687,19 +687,20 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             }
         }
         IrItem::Call { name, args } => {
-            if name == "XstQuickSort" && args.len() == 5 {
+            let is_user_defined = crate::c_emit::is_defined_func(name);
+            if !is_user_defined && name == "XstQuickSort" && args.len() == 5 {
                 out.push_str(&ind);
                 crate::c_emit_expr::emit_quicksort_call(args, out);
                 out.push_str(";\n");
                 return;
             }
-            if name == "XstCopyArray" && args.len() == 2 {
+            if !is_user_defined && name == "XstCopyArray" && args.len() == 2 {
                 out.push_str(&ind);
                 crate::c_emit_expr::emit_copyarray_call(args, out);
                 out.push_str(";\n");
                 return;
             }
-            if name == "XgrProcessMessages" {
+            if !is_user_defined && name == "XgrProcessMessages" {
                 // Headless: terminate immediately (exit 0) instead of hanging in
                 // the event loop. Mirrors the interp's Quit { code: 0 }.
                 out.push_str(&ind);
@@ -712,7 +713,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 out.push_str(");\n");
                 return;
             }
-            if name == "WriteFile" && args.len() == 5 {
+            if !is_user_defined && name == "WriteFile" && args.len() == 5 {
                 out.push_str(&ind);
                 crate::c_emit_expr::emit_expr(
                     &crate::ir::IrExpr {
@@ -727,7 +728,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 out.push_str(";\n");
                 return;
             }
-            if name == "ReadFile" && args.len() == 5 {
+            if !is_user_defined && name == "ReadFile" && args.len() == 5 {
                 out.push_str(&ind);
                 crate::c_emit_expr::emit_expr(
                     &crate::ir::IrExpr {

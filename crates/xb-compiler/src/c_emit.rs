@@ -236,6 +236,13 @@ fn set_defined_funcs(program: &IrProgram) {
     });
 }
 
+/// Check if a function is user-defined in the current translation unit.
+/// Used by RR-07 binding policy: native helpers only shadow when the
+/// function is NOT user-defined, so compiled legacy bodies take precedence.
+pub(crate) fn is_defined_func(name: &str) -> bool {
+    DEFINED_FUNCS.with(|s| s.borrow().contains(name))
+}
+
 /// Recursively collect module-shared array names (`Dim { shared, is_array }`,
 /// i.e. `SHARED a[]`) → element type, across function bodies and nested blocks.
 fn collect_shared_arrays(items: &[IrItem], out: &mut HashMap<String, crate::ValueType>) {

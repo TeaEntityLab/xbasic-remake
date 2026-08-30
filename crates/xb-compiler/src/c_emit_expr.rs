@@ -235,6 +235,9 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
         }
         IrExprKind::Logical { .. } => crate::c_emit_logical::emit_logical(expr, out),
         IrExprKind::FunctionCall { name, args } => {
+            // RR-07: If a function is user-defined, prefer the compiled legacy
+            // body over native helper shadows. This enables behavior-port testing.
+            let is_user_defined = crate::c_emit::is_defined_func(name);
             if name == "CHR$" {
                 if args.len() == 1 {
                     out.push_str("xb_chr");
@@ -353,8 +356,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                     emit_expr(arg, out);
                 }
                 out.push(')');
-            } else if name == "XstStringToNumber" && args.len() == 5 {
-                // By-ref builtin (mirrors interp xst.rs / call.rs): the last
+            } else if !is_user_defined && name == "XstStringToNumber" && args.len() == 5 {
                 // three args are `@`-out-params written through pointers.
                 out.push_str("xb_xst_str_to_num(");
                 emit_byref_value(&args[0], out);
@@ -367,7 +369,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(", ");
                 emit_byref_addr(&args[4], out);
                 out.push(')');
-            } else if name == "XuiGetNextCallback" && args.len() >= 2 {
+            } else if !is_user_defined && name == "XuiGetNextCallback" && args.len() >= 2 {
                 // Headless: deliver one synthetic CloseWindow (sets @grid+@message$),
                 // then FALSE — terminates the demo's message loop (mirrors interp).
                 out.push_str("xb_gui_next_callback(");
@@ -375,13 +377,13 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(", ");
                 emit_byref_addr(&args[1], out);
                 out.push(')');
-            } else if name == "GetStdHandle" && args.len() == 1 {
+            } else if !is_user_defined && name == "GetStdHandle" && args.len() == 1 {
                 // RT-KERNEL32: Win32-CGI stdio handles (-10 stdin, -11 stdout,
                 // -12 stderr; else -1). Mirrors interp call.rs.
                 out.push_str("xb_getstdhandle(");
                 emit_expr(&args[0], out);
                 out.push(')');
-            } else if name == "WriteFile" && args.len() == 5 {
+            } else if !is_user_defined && name == "WriteFile" && args.len() == 5 {
                 // RT-KERNEL32 `WriteFile(h, &buf$, bytes, &written, _)`: the
                 // legacy `&x` prefix lowers to a PLAIN symbol (no byref), so
                 // the buffer passes as its char* value and the count out-param
@@ -395,7 +397,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(", ");
                 emit_byref_addr(&args[3], out);
                 out.push_str(", 0)");
-            } else if name == "ReadFile" && args.len() == 5 {
+            } else if !is_user_defined && name == "ReadFile" && args.len() == 5 {
                 // RT-KERNEL32 `ReadFile(h, &buf$, bytes, &read, _)`: the buffer
                 // is replaced through its char** address (helper xb_allocs the
                 // exact byte count read).
@@ -408,11 +410,11 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push_str(", ");
                 emit_byref_addr(&args[3], out);
                 out.push_str(", 0)");
-            } else if name == "XstQuickSort" && args.len() == 5 {
+            } else if !is_user_defined && name == "XstQuickSort" && args.len() == 5 {
                 emit_quicksort_call(args, out);
-            } else if name == "XstCopyArray" && args.len() == 2 {
+            } else if !is_user_defined && name == "XstCopyArray" && args.len() == 2 {
                 emit_copyarray_call(args, out);
-            } else if name == "XstBackStringToBinString$" && !args.is_empty() {
+            } else if !is_user_defined && name == "XstBackStringToBinString$" && !args.is_empty() {
                 // Pure string transform (mirrors interp xst::back_to_bin); the
                 // `@back$` arg is passed by value (the string).
                 out.push_str("xb_back_to_bin(");
@@ -459,7 +461,7 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push('(');
                 emit_expr(&args[0], out);
                 out.push_str(", 0)");
-            } else if name.starts_with("Xin") && crate::c_emit_xin::emit_xin_call(name, args, out) {
+            } else if !is_user_defined && name.starts_with("Xin") && crate::c_emit_xin::emit_xin_call(name, args, out) {
                 // RT-XIN-SOCKETS: real BSD-socket lowering (C backend only;
                 // interp keeps zero-stubs — no raw-address memory model).
             } else if crate::c_emit::is_unknown_call(name) {
