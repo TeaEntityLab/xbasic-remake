@@ -223,7 +223,9 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     out.push_str(&id);
                     out.push_str(" + 1) * sizeof(*");
                     crate::c_emit::emit_array_var_name(symbol, out);
-                    out.push_str(")); for (intptr_t _i = _oldub + 1; _i <= xb_ub_");
+                    out.push_str(")); if (!");
+                    crate::c_emit::emit_array_var_name(symbol, out);
+                    out.push_str(") abort(); for (intptr_t _i = _oldub + 1; _i <= xb_ub_");
                     out.push_str(&id);
                     out.push_str("; _i++) ");
                     crate::c_emit::emit_array_var_name(symbol, out);
@@ -1056,7 +1058,9 @@ fn emit_descriptor_redim(symbol: &IrSymbol, sz: &IrExpr, redim: bool, ind: &str,
     out.push_str(&ub);
     out.push_str(" + 1) * sizeof(**");
     out.push_str(&dp);
-    out.push_str(")); for (intptr_t _i = ");
+    out.push_str(")); if (!*");
+    out.push_str(&dp);
+    out.push_str(") abort(); for (intptr_t _i = ");
     out.push_str(if redim { "_oldub + 1" } else { "0" });
     out.push_str("; _i <= *");
     out.push_str(&ub);
