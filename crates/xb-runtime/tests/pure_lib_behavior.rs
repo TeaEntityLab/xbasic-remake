@@ -312,6 +312,10 @@ fn xcm_pure_library_behavior() {
     /* Forward declarations for user-defined functions from xcm.x */
     char* xb_user_XcmVersion(void);
     double xb_user_Atan2(double y, double x);
+    /* DCOMPLEX params are flattened to .R, .I member slots */
+    double xb_user_DCABS(double z_R, double z_I);
+    double xb_user_DCARG(double z_R, double z_I);
+    double xb_user_DCNORM(double z_R, double z_I);
 
     static int fails = 0;
 
@@ -338,8 +342,18 @@ fn xcm_pure_library_behavior() {
         check_d("Atan2(1,1)", xb_user_Atan2(1.0, 1.0), M_PI_4);
         /* Atan2(1, 0) = PI/2 — x=0, y>0 → inv path: PI/2 - atan(0) = PI/2 */
         check_d("Atan2(1,0)", xb_user_Atan2(1.0, 0.0), M_PI_2);
+        /* DCABS(3,4) = 5 — |z| = sqrt(R^2 + I^2) = sqrt(9+16) = 5 */
+        check_d("DCABS(3,4)", xb_user_DCABS(3.0, 4.0), 5.0);
+        /* DCABS(0,0) = 0 */
+        check_d("DCABS(0,0)", xb_user_DCABS(0.0, 0.0), 0.0);
+        /* DCARG(1,0) = 0 — atan2(0,1) = 0 */
+        check_d("DCARG(1,0)", xb_user_DCARG(1.0, 0.0), 0.0);
+        /* DCARG(0,1) = PI/2 — atan2(1,0) = PI/2 */
+        check_d("DCARG(0,1)", xb_user_DCARG(0.0, 1.0), M_PI_2);
+        /* DCNORM(3,4) = 25 — R^2 + I^2 = 9+16 = 25 */
+        check_d("DCNORM(3,4)", xb_user_DCNORM(3.0, 4.0), 25.0);
 
-        printf("\n%d checks, %d failures\n", 4, fails);
+        printf("\n%d checks, %d failures\n", 9, fails);
         return fails;
     }
     "#).unwrap();
@@ -372,6 +386,7 @@ fn xcm_pure_library_behavior() {
 
     assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
     assert!(stdout.contains("Atan2(1,1)"), "missing Atan2(1,1) check in output");
-    assert!(stdout.contains("Atan2(1,0)"), "missing Atan2(1,0) check in output");
-    eprintln!("{stdout}");
+    assert!(stdout.contains("DCABS(3,4)"), "missing DCABS(3,4) check in output");
+    assert!(stdout.contains("DCARG(0,1)"), "missing DCARG(0,1) check in output");
+    assert!(stdout.contains("DCNORM(3,4)"), "missing DCNORM(3,4) check in output");
 }

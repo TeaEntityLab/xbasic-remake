@@ -111,6 +111,7 @@ impl Analyzer {
     }
 
     fn program(&mut self, program: &Program) -> Result<CheckedProgram, SemanticError> {
+        Self::register_builtin_composites(&mut self.composites);
         // Pre-scan: every `#name = value` target (SharedAssignment) in the
         // program, so single-`#` READS can resolve through the shared slot
         // regardless of statement order (the write may live in a later
@@ -237,6 +238,56 @@ impl Analyzer {
             CompositeLayout {
                 members: layout_members,
                 byte_len,
+            },
+        );
+    }
+
+    /// Register XBasic built-in composite types: DCOMPLEX (.R, .I — both DOUBLE)
+    /// and SCOMPLEX (.R, .I — both SINGLE/FLOAT). These are not declared with
+    /// TYPE0 in user code; they're language built-ins used by xcm.x.
+    fn register_builtin_composites(composites: &mut BTreeMap<String, CompositeLayout>) {
+        composites.insert(
+            "DCOMPLEX".to_string(),
+            CompositeLayout {
+                members: vec![
+                    CompositeMember {
+                        name: "R".to_string(),
+                        value_type: ValueType::Float,
+                        byte_size: 8,
+                        composite_type: None,
+                        funcaddr_params: Vec::new(),
+                    },
+                    CompositeMember {
+                        name: "I".to_string(),
+                        value_type: ValueType::Float,
+                        byte_size: 8,
+                        composite_type: None,
+                        funcaddr_params: Vec::new(),
+                    },
+                ],
+                byte_len: 16,
+            },
+        );
+        composites.insert(
+            "SCOMPLEX".to_string(),
+            CompositeLayout {
+                members: vec![
+                    CompositeMember {
+                        name: "R".to_string(),
+                        value_type: ValueType::Float,
+                        byte_size: 4,
+                        composite_type: None,
+                        funcaddr_params: Vec::new(),
+                    },
+                    CompositeMember {
+                        name: "I".to_string(),
+                        value_type: ValueType::Float,
+                        byte_size: 4,
+                        composite_type: None,
+                        funcaddr_params: Vec::new(),
+                    },
+                ],
+                byte_len: 8,
             },
         );
     }

@@ -34,7 +34,7 @@ impl Parser {
             tokens,
             index: 0,
             in_single_line_if: false,
-            composite_types: std::collections::HashSet::new(),
+            composite_types: ["DCOMPLEX", "SCOMPLEX"].into_iter().map(String::from).collect(),
         }
     }
 

@@ -61,8 +61,10 @@
 > Runtime behavior gates progressing: `ATTACH` copy-semantics runtime is done
 > (RR-06), user-defined functions take precedence over native helpers and
 > (xma.x: SINH/COSH/TANH/ACOS/ASIN(0)+ASIN(1)=PI/2/ATANH/LOG10(1)+LOG10(10)=1/XmaVersion$;
-> xut.x: XutInit; xcm.x: XcmVersion$+Atan2(0,1)=0+Atan2(1,1)=PI/4+Atan2(1,0)=PI/2
-> — DCOMPLEX/SCOMPLEX functions still blocked by composite-type emission),
+> xut.x: XutInit; xcm.x: XcmVersion$+Atan2(0,1)+Atan2(1,1)=PI/4+Atan2(1,0)=PI/2
+> +DCABS(3,4)=5+DCARG(0,1)=PI/2+DCNORM(3,4)=25
+> — DCOMPLEX-returning functions (DCCONJ, DCSIN, etc.) still blocked:
+> composite return type not yet emitted as struct),
 > RR-08b stateful-library behavior is done (xst.x: XstGetOSName/
 > XstGetConsoleGrid/XstVersion$/XstGetEndianName/XstGetCPUName).
 > CEmitter type inference fix: undeclared locals now infer Float from Float
@@ -74,6 +76,10 @@
 > Cross-file $$ constant resolution: CLI resolves IMPORTed libraries' `$$`
 > constants at compile time (e.g. xcm.x imports xma.x → `$$PI`/`$$PIDIV2`
 > available during C emission), unblocking xcm Atan2.
+> DCOMPLEX/SCOMPLEX built-in composite types: parser registers them as
+> built-in composite types, analyzer registers layouts (.R/.I members as
+> DOUBLE/FLOAT). DCOMPLEX params now flatten to `double z_R, double z_I`,
+> unblocking DCABS/DCARG/DCNORM (DOUBLE-returning functions with DCOMPLEX args).
 > Recent: **expression-context side effects** now reach output — a
 > general interpreter `eval` bug (a function called in expression position
 > discarded its output sink) that flipped `XBMerge` (RT-ARGS) + unmasked/fixed
