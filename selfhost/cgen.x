@@ -709,7 +709,7 @@ END IF
 ##scalarSeen$ = ""
 ##arrDimsSeen$ = ""
 ##fwdScalars$ = ""
-##curFnArrays$ = ""
+##curFnDimmed$ = ""
 ##curFnShapes$ = ""
 ##curParamTypes$ = ""
 ##arrParams$ = ""
@@ -1530,6 +1530,7 @@ WHILE pos <= LEN(src$)
           ##seenLabels$ = ""
           ##fwdScalars$ = ""
           ##curFnArrays$ = fn_array_dims$(src$, pos)
+          ##curFnDimmed$ = fn_all_dims$(src$, pos)
           ##qsIdxNames$ = ""
           ##curFnShapes$ = fn_array_shapes$(src$, pos)
           ##inFuncScope = 1
@@ -2661,7 +2662,11 @@ FUNCTION emit_expr$(e$)
     END IF
     ' Shared scalar: declared as xb_shared_X at file scope, not c_var_name$.
     ' Shared arrays are excluded (they use c_var_name$ at file scope too).
-    IF INSTR(##sharedDecls$, ":" + varName$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##sharedStrDual$, ":" + varName$ + ":") = 0 THEN
+    ' But if the IR type is string and the name has no $ suffix, the shared
+    ' declaration was integer (e.g., dim shared envp:integer used as
+    ' symbol(envp:string)). Use c_var_name$ to emit xb_str_X, matching
+    ' Rust CEmitter which declares a local char* in this case.
+    IF INSTR(##sharedDecls$, ":" + varName$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##sharedStrDual$, ":" + varName$ + ":") = 0 AND NOT (varType$ = "string" AND RIGHT$(varName$, 1) <> "$") THEN
       emit_expr$ = "xb_shared_" + sanitize_ident$(varName$)
       RETURN emit_expr$
     END IF
@@ -5004,6 +5009,51 @@ FUNCTION fn_array_dims$(s$, fromPos)
     END IF
   WEND
   fn_array_dims$ = res$
+END FUNCTION
+
+' All DIM'd variable names (scalars and arrays) in the current function.
+' Used by emit_expr$ to detect local string variables shadowing shared integers.
+FUNCTION fn_all_dims$(s$, fromPos)
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM depth
+  DIM r$
+  DIM nm$
+  DIM cp
+  res$ = ""
+  p = fromPos
+  depth = 1
+  WHILE p <= LEN(s$) AND depth > 0
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 9) = "function " THEN
+      depth = depth + 1
+    ELSEIF ln$ = "end function" THEN
+      depth = depth - 1
+    ELSEIF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
+      cp = INSTR(r$, ":")
+      IF cp > 0 THEN
+        nm$ = LEFT$(r$, cp - 1)
+      ELSE
+        nm$ = r$
+      END IF
+      IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+        res$ = res$ + ":" + nm$ + ":"
+      END IF
+    END IF
+  WEND
+  fn_all_dims$ = res$
 END FUNCTION
 
 ' Current-function multi-dimensional shapes as newline-delimited
@@ -7585,7 +7635,7 @@ FUNCTION emit_stmt$(s$)
     cExpr$ = emit_expr$(rest$)
     ##selectState = 1
     ##selectExpr$ = cExpr$
-    IF INSTR(rest$, ":string") > 0 OR INSTR(rest$, "$:") > 0 OR INSTR(rest$, "$,") > 0 OR INSTR(rest$, "$)") > 0 THEN
+    IF expr_type$(rest$) = "string" THEN
       ##selectIsString = 1
     ELSE
       ##selectIsString = 0
