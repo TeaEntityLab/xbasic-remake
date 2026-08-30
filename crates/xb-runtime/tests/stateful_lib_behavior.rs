@@ -104,7 +104,7 @@ fn xst_stateful_library_behavior() {
             .arg("--emit-c")
             .arg(&xst_src)
             .env("XB_WEAK_SYMBOLS", "1")
-            .env("XB_BYREF_HINTS", "XstSystemExceptionToException:0,1;XstGetNewline:1,1")
+            .env("XB_BYREF_HINTS", "XstSystemExceptionToException:0,1;XstGetNewline:1,1;XstGetException:1;XstGetExceptionFunction:1;XstGetProgramName:1")
             .output()
             .expect("emit-c");
         assert!(
@@ -215,6 +215,13 @@ intptr_t xb_user_XstMatchWild(char* xb_str_searchMe, char* xb_str_searchFor, int
    Never called inside xst.x; XB_BYREF_HINTS marks save,paste as byref.
    With ##WHOMASK=0, reads sys* vars; if 0, returns $$NewlineDefault=1. */
 void xb_user_XstGetNewline(intptr_t *xb_var_save_ref, intptr_t *xb_var_paste_ref);
+/* XstGetException: byref int — reads ##EXCEPTION SharedName.
+   XstGetExceptionFunction: byref int — reads SHARED exceptionFunction.
+   XstGetProgramName: byref string — reads sysProgram$ (##WHOMASK=0).
+   All never called inside xst.x; XB_BYREF_HINTS marks output as byref. */
+void xb_user_XstGetException(intptr_t *xb_var_exception_ref);
+void xb_user_XstGetExceptionFunction(intptr_t *xb_var_function_ref);
+void xb_user_XstGetProgramName(char* *xb_str_prog_ref);
 /* Weak globals set by the setter functions, readable from the harness. */
 extern __attribute__((weak)) intptr_t xb_shared_EXCEPTION;
 extern __attribute__((weak)) intptr_t xb_shared_TABSAT;
@@ -452,6 +459,12 @@ int main(void) {
     check_i("XstSetException(42)", xb_shared_EXCEPTION, 42);
     xb_user_XstSetException(0);
     check_i("XstSetException(0)", xb_shared_EXCEPTION, 0);
+    /* XstGetException: byref int — reads ##EXCEPTION set by XstSetException.
+       Round-trip: set 99, get 99, set 0, get 0. */
+    xb_user_XstSetException(99);
+    { long exc_val = -1; xb_user_XstGetException(&exc_val); check_i("XstGetException(99)", exc_val, 99); }
+    xb_user_XstSetException(0);
+    { long exc_val = -1; xb_user_XstGetException(&exc_val); check_i("XstGetException(0)", exc_val, 0); }
     /* XstSetPrintTab: sets ##TABSAT SharedName, clamped to >= 0. */
     xb_user_XstSetPrintTab(80);
     check_i("XstSetPrintTab(80)", xb_shared_TABSAT, 80);
@@ -462,6 +475,9 @@ int main(void) {
        single-var declaration, but the fix ensures it's registered). */
     xb_user_XstSetExceptionFunction(1234);
     check_i("XstSetExceptionFunction(1234)", xb_shared_exceptionFunction, 1234);
+    /* XstGetExceptionFunction: byref int — reads SHARED exceptionFunction
+       set by XstSetExceptionFunction. Round-trip verification. */
+    { long func_val = -1; xb_user_XstGetExceptionFunction(&func_val); check_i("XstGetExceptionFunction", func_val, 1234); }
     /* XstSetNewline: sets sysSaveNewline/sysPasteNewline via SHARED comma
        declaration (SHARED sysSaveNewline, sysPasteNewline). ##WHOMASK=0
        by default, so the sys path is taken. $$NewlineDefault = 1. */
@@ -512,7 +528,10 @@ int main(void) {
        Writes xb_strdup(prog$) to xb_shared_sysProgram. */
     xb_user_XstSetProgramName(xb_str("MyApp"));
     check_s("XstSetProgramName(MyApp)", xb_shared_sysProgram, "MyApp");
-    printf("\n%d checks, %d failures\n", 100, fails);
+    /* XstGetProgramName: byref string — reads sysProgram$ set by
+       XstSetProgramName. ##WHOMASK=0 → sys path. Round-trip verification. */
+    { char* prog = (char*)0; xb_user_XstGetProgramName(&prog); check_s("XstGetProgramName", prog, "MyApp"); }
+    printf("\n%d checks, %d failures\n", 105, fails);
     return fails;
 }
 "#).unwrap();
