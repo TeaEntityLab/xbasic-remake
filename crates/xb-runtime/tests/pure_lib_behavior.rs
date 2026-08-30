@@ -160,12 +160,12 @@ int main(void) {
     check_d("ATANH(0.0)", xb_user_ATANH(0.0), 0.0);
     /* LOG10(1) = 0 — xma's LOG returns 0 for v=1, LOG10 returns LOG(1)*LOG10E = 0 */
     check_d("LOG10(1.0)", xb_user_LOG10(1.0), 0.0);
-    /* LOG10(10) excluded: LOG's full path uses XBasic bit-field extraction
-       (`exp = upper {11, 20}`) to get the IEEE 754 exponent. The CEmitter
-       emits this as `exp = 0`, producing wrong results. Separate CEmitter
-       limitation from type inference — not fixed by the type inference fix. */
+    /* LOG10(10) = 1 — LOG's full path uses bit-field extraction (`upper {11, 20}`)
+       to get the IEEE 754 exponent. The CEmitter now lowers this to
+       `xb_extu(upper, 11, 20)` (previously emitted as `exp = 0`). */
+    check_d("LOG10(10.0)", xb_user_LOG10(10.0), 1.0);
 
-    printf("\n%d checks, %d failures\n", 11, fails);
+    printf("\n%d checks, %d failures\n", 12, fails);
     return fails;
 }
 "#).unwrap();
@@ -206,8 +206,7 @@ int main(void) {
     assert!(stdout.contains("ACOS(0.0)"), "missing ACOS check in output");
     assert!(stdout.contains("ASIN(1.0)"), "missing ASIN(1.0) check in output");
     assert!(stdout.contains("ATANH(0.0)"), "missing ATANH check in output");
-    assert!(stdout.contains("LOG10(1.0)"), "missing LOG10 check in output");
-    eprintln!("{stdout}");
+    assert!(stdout.contains("LOG10(10.0)"), "missing LOG10(10.0) check in output");
 }
 
 #[test]

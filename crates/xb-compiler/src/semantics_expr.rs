@@ -816,18 +816,22 @@ impl Analyzer {
     /// name is a known non-function, non-array symbol, lower to `EXTU`.
     /// Array 1-arg FORTRAN index is handled earlier; 2-arg array stays a call.
     fn scalar_bitfield_call(&self, name: &str, args: &[Expression]) -> Option<ExprResult> {
-        // Disabled for xit dispatch regression: `func(dispatch[i,1])` (indirect
-        // call via `func` variable) was mis-identified as `EXTU(func,
-        // dispatch[i,1])` and then emitted as `EXTU(dispatch[i,1])` with wrong
-        // arity (xit 1 error). The scalar bitfield is only needed for
-        // `curByte{...}` byte-field extractions; disable until a more precise
-        // check (e.g. arg is constant bitfield spec, not array_access) is added.
-        let _ = (name, args);
-        return None;
+        // `upper {11, 20}` parses as a call `upper(11, 20)`. When the name is
+        // a known non-function, non-array scalar and ALL args are integer
+        // literals (constant bitfield specs), lower to `EXTU(name, args…)`.
+        // The all-integer-literal check avoids the xit dispatch regression where
+        // `func(dispatch[i,1])` (indirect call via func variable with an array
+        // access arg) was mis-identified as a bitfield extract.
         if !(1..=2).contains(&args.len()) {
             return None;
         }
         if self.arrays.contains_key(name) || self.functions.contains_key(name) {
+            return None;
+        }
+        // All args must be integer literals — a bitfield spec like `{11, 20}`
+        // or `{$MODE}`. Non-constant args (array access, identifier, etc.) mean
+        // this is a real function call, not a bitfield extract.
+        if !args.iter().all(|a| matches!(a, Expression::IntegerLiteral(_))) {
             return None;
         }
         let is_scalar = self.symbols.contains_key(name)
