@@ -186,12 +186,23 @@ pub(crate) fn emit_header(out: &mut String) {
         memcpy(best, r, (size_t)rn); bestn = rn; bestexp = rexp;
         if (rt == v) break;
     }
-    int point = bestexp + 1; char* o = out; if (neg) *o++ = '-';
-    if (point <= 0) { *o++ = '0'; *o++ = '.'; for (int i = 0; i < -point; i++) *o++ = '0'; for (int i = 0; i < bestn; i++) *o++ = best[i]; }
-    else if (point >= bestn) { for (int i = 0; i < bestn; i++) *o++ = best[i]; for (int i = 0; i < point - bestn; i++) *o++ = '0'; }
-    else { for (int i = 0; i < point; i++) *o++ = best[i]; *o++ = '.'; for (int i = point; i < bestn; i++) *o++ = best[i]; }
-    *o = 0;
-}
+"#,
+    );
+    out.push_str(
+        "    int point = bestexp + 1; char* o = out; char* oend = out + outn - 1; if (oend < out) oend = out; if (neg && o < oend) *o++ = '-';\n",
+    );
+    out.push_str(
+        "    if (point <= 0) { if (o < oend) *o++ = '0'; if (o < oend) *o++ = '.'; for (int i = 0; i < -point && o < oend; i++) *o++ = '0'; for (int i = 0; i < bestn && o < oend; i++) *o++ = best[i]; }\n",
+    );
+    out.push_str(
+        "    else if (point >= bestn) { for (int i = 0; i < bestn && o < oend; i++) *o++ = best[i]; for (int i = 0; i < point - bestn && o < oend; i++) *o++ = '0'; }\n",
+    );
+    out.push_str(
+        "    else { for (int i = 0; i < point && o < oend; i++) *o++ = best[i]; if (o < oend) *o++ = '.'; for (int i = point; i < bestn && o < oend; i++) *o++ = best[i]; }\n",
+    );
+    out.push_str("    *o = 0;\n");
+    out.push_str(
+        r#"}
 "#,
     );
     out.push_str(
