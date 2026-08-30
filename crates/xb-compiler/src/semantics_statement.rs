@@ -425,7 +425,7 @@ impl Analyzer {
     /// Lower `ATTACH src TO dst` — array row aliasing (copy semantics).
     /// `ATTACH A TO B` copies B's data into A (A becomes a copy of B's view).
     /// `ATTACH A[] TO B[i,]` copies row i of 2D array B into 1D array A.
-    /// `ATTACH B[i,] TO A[]` copies 1D array A back into row i of 2D array B.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn attach_stmt(
         &self,
         left_name: &str,

@@ -157,7 +157,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                         out.push_str(&ind);
                         out.push_str("intptr_t xb_dim_");
                         out.push_str(&ident);
-                        out.push_str("_");
+                        out.push('_');
                         out.push_str(&(di + 1).to_string());
                         out.push_str(" = ");
                         crate::c_emit_expr::emit_expr(ed, out);
@@ -418,7 +418,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                         | crate::ir::IrExprKind::SharedVariable(_) => {
                             out.push_str("xb_strdup(");
                             emit_expr(value, out);
-                            out.push_str(")");
+                            out.push(')');
                         }
                         _ => emit_expr(value, out),
                     }
@@ -580,7 +580,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                         | crate::ir::IrExprKind::SharedVariable(_) => {
                             out.push_str("xb_strdup(");
                             emit_expr(value, out);
-                            out.push_str(")");
+                            out.push(')');
                         }
                         _ => emit_expr(value, out),
                     }

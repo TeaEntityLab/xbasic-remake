@@ -150,8 +150,8 @@ pub(crate) fn eval_chr_search(
     let set_bytes: Vec<u8> = set.iter().map(|&b| fold(b)).collect();
     let start_idx = (start as usize).saturating_sub(1);
     if forward {
-        for i in start_idx..chars.len() {
-            if set_bytes.contains(&chars[i]) {
+        for (i, &c) in chars.iter().enumerate().skip(start_idx) {
+            if set_bytes.contains(&c) {
                 return Ok(RuntimeValue::Integer((i + 1) as i32));
             }
         }

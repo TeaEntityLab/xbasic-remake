@@ -137,8 +137,8 @@ pub(crate) fn emit_xin_call(name: &str, args: &[IrExpr], out: &mut String) -> bo
     for kind in kinds.iter().skip(args.len()) {
         out.push_str(", ");
         match kind {
-            ArgKind::Addr => out.push_str("0"),
-            _ => out.push_str("0"),
+            ArgKind::Addr => out.push('0'),
+            _ => out.push('0'),
         }
     }
     out.push(')');

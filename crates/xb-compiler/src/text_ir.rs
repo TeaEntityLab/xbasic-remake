@@ -177,7 +177,7 @@ impl TextIrEmitter {
                     continue;
                 }
                 // Member of a shared composite array is shared storage.
-                let storage = if scope == "*" { "shared" } else { "shared" };
+                let storage = "shared";
                 out.push(format!(
                     "facet {}:{} scope={} storage={} rank=2 dual=0 shared",
                     mname,

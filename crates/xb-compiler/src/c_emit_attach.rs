@@ -12,7 +12,7 @@ use crate::c_emit_expr::emit_expr;
 use crate::ir::{IrExpr, IrSymbol};
 use crate::checked::ValueType;
 
-/// Emit C code for an ATTACH statement (copy semantics).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_attach(
     left: &IrSymbol,
     left_indices: &[IrExpr],
@@ -27,7 +27,7 @@ pub(crate) fn emit_attach(
     // Copy row i of dst into src, set src ubound to row size (if dynamic).
     if !left_is_row && right_is_row && left_indices.is_empty() && right_indices.len() == 1 {
         // Only emit copy code if the 2D array has known dimensions.
-        if array_dims(&right.name).map_or(false, |d| d.len() >= 2) {
+        if array_dims(&right.name).is_some_and(|d| d.len() >= 2) {
             let dst_ident = array_ident(&right.name);
             out.push_str(ind);
             out.push_str("memcpy(");
@@ -59,7 +59,7 @@ pub(crate) fn emit_attach(
     // Case 2: ATTACH dst[i,] TO src[]  (left=2D row, right=1D whole)
     // Copy src back into row i of dst.
     if left_is_row && !right_is_row && left_indices.len() == 1 && right_indices.is_empty() {
-        if array_dims(&left.name).map_or(false, |d| d.len() >= 2) {
+        if array_dims(&left.name).is_some_and(|d| d.len() >= 2) {
             let dst_ident = array_ident(&left.name);
             out.push_str(ind);
             out.push_str("memcpy(&");
@@ -81,7 +81,7 @@ pub(crate) fn emit_attach(
                 emit_array_var_name(right, out);
                 out.push_str(") / sizeof(*");
                 emit_array_var_name(right, out);
-                out.push_str(")");
+                out.push(')');
             }
             out.push_str(") * sizeof(*");
             emit_array_var_name(right, out);
@@ -167,8 +167,8 @@ pub(crate) fn emit_attach(
 
     // Case 5: ATTACH dst[k] TO src  (left=indexed element, right=scalar)
     // Copy scalar src into element k of dst. Only for same-type.
-    if !left_is_row && !right_is_row && left_indices.len() == 1 && right_indices.is_empty() {
-        if left.value_type == right.value_type {
+    if !left_is_row && !right_is_row && left_indices.len() == 1 && right_indices.is_empty()
+        && left.value_type == right.value_type {
             out.push_str(ind);
             emit_array_var_name(left, out);
             out.push('[');
@@ -184,8 +184,6 @@ pub(crate) fn emit_attach(
                 out.push_str(";\n");
             }
         }
-        return;
-    }
 
     // Fallback: no-op for unhandled patterns (e.g. 3D ATTACH, type-punning).
     // These are rare and will be handled as needed.

@@ -5,7 +5,7 @@ use crate::c_emit_helpers::{
 use crate::checked::ArithmeticOp;
 use crate::ir::{IrExpr, IrExprKind, IrSymbol};
 use crate::ValueType;
-
+#[allow(clippy::if_same_then_else)]
 pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
     match &expr.kind {
         IrExprKind::StringLiteral(v) => {

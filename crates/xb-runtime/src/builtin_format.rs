@@ -2,10 +2,10 @@ use crate::slot::{RuntimeError, RuntimeValue};
 use xb_compiler::ValueType;
 
 /// FORMAT$(format$, argument) — format a numeric or string argument.
-/// Numeric format spec: # digit positions, . decimal point, , commas,
-///   ^^^^ short exponent, ^^^^^ long exponent, $ leading dollar,
-///   * leading zeros with *, 0 leading zeros, + leading/trailing sign,
-///   - trailing minus, (###) negatives in parens, _ literal next char.
+/// Numeric format spec: `#` digit positions, `.` decimal point, `,` commas,
+/// `^^^^` short exponent, `^^^^^` long exponent, `$` leading dollar,
+/// `*` leading zeros with `*`, `0` leading zeros, `+` leading/trailing sign,
+/// `-` trailing minus, `(###)` negatives in parens, `_` literal next char.
 /// String format spec: & exact, < left justify, > right justify, | center.
 pub(crate) fn eval_format(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeError> {
     let RuntimeValue::String(fmt) = &args[0] else {

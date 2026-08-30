@@ -58,6 +58,7 @@ impl Analyzer {
         }
     }
 
+    #[allow(clippy::collapsible_match)]
     fn scan_stmt(s: &Statement, kinds: &mut BTreeMap<String, (bool, bool)>) {
         match s {
             Statement::Print { items, .. } => {

@@ -8,7 +8,7 @@
 use crate::eval::eval;
 use crate::slot::{ExecutionState, RuntimeError, RuntimeValue, TypedSlot};
 use xb_compiler::{IrExpr, IrProgram, IrSymbol};
-/// Execute an ATTACH statement (copy semantics).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn exec_attach(
     program: &IrProgram,
     left: &IrSymbol,
@@ -89,7 +89,7 @@ pub(crate) fn exec_attach(
     if left_is_row && !right_is_row && left_idx_vals.len() == 1 && right_indices.is_empty() {
         let row = left_idx_vals[0] as usize;
         let src_data = get_slot(state, &right.name)
-            .and_then(|rs| rs.array.as_ref().map(|a| a.clone()));
+            .and_then(|rs| rs.array.clone());
         if let Some(src_arr) = src_data {
             if let Some(ls) = get_slot_mut(state, &left.name) {
                 if let Some(ref mut dst_arr) = ls.array {

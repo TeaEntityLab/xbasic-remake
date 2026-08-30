@@ -81,6 +81,7 @@ thread_local! {
     /// By-ref-array descriptor closure (docs/18): fn name → (descriptor params,
     /// must-be-dyn locals). A descriptor param is emitted `(T** xb_var_x_d,
     /// intptr_t* xb_ub_x)`. Populated once per `emit_program`; empty for the corpus.
+    #[allow(clippy::type_complexity)]
     static DESC_INFO: RefCell<HashMap<String, (HashSet<String>, HashMap<String, ValueType>)>> = RefCell::new(HashMap::new());
     /// The current function's descriptor array params (subset of DESC_INFO).
     static FN_DESC: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
@@ -425,14 +426,14 @@ fn item_references_array(name: &str, item: &IrItem) -> bool {
         IrItem::For { start, end, step, .. } => {
             expr_references_array(name, start)
                 || expr_references_array(name, end)
-                || step.as_ref().map_or(false, |s| expr_references_array(name, s))
+                || step.as_ref().is_some_and(|s| expr_references_array(name, s))
         }
         IrItem::DoLoop { pre_condition, post_condition, .. } => {
-            pre_condition.as_ref().map_or(false, |(c, _)| expr_references_array(name, c))
-                || post_condition.as_ref().map_or(false, |(c, _)| expr_references_array(name, c))
+            pre_condition.as_ref().is_some_and(|(c, _)| expr_references_array(name, c))
+                || post_condition.as_ref().is_some_and(|(c, _)| expr_references_array(name, c))
         }
         IrItem::SelectCase { selector, .. } => expr_references_array(name, selector),
-        IrItem::Return { value } => value.as_ref().map_or(false, |v| expr_references_array(name, v)),
+        IrItem::Return { value } => value.as_ref().is_some_and(|v| expr_references_array(name, v)),
         IrItem::Call { args, .. } => args.iter().any(|a| expr_references_array(name, a)),
         IrItem::Swap { left, right } => left.name == name || right.name == name,
         IrItem::SharedAssignment { target, value } => {
@@ -570,7 +571,7 @@ pub(crate) fn shared_arrays_sorted() -> Vec<(String, crate::ValueType)> {
 /// is ever passed there, across every call site in the program. A param is by-ref
 /// (a C pointer with copy-in/copy-out) iff `seen_byref && !seen_byval` - the
 /// call-site-driven model the interpreter uses, restricted to positions that are
-/// *consistently* `@` so the fixed C signature still type-checks every call.
+#[allow(clippy::collapsible_match)]
 fn collect_callsite_byref(items: &[IrItem], m: &mut HashMap<String, Vec<(bool, bool)>>) {
     fn record(name: &str, args: &[IrExpr], m: &mut HashMap<String, Vec<(bool, bool)>>) {
         let v = m.entry(name.to_owned()).or_default();
@@ -1501,7 +1502,7 @@ fn scan_fn(body: &[IrItem], out: &mut HashSet<String>) {
         }
     }
 }
-
+#[allow(clippy::collapsible_match)]
 fn collect_indexed_names(items: &[IrItem], out: &mut HashSet<String>) {
     fn expr(e: &IrExpr, out: &mut HashSet<String>) {
         match &e.kind {

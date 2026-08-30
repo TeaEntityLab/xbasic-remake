@@ -4,6 +4,7 @@ use crate::checked::{CheckedExpr, CheckedExprKind, CheckedItem, CheckedSymbol, V
 use crate::semantics::{Analyzer, ItemResult};
 
 impl Analyzer {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn dim(
         &mut self,
         name: &str,
