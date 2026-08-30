@@ -66,6 +66,9 @@ pub(crate) fn exec_attach(
                 if rs.dims.len() >= 2 {
                     let row_size = rs.dims[1];
                     let start = row * row_size;
+                    if start >= arr.len() {
+                        return None;
+                    }
                     let end = (start + row_size).min(arr.len());
                     Some((arr[start..end].to_vec(), row_size))
                 } else {
