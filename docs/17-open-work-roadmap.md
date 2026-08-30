@@ -743,6 +743,23 @@ program uses it (§2 RT-FUNCPTR).
 > exists).** cgen.x's own `byref(` gap (CGEN-EXPR-GAPS) is likewise a non-issue: its
 > demos need undimmed `&x`, which the pre-existing default already approximates.
 
+### CEMITTER-S-SUFFIX-BYREF — `_s` suffix byref string writeback bug `[2026-08-30]`
+
+> **Discovered during RR-08b behavior testing.** `XstErrorNumberToName(error, @error$)`
+> computes the error message into `xb_str_error_s` (local string storage with `_s`
+> suffix) but writes back `xb_str_error` (the original input pointer) to the byref
+> output `*xb_str_error_ref`. The byref string always returns the input value (NULL),
+> not the computed message. Root cause: when a byref string param has a local `_s`
+> storage variant (created when the function body assigns to the string), the CEmitter
+> routes assignments to `xb_str_error_s` but the end-of-function writeback still uses
+> `xb_str_error` (the input pointer). The writeback should use `xb_str_error_s` when
+> the `_s` storage was modified. This affects any byref string function where the
+> param has a `_s` suffix variant — `XstGetOSName` works because it assigns directly
+> to `xb_str_name` (no `_s` variant). Not blocking: the affected functions
+> (`XstErrorNumberToName`, potentially others with `_s` byref string params) are not
+> in the demo corpus. Fix: in the byref writeback code, check if a `_s` storage
+> variant exists for the param and write back that instead of the input pointer.
+
 ### ~~CGEN-ARGSPLIT-STRLIT~~ — call-arg splitter string-literal-aware ✅ done `[2026-08-23, d9d665b]`
 
 > **FIXED** (`d9d665b`): all 8 paren-depth counters in cgen.x (`emit_args$`,
