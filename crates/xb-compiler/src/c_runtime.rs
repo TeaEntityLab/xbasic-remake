@@ -216,9 +216,9 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("static void xb_print_float(double v) { char buf[400]; xb_fmt_float(v, buf, 400); printf(\"%s\\n\", buf); }\n");
     out.push_str("static char* xb_ucase(const char* s) { char* r = xb_strdup(s); int n = xb_len(r); for (int i = 0; i < n; i++) r[i] = (char)toupper((unsigned char)r[i]); return r; }\n");
     out.push_str("static char* xb_lcase(const char* s) { char* r = xb_strdup(s); int n = xb_len(r); for (int i = 0; i < n; i++) r[i] = (char)tolower((unsigned char)r[i]); return r; }\n");
-    out.push_str("static char* xb_trim(const char* s) { int n = xb_len(s); int a = 0; while (a < n && (s[a] == ' ' || s[a] == '\\t')) a++; int b = n; while (b > a && (s[b-1] == ' ' || s[b-1] == '\\t')) b--; int len = b - a; char* r = xb_alloc((size_t)len); memcpy(r, s + a, (size_t)len); return r; }\n");
-    out.push_str("static char* xb_ltrim(const char* s) { int n = xb_len(s); int a = 0; while (a < n && (s[a] == ' ' || s[a] == '\\t')) a++; int len = n - a; char* r = xb_alloc((size_t)len); memcpy(r, s + a, (size_t)len); return r; }\n");
-    out.push_str("static char* xb_rtrim(const char* s) { int n = xb_len(s); while (n > 0 && (s[n-1] == ' ' || s[n-1] == '\\t')) n--; char* r = xb_alloc((size_t)n); memcpy(r, s, (size_t)n); return r; }\n");
+    out.push_str("static char* xb_trim(const char* s) { int n = xb_len(s); int a = 0; while (a < n && (s[a] == ' ' || s[a] == '\\t')) a++; int b = n; while (b > a && (s[b-1] == ' ' || s[b-1] == '\\t')) b--; int len = b - a; char* r = xb_alloc((size_t)len); if (len) memcpy(r, s + a, (size_t)len); return r; }\n");
+    out.push_str("static char* xb_ltrim(const char* s) { int n = xb_len(s); int a = 0; while (a < n && (s[a] == ' ' || s[a] == '\\t')) a++; int len = n - a; char* r = xb_alloc((size_t)len); if (len) memcpy(r, s + a, (size_t)len); return r; }\n");
+    out.push_str("static char* xb_rtrim(const char* s) { int n = xb_len(s); while (n > 0 && (s[n-1] == ' ' || s[n-1] == '\\t')) n--; char* r = xb_alloc((size_t)n); if (n) memcpy(r, s, (size_t)n); return r; }\n");
     out.push_str("static char* xb_space(int n) { if (n < 0) n = 0; char* r = xb_alloc((size_t)n); memset(r, ' ', (size_t)n); return r; }\n");
     out.push_str("static int xb_abs(int v) { return v < 0 ? -v : v; }\n");
     out.push_str("static double xb_fabs(double v) { return fabs(v); }\n");
@@ -377,7 +377,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    int copy = (len < 0) ? slen : len;\n");
     out.push_str("    if (copy > slen) copy = slen;\n");
     out.push_str("    if (si + copy > dlen) copy = dlen - si;\n");
-    out.push_str("    memcpy(dst + si, src, copy);\n");
+    out.push_str("    if (copy) memcpy(dst + si, src, copy);\n");
     out.push_str("}\n");
     out.push_str("static void xb_setch(char* s, intptr_t index, intptr_t ch) {\n");
     out.push_str("    if (index >= 0 && index < xb_len(s)) s[index] = (char)ch;\n");
