@@ -2281,4 +2281,58 @@ mod c_emit_argv_tests {
         // ENVP$ should also be present (same mechanism)
         assert!(c.contains("xb_str_ENVP_s_arr"), "ENVP$ global");
     }
+    #[test]
+    fn declare_byref_markers_reach_cemitter() {
+        // DECLARE FUNCTION Foo (x, @y) → y should be byref in C output.
+        let src = "\
+DECLARE FUNCTION Foo (x, @y)
+FUNCTION Foo (x, y)
+    y = x * 2
+END FUNCTION
+";
+        let prog = crate::FrontendUnit::parse(src)
+            .expect("parse")
+            .lower_ir()
+            .expect("lower");
+        // DECLARE byref info should be in IrProgram.
+        assert_eq!(
+            prog.declare_byref.get("Foo"),
+            Some(&vec![false, true]),
+            "DECLARE @y should produce byref=[false, true]"
+        );
+        let c = crate::CEmitter::new().emit_program(&prog);
+        // Foo has no callsites, so DECLARE byref fallback should make y a pointer.
+        assert!(
+            c.contains("intptr_t *xb_var_y_ref"),
+            "DECLARE @y should produce byref pointer param when no callsite exists"
+        );
+    }
+
+    #[test]
+    fn declare_no_at_markers_does_not_block_env_hints() {
+        // DECLARE without @ should NOT insert byref info, allowing env var fallback.
+        let src = "\
+DECLARE FUNCTION Bar (a, b)
+FUNCTION Bar (a, b)
+    a = b + 1
+END FUNCTION
+";
+        let prog = crate::FrontendUnit::parse(src)
+            .expect("parse")
+            .lower_ir()
+            .expect("lower");
+        // No @ markers → declare_byref should have [false, false] but NOT be used
+        // as fallback (only inserted if any param has @).
+        assert_eq!(
+            prog.declare_byref.get("Bar"),
+            Some(&vec![false, false]),
+            "DECLARE without @ records all-false"
+        );
+        let c = crate::CEmitter::new().emit_program(&prog);
+        // Bar has no callsites and no @ → params should be byval.
+        assert!(
+            !c.contains("*xb_var_a_ref"),
+            "DECLARE without @ should NOT produce byref pointer"
+        );
+    }
 }
