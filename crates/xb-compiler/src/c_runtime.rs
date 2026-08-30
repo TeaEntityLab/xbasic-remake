@@ -21,14 +21,14 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str(
         "static size_t xb_cap(const char* s) { if (!s) return 0; return ((size_t*)s)[-1]; }\n",
     );
-    out.push_str("static char* xb_from_cstr(const char* s) { size_t n = strlen(s); char* d = xb_alloc(n); memcpy(d, s, n); return d; }\n");
-    out.push_str("static char* xb_strdup(const char* s) { int n = xb_len(s); char* d = xb_alloc((size_t)n); memcpy(d, s, (size_t)n); return d; }\n");
+    out.push_str("static char* xb_from_cstr(const char* s) { if (!s) s = \"\"; size_t n = strlen(s); char* d = xb_alloc(n); memcpy(d, s, n); return d; }\n");
+    out.push_str("static char* xb_strdup(const char* s) { int n = xb_len(s); char* d = xb_alloc((size_t)n); if (n) memcpy(d, s, (size_t)n); return d; }\n");
     out.push_str("static char* xb_str(const char* s) { return xb_from_cstr(s); }\n");
     out.push_str("static char* xb_concat(const char* a, const char* b) {\n");
     out.push_str("    int la = xb_len(a), lb = xb_len(b);\n");
     out.push_str("    char* r = xb_alloc((size_t)(la + lb));\n");
-    out.push_str("    memcpy(r, a, (size_t)la);\n");
-    out.push_str("    memcpy(r + la, b, (size_t)lb);\n");
+    out.push_str("    if (la) memcpy(r, a, (size_t)la);\n");
+    out.push_str("    if (lb) memcpy(r + la, b, (size_t)lb);\n");
     out.push_str("    return r;\n");
     out.push_str("}\n");
     out.push_str("static char* xb_append(char* a, const char* b) {\n");
@@ -38,7 +38,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    size_t cap = xb_cap(a);\n");
     out.push_str("    if (new_len <= cap) {\n");
     out.push_str("        ((size_t*)a)[-2] = new_len;\n");
-    out.push_str("        memcpy(a + la, b, (size_t)lb);\n");
+    out.push_str("        if (lb) memcpy(a + la, b, (size_t)lb);\n");
     out.push_str("        a[new_len] = 0;\n");
     out.push_str("        return a;\n");
     out.push_str("    }\n");
@@ -46,11 +46,11 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    if (la > 4096) { size_t want = (size_t)la * 2; if (want > new_cap) new_cap = want; }\n");
     out.push_str("    size_t* pa = (size_t*)a - 2;\n");
     out.push_str("    size_t* new_p = (size_t*)realloc(pa, 2*sizeof(size_t) + new_cap + 1);\n");
-    out.push_str("    if (!new_p) { char* r = xb_alloc(new_len); memcpy(r, a, (size_t)la); memcpy(r + la, b, (size_t)lb); return r; }\n");
+    out.push_str("    if (!new_p) { char* r = xb_alloc(new_len); if (la) memcpy(r, a, (size_t)la); if (lb) memcpy(r + la, b, (size_t)lb); return r; }\n");
     out.push_str("    new_p[0] = new_len;\n");
     out.push_str("    new_p[1] = new_cap;\n");
     out.push_str("    char* r = (char*)(new_p + 2);\n");
-    out.push_str("    memcpy(r + la, b, (size_t)lb);\n");
+    out.push_str("    if (lb) memcpy(r + la, b, (size_t)lb);\n");
     out.push_str("    r[new_len] = 0;\n");
     out.push_str("    return r;\n");
     out.push_str("}\n");
@@ -58,13 +58,13 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str(
         "static char* xb_chr(int c, int count) { if (count < 1) count = 1; char* r = xb_alloc((size_t)count); for (int i = 0; i < count; i++) r[i] = (char)c; return r; }\n",
     );
-    out.push_str("static int xb_scmp(const char* a, const char* b) { int la = xb_len(a), lb = xb_len(b); int m = la < lb ? la : lb; int r = memcmp(a, b, (size_t)m); if (r) return r; return (la > lb) - (la < lb); }\n");
+    out.push_str("static int xb_scmp(const char* a, const char* b) { int la = xb_len(a), lb = xb_len(b); int m = la < lb ? la : lb; int r = 0; if (m) r = memcmp(a, b, (size_t)m); if (r) return r; return (la > lb) - (la < lb); }\n");
     out.push_str("static char* xb_left(const char* s, int n) {\n");
     out.push_str("    int len = xb_len(s);\n");
     out.push_str("    if (n < 0) n = 0;\n");
     out.push_str("    if (n > len) n = len;\n");
     out.push_str("    char* r = xb_alloc((size_t)n);\n");
-    out.push_str("    memcpy(r, s, (size_t)n);\n");
+    out.push_str("    if (n) memcpy(r, s, (size_t)n);\n");
     out.push_str("    return r;\n");
     out.push_str("}\n");
     out.push_str("static char* xb_right(const char* s, int n) {\n");
@@ -72,7 +72,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    if (n < 0) n = 0;\n");
     out.push_str("    if (n > len) n = len;\n");
     out.push_str("    char* r = xb_alloc((size_t)n);\n");
-    out.push_str("    memcpy(r, s + len - n, (size_t)n);\n");
+    out.push_str("    if (n) memcpy(r, s + len - n, (size_t)n);\n");
     out.push_str("    return r;\n");
     out.push_str("}\n");
     out.push_str("static char* xb_mid(const char* s, int start, int len) {\n");
@@ -83,7 +83,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    if (len < 0) len = slen - off;\n");
     out.push_str("    if (off + len > slen) len = slen - off;\n");
     out.push_str("    char* r = xb_alloc((size_t)len);\n");
-    out.push_str("    memcpy(r, s + off, (size_t)len);\n");
+    out.push_str("    if (len) memcpy(r, s + off, (size_t)len);\n");
     out.push_str("    return r;\n");
     out.push_str("}\n");
     out.push_str("static int xb_instr2(const char* s, const char* sub) {\n");
