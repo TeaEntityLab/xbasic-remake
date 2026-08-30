@@ -725,8 +725,9 @@ fn collect_shared_expr(
 /// the program calls `xb_xst_str_to_num(` (byte-neutral for the whole shared
 /// corpus, which never uses Xst). Also mirrored in `selfhost/cgen.x`.
 pub(crate) fn emit_xst_runtime(out: &mut String) {
-    out.push_str("static void xb_xst_int_result(int64_t val, intptr_t after, intptr_t* pa, intptr_t* pr, int64_t* pv) { int rt; if (val >= -2147483648LL && val <= 2147483647LL) rt = 6; else if (val >= 0 && val <= 4294967295LL) rt = 8; else rt = 12; *pa = after; *pr = (intptr_t)rt; *pv = val; }\n");
+    out.push_str("static void xb_xst_int_result(int64_t val, intptr_t after, intptr_t* pa, intptr_t* pr, int64_t* pv) { int rt; if (val >= -2147483648LL && val <= 2147483647LL) rt = 6; else if (val >= 0 && val <= 4294967295LL) rt = 8; else rt = 12; if (pa) *pa = after; if (pr) *pr = (intptr_t)rt; if (pv) *pv = val; }\n");
     out.push_str("static int xb_xst_str_to_num(const char* s, intptr_t start, intptr_t* after, intptr_t* rtype, int64_t* value) {\n");
+    out.push_str("    if (!after || !rtype || !value) return -1;\n");
     out.push_str(
         "    int n = xb_len(s); intptr_t i = start; if (i < 0) i = 0; if (i > n) i = n;\n",
     );
