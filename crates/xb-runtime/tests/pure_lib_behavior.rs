@@ -882,3 +882,91 @@ double xb_user_SCNORM(double z_R, double z_I);
     assert!(stdout.contains("SCPOWERCR(1,0,2).R"), "missing SCPOWERCR(1,0,2).R check in output");
     assert!(stdout.contains("SCPOWERRC(1,2,0).R"), "missing SCPOWERRC(1,2,0).R check in output");
 }
+
+#[test]
+fn xdis_pure_library_behavior() {
+    let root = repo_root();
+    let tmp = std::env::temp_dir().join("xb_pure_lib_behavior_xdis");
+    let _ = fs::remove_dir_all(&tmp);
+    fs::create_dir_all(&tmp).unwrap();
+
+    // Compile xdis.x through CEmitter.
+    let xdis_src = root.join("xbasic-6.4.5/src/shared/xdis.x");
+    assert!(xdis_src.exists(), "xdis.x not found at {xdis_src:?}");
+
+    let xdis_c = emit_c(&xdis_src, &tmp, true);
+    let xdis_o = compile_c(&xdis_c, &tmp);
+
+    // GetAddrLabel64(branchAddr) calls XxxGetLabelGivenAddress (stub → 0),
+    // so label==0 → returns xb_hexx(branchAddr, 8). This tests:
+    //   - Function call dispatch (calls XxxGetLabelGivenAddress)
+    //   - Conditional return (IFZ label → return hexx)
+    //   - xb_hexx formatting (0x + zero-padded 8-digit hex)
+    //   - String return path (char* function)
+    let harness = tmp.join("harness.c");
+    fs::write(&harness, r#"#include <stdio.h>
+#include <string.h>
+
+typedef long intptr_t;
+
+/* Forward declarations for user-defined functions from xdis.x */
+char* xb_user_GetAddrLabel64(intptr_t xb_var_branchAddr);
+intptr_t xb_user_XxxGetLabelGivenAddress(intptr_t xb_var_addr, char* *xb_str_labels_s);
+
+static int fails = 0;
+
+static void check_s(const char* name, const char* got, const char* want) {
+    int ok = got && strcmp(got, want) == 0;
+    printf("%-25s = [%s]  (want [%s])  %s\n", name, got ? got : "(null)", want, ok ? "ok" : "FAIL");
+    if (!ok) fails++;
+}
+
+int main(void) {
+    /* GetAddrLabel64: XxxGetLabelGivenAddress returns 0 (stub) → label==0
+       → returns xb_hexx(branchAddr, 8) = "0x" + 8-digit hex. */
+    char* r1 = xb_user_GetAddrLabel64(0x1234);
+    check_s("GetAddrLabel64(0x1234)", r1, "0x00001234");
+
+    char* r2 = xb_user_GetAddrLabel64(0);
+    check_s("GetAddrLabel64(0)", r2, "0x00000000");
+
+    char* r3 = xb_user_GetAddrLabel64(0xDEAD);
+    check_s("GetAddrLabel64(0xDEAD)", r3, "0x0000DEAD");
+
+    printf("\n%d checks, %d failures\n", 3, fails);
+    return fails;
+}
+"#).unwrap();
+
+    let bin = tmp.join("xdis_test");
+    let link = Command::new(cc())
+        .args(["-O0", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .arg(&harness)
+        .arg(&xdis_o)
+        .arg("-lm")
+        .arg("-o")
+        .arg(&bin)
+        .output()
+        .expect("link");
+    assert!(
+        link.status.success(),
+        "link failed:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+
+    let run = Command::new(&bin).output().expect("run");
+    let stdout = String::from_utf8_lossy(&run.stdout);
+    let stderr = String::from_utf8_lossy(&run.stderr);
+
+    assert!(
+        run.status.success(),
+        "xdis behavior test failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    );
+
+    assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
+    assert!(stdout.contains("GetAddrLabel64(0x1234)"), "missing GetAddrLabel64(0x1234) check in output");
+    assert!(stdout.contains("GetAddrLabel64(0)"), "missing GetAddrLabel64(0) check in output");
+    assert!(stdout.contains("GetAddrLabel64(0xDEAD)"), "missing GetAddrLabel64(0xDEAD) check in output");
+
+    eprintln!("{stdout}");
+}

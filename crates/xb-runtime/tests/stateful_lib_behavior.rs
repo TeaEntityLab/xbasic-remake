@@ -137,7 +137,24 @@ intptr_t xb_user_XstGetApplicationEnvironment(intptr_t *xb_var_standalone_ref, i
 /* XstExceptionToSystemException: byref int — maps exception→signal.
    Called with @sysException inside XstCauseException. */
 intptr_t xb_user_XstExceptionToSystemException(intptr_t xb_var_exception, intptr_t *xb_var_sysException_ref);
-typedef long intptr_t;
+/* XstSystemErrorToError: byref int — maps system error number to XBasic error.
+   UBOUND(#OSERROR$[]) returns -1 (uninitialized SHARED array), so upper=-1.
+   Any sysError >= 0 triggers sysError > upper → error = (24<<8)|3 = 6147. */
+intptr_t xb_user_XstSystemErrorToError(intptr_t xb_var_sysError, intptr_t *xb_var_error_ref);
+/* XstGetSystemTime: byref int — returns elapsed msec. All time fields init 0,
+   so msec = (0-0)*1000 + (0-0) = 0. */
+intptr_t xb_user_XstGetSystemTime(intptr_t *xb_var_msec_ref);
+/* DeltaTimeZone: byref int — returns timezone delta seconds.
+   gtime=ltime=0 → delta = 0-0 = 0. */
+intptr_t xb_user_DeltaTimeZone(intptr_t *xb_var_delta_ref);
+/* XstGetDateAndTime: 8 byref ints — all time_tm fields init 0.
+   year=1900, month=1, day=0, weekDay=0, hour=0, min=0, sec=0, nanos=0. */
+intptr_t xb_user_XstGetDateAndTime(intptr_t *xb_var_year_ref, intptr_t *xb_var_month_ref,
+    intptr_t *xb_var_day_ref, intptr_t *xb_var_weekDay_ref, intptr_t *xb_var_hour_ref,
+    intptr_t *xb_var_minute_ref, intptr_t *xb_var_second_ref, intptr_t *xb_var_nanos_ref);
+/* XstGetOSVersionName: byval string — return 0 proves body ran.
+   Would produce "4.0" if byref (xb_extu(0x0400,8,8)=4, xb_extu(0x0400,8,0)=0). */
+intptr_t xb_user_XstGetOSVersionName(char* xb_str_name);
 
 static int fails = 0;
 
@@ -186,6 +203,8 @@ int main(void) {
        sets reserved=$$FALSE (0). Called with @ inside XstGetProgramFileName$. */
     long standalone = -1, reserved = -1;
     intptr_t env_ret = xb_user_XstGetApplicationEnvironment(&standalone, &reserved);
+    check_i("XstGetAppEnv(ret)", env_ret, 0);
+    check_i("XstGetAppEnv(standalone)", standalone, 0);
     check_i("XstGetAppEnv(reserved)", reserved, 0);
     /* XstExceptionToSystemException: byref int — maps XBasic exceptions to
        POSIX signals. Constants now resolved from xst.x ($$Exception*) and
@@ -204,7 +223,35 @@ int main(void) {
     check_i("ExcToSys(StackOverflow)", sig, 11);
     xb_user_XstExceptionToSystemException(99, &sig); /* CASE ELSE → SIGSEGV(11) */
     check_i("ExcToSys(unknown)", sig, 11);
-    printf("\n%d checks, %d failures\n", 14, fails);
+    /* XstSystemErrorToError: byref int — upper=UBOUND(#OSERROR$[])=-1.
+       sysError=0: 0 > -1 → error = (24<<8)|3 = 6147.
+       sysError=5: 5 > -1 → error = 6147. */
+    long xerr;
+    xb_user_XstSystemErrorToError(0, &xerr);
+    check_i("SysErrToErr(0)", xerr, 6147);
+    xb_user_XstSystemErrorToError(5, &xerr);
+    check_i("SysErrToErr(5)", xerr, 6147);
+    /* XstGetSystemTime: byref int — all time fields init 0 → msec=0. */
+    long msec = -1;
+    xb_user_XstGetSystemTime(&msec);
+    check_i("XstGetSystemTime", msec, 0);
+    /* DeltaTimeZone: byref int — gtime=ltime=0 → delta=0. */
+    long tz_delta = -999;
+    xb_user_DeltaTimeZone(&tz_delta);
+    check_i("DeltaTimeZone", tz_delta, 0);
+    /* XstGetDateAndTime: 8 byref ints — all time_tm fields init 0.
+       year=0+1900=1900, month=0+1=1, rest=0. */
+    long year=-1, month=-1, day=-1, weekDay=-1, hour=-1, minute=-1, second=-1, nanos=-1;
+    xb_user_XstGetDateAndTime(&year, &month, &day, &weekDay, &hour, &minute, &second, &nanos);
+    check_i("XstGetDateAndTime(year)", year, 1900);
+    check_i("XstGetDateAndTime(month)", month, 1);
+    check_i("XstGetDateAndTime(day)", day, 0);
+    check_i("XstGetDateAndTime(nanos)", nanos, 0);
+    /* XstGetOSVersionName: byval string — return 0 proves body ran. */
+    char osver_buf[64] = {0};
+    intptr_t osver_ret = xb_user_XstGetOSVersionName(osver_buf);
+    check_i("XstGetOSVersionName(ret)", osver_ret, 0);
+    printf("\n%d checks, %d failures\n", 23, fails);
     return fails;
 }
 "#).unwrap();
@@ -247,4 +294,9 @@ int main(void) {
     assert!(stdout.contains("ExcToSys(SegViol)"), "missing ExcToSys(SegViol) check in output");
     assert!(stdout.contains("ExcToSys(DivByZero)"), "missing ExcToSys(DivByZero) check in output");
     assert!(stdout.contains("ExcToSys(unknown)"), "missing ExcToSys(unknown) check in output");
+    assert!(stdout.contains("SysErrToErr(0)"), "missing SysErrToErr(0) check in output");
+    assert!(stdout.contains("XstGetSystemTime"), "missing XstGetSystemTime check in output");
+    assert!(stdout.contains("DeltaTimeZone"), "missing DeltaTimeZone check in output");
+    assert!(stdout.contains("XstGetDateAndTime(year)"), "missing XstGetDateAndTime(year) check in output");
+    assert!(stdout.contains("XstGetOSVersionName(ret)"), "missing XstGetOSVersionName(ret) check in output");
 }
