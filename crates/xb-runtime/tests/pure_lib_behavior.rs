@@ -342,6 +342,12 @@ xb_dcomplex xb_user_DCASIN(double z_R, double z_I);
 xb_dcomplex xb_user_DCATAN(double z_R, double z_I);
 xb_dcomplex xb_user_DCPOWERCC(double z_R, double z_I, double n_R, double n_I);
 xb_dcomplex xb_user_DCPOWERRC(double z, double n_R, double n_I);
+xb_scomplex xb_user_SCCOSH(double z_R, double z_I);
+xb_scomplex xb_user_SCSINH(double z_R, double z_I);
+xb_scomplex xb_user_SCEXP(double z_R, double z_I);
+xb_scomplex xb_user_SCLOG(double z_R, double z_I);
+xb_scomplex xb_user_SCSQRT(double z_R, double z_I);
+xb_scomplex xb_user_SCRMUL(double x_R, double x_I, double y);
 
     static int fails = 0;
 
@@ -472,8 +478,32 @@ xb_dcomplex xb_user_DCPOWERRC(double z, double n_R, double n_I);
         { xb_dcomplex _r = xb_user_DCPOWERRC(1.0, 2.0, 0.0);
           check_d("DCPOWERRC(1,2,0).R", _r.R, 1.0);
           check_d("DCPOWERRC(1,2,0).I", _r.I, 0.0); }
+        /* SCCOSH(0,0) = (1,0) — SCOMPLEX cosh: cosh(0)*cos(0)=1, sinh(0)*sin(0)=0 */
+        { xb_scomplex _s = xb_user_SCCOSH(0.0, 0.0);
+          check_d("SCCOSH(0,0).R", (double)_s.R, 1.0);
+          check_d("SCCOSH(0,0).I", (double)_s.I, 0.0); }
+        /* SCSINH(0,0) = (0,0) — SCOMPLEX sinh: sinh(0)*cos(0)=0, cosh(0)*sin(0)=0 */
+        { xb_scomplex _s = xb_user_SCSINH(0.0, 0.0);
+          check_d("SCSINH(0,0).R", (double)_s.R, 0.0);
+          check_d("SCSINH(0,0).I", (double)_s.I, 0.0); }
+        /* SCEXP(0,0) = (1,0) — SCOMPLEX exp: exp(0)*cos(0)=1, exp(0)*sin(0)=0 */
+        { xb_scomplex _s = xb_user_SCEXP(0.0, 0.0);
+          check_d("SCEXP(0,0).R", (double)_s.R, 1.0);
+          check_d("SCEXP(0,0).I", (double)_s.I, 0.0); }
+        /* SCLOG(1,0) = (0,0) — SCOMPLEX log: log(SCNORM(1,0))*0.5=0, Atan2(0,1)=0 */
+        { xb_scomplex _s = xb_user_SCLOG(1.0, 0.0);
+          check_d("SCLOG(1,0).R", (double)_s.R, 0.0);
+          check_d("SCLOG(1,0).I", (double)_s.I, 0.0); }
+        /* SCSQRT(4,0) = (2,0) — SCOMPLEX sqrt: sqrt((4+4)*0.5)=2, sqrt((4-4)*0.5)*sign(0)=0 */
+        { xb_scomplex _s = xb_user_SCSQRT(4.0, 0.0);
+          check_d("SCSQRT(4,0).R", (double)_s.R, 2.0);
+          check_d("SCSQRT(4,0).I", (double)_s.I, 0.0); }
+        /* SCRMUL(3,4,2) = (6,8) — SCOMPLEX * real: (3*2, 4*2) */
+        { xb_scomplex _s = xb_user_SCRMUL(3.0, 4.0, 2.0);
+          check_d("SCRMUL(3,4,2).R", (double)_s.R, 6.0);
+          check_d("SCRMUL(3,4,2).I", (double)_s.I, 8.0); }
 
-        printf("\n%d checks, %d failures\n", 55, fails);
+        printf("\n%d checks, %d failures\n", 67, fails);
         return fails;
     }
     "#).unwrap();
@@ -527,4 +557,8 @@ xb_dcomplex xb_user_DCPOWERRC(double z, double n_R, double n_I);
     assert!(stdout.contains("DCATAN(0,0).R"), "missing DCATAN(0,0).R check in output");
     assert!(stdout.contains("DCPOWERCC(1,0,2,0).R"), "missing DCPOWERCC(1,0,2,0).R check in output");
     assert!(stdout.contains("DCPOWERRC(1,2,0).R"), "missing DCPOWERRC(1,2,0).R check in output");
+    assert!(stdout.contains("SCCOSH(0,0).R"), "missing SCCOSH(0,0).R check in output");
+    assert!(stdout.contains("SCEXP(0,0).R"), "missing SCEXP(0,0).R check in output");
+    assert!(stdout.contains("SCSQRT(4,0).R"), "missing SCSQRT(4,0).R check in output");
+    assert!(stdout.contains("SCRMUL(3,4,2).R"), "missing SCRMUL(3,4,2).R check in output");
 }
