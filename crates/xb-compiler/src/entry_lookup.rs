@@ -95,8 +95,7 @@ impl IrProgram {
                 | IrItem::Label(_)
                 | IrItem::Goto(_)
                 | IrItem::GosubReturn
-                | IrItem::GosubExpr(_)
-                | IrItem::GotoExpr(_) => None,
+                | IrItem::GosubExpr(_) | IrItem::GotoExpr(_) | IrItem::Attach { .. } => None,
             })
             .ok_or_else(|| EntryLookupError::Missing {
                 name: name.to_string(),

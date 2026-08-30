@@ -150,6 +150,20 @@ pub enum Statement {
         shared: bool,
         is_array: bool,
     },
+    /// `ATTACH src TO dst` — array row aliasing.
+    /// Each side is a name plus optional subscripts. A trailing comma in
+    /// `indices` (e.g. `B[i,]`) marks a row-slice of a 2-D array.
+    Attach {
+        left_name: String,
+        left_suffix: Option<TypeSuffix>,
+        left_indices: Vec<Expression>,
+        /// `true` when the left operand had a trailing comma (`B[i,]`).
+        left_is_row: bool,
+        right_name: String,
+        right_suffix: Option<TypeSuffix>,
+        right_indices: Vec<Expression>,
+        right_is_row: bool,
+    },
 }
 
 /// One member of a composite TYPE declaration (e.g. `GIANT .a`).

@@ -716,12 +716,62 @@ impl Parser {
     }
 
     fn attach_stmt(&mut self) -> Result<Statement, ParseError> {
-        // ATTACH var$ TO display$ — skip the whole statement
         self.index += 1; // ATTACH
-                         // Skip everything until end of line
-        self.skip_to_line_end();
+        let (left_name, left_suffix, left_indices, left_is_row) = self.parse_attach_operand()?;
+        self.expect_keyword(Keyword::To)?;
+        let (right_name, right_suffix, right_indices, right_is_row) = self.parse_attach_operand()?;
         self.expect_line_end()?;
-        Ok(Statement::Compound(vec![]))
+        Ok(Statement::Attach {
+            left_name,
+            left_suffix,
+            left_indices,
+            left_is_row,
+            right_name,
+            right_suffix,
+            right_indices,
+            right_is_row,
+        })
+    }
+
+    /// Parse one side of an ATTACH statement: `name[]`, `name[i,]`, `name[i]`,
+    /// or `name`. Returns (name, suffix, indices, is_row).
+    fn parse_attach_operand(
+        &mut self,
+    ) -> Result<(String, Option<TypeSuffix>, Vec<Expression>, bool), ParseError> {
+        let (name, suffix) = self.expect_name_or_keyword()?;
+        let mut full = name;
+        let mut indices: Vec<Expression> = Vec::new();
+        let mut is_row = false;
+        loop {
+            if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+                self.index += 1;
+                // Empty `[]` = whole-array reference.
+                if !matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                    indices.push(self.expression()?);
+                    while matches!(self.peek_kind(), TokenKind::Symbol(',')) {
+                        self.index += 1;
+                        if matches!(self.peek_kind(), TokenKind::Symbol(']')) {
+                            // Trailing comma: `B[i,]` = row of 2D array.
+                            is_row = true;
+                            break;
+                        }
+                        indices.push(self.expression()?);
+                    }
+                }
+                self.expect_symbol(']')?;
+            } else if matches!(self.peek_kind(), TokenKind::Symbol('.')) {
+                self.index += 1;
+                if let TokenKind::Identifier { name: m, .. } = self.peek_kind().clone() {
+                    self.index += 1;
+                    full = format!("{full}.{m}");
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        Ok((full, suffix, indices, is_row))
     }
 
     fn dot_access_stmt(&mut self) -> Result<Statement, ParseError> {

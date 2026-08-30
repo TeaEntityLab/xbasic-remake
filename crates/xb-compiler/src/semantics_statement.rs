@@ -179,6 +179,25 @@ impl Analyzer {
                 shared,
                 is_array,
             } => self.composite_decl(type_name, var, *shared, *is_array),
+            Statement::Attach {
+                left_name,
+                left_suffix,
+                left_indices,
+                left_is_row,
+                right_name,
+                right_suffix,
+                right_indices,
+                right_is_row,
+            } => self.attach_stmt(
+                left_name,
+                *left_suffix,
+                left_indices,
+                *left_is_row,
+                right_name,
+                *right_suffix,
+                right_indices,
+                *right_is_row,
+            ),
         }
     }
 
@@ -385,5 +404,22 @@ impl Analyzer {
             }
             out.push((mname, m.value_type));
         }
+    }
+
+    /// Lower `ATTACH src TO dst` — array row aliasing.
+    /// Currently emits as Nop (parser correctness; runtime semantics follow
+    /// once shared-array dimension tracking lands).
+    pub(crate) fn attach_stmt(
+        &self,
+        _left_name: &str,
+        _left_suffix: Option<TypeSuffix>,
+        _left_indices: &[Expression],
+        _left_is_row: bool,
+        _right_name: &str,
+        _right_suffix: Option<TypeSuffix>,
+        _right_indices: &[Expression],
+        _right_is_row: bool,
+    ) -> ItemResult {
+        Ok(CheckedItem::Nop)
     }
 }

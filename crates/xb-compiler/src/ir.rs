@@ -131,6 +131,14 @@ pub enum IrItem {
     GosubReturn,
     GosubExpr(IrExpr),
     GotoExpr(IrExpr),
+    Attach {
+        left: IrSymbol,
+        left_indices: Vec<IrExpr>,
+        left_is_row: bool,
+        right: IrSymbol,
+        right_indices: Vec<IrExpr>,
+        right_is_row: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

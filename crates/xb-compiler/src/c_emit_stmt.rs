@@ -767,7 +767,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         IrItem::Swap { left, right } => {
             crate::c_emit_select::emit_swap(left, right, out, &ind);
         }
-        IrItem::Nop => {}
+        IrItem::Nop | IrItem::Attach { .. } => {}
         IrItem::SelectCase {
             selector,
             cases,

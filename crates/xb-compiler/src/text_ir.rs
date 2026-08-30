@@ -684,7 +684,7 @@ impl TextIrEmitter {
                     self.emit_symbol(right)
                 ));
             }
-            IrItem::Nop => {}
+            IrItem::Nop | IrItem::Attach { .. } => {}
             IrItem::SelectCase {
                 selector,
                 cases,
