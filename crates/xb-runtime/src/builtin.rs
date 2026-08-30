@@ -29,7 +29,8 @@ pub(crate) fn eval_builtin(
                 let RuntimeValue::Integer(count) = &args[1] else {
                     return Err(type_err(args[1].value_type()));
                 };
-                Ok(RuntimeValue::String(vec![byte; *count as usize]))
+                let count = (*count).max(1) as usize;
+                Ok(RuntimeValue::String(vec![byte; count]))
             } else {
                 Ok(RuntimeValue::String(vec![byte]))
             }
@@ -100,7 +101,7 @@ pub(crate) fn eval_builtin(
             let RuntimeValue::Integer(n) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::String(vec![0u8; *n as usize]))
+            Ok(RuntimeValue::String(vec![0u8; (*n).max(0) as usize]))
         }
         "SQRT" => float_fn(args, |v| v.sqrt()),
         "SIN" => float_fn(args, |v| v.sin()),
@@ -161,7 +162,7 @@ pub(crate) fn eval_builtin(
             let RuntimeValue::Integer(n) = &args[0] else {
                 return Err(type_err(args[0].value_type()));
             };
-            Ok(RuntimeValue::String(vec![b' '; *n as usize]))
+            Ok(RuntimeValue::String(vec![b' '; (*n).max(0) as usize]))
         }
         "ABS" => crate::builtin_math::eval_abs(args),
         "DOUBLE" | "SINGLE" => crate::builtin_math::eval_to_float(args),

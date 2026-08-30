@@ -14,7 +14,7 @@ pub(crate) fn eval_mid(args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeErr
         let RuntimeValue::Integer(len) = &args[2] else {
             return Err(type_err(args[2].value_type()));
         };
-        (start_idx + *len as usize).min(bytes.len())
+        (start_idx.saturating_add((*len).max(0) as usize)).min(bytes.len())
     } else {
         bytes.len()
     };
@@ -34,7 +34,7 @@ pub(crate) fn eval_hexx(name: &str, args: &[RuntimeValue]) -> Result<RuntimeValu
         let padded = format!(
             "{prefix}{:0>width$}",
             format!("{:X}", *n),
-            width = *w as usize
+        width = (*w).max(0) as usize
         );
         Ok(RuntimeValue::from_string(padded))
     } else {
@@ -58,7 +58,7 @@ fn eval_just(name: &str, args: &[RuntimeValue]) -> Result<RuntimeValue, RuntimeE
     let RuntimeValue::Integer(w) = &args[1] else {
         return Err(type_err(args[1].value_type()));
     };
-    let width = *w as usize;
+    let width = (*w).max(0) as usize;
     let result: Vec<u8> = if s.len() >= width {
         if name == "CJUST$" {
             s[..width].to_vec()
