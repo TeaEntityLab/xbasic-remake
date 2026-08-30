@@ -285,7 +285,7 @@ pub(crate) fn emit_header(out: &mut String) {
     out.push_str("    if (fd >= 0) { f = fdopen(fd, access == 0 ? \"rb\" : (access == 1 ? \"wb\" : \"r+b\")); if (!f) close(fd); }\n");
     out.push_str("#endif\n");
     out.push_str("    if (!f) return -1;\n");
-    out.push_str("    if (xb_file_count >= 256) return -1;\n");
+    out.push_str("    if (xb_file_count >= 256) { fclose(f); return -1; }\n");
     out.push_str("    int fn = xb_file_count++;\n");
     out.push_str("    xb_files[fn] = f;\n");
     out.push_str("    return fn;\n");
