@@ -125,9 +125,20 @@ fn xst_stateful_library_behavior() {
     //   which returns xb_version_str = "6.4.5".
     let harness = tmp.join("harness.c");
     fs::write(&harness, r#"#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
-/* Forward declarations for user-defined functions from xst.x */
+/* XBasic strings are managed (length stored before data pointer). xb_str()
+   is static in the runtime, so we define a local wrapper that allocates
+   via the same protocol: [size_t len, size_t cap, char data[]]. */
+static char* xb_str(const char* s) {
+    size_t n = strlen(s);
+    size_t* p = (size_t*)malloc(2 * sizeof(size_t) + n + 1);
+    p[0] = n; p[1] = n;
+    char* d = (char*)(p + 2);
+    memcpy(d, s, n);
+    d[n] = 0;
+    return d;
+}
 intptr_t xb_user_XstGetOSName(char* *xb_str_name_ref);
 intptr_t xb_user_XstGetConsoleGrid(intptr_t *xb_var_grid_ref);
 char* xb_user_XstVersion(void);
@@ -155,7 +166,12 @@ intptr_t xb_user_XstGetDateAndTime(intptr_t *xb_var_year_ref, intptr_t *xb_var_m
 /* XstGetOSVersionName: byval string — return 0 proves body ran.
    Would produce "4.0" if byref (xb_extu(0x0400,8,8)=4, xb_extu(0x0400,8,0)=0). */
 intptr_t xb_user_XstGetOSVersionName(char* xb_str_name);
-
+/* String functions: return char* — deterministic output for known inputs.
+   index/done params are byval (never called with @ in xst.x), but the
+   return value is the extracted/merged string. */
+char* xb_user_XstNextField(char* xb_str_source, intptr_t xb_var_index, intptr_t xb_var_done);
+char* xb_user_XstNextLine(char* xb_str_source, intptr_t xb_var_index, intptr_t xb_var_done);
+char* xb_user_XstMergeStrings(char* xb_str_string, char* xb_str_add, intptr_t xb_var_start, intptr_t xb_var_replace);
 static int fails = 0;
 
 static void check_s(const char* name, const char* got, const char* want) {
@@ -251,7 +267,35 @@ int main(void) {
     char osver_buf[64] = {0};
     intptr_t osver_ret = xb_user_XstGetOSVersionName(osver_buf);
     check_i("XstGetOSVersionName(ret)", osver_ret, 0);
-    printf("\n%d checks, %d failures\n", 23, fails);
+    /* XstNextField: extracts next whitespace-delimited field from source.
+       Skips leading whitespace, extracts non-whitespace chars.
+       Must use xb_str() to convert C literals to XBasic managed strings. */
+    char* nf1 = xb_user_XstNextField(xb_str("hello world"), 1, 0);
+    check_s("XstNextField(hello world,1)", nf1, "hello");
+    char* nf2 = xb_user_XstNextField(xb_str("hello world"), 7, 0);
+    check_s("XstNextField(hello world,7)", nf2, "world");
+    char* nf3 = xb_user_XstNextField(xb_str("  hello  "), 1, 0);
+    check_s("XstNextField(spaces,1)", nf3, "hello");
+    char* nf4 = xb_user_XstNextField(xb_str(""), 1, 0);
+    check_s("XstNextField(empty,1)", nf4, "");
+    /* XstNextLine: extracts next line from newline-delimited string. */
+    char* nl1 = xb_user_XstNextLine(xb_str("line1\nline2\n"), 1, 0);
+    check_s("XstNextLine(2lines,1)", nl1, "line1");
+    char* nl2 = xb_user_XstNextLine(xb_str("line1\nline2\n"), 7, 0);
+    check_s("XstNextLine(2lines,7)", nl2, "line2");
+    char* nl3 = xb_user_XstNextLine(xb_str("hello"), 1, 0);
+    check_s("XstNextLine(noNL,1)", nl3, "hello");
+    char* nl4 = xb_user_XstNextLine(xb_str(""), 1, 0);
+    check_s("XstNextLine(empty,1)", nl4, "");
+    /* XstMergeStrings: insert/replace in string.
+       MID$(string,1,start-1) + add + MID$(string,start+replace) */
+    char* ms1 = xb_user_XstMergeStrings(xb_str("hello"), xb_str("XYZ"), 2, 2);
+    check_s("XstMergeStrings(hello,XYZ,2,2)", ms1, "hXYZlo");
+    char* ms2 = xb_user_XstMergeStrings(xb_str("abc"), xb_str("D"), 1, 0);
+    check_s("XstMergeStrings(abc,D,1,0)", ms2, "Dabc");
+    char* ms3 = xb_user_XstMergeStrings(xb_str("abc"), xb_str("D"), 4, 0);
+    check_s("XstMergeStrings(abc,D,4,0)", ms3, "abcD");
+    printf("\n%d checks, %d failures\n", 35, fails);
     return fails;
 }
 "#).unwrap();
@@ -299,4 +343,7 @@ int main(void) {
     assert!(stdout.contains("DeltaTimeZone"), "missing DeltaTimeZone check in output");
     assert!(stdout.contains("XstGetDateAndTime(year)"), "missing XstGetDateAndTime(year) check in output");
     assert!(stdout.contains("XstGetOSVersionName(ret)"), "missing XstGetOSVersionName(ret) check in output");
+    assert!(stdout.contains("XstNextField(hello world,1)"), "missing XstNextField check in output");
+    assert!(stdout.contains("XstNextLine(2lines,1)"), "missing XstNextLine check in output");
+    assert!(stdout.contains("XstMergeStrings(hello,XYZ,2,2)"), "missing XstMergeStrings check in output");
 }
