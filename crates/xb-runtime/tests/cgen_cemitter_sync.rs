@@ -3794,3 +3794,78 @@ fn cemitter_compiles_gtk_and_helpsrc_clean() {
     );
     let _ = fs::remove_dir_all(&tmp);
 }
+
+/// ARY-STATUS-RECONCILIATION: bounded ATTACH behavior test.
+/// Verifies Case 3 (whole-array copy), Case 4 (element→scalar), and
+/// Case 5 (scalar→element) produce identical output across interp and
+/// Rust CEmitter. cgen.x is excluded because text IR drops ATTACH (known
+/// gap — text_ir.rs:688 serializes Attach as Nop).
+#[test]
+fn cemitter_attach_copy_semantics_match_interp() {
+    let tmp = std::env::temp_dir().join("xb_sync_attach");
+    fs::create_dir_all(&tmp).expect("mkdir");
+
+    // Case 3: ATTACH src[] TO dst[] — whole-array copy (dst → src)
+    // Case 4: ATTACH scalar TO dst[k] — copy element k of dst into scalar
+    // Case 5: ATTACH dst[k] TO scalar — copy scalar into element k of dst
+    // Case 1: ATTACH src[] TO dst[i,] — copy row i of 2D dst into 1D src
+    // Case 2: ATTACH dst[i,] TO src[] — copy 1D src back into row i of 2D dst
+    let src = "PROGRAM \"attach\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM src[3]\n\
+               DIM dst[3]\n\
+               dst[0] = 10\n\
+               dst[1] = 20\n\
+               dst[2] = 30\n\
+               ATTACH src[] TO dst[]\n\
+               PRINT src[0]\n\
+               PRINT src[1]\n\
+               PRINT src[2]\n\
+               DIM val\n\
+               ATTACH val TO dst[1]\n\
+               PRINT val\n\
+               val = 99\n\
+               ATTACH dst[2] TO val\n\
+               PRINT dst[2]\n\
+               DIM src2[3]\n\
+               DIM dst2[2,3]\n\
+               dst2[0,0] = 100\n\
+               dst2[0,1] = 200\n\
+               dst2[0,2] = 300\n\
+               dst2[1,0] = 400\n\
+               dst2[1,1] = 500\n\
+               dst2[1,2] = 600\n\
+               ATTACH src2[] TO dst2[0,]\n\
+               PRINT src2[0]\n\
+               PRINT src2[1]\n\
+               PRINT src2[2]\n\
+               src2[0] = 999\n\
+               src2[1] = 888\n\
+               src2[2] = 777\n\
+               ATTACH dst2[1,] TO src2[]\n\
+               PRINT dst2[1,0]\n\
+               PRINT dst2[1,1]\n\
+               PRINT dst2[1,2]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse attach program")
+        .lower_ir()
+        .expect("lower attach program");
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "attach_rust", rust_c.as_bytes(), None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret attach program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    let expected = "10\n20\n30\n20\n99\n\
+                    100\n200\n300\n\
+                    999\n888\n777\n";
+    assert_eq!(interp_out, expected, "interp ATTACH reference output");
+    assert_eq!(rust_out, expected, "CEmitter ATTACH copy semantics");
+    let _ = fs::remove_dir_all(&tmp);
+}

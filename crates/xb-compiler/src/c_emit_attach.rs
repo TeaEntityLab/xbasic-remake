@@ -24,7 +24,7 @@ pub(crate) fn emit_attach(
     ind: &str,
 ) {
     // Case 1: ATTACH src[] TO dst[i,]  (left=1D whole, right=2D row)
-    // Copy row i of dst into src, set src ubound to row size.
+    // Copy row i of dst into src, set src ubound to row size (if dynamic).
     if !left_is_row && right_is_row && left_indices.is_empty() && right_indices.len() == 1 {
         // Only emit copy code if the 2D array has known dimensions.
         if array_dims(&right.name).map_or(false, |d| d.len() >= 2) {
@@ -43,12 +43,15 @@ pub(crate) fn emit_attach(
             out.push_str("_1 + 1) * sizeof(*");
             emit_array_var_name(left, out);
             out.push_str("));\n");
-            out.push_str(ind);
-            out.push_str("xb_ub_");
-            out.push_str(&array_ident(&left.name));
-            out.push_str(" = xb_dim_");
-            out.push_str(&dst_ident);
-            out.push_str("_1;\n");
+            // Set ubound only for dynamic arrays (fixed-size have no xb_ub_ var).
+            if crate::c_emit::is_dyn_array(&left.name) {
+                out.push_str(ind);
+                out.push_str("xb_ub_");
+                out.push_str(&array_ident(&left.name));
+                out.push_str(" = xb_dim_");
+                out.push_str(&dst_ident);
+                out.push_str("_1;\n");
+            }
         }
         return;
     }
@@ -67,9 +70,20 @@ pub(crate) fn emit_attach(
             out.push_str(&dst_ident);
             out.push_str("_1 + 1)], ");
             emit_array_var_name(right, out);
-            out.push_str(", (size_t)(xb_ub_");
-            out.push_str(&array_ident(&right.name));
-            out.push_str(" + 1) * sizeof(*");
+            out.push_str(", (size_t)(");
+            if crate::c_emit::is_dyn_array(&right.name) {
+                out.push_str("xb_ub_");
+                out.push_str(&array_ident(&right.name));
+                out.push_str(" + 1");
+            } else {
+                // Fixed-size stack array: use sizeof to get total byte count.
+                out.push_str("sizeof(");
+                emit_array_var_name(right, out);
+                out.push_str(") / sizeof(*");
+                emit_array_var_name(right, out);
+                out.push_str(")");
+            }
+            out.push_str(") * sizeof(*");
             emit_array_var_name(right, out);
             out.push_str("));\n");
         }
@@ -77,13 +91,15 @@ pub(crate) fn emit_attach(
     }
 
     // Case 3: ATTACH src[] TO dst[]  (both whole arrays, same type)
-    // Copy dst into src, set src ubound to dst ubound.
-    // Only emit if both are dynamic arrays with known ubounds and same type.
+    // Copy dst into src. For dynamic arrays, use ubound-tracked memcpy +
+    // ubound copy. For fixed-size stack arrays, use sizeof-based memcpy.
     if !left_is_row && !right_is_row && left_indices.is_empty() && right_indices.is_empty() {
-        if left.value_type == right.value_type
-            && crate::c_emit::is_dyn_array(&left.name)
-            && crate::c_emit::is_dyn_array(&right.name)
-        {
+        if left.value_type != right.value_type {
+            return;
+        }
+        let left_dyn = crate::c_emit::is_dyn_array(&left.name);
+        let right_dyn = crate::c_emit::is_dyn_array(&right.name);
+        if left_dyn && right_dyn {
             out.push_str(ind);
             out.push_str("memcpy(");
             emit_array_var_name(left, out);
@@ -100,6 +116,25 @@ pub(crate) fn emit_attach(
             out.push_str(" = xb_ub_");
             out.push_str(&array_ident(&right.name));
             out.push_str(";\n");
+        } else if !left_dyn && !right_dyn
+            && array_dims(&left.name).is_some()
+            && array_dims(&right.name).is_some()
+        {
+            // Fixed-size stack arrays: copy min(sizeof(left), sizeof(right)).
+            out.push_str(ind);
+            out.push_str("memcpy(");
+            emit_array_var_name(left, out);
+            out.push_str(", ");
+            emit_array_var_name(right, out);
+            out.push_str(", sizeof(");
+            emit_array_var_name(left, out);
+            out.push_str(") < sizeof(");
+            emit_array_var_name(right, out);
+            out.push_str(") ? sizeof(");
+            emit_array_var_name(left, out);
+            out.push_str(") : sizeof(");
+            emit_array_var_name(right, out);
+            out.push_str("));\n");
         }
         return;
     }

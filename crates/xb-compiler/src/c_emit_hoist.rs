@@ -859,6 +859,16 @@ pub(crate) fn collect_array_dims(items: &[IrItem], out: &mut HashMap<String, Vec
                 dims.extend(extra_dims.iter().cloned());
                 out.insert(symbol.name.clone(), dims);
             }
+            // Track 1-D fixed-size arrays too (needed by ATTACH Case 3 to
+            // distinguish declared arrays from auto-vivified variables).
+            IrItem::Dim {
+                symbol,
+                size: Some(sz),
+                extra_dims,
+                ..
+            } if extra_dims.is_empty() => {
+                out.insert(symbol.name.clone(), vec![sz.clone()]);
+            }
             IrItem::If {
                 then_body,
                 else_body,
