@@ -1623,11 +1623,12 @@ WHILE pos <= LEN(src$)
         ##curHoistFn$ = funcName$
         IF skipFunc = 0 THEN
           hoists$ = emit_hoists$(CHR$(10) + usedSyms$, CHR$(10) + dimmedSyms$)
-          ' body actually assigns the function name; otherwise the function
-          ' returns the type default directly (matching the Rust CEmitter).
+          ' Match Rust CEmitter: always declare return var for non-integer
+          ' return types (String, Double, etc.); for Integer, only declare
+          ' when the function name is used in the body (own_name_used).
           ' Any reference (the self-DIM is suppressed, so reads of the
           ' function-name variable need this declaration).
-          IF INSTR(funcBody$ + nestBlocks$, c_var_name$(funcName$, retType$)) > 0 THEN
+          IF retType$ <> "integer" OR INSTR(funcBody$ + nestBlocks$, c_var_name$(funcName$, retType$)) > 0 THEN
             hoists$ = hoists$ + "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";" + CHR$(10)
             retStmt$ = "    return " + c_var_name$(funcName$, retType$) + ";"
           ELSE
