@@ -7491,13 +7491,13 @@ FUNCTION emit_stmt$(s$)
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
         IF bracketPos > 0 THEN
           IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
-            emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)(" + ub_ref$(varName$, varType$) + " + 1), sizeof(" + c_type$(varType$) + ")); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+            emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)(" + ub_ref$(varName$, varType$) + " + 1), sizeof(" + c_type$(varType$) + ")); if (!" + arr_acc_name$(varName$, varType$) + ") abort(); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
           ELSE
             cExpr$ = emit_expr$(arrSize$)
             IF varType$ = "string" THEN
-              emit_stmt$ = "    " + arr_acc_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + arr_acc_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + ub_ref$(varName$, varType$) + " = (" + cExpr$ + ");"
+              emit_stmt$ = "    " + arr_acc_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); if (!" + arr_acc_name$(varName$, "string") + ") abort(); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + arr_acc_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + ub_ref$(varName$, varType$) + " = (" + cExpr$ + ");"
             ELSE
-              emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + c_type$(varType$) + ")); " + ub_ref$(varName$, varType$) + " = (" + cExpr$ + ");"
+              emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + c_type$(varType$) + ")); if (!" + arr_acc_name$(varName$, varType$) + ") abort(); " + ub_ref$(varName$, varType$) + " = (" + cExpr$ + ");"
             END IF
           END IF
         ELSE
@@ -7520,21 +7520,21 @@ FUNCTION emit_stmt$(s$)
       cExpr$ = emit_expr$(arrSize$)
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
         IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
-          emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)(" + ub_ref$(varName$, varType$) + " + 1), sizeof(" + c_type$(varType$) + ")); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+          emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)(" + ub_ref$(varName$, varType$) + " + 1), sizeof(" + c_type$(varType$) + ")); if (!" + arr_acc_name$(varName$, varType$) + ") abort(); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
           IF varType$ = "string" THEN
-            emit_stmt$ = "    " + arr_acc_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + arr_acc_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + ub_ref$(varName$, varType$) + " = (" + cExpr$ + ");"
+            emit_stmt$ = "    " + arr_acc_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); if (!" + arr_acc_name$(varName$, "string") + ") abort(); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + arr_acc_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + ub_ref$(varName$, varType$) + " = (" + cExpr$ + ");"
           ELSE
-            emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + c_type$(varType$) + ")); " + ub_ref$(varName$, varType$) + " = (" + cExpr$ + ");"
+            emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + c_type$(varType$) + ")); if (!" + arr_acc_name$(varName$, varType$) + ") abort(); " + ub_ref$(varName$, varType$) + " = (" + cExpr$ + ");"
           END IF
         END IF
         RETURN emit_stmt$
       END IF
       IF INSTR(##strDual$, ":" + varName$ + ":") > 0 AND INSTR(##strUbDual$, ":" + varName$ + ":") = 0 THEN
         IF INSTR(arrSize$, ",") > 0 THEN
-          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + bd$(varName$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(char*)); if (!" + c_var_name$(varName$, "string") + bd$(varName$) + ") abort(); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + bd$(varName$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
-          emit_stmt$ = "    " + c_var_name$(varName$, "string") + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + bd$(varName$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
+          emit_stmt$ = "    " + c_var_name$(varName$, "string") + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); if (!" + c_var_name$(varName$, "string") + bd$(varName$) + ") abort(); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + bd$(varName$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
         END IF
       ELSEIF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
         IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 THEN
@@ -7543,15 +7543,15 @@ FUNCTION emit_stmt$(s$)
           _an$ = "xb_str_" + _du$ + "_arr"
           _ub$ = "xb_ub_" + _du$ + "_arr"
           IF INSTR(arrSize$, ",") > 0 THEN
-            emit_stmt$ = "    " + _ub$ + " = " + emit_mtotal$(arrSize$) + " - 1; " + _an$ + " = calloc((size_t)(" + _ub$ + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= " + _ub$ + "; _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+            emit_stmt$ = "    " + _ub$ + " = " + emit_mtotal$(arrSize$) + " - 1; " + _an$ + " = calloc((size_t)(" + _ub$ + " + 1), sizeof(char*)); if (!" + _an$ + ") abort(); for (intptr_t _i = 0; _i <= " + _ub$ + "; _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
           ELSE
-            emit_stmt$ = "    " + _an$ + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + _ub$ + " = (" + cExpr$ + ");"
+            emit_stmt$ = "    " + _an$ + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); if (!" + _an$ + ") abort(); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + _ub$ + " = (" + cExpr$ + ");"
           END IF
         ELSE
         IF INSTR(arrSize$, ",") > 0 THEN
-          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(char*)); if (!" + c_var_name$(varName$, "string") + ") abort(); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
-          emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+          emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); if (!" + c_var_name$(varName$, "string") + ") abort(); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
         END IF
         END IF
       ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
@@ -7576,14 +7576,14 @@ FUNCTION emit_stmt$(s$)
           DIM _dt3$
           _dt3$ = c_type$(dyn_type$(varName$))
           IF _d1cc = 1 THEN
-            emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(" + _dt3$ + ")); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+            emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(" + _dt3$ + ")); if (!xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + ") abort(); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
           ELSE
-            emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(" + _dt3$ + "));"
+            emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(" + _dt3$ + ")); if (!xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + ") abort();"
           END IF
         ELSE
           DIM _dt4$
           _dt4$ = c_type$(dyn_type$(varName$))
-          emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + _dt4$ + ")); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
+          emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(" + _dt4$ + ")); if (!xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + ") abort(); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
         END IF
       ELSEIF INSTR(##allStrArr$, ":" + varName$ + ":") > 0 AND varType$ = "string" THEN
         ' CG-BYTES: dual-use string arrays name their storage the _arr facet
@@ -7602,20 +7602,20 @@ FUNCTION emit_stmt$(s$)
             RETURN emit_stmt$
           END IF
           IF INSTR(arrSize$, ",") > 0 THEN
-            emit_stmt$ = "    " + _ub$ + " = " + emit_mtotal$(arrSize$) + " - 1; " + _an$ + " = calloc((size_t)(" + _ub$ + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= " + _ub$ + "; _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
+            emit_stmt$ = "    " + _ub$ + " = " + emit_mtotal$(arrSize$) + " - 1; " + _an$ + " = calloc((size_t)(" + _ub$ + " + 1), sizeof(char*)); if (!" + _an$ + ") abort(); for (intptr_t _i = 0; _i <= " + _ub$ + "; _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
           ELSE
             IF INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
-              emit_stmt$ = "    " + _an$ + " = calloc((size_t)((" + emit_expr$(arrSize$) + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + emit_expr$(arrSize$) + "); _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
+              emit_stmt$ = "    " + _an$ + " = calloc((size_t)((" + emit_expr$(arrSize$) + ") + 1), sizeof(char*)); if (!" + _an$ + ") abort(); for (intptr_t _i = 0; _i <= (" + emit_expr$(arrSize$) + "); _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
             ELSE
-              emit_stmt$ = "    " + _an$ + " = calloc((size_t)((" + emit_expr$(arrSize$) + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + emit_expr$(arrSize$) + "); _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + _ub$ + " = (" + emit_expr$(arrSize$) + ");"
+              emit_stmt$ = "    " + _an$ + " = calloc((size_t)((" + emit_expr$(arrSize$) + ") + 1), sizeof(char*)); if (!" + _an$ + ") abort(); for (intptr_t _i = 0; _i <= (" + emit_expr$(arrSize$) + "); _i++) " + _an$ + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); " + _ub$ + " = (" + emit_expr$(arrSize$) + ");"
             END IF
           END IF
           RETURN emit_stmt$
         END IF
         IF INSTR(arrSize$, ",") > 0 THEN
-          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + c_var_name$(varName$, "string") + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + " + 1), sizeof(char*)); if (!" + c_var_name$(varName$, "string") + ") abort(); for (intptr_t _i = 0; _i <= xb_ub_" + sanitize_ident$(varName$) + "; _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_d1_" + sanitize_ident$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
-          emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
+          emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); if (!" + c_var_name$(varName$, "string") + ") abort(); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
         END IF
       ELSEIF varType$ = "string" THEN
         IF INSTR(arrSize$, ",") > 0 THEN
@@ -7625,9 +7625,9 @@ FUNCTION emit_stmt$(s$)
         END IF
       ELSEIF INSTR(##xstArrays$, ":" + varName$ + ":") > 0 AND INSTR(##dynNames$, ":" + varName$ + ":") = 0 AND varType$ <> "string" THEN
         IF INSTR(arrSize$, ",") > 0 THEN
-          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(intptr_t)); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+          emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(intptr_t)); if (!xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + ") abort(); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
-          emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
+          emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); if (!xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + ") abort(); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
         END IF
       ELSE
         emit_stmt$ = "    " + c_type$(varType$) + " " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + "; memset(" + c_var_name$(varName$, varType$) + ", 0, sizeof(" + c_var_name$(varName$, varType$) + "));"
