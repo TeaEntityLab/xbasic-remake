@@ -6926,7 +6926,7 @@ FUNCTION scan_xst_arrays$(s$)
   DIM depth
   DIM i
   DIM c
-  DIM startPos
+  DIM argPos
   DIM part$
   DIM sym$
   DIM nm$
@@ -6945,6 +6945,7 @@ FUNCTION scan_xst_arrays$(s$)
       args$ = MID$(ln$, sp + 1, LEN(ln$) - sp - 1)
       depth = 0
       startPos = 1
+      argPos = 0
       FOR i = 1 TO LEN(args$)
         c = ASC(MID$(args$, i, 1))
         IF c = 40 THEN
@@ -6953,26 +6954,31 @@ FUNCTION scan_xst_arrays$(s$)
           depth = depth - 1
         ELSEIF c = 44 AND depth = 0 THEN
           part$ = trim_spaces$(MID$(args$, startPos, i - startPos))
-          sym$ = extract_byref_sym$(part$)
-          sp = INSTR(sym$, ":")
-          IF sp > 0 THEN
-            nm$ = LEFT$(sym$, sp - 1)
-            tp$ = MID$(sym$, sp + 1, LEN(sym$) - sp)
-            IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
-              res$ = res$ + ":" + nm$ + ":" + tp$ + ":"
+          IF argPos < 2 THEN
+            sym$ = extract_byref_sym$(part$)
+            sp = INSTR(sym$, ":")
+            IF sp > 0 THEN
+              nm$ = LEFT$(sym$, sp - 1)
+              tp$ = MID$(sym$, sp + 1, LEN(sym$) - sp)
+              IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+                res$ = res$ + ":" + nm$ + ":" + tp$ + ":"
+              END IF
             END IF
           END IF
           startPos = i + 1
+          argPos = argPos + 1
         END IF
       NEXT i
       part$ = trim_spaces$(MID$(args$, startPos, LEN(args$) - startPos + 1))
-      sym$ = extract_byref_sym$(part$)
-      sp = INSTR(sym$, ":")
-      IF sp > 0 THEN
-        nm$ = LEFT$(sym$, sp - 1)
-        tp$ = MID$(sym$, sp + 1, LEN(sym$) - sp)
-        IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
-          res$ = res$ + ":" + nm$ + ":" + tp$ + ":"
+      IF argPos < 2 THEN
+        sym$ = extract_byref_sym$(part$)
+        sp = INSTR(sym$, ":")
+        IF sp > 0 THEN
+          nm$ = LEFT$(sym$, sp - 1)
+          tp$ = MID$(sym$, sp + 1, LEN(sym$) - sp)
+          IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+            res$ = res$ + ":" + nm$ + ":" + tp$ + ":"
+          END IF
         END IF
       END IF
     END IF
