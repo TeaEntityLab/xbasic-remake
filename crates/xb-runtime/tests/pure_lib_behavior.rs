@@ -192,3 +192,75 @@ int main(void) {
 
     eprintln!("{stdout}");
 }
+
+#[test]
+fn xut_pure_library_behavior() {
+    let root = repo_root();
+    let tmp = std::env::temp_dir().join("xb_pure_lib_behavior_xut");
+    let _ = fs::remove_dir_all(&tmp);
+    fs::create_dir_all(&tmp).unwrap();
+
+    // Compile xut.x (and its dependency xst.x) through CEmitter.
+    let xut_src = root.join("xbasic-6.4.5/src/shared/xut.x");
+    let xst_src = root.join("xbasic-6.4.5/src/linux/xst.x");
+    assert!(xut_src.exists(), "xut.x not found at {xut_src:?}");
+    assert!(xst_src.exists(), "xst.x not found at {xst_src:?}");
+
+    let xut_c = emit_c(&xut_src, &tmp, true);
+    let xst_c = emit_c(&xst_src, &tmp, true);
+    let xut_o = compile_c(&xut_c, &tmp);
+    let xst_o = compile_c(&xst_c, &tmp);
+
+    // XutInit() is a no-op that returns 0. This proves compilation + linking +
+    // calling works for the xut library (platform-independent utility library).
+    let harness = tmp.join("harness.c");
+    fs::write(&harness, r#"#include <stdio.h>
+
+/* Forward declaration for user-defined function from xut.x */
+long xb_user_XutInit(void);
+
+static int fails = 0;
+
+int main(void) {
+    /* XutInit() returns 0 (no-op function) */
+    long ret = xb_user_XutInit();
+    int ok = (ret == 0);
+    printf("%-20s = %ld  (want 0)  %s\n", "XutInit()", ret, ok ? "ok" : "FAIL");
+    if (!ok) fails++;
+
+    printf("\n%d checks, %d failures\n", 1, fails);
+    return fails;
+}
+"#).unwrap();
+
+    let bin = tmp.join("xut_test");
+    let link = Command::new(cc())
+        .args(["-O0", "-Wno-incompatible-pointer-types", "-Wno-int-conversion"])
+        .arg(&harness)
+        .arg(&xut_o)
+        .arg(&xst_o)
+        .arg("-lm")
+        .arg("-o")
+        .arg(&bin)
+        .output()
+        .expect("link");
+    assert!(
+        link.status.success(),
+        "link failed:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+
+    let run = Command::new(&bin).output().expect("run");
+    let stdout = String::from_utf8_lossy(&run.stdout);
+    let stderr = String::from_utf8_lossy(&run.stderr);
+
+    assert!(
+        run.status.success(),
+        "xut behavior test failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    );
+
+    assert!(stdout.contains("0 failures"), "test reported failures:\n{stdout}");
+    assert!(stdout.contains("XutInit()"), "missing XutInit check in output");
+
+    eprintln!("{stdout}");
+}

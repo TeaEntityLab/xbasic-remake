@@ -10,15 +10,21 @@
 //!   XstGetOSName(@name$)  → "linux unix"  (SELECT CASE on ##XBSystem == 0)
 //!   XstGetConsoleGrid(@grid) → 0          (reads xb_shared_CONGRID, init 0)
 //!   XstVersion$()         → "6.4.5"       (calls VERSION$(0) → xb_version(0))
+//!   XstGetEndianName(name$) → ret 0       (byval: string lost, return proves body ran)
+//!   XstGetCPUName(name$)    → ret 0       (byval: string lost, return proves body ran)
 //!
-//! The byref detection is callsite-driven: these functions are called with
-//! `@` at least once inside xst.x, so the C emitter gives them `char**` /
-//! `intptr_t*` signatures with copy-in/copy-out. This tests:
+//! The byref detection is callsite-driven: XstGetOSName, XstGetConsoleGrid,
+//! and XstVersion$ are called with `@` at least once inside xst.x, so the C
+//! emitter gives them `char**` / `intptr_t*` signatures with copy-in/copy-out.
+//! XstGetEndianName and XstGetCPUName are never called with `@` inside xst.x,
+//! so they get byval `char*` signatures — the string output is lost (local
+//! copy), but the return value 0 proves the function body executed. This tests:
 //!   - SELECT CASE lowering on SHARED system variables
 //!   - String assignment to byref output parameters
 //!   - Integer byref output parameters
 //!   - SHARED variable reads (xb_shared_CONGRID, xb_shared_XBSystem)
 //!   - RETURN value path for string functions (XstVersion$)
+//!   - Byval string function body execution (return value only)
 
 use std::process::Command;
 use std::fs;
@@ -123,6 +129,8 @@ fn xst_stateful_library_behavior() {
 intptr_t xb_user_XstGetOSName(char* *xb_str_name_ref);
 intptr_t xb_user_XstGetConsoleGrid(intptr_t *xb_var_grid_ref);
 char* xb_user_XstVersion(void);
+intptr_t xb_user_XstGetEndianName(char* xb_str_name);
+intptr_t xb_user_XstGetCPUName(char* xb_str_name);
 
 /* SHARED variables referenced by xst.o */
 typedef long intptr_t;
@@ -156,7 +164,18 @@ int main(void) {
     char* ver = xb_user_XstVersion();
     check_s("XstVersion$", ver, "6.4.5");
 
-    printf("\n%d checks, %d failures\n", 3, fails);
+    /* XstGetEndianName: byval string (never called with @ in xst.x, so byval).
+       The string output is lost (local copy), but the return value 0 proves
+       the function body executed (sets name$ = "LittleEndian", returns 0). */
+    char endian_buf[64] = {0};
+    intptr_t endian_ret = xb_user_XstGetEndianName(endian_buf);
+    check_i("XstGetEndianName(ret)", endian_ret, 0);
+
+    /* XstGetCPUName: byval string. Returns 0. Body sets name$ = "80386". */
+    char cpu_buf[64] = {0};
+    intptr_t cpu_ret = xb_user_XstGetCPUName(cpu_buf);
+    check_i("XstGetCPUName(ret)", cpu_ret, 0);
+    printf("\n%d checks, %d failures\n", 5, fails);
     return fails;
 }
 "#).unwrap();
@@ -193,6 +212,7 @@ int main(void) {
     assert!(stdout.contains("XstGetOSName"), "missing XstGetOSName check in output");
     assert!(stdout.contains("XstGetConsoleGrid"), "missing XstGetConsoleGrid check in output");
     assert!(stdout.contains("XstVersion$"), "missing XstVersion$ check in output");
-
+    assert!(stdout.contains("XstGetEndianName"), "missing XstGetEndianName check in output");
+    assert!(stdout.contains("XstGetCPUName"), "missing XstGetCPUName check in output");
     eprintln!("{stdout}");
 }
