@@ -1482,6 +1482,31 @@ WHILE pos <= LEN(src$)
           ' incomplete for string UBOUND patterns).
           IF LEN(##facetTab$) > 0 THEN
             ##dynNames$ = filter_dyn_scope$(##scanDynAll$, ##facetDynAll$, facets_in_scope$(##facetTab$, funcName$, "dyn"), ##facetTab$, funcName$)
+            ' Add facet-confirmed dyn names that the scanner missed (e.g.,
+            ' tokenTemp — storage=dyn in facets but only DIM'd as scalar,
+            ' so scan_dyn$ doesn't detect it). These need to be in dynNames$
+            ' so the scalar DIM emits nothing and the hoist declares the scalar.
+            DIM _fdExtra$
+            _fdExtra$ = facets_in_scope$(##facetTab$, funcName$, "dyn")
+            DIM _fdPos
+            _fdPos = 1
+            WHILE _fdPos <= LEN(_fdExtra$)
+              DIM _fdLe
+              _fdLe = INSTR(_fdExtra$, ":", _fdPos + 1)
+              IF _fdLe = 0 THEN _fdLe = LEN(_fdExtra$) + 1
+              DIM _fdNm$
+              _fdNm$ = MID$(_fdExtra$, _fdPos + 1, _fdLe - _fdPos - 1)
+              _fdPos = _fdLe + 1
+              IF LEN(_fdNm$) > 0 AND RIGHT$(_fdNm$, 1) <> "$" THEN
+                IF INSTR(##dynNames$, ":" + _fdNm$ + ":") = 0 THEN
+                  DIM _fdTy$
+                  _fdTy$ = dyn_type$(_fdNm$)
+                  IF _fdTy$ <> "" THEN
+                    ##dynNames$ = ##dynNames$ + ":" + _fdNm$ + ":" + _fdTy$ + ":"
+                  END IF
+                END IF
+              END IF
+            WEND
           END IF
           IF LEN(trim_spaces$(params$)) = 0 THEN
             PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(void) {"
@@ -1508,7 +1533,8 @@ WHILE pos <= LEN(src$)
           ##qsIdxNames$ = ""
           ##curFnShapes$ = fn_array_shapes$(src$, pos)
           ##inFuncScope = 1
-          nestBlocks$ = ""
+          ##selectExitCount = 0
+          ##selectExitStack$ = ""
           inNest = 0
         END IF
       END IF
@@ -4076,12 +4102,12 @@ FUNCTION emit_d1$(a$)
   DIM ch
   DIM depth
   DIM start
-  DIM found
-  DIM p2$
+  DIM p$
+  DIM result$
   i = 1
   start = 1
   depth = 0
-  found = 0
+  result$ = ""
   WHILE i <= LEN(a$)
     ch = ASC(MID$(a$, i, 1))
     IF ch = 34 THEN
@@ -4100,14 +4126,20 @@ FUNCTION emit_d1$(a$)
       depth = depth + 1
     ELSEIF ch = 41 THEN
       depth = depth - 1
-    ELSEIF ch = 44 AND depth = 0 AND found = 0 THEN
+    ELSEIF ch = 44 AND depth = 0 THEN
+      p$ = trim_spaces$(MID$(a$, start, i - start))
+      IF LEN(result$) > 0 THEN result$ = result$ + ","
+      result$ = result$ + emit_expr$(p$)
       start = i + 1
-      found = 1
     END IF
     i = i + 1
   WEND
-  p2$ = trim_spaces$(MID$(a$, start, LEN(a$) - start + 1))
-  emit_d1$ = emit_expr$(p2$)
+  p$ = trim_spaces$(MID$(a$, start, LEN(a$) - start + 1))
+  IF LEN(p$) > 0 THEN
+    IF LEN(result$) > 0 THEN result$ = result$ + ","
+    result$ = result$ + emit_expr$(p$)
+  END IF
+  emit_d1$ = result$
 END FUNCTION
 
 FUNCTION emit_params$(params$)
@@ -4692,7 +4724,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
         ' (e.g., string→xb_str_X vs integer→xb_var_X) — hoist the other facet.
         ' Note: $-suffix names (asm$ vs asm) never collide because sanitize_ident$
         ' maps $ to _s, producing different C names (xb_str_asm_s vs xb_str_asm).
-        IF (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR (_ptMatch = 0 AND c_var_name$(nm$, ty$) <> c_var_name$(nm$, _ptType$)) OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) AND (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0) OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1 OR (INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0) OR (INSTR(##sharedStrDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0)) THEN
+        IF (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR (_ptMatch = 0 AND c_var_name$(nm$, ty$) <> c_var_name$(nm$, _ptType$)) OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) AND (INSTR(##sharedArrays$, ":" + nm$ + ":") = 0 OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0)) OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1 OR (INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0)) OR (INSTR(##sharedStrDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0)) THEN
           IF INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
             IF (INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
               IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 THEN
@@ -4755,8 +4787,16 @@ FUNCTION emit_hoists$(used$, dimmed$)
     ELSEIF nlpos > 1 THEN
       entry$ = LEFT$(rest$, nlpos - 1)
       rest$ = MID$(rest$, nlpos + 1, LEN(rest$) - nlpos)
-      IF INSTR(##sharedArrays$, ":" + entry$ + ":") > 0 THEN
-        ' Shared array: file-scope heap global already declared (no local `_arr`).
+      IF INSTR(##sharedArrays$, ":" + entry$ + ":") > 0 AND INSTR(##sharedDual$, ":" + entry$ + ":") = 0 THEN
+        ' Shared array (non-dual): file-scope heap global already declared.
+      ELSEIF INSTR(##sharedArrays$, ":" + entry$ + ":") > 0 AND INSTR(##sharedDual$, ":" + entry$ + ":") > 0 THEN
+        ' Shared dual-use: file-scope has _arr pointer only; scalar facet
+        ' needs a local declaration (matches Rust CEmitter local intptr_t).
+        IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
+          IF INSTR(out$, "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;") = 0 THEN
+            out$ = out$ + "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)
+          END IF
+        END IF
       ELSEIF INSTR(##strDual$, ":" + entry$ + ":") > 0 AND INSTR(##strUbDual$, ":" + entry$ + ":") = 0 THEN
         IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
           IF INSTR(out$, "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + "); char** ") = 0 AND INSTR(out$, " " + c_var_name$(entry$, "string") + " = xb_str(") = 0 THEN
@@ -4806,34 +4846,36 @@ FUNCTION emit_hoists$(used$, dimmed$)
           END IF
         END IF
       ELSEIF INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
-        IF INSTR(##byrefDual$, ":" + entry$ + ":") > 0 OR INSTR(##dualUse$, ":" + entry$ + ":") > 0 THEN
+        IF (INSTR(##byrefDual$, ":" + entry$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) > 0) OR INSTR(##dualUse$, ":" + entry$ + ":") > 0 THEN
           DIM _dt$
           _dt$ = dyn_type$(entry$)
-          IF INSTR(out$, "    " + c_type$(_dt$) + " xb_var_" + sanitize_ident$(entry$) + " = " + c_default$(_dt$) + ";" + CHR$(10)) = 0 THEN
-            IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
-              IF INSTR(out$, "xb_var_" + sanitize_ident$(entry$) + "_arr") = 0 THEN
-                out$ = out$ + "    " + c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
-              END IF
-            ELSEIF INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
-              IF INSTR(out$, "xb_var_" + sanitize_ident$(entry$) + "_arr") = 0 THEN
-                out$ = out$ + "    " + c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0;" + CHR$(10)
-              END IF
-              IF INSTR(out$, "intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;") = 0 THEN
-                out$ = out$ + "    intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
-              END IF
-            ELSEIF INSTR(out$, "intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;") = 0 THEN
+          IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
+            IF INSTR(out$, "xb_var_" + sanitize_ident$(entry$) + "_arr") = 0 THEN
+              out$ = out$ + "    " + c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
+            END IF
+          ELSEIF INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
+            IF INSTR(out$, "xb_var_" + sanitize_ident$(entry$) + "_arr") = 0 THEN
+              out$ = out$ + "    " + c_type$(_dt$) + "* xb_var_" + sanitize_ident$(entry$) + "_arr = 0;" + CHR$(10)
+            END IF
+            IF INSTR(out$, "intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;") = 0 THEN
               out$ = out$ + "    intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
             END IF
+          ELSEIF INSTR(out$, "intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;") = 0 THEN
+            out$ = out$ + "    intptr_t xb_ub_" + sanitize_ident$(entry$) + "_arr = -1;" + CHR$(10)
+          END IF
+          IF INSTR(out$, "    " + c_type$(_dt$) + " xb_var_" + sanitize_ident$(entry$) + " = " + c_default$(_dt$) + ";" + CHR$(10)) = 0 THEN
             IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) > 0 THEN
               out$ = out$ + "    " + c_type$(_dt$) + " xb_var_" + sanitize_ident$(entry$) + " = " + c_default$(_dt$) + ";" + CHR$(10)
             END IF
           END IF
+        ELSEIF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
+          ' Scalar param in ##dynNames$ — skip dyn pointer to avoid redefinition.
         ELSE
           DIM _dt2$
           _dt2$ = dyn_type$(entry$)
           IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
             out$ = out$ + "    " + c_type$(_dt2$) + "* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
-          END IF
+        END IF
         END IF
       ELSEIF INSTR(##byrefDual$, ":" + entry$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) > 0) THEN
         ' Array param used as scalar but NOT in ##dynNames$ — emit scalar facet only.
@@ -6181,6 +6223,18 @@ FUNCTION scan_dynstr$(s$)
             END IF
           END IF
         END IF
+      ELSE
+        ' Scalar string DIM (no '['): add to seen$ so a later array DIM
+        ' of the same name is detected as dyn (dual-use scalar+array).
+        e = INSTR(r$, ":")
+        IF e > 0 THEN
+          IF MID$(r$, e + 1, LEN(r$) - e) = "string" THEN
+            nm$ = LEFT$(r$, e - 1)
+            IF INSTR(seen$, ":" + nm$ + ":") = 0 THEN
+              seen$ = seen$ + ":" + nm$ + ":"
+            END IF
+          END IF
+        END IF
       END IF
     END IF
   WEND
@@ -7440,6 +7494,18 @@ FUNCTION emit_stmt$(s$)
         DIM xsDstData$
         DIM xsDstUb$
         xsSrcLen$ = "(" + ub_ref$(xsN0$, xsT0$) + " + 1)"
+        IF INSTR(##qsIdxNames$, ":" + xsN0$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN0$ + ":" + xsT0$ + ":"
+        DIM xsSrcData$
+        xsSrcData$ = arr_acc_name$(xsN0$, xsT0$)
+        IF INSTR(xsSrcData$, "xb_str_") = 0 AND INSTR(xsSrcData$, "_arr") = 0 THEN
+          xsSrcData$ = "xb_var_" + sanitize_ident$(xsN0$) + "_arr"
+        END IF
+        DIM xsSrcUb$
+        xsSrcUb$ = ub_ref$(xsN0$, xsT0$)
+        IF INSTR(xsSrcUb$, "_arr") = 0 THEN
+          xsSrcUb$ = "xb_ub_" + sanitize_ident$(xsN0$) + "_arr"
+        END IF
+        xsSrcLen$ = "(" + xsSrcUb$ + " + 1)"
         IF INSTR(##qsIdxNames$, ":" + xsN1$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN1$ + ":" + xsT1$ + ":"
         xsDstData$ = arr_acc_name$(xsN1$, xsT1$)
         IF INSTR(xsDstData$, "xb_str_") = 0 AND INSTR(xsDstData$, "_arr") = 0 THEN
@@ -7449,7 +7515,7 @@ FUNCTION emit_stmt$(s$)
         IF INSTR(xsDstUb$, "_arr") = 0 THEN
           xsDstUb$ = "xb_ub_" + sanitize_ident$(xsN1$) + "_arr"
         END IF
-        emit_stmt$ = "    xb_copyarray((void*)" + arr_acc_name$(xsN0$, xsT0$) + ", " + xsSrcLen$ + ", " + xsEt0$ + ", (void**)&" + xsDstData$ + ", &" + xsDstUb$ + ");"
+        emit_stmt$ = "    xb_copyarray((void*)" + xsSrcData$ + ", " + xsSrcLen$ + ", " + xsEt0$ + ", (void**)&" + xsDstData$ + ", &" + xsDstUb$ + ");"
         RETURN emit_stmt$
       END IF
       emit_stmt$ = ""
