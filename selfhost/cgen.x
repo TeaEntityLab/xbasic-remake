@@ -1229,7 +1229,7 @@ WHILE fwdPos <= LEN(src$)
         ELSE
           fwdSType$ = fwdSAfter$
         END IF
-        IF INSTR(##sharedArrays$, ":" + fwdSName$ + ":") > 0 THEN
+        IF ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":" + fwdSName$ + ":") > 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, fwdSName$, "*") = "1")) THEN
           IF INSTR(##sharedArrDecls$, ":" + fwdSName$ + ":") = 0 THEN
             ##sharedArrDecls$ = ##sharedArrDecls$ + ":" + fwdSName$ + ":"
             IF INSTR(##sharedDual$, ":" + fwdSName$ + ":") > 0 THEN
@@ -1251,20 +1251,20 @@ WHILE fwdPos <= LEN(src$)
   END IF
 WEND
 IF INSTR(##dualUse$, ":found:") > 0 THEN
-  IF INSTR(##sharedArrays$, ":found:") > 0 AND INSTR(##sharedArrDecls$, ":found:") = 0 THEN
+  IF ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":found:") > 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, "found", "*") = "1")) AND INSTR(##sharedArrDecls$, ":found:") = 0 THEN
     PRINT "intptr_t* xb_var_found_arr = 0; intptr_t xb_ub_found_arr = -1;"
     IF INSTR(##arr2d$, ":found:") > 0 THEN
       PRINT "intptr_t xb_d1_found_arr = 0;"
     END IF
   END IF
 END IF
-IF INSTR(##sharedArrays$, ":tool:") > 0 AND INSTR(##sharedArrDecls$, ":tool:") = 0 THEN
+IF ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":tool:") > 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, "tool", "*") = "1")) AND INSTR(##sharedArrDecls$, ":tool:") = 0 THEN
   PRINT "intptr_t* xb_var_tool_arr = 0; intptr_t xb_ub_tool_arr = -1;"
   IF INSTR(##arr2d$, ":tool:") > 0 THEN
     PRINT "intptr_t xb_d1_tool_arr = 0;"
   END IF
 END IF
-IF INSTR(##sharedArrays$, ":window:") > 0 AND INSTR(##sharedArrDecls$, ":window:") = 0 THEN
+IF ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":window:") > 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, "window", "*") = "1")) AND INSTR(##sharedArrDecls$, ":window:") = 0 THEN
   PRINT "intptr_t* xb_var_window_arr = 0; intptr_t xb_ub_window_arr = -1;"
   IF INSTR(##arr2d$, ":window:") > 0 THEN
     PRINT "intptr_t xb_d1_window_arr = 0;"
@@ -1319,7 +1319,7 @@ WHILE dsPos <= LEN(src$)
       ELSE
         dsRefType$ = MID$(dsRest$, dsColon + 1, dsSp - dsColon - 1)
       END IF
-      IF INSTR(##sharedDecls$, ":" + dsRefName$ + ":") = 0 AND INSTR(##sharedArrays$, ":" + dsRefName$ + ":") = 0 THEN
+      IF INSTR(##sharedDecls$, ":" + dsRefName$ + ":") = 0 AND ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":" + dsRefName$ + ":") = 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, dsRefName$, "*") = "0")) THEN
         ##sharedDecls$ = ##sharedDecls$ + ":" + dsRefName$ + ":"
         ##keywordShared$ = ##keywordShared$ + ":" + dsRefName$ + ":"
         IF dsRefType$ = "string" THEN
