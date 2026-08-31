@@ -27,7 +27,7 @@
 > index bounds check. Dynamic array auto-grow sanity limit (1M elements).
 > All mirrored in cgen.x where applicable.
 > sync 63/63, positive corpus 81/81, demo regression 27/27,
-> frontend 24/24, compiler 68/68, zero compiler warnings, zero clippy warnings).
+> frontend 26/26, compiler 77 (70 lib + 4 dec_processing + 1 legacy_corpus + 2 source_coverage), zero compiler warnings, zero clippy warnings).
 > The last full workspace run reports **285 passed / 0 failed across 34 binaries**. In
 > `xbsourcelib_parity.rs`, `xbsourcelib_interp_matches_compiled` covers 11
 > non-ARY programs; the separate compile-only
@@ -487,7 +487,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 ### Legacy-library readiness panel 2026-08-27 — Candidate Adoption Ledger
 
 > **Historical snapshot.** The 6/15 result below was current for this panel;
-> the current test-locked floor is 9/15.
+> the current test-locked floor is 15/15 (since `8fe02ce`, 2026-08-30).
 
 > Five read-only lenses (evidence, compiler correctness, runtime semantics,
 > coverage/reproducibility, strategy) independently returned **AGREE WITH
@@ -562,8 +562,8 @@ sections below or the named sibling docs; ✅-done items are omitted.
 1. docs/16 must say demo text identity is de-scoped, not open.
 2. docs/18 and docs/README must bound the landed descriptor to primitive/flat
    arrays and mark composite `TYPE` arrays open.
-3. docs/19 must say partial/narrow consumption; it has not replaced heuristic
-   scans or implemented scope-qualified lookup.
+3. docs/19 must say substantially implemented (scope-qualified lookup done,
+   15/15 core libs); `strDual`/`allStrArr` remain heuristic (no corpus trigger).
 4. docs/17 must reflect that the test-locked cgen floor is now 15/15 (was 9/15);
    RR-03 and RR-05 are done. Historical 9/15 and 6/15 measurements are snapshots.
 5. The 114/114 demo headline is now a raw-generator contract (RR-13 done

@@ -418,11 +418,11 @@ differential records 112 runnable matches and two real-I/O skips.
 All 15 core libraries compile and link through the Rust CEmitter under
 `XB_WEAK_SYMBOLS=1` with 1736 `xb_user_*` symbols; its smoke executes seven
 `Version$` accessors only. Self-hosted `cgen.x` core-library compilation has a
-test-locked **9/15 floor** (`cgen_x_compiles_core_libs_floor_9_cc_clean`);
-RR-03 and RR-05 retain the 15/15 exit gate. Compile/link success is not runtime
-behavioral fidelity: stateful libraries remain blocked on `ATTACH` alias
-semantics (RR-06), binding authority and body-level behavior gates
-(RR-07/RR-08), and capability gates (RR-09).
+test-locked **15/15 floor** (`cgen_x_compiles_core_libs_floor_9_cc_clean`,
+asserts `>= 15` since `8fe02ce`); RR-03 and RR-05 are done. Compile/link
+success is not runtime behavioral fidelity: stateful libraries remain blocked
+on `ATTACH` alias semantics (RR-06), binding authority and body-level
+behavior gates (RR-07/RR-08), and capability gates (RR-09).
 
 The §6 ≤250-LOC module rule is advisory in `checks/verify-bootstrap.sh`, not a
 hard gate. Current open work lives in docs/17; generator-sync scope lives in
