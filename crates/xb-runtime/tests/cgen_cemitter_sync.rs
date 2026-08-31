@@ -3767,6 +3767,60 @@ fn cemitter_and_cgen_agree_on_do_loop_until() {
     );
     let _ = fs::remove_dir_all(&tmp);
 }
+#[test]
+#[ignore = "byref descriptor spike — cgen truncates until descriptor lands (docs/18)"]
+fn cemitter_and_cgen_agree_on_byref_redim_minimal() {
+    let tmp = std::env::temp_dir().join("xb_sync_byref_redim");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               DECLARE FUNCTION Grow (@a[], newsize)\n\
+               FUNCTION Main\n\
+               DIM a[2]\n\
+               a[0] = 5\n\
+               a[1] = 6\n\
+               a[2] = 7\n\
+               Grow(@a[], 5)\n\
+               PRINT \"ub=\"; UBOUND(a[])\n\
+               FOR i = 0 TO UBOUND(a[])\n\
+               PRINT \"a\"; i; \"=\"; a[i]\n\
+               NEXT\n\
+               END FUNCTION\n\
+               FUNCTION Grow (@a[], newsize)\n\
+               REDIM a[newsize]\n\
+               a[newsize] = 99\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byref_redim program")
+        .lower_ir()
+        .expect("lower byref_redim program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byref_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byref_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byref_redim program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "ub=5\na0=5\na1=6\na2=7\na3=0\na4=0\na5=99\n",
+        "byref_redim reference output"
+    );
+    assert_eq!(rust_out, interp_out, "CEmitter mishandled byref REDIM");
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled byref REDIM (descriptor spike)"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 
 /// LEGACY-CORPUS-COMPILE-COVERAGE: verify that the 19 GTK demos and 3 helpsrc
 /// programs — previously only parse/lower-tested by `legacy_corpus` — compile
