@@ -5057,7 +5057,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
             IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
               out$ = out$ + "    char** " + c_var_name$(nm$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
-          ELSEIF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 AND INSTR(##allStrArr$, ":" + nm$ + ":") = 0 AND INSTR(##dynNames$, ":" + nm$ + ":") = 0 AND ty$ = "string" THEN
+          ELSEIF is_xst_arr$(nm$, "*") = "1" AND is_all_str_arr$(nm$, "*") = "0" AND INSTR(##dynNames$, ":" + nm$ + ":") = 0 AND ty$ = "string" THEN
             IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
               out$ = out$ + "    char** " + c_var_name$(nm$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
