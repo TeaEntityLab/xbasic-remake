@@ -1,0 +1,285 @@
+grid,	#Callback
+grid,	#Cancel
+grid,	#Change
+grid,	#CloseWindow
+grid,	#ContextChange
+grid,	#Create	xWin	yWin	width	height	window	parent
+grid,	#CreateValuesArray	upperBound
+grid,	#CreateWindow	xDisp	yDisp	width	height	windowType	display$
+grid,	#CursorH
+grid,	#CursorV
+grid,	#Destroy
+grid,	#Destroyed
+grid,	#DestroyWindow
+grid,	#Disable
+grid,	#DisplayWindow
+grid,	#Enable
+grid,	#Enter
+grid,	#Find
+grid,	#FindForward
+grid,	#FindReverse
+grid,	#Forward
+grid,	#GetAlign	@align	@justify	@indentLeft	@indentTop		@borderWidth
+grid,	#GetBorder	@border	@borderUp	@borderDown			@borderWidth
+grid,	#GetCallback	@callbackGrid	@callbackFuncAddr
+grid,	#GetCallbackArgs
+grid,	#GetCharacterMapArray						@map[]
+grid,	#GetCharacterMapEntry	entry	@value
+grid,	#GetClipGrid	@clipGrid
+grid,	#GetColor	@background	@drawing	@lowlight	@highlight
+grid,	#GetColorExtra	@dull	@accent	@lowtext	@hightext
+grid,	#GetCursor	@cursorNumber
+grid,	#GetCursorXY	@x	@y
+grid,	#GetDisplay						@displayName$
+grid,	#GetEnclosedGrids						@grids[]
+grid,	#GetEnclosingGrid @enclosingGrid
+grid,	#GetFocusColor	@background	@drawing	@lowlight	@highlight
+grid,	#GetFocusColorExtra	@dull	@accent	@lowtext	@hightext
+grid,	#GetFont	@size	@weight	@italic	@angle		@typeface$
+grid,	#GetFontMetrics	@maxWidth	@maxHeight	@ascent	@decent		@gap
+grid,	#GetFontNumber	@fontNumber
+grid,	#GetGridFunction	@GridFuncAddr
+grid,	#GetGridFunctionName	@gridFuncAddr					@gridFuncName$
+grid,	#GetGridName						@gridName$
+grid,	#GetGridNumber	@gridNumber	@kid1	@kid2	@kid3		@parentGridNumber
+grid,	#GetGridProperties
+grid,	#GetGridType	@gridType
+grid,	#GetGridTypeName	@gridType					@gridTypeName$
+grid,	#GetGroup	@group
+grid,	#GetHelp						@helpStringOrEntry$
+grid,	#GetHelpFile						@helpFile$
+grid,	#GetHelpString						@helpString$
+grid,	#GetHelpStrings						@helpStrings$[]
+grid,	#GetHintString						@hintString$
+grid,	#GetImage	@imageGrid		@indentX	@indentY		@imageFileName$
+grid,	#GetImageCoords	@startX	@startY	@width	@height
+grid,	#GetIndent	@indentLeft	@indentTop	@indentRight	@indentBottom
+grid,	#GetInfo	don't	use	this	message
+grid,	#GetJustify	@justify	@align	@indentLeft	@indentTop		@borderWidth
+grid,	#GetKeyboardFocus	@keyboardFocusGrid
+grid,	#GetKeyboardFocusGrid	@keyboardFocusGridForThisWindow
+grid,	#GetKidNumber	@kidNumber
+grid,	#GetKids	@baseGrid	@kid1	@kid2	@kid3		@kid4
+grid,	#GetKidsArray	@baseGrid	@parent				@kids[]
+grid,	#GetLimits	@maxWidth	@maxHeight	@minWidth	@minHeight
+grid,	#GetMessageFunc	message	@MessageFuncAddr
+grid,	#GetMessageFuncArray						@messageFuncArray[]
+grid,	#GetMessageSub	message	@MessageSubAddr
+grid,	#GetMessageSubArray						@messageSubArray[]
+grid,	#GetModalInfo	@v0	@v1	@v2	@v3		@r1
+grid,	#GetMouseFocus	@mouseFocusGrid
+grid,	#GetParent	@parent	@grid	@kid1	@kid2
+grid,	#GetProtoInfo	don't	use	this	message
+grid,	#GetRedrawFlags	@redrawFlags
+grid,	#GetSize	@x	@y	@width	@height
+grid,	#GetSmallestSize	@width	@height	@width	@height
+grid,	#GetState	@state	@keyboard	@mouse	@redraw		@enable
+grid,	#GetStyle	@style
+grid,	#GetTabStops
+grid,	#GetTabWidth
+grid,	#GetTextArray						@text$[]
+grid,	#GetTextArrayBounds	[@cursorPos]	[@cursorLine]	@upperPos	@upperLine
+grid,	#GetTextArrayLine	line	@okay0		@upper		@text$
+grid,	#GetTextArrayLines	firstLine	lines	@okay0	@upper		@text$[]
+grid,	#GetTextCursor	@cursorPos	@cursorLine	[@leftPos] [@topLine]
+grid,	#GetTextPosition	@xWin	@yWin	[@pos]	[@line]		[@outsideText]
+grid,	#GetTextSelection	@beginPos	@beginLine	@endPos	@endLine
+grid,	#GetTextSpacing	@xgap	@ygap
+grid,	#GetTextString						@text$
+grid,	#GetTextStrings				@upper		@text$[]
+grid,	#GetTexture	@texture
+grid,	#GetTimer	@milliseconds
+grid,	#GetValue	@value[index+0]	@value[index+1]	@value[index+2]	@value[index+3]		index
+grid,	#GetValues	@value[index+0]	@value[index+1]	@value[index+2]	@value[index+3]		index
+grid,	#GetValuesArray				@upper		@values[]
+grid,	#GetWindow	@window @windowType OR windowParent	@windowFuncAddr	@windowGrid		@windowKeyboardFocusGrid
+grid,	#GetWindowFunction	@windowFuncAddr
+grid,	#GetWindowGrid	@windowGrid
+grid,	#GetWindowIcon	@windowIcon
+grid,	#GetWindowSize	@xDisp	@yDisp	@width	@height
+grid,	#GetWindowTitle						@title$
+grid,	#GotKeyboardFocus
+grid,	#GrabArray				@upper		@array[]
+grid,	#GrabTextArray				@upper		@text$[]
+grid,	#GrabTextString						@text$
+grid,	#GrabValuesArray				@upper		@values[]
+grid,	#Help
+grid,	#HideTextCursor
+grid,	#HideWindow
+grid,	#Initialize
+grid,	#Initialized
+grid,	#Inline						prompt$ / @reply$
+grid,	#InquireText
+grid,	#KeyboardFocusBackward	@focusGrid
+grid,	#KeyboardFocusForward	@focusGrid
+grid,	#KeyDown	[xWinMouse]	[yWinMouse]	keyState	time
+grid,	#KeyUp	[xWinMouse]	[yWinMouse]	keyState	time
+grid,	#LostKeyboardFocus
+grid,	#LostMouseFocus
+grid,	#LostTextSelection
+grid,	#MaximizeWindow
+grid,	#Maximum
+grid,	#MinimizeWindow
+grid,	#Minimum
+grid,	#MonitorContext
+grid,	#MonitorHelp
+grid,	#MonitorKeyboard
+grid,	#MonitorMouse
+grid,	#MouseDown	x	y	keyState	time		grid
+grid,	#MouseDrag	x	y	keyState	time		grid
+grid,	#MouseEnter	x	y	keyState	time		grid
+grid,	#MouseExit	x	y	keyState	time		grid
+grid,	#MouseMove	x	y	keyState	time		grid
+grid,	#MouseUp	x	y	keyState	time		grid
+grid,	#MouseWheel	x	y	keyState	direction		grid
+grid,	#MuchLess
+grid,	#MuchMore
+grid,	#Notify
+grid,	#OneLess
+grid,	#OneMore
+grid,	#PokeArray						array[]
+grid,	#PokeTextArray						text$[]
+grid,	#PokeTextString						text$
+grid,	#PokeValuesArray						values[]
+grid,	#Print						text$
+grid,	#Redraw	xWin	yWin	width	height
+grid,	#RedrawGrid	xWin	yWin	width	height
+grid,	#Redrawn
+grid,	#RedrawText	xWin	yWin	width	height
+grid,	#RedrawWindow	xWin	yWin	width	height
+grid,	#Replace
+grid,	#ReplaceForward
+grid,	#ReplaceReverse
+grid,	#Reset
+grid,	#Resize	xWin	yWin	width	height
+grid,	#ResizeNot
+grid,	#ResizeWindow	xDisp	yDisp	width	height
+grid,	#ResizeWindowToGrid
+grid,	#Resized
+grid,	#Reverse
+grid,	#ScrollH
+grid,	#ScrollV
+grid,	#SelectWindow
+grid,	#Selection
+grid,	#SetAlign	align	justify	indentLeft	indentTop
+grid,	#SetBorder	border	borderUp	borderDown
+grid,	#SetCallback	callGrid	callAddr	user1	user2	kidNumber
+grid,	#SetCharacterMapArray						@map[]
+grid,	#SetCharacterMapEntry	entry	value
+grid,	#SetClipGrid	clipGrid
+grid,	#SetColor	background	drawing	lowlight	highlight
+grid,	#SetColorExtra	dull	accent	lowtext	hightext
+grid,	#SetCursor	cursorNumber
+grid,	#SetCursorXY	x	y
+grid,	#SetDisplay						displayName$
+grid,	#SetFocusColor	background	drawing	lowlight	highlight
+grid,	#SetFocusColorExtra	dull	accent	lowtext	hightext
+grid,	#SetFont	size	weight	italic	angle		typeface$
+grid,	#SetFontNumber	fontNumber
+grid,	#SetGridFunction	gridFuncAddr
+grid,	#SetGridFunctionName						gridFuncName$
+grid,	#SetGridName						gridName$
+grid,	#SetGridProperties
+grid,	#SetGridType	gridType
+grid,	#SetGridTypeName						gridTypeName$
+grid,	#SetGroup	group
+grid,	#SetHelp						help$
+grid,	#SetHelpFile						helpFileName$
+grid,	#SetHelpString						helpString$
+grid,	#SetHelpStrings						helpStrings$[]
+grid,	#SetHintString						hintString$
+grid,	#SetImage	@imageGrid	@bitsPerPixel	indentX	indentY		imageFileName$
+grid,	#SetImageCoords	xStart	yStart	width	height
+grid,	#SetIndent	indentLeft	indentTop	indentRight	indentBottom
+grid,	#SetInfo	don't use this message
+grid,	#SetJustify	justify
+grid,	#SetKeyboardFocus	[focusGrid]
+grid,	#SetKeyboardFocusGrid	[focusGrid]
+grid,	#SetLimits	maxWidth	maxHeight	minWidth	minHeight
+grid,	#SetMessageFunc	message	messageFuncAddr
+grid,	#SetMessageFuncArray						messageFuncs[]
+grid,	#SetMessageSub	don't	use	this	message
+grid,	#SetMessageSubArray	don't	use	this	message
+grid,	#SetMouseFocus	[focusGrid]
+grid,	#SetParent	don't	use	this	message
+grid,	#SetPosition	lowest	low	high	highest
+grid,	#SetRedrawFlags	redrawFlags
+grid,	#SetSize	x	y	width	height
+grid,	#SetState	state	keyboard	mouse	redraw
+grid,	#SetStyle	style
+grid,	#SetTabStops
+grid,	#SetTabWidth
+grid,	#SetTextArray						text$[]
+grid,	#SetTextArrayLine	line					text$
+grid,	#SetTextArrayLines	firstSourceLine	sourceLines	firstDestLine			text$[]
+grid,	#SetTextCursor	pos	line	[left]	[top]
+grid,	#SetTextSelection	startPos	startLine	endPos	endLine
+grid,	#SetTextSpacing	xgap	ygap
+grid,	#SetTextString						text$
+grid,	#SetTextStrings						text$[]
+grid,	#SetTexture	texture
+grid,	#SetTimer	timer
+grid,	#SetValue	value					index
+grid,	#SetValues	value0	value1	value2	value3		index
+grid,	#SetValuesArray						values[]
+grid,	#SetWindowFunction	windowFuncAddr
+grid,	#SetWindowIcon	[iconNumber]					iconName$
+grid,	#SetWindowTitle						windowTitle$
+grid,	#ShowTextCursor
+grid,	#ShowWindow
+grid,	#SomeLess
+grid,	#SomeMore
+grid,	#StartTimer	[milliseconds]
+grid,	#SystemMessage	hwnd	umsg	wParam	lParam		window
+grid,	#TextDelete
+grid,	#TextEvent
+grid,	#TextInsert
+grid,	#TextModified
+grid,	#TextReplace
+grid,	#TimeOut
+grid,	#Update
+window, #WindowClose
+window,	#WindowCreate	xDisp	yDisp	width	height	windowType OR parent	&windowFunction()
+window,	#WindowDeselected
+window,	#WindowDestroy
+window,	#WindowDestroyed
+window,	#WindowDisplay
+window,	#WindowDisplayed
+window,	#WindowGetDisplay						@displayName$
+window,	#WindowGetIcon	@iconNumber
+window,	#WindowGetKeyboardFocusGrid	@focusGrid
+window,	#WindowGetSelectedWindow	@selectedWindow
+window,	#WindowGetSize	@xDisp	@yDisp	@width	@height
+window,	#WindowGetTitle						@title$
+window,	#WindowHide
+window,	#WindowHidden
+window,	#WindowKeyDown	[xWin]	[yWin]	keyState	time
+window,	#WindowKeyUp	[xWin]	[yWin]	keyState	time
+window,	#WindowMaximize
+window,	#WindowMaximized
+window,	#WindowMinimize
+window,	#WindowMinimized
+window,	#WindowMonitorContext	callGrid	callFunc				delete/install
+window,	#WindowMonitorHelp	callGrid	callFunc				delete/install
+window,	#WindowMonitorKeyboard	callGrid	callFunc				delete/install
+window,	#WindowMonitorMouse	callGrid	callFunc				delete/install
+window,	#WindowMouseDown	x	y	keyState	time		grid
+window,	#WindowMouseDrag	x	y	keyState	time		grid
+window,	#WindowMouseEnter	x	y	keyState	time		grid
+window,	#WindowMouseExit	x	y	keyState	time		grid
+window,	#WindowMouseMove	x	y	keyState	time		grid
+window,	#WindowMouseUp	xWin	yWin	keyState	time		grid
+window,	#WindowMouseWheel	xWin	yWin	keyState	direction		grid
+window,	#WindowRedraw	xWin	yWin	width	height
+window,	#WindowRegister	windowGrid		@width	@height	@window	windowTitle$
+window,	#WindowResize	xDisp	yDisp	width	height
+window,	#WindowResized
+window,	#WindowResizeToGrid
+window,	#WindowSelect
+window,	#WindowSelected
+window,	#WindowSetDisplay						displayName$
+window,	#WindowSetIcon	iconNumber
+window,	#WindowSetKeyboardFocusGrid	focusGrid
+window,	#WindowSetTitle						windowTitle$
+window,	#WindowShow
+window, #WindowSystemMessage	hwnd	umsg	wParam	lParam		window

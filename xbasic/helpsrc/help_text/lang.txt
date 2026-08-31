@@ -1,0 +1,2972 @@
+:ABS()
+intrinsic
+
+numeric = ABS(numeric)
+
+Return the absolute value of any simple numeric type.
+The return type is the same as the argument.
+
+a = +23
+b = -23
+c = ABS(a)   ' c = 23
+d = ABS(b)   ' d = 23
+
+value1 = 25
+value2 = 35
+difference = ABS(value1-value2) ' difference = 10
+
+See: INT(), FIX()
+
+:AND
+
+Alternate symbol "&"
+
+binary bitwise operator
+integers = integers AND integers
+
+Bitwise AND two integer operands to produce an integer result.
+
+a = 0x05F0
+b = 0xFFA0
+c = a AND b   ' c = 0x05A0
+c = a & b
+
+See: OR, XOR, NOT, Operator Summary
+
+:ASC()
+intrinsic
+
+integer = ASC(string$)
+integer = ASC(string$, position)
+
+Return one byte from a string.  The first argument
+is the string to extract the byte from.  The second
+argument is the position of the byte to extract,
+or 1 if no second argument is given.
+
+a$ = "abcde"
+b = ASC(a$)     ' b = 'a'
+c = ASC(a$,4)   ' c = 'd'
+d = ASC(a$,6)   ' d = -1    (specified byte not within string)
+
+See: CHR$(), ASCII, Character Set
+
+:ATTACH
+statement
+
+ATTACH arrayNode TO arrayNode
+
+Move an array from source node to destination node.
+If the destination node is not empty a runtime error
+occurs.  After the array is moved to the destination
+node, the source node is made empty.
+
+ATTACH a[] TO b[]              ' attach array to array
+ATTACH a[] TO b[i,]            ' attach array to node
+ATTACH a[i,] TO b[]            ' attach node to array
+ATTACH a[i,] TO b[j,k,]        ' attach node to node
+ATTACH a$ TO b$[i]             ' attach string to node
+ATTACH b$[i] TO a$             ' attach node to string
+
+:BIN$()
+:BINB$()
+intrinsic
+
+string$ = BIN$(integers)
+string$ = BINB$(integers)
+string$ = BIN$(integers, digits)
+string$ = BINB$(integers, digits)
+
+Return the binary string representation of an integer.
+The return string has as many characters as necessary
+to represent the integer, or the number specified by
+the second argument, whichever is larger.
+
+a = 0xF0F5
+a$ = BIN$(a)        ' a$ = "1111000011110101"
+a$ = BINB$(a)       ' a$ = "0b1111000011110101"
+a$ = BIN$(a,20)     ' a$ = "00001111000011110101"
+a$ = BINB$(a,20)    ' a$ = "0b00001111000011110101"
+a$ = BIN$(a,5)      ' a$ = "1111000011110101"
+a$ = BINB(a,5)      ' a$ = "0b1111000011110101"
+
+See: HEX$(), HEXX$(), OCT$(), OCTO$(),
+		STR$(), STRING$(), STRING(), SIGNED$(), FORMAT$()
+
+:BITFIELD()
+intrinsic
+
+bitspec = BITFIELD(width, offset)
+
+Return a bitfield specification appropriate
+for bitfield extract and bitfield intrinsics.
+The first argument is the width of the bitfield.
+The second argument is the offset of the bitfield
+from the least significant bit.  Valid widths
+are 1 to 31, and valid offsets are 0 to 31.
+
+Works in prolog given two integer constants,
+and elsewhere in programs with integer values.
+
+$$BYTE0 = BITFIELD(8,  0)   ' bits 00-07  : low byte
+$$BYTE1 = BITFIELD(8,  8)   ' bits 08-15  : next higher
+$$BYTE2 = BITFIELD(8, 16)   ' bits 16-23  : next higher
+$$BYTE3 = BITFIELD(8, 24)   ' bits 24-31  : high byte
+$$KINDS = BITFIELD(5, 21)   ' bits 21-25  : 5 wide bitfield at bit 21
+spacing = BITFIELD(3, 29)   ' bits 29-31  : 3 wide bitfield at bit 29
+
+byteZero = token{$$BYTE0}
+
+See: SET(), CLR(), EXTS(), EXTU(), MAKE(), Brace Notation for Bitfields
+
+:Brace Notation for Bitfields
+
+Brace notation can be used to extract signed and unsigned bitfields,
+as in, aa = token{{3,24}} (signed) and aa = token{3,24} (unsigned).
+
+In aa = token{3,24}, the three-bit field starting at bit 24 is
+extracted from token and assigned to aa. The upper 29 bits of aa
+become zero since single braces specify unsigned bitfields.
+
+Double braces specify signed bitfields, so aa = token{{3,24}}
+fills the upper bits of aa with the most significant bit of
+the extracted 3-bits.
+
+See: BITFIELD()
+
+:Brace Notation for Strings
+
+  string${byteOffset}
+
+  The first character is at byteOffset = 0
+  The last character is at byteOffset = UBOUND(string$)
+
+Brace Notaion Extract
+
+  byte = string${byteOffset}
+
+Brace Notation Assign
+
+  string${byteOffset} = newByte
+
+See: STUFF$()
+
+:CHR$()
+intrinsic
+
+string$ = CHR$(integer)
+string$ = CHR$(integer, count)
+
+Return a string of 1 or more copies of a character.
+The first argument is the value of the character.
+The second argument is the number of copies of the
+character, which defaults to 1 when not given.
+
+a$ = CHR$(32)          ' a$ = " "           (1 space character)
+a$ = CHR$(32, 8)       ' a$ = "        "    (8 space characters)
+a$ = CHR$('x', 8)      ' a$ = "xxxxxxxx"    (8  'x'  characters)
+
+See: ASC(), ASCII, Character Set
+		SPACE$(), NULL$()
+
+:CJUST$()
+:LJUST$()
+:RJUST$()
+intrinsic
+
+string$ = CJUST$(string$, length)
+string$ = LJUST$(string$, length)
+string$ = RJUST$(string$, length)
+
+Return a string center-justified, left-justified,
+or right-justified in a field of space characters.
+The first argument is the string to justify.
+The second argument is the field width.
+The return string is always the specified width.
+If a string cannot be exactly centered,
+the extra space follows the string.
+If the string is longer than the field, the string
+is left justified and clipped at the end of the field.
+
+a$ = "cat"
+b$ = "catamaran"
+a$ = CJUST$(a$,7)      ' a$ = "  cat  "    (exact centering)
+a$ = CJUST$(a$,8)      ' a$ = "  cat   "   (excess space on right)
+a$ = CJUST$("xxx",9)   ' a$ = "   xxx   "  (exact centering)
+a$ = CJUST$(b$,3)      ' a$ = "cat"        (no fit, left justify)
+a$ = LJUST$(a$,6)      ' a$ = "cat   "     (left justify cat in 6)
+a$ = LJUST$(b$,7)      ' a$ = "catamar"    (string longer than 7)
+a$ = LJUST$("xxx",8)   ' a$ = "xxx     "   (left justify xxx in 8)
+a$ = LJUST$(b$,3)      ' a$ = "cat"        (string longer than 3)
+a$ = RJUST$(a$,6)      ' a$ = "   cat"     (right justify in 6)
+a$ = RJUST$(a$,7)      ' a$ = "tamaran"    (clip leading to fit)
+a$ = RJUST$("xxx",8)   ' a$ = "     xxx"   (right justify in 8)
+a$ = RJUST$(b$,3)      ' a$ = "ran"        (clip leading to fit)
+
+See: FORMAT$()
+
+:CLOSE()
+intrinsic
+
+integer = CLOSE (fileNumber)
+
+Close an open file and return 0 to indicate success.
+The argument is the filenumber assigned to the file
+when it was opened.  If the argument is not the
+filenumber of an open file, -1 is returned.
+
+err = CLOSE (ifile)     ' test for close error
+CLOSE (ofile)           ' ... or don't bother
+CLOSE ($$ALL)           ' close all open files
+
+See: OPEN(), EOF(), LOF(), POF(), SEEK(), READ, WRITE, INFILE$()
+
+:CLR()
+:SET()
+intrinsic
+
+integer = CLR(integer, bitspec)
+integer = CLR(integer, width, offset)
+integer = CLR(integer, bitspec)
+integer = CLR(integer, width, offset)
+integer = SET(integer, bitspec)
+integer = SET(integer, width, offset)
+integer = SET(integer, bitspec)
+integer = SET(integer, width, offset)
+
+Clear or set a field of bits.  The first argument is
+the integer value in which the bits are cleared or set.
+In the two argument version, the second argument is a
+bitspec that contains the width and offset of the
+bitfield to clear or set.  In the three argument version
+the second and third arguments are the width and offset
+of the bitfield to clear or set.
+
+$$TYPE = BITFIELD(5,16)     ' in PROLOG
+$KIND = BITFIELD(5,24)      ' in a function
+kind = BITFIELD(5,24)       ' variable as bitspec
+i = 0xFFFFFFFF              ' i = 0xFFFFFFFF
+j = 0x00000000              ' j = 0x00000000
+a = CLR(i, $$TYPE)          ' a = 0xFFE0FFFF
+a = CLR(i, $KIND)           ' a = 0xE0FFFFFF
+a = CLR(i, kind)            ' a = 0xE0FFFFFF
+a = CLR(i, 8, 4)            ' a = 0xFFFFF00F
+a = SET(j, $$TYPE)          ' a = 0x001F0000
+a = SET(j, $KIND)           ' a = 0x1F000000
+a = SET(j, kind)            ' a = 0x1F000000
+a = SET(j, 8, 4)            ' a = 0x00000FF0
+
+See: BITFIELD(), EXTS(), EXTU(), MAKE()
+
+:CSIZE()
+intrinsic
+
+integer = CSIZE(string$)
+
+Return the number of bytes in a string before the first zero byte.
+
+a$ = ""
+b$ = "abcdefg"
+c$ = "abc\0defg"
+a = CSIZE(a$)       ' a = 0
+a = CSIZE(b$)       ' a = 7
+a = CSIZE(c$)       ' a = 3
+
+See: CSIZE$(), CSTRING$()
+
+:CSIZE$()
+intrinsic
+
+string$ = CSIZE$(string$)
+
+Return a copy of a zero terminated string.  The end
+of the string is the byte before the first zero byte.
+
+a$ = ""
+b$ = "abcdefg"
+c$ = "abc\0defg"
+s$ = CSIZE$(a$)     ' s$ = ""
+s$ = CSIZE$(b$)     ' s$ = "abcdefg"
+s$ = CSIZE$(c$)     ' s$ = "abc"
+
+See: CSIZE(), CSTRING$()
+
+:CSTRING$()
+intrinsic
+
+string$ = CSTRING$(address)
+
+Return a copy of a string at a memory address.  The end
+of the string is the byte before the first zero byte.
+This intrinsic converts C style strings into native strings.
+The string at the specified address is not altered or freed.
+
+cstr = cfunc()
+a$ = CSTRING$(cstr)
+
+See: CSIZE(), CSIZE$()
+
+:ANY
+:ANY[]
+:DECLARE FUNCTION
+:EXTERNAL FUNCTION
+:INTERNAL FUNCTION
+statement
+
+DECLARE  FUNCTION [type] Func([parameters])
+EXTERNAL FUNCTION [type] Func([parameters])
+INTERNAL FUNCTION [type] Func([parameters])
+
+Declare a function:
+
+DECLARE  - function in current program, visible to all programs.
+INTERNAL - function in current program, invisible to other programs.
+EXTERNAL - function not in current program, visible to all programs.
+
+The optional return type is any built-in or user-defined data type.
+
+parameters is an optional comma-separated list of up to 16 built-in
+or user-defined type names or symbols from which the kind and type
+of each function argument can be determined.
+
+DECLARE  FUNCTION  Twist ()
+INTERNAL FUNCTION  DOUBLE  DarkSine (a#, b#, c#[])
+EXTERNAL FUNCTION  DCOMPLEX  DoodleDuxis (DCOMPLEX dd, DCOMPLEX ee)
+
+A parameter of type ANY means the parameter may be of any type.
+If this is used, another parameter should be used to inform the
+called function what the type the ANY parameter is:
+
+DECLARE  FUNCTION  Spiral (type, ANY)
+
+A parameter of type ANY[] means any type, but must be an array variable.
+The function can determine type of data in the array[] by using the TYPE()
+and then using the ATTACH command to associate it with an array variable
+of the same type before reading or altering the data.
+
+DECLARE  FUNCTION  Coil (ANY[])
+DECLARE  FUNCTION  Coil (ANY array[])  ' alternate syntax
+
+See: FUNCTION
+
+:DHIGH()
+:DLOW()
+intrinsic
+
+integer = DHIGH(double)
+integer = DLOW(double)
+
+Return the high or low 32-bits of a double precision
+floating point number.  The high 32-bits of a double
+precision floating point number contains the sign bit,
+exponent, and high part of the mantissa, while the
+low 32-bits contains the low part of the mantissa.
+
+a# = 0d40010802DEADCODE      ' a# = double variable
+b# = 0d4000800080000000      ' b# = double variable
+i = DHIGH(a#)                ' i = 0x40010802
+j = DHIGH(b#)                ' j = 0x40008000
+i = DLOW(a#)                 ' i = 0xDEADCODE
+j = DLOW(b#)                 ' j = 0x80000000
+
+See: DMAKE()
+
+:DIM
+:REDIM
+statement
+
+DIM array[subscripts]
+REDIM array[subscripts]
+
+Dimension or redimension an array.  0 to 8 comma-separated
+integer subscripts give the upper bounds for 0 to 8 dimensions.
+The lower bound of all arrays is 0.
+
+When an array is dimensioned, the existing contents are
+first freed, then memory space for the array is allocated
+and filled with zeros.
+
+When an array is redimensioned, the existing contents not
+in the new (smaller) size are lost, the existing contents
+in both the old and new size are unchanged, and contents
+in the new (larger) size only are zeroed.
+
+DIM a[]                 ' a[] becomes an empty array
+DIM a[0]                ' a[0] becomes an array of one, maximum index is 0
+DIM a#[upper]           ' dimension a#[], upper bound = upper
+DIM points[999]         ' dimension points[], upper bound = 999
+DIM a$[tops]            ' dimension string array, upper bound = tops
+DIM a[i,j,k]            ' dimension a three dimensional array
+DIM a[i,j,]             ' dimension a two dimensional array of nodes
+
+:DMAKE()
+intrinsic
+
+double = DMAKE(high32, low32)
+
+Return a 64-bit double precision floating point
+number assembled from two 32-bit integer parts.
+
+hi = 0x40008000              ' high 32-bits of desired DOUBLE
+lo = 0x80000000              ' low 32-bits of desired DOUBLE
+i# = DMAKE(hi, lo)           ' i# = 0d4000800080000000
+i# = DMAKE(si OR uman, lman) ' i# = assemble sign, hi/lo mantissa
+
+See: DHIGH(), DLOW(), GMAKE(), SMAKE(), XMAKE()
+
+:DO
+:DO WHILE
+:DO UNTIL
+:DO DO
+:DO LOOP
+:EXIT DO
+:LOOP
+:LOOP WHILE
+:LOOP UNTIL
+statement
+
+DO
+DO WHILE numString
+DO UNTIL numString
+DO DO [level]
+DO LOOP [level]
+EXIT DO [level]
+LOOP
+LOOP WHILE numString
+LOOP UNTIL numString
+
+DO...LOOP blocks.
+
+DO begins a loop, and execution continues on the next line.
+
+DO WHILE continues execution on the next line if the
+numeric or string value is TRUE, otherwise execution
+continues after the matching LOOP statement.
+
+DO UNTIL continues execution on the next line if the
+numeric or string value is FALSE, otherwise execution
+continues after the matching LOOP statement.
+
+DO DO jumps to the DO statement at the beginning
+ of a loop block from anywhere inside the block.
+
+DO LOOP jumps directly to the LOOP statement at the
+end of a loop block from anywhere inside the block.
+
+EXIT DO jumps directly past the LOOP statement at the
+end of the loop block, from anywhere inside the block.
+
+LOOP jumps to the matching DO statement.
+
+LOOP WHILE jumps to the matching DO statement
+if the numeric or string expression is TRUE.
+
+LOOP UNTIL jumps to the matching DO if the
+numeric or string expression is FALSE.
+
+hash = 0
+IF a$ THEN
+  o = 0                   ' offset = 0
+  u = UBOUND(a$)          ' u = upper offset in a$
+  DO WHILE (o <= u)       ' do hash loop while offset <= upper offset
+    hash = hash + a${o}   ' add next byte to hash
+    INC o                 ' offset to next byte in a$
+  LOOP
+END IF
+
+:END FUNCTION
+statement
+
+END FUNCTION [expression]
+
+End a function and return a value.
+If no return expression is given,
+a zero or empty string is returned.
+
+See: FUNCTION, SFUNCTION, CFUNCTION, EXIT FUNCTION, RETURN
+
+:EOF()
+intrinsic
+
+integer = EOF(fileNumber)
+
+Return TRUE if filepointer points beyond the end of a file.
+
+a = EOF(ifile)
+DO UNTIL EOF(ifile)
+
+See: LOF(), POF(), SEEK(), OPEN(), CLOSE (), READ, WRITE, INFILE$()
+
+:ERROR()
+intrinsic
+
+error = ERROR(newError)
+
+Return ##ERROR error number and assign a new error number unless newError = -1.
+
+IF ERROR(-1) THEN   ' test ##ERROR without clearing it
+error = ERROR(0)    ' get current ##ERROR, then clear it
+error = ERROR(-1)   ' get current ##ERROR without changing it
+error = ERROR(new)  ' get current ##ERROR and assign a new value
+
+See: ERROR$()
+     XstErrorNameToNumber()
+     XstSystemErrorNumberToName()
+     XstSystemErrorToError()
+
+:ERROR$()
+intrinsic
+
+error$ = ERROR$(error)
+
+Convert an error number into an error string.
+
+error = ERROR(0)         ' get error number
+error$ = ERROR$(error)   ' error$ = error string
+PRINT ERROR$(ERROR(-1))  ' print existing error without changing it
+
+See: ERROR()
+     XstErrorNameToNumber()
+     XstSystemErrorNumberToName()
+     XstSystemErrorToError()
+
+:EXIT IF
+statement
+
+EXIT IF [level]
+
+Exit an IF block.
+
+Jump past the nth IF statement, where n=1 or level.
+
+IF enabled THEN
+  IF (value < max) THEN
+    IF verify[entry] THEN
+      a = verify[entry]
+      IF (a < 0) THEN EXIT IF 4
+      verify[entry] = a+1
+    END IF
+  END IF
+END IF
+
+:EXIT SELECT
+statement
+
+EXIT SELECT [level]
+
+Exit a SELECT CASE block.
+
+Jump past the nth END SELECT statement, where n=1 or level.
+
+SELECT CASE a
+  CASE 1: GOSUB FireAway
+  CASE 2: GOSUB BreakOut
+  CASE 3: k = Prefix(n)
+          IFZ k THEN EXIT SELECT
+          GOSUB PassOff
+END SELECT
+
+:EXPORT
+:END EXPORT
+
+Begin exporting type and shared constant definitions and
+function declarations from a program being compiled as a
+function library.  All source lines between EXPORT and
+END EXPORT statements are put in "filename.dec" to make
+those definitions available to programs that do an
+IMPORT "filename"
+
+EXPORT
+  TYPE LINK
+    XLONG  .backward
+    XLONG  .forward
+  END TYPE
+'
+  DECLARE FUNCTION DOUBLE  Square (x#)
+  DECLARE FUNCTION DOUBLE  Cube (x#)
+END EXPORT
+'
+EXPORT
+  $$Off = 0
+  $$On = -1
+END EXPORT
+
+See: IMPORT
+
+:EXTS()
+:EXTU()
+intrinsic
+
+integer = EXTS(integer, bitspec)
+integer = EXTS(integer, width, offset)
+integer = EXTU(integer, bitspec)
+integer = EXTU(integer, width, offset)
+
+Extract a signed or unsigned field of bits. The first argument
+is the integer value from which the bits are extracted.
+In the two argument version, the second argument is a bitspec
+that contains the width and offset of the bitfield to extract.
+In the three argument version the second and third arguments
+are the width and offset of the bitfield to extract.
+
+The extracted bitfield is returned in the low bits of the result,
+either sign-extended or zero-extended to fill the 32-bit integer result.
+
+$$TYPE = BITFIELD(4,16)     ' in PROLOG
+$KIND = BITFIELD(4,20)      ' in a function
+spaz = BITFIELD(8,24)       ' variable as bitspec
+i = 0x56789ABC              ' i = 0x89ABCDEF
+
+as = EXTS(i, $$TYPE)        ' as = 0xFFFFFFF8
+au = EXTU(i, $$TYPE)        ' au = 0x00000008
+
+bs = EXTS(i, $KIND)         ' bs = 0x00000007
+bu = EXTU(i, $KIND)         ' bu = 0x00000007
+
+cs = EXTS(i, spaz)          ' cs = 0x00000056
+cu = EXTU(i, spaz)          ' cu = 0x00000056
+
+ds = EXTS(i, 8, 4)          ' ds = 0xFFFFFFAB
+du = EXTU(i, 8, 4)          ' du = 0x000000AB
+
+See: BITFIELD(), SET(), CLR(), MAKE()
+
+:FOR
+:TO
+:STEP
+:DO FOR
+:DO NEXT
+:EXIT FOR
+:NEXT
+statement
+
+FOR var = numeric TO numeric [STEP numeric]
+DO FOR [level]
+DO NEXT [level]
+EXIT FOR [level]
+NEXT [var]
+
+Begin and end a FOR...NEXT loop.
+
+DO FOR jumps directly to the FOR statement.
+DO NEXT jumps directly to the NEXT statement.
+EXIT FOR jumps directly past the NEXT statement.
+
+FOR i = 0 TO last
+  i$ = item$[i]
+  IFZ i$ THEN DO NEXT
+  IF i$ = "outta here" THEN EXIT FOR
+  IF (i$ = "trash") THEN i = i + 3 : DO FOR
+  Register (i$)
+NEXT i
+
+:NEXT CASE
+
+NEXT CASE transfers execution directly to the next CASE statemnt
+where execution continues as if no CASE statement had matched.
+NEXT CASE transfers execution to the next CASE statement, not into
+the block, so the next CASE block and subsequent CASE blocks are
+executed only if the case-expression matches the test expression.
+
+See: SELECT CASE
+
+:FORMAT$()
+intrinsic
+
+string$ = FORMAT$(format$, argument)
+
+Return a string formatted per a format spec string and argument.
+
+FORMAT$() creates and returns a string representation of up a
+numeric or string argument, formatted according to a format$ string.
+
+The following are valid format fields for string arguments:
+
+  &  Print string exactly, no upper or lower length limit
+  <  Left justify string in <<<<< field  (1 to 255 "<" characters)
+  >  Right justify string in >>>>> field  (1 to 255 ">" characters)
+  |  Center justify string in ||||| field  (1 to 255 "|" characters)
+
+The following are valid character sequences for numeric arguments:
+
+###     digit positions                ######         54321
+.       decimal point                  ###.##         23.00
+,       commas every 3 places          ##,###.##     27,654,321.80
+^^^^    short exponent                 #.###^^^^     3.711e+22
+^^^^^   long exponent                  #.##^^^^^     3.71d+022
+(###)   negative #s in parens          (#####)       (54321)
+$       leading $ symbol               $###.##         $3.76
+*       * in leading zeros             *####.##      ****3.76
+0       show leading zeros             0####.##      00003.76
++       print leading +/- sign         +####.##      +234.56
++       print trailing +/- sign        ####.##+       234.56+
+-       print trailing - if negative   ####.##-       234.56-
+_       print next character exactly   a_$_#_._-_+   a$#.-+
+
+x = 23
+y$$ = 23456
+z# = 11111.222
+j$ = "scam"
+fa$ = " ###"
+fb$ = "###,###"
+fc$ = "###.####^^^^^"
+fd$ = "||||||"
+PRINT FORMAT$ (fa$,x)                     ' "  23"
+PRINT FORMAT$ (fb$,y$$)                   ' " 23,456"
+PRINT FORMAT$ (fc$,z#)                    ' " 111.1122d+002
+PRINT FORMAT$ (fd$,j$)                    ' " scam "
+a$ = FORMAT$ (fa$,x) + FORMAT$ (fb$,y$$)  ' a$ = "  23 23,456"
+
+See: CJUST$(), LJUST$(), RJUST$(),
+		STR$(), STRING$(), STRING(), SIGNED$(),
+		BIN$(), BINB$(), HEX$(), HEXX$(), OCT$(), OCTO$(),
+
+:FUNCADDR
+statement
+
+[scope] FUNCADDR [type] variable([parameters])
+[scope] FUNCADDR [type] array[]([parameters])
+
+Declare a FUNCADDR variable or array.
+
+STATIC FUNCADDR a (STRING, XLONG, XLONG, XLONG)
+SHARED FUNCADDR DOUBLE  Manglex[] (DOUBLE, DOUBLE)
+FUNCADDR CFUNCTION cfunc (XLONG)
+FUNCADDR SFUNCTION sfunc (XLONG)
+
+Example:
+	FUNCADDR  CFUNCTION getenv (XLONG)
+	handle = XstOpenLibrary ("c")
+	getenv = XstGetLibraryAddress (handle, "getenv")
+	env_name$ = "HOME"
+	addr_env = @getenv (&env_name$)
+	HOME$ = CSTRING$(addr_env)
+
+See: XstOpenLibrary(), XstGetLibraryAddress()
+
+:FUNCADDRESS()
+intrinsic
+
+funcaddress = FUNCADDRESS(FunctionName())
+
+Return the address of a function.  Same as &FunctionName().
+
+process[GetColor] = FUNCADDRESS (XuiGetColor())
+process[SetColor] = FUNCADDRESS (XuiSetColor())
+
+:FUNCTION
+:SFUNCTION
+:CFUNCTION
+statement
+
+FUNCTION  [type] FuncName(arguments) [defaultType]
+SFUNCTION [type] FuncName(arguments) [defaultType]
+CFUNCTION [type] FuncName(arguments) [defaultType]
+
+Begin the body of a function.  The return type defaults to
+XLONG unless specified otherwise.  The arguments are a
+comma-separated list of variables receiving input values
+from calling functions.
+
+Variables in the function default to type XLONG unless
+a defaultType is specified after the arguments.
+
+Variables with the shared prefix # ans ##, will take the
+type from the PROLOG if it is specified in the PROLOG.
+
+FUNCTION  denotes a normal function.
+
+SFUNCTION denotes operating system functions with
+standard operating system function protocol, or native
+functions to be called by the operating system expecting
+standard operating system protocol (STDCALL).
+
+CFUNCTION denotes C functions or native functions to be called
+by functions expecting standard C function protocol (CDECL).
+
+FUNCTION  Blivit (a, b, c$, d[])
+FUNCTION  Bondar (i#, j#, k#, l#, m#)
+SFUNCTION DOUBLE  DoLittle (DOUBLE lo, DOUBLE hi)  DOUBLE
+CFUNCTION DOUBLE  ArcCosh (DOUBLE arg)
+
+See: END FUNCTION, EXIT FUNCTION, RETURN, DECLARE FUNCTION
+
+:GHIGH()
+:GLOW()
+intrinsic
+
+integer = GHIGH(giant)
+
+Return the high or low 32-bits of a 64-bit signed integer.
+
+a$$ = 0x40010802DEADCODE      ' a$$ = giant variable
+b$$ = 0x4000800080000000      ' b$$ = giant variable
+i = GHIGH(a$$)                ' i = 0x40010802
+j = GHIGH(b$$)                ' j = 0x40008000
+i = GLOW(a$$)                 ' i = 0xDEADCODE
+j = GLOW(b$$)                 ' j = 0x80000000
+
+:GMAKE()
+intrinsic
+
+giant = GMAKE(high32, low32)
+
+Return a 64-bit signed integer assembled from two 32-bit integers.
+
+hi = 0x40008000                ' hi 32-bits of desired GIANT
+lo = 0x80000000                ' lo 32-bits of desired GIANT
+i$$ = GMAKE(hi, lo)            ' i$$ = 0x4000800080000000
+i$$ = GMAKE(upper, lower)      ' i$$ = make GIANT from two XLONGs
+
+See: DMAKE(), SMAKE(), XMAKE()
+
+:GOADDRESS()
+intrinsic
+
+goaddr = GOADDRESS(label)
+
+Return the address of a GOTO label.
+
+g = GOADDRESS (label)
+h[i] = GOADDRESS (another)
+
+See: GOTO
+
+:GOSUB
+statement
+
+GOSUB SubName
+GOSUB @subVar
+GOSUB @subArray[indices]
+
+Call a subroutine directly, through
+a variable, or through an array.
+
+GOSUB Subroutine
+GOSUB @subVar
+GOSUB @subArray[i]
+
+:GOTO
+statement
+
+GOTO label
+GOTO @goVar
+GOTO @goArray[i]
+
+Jump to a label directly, through
+a variable, or through an array.
+
+A GOTO label must start in column one,
+with no leading tabs nor spaces, and
+be followed by a colon ":" character.
+
+The naming convention for GOTO labels has
+the first character lowercase and the first
+character of each imbeded word upper case.
+Examples: label, goHere, goEveryWhichWay
+
+GOTO label names are local within a function.
+It is an error to attempt to GOTO labels in
+a subroutine from outside the subroutine.
+However, it is possible to GOTO a label
+outside a subroutine from within.
+
+If the GOTO address in the variable or array
+is zero, the GOTO will not performed and
+execution continues with the next statement.
+
+FUNCTION  Entry ()
+  GOADDR goVar
+  GOADDR goArray[]
+
+	goVar      = GOADDRESS(label1)
+	DIM goArray[2]
+	goArray[2] = GOADDRESS(label2)
+
+  GOTO label
+label:
+  GOTO @goVar
+label1:
+  GOTO @goArray[2]
+label2:
+
+END FUNCTION
+
+See: GOADDR, GOADDR(), GOADDRAT(), GOADDRESS()
+
+:HEX$()
+:HEXX$()
+intrinsic
+
+string$ = HEX$(integers)
+string$ = HEXX$(integers)
+string$ = HEX$(integers, digits)
+string$ = HEXX$(integers, digits)
+
+Return the hexadecimal string representation of an integer.
+The return string has as many characters as necessary to
+represent the integer in hexadecimal, or the number
+specified by the second argument, whichever is larger.
+HEXX$() puts "0x" at the start of the output string.
+
+a = 0xDEADC0DE
+a$ = HEX$(a)        ' a$ = "DEADC0DE"
+a$ = HEXX$(a)       ' a$ = "0xDEADC0DE"
+a$ = HEX$(a,2)      ' a$ = "DEADC0DE"
+a$ = HEXX$(a,2)     ' a$ = "0xDEADC0DE"
+a$ = HEX$(a,12)     ' a$ = "0000DEADC0DE"
+a$ = HEXX$(a,12)    ' a$ = "0x0000DEADC0DE"
+
+See: BIN$(), BINB$(), OCT$(), OCTO$(),
+		STR$(), STRING$(), STRING(), SIGNED$(), FORMAT$()
+
+:HIGH0()
+:HIGH1()
+intrinsic
+
+integer = HIGH0(integer)
+integer = HIGH1(integer)
+
+Return the bit number of the most significant 0 or 1 bit.
+
+a = 0x00C03333
+b = 0xFFFE0000
+c = HIGH0(a)       ' c = 31
+d = HIGH0(b)       ' d = 16
+e = HIGH1(a)       ' e = 23
+f = HIGH1(b)       ' f = 31
+
+:IF
+:IFT
+:IFZ
+:IFF
+:THEN
+:ELSE
+:END IF
+statement
+
+IF expression THEN statements
+IF expression THEN statements ELSE statements
+IF expression THEN
+  statements
+END IF
+IF expression THEN
+  statements
+ELSE
+  statements
+END IF
+
+Execute statements conditionally.
+
+IF a THEN PRINT "a is non-zero"
+IFT a THEN PRINT "a is true"
+IFZ a THEN PRINT "a is zero"
+IFF a THEN PRINT "a is false"
+IF a$ THEN PRINT "a$ has contents"
+IFZ a$ THEN PRINT "a$ is empty"
+IF a[] THEN PRINT "a[] has contents"
+IFZ a[] THEN PRINT "a[] is empty"
+IF (humidity > 80) THEN PRINT "Close The Roof"
+IF a THEN
+  IFZ b THEN
+    PRINT "a is true, b is not"
+  ELSE
+    PRINT "a is true, b is true"
+  END IF
+END IF
+
+See: EXIT IF
+
+:IMPORT
+IMPORT "name"
+
+Import function library libname to make its exported types,
+constants and functions visible to this program.
+"name.dec" is read and compiled, and if it exists,
+"name.dll" in win32, or "libname.so" in Linux,
+is loaded, linked to the program, and its
+entry function is called to initialize the library.
+
+IMPORT "xma"
+IMPORT "xst"
+
+See: EXPORT
+
+:INC
+:DEC
+statement
+
+INC increment variable
+DEC decrement variable
+
+Add one to a variable or
+subtract one from a variable.
+
+INC a
+INC a[i]
+INC x#
+INC parent.kids
+INC parent[grid].kids
+
+DEC a
+DEC a[i]
+DEC x#
+DEC parent.kids
+DEC parent[grid].kids
+
+:INCHR()
+:INCHRI()
+:RINCHR()
+:RINCHRI()
+intrinsic
+
+integer = INCHR(searchMe$, searchFor$)
+integer = INCHR(searchMe$, searchFor$, start)
+integer = INCHRI(searchMe$, searchFor$)
+integer = INCHRI(searchMe$, searchFor$, start)
+integer = RINCHR(searchMe$, searchFor$)
+integer = RINCHR(searchMe$, searchFor$, start)
+integer = RINCHRI(searchMe$, searchFor$)
+integer = RINCHRI(searchMe$, searchFor$, start)
+
+Search a string for any of the characters in another
+string.  Return the position of the first match.
+
+INCHR()   = forward search, case sensitive
+INCHRI()  = forward search, case insensitive
+RINCHR()  = reverse search, case sensitive
+RINCHRI() = reverse search, case insensitive
+
+a$ = "Help me please!"
+b$ = "ABCDEFG"
+c$ = "mromjtp"
+a = INCHR(a$,b$)       ' a = 0    "e" != "E"
+a = INCHR(a$,c$)       ' a = 4    "p"
+a = INCHR(a$,c$,10)    ' a = 0    past matches
+a = INCHRI(a$,b$)      ' a = 2    "e" = "E"
+a = INCHRI(a$,c$)      ' a = 4    "p"
+a = INCHRI(a$,c$,5)    ' a = 6    "m"
+a = RINCHR(a$,b$)      ' a = 0    "e" != "e"
+a = RINCHR(a$,c$)      ' a = 9    "p"
+a = RINCHR(a$,c$,7)    ' a = 6    "m"
+a = RINCHRI(a$,b$)     ' a = 14   "e" = "E"
+a = RINCHRI(a$,c$)     ' a = 9    "p"
+a = RINCHRI(a$,c$,3)   ' a = 0    before matches
+
+See: XstMatchWild(), INSTR()
+
+:INFILE$()
+intrinsic
+
+string$ = INFILE$(fileNumber)
+
+Return the next line from an open file.
+
+FUNCTION  FindStringInFile (test$, fileName$)
+  error = ERROR (0)
+  ifile = OPEN (fileName$, $$RD)
+  error = ERROR (0)
+  IF error THEN PRINT ERROR$ (error) : RETURN (0)
+  DO UNTIL EOF(ifile)
+  	INC line
+    line$ = INFILE$ (ifile)          ' ******************
+    check = INSTR (line$, test$)
+    IF check THEN
+    	foundLine = line
+      PRINT "Found ===>> "; line$
+      EXIT DO
+    END IF
+  LOOP
+  CLOSE (ifile)
+END FUNCTION (foundLine)
+
+See: READ, WRITE, OPEN(), CLOSE(), EOF(), LOF(), POF(), SEEK()
+
+:INKEY$()
+:WAITKEY()
+
+See: XstInKey$(), XstWaitKey()
+
+:INLINE$()
+intrinsic
+
+
+string$ = INLINE$(prompt$)
+
+Return a line from the standard input device (the console).
+
+a$ = INLINE$ ("Enter your name here ===>> ")
+IF (a$ = "Bill Gates") THEN PRINT "Yeah, tell me another one."
+
+See: PRINT
+
+:INSTR()
+:INSTRI()
+:RINSTR()
+:RINSTRI()
+intrinsic
+
+integer = INSTR(searchMe$, searchFor$)
+integer = INSTR(searchMe$, searchFor$, start)
+integer = INSTRI(searchMe$, searchFor$)
+integer = INSTRI(searchMe$, searchFor$, start)
+integer = RINSTR(searchMe$, searchFor$)
+integer = RINSTR(searchMe$, searchFor$, start)
+integer = RINSTRI(searchMe$, searchFor$)
+integer = RINSTRI(searchMe$, searchFor$, start)
+
+Search a string for another string.
+Return the position of the match.
+
+INSTR()    = forward search, case sensitive
+INSTRI()   = forward search, case insensitive
+RINSTR()   = reverse search, case sensitive
+RINSTRI()  = reverse search, case insensitive
+
+a$ = "HEALTHY, wealthy, and wise!"
+b$ = "He"
+c$ = "alt"
+a = INSTR(a$,b$)       ' a =  0    no match
+a = INSTR(a$,c$)       ' a = 12    "alt"
+a = INSTR(a$,c$,13)    ' a =  0    past match
+a = INSTRI(a$,b$)      ' a =  1    "HE" = "He"
+a = INSTRI(a$,c$)      ' a =  4    "ALT" = "alt"
+a = INSTRI(a$,c$,5)    ' a = 12    "alt" = "alt"
+a = RINSTR(a$,b$)      ' a =  0    no match
+a = RINSTR(a$,c$)      ' a = 12    "alt" = "alt"
+a = RINSTR(a$,c$,7)    ' a =  0    before match
+a = RINSTRI(a$,b$)     ' a =  1    "HE" = "He"
+a = RINSTRI(a$,c$)     ' a = 12    "alt" = "alt"
+a = RINSTRI(a$,c$,4)   ' a =  3    "ALT" = "alt"
+
+See: XstMatchWild(), INCHR()
+
+:INT()
+:FIX()
+intrinsic
+
+return = INT(float)
+return = FIX(float)
+
+Return argument rounded down to the nearest integer or toward zero.
+INT() rounds down
+FIX() rounds toward zero (negative numbers are rounded up)
+
+b# =  2.552
+w# = INT(b#)    ' w# =  2.000#
+x# = FIX(b#)    ' x# =  2.000#
+
+c# = -2.552
+y# = INT(c#)    ' y# = -3.000#
+z# = FIX(c#)    ' z# = -2.000#
+
+See: ABS()
+
+:LCASE$()
+:UCASE$()
+intrinsic
+
+string$ = LCASE$(string$)
+string$ = UCASE$(string$)
+
+Convert all characters in a string to lower case or upper case.
+
+a$ = LCASE$ ("THE big LIE")    ' a$ = "the big lie"
+a$ = LCASE$ ("BIGGER LIES")    ' a$ = "bigger lies"
+a$ = UCASE$ ("THE big LIE")    ' a$ = "THE BIG LIE"
+a$ = UCASE$ ("bigger lies")    ' a$ = "BIGGER LIES"
+
+:LCLIP$()
+:RCLIP$()
+intrinsic
+
+string$ = LCLIP$(string$)
+string$ = LCLIP$(string$, count)
+string$ = RCLIP$(string$)
+string$ = RCLIP$(string$, count)
+
+Clip characters off the left or right end of a string.
+If count is not used, then one character is clipped.
+If count is zero, no clipping occurs.
+
+a$ = LCLIP$ ("This old man")      ' a$ = "his old man"
+a$ = LCLIP$ ("This old man", 1)   ' a$ = "his old man"
+a$ = LCLIP$ ("This old man", 0)   ' a$ = "This old man"
+a$ = LCLIP$ ("This old man", 5)   ' a$ = "old man"
+a$ = LCLIP$ ("This old man", 15)  ' a$ = ""
+a$ = RCLIP$ ("This old man", 5)   ' a$ = "This ol"
+a$ = RCLIP$ ("This old man", 15)  ' a$ = ""
+
+See: LEFT$(), LTRIM$(), RIGHT$(), RTRIM$(), MID$(), STUFF$(), TRIM$()
+
+:LEFT$()
+:RIGHT$()
+intrinsic
+
+string$ = LEFT$(string$)
+string$ = LEFT$(string$, length)
+string$ = RIGHT$(string$)
+string$ = RIGHT$(string$, length)
+
+Copy the first or last characters from a string.
+The first argument is the string to copy characters
+from.  The second argument is the desired length of
+the result string, or 1 if no second argument is given.
+If the string has fewer characters than the desired length,
+the result string is a copy of the argument string.
+
+x$ = "This old man"
+a$ = LEFT$(x$)            ' a$ = "T"
+a$ = LEFT$(x$, 5)         ' a$ = "This "
+a$ = LEFT$(x$, 15)        ' a$ = "This old man"
+a$ = RIGHT$(x$)           ' a$ = "n"
+a$ = RIGHT$(x$, 5)        ' a$ = "d man"
+a$ = RIGHT$(x$, 15)       ' a$ = "This old man"
+
+See: LCLIP$(), LTRIM$(), RCLIP$(), RTRIM$(), MID$(), STUFF$(), TRIM$()
+
+:LEN()
+intrinsic
+
+integer = LEN(string$)
+
+Return the number of characters in a string.
+
+x$ = ""
+y$ = "four"
+a = LEN(x$)     ' a = 0
+a = LEN(y$)     ' a = 4
+
+:LIBRARY()
+intrinsic
+
+integer = LIBRARY(integer)
+
+Return $$TRUE if program is compiled as library.
+
+FUNCTION  Entry ()
+  Xui ()
+  InitGui ()
+  InitProgram ()
+  IF LIBRARY(0) THEN RETURN   ' main program processes messages
+'
+  DO
+    XgrProcessMessages (1)
+  LOOP UNTIL #terminateProgram
+END FUNCTION
+
+:LOF()
+intrinsic
+
+integer = LOF(fileNumber)
+
+Return the length of a disk file.  The argument is the filenumber.
+
+FUNCTION GimmeFile (filename$)
+  ifile = OPEN (filename$, $$RD)  ' open filename$ for read only
+  length = LOF (ifile)            ' length = # of bytes in filename$
+  a$ = NULL$ (length)             ' make a string that long
+  READ [ifile], a$                ' and read the file into it
+  CLOSE (ifile)                   ' then close the file
+  RETURN (a$)                     ' and return the string
+END FUNCTION
+
+See: EOF(), POF(), SEEK(), OPEN(), CLOSE (), READ, WRITE, INFILE$()
+
+:MAKE()
+intrinsic
+
+integer = MAKE(integer, bitspec)
+integer = MAKE(integer, width, offset)
+
+Shift a field of bits up from the least significant bits.
+The first argument contains the source bitfield in its
+least significant bits.  In the two argument version,
+the second argument is a bitspec that contains the width
+and offset of the bitfield to create.  In the three argument
+version the second and third arguments are the width and
+offset of the bitfield to create.  The bitfield of the
+specified width is shifted left from the least significant
+bits by offset bits.  All bits outside the bitfield are cleared.
+
+i = 0xAAAAAAAA        ' i = 0b10101010101010101010101010101010
+j = BITFIELD(5,7)     ' j = bitspec for 5-bit wide field at bit 7-11
+a = MAKE(i,j)         ' a = 0b00000000000000000000010100000000
+                      '                           *****
+
+See: BITFIELD(), SET(), CLR(), EXTS(), EXTU()
+
+:MAX()
+:MIN()
+intrinsic
+
+numeric = MAX(numeric, numeric)
+numeric = MIN(numeric, numeric)
+
+Return the maximum or minimum of two values.  Maximum means
+closest to positive infinity and negative means closest to
+negative infinity.  Both values must be the same data type,
+and the result is the same type as the arguments.
+
+a = 23
+b = 123
+c = -47
+a# = 23
+b# = 123.45
+c# = .0001
+d# = -4d+22
+m = MAX(a,b)        ' m = 123
+m = MAX(a,c)        ' m = 23
+m# = MAX(a#,b#)     ' m# = 123#
+m# = MAX(a#,c#)     ' m# = 23#
+m# = MAX(a#,d#)     ' m# = 23#
+m = MIN(a,b)        ' m = 23
+m = MIN(a,c)        ' m = -47
+m# = MIN(a#,b#)     ' m# = 23#
+m# = MIN(a#,c#)     ' m# = .0001
+m# = MIN(a#,d#)     ' m# = -4d+22
+
+:MID$()
+intrinsic
+
+string$ = MID$(string$, start)
+string$ = MID$(string$, start, length)
+
+Copy part of a string.  The first argument is the string
+to copy from.  The second argument is the position of the
+first character to copy.  The third argument is the number
+of characters to copy.  If no third argument is given,
+the rest of the characters in the string are copied.
+
+x$ = "This old man"
+a$ = MID$(a$, 5)         ' a$ = " old man"
+a$ = MID$(a$, 5, 6)      ' a$ = " old m"
+a$ = MID$(a$, 7, 4)      ' a$ = "ld m"
+a$ = MID$(a$, 7, 9)      ' a$ = "ld man"
+
+To replace characters in a string use STUFF$()
+
+See: STUFF$(), LEFT$(), RIGHT$(), LCLIP$(), RCLIP$()
+
+:MID$()=
+intrinsic
+
+MID$(string$, start) = string$
+MID$(string$, start, length) = string$
+
+Replace part of a string with characters from another string.
+The first argument is the string to replace characters in.
+The second argument is the position of the first character
+to be replaced.  The third argument is the number of characters
+to copy.  If no third argument is given, the rest of the characters
+in the string are replaced.
+
+x$ = "This lazy man"
+y$ = "is wolf"
+MID$(x$, 6, 5) = y$      ' x$ = "This is woman"
+
+See: STUFF$(), LEFT$(), RIGHT$(), LCLIP$(), RCLIP$(), XstMergeString$()
+
+:MOD
+
+binary arithmetic operator
+integers = numeric MOD numeric
+
+Return the integer modulus, which is the remainder
+from a division.  Floating point operands are converted
+to XLONG before the modulus operation is performed.
+
+a = 23 : b = 5 : c = 9 : d = 2
+x = a MOD b                       ' x = 3  (23/5 = 4 + remainder 3)
+x = b MOD a                       ' x = 5  (5/23 = 0 + remainder 5)
+
+See: Operator Summary
+
+:NOT
+:Logical not operator
+:Logical Test operator
+
+Alternate symbole os "~"
+
+unary bitwise operator
+integer = NOT integer
+
+Return an integer with all bits inverted.
+
+	a = 0xAAAAFF00AAAAFF00
+	b = NOT a               ' b = 0x555500FF555500FF
+	c = ~ a                 ' c = 0x555500FF555500FF
+
+The logical not operator  is "!"
+The logical test operator is "!!"
+
+pi# = 3.14
+b = ! pi#            ' b = 0    (FALSE)
+b = !! pi#           ' b = -1   (TRUE)
+
+See: AND, OR, XOR, Operator Summary
+
+:NULL$()
+intrinsic
+
+string$ = NULL$(length)
+
+Create a string of null characters.  The argument is
+the number of null characters in the result string.
+The string returned has the specified number of null
+characters, plus the additional null character that
+serves as a terminator.  The null terminator is not
+part of the string and must not be changed.
+
+FUNCTION GimmeFile (filename$)
+  ifile = OPEN (filename$, $$RD)  ' open filename$ for read only
+  length = LOF (ifile)            ' length = # of bytes in filename$
+  a$ = NULL$ (length)             ' make a string that long
+  READ [ifile], a$                ' and read the file into it
+  CLOSE (ifile)                   ' then close the file
+  RETURN (a$)                     ' and return the string
+END FUNCTION
+
+See: SPACE$(), CHR$()
+
+:OCT$()
+:OCTO$()
+intrinsic
+
+string$ = OCT$(integers)
+string$ = OCTO$(integers)
+string$ = OCT$(integers, digits)
+string$ = OCTO$(integers, digits)
+
+Return the octal string representation of an integer.
+The return string has as many characters as necessary
+to represent the integer in octal, or the number
+specified by the second argument, whichever is larger.
+
+a = 0o00007643210
+a$ = OCT$(a)        ' a$ = "76543210"
+a$ = OCTO$(a)       ' a$ = "0o76543210"
+a$ = OCT$(a,2)      ' a$ = "76543210"
+a$ = OCTO$(a,2)     ' a$ = "0o76543210"
+a$ = OCT$(a,12)     ' a$ = "000076543210"
+a$ = OCTO$(a,12)    ' a$ = "0o000076543210"
+
+See: BIN$(), BINB$(), HEX$(), HEXX$(),
+		 STR$(), STRING$(), STRING(), SIGNED$(), FORMAT$()
+
+:OPEN()
+intrinsic
+
+integer = OPEN(fileName$, mode)
+
+integer will be -1 if it failed to open the fileName$
+        0, 1 and 2 are reserved for stdin, stdout and stderr (Console)
+        3 or greater for a successfully opened file
+
+Open a disk file.  The first argument is the filename.
+The second argument (mode) contains an integer value
+that determines how the file will be open as follows
+(values from xst.dec):
+
+0x000 = $$RD       = Open existing file for reading only.
+0x001 = $$WR       = Open existing file for writing only.
+0x002 = $$RW       = Open existing file for reading and writing.
+0x003 = $$WRNEW    = Open new file for writing only.
+0x004 = $$RWNEW    = Open new file for reading and writing.
+0x010 = $$RDSHARE  = Open existing file for reading only.
+0x020 = $$WRSHARE  = Open existing file for writing only.
+0x030 = $$RWSHARE  = Open existing file for reading and writing.
+0x800 = $$NONBLOCK OR with above arguments for non-blocking mode.
+
+Opening an existing file prepares the existing file
+for reading and/or writing, or if no file yet exists,
+creates a new file. Opening a new file deletes any
+existing file with the same name before it creates the new,
+empty file. The filenumber of the opened file is returned.
+
+$$NONBLOCK is used in Linux only, and is ORed with any one
+of the other mode vaues and will cause file reads to return
+immediately without blocking, or hanging if no data or less
+than the requested data is available. The calling program
+must decide if the return is caused by other errors.
+
+Sample code:
+
+  iofile = OPEN ("/dev/ttyS0", $$RW OR $$NONBLOCK)
+  IF (iofile < 3) THEN
+    PRINT "Failed to open requested file"
+    RETURN ($$TRUE)
+  END IF
+
+Sample function to make a copy of a file:
+
+FUNCTION  CopyFile (filename$, newname$)
+  ifile = OPEN (filename$, $$RD)
+  IF (ifile < 3) THEN RETURN ($$TRUE)
+  ofile = OPEN (newname$, $$WRNEW)
+  IF (ofile < 3) THEN RETURN ($$TRUE)
+  length = LOF (ifile)
+  a$ = NULL$ (length)
+  READ [ifile], a$
+  WRITE [ofile], a$
+  CLOSE (ifile)
+  CLOSE (ofile)
+  RETURN ($$FALSE
+END FUNCTION
+
+See: CLOSE (), READ, WRITE, INFILE$(), EOF(), LOF(), POF(), SEEK()
+     XstFileToSystemFile(), XstLockFileSection(), XstUnlockFileSection()
+
+:OR
+:XOR
+
+Alternate symbol for OR  is "|"
+Alternate symbol for XOR is "^"
+
+binary bitwise operator
+integers = integers OR integers
+integers = integers XOR integers
+
+Bitwise OR two integer operands to produce an integer result.
+
+a = 0x05F5
+b = 0xFFA0
+c = a OR b   ' c = 0xFFF5
+c = a | b    ' c = 0xFFF5
+
+Bitwise exclusive OR two integer operands to produce an integer result.
+
+d = a XOR b  ' d = 0xFA55
+d = a ^ b    ' d = 0xFA%%
+
+See: AND, NOT, Operator Summary
+
+:POF()
+intrinsic
+
+integer = POF(fileNumber)
+
+Return the position of the file pointer for an open diskfile.
+The argument is the filenumber of the open file.
+
+ifile = OPEN (filename$, $$RD) ' open a file to read
+final = LOF(ifile)             ' final = length of filename$
+line$ = INFILE$(ifile)         ' line$ = first text line in file
+pos   = POF(ifile)             ' pos = file pointer after first line
+
+See: OPEN(), CLOSE(), EOF(), LOF(), SEEK(), READ, WRITE, INFILE$()
+
+:PRINT
+statement
+
+PRINT [[fileNumber],] [arguments] [ , | ; ]
+
+Print numeric and/or string arguments to display screen or
+disk file.  No space is printed between arguments separated
+by a semi-colon, though each subsequent semi-colon prints
+one space.  Arguments preceded by a comma are spaced to the
+next tab position before they are printed.  A semi-colon at
+the end of the argument list suppresses the newline
+character ("\n") that is otherwise printed.
+
+age = 25
+name$ = "Sophia"
+a = 4
+b$ = "cat"
+c# = -3.3
+PRINT                         ' Print a blank line
+PRINT [ofile]                 ' Print a blank line to a file
+PRINT "Her age is"; age       ' Print "Her age is 25"
+PRINT "Her age is";;; age     ' Print "Her age is   25"
+PRINT "Her name is "; name$   ' Print "Her name is Sophia"
+PRINT "Her name is", name$    ' Print "Her name is    Sophia"
+PRINT "Her name is",, name$   ' Print "Her name is        Sophia"
+PRINT a; b$; c                ' Print " 4cat-3.3"
+PRINT a, b$, c                ' Print " 4  cat -3.3"
+PRINT c; b$, a                ' Print "-3.3cat 4"
+PRINT [ofile], a, b, c        ' Print " 4  cat -3.3" to ofile
+
+See: FORMAT$(), INLINE$()
+
+:PROGRAM
+statement
+
+PROGRAM "name"
+
+Begin and name a program.  Argument must be a literal string.
+PROGRAM statements are required when compiling libraries.
+This statement is in the PROLOG section.
+
+PROGRAM  "xma"
+
+See: PROLOG, VERSION, VERSION$(), PROGRAM$()
+
+:PROGRAM$()
+intrinsic
+
+program$ = PROGRAM$(0)
+
+Return program name defined in PROGRAM statement.
+
+See: PROGRAM, VERSION, VERSION$(), PROLOG
+
+:QUIT()
+intrinsic
+
+[integer = ] QUIT(integer)
+
+Quit a program and return to program that ran this one,
+which usually is the operating system.  The return value
+is lost since the program is terminated before it can
+return from the call.  The argument is passed to the
+program that ran the current program.
+
+IF #terminate THEN
+  DisasterHandler ()   ' prepare for quit
+  QUIT(0)              ' quit the program
+END IF
+
+:READ
+statement
+
+READ [fileNumber], variables
+
+Read data from a disk file into variables.  The first argument is
+the filenumber of the file to read from. The variables can be any
+combination of numeric variables, string variables, composite
+variables, composite variable components, or one dimensional
+arrays of any type except strings.
+
+The number of bytes read into each variable equals the data size
+of the variable.  For example, one byte is read into SBYTE and
+UBYTE variables, two bytes into SSHORT and USHORT variables, etc.
+
+This is true even though simple variables shorter than 32-bit
+are held in memory as 32-bit or 64-bit values.  In cases where the
+data size and storage size are not equal, the data size is read,
+zero or sign-extended to 32-bits or 64-bits, then saved in the
+storage variable.
+
+When data is read into a string variable, the number of bytes
+needed to fill the string are read directly into the string,
+overwriting the previous contents.
+
+When data is read into an array variable, the number of bytes
+needed to fill the array are read directly into the array,
+overwriting the previous contents.
+
+READ and WRITE are complementary statements.
+
+DIM a[31]
+DIM a#[63]
+a$ = NULL$(256)
+READ [ifile], a@@, b@@, c@@ ' read 1 byte each into UBYTE variables
+READ [ifile], a, b, c       ' read 4 bytes each into XLONG variables
+READ [ifile], a!, b!, c!    ' read 4 bytes each into SINGLE varaibles
+READ [ifile], a#, b#, c#    ' read 8 bytes each into DOUBLE variables
+READ [ifile], a$            ' read 256 bytes to fill STRING a$
+READ [ifile], a[]           ' read 128 bytes to fill XLONG a[31]
+READ [ifile], a#[]          ' read 512 bytes to fill DOUBLE a#[63]
+READ [ofile], pixel         ' read all bytes in composite variable
+READ [ofile], pixel.color   ' read all bytes in component
+READ [ofile], name.kid[]    ' read all bytes in component array
+
+See: WRITE, OPEN(), CLOSE(), INFILE$(), EOF(), LOF(), POF(), SEEK()
+
+:RETURN
+:EXIT FUNCTION
+statement
+
+RETURN [expression]
+EXIT FUNCTION  [expression]
+
+Return from the currently executing function to the one that called it.
+The value of the expression is returned to the calling function.
+If no expression is given, a zero or empty string is returned.
+
+RETURN                    ' return zero or empty string
+RETURN  a                 ' return value of a
+RETURN  a$                ' return string a$
+RETURN ((a+b)*(c+d))      ' return value of numeric expression
+RETURN (a$ + b$ + c$)     ' return value of string expression
+
+See: FUNCTION, END FUNCTION
+
+:ROTATEL()
+:ROTATER()
+
+instrinsic
+integer = ROTATEL(integer, count)  ' Rotate left
+integer = ROTATER(integer, count)  ' Rotate right
+
+Closed rotate bits left or right any number of bits.
+With ROTATEL, bits shifted out the most significant bit
+are recirculated back into the least significant bit.
+With ROTATER, bits shifted out the least significant bit
+are recirculated back into the most significant bit.
+
+x = 0xDEADC0DE
+y = 0x01020304
+a = ROTATEL(x, 16)      ' a = 0xC0DEDEAD
+a = ROTATEL(y,  4)      ' a = 0x10203040
+a = ROTATER(x, 16)      ' a = 0xC0DEDEAD
+a = ROTATER(y,  4)      ' a = 0x40102030
+
+Note: For bit-wise shifting use operators: <<, >>, <<<, >>>
+See: Operator Summary, or go to Help > Operator
+
+:SEEK()
+intrinsic
+
+[filePointer = ] SEEK(fileNumber, filePointer)
+
+Move the file pointer of a file to a new position.
+The new position can be beyond the end of the file.
+
+SEEK (dataFile, recordNumber * recordSize)
+fp = SEEK(ifile, d3)
+
+See: OPEN(), CLOSE(), EOF(), LOF(), POF(), READ, WRITE, INFILE$()
+
+:SELECT CASE
+:CASE
+:ALL
+:TRUE
+:FALSE
+:END SELECT
+statement
+
+
+SELECT CASE expression
+SELECT CASE TRUE
+SELECT CASE FALSE
+SELECT CASE ALL TRUE
+SELECT CASE ALL FALSE
+SELECT CASE ALL expression
+END SELECT
+
+Begin a multi-way decision block and establish the test expression
+that subsequent CASE statements test against.  The test expression
+can be TRUE, FALSE, or a numeric or string  expression.
+
+Each expression in the subsequent CASE statements is tested agains
+the test expression.  If any expression matches the test expression,
+the statements following the CASE statement are executed,
+up to the next CASE or END SELECT statement.
+
+To match TRUE requires a non-zero number or a non-empty string.
+To match FALSE requires a zero number or an empty string.
+To match expression requires an equal numeric value or string.
+
+Normal SELECT CASE blocks are called one-of-many decision blocks
+because at most one CASE statement block is executed.  This occurs
+because an invisible jump past the matching END SELECT is inserted
+before every CASE statement except the first.
+
+SELECT CASE ALL blocks are called n-of-many decision blocks
+because all CASE statements are tested for matches.
+Whether or not the code in the preceeding block was executed,
+tests are performed for each successive CASE statement.
+
+END SELECT marks the end of every SELECT CASE block.
+
+SELECT CASE a           ' test against the contents of a
+SELECT CASE a$          ' test against the contents of a$
+SELECT CASE TRUE        ' test for non-zero or non-empty string
+SELECT CASE FALSE       ' test for zero or empty string
+SELECT CASE ALL a       ' test all cases against the contents of a
+SELECT CASE ALL a$      ' test all cases against the contents of a$
+SELECT CASE ALL TRUE    ' test all cases for non-zero or non-empty$
+SELECT CASE ALL FALSE   ' test all cases for zero or empty string
+'
+SELECT CASE x
+  CASE a       : PRINT "a = x"
+  CASE b,c,d   : PRINT "a or b or c = x"
+  CASE e+f     : PRINT "a = e+f"
+  CASE ELSE    : PRINT "None of the above"
+END SELECT
+'
+SELECT CASE ALL TRUE
+  CASE i, j, k         : PRINT "i or j or k is non-zero"
+  CASE humidity > 100  : PRINT "The sky is falling"
+  CASE a$, b$+c$       : PRINT "a$ or b$+c$ is has contents"
+  CASE !raining        : PRINT "You can go out now"
+  CASE ERROR(-1)       : PRINT "Something bad happened"
+  CASE hope[]          : PRINT "There is hope[]"
+  CASE ALL             : PRINT "All printed are true"
+END SELECT
+
+See: EXIT SELECT, NEXT CASE
+
+:SGN()
+:SIGN()
+intrinsic
+
+integer = SGN(numeric)
+integer = SIGN(numeric)
+
+Return the sign of a number.  If the argument is negative,
+return -1.  If the argument is positive, return +1.
+If the argument is zero, SGN() returns 0 while SIGN() returns +1.
+
+i = -23
+j =   0
+k = +74
+x# = -123.4
+y# = +.0002
+PRINT SGN(i), SIGN(i)     ' Print "-1  -1"
+PRINT SGN(j), SIGN(j)     ' Print " 0  +1"
+PRINT SGN(k), SIGN(k)     ' Print "+1  +1"
+PRINT SGN(x#), SIGN(x#)   ' Print "-1  -1"
+PRINT SGN(y#), SIGN(y#)   ' Print "+1  +1"
+
+:SHELL()
+intrinsic
+
+[integer = ] SHELL(command$)
+
+Execute a program.  The command string executes as it would
+at an operating system prompt except the full program name
+including  extent must be specified.  Control then returns
+control to the program.  Some operating systems support
+concurrent execution of both processes, meaning the program
+does not wait until the newly started program completes.
+
+SHELL ("xb.exe acircle.x -bc")   ' wait for xb.exe to complete
+SHELL (":xb.exe acircle.x -bc")  ' execute concurrently if supported
+
+BASH Exit Codes
+    1    Catchall for general errors
+    2    Misuse of shell builtins
+  126    Command invoked cannot execute
+  127    "command not found"
+  128    Invalid argument to exit
+  128+n	 Fatal error signal "n"
+  130    Script terminated by Control-C
+  255*   Exit status out of range
+
+See: file "/usr/include/sysexits.h" has additional codes.
+
+
+:SIZE()
+intrinsic
+
+integer = SIZE(typename)
+integer = SIZE(variable)
+integer = SIZE(array[])
+integer = SIZE(array[n])
+integer = SIZE(array[n,])
+integer = SIZE(composite)
+integer = SIZE(composite.component)
+integer = SIZE(composite.component[])
+integer = SIZE(composite.component[n])
+integer = SIZE(composite.componentString)
+
+Return the size of data in bytes.  The argument can be a
+built-in or user-defined typename, a numeric or string variable,
+the highest dimension of an array[], an array[n] element,
+an intermediate dimension of an array[n,], a composite variable,
+a component of a composite variable, a component[] array,
+a component[n] array element, or a componentString.
+
+name$ = "John Galt"
+a = SIZE(SLONG)       ' size of built-in type SLONG (4 bytes)
+a = SIZE(COLOR)       ' size of user-defined composite type COLOR
+a = SIZE(employee)    ' size of variable 'employee'
+a = SIZE(name$)       ' size of string variable (9 bytes)
+a = SIZE(prog[])      ' size of highest dimension of prog[]
+a = SIZE(prog[n,]     ' size of sub-array prog[n, ]
+a = SIZE(prog[m,]     ' size of sub-array prog[m, ]
+a = SIZE(box)         ' size of composite variable box
+a = SIZE(box.top)     ' size of composite.component box.top
+a = SIZE(box.ele[])   ' size of composite.array box.ele[]
+a = SIZE(box.ele[1])  ' size of composite.array element box.ele[1]
+a = SIZE(box.name)    ' size of composite string box.name
+
+:SMAKE()
+:XMAKE()
+intrinsic
+
+single = SMAKE(integer)
+xlong  = XMAKE(single)
+
+Change the type of a 32-bit integer to SINGLE.
+The bit pattern of the return value is the same as
+the integer argument, but the return type is SINGLE.
+
+x = 0x48000000         ' x  = 0x48000000  (a large integer number)
+a! = SMAKE(x)          ' a! = 0s48000000  (a small SINGLE number)
+
+Make an XLONG value from a single argument.
+
+x! = 2.000
+a = XMAKE(x!)        ' a = XLONG with same bit pattern as x!
+
+See: DMAKE(), GMAKE()
+
+:SPACE$()
+intrinsic
+
+string$ = SPACE$(length)
+
+Create a string of space characters.  The length
+of the return string is given by the argument.
+
+a$ = SPACE$(4)                ' a$ = "    "
+a$ = "x" + SPACE$(2) + "x"    ' a$ = "x  x"
+
+See: NULL$(), CHR$()
+
+:STOP
+statement
+
+Stop a program execution here
+
+Acts like a perminent breakpoint in a program, if
+being run in the PDE mode, but will cause the program
+to crash if standalone.
+
+STOP must be the last statement in a line,
+or the only statement in a program line.
+
+:STRING()
+:STRING$()
+:SIGNED$()
+:STR$()
+intrinsic
+
+string$ = STRING(numeric)   ' leading "-"
+string$ = STRING$(numeric)  ' leading "-"
+string$ = SIGNED$(numeric)  ' leading "-" or "+"
+string$ = STR$(numeric)     ' leading "-" or " "
+
+Convert a numeric argument into a string.  The only difference
+between these intrinsics is the form the sign takes in the
+returned string.  STRING() and STRING$() puts a leading "-"
+on negative numbers and nothing on positive numbers.
+SIGNED$() puts a leading "+" or "-" on all numbers, including "+0".
+STR$() puts a leading "-" on negative numbers and a leading space
+character " " on positive numbers.
+
+a# = -23.456
+b# = +11.111
+a$ = STRING(a#) + STRING(b#)    ' a$ = "-23.45611.111"
+a$ = STRING$(a#) + STRING$(b#)  ' a$ = "-23.45611.111"
+a$ = SIGNED$(a#) + SIGNED$(b#)  ' a$ = "-23.456+11.111"
+a$ = STR$(a#) + STR$(b#)        ' a$ = "-23.456 11.111"
+
+See: FORMAT$(), BIN$(), BINB$(), HEX$(), HEXX$(), OCT$(), OCTO()$
+
+
+:STUFF$()
+intrinsic
+
+string$ = STUFF$(stringInto$, stringFrom$, start)
+string$ = STUFF$(stringInto$, stringFrom$, start, length)
+
+Stuff one string into another.  Stuff stringFrom$ into stringInto$
+starting at start.  Stuff no more than length characters.
+
+x$ = "This lazy man"
+y$ = "flabberghast"
+z$ = "is wolf"
+a$ = STUFF$(x$, y$, 6, 4)     ' a$ = "This flab man"
+a$ = STUFF$(x$, y$, 6)        ' a$ = "This flabberg"
+a$ = STUFF$(x$, z$, 6)        ' a$ = "This is wolfn"
+a$ = STUFF$(x$, z$, 6, 5)     ' a$ = "This is woman"
+
+See: MID$(), MID$=, LEFT$(), RIGHT$(), LCLIP$(), RCLIP$(), XstMergeString$()
+
+:SUB
+:EXIT SUB
+:END SUB
+statement
+
+SUB SubroutineName
+
+SUB       - Begin subroutine.
+EXIT SUB  - Exit subroutine before its end.
+END SUB   - End subroutine.
+
+A subroutine is a portion of a function that can be called
+only from within the same function by GOSUB SubroutineName.
+
+END SUB returns to the statement following the GOSUB.
+EXIT SUB jumps to the END SUB which then returns.
+
+SUB Sandwitch
+  entry = Convert (a, b)
+  IFZ entry THEN EXIT SUB      ' exit the subroutine
+  entry = Chew (a, b)
+END SUB
+
+:SUBADDRESS()
+
+instrinsic
+subaddr = SUBADDRESS(label)
+
+Return the address of a subroutine.
+
+g = SUBADDRESS (SubName)      ' g = address of subroutine SubName
+h[i] = SUBADDRESS (SumArray)  ' h[i] = address of subroutine SumArray
+
+:SWAP
+statement
+
+SWAP string$, string$
+SWAP variable, variable
+SWAP arrayNode, arrayNode
+
+Swap the contents of:
+	string variables
+	numeric variables of the same type
+	array elements of the same type
+	strings, arrays, array nodes
+
+SWAP a, b          ' swap XLONG variables
+SWAP a#, b#        ' swap DOUBLE variables
+SWAP a$, b$        ' swap STRING variables
+SWAP a, b[n]       ' swap XLONG variable with XLONG array element
+SWAP a[i], b[j]    ' swap XLONG array elements
+SWAP a$[i], b$[j]  ' swap STRING array elements
+SWAP a$[i], b$     ' swap STRING array element with string
+SWAP a[], b[]      ' swap two entire arrays
+SWAP a[], b[i,]    ' swap array with a sub-array
+SWAP a[i,], b[i,]  ' swap two sub-arrays
+
+:TAB()
+intrinsic
+
+TAB(integer)
+
+Append spaces to PRINT string to reach a horizontal character
+position.  TAB() is valid only in PRINT statements.
+
+PRINT a; TAB(10); b; TAB(24); c; TAB(40); d$; TAB(60); e
+PRINT TAB(40); x, y, z
+
+:TRIM$()
+:LTRIM$()
+:RTRIM$()
+intrinsic
+
+string$ = TRIM$(string$)
+string$ = LTRIM$(string$)
+string$ = RTRIM$(string$)
+
+Trim whitespace and non-printable characters from both ends of
+a string, the left end of a string, or the right end of a string.
+All characters from 0x00 to 0x20 and 0x80 to 0xFF are removed.
+
+x$ = "\n\nXXX\t\0\1\2  "
+y$ = "\t  \nZZZ  \t\t\n"
+a$ = LTRIM$(x$)             ' a$ = "XXX\t\0\1\2  "
+a$ = LTRIM$(y$)             ' a$ = "ZZZ  \t\t\n"
+a$ = RTRIM$(x$)             ' a$ = "\n\nXXX"
+a$ = RTRIM$(y$)             ' a$ = "\t  \nZZZ"
+a$ = TRIM$(x$)              ' a$ = "XXX"
+a$ = TRIM$(y$)              ' a$ = "YYY"
+
+See: XstTRIM(), XstLTRIM(), XstRTRIM()
+
+:TYPE
+:PACKED
+:UNION
+:END TYPE
+:END PACKED
+:END UNION
+statement
+
+TYPE TypeName
+PACKED PackedName
+UNION
+END TYPE
+END PACKED
+END UNION
+
+Declare user-defined composite types and begin/end union overlays.
+
+TYPE data is aligned to 4 byte (32 bit) addresses and sizes
+PACKED data is aligned to 1 byte (8 bit) addresses and sizes
+UNION statements are valid only within TYPE or PACKED declaration blocks.
+
+TYPE TypeName = TypeDefinition
+
+TYPE int = XLONG
+
+TYPE TEST
+	FUNCADDR .funAddr (int)
+END TYPE
+
+TYPE BUFFER
+	SBYTE     .buff[7]  'One-dimension array of 8 SBYTES, multi-dimension not allowed
+	STRING*8  .name     'sequence of 8 UBYTEs
+END TYPE
+
+TYPE COLOR
+  USHORT  .red
+  USHORT  .green
+  USHORT  .blue
+  USHORT  .intensity
+END TYPE
+'
+PACKED Package      'total size of Package is 3 bytes
+	USHORT  .short
+	UBYTE   .byte
+END PACKED
+'
+TYPE POINT
+  XLONG   .x
+  XLONG   .y
+  COLOR   .color
+END TYPE
+'
+TYPE LINE
+  POINT   .a
+  POINT   .b
+  XLONG   .thickness
+END TYPE
+'
+TYPE DPOINT
+  DOUBLE  .x
+  DOUBLE  .y
+  COLOR   .color
+END TYPE
+'
+TYPE ARBITRARY            ' hold an arbitrary data type value
+  UNION                   ' the following overlay each other
+	  SBYTE     .sbyte
+	  UBYTE     .ubyte
+	  STRING*8  .name       'sequence of 8 UBYTEs
+	  SSHORT    .sshort
+	  USHORT    .ushort
+	  SLONG     .slong
+	  ULONG     .ulong
+	  XLONG     .xlong
+	  GIANT     .giant
+	  SINGLE    .single
+	  DOUBLE    .double
+	  SCOMPLEX  .scomplex
+	  DCOMPLEX  .dcomplex
+  END UNION               ' end overlay
+  XLONG     .type         ' type currently stored in the variable
+END TYPE
+
+See: SIZE(), Data types
+
+:TYPE()
+intrinsic
+
+integer = TYPE(typeName)
+integer = TYPE(typeName.component)
+integer = TYPE(variable)
+integer = TYPE(variable.component)
+integer = TYPE(array[])
+integer = TYPE(array[subscripts,])
+
+Return the type number of a built-in type, composite type,
+composite type component, variable, component of a
+composite variable, array, or array node.
+
+Shared constants are defined for the built-in types.
+User-defined types are assigned during compilation.
+A given user-defined type is not necessarily assigned the
+same type number on subsequent compilations, or from library
+to library.  Don't make any assumptions about the assignment
+of type numbers in function libraries or other external modules.
+
+a = TYPE(SLONG)           ' a = type number of SLONG     ($$SLONG)
+a = TYPE(DCOMPLEX)        ' a = type number of DCOMPLEX  ($$DCOMPLEX)
+a = TYPE(DCOMPLEX.I)      ' a = type number of component ($$DOUBLE)
+a = TYPE(employee)        ' a = type number of variable employee
+a = TYPE(maxValue[])      ' a = type number of array maxValue[]
+a = TYPE(prog[func,])     ' a = type number of node      ($$XLONG)
+a = TYPE(employee.salary) ' a = type number of variable component
+
+NOTE:
+In most cases the TYPE() intrinsic is simply giving the type that
+the variable was defined as at the time the program was compiled.
+The only cases where it gets the type information from the data itself
+is for strings and arrays (strings are actually arrays). Strings and
+arrays are data structures that are always passed by reference, and have
+information words about their type and size; the UBOUND() intrinsic also
+looks at these information words to get the size of string or array.
+
+See: ISDATA(), ISNODE, UBOUND()
+
+:ISDATA()
+:ISNODE()
+intrinsic
+
+
+ISDATA() returns TRUE if the array or node has data
+ISNODE() returns TRUE for higher dimension nodes of muti-dimensional arrays.
+
+isdata = ISDATA(string$)
+isdata = ISDATA(array[])
+isdata = ISDATA(array[subscripts,])
+
+isdata will be TRUE (-1) if it is the lowest dimension of an array
+                         and has data (not empty)
+
+isdata will be FALSE (0) if the array does not exist or
+                         this is a higher dimension or
+                         this level is empty.
+
+isnode = ISNODE(string$)
+isnode = ISNODE(array[])
+isnode = ISNODE(array[subscripts,])
+
+isnode will be TRUE (-1) if it is a higher dimension (node)
+                         of a mult-dimensional array.
+
+isnode will be FALSE (0) if the array does not exist or
+                         this is the lowest dimension.
+
+See: TYPE(), UBOUND()
+
+:UBOUND()
+intrinsic
+
+
+integer = UBOUND(string$)
+integer = UBOUND(array[])
+integer = UBOUND(array[subscripts,])
+
+Returns the upper bound of a string or array dimension.
+
+x$ = ""
+y$ = "0"
+z$ = "012345"
+DIM a[]
+DIM b[0]
+DIM c[7]
+DIM d[3,]
+DIM x[11]
+DIM y[15]
+DIM z[31]
+ATTACH x[] TO d[0]
+ATTACH y[] TO d[1]
+ATTACH z[] TO d[2]
+a = UBOUND(x$)      ' a = -1    (empty string)
+a = UBOUND(y$)      ' a =  0    (upper bound = 0 : 1 element)
+a = UBOUND(z$)      ' a =  5    (upper bound = 5 : 6 elements)
+a = UBOUND(a[])     ' a = -1    (empty array)
+a = UBOUND(b[])     ' a =  0    (upper bound = 0 : 1 element)
+a = UBOUND(c[])     ' a =  7    (upper bound = 7 : 8 elements)
+a = UBOUND(d[])     ' a =  3    (upper bound of highest dimension)
+a = UBOUND(d[0,])   ' a = 11    (upper bound of d[0,])
+a = UBOUND(d[1,])   ' a = 15    (upper bound of d[1,])
+a = UBOUND(d[2,])   ' a = 31    (upper bound of d[2,])
+a = UBOUND(d[3,])   ' a = -1    (d[3,] is an empty array)
+
+See: ISDATA(), ISNODE(), TYPE()
+
+:UNTIL
+See: DO
+
+:VERSION
+statement
+
+VERSION "number"
+
+Give the program a version number.
+Argument must be literal string.
+This statement is in the PROLOG section.
+
+VERSION  "0.1234"
+
+See: VERSION$(), PROGRAM, PROGRAM$(), PROLOG
+
+:VERSION$()
+intrinsic
+
+version$ = VERSION$(0)
+
+Return version number string defined in VERSION statement.
+
+See: VERSION, PROGRAM, PROGRAM$(), PROLOG,
+     XgrVersion$(), XstVersion$(), XuiVersion$()
+
+:VOID
+statement
+
+Declare that a function returns no value
+Not used in XBasic. Functions can
+return XLONG even if VOID is used.
+
+See: DECLARE FUNCTION, and FUNCTION.
+
+:WHILE
+
+See: DO
+
+:WRITE
+statement
+
+WRITE [fileNumber], variables
+
+Write variables to a disk file.  The first argument is the
+filenumber of the file to write to.  The remaining arguments
+are any combination of numeric variables, string variables,
+composite variables, composite variable components, or one
+dimensional arrays of any type except strings.
+
+The number of byte written from each variable equals the data
+size of the variable.  For example, one byte is written from
+SBYTE and UBYTE variables, two bytes from SSHORT and USHORT
+variables, four bytes from SLONG and SINGLE variables, etc.
+
+This is true even though simple variables shorter than 32-bits
+are held in memory as 32-bit or 64-bit values.  In cases where
+the data size and storage size are not equal, the least
+significant part of the variable is written.
+
+When a string variable is written, the number of bytes written
+is the number of bytes in the string..
+
+When an array variable is written, the number of bytes written is
+the number of bytes in the array. Only one dimension can be written.
+
+DIM a[31]                  ' a[] contains 32 XLONG values
+DIM a#[63]                 ' a#[] contains 64 DOUBLE values
+a$ = CHR$('*', 256)        ' a$ contains 256 '*' characters
+WRITE [ifile], a@, b@, c@  ' WRITE 1 byte each from SBYTE variables
+WRITE [ifile], a, b, c     ' WRITE 4 bytes each from XLONG variables
+WRITE [ifile], a!, b!, c!  ' WRITE 4 bytes each from SINGLE variables
+WRITE [ifile], a#, b#, c#  ' WRITE 8 bytes each from DOUBLE variables
+WRITE [ifile], a$          ' WRITE all 256 bytes from STRING a$
+WRITE [ifile], a[]         ' WRITE all 128 bytes from XLONG a[31]
+WRITE [ifile], a#[]        ' WRITE all 512 bytes from DOUBLE a#[63]
+WRITE [ofile], pixel       ' WRITE all bytes in composite variable
+WRITE [ofile], pixel.color ' WRITE all bytes in component
+WRITE [ofile], name.kid[]  ' WRITE all bytes in component array
+
+See: READ, INFILE$(), OPEN(), CLOSE(), EOF(), LOF(), POF(), SEEK()
+
+:PROLOG
+'
+' Prolog Elements Example
+'
+PROGRAM "trouble"               ' name the program or library
+VERSION "0.0000"                ' keep version number updated
+'
+IMPORT  "xst"                   ' make standard library available
+IMPORT  "mylib"                 ' make custom library available
+'
+EXPORT                          ' begin exporting types, funcs, etc
+  TYPE HANDLE = XLONG           ' declare user-defined type HANDLE
+  TYPE LINK                     ' declare user-defined type LINK
+    XLONG  .backward            ' define component of type LINK
+    XLONG  .forward             ' define component of type LINK
+  END TYPE                      ' end declaration of type LINK
+'
+  DECLARE FUNCTION  Entry ()    ' declare function in this program
+END EXPORT                      ' stop exporting (temporarily)
+'
+  SHARED  lastIndex, thisIndex  ' declare shared variables
+  EXTERNAL  flexStatus          ' declare external variable
+EXPORT                          ' resume exporting
+  $$Off = 0                     ' define and export shared constant
+  $$On = -1                     ' define and export shared constant
+END EXPORT                      ' stop exporting (the end)
+
+See: VERSION, VERSION$(), PROGRAM, PROGRAM$()
+
+:Data types
+:Suffixes
+:Type Suffixes
+
+Variables that do not appear in a declaration statement
+default to AUTO scope and the default data type, which is
+XLONG unless an explicit default type is specified on the
+FUNCTION line.  AUTO, AUTOX, and undeclared variables are
+always initialized to zero each time the function is entered.
+
+The built-in data types are:
+
+SBYTE       signed byte        8-bit integer
+UBYTE       unsigned byte      8-bit integer
+SSHORT      signed short      16-bit integer
+USHORT      unsigned short    16-bit integer
+SLONG       signed long       32-bit integer
+ULONG       unsigned long     32-bit integer
+XLONG       register type     32-bit integer (or 64-bit integer)
+GOADDR      address type      32-bit integer (or 64-bit integer)
+SUBADDR     address type      32-bit integer (or 64-bit integer)
+GIANT       signed giant      64-bit integer
+SINGLE      single float      32-bit floating point
+DOUBLE      double float      64-bit floating point
+STRING      ubyte string       8-bit unsigned byte characters
+SCOMPLEX    single complex    32-bit : 32-bit floating point
+DCOMPLEX    double complex    64-bit : 64-bit floating point
+
+The type suffixes that can be appended to variables
+to explicitly specify their data type are:
+
+  @       SBYTE        8-bit signed byte integer
+  @@      UBYTE        8-bit unsigned byte integer
+  %       SSHORT      16-bit signed short integer
+  %%      USHORT      16-bit unsigned short integer
+  &       SLONG       32-bit signed long integer
+  &&      ULONG       32-bit unsigned long integer
+  ~       XLONG       32/64-bit signed machine integer
+  $$      GIANT       64-bit signed giant (financial) integer
+  !       SINGLE      IEEE single precision floating point
+  #       DOUBLE      IEEE double precision floating point
+  $       STRING      String of unsigned bytes
+
+See: Declaration, Scope Prefixes
+
+:Constants
+
+Constants are symbols used as descriptive replacements for literal
+values. They represent fixed numeric or string values that do not
+change as programs run.  Attempts to redefine constants cause
+compile time errors. The data type of constants is determined by
+the data type of the literal or constant assigned to it.
+Type suffixes are not valid on constants, except for $ on string
+constants. Only literals, constants, and bitfield specs can be
+assigned to constants.
+
+Local Constant
+Local constants have a $ prefix, as in $SIZE and $SHAPE.
+They are declared, defined, and typed within functions when values
+are assigned to them.  Local constants are visible only within the
+function that defines them.
+
+Shared Constant
+Shared constants have $$ prefixes, as in  $$PathSlash and $$PathSlash$.
+They are declared, defined, and typed when values are assigned to them.
+Shared constants must be defined in the prolog after all function
+and shared data declarations.  Shared constants that are "exported"
+by a library become defined in a program by:
+	IMPORT "library"
+
+System Constant
+System constants are shared constants predefined for all programs.
+The only ones currently defined are $$FALSE and $$TRUE.
+
+See: Scope Prefixes, IMPORT, EXPORT, PROLOG
+
+:Prefixes
+:Scopes
+:Scope Prefixes
+
+The valid scopes are:
+
+AUTO							local, temporary, possibly CPU register
+AUTOX							local, temporary, never CPU register
+STATIC						local, permanent
+SHARED						sharable within program
+SHARED /name/			sharable within program  (/name/ must match)
+EXTERNAL					sharable between programs
+EXTERNAL /nane/		sharable between programs  (/name/ must match)
+
+Variables that are not of type XLONG must specify the scope and type with
+a statement at the beginning of each function that uses the variable.
+
+Variables can use scope prefixes # and ## prepended to the variable
+names to explicitly specify their scope. But if the type is not XLONG,
+the type and variable must be stated in the PROLOG of the program:
+
+  UBYTE  #var             ' this statement in the PROLOG means #var
+                          ' is unsigned 8-bits throughout the program
+
+  #       SHARED           variable shared within a program
+  ##      EXTERNAL         variable shared between multiple programs
+  $       Local Constant   constant visible within one function
+  $$      Shared Constant  constant visible throughout a program
+
+See: Type Suffixes
+
+:Global
+See: EXTERNAL
+
+:Operator Summary
+:Operator,                       main menu > Help
+
+operator        description
+=======================================================
+~    NOT        bitwise NOT
+&    AND        bitwise AND
+^    XOR        bitwise XOR
+|     OR        bitwise OR
+
+!!              logical TEST
+!               logical NOT
+&&              logical AND
+::              Logical compare (TRUE if logically equal)
+^^              logical XOR
+||              logical OR
+
+=               assignment
+=               logical compare for EQUAL
+<>              logical compare for NOT EQUAL
+<               logical compare for LESS THAN
+<=              logical compare for LESS THAN OR EQUAL
+>               logical compare for GREATER THAN
+>=              logical compare for GREATER THAN OR EQUAL
+
+==              logical compare for EQUAL
+!=              logical compare for NOT EQUAL
+!<              logical compare for NOT LESS THAN
+!<=             logical compare for NOT LESS THAN OR EQUAL
+!>              logical compare for NOT GREATER THAN
+!>=             logical compare for NOT GREATER THAN OR EQUAL
+
+<<              bitwise LEFT SHIFT  (carry in zeros)
+>>              bitwise RIGHT SHIFT  (carry in zeros)
+<<<             arithmetic UP SHIFT  (carry in zeros)
+>>>             arithmetic DOWN SHIFT  (carry in most significant bit)
+
++               arithmetic ADD
+-               arithmetic SUBTRACT
+*               arithmetic MULTIPLY
+\               arithmetic INTEGER DIVIDE
+/               arithmetic FLOATING POINT DIVIDE
+**              arithmetic RAISE TO POWER
++               arithmetic UNARY PLUS
+-               arithmetic UNARY MINUS
+
+&               ADDRESS of data
+&&              ADDRESS of handle
+
++               string concatenate
+
+
+**********************************************
+**************  Operator Table  **************
+**********************************************
+
+X OP   ALT     KIND   CLASS     OPERANDS     RETURNS    PREC     COMMENTS
+
+&              unary    11      AnyType      Address     12      Address of Object Data
+&&             unary    11      AnyType      Address     12      Address of Object Handle
+NOT     ~      unary    10      Integer      SameType    12      Bitwise NOT
+!              unary     9      Numeric      T/F         12      Logical Not  (TRUE if 0, else FALSE)
+!!             unary     9      Numeric      T/F         12      Logical Test  (FALSE if 0, else TRUE)
++              unary     8      Numeric      SameType    12      Plus
+-              unary     8      Numeric      SameType    12      Minus
+<<<            binary    7      Integer      LeftType    11      Arithmetic Up Shift
+>>>            binary    7      Integer      LeftType    11      Arithmetic Down Shift
+<<             binary    7      Integer      LeftType    11      Bitwise Left Shift
+>>             binary    7      Integer      LeftType    11      Bitwise Right Shift
+**             binary    4      Numeric      HighType    10      Power
+/              binary    4      Numeric      HighType     9      Divide
+*              binary    4      Numeric      HighType     9      Multiply
+\              binary    6      Numeric      Integer      9      Integer Divide
+MOD            binary    6      Numeric      Integer      9      Modulus (Integer Remainder)
++              binary    5      Numeric      HighType     8      Add
++              binary    5      String       String       8      Concatenate
+-              binary    4      Numeric      HighType     8      Subtract
+AND     &      binary    3      Integer      HighType     7      Bitwise AND
+XOR     ^      binary    3      Integer      HighType     6      Bitwise eXclusive OR
+OR      |      binary    3      Integer      HighType     6      Bitwise OR
+>       !<=    binary    2      NumStr       T/F          5      Greater-Than
+>=      !<     binary    2      NumStr       T/F          5      Greater-Or-Equal
+<=      !>     binary    2      NumStr       T/F          5      Less-Or-Equal
+<       !>=    binary    2      NumStr       T/F          5      Less-Than
+<>      !=     binary    2      NumStr       T/F          4      Not-Equal
+=       ==     binary    2      NumStr       T/F          4      Equal  (also "!<>")
+&&             binary    1      Integer      T/F          2      Logical AND
+::             binary    1      Integer      T/F          2      Logical Compare (TRUE if logically equal)
+^^             binary    1      Integer      T/F          1      Logical eXclusive OR
+||             binary    1      Integer      T/F          1      Logical OR
+=              binary           NumStr       RightType    1      Assignment
+
+                                             T/F                 T/F always returned as XLONG
+
+See: AND, OR, XOR, NOT, MOD, ROTATEL(), ROTATER(), 'Help > Operator'
+
+:Type Conversion
+:SBYTE()
+:UBYTE()
+:SSHORT()
+:USHORT()
+:SLONG()
+:ULONG()
+:XLONG()
+:GOADDR()
+:SUBADDR()
+:FUNCADDR()
+:GIANT()
+:SINGLE()
+:DOUBLE()
+
+Coersion aka Type Conversion
+Type conversion, also called coersion, is performed automatically
+when appropriate.  For example, when an operator combines two
+operands in expression evaluation, the smaller type is promoted
+to the larger type before the operation is performed.
+
+A consistent set of intuitive, efficient intrinsics for explicit
+type conversion are also provided.  For all explicit type
+conversions, the name of the intrinsic is the name of the data type
+to convert to, as the following table illustrates.  The argument
+can be any built-in simple (numeric) or string type.
+
+SBYTE()         Convert to SBYTE
+UBYTE()         Convert to UBYTE
+SSHORT()        Convert to SSHORT
+USHORT()        Convert to USHORT
+SLONG()         Convert to SLONG
+ULONG()         Convert to ULONG
+XLONG()         Convert to XLONG
+GOADDR()        Convert to GOADDR
+SUBADDR()       Convert to SUBADDR
+FUNCADDR()      Convert to FUNCADDR
+GIANT()         Convert to GIANT
+SINGLE()        Convert to SINGLE
+DOUBLE()        Convert to DOUBLE
+
+See: DMAKE(), GMAKE(), SMAKE(), XMAKE()
+For conversion to type string,
+See: STRING(), STRING$(), SIGNED$(), STR$()
+
+:Direct Memory Access
+:SBYTEAT()
+:UBYTEAT()
+:SSHORTAT()
+:USHORTAT()
+:SLONGAT()
+:ULONGAT()
+:XLONGAT()
+:GIANTAT()
+:SINGLEAT()
+:DOUBLEAT()
+:SUBADDRAT()
+:GOADDRAT()
+intrinsics
+
+double = DOUBLEAT(address)
+double = DOUBLEAT(address, offset)
+double = DOUBLEAT(address, [element])
+DOUBLEAT(address) = double
+DOUBLEAT(address, offset) = double
+DOUBLEAT(address, [element]) = double
+
+The  Direct Memory Access  intrinsics read directly from
+a memory address, or write directly to a memory address.
+They are provided for the rare cases it is necessary to
+read or write a memory address directly, as when the
+operating system or another language provides an address
+of data, rather than data itself.
+
+Address validation is not performed, so misaligned accesses,
+segment faults, and other memory access errors are not prevented.
+Therefore these intrinsics should be avoided when possible,
+and used with care.
+The name of any direct memory access intrinsic can be substituted
+for DOUBLEAT in any of the six syntax examples shown above.
+
+The first three forms  read  from a memory address, while
+the second three forms  write  to a memory address.
+
+The address is specified in one of three ways:
+
+address									address = address
+address, offset					address = address + offset
+address, [element]			address = address + (element * size)
+
+In the first form, the address is given directly. In the
+second form, the address is computed by adding a byte offset
+to the address.  In the third form, the address is computed by
+adding the element number times its size in bytes to the address.
+
+a# = DOUBLEAT(address)
+a# = DOUBLEAT(address, offset)
+a# = DOUBLEAT(address, [element])
+DOUBLEAT(address) = a#
+DOUBLEAT(address, offset) = a#
+DOUBLEAT(address, [element]) = a#
+
+:Variables
+:Declaration
+:AUTO
+:AUTOX
+:STATIC
+:SHARED
+:EXTERNAL
+:SBYTE
+:UBYTE
+:SSHORT
+:USHORT
+:SLONG
+:ULONG
+:XLONG
+:GOADDR
+:SUBADDR
+:GIANT
+:SINGLE
+:DOUBLE
+:STRING
+:SCOMPLEX
+:DCOMPLEX
+statements
+
+[scope] [type] variables
+
+Declare the scope and data type of variables.  Variables that
+do not appear in a declaration statement default to AUTO scope
+and the default data type, which is XLONG unless an explicit
+default type is specified on the FUNCTION line.
+AUTO, AUTOX, and undeclared variables are always initialized
+to zero each time the function is entered.
+
+Composite variables with user-defined types are declared in
+the same way as built-in type variables.  Substitute the name
+of the composite type for DOUBLE in the syntax example above.
+
+The valid scopes are:
+
+AUTO							local, temporary, possibly CPU register
+AUTOX							local, temporary, never CPU register
+STATIC						local, permanent
+SHARED						sharable within program
+SHARED /name/			sharable within program  (/name/ must match)
+EXTERNAL					sharable between programs
+EXTERNAL /nane/		sharable between programs  (/name/ must match)
+
+Undeclared scope defaults to AUTO
+
+The built-in data types are:
+
+SBYTE       signed byte        8-bit integer
+UBYTE       unsigned byte      8-bit integer
+SSHORT      signed short      16-bit integer
+USHORT      unsigned short    16-bit integer
+SLONG       signed long       32-bit integer
+ULONG       unsigned long     32-bit integer
+XLONG       register type     32-bit integer (or 64-bit integer)
+GOADDR      address type      32-bit integer (or 64-bit integer)
+SUBADDR     address type      32-bit integer (or 64-bit integer)
+GIANT       signed giant      64-bit integer
+SINGLE      single float      32-bit floating point
+DOUBLE      double float      64-bit floating point
+STRING      ubyte string       8-bit unsigned byte characters
+SCOMPLEX    single complex    32-bit : 32-bit floating point
+DCOMPLEX    double complex    64-bit : 64-bit floating point
+
+Undeclared types default to XLONG
+GOADDR and SUBADDR are local scope only
+
+AUTO             a, b$, c[]
+AUTOX  USHORT    width[], height[]
+       DOUBLE    ii, jj, kk
+       SINGLE    x[], y[], z[]
+STATIC DCOMPLEX  a, b, c, d, e, f
+SHARED UBYTE     a[], b[], c[]
+SHARED STRING    victum, name[], address[], phone[], excuse[]
+
+See: Data Types, Scope Prefixes
+
+:Backslash characters
+
+Backslash characters are defined for imbedding non-printable
+characters in literal strings.  The \ and the following character
+are converted to one character, as summarized in the following table.
+
+  \0     0x00    null
+  \a     0x07    alarm (bell)
+  \b     0x08    backspace
+  \d     0x7F    delete
+  \e     0x1B    escape
+  \f     0x0C    form-feed
+  \n     0x0A    newline
+  \r     0x0D    return
+  \t     0x09    tab
+  \v     0x0B    vertical-tab
+  \\     0x5C    backslash
+  \'     0x27    single-quote
+  \"     0x22    double-quote
+  \xHH   0xHH    hex value 0xHH
+
+In \xHH (hex format), values from \x00 to \xFF are valid.
+xHH format is initiated by \x and continues to the first
+non-hex digit or until two hex digits have been collected.
+
+When \ is followed by any non-alphanumeric character,
+the \ is ignored and the character is included in the string.
+
+When \ is followed by an alphabetic character not shown the
+preceding table, the backslash is ignored and the character
+is included in the string.  New backslash characters may be
+defined in subsequent versions, so undefined backslash
+characters may result in inconsistent behavior.
+
+:ASCII
+:Character Set
+
+American Standard Code for Information Interchange (ASCII)
+
+Dec   Hex    ASCII           Dec   Hex    ASCII
+
+ 64    40      @               0    00    NUL
+ 65    41      A               1    01    SOH (start of heading)
+ 66    42      B               2    02    STX (start of text)
+ 67    43      C               3    03    ETX (end of text)
+ 68    44      D               4    04    EOT (end of transmission)
+ 69    45      E               5    05    ENQ (enquiry)
+ 70    46      F               6    06    ACK (acknowledge)
+ 71    47      G               7    07    BEL (bell)
+ 72    48      H               8    08    BS  (backspace)
+ 73    49      I               9    09    TAB (horizontal tab)
+ 74    4A      J              10    0A    LF/NL (line feed / new line)
+ 75    4B      K              11    0B    VT  (vertical tab)
+ 76    4C      L              12    0C    FF/NP  (form feed / new page)
+ 77    4D      M              13    0D    CR  (carriage return)
+ 78    4E      N              14    0E    SO  (shift out)
+ 79    4F      O              15    0F    SI  (shift in)
+ 80    50      P              16    10    DLE (data link escape)
+ 81    51      Q              17    11    DC1 (device control 1)
+ 82    52      R              18    12    DC2 (device control 2)
+ 83    53      S              19    13    DC3 (device control 3)
+ 84    54      T              20    14    DC4 (device control 4)
+ 85    55      U              21    15    NAK (negative acknowledge)
+ 86    56      V              22    16    SYN (synchronous idle)
+ 87    57      W              23    17    ETB (end of block)
+ 88    58      X              24    18    CAN (cancel)
+ 89    59      Y              25    19    EM  (end of medium)
+ 90    5A      Z              26    1A    SUB (substitute)
+ 91    5B      [              27    1B    ESC (escape)
+ 92    5C      \              28    1C    FS  (file separator)
+ 93    5D      ]              29    1D    GS  (group separator)
+ 94    5E      ^              30    1E    RS  (record separator)
+ 95    5F      _              31    1F    US  (unit separator)
+ 96    60      `              32    20    Space>
+ 97    61      a              33    21      !
+ 98    62      b              34    22      "
+ 99    63      c              35    23      #
+100    64      d              36    24      $
+101    65      e              37    25      %
+102    66      f              38    26      &
+103    67      g              39    27      '
+104    68      h              40    28      (
+105    69      i              41    29      )
+106    6A      j              42    2A      *
+107    6B      k              43    2B      +
+108    6C      l              44    2C      ,
+109    6D      m              45    2D      -
+110    6E      n              46    2E      .
+111    6F      o              47    2F      /
+112    70      p              48    30      0
+113    71      q              49    31      1
+114    72      r              50    32      2
+115    73      s              51    33      3
+116    74      t              52    34      4
+117    75      u              53    35      5
+118    76      v              54    36      6
+119    77      w              55    37      7
+120    78      x              56    38      8
+121    79      y              57    39      9
+122    7A      z              58    3A      :
+123    7B      {              59    3B      ;
+124    7C      |              60    3C      <
+125    7D      }              61    3D      =
+126    7E      ~              62    3E      >
+127    7F      DEL            63    3F      ?
+
+See: ASC(), CHR(), Backslash characters
+
+:ACOS()
+:ACOSH()
+:ATAN()
+:ATANH()
+:ACSC()
+:ACSCH()
+:ASEC()
+:ASECH()
+:ASIN()
+:ASINH()
+:ATAN()
+:ATANH()
+:COS()
+:COSH()
+:COT()
+:COTH()
+:CSC()
+:CSCH()
+:SEC()
+:SECH()
+:SIN()
+:SINH()
+:TAN()
+:TANH()
+xma        These functions all require IMPORT "xma"
+         Angle values are always in radians  (degrees# * $$DEGTORAD)
+         The symbol suffix for DOUBLE is #
+
+See: radians
+
+DOUBLE = ACOS (DOUBLE x)     ' arc-cosine
+
+DOUBLE = ACOSH (DOUBLE x)    ' arc-hyperbolic-cosine
+
+DOUBLE = ATAN (DOUBLE x)     ' arc-tangent
+
+DOUBLE = ATANH (DOUBLE x)    ' arc-hyperbolic-tangent
+
+DOUBLE = ACSC (DOUBLE x)     ' arc-cosecant
+
+DOUBLE = ACSCH (DOUBLE x)    ' arc-hyperbolic-cosecant
+
+DOUBLE = ASEC (DOUBLE x)     ' arc-secant
+
+DOUBLE = ASECH (DOUBLE x)    ' arc-hyperbolic-secant
+
+DOUBLE = ASIN (DOUBLE x)     ' arc-sine
+
+DOUBLE = ASINH (DOUBLE x)    ' arc-hyperbolic-sine
+
+DOUBLE = ATAN (DOUBLE x)     ' arc-tangent
+
+DOUBLE = ATANH (DOUBLE x)    ' arc-hyperbolic-tangent
+
+DOUBLE = COS (DOUBLE x)      ' cosine
+
+DOUBLE = COSH (DOUBLE x)     ' hyperbolic-cosine
+
+DOUBLE = COT (DOUBLE x)      ' cotangent
+
+DOUBLE = COTH (DOUBLE x)     ' hyperbolic-cotangent
+
+DOUBLE = CSC (DOUBLE x)      ' cosecant
+
+DOUBLE = CSCH (DOUBLE x)     ' hyperbolic-cosecant
+
+DOUBLE = SEC (DOUBLE x)      ' secant
+
+DOUBLE = SECH (DOUBLE x)     ' hyperbolic-secant
+
+DOUBLE = SIN (DOUBLE x)      ' sine
+
+DOUBLE = SINH (DOUBLE x)     ' hyperbolic-sine
+
+DOUBLE = TAN (DOUBLE x)      ' tangent
+
+DOUBLE = TANH (DOUBLE x)     ' hyperbolic-tangent
+
+:EXP()
+:EXP10()
+:LOG()
+:LOG10()
+:POWER()
+:SQRT()
+xma        These functions all require IMPORT "xma"
+         The symbol suffix for DOUBLE is #
+
+DOUBLE = EXP (DOUBLE x)                ' exponential - e to the x power
+
+DOUBLE = EXP10 (DOUBLE x)              ' exponential - 10 to the x power
+
+DOUBLE = LOG (DOUBLE x)                ' logarithm - base e
+
+DOUBLE = LOG10 (DOUBLE x)              ' logarithm - base 10
+
+DOUBLE = POWER (DOUBLE x, DOUBLE y)    ' Raise x to y power - same as x ** y
+
+DOUBLE = SQRT (DOUBLE x)               ' square-root
+
+
+

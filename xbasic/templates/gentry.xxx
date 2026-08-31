@@ -1,0 +1,25 @@
+INTERNAL FUNCTION  Entry         ()
+'
+'
+' ######################
+' #####  Entry ()  #####
+' ######################
+'
+FUNCTION  Entry ()
+	SHARED  terminateProgram
+	STATIC	entry
+'
+	IF entry THEN RETURN					' enter once
+	entry =  $$TRUE								' enter occured
+'
+	InitGui ()										' initialize messages
+	InitProgram ()								' initialize this program
+	CreateWindows ()							' create main window and others
+	InitWindows ()								' initialize windows and grids
+'
+	IF LIBRARY(0) THEN RETURN			' main program executes message loop
+'
+	DO														' the message loop
+		XgrProcessMessages (1)			' process one message
+	LOOP UNTIL terminateProgram		' and repeat until program is terminated
+END FUNCTION

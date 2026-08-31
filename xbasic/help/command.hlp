@@ -1,0 +1,144 @@
+'
+' ##########################  Max Reason
+' #####  dot commands  #####  copyright 1988-2000
+' ##########################  dot command summary helpfile
+'
+'
+' You can enter "dot commands" in the command grid
+' to execute any command in the main menus, plus
+' several others.
+'
+' If the text cursor is in the lower text area,
+' hit <escape> to move it to the command grid.
+' This clears the command grid so you can enter
+' text immediately.
+'
+' To execute a dot command, enter a dot plus the
+' two letter abbreviation of the command in the
+' upper text area.
+'
+' Many dot commands accept an optional argument,
+' but none require it.  If an required argument
+' is not supplied, a window will appear to ask
+' for additional information.  But you'll soon
+' find it's much faster to enter arguments too,
+' since you do everything without moving your
+' hands from the keyboard.
+'
+' A summary of the dot commands follows, starting
+' with the non-menu bar commands.  An <enter> key
+' must be pressed to execute a dot command.
+'
+'
+' SYNTAX
+'
+'  .<command>[<space><argument>[<tab><argument>]]
+'
+'  # means a number
+'
+'  main menu bar commands are executed with their 2-letter mnemonic
+'    these accept filename argument:    .ft  .fl  .fs  .fr  .er  .ew
+'    these accept function name:        .vv  .vp  .vn  .vd  .vr  .vc
+'
+'  popular dot commands
+'    .f    find immediate - see below
+'    .r    replace immediate - see below
+'    .c    clear command window
+'    .s#   set tag (a-z)
+'    .j#   jump to tag
+'    .     line # of cursor
+'    .#    scroll to line #
+'    .v    view next function
+'    .v-   view previous function
+'    .v0   view PROLOG
+'    .a    again - repeat last dot command
+'    .h    help
+'
+'
+' ###################################
+' #####  main menu equivalents  #####
+' ###################################
+'
+' all arguments shown below are optional
+'
+'  .fn t|p|g    - FileNew       ' text|program|gui-program
+'  .ft filename - FileTextLoad  ' filename.*
+'  .fl filename - FileLoad      ' filename.x
+'  .fs filename - FileSave      ' filename.*
+'  .fm t|p      - FileMode      ' text|program
+'  .fr filename - FileRename    ' filename.*
+'  .fq          - FileQuit
+'
+'  .ec          - EditCut       ' system clipboard = 0
+'  .eg          - EditGrab      ' system clipboard = 0
+'  .ep          - EditPaste     ' system clipboard = 0
+'  .ed          - EditDelete    ' alternate clipboard = 1
+'  .eb          - EditBuffer    ' alternate clipboard = 1
+'  .ei          - EditInsert    ' alternate clipboard = 1
+'  .ee          - EditErase     ' no clipboard
+'  .ef text     - EditFind
+'  .er filename - EditRead      ' from filename to system clipboard
+'  .ew filename - EditWrite     ' from system clipboard to filename
+'
+'  .vf funcname - ViewFunction  ' view named function
+'  .vp          - ViewPrevious  ' view previously viewed function
+'  .vn funcname - ViewNew       ' create and view a new function
+'  .vd funcname - ViewDelete    ' delete [displayed] function
+'  .vr funcname - ViewRename    ' rename [displayed] function
+'  .vc          - ViewClone     ' clone [displayed] function
+'  .vl filename - ViewLoad      ' load function into program
+'  .vs filename - ViewSave      ' save function onto disk
+'
+'  .om          - OptionMisc    '
+'  .oc          - OptionColor   '
+'  .ot          - OptionTab     ' set tab width in pixels
+'
+'  .rs          - RunStart      ' start running program at beginning
+'  .rc          - RunContinue   ' continue running program after pause
+'  .rj          - RunJump       ' move execution pointer to cursor line
+'  .rp          - RunPause      ' pause execution - can continue, step, etc.
+'  .rk          - RunKill       ' kill execution - no continue, step, etc.
+'  .rr          - RunRecompile  ' recompile but do not execute program
+'  .ra          - RunAssembly   ' recompile program to assembly file
+'  .rl          - RunLibrary    ' recompile library to assembly file
+'  .rm          - RunMake       ' make assembly file to standalone executable
+'  .rx          - RunMake       ' launch standalone executable
+'
+'  .dt          - DebugToggle   ' toggle breakpoint at cursor line
+'  .dc          - DebugClear    ' clear all breakpoints in program
+'  .de          - DebugErase    ' clear all breakpoints in function
+'  .dm          - DebugMemory   ' display memory window
+'  .da          - DebugAssembly ' display assembly window
+'  .dr          - DebugRegister ' display registers window
+'
+'  .sc          - StatusCompile ' display compilation errors
+'  .sr          - StatusRuntime ' display runtime error
+'
+'  .hn          - HelpNotes     ' display notes.hlp
+'  .hs          - HelpSupport   ' display support.hlp
+'  .hm          - HelpMessage   ' display message.hlp
+'  .hl          - HelpLanguage  ' display language.hlp
+'  .ho          - HelpOperator  ' display operator.hlp
+'  .hd          - HelpDot       ' display dot.hlp
+'
+'
+'
+' ############################
+' #####  find & replace  #####
+' ############################
+'
+'  SYNTAX:  .[*|<#>][f|r][-][<space><find text>[<tab><replace text>]]
+'            [*|<#>] = repetitions          (* = all instances, default = 1)
+'            [f|r] = find | replace
+'            [-] = reverse
+'
+'            [<space>find text] = a single space delimits the find text
+'                                (option: if not specified, same as previous)
+'            [<tab>replace text] = a single tab-character delimits the replace text
+'                                (option: if not specified, same as previous)
+'
+'  example:  .*r PIRNT  PRINT     = replace (forward) all instances
+'               |     |
+'             space  tab
+'
+'

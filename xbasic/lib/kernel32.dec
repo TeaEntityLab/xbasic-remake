@@ -1,0 +1,97 @@
+TYPE DCB
+  XLONG   .DCBlength
+  XLONG   .BaudRate
+  XLONG   .fModes
+  SSHORT  .wReserved
+  SSHORT  .XonLim
+  SSHORT  .XoffLim
+  SBYTE   .ByteSize
+  SBYTE   .Parity
+  SBYTE   .StopBits
+  UBYTE   .XonChar
+  UBYTE   .XoffChar
+  UBYTE   .ErrorChar
+  UBYTE   .EofChar
+  UBYTE   .EvtChar
+END TYPE
+'
+TYPE FILETIME
+  XLONG   .dwLowDateTime
+  XLONG   .dwHighDateTime
+END TYPE
+'
+TYPE SYSTEMTIME
+  USHORT  .year
+  USHORT  .month
+  USHORT  .weekDay
+  USHORT  .day
+  USHORT  .hour
+  USHORT  .minute
+  USHORT  .second
+  USHORT  .msec
+END TYPE
+'
+EXTERNAL FUNCTION  Kernel32 ()
+EXTERNAL FUNCTION  Beep (hertz, msec)
+EXTERNAL FUNCTION  CloseHandle (handle)
+EXTERNAL FUNCTION  CopyFileA (sourceNameAddr, destNameAddr, failIfExists)
+EXTERNAL FUNCTION  CreateDirectoryA (dirNameAddr, security)
+EXTERNAL FUNCTION  CreateFileA (addrFilename, mode, azero, bzero, attr, type, czero)
+EXTERNAL FUNCTION  CreateProcessA (addrImageName, addrCommandLine, azero, bzero, czero, create, dzero, ezero, addrStartupInfo, addrProcessInfo)
+EXTERNAL FUNCTION  DeleteFileA (fileNameAddr)
+EXTERNAL FUNCTION  ExitProcess (exitCode)
+EXTERNAL FUNCTION  FileTimeToSystemTime (addrSystemTime, addrFileTime)
+EXTERNAL FUNCTION  FindClose (findHandle)
+EXTERNAL FUNCTION  FindFirstFileA (fileNameAddr, bufferAddr)
+EXTERNAL FUNCTION  FindNextFileA (findHandle, bufferAddr)
+EXTERNAL FUNCTION  FreeConsole ()
+EXTERNAL FUNCTION  FreeLibrary (handle)
+EXTERNAL FUNCTION  GetCommState (handleDevice, addrControlBlock)
+EXTERNAL FUNCTION  GetCurrentDirectoryA (bufferSize, dirNameAddr)
+EXTERNAL FUNCTION  GetDriveTypeA (driveNameAddr)
+EXTERNAL FUNCTION  GetExitCodeProcess (hProcess, addrStatus)
+EXTERNAL FUNCTION  GetFileAttributesA (fileNameAddr)
+EXTERNAL FUNCTION  GetFileSize (fileHandle, highAddr)
+EXTERNAL FUNCTION  GetFileTime (fileHandle, addrCreate, addrAccess, addrModify)
+EXTERNAL FUNCTION  GetFileType (fileHandle)
+EXTERNAL FUNCTION  GetFullPathNameA (fileNameAddr, fileNameSize, pathNameAddr, pathNameSize)
+EXTERNAL FUNCTION  GetLastError ()
+EXTERNAL FUNCTION  GetLocalTime (addrSystemTime)
+EXTERNAL FUNCTION  GetLogicalDrives ()
+EXTERNAL FUNCTION  GetLogicalDriveStringsA (bufferSize, bufferAddr)
+EXTERNAL FUNCTION  GetModuleHandleA (nameAddr)
+EXTERNAL FUNCTION  GetPrivateProfileStringA (sectionAddr, keyAddr, defaultAddr, bufferAddr, bufferBytes, filenameAddr)
+EXTERNAL FUNCTION  GetProcAddress (hinst, funcNameAddr)
+EXTERNAL FUNCTION  GetStdHandle (stdDevice)
+EXTERNAL FUNCTION  GetSystemDirectoryA (pathAddr, pathSize)
+EXTERNAL FUNCTION  GetSystemInfo (infoAddr)
+EXTERNAL FUNCTION  GetSystemTime (addrSystemTime)
+EXTERNAL FUNCTION  GetTickCount ()
+EXTERNAL FUNCTION  GetVersion ()
+EXTERNAL FUNCTION  GetWindowsDirectoryA (pathAddr, pathSize)
+EXTERNAL FUNCTION  GlobalAlloc (memType, byteSize)
+EXTERNAL FUNCTION  GlobalLock (handle)
+EXTERNAL FUNCTION  GlobalSize (handle)
+EXTERNAL FUNCTION  GlobalUnlock (handle)
+EXTERNAL FUNCTION  LoadLibraryA (fileNameAddr)
+EXTERNAL FUNCTION  LoadResource (resourceModuleHandle, resourceHandle)
+EXTERNAL FUNCTION  MoveFileA (oldFileAddr, newFileAddr)
+EXTERNAL FUNCTION  OpenProcess (access, inherit, process)
+EXTERNAL FUNCTION  RaiseException (exception, flags, argCount, argArray)
+EXTERNAL FUNCTION  ReadFile (fileHandle, addrBuffer, readBytes, addrBytesRead, addrOverlapStruc)
+EXTERNAL FUNCTION  RemoveDirectoryA (dirNameAddr)
+EXTERNAL FUNCTION  SetCommState (handleDevice, addrControlBlock)
+EXTERNAL FUNCTION  SetCurrentDirectoryA (dirNameAddr)
+EXTERNAL FUNCTION  SetFileAttributesA (fileNameAddr, attributes)
+EXTERNAL FUNCTION  SetFilePointer (fileHandle, moveBytes, addrMoveByteHigh, moveMethod)
+EXTERNAL FUNCTION  SetFileTime (fileHandle, addrCreate, addrAccess, addrModify)
+EXTERNAL FUNCTION  SetLastError (error)
+EXTERNAL FUNCTION  SetLocalTime (addrSystemTime)
+EXTERNAL FUNCTION  SetSystemTime (addrSystemTime)
+EXTERNAL FUNCTION  Sleep (milliseconds)
+EXTERNAL FUNCTION  SystemTimeToFileTime (addrSystemTime, addrFileTime)
+EXTERNAL FUNCTION  VirtualAlloc (addr, size, type, protect)
+EXTERNAL FUNCTION  VirtualFree (addr, size, type)
+EXTERNAL FUNCTION  VirtualProtect (addr, size, newProtect, oldProtectBuffer)
+EXTERNAL FUNCTION  WriteFile (fileHandle, addrBuffer, writeBytes, addrBytesWritten, addrOverlapStruc)
+EXTERNAL FUNCTION  WritePrivateProfileStringA (sectionAddr, keyAddr, addStringAddr, filenameAddr)

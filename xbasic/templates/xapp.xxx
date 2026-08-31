@@ -1,0 +1,45 @@
+#
+# for Linux XBasic
+#
+# This xapp.xxx file is a template file XBasic modifies
+# to create makefiles for programs when it compiles them.
+#
+# When XBasic compiles program prog.x it creates makefile
+# prog.mak based on this xapp.xxx file.
+#
+# This template file is for programs, not libraries.
+# Currently XBasic cannot create dynamic linked DLL
+# "shared libraries" because XBasic does not generate
+# "position independent code" ALA -PIC .
+#
+# XBasic can create object file libraries that you can
+# statically link to programs, however.  That requires
+# you compile with a -lib switch, as in "xb prog.x -lib".
+# In that case XBasic modifies xlib.xxx or xdll.xxx to
+# create the prog.mak makefile to build the object library.
+#
+#
+APP				= xapp
+XB				= .
+XBLIB			= $(XB)/lib
+CFLAGS		= -g -Wall -m64 -no-pie
+LIBS=
+STDLIBS = -L/usrlib64 -L/usr/xb64/lib -lxb64 -lX11 -ldl
+all:	$(APP)
+
+$(APP):	$(APP).mak $(APP).x $(APP).o
+	$(CC) $(CFLAGS) $(APP).o $(LIBS) $(STDLIBS) -o $(APP)
+
+%o: %.c
+	$(CC) -c $<
+
+%.o: %.s
+	gcc -c -g -m64 $< -o $@
+
+%.s: %.x
+	xb $< -lib
+
+$(APP).s: $(APP).x
+	xb $(APP).x
+
+

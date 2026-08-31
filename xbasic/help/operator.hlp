@@ -1,0 +1,97 @@
+' 
+' ######################  Max Reason
+' #####  operator  #####  copyright 1988-2000
+' ######################  XBasic operator helpfile
+' 
+' for Windows XBasic
+' for Linux XBasic
+' 
+' 
+' operator        description
+' =======================================================
+' ~    NOT        bitwise NOT
+' &    AND        bitwise AND
+' ^    XOR        bitwise XOR
+' |     OR        bitwise OR
+' 
+' !!              logical TEST
+' !               logical NOT
+' &&              logical AND
+' ^^              logical XOR
+' ||              logical OR
+' 
+' =               assignment
+' =               logical compare for EQUAL
+' <>              logical compare for NOT EQUAL
+' <               logical compare for LESS THAN
+' <=              logical compare for LESS THAN OR EQUAL
+' >               logical compare for GREATER THAN
+' >=              logical compare for GREATER THAN OR EQUAL
+' 
+' ==              logical compare for EQUAL
+' !=              logical compare for NOT EQUAL
+' !<              logical compare for NOT LESS THAN
+' !<=             logical compare for NOT LESS THAN OR EQUAL
+' !>              logical compare for NOT GREATER THAN
+' !>=             logical compare for NOT GREATER THAN OR EQUAL
+' 
+' <<              bitwise LEFT SHIFT  (carry in zeros)
+' >>              bitwise RIGHT SHIFT  (carry in zeros)
+' <<<             arithmetic UP SHIFT  (carry in zeros)
+' >>>             arithmetic DOWN SHIFT  (carry in most significant bit)
+' 
+' +               arithmetic ADD
+' -               arithmetic SUBTRACT
+' *               arithmetic MULTIPLY
+' \               arithmetic INTEGER DIVIDE
+' /               arithmetic FLOATING POINT DIVIDE
+' **              arithmetic RAISE TO POWER
+' +               arithmetic UNARY PLUS
+' -               arithmetic UNARY MINUS
+' 
+' &               ADDRESS of data
+' &&              ADDRESS of handle
+'  
+' +               string concatenate
+' 
+' 
+' **********************************************
+' **************  Operator Table  **************
+' **********************************************
+' 
+' X OP    ALT     KIND    CLASS       OPERANDS     RETURNS    PREC   COMMENTS
+' 
+' &               unary      10       anytype      address    12     address of object data
+' &&              unary      10       anytype      address    12     address of object handle
+' !               unary       9       numeric      T/F        12     logical not  (TRUE if 0, else FALSE)
+' !!              unary       9       numeric      T/F        12     logical test  (FALSE if 0, else TRUE)
+' NOT     ~       unary       9       Integer      SameType   12     bitwise NOT
+' +               unary       8       numeric      SameType   12     plus
+' -               unary       8       numeric      SameType   12     minus
+' >>>             binary      7       Integer      LeftType   11     arithmetic up shift
+' <<<             binary      7       Integer      LeftType   11     arithmetic down shift
+' <<              binary      7       Integer      LeftType   11     bitwise left shift
+' >>              binary      7       Integer      LeftType   11     bitwise right shift
+' **              binary      4       numeric      hightype   10     power
+' /               binary      4       numeric      hightype    9     divide
+' *               binary      4       numeric      hightype    9     multiply
+' \               binary      6       numeric      Integer     9     integer divide
+' MOD             binary      6       numeric      Integer     9     modulus (integer remainder)
+' +               binary      5       numeric      hightype    8     add
+' +               binary      5       string       string      8     concatenate
+' -               binary      4       numeric      hightype    8     subtract
+' AND     &       binary      3       Integer      hightype    7     bitwise AND
+' XOR     ^       binary      3       Integer      hightype    6     bitwise XOR
+' OR      |       binary      3       Integer      hightype    6     bitwise OR
+' >       !<=     binary      2       numstr       T/F         5     greater-than
+' >=      !<      binary      2       numstr       T/F         5     greater-or-equal
+' <=      !>      binary      2       numstr       T/F         5     less-or-equal
+' <       !>=     binary      2       numstr       T/F         5     less-than
+' <>      !=      binary      2       numstr       T/F         4     not-equal
+' =       ==      binary      2       numstr       T/F         4     equal  (also "!<>")
+' &&              binary      1       Integer      T/F         3     logical AND
+' ^^              binary      1       Integer      T/F         2     logical XOR
+' ||              binary      1       Integer      T/F         2     logical OR
+' =               binary              numstr       righttype   1     assignment
+'                                                  T/F               T/F is always XLONG
+'

@@ -1,0 +1,55 @@
+#
+# for Linux XBasic
+#
+# This xlib.xxx file is a template file XBasic modifies
+# to create makefiles for programs when it compiles them.
+#
+# When XBasic compiles program prog.x it creates makefile
+# prog.mak based on this xlib.xxx file.
+#
+# This template file builds object libraries, not programs.
+#
+# Currently XBasic cannot create dynamic linked DLL
+# "shared libraries" because XBasic does not generate
+# "position independent code" ALA -PIC .
+#
+# But XBasic can create object file libraries you can
+# statically link to programs, however.  This requires
+# you compile with a -lib switch, as in "xb prog.x -lib".
+# In that case XBasic modifies xlib.xxx or xdll.xxx to
+# create the prog.mak makefile to build the object library.
+#
+# The companion xapp.xxx file is the template file XBasic
+# modifies to generate prog.mak makefiles for programs.
+#
+#
+APP				= xdll
+XB				= .
+XBLIB			= $(XB)/lib
+MAIN			= $(XBLIB)/appstart.o
+OO				= $(XBLIB)/xlib.o $(XB)/xrun.o $(XB)/xst.o $(XB)/xin.o\
+						$(XB)/xma.o $(XB)/xcm.o $(XB)/xgr.o $(XB)/xui.o\
+						$(XB)/kernel32.o $(XB)/gdi32.o $(XB)/user32.o\
+						$(XB)/xbiface.o $(XB)/lib/xzzz.o
+CFLAGS		= -g -Wall -ggdb
+#CFLAGS		= -g
+LIBS			= 
+START			=
+
+all:	$(APP).o
+
+$(APP):	$(MAIN) $(OO) $(APP).mak $(APP).x
+	$(CC) $(CFLAGS) $(MAIN) $(APP).o $(OO) $(LIBS) -rdynamic -L/usr/X11R6/lib -lX11 -ldl -o $(APP).o
+
+%o: %.c
+	$(CC) -c $<
+
+%.o: %.s
+	gcc -c -g -ggdb $< -o $@
+
+%.s: %.x
+	xb $< -lib
+
+$(APP).s: $(APP).x
+	xb $(APP).x -lib
+

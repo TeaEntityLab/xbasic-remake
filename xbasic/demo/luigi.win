@@ -1,0 +1,252 @@
+'
+'
+' ######################
+' #####  Luigi ()  #####
+' ######################
+'
+' "Anatomy of Grid Functions" in the GuiDesigner Programmer Guide
+' describes the operation and modification of grid functions in detail.
+'
+' WindowFromFunction and/or WindowToFunction may not work, or may not generate the desired results if you:
+'   * Modify the kid constant definition improperly.
+'   * Modify the code in the Create subroutine improperly.
+'   * Imbed blank or comment lines in the Create subroutine.
+'   * Remove the GOSUB Resize line in the Create subroutine (comment out is okay).
+'   * Imbed special purpose code in the Create subroutine before the GOSUB Resize line.
+'   * Delete any of the four lines that assign values to designX, designY, designWidth, designHeight.
+'
+FUNCTION  Luigi (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+  STATIC  designX,  designY,  designWidth,  designHeight
+  STATIC  SUBADDR  sub[]
+  STATIC  upperMessage
+  STATIC  Luigi
+'
+  $Luigi            =   0  ' kid   0 grid type = Luigi
+  $MainMenu         =   1  ' kid   1 grid type = XuiMenu
+  $LuigiList        =   2  ' kid   2 grid type = XuiList
+  $ScrollUpDown     =   3  ' kid   3 grid type = XuiScrollBarV
+  $LabelFirst       =   4  ' kid   4 grid type = XuiLabel
+  $ScaleFirst       =   5  ' kid   5 grid type = XuiScrollBarH
+  $LabelLast        =   6  ' kid   6 grid type = XuiLabel
+  $ScaleLast        =   7  ' kid   7 grid type = XuiScrollBarH
+  $LabelSpeed       =   8  ' kid   8 grid type = XuiLabel
+  $ScaleSpeed       =   9  ' kid   9 grid type = XuiScrollBarH
+  $PushPlay         =  10  ' kid  10 grid type = XuiPushButton
+  $PushPause        =  11  ' kid  11 grid type = XuiPushButton
+  $PushJogMinus     =  12  ' kid  12 grid type = XuiPushButton
+  $PushJogPlus      =  13  ' kid  13 grid type = XuiPushButton
+  $PushIn           =  14  ' kid  14 grid type = XuiPushButton
+  $PushOut          =  15  ' kid  15 grid type = XuiPushButton
+  $ScrollLeftRight  =  16  ' kid  16 grid type = XuiScrollBarH
+  $Quit             =  17  ' kid  17 grid type = XuiPushButton
+  $UpperKid         =  17  ' kid maximum
+'
+'
+  IFZ sub[] THEN GOSUB Initialize
+' XuiReportMessage (grid, message, v0, v1, v2, v3, r0, r1)
+  IF XuiProcessMessage (grid, message, @v0, @v1, @v2, @v3, @r0, @r1, Luigi) THEN RETURN
+  IF (message <= upperMessage) THEN GOSUB @sub[message]
+  RETURN
+'
+'
+' *****  Callback  *****  message = Callback : r1 = original message
+'
+SUB Callback
+  message = r1
+  callback = message
+  IF (message <= upperMessage) THEN GOSUB @sub[message]
+END SUB
+'
+'
+' *****  Create  *****  v0123 = xywh : r0 = window : r1 = parent
+'
+SUB Create
+  IF (v0 <= 0) THEN v0 = 0
+  IF (v1 <= 0) THEN v1 = 0
+  IF (v2 <= 0) THEN v2 = designWidth
+  IF (v3 <= 0) THEN v3 = designHeight
+  XuiCreateGrid (@grid, Luigi, @v0, @v1, @v2, @v3, r0, r1, &Luigi())
+  XuiSendMessage ( grid, #SetGridName, 0, 0, 0, 0, 0, @"Luigi")
+  XuiMenu        (@g, #Create, 4, 4, 452, 24, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $MainMenu, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"MainMenu")
+  XuiSendMessage ( g, #SetColor, $$LightRed, $$Black, $$DarkGrey, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"_File  _Edit  _Help  ")
+  DIM text$[11]
+  text$[ 0] = "_File"
+  text$[ 1] = " _Load"
+  text$[ 2] = " _Save"
+  text$[ 3] = " _Quit"
+  text$[ 4] = "_Edit"
+  text$[ 5] = " _Cut"
+  text$[ 6] = " _Grab"
+  text$[ 7] = " _Paste"
+  text$[ 8] = "_Help"
+  text$[ 9] = " _Index"
+  text$[10] = " _Summary"
+  text$[11] = " _Contents"
+  XuiSendMessage ( g, #SetTextArray, 0, 0, 0, 0, 0, @text$[])
+  XuiList        (@g, #Create, 4, 28, 440, 72, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $LuigiList, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LuigiList")
+  DIM text$[6]
+  text$[0] = "Rich"
+  text$[1] = "Young"
+  text$[2] = "Healthy"
+  text$[3] = "Rational"
+  text$[4] = "Beautiful"
+  text$[5] = "Brilliant"
+  text$[6] = "Independent"
+  XuiSendMessage ( g, #SetTextArray, 0, 0, 0, 0, 0, @text$[])
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"LuigiListScrollH")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 2, @"LuigiListScrollV")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 3, @"ScrollV")
+  XuiScrollBarV  (@g, #Create, 444, 28, 12, 268, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $ScrollUpDown, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"ScrollUpDown")
+  XuiSendMessage ( g, #SetColor, $$LightMagenta, $$Black, $$Black, $$White, 0, 0)
+  XuiLabel       (@g, #Create, 12, 104, 72, 40, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LabelFirst")
+  XuiSendMessage ( g, #SetColor, 82, $$Black, $$DarkGrey, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"First")
+  XuiScrollBarH  (@g, #Create, 92, 120, 344, 12, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $ScaleFirst, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"ScaleFirst")
+  XuiSendMessage ( g, #SetColor, 82, $$Black, 1061109504, $$White, 0, 0)
+  XuiLabel       (@g, #Create, 12, 144, 72, 40, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LabelLast")
+  XuiSendMessage ( g, #SetColor, $$Cyan, $$Black, $$DarkGrey, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Last")
+  XuiScrollBarH  (@g, #Create, 92, 160, 344, 12, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $ScaleLast, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"ScaleLast")
+  XuiSendMessage ( g, #SetColor, $$Cyan, $$Black, 1061109504, $$White, 0, 0)
+  XuiLabel       (@g, #Create, 12, 184, 72, 40, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LabelSpeed")
+  XuiSendMessage ( g, #SetColor, 8, $$Black, $$DarkGrey, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Speed")
+  XuiScrollBarH  (@g, #Create, 92, 200, 344, 12, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $ScaleSpeed, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"ScaleSpeed")
+  XuiSendMessage ( g, #SetColor, 8, $$Black, 1061109504, $$White, 0, 0)
+  XuiPushButton  (@g, #Create, 12, 236, 64, 20, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $PushPlay, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"PushPlay")
+  XuiSendMessage ( g, #SetColor, $$LightGreen, $$Black, $$DarkGrey, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"PLAY")
+  XuiPushButton  (@g, #Create, 84, 236, 64, 20, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $PushPause, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"PushPause")
+  XuiSendMessage ( g, #SetColor, 110, 36, 1061109504, $$White, 0, 0)
+  XuiSendMessage ( g, #SetColorExtra, 120, 120, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"PAUSE")
+  XuiPushButton  (@g, #Create, 156, 236, 64, 20, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $PushJogMinus, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"PushJogMinus")
+  XuiSendMessage ( g, #SetColor, 17, $$Black, $$DarkGrey, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"JOG-")
+  XuiPushButton  (@g, #Create, 228, 236, 64, 20, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $PushJogPlus, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"PushJogPlus")
+  XuiSendMessage ( g, #SetColor, 17, $$Black, $$DarkGrey, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"JOG+")
+  XuiPushButton  (@g, #Create, 300, 236, 64, 20, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $PushIn, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"PushIn")
+  XuiSendMessage ( g, #SetColor, $$BrightOrange, $$Black, $$DarkGrey, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"IN")
+  XuiPushButton  (@g, #Create, 372, 236, 64, 20, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $PushOut, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"PushOut")
+  XuiSendMessage ( g, #SetColor, $$BrightOrange, $$Black, $$DarkGrey, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"OUT")
+  XuiScrollBarH  (@g, #Create, 4, 296, 440, 12, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $ScrollLeftRight, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"ScrollLeftRight")
+  XuiSendMessage ( g, #SetColor, $$LightMagenta, $$Black, $$Black, $$White, 0, 0)
+  XuiPushButton  (@g, #Create, 12, 260, 424, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Luigi(), -1, -1, $Quit, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Quit")
+  XuiSendMessage ( g, #SetColor, 102, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureShadow, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Quit   Terminate   Exit")
+  GOSUB Resize
+END SUB
+'
+'
+' *****  CreateWindow  *****  v0123 = xywh : r0 = windowType : r1 = &WindowFunc()
+'
+SUB CreateWindow
+  IF (v0 =  0) THEN v0 = designX
+  IF (v1 =  0) THEN v1 = designY
+  IF (v2 <= 0) THEN v2 = designWidth
+  IF (v3 <= 0) THEN v3 = designHeight
+  XuiWindow (@window, #WindowCreate, v0, v1, v2, v3, r0, r1)
+  v0 = 0 : v1 = 0 : r0 = window : r1 = 0
+  GOSUB Create
+  XuiWindow (window, #WindowRegister, grid, -1, v2, v3, @r0, @"Luigi")
+END SUB
+'
+'
+' *****  GetSmallestSize  *****  See "Anatomy of Grid Functions"
+'
+SUB GetSmallestSize
+END SUB
+'
+'
+' *****  Resize  *****  See "Anatomy of Grid Functions"
+'
+SUB Resize
+END SUB
+'
+'
+' *****  Selection  *****  See "Anatomy of Grid Functions"
+'
+SUB Selection
+END SUB
+'
+'
+' *****  Initialize  *****  ' see "Anatomy of Grid Functions"
+'
+SUB Initialize
+  XuiGetDefaultMessageFuncArray (@func[])
+  XgrMessageNameToNumber (@"LastMessage", @upperMessage)
+'
+  func[#Callback]           = &XuiCallback ()               ' disable to handle Callback messages internally
+' func[#GetSmallestSize]    = 0                             ' enable to add internal GetSmallestSize routine
+' func[#Resize]             = 0                             ' enable to add internal Resize routine
+'
+  DIM sub[upperMessage]
+' sub[#Callback]            = SUBADDRESS (Callback)         ' enable to handle Callback messages internally
+  sub[#Create]              = SUBADDRESS (Create)           ' must be internal routine
+  sub[#CreateWindow]        = SUBADDRESS (CreateWindow)     ' must be internal routine
+' sub[#GetSmallestSize]     = SUBADDRESS (GetSmallestSize)  ' enable to add internal GetSmallestSize routine
+' sub[#Resize]              = SUBADDRESS (Resize)           ' enable to add internal Resize routine
+  sub[#Selection]           = SUBADDRESS (Selection)        ' routes Selection callbacks to subroutine
+'
+  IF sub[0] THEN PRINT "Luigi(): Initialize: Error::: (Undefined Message)
+  IF func[0] THEN PRINT "Luigi(): Initialize: Error::: (Undefined Message)
+  XuiRegisterGridType (@Luigi, "Luigi", &Luigi(), @func[], @sub[])
+'
+' Don't remove the following 4 lines, or WindowFromFunction/WindowToFunction will not work
+'
+  designX = 530
+  designY = 66
+  designWidth = 460
+  designHeight = 312
+'
+  gridType = Luigi
+  XuiSetGridTypeValue (gridType, @"x",                designX)
+  XuiSetGridTypeValue (gridType, @"y",                designY)
+  XuiSetGridTypeValue (gridType, @"width",            designWidth)
+  XuiSetGridTypeValue (gridType, @"height",           designHeight)
+  XuiSetGridTypeValue (gridType, @"maxWidth",         designWidth)
+  XuiSetGridTypeValue (gridType, @"maxHeight",        designHeight)
+  XuiSetGridTypeValue (gridType, @"minWidth",         designWidth)
+  XuiSetGridTypeValue (gridType, @"minHeight",        designHeight)
+  XuiSetGridTypeValue (gridType, @"border",           $$BorderFrame)
+  XuiSetGridTypeValue (gridType, @"can",              $$Focus OR $$Respond OR $$Callback)
+  XuiSetGridTypeValue (gridType, @"focusKid",         $LuigiList)
+  IFZ message THEN RETURN
+END SUB
+END FUNCTION

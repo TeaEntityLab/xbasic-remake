@@ -93,7 +93,7 @@ fn xst_stateful_library_behavior() {
     fs::create_dir_all(&tmp).unwrap();
 
     // Compile xst.x through CEmitter.
-    let xst_src = root.join("xbasic-6.4.5/src/linux/xst.x");
+    let xst_src = root.join("xbasic/lib/xst.x");
     assert!(xst_src.exists(), "xst.x not found at {xst_src:?}");
 
     let xst_c = {

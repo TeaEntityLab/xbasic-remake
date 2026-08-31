@@ -219,7 +219,7 @@ fn cli_llvm_matches_interpreter_on_corpus_programs() {
     let tmp = std::env::temp_dir().join("xb_cli_llvm_diff");
     let _ = std::fs::create_dir_all(&tmp);
     for name in ["demo/aarray.x", "demo/aloha.x", "demo/ahello.x"] {
-        let src = root.join("xbasic-6.4.5").join(name);
+        let src = root.join("xbasic").join(name);
         let refr = Command::new(env!("CARGO_BIN_EXE_xb"))
             .args(["--run", src.to_str().unwrap()])
             .output()

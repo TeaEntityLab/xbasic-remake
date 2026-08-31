@@ -1,0 +1,72 @@
+'
+' #######################
+' #####  elf64.dec  #####
+' #######################
+'
+TYPE Elf64_Ehdr             '64-bit
+	UBYTE			.e_ident[15]
+	USHORT		.e_type
+	USHORT		.e_machine
+	ULONG			.e_version
+	XLONG			.e_entry
+	XLONG			.e_phoff
+	XLONG			.e_shoff
+	ULONG			.e_flags
+	USHORT		.e_ehsize
+	USHORT		.e_phentsize
+	USHORT		.e_phnum
+	USHORT		.e_shentsize
+	USHORT		.e_shnum
+	USHORT		.e_shstrndx
+END TYPE
+'
+TYPE Elf64_Shdr             '64-bit
+	ULONG			.sh_name
+	ULONG			.sh_type
+	XLONG			.sh_flags
+	XLONG			.sh_addr
+	XLONG			.sh_offset
+	XLONG			.sh_size
+	ULONG			.sh_link
+	ULONG			.sh_info
+	XLONG			.sh_addralign
+	XLONG			.sh_entsize
+END TYPE
+'
+TYPE Elf64_Phdr             '64-bit
+	ULONG			.p_type
+	ULONG			.p_flags
+	XLONG			.p_offset
+	XLONG			.p_vaddr
+	XLONG			.p_paddr
+	XLONG			.p_filesz
+	XLONG			.p_memsz
+	XLONG			.p_align
+END TYPE
+'
+TYPE Elf32_Sym
+	XLONG			.st_name
+	XLONG			.st_value
+	XLONG			.st_size
+	UBYTE			.st_info
+	UBYTE			.st_other
+	USHORT		.st_shndx
+END TYPE
+'
+TYPE Elf64_Sym              '64-bit
+	ULONG			.st_name
+	UBYTE			.st_info
+	UBYTE			.st_other
+	USHORT		.st_shndx
+	XLONG			.st_value
+	XLONG			.st_size
+END TYPE
+'
+EXTERNAL CFUNCTION  dlclose  (handle)
+EXTERNAL CFUNCTION  dlerror  ( )
+EXTERNAL CFUNCTION  dlopen   (addrFilename, mode)
+EXTERNAL CFUNCTION  dlsym    (handle, addrSymbol)
+'
+$$DL_MODE_LAZY  = 1
+$$DL_MODE_NOW   = 2
+

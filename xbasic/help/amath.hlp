@@ -1,0 +1,119 @@
+:Math
+This program draws curves for the
+math functions in the math library.
+
+:SIN
+Graph the SIN function.
+
+:COS
+Graph the COS function.
+
+:TAN
+Graph the TAN function.
+
+:COT
+Graph the COT function.
+
+:CSC
+Graph the CSC function.
+
+:SEC
+Graph the SEC function.
+
+:SINH
+Graph the SINH function.
+
+:COSH
+Graph the COSH function.
+
+:TANH
+Graph the TANH function.
+
+:COTH
+Graph the COTH function.
+
+:SECH
+Graph the SECH function.
+
+:CSCH
+Graph the CSCH function.
+
+:SQRT
+Graph the SQRT function.
+
+:LOG
+Graph the LOG function.
+
+:LOG10
+Graph the LOG10 function.
+
+:CLEAR
+Clear the graphics area.
+
+:ASIN
+Graph the ASIN function.
+
+:ACOS
+Graph the ACOS function.
+
+:ATAN
+Graph the ATAN function.
+
+:ACOT
+Graph the ACOT function.
+
+:ASEC
+Graph the ASEC function.
+
+:ACSC
+Graph the ACSC function.
+
+:ASINH
+Graph the ASINH function.
+
+:ACOSH
+Graph the ACOSH function.
+
+:ATANH
+Graph the ATANH function.
+
+:ACOTH
+Graph the ACOTH function.
+
+:ASECH
+Graph the ASECH function.
+
+:ACSCH
+Graph the ACSCH function.
+
+:POWER
+Graph the POWER function (x**x).
+
+:EXP
+Graph the EXP function.
+
+:EXP10
+Graph the EXP10 function.
+
+:QUIT
+Quit this program.
+
+:Graphic
+Graphics area within.
+
+:Graph
+Draw graphics in this area.
+
+:Range
+Range drawn - the horizontal scale limits.
+The lower number is at the left of the graph.
+The higher number is at the right of the graph.
+
+:Maximum
+Value at the top of the graph.
+
+:Minimum
+Value at the bottom of the graph.
+
+:Comment
+A comment or two about the drawn function.

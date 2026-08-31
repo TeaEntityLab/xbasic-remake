@@ -1,5 +1,5 @@
 //! `XstStringToNumber` — parse a number out of a string, matching the legacy
-//! XBasic runtime (spec: `xbasic-6.4.5/help/misc.hlp`, decl `xst.dec:254`,
+//! XBasic runtime (spec: `xbasic/help/misc.hlp`, decl `xst.dec:254`,
 //! reference asm `xbasic-6.4.5/src/linux/lib/xlib.s`).
 //!
 //! Contract (from the `msc.x` `MscStringTo*` wrappers, the real consumers):
@@ -185,7 +185,7 @@ pub(crate) fn parse_number(bytes: &[u8], start: usize) -> XstNumber {
 }
 
 /// `XstBackStringToBinString$` — convert XBasic backslash escapes to their
-/// binary bytes (spec: `xbasic-6.4.5/help/xst.hlp`). Pure (no by-ref). Escapes:
+/// binary bytes (spec: `xbasic/help/xst.hlp`). Pure (no by-ref). Escapes:
 /// `\"`→0x22, `\\`→0x5C, `\a\b\t\n\v\f\r`→07..0D, `\0`-`\9`→0x00-0x09,
 /// `\A`-`\F`→0x0A-0x0F, `\G`-`\V`→0x10-0x1F, `\Z`→0xFF, `\xHH`→hex byte;
 /// any other `\c` passes `c` literally. Duplicated byte-for-byte in the C

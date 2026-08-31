@@ -1,0 +1,2830 @@
+:Xgr()
+####################
+#####  Xgr ()  #####
+####################
+
+	Xgr ()
+
+	Xgr initializes the Graphics Library
+
+FUNCTION  Xgr ()
+:XgrAddMessage()
+##############################
+#####  XgrAddMessage ()  #####
+##############################
+
+	error = XgrAddMessage (winGrid, #message, v0, v1, v2, v3, r0, r1)
+
+	winGrid is the destination window or grid number
+
+FUNCTION  XgrAddMessage (winGrid, message, v0, v1, v2, v3, r0, r1)
+:XgrBorderNameToNumber()
+######################################
+#####  XgrBorderNameToNumber ()  #####
+######################################
+
+	error = XgrBorderNameToNumber (border$, @border)
+
+	converts a border name into a border number
+	appropriate for XgrDrawBorder() functions.
+
+	see Help > Graphics Library (xgr)
+	           *****  grid border styles  *****
+	           starting with $$BorderNone
+
+	error = $$TRUE if border$ name is not valid
+
+FUNCTION  XgrBorderNameToNumber (border$, @border)
+:XgrBorderNumberToName()
+######################################
+#####  XgrBorderNumberToName ()  #####
+######################################
+
+	XgrBorderNumberToName (border, @border$)
+
+	If border number does not exist, border$ will return empty
+
+FUNCTION  XgrBorderNumberToName (border, @border$)
+:XgrBorderNumberToWidth()
+#######################################
+#####  XgrBorderNumberToWidth ()  #####
+#######################################
+
+	XgrBorderNumberToWidth (border, @width)
+
+	Return the width in pixels for a border number
+	or zero for an invalid border number
+
+FUNCTION  XgrBorderNumberToWidth (border, @width)
+:XgrChangeProperty()
+###############################
+#####  XgrChangeProperty  #####
+###############################
+
+FUNCTION  XgrChangeProperty(wingrid, property, type, mode, data[])
+:XgrClearGrid()
+#############################
+#####  XgrClearGrid ()  #####
+#############################
+
+	error = XgrClearGrid (grid, color)
+
+	color values range from $$Black = 0 to $$White = 124 (see xgr.dec)
+
+	If the color is -1 the grids background color will be used.
+
+	See: XgrSetBackgroundColor(), XgrSetBackgroundRGB(), XgrSetColors(), XgrSetGridColors()
+
+FUNCTION  XgrClearGrid (grid, color)
+:XgrClearWindow()
+###############################
+#####  XgrClearWindow ()  #####
+###############################
+
+	error = XgrClearWindow (window, color)
+
+	color values range from $$Black = 0 to $$White = 124 (see xgr.dec)
+
+	If the color is -1 the default background color will be used.
+
+	See: XgrSetDefaultColors()
+
+FUNCTION  XgrClearWindow (window, color)
+:XgrColorNameToNumber()
+#####################################
+#####  XgrColorNameToNumber ()  #####
+#####################################
+
+	error = XgrColorNameToNumber (color$, @color)
+
+	error = $$TRUE if invalid color$ name
+
+	See: XgrColorNumberToName(), XgrConvertColorToRGB(), XgrConvertRGBToColor()
+
+FUNCTION  XgrColorNameToNumber (color$, color)
+:XgrColorNumberToName()
+#####################################
+#####  XgrColorNumberToName ()  #####
+#####################################
+
+	XgrColorNumberToName (color, @color$)
+
+	Color numbers range from 0 to 124
+	If color number is not valid, color$ will return blank
+
+	See: XgrColorNameToNumber(), XgrConvertColorToRGB(), XgrConvertRGBToColor()
+
+FUNCTION  XgrColorNumberToName (color, color$)
+:XgrConvertColorToRGB()
+#####################################
+#####  XgrConvertColorToRGB ()  #####
+#####################################
+
+	error = XgrConvertColorToRGB (color, @red, @green, @blue)
+
+	valid color numbers are $$Black = 0 to $$White = 124
+
+	See: XgrColorNameToNumber(), XgrColorNumberToName() XgrConvertRGBToColor()
+
+FUNCTION  XgrConvertColorToRGB (color, red, green, blue)
+:XgrConvertDisplayToGrid()
+########################################
+#####  XgrConvertDisplayToGrid ()  #####
+########################################
+
+	error = XgrConvertDisplayToGrid (grid, xDisp, yDisp, @xGrid, @yGrid)
+
+FUNCTION  XgrConvertDisplayToGrid (grid, xDisp, yDisp, xGrid, yGrid)
+:XgrConvertDisplayToLocal()
+#########################################
+#####  XgrConvertDisplayToLocal ()  #####
+#########################################
+
+	error = XgrConvertDisplayToLocal (grid, xDisp, yDisp, @x, @y)
+
+	returns $$TRUE if x,y is outside grid
+	computes x,y coords from xDisp,yDisp even if outside grid
+
+FUNCTION  XgrConvertDisplayToLocal (grid, xDisp, yDisp, x, y)
+:XgrConvertDisplayToScaled()
+##########################################
+#####  XgrConvertDisplayToScaled ()  #####
+##########################################
+
+	error = XgrConvertDisplayToScaled (grid, xDisp, yDisp, @x#, @y#)
+
+FUNCTION  XgrConvertDisplayToScaled (grid, xDisp, yDisp, x#, y#)
+:XgrConvertDisplayToWindow()
+##########################################
+#####  XgrConvertDisplayToWindow ()  #####
+##########################################
+
+	error = XgrConvertDisplayToWindow (grid, xDisp, yDisp, @xWin, @yWin)
+
+FUNCTION  XgrConvertDisplayToWindow (grid, xDisp, yDisp, xWin, yWin)
+:XgrConvertGridToDisplay()
+########################################
+#####  XgrConvertGridToDisplay ()  #####
+########################################
+
+	error = XgrConvertGridToDisplay (grid, xGrid, yGrid, @xDisp, @yDisp)
+
+FUNCTION  XgrConvertGridToDisplay (grid, xGrid, yGrid, xDisp, yDisp)
+:XgrConvertGridToLocal()
+######################################
+#####  XgrConvertGridToLocal ()  #####
+######################################
+
+	error = XgrConvertGridToLocal (grid, xGrid, yGrid, @x, @y)
+
+FUNCTION  XgrConvertGridToLocal (grid, xGrid, yGrid, x, y)
+:XgrConvertGridToScaled()
+#######################################
+#####  XgrConvertGridToScaled ()  #####
+#######################################
+
+	error = XgrConvertGridToScaled (grid, xGrid, yGrid, @x#, @y#)
+
+FUNCTION  XgrConvertGridToScaled (grid, xGrid, yGrid, x#, y#)
+:XgrConvertGridToWindow()
+#######################################
+#####  XgrConvertGridToWindow ()  #####
+#######################################
+
+	error = XgrConvertGridToWindow (grid, xGrid, yGrid, @xWin, @yWin)
+
+FUNCTION  XgrConvertGridToWindow (grid, xGrid, yGrid, xWin, yWin)
+:XgrConvertLocalToDisplay()
+#########################################
+#####  XgrConvertLocalToDisplay ()  #####
+#########################################
+
+	error = XgrConvertLocalToDisplay (grid, x, y, @xDisp, @yDisp)
+
+FUNCTION  XgrConvertLocalToDisplay (grid, x, y, xDisp, yDisp)
+:XgrConvertLocalToGrid()
+######################################
+#####  XgrConvertLocalToGrid ()  #####
+######################################
+
+	error = XgrConvertLocalToGrid (grid, x, y, @xGrid, @yGrid)
+
+FUNCTION  XgrConvertLocalToGrid (grid, x, y, xGrid, yGrid)
+:XgrConvertLocalToScaled()
+########################################
+#####  XgrConvertLocalToScaled ()  #####
+########################################
+
+	error = XgrConvertLocalToScaled (grid, x, y, @x#, @y#)
+
+FUNCTION  XgrConvertLocalToScaled (grid, x, y, x#, y#)
+:XgrConvertLocalToWindow()
+########################################
+#####  XgrConvertLocalToWindow ()  #####
+########################################
+
+	error = XgrConvertLocalToWindow (grid, x, y, @xWin, @yWin)
+
+FUNCTION  XgrConvertLocalToWindow (grid, x, y, xWin, yWin)
+:XgrConvertRGBToColor()
+#####################################
+#####  XgrConvertRGBToColor ()  #####
+#####################################
+
+	XgrConvertRGBToColor (red, green, blue, @color)
+
+	See: XgrColorNameToNumber(), XgrColorNumberToName(), XgrConvertColorToRGB()
+
+FUNCTION  XgrConvertRGBToColor (red, green, blue, color)
+:XgrConvertScaledToDisplay()
+##########################################
+#####  XgrConvertScaledToDisplay ()  #####
+##########################################
+
+	error = XgrConvertScaledToDisplay (grid, x#, y#, @xDisp, @yDisp)
+
+FUNCTION  XgrConvertScaledToDisplay (grid, x#, y#, xDisp, yDisp)
+:XgrConvertScaledToGrid()
+#######################################
+#####  XgrConvertScaledToGrid ()  #####
+#######################################
+
+	error = XgrConvertScaledToGrid (grid, x#, y#, @xGrid, @yGrid)
+
+FUNCTION  XgrConvertScaledToGrid (grid, x#, y#, xGrid, yGrid)
+:XgrConvertScaledToLocal()
+########################################
+#####  XgrConvertScaledToLocal ()  #####
+########################################
+
+	error = XgrConvertScaledToLocal (grid, x#, y#, @x, @y)
+
+FUNCTION  XgrConvertScaledToLocal (grid, x#, y#, x, y)
+:XgrConvertScaledToWindow()
+#########################################
+#####  XgrConvertScaledToWindow ()  #####
+#########################################
+
+	error = XgrConvertScaledToWindow (grid, x#, y#, @xWin, @yWin)
+
+FUNCTION  XgrConvertScaledToWindow (grid, x#, y#, xWin, yWin)
+:XgrConvertWindowToDisplay()
+##########################################
+#####  XgrConvertWindowToDisplay ()  #####
+##########################################
+
+	error = XgrConvertWindowToDisplay (grid, xWin, yWin, @xDisp, @yDisp)
+
+FUNCTION  XgrConvertWindowToDisplay (grid, xWin, yWin, xDisp, yDisp)
+:XgrConvertWindowToGrid()
+#######################################
+#####  XgrConvertWindowToGrid ()  #####
+#######################################
+
+	error = XgrConvertWindowToGrid (grid, xWin, yWin, @xGrid, @yGrid)
+
+FUNCTION  XgrConvertWindowToGrid (grid, xWin, yWin, xGrid, yGrid)
+:XgrConvertWindowToLocal()
+########################################
+#####  XgrConvertWindowToLocal ()  #####
+########################################
+
+	error = XgrConvertWindowToLocal (grid, xWin, yWin, @x, @y)
+
+FUNCTION  XgrConvertWindowToLocal (grid, xWin, yWin, x, y)
+:XgrConvertWindowToScaled()
+#########################################
+#####  XgrConvertWindowToScaled ()  #####
+#########################################
+
+	error = XgrConvertWindowToScaled (grid, xWin, yWin, @x#, @y#)
+
+FUNCTION  XgrConvertWindowToScaled (grid, xWin, yWin, x#, y#)
+:XgrCopyImage()
+#############################
+#####  XgrCopyImage ()  #####
+#############################
+
+	error = XgrCopyImage (dest, source)
+
+FUNCTION  XgrCopyImage (dest, source)
+:XgrCreateFont()
+##############################
+#####  XgrCreateFont ()  #####
+##############################
+
+	XgrCreateFont (@font, font$, size, weight, italic, 0)
+
+	size   = 20 * point size (ENspace)
+	weight:
+	   100 = "thin"
+	   200 = "extralight"
+	   300 = "light"
+	   400 = "normal"
+	   500 = "medium"
+	   600 = "semibold"
+	   700 = "bold"
+	   800 = "extrabold"
+	   900 = "heavy"
+	italic = $$TRUE for italic
+	angle  = $$FALSE (Not implemented yet)
+
+	Example1 : XgrCreateFont (@font, @"Comic Sans MS", 480, 400, 0, 0)
+	Example2 : XgrCreateFont (@font, @"9x15bold", 0, 0, 0, 0)            'name found with xlsfonts
+
+	An X-Window font name is a string with 14 fields separated by "-"
+
+	"-f-t-w-s-w-?-p-t-h-v-s-a-c-#"
+	  | | | | | | | | | | | | | |
+	  foundry - Adobe, Bitstream, etc
+	    typeface - courier, helvetica, etc
+	      weight - thin, normal, medium, demibold, bold, heavy, etc
+	        slant - roman (normal), italic, oblique, ri (reverse italic), ro (reverse oblique), ot (other)
+	          width - normal, condensed, semicondensed, narrow, doublewidth
+	            ? - style ??? (informal, roman, serif, sansserif) ???
+	              pixels -
+	                tenpoints - 10 * point size (point = 1/72 inch)
+	                  hdpi - horizontal resolution in dots per inch
+	                    vdpi - vertical resolution in dots per inch
+	                      spacing - m = monospace : p = proportional : c = character cell
+	                        average width in 1/10 pixels
+	                          character set ("iso8859-1")
+	                            character set number
+
+	X-Window does not support drawing text an an angle.
+
+	NOTE: Some Linux commands that can be helpful are:
+	  xlsfonts - lists available fonts
+	  xfontsel - interactive tool for selecting fonts
+	  xfd      - to display characters for a font
+
+	  gucharmap - Unicode characters
+
+FUNCTION  XgrCreateFont (@font, font$, size, weight, italic, angle)
+:XgrCreateGrid()
+##############################
+#####  XgrCreateGrid ()  #####
+##############################
+
+	error = XgrCreateGrid (@grid, gridType, x, y, w, h, window, parent, gridFunc)
+
+		If gridType = 1, then this is an image grid
+	If parent != 0, then this is a "subwindow" or "grid"
+	If parent = 0, then it will be set equal to window
+
+FUNCTION  XgrCreateGrid (grid, gridType, x, y, w, h, window, parent, gridFunc)
+:XgrCreateWindow()
+################################
+#####  XgrCreateWindow ()  #####
+################################
+
+	error = XgrCreateWindow (@window, windowTypeParent, x, y, w, h, &winFunc(), display$)
+
+	window - window number created if successful
+
+	windowTypeParent - the window types OR'd with the parent window number
+	parent == 0  :  create "top level window" (framed by window manager)
+	parent != 0  :  create "pop-up window" (frameless top level window)
+
+	&winFunc() - address of the function to be called to process window messages
+
+	display$ - a blank string "" for the default display
+
+	See: XgrCreateGrid()
+
+FUNCTION  XgrCreateWindow (window, windowTypeParent, x, y, w, h, winFunc, display$)
+:XgrCursorNameToNumber()
+######################################
+#####  XgrCursorNameToNumber ()  #####
+######################################
+
+	error = XgrCursorNameToNumber (cursor$, @cursor)
+
+	error = $$TRUE if cursor$ name is not valid
+
+	See: XgrCursorNumberToName()
+
+FUNCTION  XgrCursorNameToNumber (cursor$, @cursor)
+:XgrCursorNumberToName()
+######################################
+#####  XgrCursorNumberToName ()  #####
+######################################
+
+	error = XgrCursorNumberToName (cursor, @cursor$)
+
+	error = $$TRUE if cursor number is not valid
+
+	See: XgrCursorNameToNumber()
+
+FUNCTION  XgrCursorNumberToName (cursor, @cursor$)
+:XgrDeleteMessages()
+##################################
+#####  XgrDeleteMessages ()  #####
+##################################
+
+FUNCTION  XgrDeleteMessages (count)
+:XgrDestroyFont()
+###############################
+#####  XgrDestroyFont ()  #####
+###############################
+
+	Unimpemented
+
+FUNCTION  XgrDestroyFont (font)
+:XgrDestroyGrid()
+###############################
+#####  XgrDestroyGrid ()  #####
+###############################
+
+	error = XgrDestroyGrid (grid)
+
+FUNCTION  XgrDestroyGrid (wingrid)
+:XgrDestroyWindow()
+#################################
+#####  XgrDestroyWindow ()  #####
+#################################
+
+	error = XgrDestroyWindow (window)
+
+FUNCTION  XgrDestroyWindow (window)
+:XgrDisplayWindow()
+#################################
+#####  XgrDisplayWindow ()  #####
+#################################
+
+	error = XgrDisplayWindow (window)
+
+	 Make a window visible and active
+
+	See: XgrShowWindow(), XgrHideWindow()
+
+FUNCTION  XgrDisplayWindow (window)
+:XgrDrawArc()
+###########################
+#####  XgrDrawArc ()  #####
+###########################
+
+	startRadians# = startDegrees * $$DEGTORAD
+	endRadians#   = endDegrees   * $$DEGTORAD
+
+		error = XgrDrawArc (grid, color, radius, startRadians#, endRadians#)
+
+FUNCTION  XgrDrawArc (grid, color, r, startAngle#, endAngle#)
+:XgrDrawArcGrid()
+###############################
+#####  XgrDrawArcGrid ()  #####
+###############################
+
+	startRadians# = startDegrees * $$DEGTORAD
+	endRadians#   = endDegrees   * $$DEGTORAD
+
+	error = XgrDrawArcGrid (grid, color, r, startRadians#, endRadians#)
+
+FUNCTION  XgrDrawArcGrid (grid, color, r, startAngle#, endAngle#)
+:XgrDrawArcScaled()
+#################################
+#####  XgrDrawArcScaled ()  #####
+#################################
+
+	startRadians# = startDegrees * $$DEGTORAD
+	endRadians#   = endDegrees   * $$DEGTORAD
+
+	error = XgrDrawArcScaled (grid, color, r#, startRadians#, endRadians#)
+
+FUNCTION  XgrDrawArcScaled (grid, color, r#, startAngle#, endAndge#)
+:XgrDrawBorder()
+##############################
+#####  XgrDrawBorder ()  #####
+##############################
+
+	error = XgrDrawBorder (grid, border, back, lo, hi, x1, y1, x2, y2)
+
+	grid         = target grid
+	border       = border style from xgr.dec  *****  grid border styles  *****
+	back, lo, hi = colors used to give visual effects as when a push button is pressed or released
+	x1           = border frame left side position in pixels
+	y1           = border frame top edge position in pixels
+	x2           = border frame right side position in pixels
+	y2           = border frame bottom edge position in pixels
+
+FUNCTION  XgrDrawBorder (grid, border, back, lo, hi, x1, y1, x2, y2)
+:XgrDrawBorderGrid()
+##################################
+#####  XgrDrawBorderGrid ()  #####
+##################################
+
+	error = XgrDrawBorderGrid (grid, border, back, lo, hi, x1Grid, y1Grid, x2Grid, y2Grid)
+
+FUNCTION  XgrDrawBorderGrid (grid, border, back, lo, hi, x1Grid, y1Grid, x2Grid, y2Grid)
+:XgrDrawBorderScaled()
+####################################
+#####  XgrDrawBorderScaled ()  #####
+####################################
+
+	error = XgrDrawBorderScaled (grid, border, back, lo, hi, x1#, y1#, x2#, y2#)
+
+FUNCTION  XgrDrawBorderScaled (grid, border, back, lo, hi, x1#, y1#, x2#, y2#)
+:XgrDrawBox()
+###########################
+#####  XgrDrawBox ()  #####
+###########################
+
+	error = XgrDrawBox (grid, color, x1, y1, x2, y2)
+
+FUNCTION  XgrDrawBox (grid, color, x1, y1, x2, y2)
+:XgrDrawBoxGrid()
+###############################
+#####  XgrDrawBoxGrid ()  #####
+###############################
+
+	error = XgrDrawBoxGrid (grid, color, x1Grid, y1Grid, x2Grid, y2Grid)
+
+FUNCTION  XgrDrawBoxGrid (grid, color, x1Grid, y1Grid, x2Grid, y2Grid)
+:XgrDrawBoxScaled()
+#################################
+#####  XgrDrawBoxScaled ()  #####
+#################################
+
+	error = XgrDrawBoxScaled (grid, color, x1#, y1#, x2#, y2#)
+
+FUNCTION  XgrDrawBoxScaled (grid, color, x1#, y1#, x2#, y2#)
+:XgrDrawCircle()
+##############################
+#####  XgrDrawCircle ()  #####
+##############################
+
+	error = XgrDrawCircle (grid, color, radius)
+
+	The center of the circle will be at the current draw point.
+
+	See: XgrSetDrawpoint()
+
+FUNCTION  XgrDrawCircle (grid, color, r)
+:XgrDrawCircleGrid()
+##################################
+#####  XgrDrawCircleGrid ()  #####
+##################################
+
+	error = XgrDrawCircleGrid (grid, color, radius)
+
+	The center of the circle will be at the current draw point for the grid.
+
+	See: XgrSetDrawpointGrid()
+
+FUNCTION  XgrDrawCircleGrid (grid, color, r)
+:XgrDrawCircleScaled()
+####################################
+#####  XgrDrawCircleScaled ()  #####
+####################################
+
+	error = XgrDrawCircleScaled (grid, color, radius#)
+
+	The center of the circle will be at the current draw point scaled.
+
+	See: XgrSetDrawpointScaled()
+
+FUNCTION  XgrDrawCircleScaled (grid, color, r#)
+:XgrDrawCurve()
+#############################
+#####  XgrDrawCurve ()  #####
+#############################
+
+	XgrDrawCurve (grid, color, segments, x0, y0, x1, y1, x2, y2, x3, y3)
+
+	This function draws a Cubic Bezier curve
+
+	segments is the number of lines to be used to draw the curve.
+	If segments = 0, this function will create a segments number.
+
+	x0, y0 is the start of the curve
+	x1, y1 is the first control point
+	x2, y2 is the second control point
+	x3, y3 is the finish of the curve
+
+	The draw point is set to the finish of the curve
+
+FUNCTION  XgrDrawCurve (grid, color, segments, x0, y0, x1, y1, x2, y2, x3, y3)
+:XgrDrawCurveGrid()
+#################################
+#####  XgrDrawCurveGrid ()  #####
+#################################
+
+	error = XgrDrawCurveGrid (grid, color, segments, x0g, y0g, x1g, y1g, x2g, y2g, x3g, y3g)
+
+	See: XgrDrawCurve()
+
+FUNCTION  XgrDrawCurveGrid (grid, color, segments, x0g, y0g, x1g, y1g, x2g, y2g, x3g, y3g)
+:XgrDrawCurveScaled()
+###################################
+#####  XgrDrawCurveScaled ()  #####
+###################################
+
+	error = XgrDrawCurveScaled (grid, color, segments, x0#, y0#, x1#, y1#, x2#, y2#, x3#, y3#)
+
+	See: XgrDrawCurve()
+
+FUNCTION  XgrDrawCurveScaled (grid, color, segments, x0#, y0#, x1#, y1#, x2#, y2#, x3#, y3#)
+:XgrDrawEllipse()
+###############################
+#####  XgrDrawEllipse ()  #####
+###############################
+
+	error XgrDrawEllipse (grid, color, rx, ry)
+
+	* Draw an ellipse.
+	Note: The current drawing-point is used as the center of the ellipse.
+	   grid			The grid
+	   color		The color in which to draw
+	   rx				The X-Radius
+	   ry				The Y-Radius
+
+	See: XgrSetDrawpoint()
+
+FUNCTION  XgrDrawEllipse (grid, color, rx, ry)
+:XgrDrawEllipseGrid()
+###################################
+#####  XgrDrawEllipseGrid ()  #####
+###################################
+
+	error = XgrDrawEllipseGrid (grid, color, rx, ry)
+
+	* Draw an ellipse.
+	Note: The current grid drawing-point is used as the center of the ellipse.
+	   grid			The grid
+	   color		The color in which to draw
+	   rx				The X-Radius
+	   ry				The Y-Radius
+
+	See: XgrSetDrawpointGrid()
+
+FUNCTION  XgrDrawEllipseGrid (grid, color, rx, ry)
+:XgrDrawEllipseScaled()
+#####################################
+#####  XgrDrawEllipseScaled ()  #####
+#####################################
+
+	error = XgrDrawEllipseScaled (grid, color, rx#, ry#)
+
+	* Draw an ellipse.
+	Note: The current scaled drawing-point is used as the center of the ellipse.
+	   grid			The grid
+	   color		The color in which to draw
+	   rx				The X-Radius
+	   ry				The Y-Radius
+
+	See: XgrSetDrawpointScaled()
+
+FUNCTION  XgrDrawEllipseScaled (grid, color, rx#, ry#)
+:XgrDrawGridBorder()
+##################################
+#####  XgrDrawGridBorder ()  #####
+##################################
+
+	error = XgrDrawGridBorder (grid, border)
+
+	See: XgrSetColors()
+
+FUNCTION  XgrDrawGridBorder (grid, border)
+:XgrDrawImage()
+#############################
+#####  XgrDrawImage ()  #####
+#############################
+
+	error = XgrDrawImage (grid, imageGrid, startX, startY, endX, endY, destx, desty)
+
+FUNCTION  XgrDrawImage (dest, source, sx1, sy1, sx2, sy2, dx1, dy1)
+:XgrDrawLine()
+############################
+#####  XgrDrawLine ()  #####
+############################
+
+	error = XgrDrawLine (grid, color, x1, y1, x2, y2)
+
+FUNCTION  XgrDrawLine (grid, color, x1, y1, x2, y2)
+:XgrDrawLineGrid()
+################################
+#####  XgrDrawLineGrid ()  #####
+################################
+
+	error = XgrDrawLineGrid (grid, color, x1Grid, y1Grid, x2Grid, y2Grid)
+
+FUNCTION  XgrDrawLineGrid (grid, color, x1Grid, y1Grid, x2Grid, y2Grid)
+:XgrDrawLines()
+#############################
+#####  XgrDrawLines ()  #####
+#############################
+
+	error = XgrDrawLines (grid, color, start, count, @line[])
+
+FUNCTION  XgrDrawLines (grid, color, start, count, line[])
+:XgrDrawLineScaled()
+##################################
+#####  XgrDrawLineScaled ()  #####
+##################################
+
+	error = XgrDrawLineScaled (grid, color, x1#, y1#, x2#, y2#)
+
+FUNCTION  XgrDrawLineScaled (grid, color, x1#, y1#, x2#, y2#)
+:XgrDrawLinesGrid()
+#################################
+#####  XgrDrawLinesGrid ()  #####
+#################################
+
+	error = XgrDrawLinesGrid (grid, color, first, count, @line[])
+
+FUNCTION  XgrDrawLinesGrid (grid, color, first, count, line[])
+:XgrDrawLinesScaled()
+###################################
+#####  XgrDrawLinesScaled ()  #####
+###################################
+
+	error = XgrDrawLinesScaled (grid, color, first, count, @line[])
+
+FUNCTION  XgrDrawLinesScaled (grid, color, first, count, line[])
+:XgrDrawLinesTo()
+###############################
+#####  XgrDrawLinesTo ()  #####
+###############################
+
+	error = XgrDrawLinesTo (grid, color, start, count, @line[])
+
+	 start is the point number in line[] to start drawing ( 0 or less for the beginning of line[])
+	 count is the number of lines to draw ( -1 means do to the end of line[])
+
+FUNCTION  XgrDrawLinesTo (grid, color, start, count, line[])
+:XgrDrawLinesToGrid()
+###################################
+#####  XgrDrawLinesToGrid ()  #####
+###################################
+
+	error = XgrDrawLinesToGrid (grid, color, start, count, @line[])
+
+	See: XgrSetGridBoxGrid(), XgrSetDrawpointGrid()
+
+FUNCTION  XgrDrawLinesToGrid (grid, color, start, count, line[])
+:XgrDrawLinesToScaled()
+#####################################
+#####  XgrDrawLinesToScaled ()  #####
+#####################################
+
+	error = XgrDrawLinesToScaled (grid, color, start, count, @line[])
+
+FUNCTION  XgrDrawLinesToScaled (grid, color, start, count, line[])
+:XgrDrawLineTo()
+##############################
+#####  XgrDrawLineTo ()  #####
+##############################
+
+	error = XgrDrawLineTo (grid, color, x2, y2)
+
+	Draws a line from the current draw point to x2, y2
+	The current draw point is set to x2, y2
+
+FUNCTION  XgrDrawLineTo (grid, color, x2, y2)
+:XgrDrawLineToDelta()
+###################################
+#####  XgrDrawLineToDelta ()  #####
+###################################
+
+	error = XgrDrawLineToDelta (grid, color, dx, dy)
+
+	Draws a line from the current draw point to a new point
+	moved by the amount of dx, dy.
+
+FUNCTION  XgrDrawLineToDelta (grid, color, dx, dy)
+:XgrDrawLineToDeltaGrid()
+#######################################
+#####  XgrDrawLineToDeltaGrid ()  #####
+#######################################
+
+	error = XgrDrawLineToDeltaGrid (grid, color, dxGrid, dyGrid)
+
+	Draws a line from the current draw point to a new point
+	moved by the amount of dxGrid, dyGrid.
+
+FUNCTION  XgrDrawLineToDeltaGrid (grid, color, dxGrid, dyGrid)
+:XgrDrawLineToDeltaScaled()
+#########################################
+#####  XgrDrawLineToDeltaScaled ()  #####
+#########################################
+
+	error = XgrDrawLineToDeltaScaled (grid, color, dx#, dy#)
+
+	Draws a line from the current draw point to a new point
+	moved by the amount of dx#, dy#.
+
+FUNCTION  XgrDrawLineToDeltaScaled (grid, color, dx#, dy#)
+:XgrDrawLineToGrid()
+##################################
+#####  XgrDrawLineToGrid ()  #####
+##################################
+
+	error = XgrDrawLineToGrid (grid, color, x2Grid, y2Grid)
+
+	Draws a line from the current draw point to x2Grid, y2Grid
+	The current draw point is set to x2Grid, y2Grid
+
+FUNCTION  XgrDrawLineToGrid (grid, color, x2Grid, y2Grid)
+:XgrDrawLineToScaled()
+####################################
+#####  XgrDrawLineToScaled ()  #####
+####################################
+
+	error = XgrDrawLineToScaled (grid, color, x2#, y2#)
+
+	Draws a line from the current draw point to x2#, y2#
+	The current draw point is set to x2#, y2#
+
+FUNCTION  XgrDrawLineToScaled (grid, color, x2#, y2#)
+:XgrDrawPoint()
+#############################
+#####  XgrDrawPoint ()  #####
+#############################
+
+	error = XgrDrawPoint (grid, color, x, y)
+
+FUNCTION  XgrDrawPoint (grid, color, x, y)
+:XgrDrawPointGrid()
+#################################
+#####  XgrDrawPointGrid ()  #####
+#################################
+
+	error = XgrDrawPointGrid (grid, color, xGrid, yGrid)
+
+FUNCTION  XgrDrawPointGrid (grid, color, xGrid, yGrid)
+:XgrDrawPoints()
+##############################
+#####  XgrDrawPoints ()  #####
+##############################
+
+	error = XgrDrawPoints (grid, color, first, count, @point[])
+
+FUNCTION  XgrDrawPoints (grid, color, first, count, point[])
+:XgrDrawPointScaled()
+###################################
+#####  XgrDrawPointScaled ()  #####
+###################################
+
+	error = XgrDrawPointScaled (grid, color, x#, y#)
+
+FUNCTION  XgrDrawPointScaled (grid, color, x#, y#)
+:XgrDrawPointsGrid()
+##################################
+#####  XgrDrawPointsGrid ()  #####
+##################################
+
+	error = XgrDrawPointsGrid (grid, color, first, count, @point[])
+
+FUNCTION  XgrDrawPointsGrid (grid, color, first, count, point[])
+:XgrDrawPointsScaled()
+####################################
+#####  XgrDrawPointsScaled ()  #####
+####################################
+
+	error = XgrDrawPointsScaled (grid, color, first, count, @point[])
+
+FUNCTION  XgrDrawPointsScaled (grid, color, first, count, point[])
+:XgrDrawText()
+############################
+#####  XgrDrawText ()  #####
+############################
+
+	error = XgrDrawText (grid, color, text$)
+
+	The text$ strin is drawn on the grid starting at the draw point.
+
+	This function uses the Grid Character Map Array
+
+		See: XgrSetGridCharacterMapArray(), XgrSetGridCharacterMapArray()
+
+
+	Add code to draw multiple lines when newline characters in text$
+	and update drawpoint accordingly.
+
+FUNCTION  XgrDrawText (grid, color, text$)
+:XgrDrawTextFill()
+################################
+#####  XgrDrawTextFill ()  #####
+################################
+
+	error = XgrDrawTextFill (grid, color, text$)
+
+FUNCTION  XgrDrawTextFill (grid, color, text$)
+:XgrDrawTextFillGrid()
+####################################
+#####  XgrDrawTextFillGrid ()  #####
+####################################
+
+	error = XgrDrawTextFillGrid (grid, color, text$)
+
+FUNCTION  XgrDrawTextFillGrid (grid, color, text$)
+:XgrDrawTextFillScaled()
+######################################
+#####  XgrDrawTextFillScaled ()  #####
+######################################
+
+	error = XgrDrawTextFillScaled (grid, color, text$)
+
+FUNCTION  XgrDrawTextFillScaled (grid, color, text$)
+:XgrDrawTextGrid()
+################################
+#####  XgrDrawTextGrid ()  #####
+################################
+
+	error = XgrDrawTextGrid (grid, color, text$)
+
+FUNCTION  XgrDrawTextGrid (grid, color, text$)
+:XgrDrawTextScaled()
+##################################
+#####  XgrDrawTextScaled ()  #####
+##################################
+
+	error = XgrDrawTextScaled (grid, color, text$)
+
+FUNCTION  XgrDrawTextScaled (grid, color, text$)
+:XgrFillBox()
+###########################
+#####  XgrFillBox ()  #####
+###########################
+
+	error = XgrFillBox (grid, color, x1, y1, x2, y2)
+
+FUNCTION  XgrFillBox (grid, color, x1, y1, x2, y2)
+:XgrFillBoxGrid()
+###############################
+#####  XgrFillBoxGrid ()  #####
+###############################
+
+	error = XgrFillBoxGrid (grid, color, x1Grid, y1Grid, x2Grid, y2Grid)
+
+FUNCTION  XgrFillBoxGrid (grid, color, x1Grid, y1Grid, x2Grid, y2Grid)
+:XgrFillBoxScaled()
+#################################
+#####  XgrFillBoxScaled ()  #####
+#################################
+
+	error = XgrFillBoxScaled (grid, color, x1#, y1#, x2#, y2#)
+
+FUNCTION  XgrFillBoxScaled (grid, color, x1#, y1#, x2#, y2#)
+:XgrFillCircle()
+##############################
+#####  XgrFillCircle ()  #####
+##############################
+
+	error = XgrFillCircle (grid, color, radius)
+
+	Draw and fill a circle centered at the current draw point
+
+FUNCTION  XgrFillCircle (grid, color, r)
+:XgrFillCircleGrid()
+##################################
+#####  XgrFillCircleGrid ()  #####
+##################################
+
+	error = XgrFillCircleGrid (grid, color, r)
+
+FUNCTION  XgrFillCircleGrid (grid, color, r)
+:XgrFillCircleScaled()
+####################################
+#####  XgrFillCircleScaled ()  #####
+####################################
+
+	error = XgrFillCircleScaled (grid, color, r#)
+
+FUNCTION  XgrFillCircleScaled (grid, color, r#)
+:XgrFillEllipse()
+###############################
+#####  XgrFillEllipse ()  #####
+###############################
+
+	error = XgrFillEllipse (grid, color, rx, ry)
+
+	* Fill an ellipse.
+	Note: The current drawing-point is used as the center of the ellipse.
+	@param grid			The grid.
+	@param color		The color in which to draw
+	@param rx				The X-Radius
+	@param ry				The Y-Radius
+
+FUNCTION  XgrFillEllipse (grid, color, rx, ry)
+:XgrFillEllipseGrid()
+###################################
+#####  XgrFillEllipseGrid ()  #####
+###################################
+
+	error = XgrFillEllipseGrid (grid, color, rx, ry)
+
+FUNCTION  XgrFillEllipseGrid (grid, color, rx, ry)
+:XgrFillEllipseScaled()
+#####################################
+#####  XgrFillEllipseScaled ()  #####
+#####################################
+
+	error = XgrFillEllipseScaled (grid, color, rx#, ry#)
+
+FUNCTION  XgrFillEllipseScaled (grid, color, rx#, ry#)
+:XgrFillTriangle()
+################################
+#####  XgrFillTriangle ()  #####
+################################
+
+	error = XgrFillTriangle (grid, color, style, direction, x1, y1, x2, y2)
+
+		direction:  $$TriangleUp
+	            $$TriangleRight
+	            $$TriangleDown
+	            $$TriangleLeft
+
+	style: Ignored (Triangles are always drawn $$LineStyleSolid)
+
+FUNCTION  XgrFillTriangle (grid, color, style, direction, x1, y1, x2, y2)
+:XgrFillTriangleGrid()
+####################################
+#####  XgrFillTriangleGrid ()  #####
+####################################
+
+	error = XgrFillTriangleGrid (grid, color, style, direction, x1Grid, y1Grid, x2Grid, y2Grid)
+
+FUNCTION  XgrFillTriangleGrid (grid, color, style, direction, x1Grid, y1Grid, x2Grid, y2Grid)
+:XgrFillTriangleScaled()
+######################################
+#####  XgrFillTriangleScaled ()  #####
+######################################
+
+	error = XgrFillTriangleScaled (grid, color, style, direction, x1#, y1#, x2#, y2#)
+
+FUNCTION  XgrFillTriangleScaled (grid, color, style, direction, x1#, y1#, x2#, y2#)
+:XgrFullscreenWindow()
+####################################
+#####  XgrFullscreenWindow ()  #####
+####################################
+
+	error = XgrFullscreenWindow (wingrid)
+
+FUNCTION  XgrFullscreenWindow (window)
+:XgrGetBackgroundColor()
+#######################################
+#####  XgrGetBackgroundColor  ()  #####
+#######################################
+
+	error = XgrGetBackgroundColor (window, @color)
+
+FUNCTION  XgrGetBackgroundColor (window, color)
+:XgrGetBackgroundRGB()
+####################################
+#####  XgrGetBackgroundRGB ()  #####
+####################################
+
+	error = XgrGetBackgroundRGB (window, @red, @green, @blue)
+
+FUNCTION  XgrGetBackgroundRGB (window, red, green, blue)
+:XgrGetCEO()
+##########################
+#####  XgrGetCEO ()  #####
+##########################
+
+FUNCTION  XgrGetCEO (func)
+:XgrGetClipboard()
+################################
+#####  XgrGetClipboard ()  #####
+################################
+
+	error = XgrGetClipboard (clipboard, @clipType, @text$, @image[])
+
+	XgrGetClipboard() returns the current contents of clipboard in
+	text$ and/or image[], depending on the type of data in clipboard,
+	which is returned in clipType.  The interapplication clipboard,
+	also called the system clipboard, is clipboard=0.
+	Local XBasic clipboard numbers range from 1 to 7
+
+	clipType = 0 = $$ClipboardTypeNone
+	clipType = 1 = $$ClipboardTypeText
+	clipType = 2 = $$ClipboardTypeImage
+
+	See: XgrSetClipboard()
+
+FUNCTION  XgrGetClipboard (clipboard, type, data$, UBYTE data[])
+:XgrGetColors()
+#############################
+#####  XgrGetColors ()  #####
+#############################
+
+FUNCTION  XgrGetColors (window, back, draw, low, high, dull, acc, lowtext, hightext)
+:XgrGetCursor()
+#############################
+#####  XgrGetCursor ()  #####
+#############################
+
+	XgrGetCursor (@cursor)
+
+	Returns the currently displayed cursor.
+
+FUNCTION  XgrGetCursor (cursor)
+:XgrGetCursorOverride()
+#####################################
+#####  XgrGetCursorOverride ()  #####
+#####################################
+
+	XgrGetCursorOverride (@cursor)
+
+	Returns the active cursor override.
+
+FUNCTION  XgrGetCursorOverride (cursor)
+:XgrGetDefaultColors()
+####################################
+#####  XgrGetDefaultColors ()  #####
+####################################
+
+	XgrGetDefaultColors (@back, @draw, @low, @high, @dull, @acc, @lowtext, @hightext)
+
+FUNCTION  XgrGetDefaultColors (back, draw, low, high, dull, acc, lowtext, hightext)
+:XgrGetDisplayOffset()
+####################################
+#####  XgrGetDisplayOffset ()  #####
+####################################
+
+	error = XgrGetDisplayOffset (display$, @xOffset, @yOffset, @borderWidth, @titleHeight)
+
+	XgrGetDisplayOffset() returns the xOffset, yOffset for window position in pixels,
+	as well as the borderWidth and titleHeight of decoration added
+	by the display manager for windows that have borders and title-bars.
+
+	Newer window managers have wide transparent resizing borders (10 pixels) but the
+	x and y offset for the inside grid placement is different than the border width.
+
+	display$ = "" denotes the default display.
+	If display$ is not open, error = $$TRUE and size of default display is supplied
+
+	See: XgrGetWorkArea(), XgrGetDisplaySize()
+
+FUNCTION  XgrGetDisplayOffset (display$, xOffset, yOffset, borderWidth, titleHeight)
+:XgrGetDisplaySize()
+##################################
+#####  XgrGetDisplaySize ()  #####
+##################################
+
+	error = XgrGetDisplaySize (display$, @width, @height, @borderWidth, @titleHeight)
+
+	XgrGetDisplaySize() returns the width,height of  display$ in pixels,
+	as well as the borderWidth and titleHeight of decoration added
+	by the display manager for windows that have borders and title-bars.
+
+	display$ = "" denotes the default display.
+	If display$ is not open, error = $$TRUE and size of default display is supplied
+
+	See: XgrGetWorkArea(), XgrGetDisplayOffset()
+
+FUNCTION  XgrGetDisplaySize (display$, width, height, borderWidth, titleHeight)
+:XgrGetDrawingColor()
+###################################
+#####  XgrGetDrawingColor ()  #####
+###################################
+
+	error = XgrGetDrawingColor (wingrid, @color)
+
+FUNCTION  XgrGetDrawingColor (window, color)
+:XgrGetDrawingRGB()
+#################################
+#####  XgrGetDrawingRGB ()  #####
+#################################
+
+	error = XgrGetDrawingRGB (window, @red, @green, @blue)
+
+FUNCTION  XgrGetDrawingRGB (window, red, green, blue)
+:XgrGetDrawpoint()
+################################
+#####  XgrGetDrawpoint ()  #####
+################################
+
+	error = XgrGetDrawpoint (grid, @x, @y)
+
+FUNCTION  XgrGetDrawpoint (grid, x, y)
+:XgrGetDrawpointGrid()
+####################################
+#####  XgrGetDrawpointGrid ()  #####
+####################################
+
+	error = XgrGetDrawpointGrid (grid, @xGrid, @yGrid)
+
+FUNCTION  XgrGetDrawpointGrid (grid, xGrid, yGrid)
+:XgrGetDrawpointScaled()
+######################################
+#####  XgrGetDrawpointScaled ()  #####
+######################################
+
+	error = XgrGetDrawpointScaled (grid, @x#, @y#)
+
+FUNCTION  XgrGetDrawpointScaled (grid, x#, y#)
+:XgrGetFontInfo()
+###############################
+#####  XgrGetFontInfo ()  #####
+###############################
+
+	error = XgrGetFontInfo (font, @fontName$, @fontSize, @fontWeight, @fontItalic, @fontAngle)
+
+	XgrGetFontInfo() returns fontName$, fontSize,
+	fontWeight, fontItalic, and fontAngle for font.
+
+	See XgrCreateFont() for more details.
+
+	See: XgrGetFontMetrics()
+
+FUNCTION  XgrGetFontInfo (font, @fontName$, @size, @weight, @italic, @angle)
+:XgrGetFontMetrics()
+##################################
+#####  XgrGetFontMetrics ()  #####
+##################################
+
+	error = XgrGetFontMetrics (font, @maxCharWidth, @maxCharHeight, @ascent, @decent, @gap, @flags)
+
+	XgrGetFontMetrics() returns the
+	maximum character width in pixels,
+	maximum character height in pixels,
+	the ascent from the baseline of the tallest character,
+	the decent from the baseline for the lowest character,
+	the gap at the top that is normally interline spacing,
+	may contain active character pixels for unusual characters,
+	including characters with accents and umlauts.
+
+	See: XgrGetFontInfo()
+
+FUNCTION  XgrGetFontMetrics (font, @maxCharWidth, @maxCharHeight, @ascent, @descent, @gap, @space)
+:XgrGetFontNames()
+################################
+#####  XgrGetFontNames ()  #####
+################################
+
+	XgrGetFontNames (count, @fontName$[])
+
+	XgrGetFontNames() returns the names of all typefaces
+	from which fonts can be created by XgrCreateFont().
+
+	count = -2 : list all typeface names
+	count = -3 : list everything with detail information
+
+	An X-Window font name is a string with 14 fields separated by "-"
+
+	"-f-t-w-s-w-?-p-t-h-v-s-a-c-#"
+	  | | | | | | | | | | | | | |
+	  foundry - Adobe, Bitstream, etc
+	    typeface - courier, helvetica, etc
+	      weight - thin, normal, medium, demibold, bold, heavy, etc
+	        slant - roman (normal), italic, oblique, ri (reverse italic), ro (reverse oblique), ot (other)
+	          width - normal, condensed, semicondensed, narrow, doublewidth
+	            ? - style ??? (informal, roman, serif, sansserif) ???
+	              pixels -
+	                tenpoints - 10 * point size (point = 1/72 inch)
+	                  hdpi - horizontal resolution in dots per inch
+	                    vdpi - vertical resolution in dots per inch
+	                      spacing - m = monospace : p = proportional : c = character cell
+	                        average width in 1/10 pixels
+	                          character set ("iso8859")
+	                            character set extension # ("1")
+
+FUNCTION  XgrGetFontNames (@count, @fontName$[])
+:XgrGetGridBorder()
+#################################
+#####  XgrGetGridBorder ()  #####
+#################################
+
+	error = XgrGetGridBorder (grid, @border, @borderUp, @borderDown, 0)
+
+	borderFlags is not implemented
+
+	See: XgrSetGridBorder()
+
+FUNCTION  XgrGetGridBorder (grid, @border, @borderUp, @borderDown, @borderFlags)
+:XgrGetGridBorderOffset()
+#######################################
+#####  XgrGetGridBorderOffset ()  #####
+#######################################
+
+	error = XgrGetGridBorderOffset (grid, @left, @top, @right, @bottom)
+
+	See: XgrSetGridBorderOffset()
+
+FUNCTION  XgrGetGridBorderOffset (grid, @left, @top, @right, @bottom)
+:XgrGetGridBox()
+##############################
+#####  XgrGetGridBox ()  #####
+##############################
+
+	error = XgrGetGridBox (grid, @x1Grid, @y1Grid, @x2Grid, @y2Grid)
+
+FUNCTION  XgrGetGridBox (grid, x1Grid, y1Grid, x2Grid, y2Grid)
+:XgrGetGridBoxDisplay()
+#####################################
+#####  XgrGetGridBoxDisplay ()  #####
+#####################################
+
+	error = XgrGetGridBoxDisplay (grid, @x1Disp, @y1Disp, @x2Disp, @y2Disp)
+
+FUNCTION  XgrGetGridBoxDisplay (grid, x1Disp, y1Disp, x2Disp, y2Disp)
+:XgrGetGridBoxGrid()
+##################################
+#####  XgrGetGridBoxGrid ()  #####
+##################################
+
+	error = XgrGetGridBoxGrid (grid, @x1Grid, @y1Grid, @x2Grid, @y2Grid)
+
+FUNCTION  XgrGetGridBoxGrid (grid, x1Grid, y1Grid, x2Grid, y2Grid)
+:XgrGetGridBoxLocal()
+###################################
+#####  XgrGetGridBoxLocal ()  #####
+###################################
+
+	error = XgrGetGridBoxLocal (grid, @x1, @y1, @x2, @y2)
+
+FUNCTION  XgrGetGridBoxLocal (grid, x1, y1, x2, y2)
+:XgrGetGridBoxScaled()
+####################################
+#####  XgrGetGridBoxScaled ()  #####
+####################################
+
+	error = XgrGetGridBoxScaled (grid, @x1#, @y1#, @x2#, @y2#)
+
+FUNCTION  XgrGetGridBoxScaled (grid, x1#, y1#, x2#, y2#)
+:XgrGetGridBoxWindow()
+####################################
+#####  XgrGetGridBoxWindow ()  #####
+####################################
+
+	error = XgrGetGridBoxWindow (grid, @x1Win, @y1Win, @x2Win, @y2Win)
+
+FUNCTION  XgrGetGridBoxWindow (grid, x1Win, y1Win, x2Win, y2Win)
+:XgrGetGridBuffer()
+#################################
+#####  XgrGetGridBuffer ()  #####
+#################################
+
+	error = XgrGetGridBuffer (grid, @buffer, @x, @y)
+
+	See: XgrSetGridBuffer()
+
+FUNCTION  XgrGetGridBuffer (grid, buffer, x, y)
+:XgrGetGridCharacterMapArray()
+############################################
+#####  XgrGetGridCharacterMapArray ()  #####
+############################################
+
+	error = XgrGetGridCharacterMapArray (grid, @map[])
+
+	See: XgrSetGridCharacterMapArray()
+
+FUNCTION  XgrGetGridCharacterMapArray (grid, map[])
+:XgrGetGridClip()
+###############################
+#####  XgrGetGridClip ()  #####
+###############################
+
+FUNCTION  XgrGetGridClip (grid, @clip)
+:XgrGetGridColors()
+#################################
+#####  XgrGetGridColors ()  #####
+#################################
+
+	error = XgrGetGridColors (grid, @back, @draw, @low, @high, @dull, @acc, @lowtext, @hightext)
+
+FUNCTION  XgrGetGridColors (grid, @back, @draw, @low, @high, @dull, @acc, @lowtext, @hightext)
+:XgrGetGridCoordinates()
+######################################
+#####  XgrGetGridCoordinates ()  #####
+######################################
+
+	error = XgrGetGridCoordinates (grid, @x, @y, @x1, @y1, @x2, @y2)
+
+FUNCTION  XgrGetGridCoordinates (grid, x, y, x1, y1, x2, y2)
+:XgrGetGridCoords()
+#################################
+#####  XgrGetGridCoords ()  #####
+#################################
+
+	error = XgrGetGridCoords (grid, @x, @y, @x1, @y1, @x2, @y2)
+
+FUNCTION  XgrGetGridCoords (grid, x, y, x1, y1, x2, y2)
+:XgrGetGridDrawingMode()
+######################################
+#####  XgrGetGridDrawingMode ()  #####
+######################################
+
+	error = XgrGetGridDrawingMode (grid, @drawMode, @lineStyle, @lineWidth)
+
+	See: XgrSetGridDrawingMode()
+
+FUNCTION  XgrGetGridDrawingMode (grid, @drawMode, @lineStyle, @lineWidth)
+:XgrGetGridFont()
+###############################
+#####  XgrGetGridFont ()  #####
+###############################
+
+	error = XgrGetGridFont (grid, @font)
+
+	See: XgrSetGridFont()
+
+FUNCTION  XgrGetGridFont (grid, @font)
+:XgrGetGridFunction()
+###################################
+#####  XgrGetGridFunction ()  #####
+###################################
+
+	error = XgrGetGridFunction (grid, @gridFunc)
+
+FUNCTION  XgrGetGridFunction (grid, @gridFunc)
+:XgrGetGridParent()
+#################################
+#####  XgrGetGridParent ()  #####
+#################################
+
+	error = XgrGetGridParent (grid, @parent)
+
+	See: XgrCreateGrid()
+
+FUNCTION  XgrGetGridParent (grid, @parent)
+:XgrGetGridPositionAndSize()
+##########################################
+#####  XgrGetGridPositionAndSize ()  #####
+##########################################
+
+	error = XgrGetGridPositionAndSize (grid, @x, @y, @width, @height)
+
+FUNCTION  XgrGetGridPositionAndSize (grid, @x, @y, @width, @height)
+:XgrGetGridState()
+################################
+#####  XgrGetGridState ()  #####
+################################
+
+	error = XgrGetGridState (grid, @state)
+
+	state will be $$FALSE if grid is destroyed or disabled
+	state will be $$TRUE  if grid exists and is enabled
+
+FUNCTION  XgrGetGridState (grid, @state)
+:XgrGetGridTimerID()
+
+##################################
+#####  XgrGetGridTimerID ()  #####
+##################################
+
+	error = XgrGetGridTimerID (grid, @timeOutID)
+
+	See: XgrSetGridTimer()
+
+FUNCTION  XgrGetGridTimerID (grid, @timeOutID)
+:XgrGetGridType()
+
+###############################
+#####  XgrGetGridType ()  #####
+###############################
+
+	error = XgrGetGridType (grid, @gridType)
+
+	See: XgrSetGridType
+
+FUNCTION  XgrGetGridType (grid, @gridType)
+:XgrGetGridWindow()
+#################################
+#####  XgrGetGridWindow ()  #####
+#################################
+
+	error = XgrGetGridWindow (wingrid, @window)
+
+	See: XgrGetWindowGrid()
+
+FUNCTION  XgrGetGridWindow (grid, @window)
+:XgrGetImage()
+############################
+#####  XgrGetImage ()  #####
+############################
+
+	error = XgrGetImage (grid, @image[])
+
+		Get image in DIB format array
+
+		In:				grid
+		Out:			image[]			DIB format
+
+		Return:		$$FALSE			no errors
+							$$TRUE			errors
+
+		Win32s does not support 32-bit DIB, so stick with 24-bit DIB for now.
+
+
+			DIB BITMAPFILEHEADER:  Offset 0 bytes
+				USHORT	.bfType							'BM'  (for bitmap)
+				ULONG		.bfSize							Total size of the file in bytes
+				USHORT	.res1								0
+				USHORT	.res2								0
+				ULONG		.bfOffBits					Offset to bitmapData from beginning of file (66)
+
+			DIB BITMAPINFO:        Offset 14 bytes
+				DIB BITMAPINFOHEADER:  Offset 14 bytes
+					ULONG		.biSize						Size of BitmapInfoHeader in bytes (40)
+					SLONG		.biWidth					Width of bitmap in pixels
+					SLONG		.biHeight					Height of bitmap in pixels
+					USHORT	.biPlanes					1
+					USHORT	.biBitCount				Color bits per pixel (32)
+					ULONG		.biCompression		Compression scheme (BI_BITFIELDS = 3)
+					ULONG		.biSizeImage			Size of bitmap bits in bytes (0--no compression)
+					SLONG		.biXPelsPerMeter	Horizontal resolution in pixels per meter
+					SLONG		.biYPelsPerMeter	Vertical resolution
+					ULONG		.biClrUsed				Number of colors used in image (0)
+					ULONG		.biClrImportant		Number of important colors in image (0)
+
+				DIB bmiColors:			Offset 54 bytes
+					ULONG		.redBits					0xFFC00000		10 bits
+					ULONG		.greenBits				0x003FF800		11 bits
+					ULONG		.blueBits					0x000007FF		11 bits
+
+			DIB bitmapData:					Offset 66 bytes
+				biBitCount		Interpretation	  (start with BOTTOM row of pixels, at left)
+					32:					32-bits per pixel (10-11-11 = 0RGB)
+
+				Each ROW is padded to a multiple of 4 bytes.
+
+
+			24-bit format mods to the above:
+				BITMAPINFOHEADER
+					.biBitCount			= 24
+					.biCompression	= $BI_RGB
+
+				DIB bmiColors:		UNUSED (0 bytes)
+
+				DIB bitmapData:		offset = 54 bytes
+					24 bits per pixel (8 bits each for RGB)
+					Each ROW is padded to a multiple of 4 bytes.
+
+FUNCTION  XgrGetImage (grid, UBYTE image[])
+:XgrGetImage32()
+##############################
+#####  XgrGetImage32 ()  #####
+##############################
+
+	error = XgrGetImage32 (grid, @image[])
+
+FUNCTION  XgrGetImage32 (grid, UBYTE image[])
+:XgrGetImageArrayInfo()
+#####################################
+#####  XgrGetImageArrayInfo ()  #####
+#####################################
+
+	error = XgrGetImageArrayInfo (@image[], @bitsPerPixel, @width, @height)
+
+FUNCTION  XgrGetImageArrayInfo (UBYTE image[], bitsPerPixel, width, height)
+:XgrGetImageArrayInfoPNM()
+########################################
+#####  XgrGetImageArrayInfoPNM ()  ##### 151220-+
+########################################
+
+	error = XgrGetImageArrayInfoPNM (@image[], @bitsPerPixel, @width, @height)
+
+	See: XgrGetImageArrayInfo()
+
+FUNCTION  XgrGetImageArrayInfoPNM (UBYTE image[], bitsPerPixel, width, height)
+:XgrGetKeystateModify()
+#####################################
+#####  XgrGetKeystateModify ()  #####
+#####################################
+
+	modify = XgrGetKeystateModify (state, @modify, @edit)
+
+	XgrGetKeystateModify() estimates whether a #KeyDown message
+	with the specified state argument would normally modify text
+	in a common text grids like XuiTextLine and XuiTextArea.
+
+FUNCTION  XgrGetKeystateModify (state, modify, edit)
+:XgrGetMessages()
+###############################
+#####  XgrGetMessages ()  #####
+###############################
+
+FUNCTION  XgrGetMessages (@count, MESSAGE m[])
+:XgrGetMessageType()
+##################################
+#####  XgrGetMessageType ()  #####
+##################################
+
+	XgrGetMessageType (message, @messageType)
+
+# = messageType
+	0 = not defined
+	1 = $$Window
+	2 = $$Grid
+
+FUNCTION  XgrGetMessageType (message, @messageType)
+:XgrGetModalWindow()
+##################################
+#####  XgrGetModalWindow ()  #####
+##################################
+
+	XgrGetModalWindow (@window)
+
+FUNCTION  XgrGetModalWindow (window)
+:XgrGetMonitors()
+###############################
+#####  XgrGetMonitors ()  #####
+###############################
+
+FUNCTION  XgrGetMonitors (grid, MESSAGE r1[])
+:XgrGetMouseInfo()
+################################
+#####  XgrGetMouseInfo ()  #####
+################################
+
+	XgrGetMouseInfo (@window, @grid, @x, @y, @state, @time)
+
+FUNCTION  XgrGetMouseInfo (window, grid, x, y, state, time)
+:XgrGetSelectedWindow()
+#####################################
+#####  XgrGetSelectedWindow ()  #####
+#####################################
+
+	XgrGetSelectedWindow (@window)
+
+FUNCTION  XgrGetSelectedWindow (window)
+:XgrGetSystemDisplay()
+####################################
+#####  XgrGetSystemDisplay ()  #####
+####################################
+
+	sdisplay = XgrGetSystemDisplay()
+
+	Retrieve the default 'X11 display pointer
+
+FUNCTION  XgrGetSystemDisplay()
+:XgrGetTextArrayImageSize()
+#########################################
+#####  XgrGetTextArrayImageSize ()  #####
+#########################################
+
+	error = XgrGetTextArrayImageSize (font, @text$[], @w, @h, @width, @height, extraX, extraY)
+
+	Calculates the size of a box needed to deplay the text in text$[] using
+	the font number and extraX and extraY supplied.
+
+	Linux does not support drawwing text on an angle, so
+	width will always equal w, and height will always equal h
+
+	extraX is the number of pixels to add to the w and width
+	extraY is the number of pixels to add to the h and height for each line in the text$[] array
+
+FUNCTION  XgrGetTextArrayImageSize (font, text$[], w, h, width, height, extraX, extraY)
+:XgrGetTextImageSize()
+####################################
+#####  XgrGetTextImageSize ()  #####
+####################################
+
+	error = XgrGetTextImageSize (font, text$, @dx, @dy, @width, @height, @gap, @space)
+
+	Calculates the size of a box needed to deplay the characters in text$
+	using the font number.
+
+FUNCTION  XgrGetTextImageSize (font, text$, @dx, @dy, @width, @height, @gap, @space)
+:XgrGetTextSelectionGrid()
+########################################
+#####  XgrGetTextSelectionGrid ()  #####
+########################################
+
+FUNCTION  XgrGetTextSelectionGrid (@grid)
+:XgrGetWindowDisplay()
+####################################
+#####  XgrGetWindowDisplay ()  #####
+####################################
+
+	error = XgrGetWindowDisplay (window, @display$)
+
+FUNCTION  XgrGetWindowDisplay (window, display$)
+:XgrGetWindowFunction()
+#####################################
+#####  XgrGetWindowFunction ()  #####
+#####################################
+
+	error = XgrGetWindowFunction (window, @func)
+
+FUNCTION  XgrGetWindowFunction (window, func)
+:XgrGetWindowGrid()
+#################################
+#####  XgrGetWindowGrid ()  #####
+#################################
+
+	error = XgrGetWindowGrid (window, @grid)
+
+	See: XgrGetGridWindow()
+
+FUNCTION  XgrGetWindowGrid (window, grid)
+:XgrGetWindowIcon()
+#################################
+#####  XgrGetWindowIcon ()  #####
+#################################
+
+	error = XgrGetWindowIcon (window, @icon)
+
+	See:  XgrIconNameToNumber(), XgrIconNumberToName(), XgrSetWindowIcon()
+
+FUNCTION  XgrGetWindowIcon (window, icon)
+:XgrGetWindowPositionAndSize()
+############################################
+#####  XgrGetWindowPositionAndSize ()  #####
+############################################
+
+	error = XgrGetWindowPositionAndSize (window, @x, @y, @width, @height)
+
+FUNCTION  XgrGetWindowPositionAndSize (window, x, y, width, height)
+:XgrGetWindowPropertyXLONG()
+#######################################
+#####  XgrGetWindowPropertyXLONG  #####
+#######################################
+
+FUNCTION  XgrGetWindowPropertyXLONG (wingrid, property, type, items, data[])
+:XgrGetWindowState()
+##################################
+#####  XgrGetWindowState ()  #####
+##################################
+
+	error = XgrGetWindowState (window, @state)
+
+	error = TRUE if the window number is invalid or is destroyed
+
+	NOTE: If the window is in the process of changing state, such as from hidden to visible,
+	      this function waits for up to 5 seconds for it to stablize before returning.
+
+FUNCTION  XgrGetWindowState (window, state)
+:XgrGetWindowTitle()
+##################################
+#####  XgrGetWindowTitle ()  #####
+##################################
+
+	error = XgrGetWindowTitle (window, @title$)
+
+FUNCTION  XgrGetWindowTitle (window, title$)
+:XgrGetWindowVisibility()
+#######################################
+#####  XgrGetWindowVisibility ()  #####
+#######################################
+
+	error = XgrGetWindowVisibility (window, @visibility)
+
+FUNCTION  XgrGetWindowVisibility (window, visibility)
+:XgrGetWorkArea()
+############################
+#####  XgrGetWorkArea  #####
+############################
+
+	error = XgrGetWorkArea (@workAreaX, @workAreaY, @workAreaWidth, @workAreaHeight)
+
+	If there is a error, it returns the display size as the work area.
+
+FUNCTION  XgrGetWorkArea (@workAreaX, @workAreaY, @workAreaWidth, @workAreaHeight)
+:XgrGrabPoint()
+#############################
+#####  XgrGrabPoint ()  #####
+#############################
+
+	error = XgrGrabPoint (grid, x, y, @r, @g, @b, @color)
+
+FUNCTION  XgrGrabPoint (grid, x, y, r, g, b, color)
+:XgrGrabPointGrid()
+#################################
+#####  XgrGrabPointGrid ()  #####
+#################################
+
+	error = XgrGrabPointGrid (grid, xGrid, yGrid, @r, @g, @b, @color)
+
+FUNCTION  XgrGrabPointGrid (grid, xGrid, yGrid, @r, @g, @b, @color)
+:XgrGrabPointScaled()
+###################################
+#####  XgrGrabPointScaled ()  #####
+###################################
+
+	error = XgrGrabPointScaled (grid, x#, y#, @r, @g, @b, @color)
+
+FUNCTION  XgrGrabPointScaled (grid, x#, y#, @r, @g, @b, @color)
+:XgrGridTypeNameToNumber()
+########################################
+#####  XgrGridTypeNameToNumber ()  #####
+########################################
+
+	XgrGridTypeNameToNumber (gridType$, @gridType)
+
+	"Coordinate"   - 0
+	"Image"        - 1
+	"LastGridType" - highest grid type number
+	 invalid grid type name - type -1
+
+	See: XgrGridTypeNumberToName(), XgrRegisterGridType()
+
+FUNCTION  XgrGridTypeNameToNumber (gridType$, @gridType)
+:XgrGridTypeNumberToName()
+########################################
+#####  XgrGridTypeNumberToName ()  #####
+########################################
+
+	XgrGridTypeNumberToName (gridType, @gridType$)
+
+	See: XgrGridTypeNameToNumber(), XgrRegisterGridType()
+
+FUNCTION  XgrGridTypeNumberToName (gridType, @gridType$)
+:XgrHideWindow()
+##############################
+#####  XgrHideWindow ()  #####
+##############################
+
+	error = XgrHideWindow (wingrid)
+
+	See: XgrDisplayWindow(), XgrShowWindow()
+
+FUNCTION  XgrHideWindow (window)
+:XgrIconNameToNumber()
+####################################
+#####  XgrIconNameToNumber ()  #####
+####################################
+
+	error = XgrIconNameToNumber (icon$, @icon)
+
+	XgrIconNameToNumber() converts iconName$ into the iconNumber
+	originally assigned it by XgrRegisterIcon().
+	If iconName$ was never registered, iconNumber = 0.
+
+FUNCTION  XgrIconNameToNumber (icon$, @icon)
+:XgrIconNumberToName()
+####################################
+#####  XgrIconNumberToName ()  #####
+####################################
+
+	error = XgrIconNumberToName (iconNumber, @iconName$)
+
+	XgrIconNumberToName() converts iconNumber into the iconName$
+	it was created for by XgrRegisterIcon().
+
+	If iconNumber has not been assigned to any icon, iconName$ = "".
+
+FUNCTION  XgrIconNumberToName (icon, @icon$)
+:XgrJamMessage()
+##############################
+#####  XgrJamMessage ()  #####
+##############################
+
+	XgrJamMessage (winGrid, message, v0, v1, v2, v3, r0, r1)
+
+	Adds a message at the front of the queue, which makes it the next
+	message accessed by XgrPeekMessages(), XgrProcessMessages, etc.
+
+FUNCTION  XgrJamMessage (winGrid, message, v0, v1, v2, v3, r0, r1)
+:XgrLoadFile()
+#############################
+#####  XgrLoadImage ()  #####
+#############################
+
+	error = XgrLoadFile (filename$, @file@@[])
+
+	Load an entire filename$ file from disk into a UBYTE array @file@@[].
+
+FUNCTION  XgrLoadFile (filename$, UBYTE file[])
+:XgrLoadImage()
+#############################
+#####  XgrLoadImage ()  #####
+#############################
+
+	error = XgrLoadImage (filename$, @image[])
+
+FUNCTION  XgrLoadImage (filename$, UBYTE image[])
+:XgrMallocInfo()
+##############################
+#####  XgrMallocInfo ()  #####
+##############################
+
+		XgrMallocInfo (@arena, @ordblks, @smblks, @hblks, @hblkhd, @usmblks, @fsmblks, @wordblks, @fordblks, @keepcost)
+
+FUNCTION  XgrMallocInfo (arena, ordblks, smblks, hblks, hblkhd, usmblks, fsmblks, wordblks, fordblks, keepcost)
+:XgrMaximizeWindow()
+##################################
+#####  XgrMaximizeWindow ()  #####
+##################################
+
+	error = XgrMaximizeWindow (wingrid)
+
+	See: MaximizeWindow
+
+FUNCTION  XgrMaximizeWindow (window)
+:XgrMessageNames()
+################################
+#####  XgrMessageNames ()  #####
+################################
+
+FUNCTION  XgrMessageNames (count, mess$[])
+:XgrMessageNameToNumber()
+#######################################
+#####  XgrMessageNameToNumber ()  #####
+#######################################
+
+	XgrMessageNameToNumber (message$, @message)
+
+	Input message name message$ is not altered
+	Returns message = 0 if message$ is not valid
+
+FUNCTION  XgrMessageNameToNumber (message$, message)
+:XgrMessageNumberToName()
+#######################################
+#####  XgrMessageNumberToName ()  #####
+#######################################
+
+	XgrMessageNumberToName (message, @message$)
+
+FUNCTION  XgrMessageNumberToName (message, message$)
+:XgrMessagesPending()
+###################################
+#####  XgrMessagesPending ()  #####
+###################################
+
+	XgrMessagesPending (@count)
+
+	Returns a count of the number of messages in the message queue.
+	The number is the user queue for a user program
+	and the system queue for a system program.
+
+FUNCTION  XgrMessagesPending (count)
+:XgrMinimizeWindow()
+##################################
+#####  XgrMinimizeWindow ()  #####
+##################################
+
+	error = XgrMinimizeWindow (wingrid)
+
+	See: MinimizeWindow
+
+FUNCTION  XgrMinimizeWindow (window)
+:XgrMonitor()
+###########################
+#####  XgrMonitor ()  #####
+###########################
+
+FUNCTION  XgrMonitor (grid, message, v0, v1, v2, v3, r0, r1)
+:XgrMoveDelta()
+#############################
+#####  XgrMoveDelta ()  #####
+#############################
+
+	error = XgrMoveDelta (grid, dx, dy)
+
+FUNCTION  XgrMoveDelta (grid, dx, dy)
+:XgrMoveDeltaGrid()
+#################################
+#####  XgrMoveDeltaGrid ()  #####
+#################################
+
+	error = XgrMoveDeltaGrid (grid, dxGrid, dyGrid)
+
+FUNCTION  XgrMoveDeltaGrid (grid, dxGrid, dyGrid)
+:XgrMoveDeltaScaled()
+###################################
+#####  XgrMoveDeltaScaled ()  #####
+###################################
+
+	error = XgrMoveDeltaScaled (grid, dx#, dy#)
+
+FUNCTION  XgrMoveDeltaScaled (grid, dx#, dy#)
+:XgrMoveTo()
+##########################
+#####  XgrMoveTo ()  #####
+##########################
+
+	error = XgrMoveTo (grid, x, y)
+
+FUNCTION  XgrMoveTo (grid, x, y)
+:XgrMoveToGrid()
+##############################
+#####  XgrMoveToGrid ()  #####
+##############################
+
+	error = XgrMoveToGrid (grid, xGrid, yGrid)
+
+FUNCTION  XgrMoveToGrid (grid, xGrid, yGrid)
+:XgrMoveToScaled()
+################################
+#####  XgrMoveToScaled ()  #####
+################################
+
+	error = XgrMoveToScaled (grid, x#, y#)
+
+FUNCTION  XgrMoveToScaled (grid, x#, y#)
+:XgrPeekMessage()
+###############################
+#####  XgrPeekMessage ()  #####
+###############################
+
+	XgrPeekMessage() returns the next message in the message queue in
+	(wingrid,message,v0,v1,v2,v3) without removing it from the queue.
+	If the message queue is empty, XgrPeekMessage() suspends the
+	application until a message becomes available.
+
+	If called by a user program, it waits for a message in the user queue.
+
+FUNCTION  XgrPeekMessage (wingrid, message, v0, v1, v2, v3, r0, r1)
+:XgrPlaceWindow()
+###############################
+#####  XgrPlaceWindow ()  #####
+###############################
+
+	altered = XgrPlaceWindow (windowType, @xDisp, @yDisp, @width, @height)
+
+	Check that a window with supplied dimensions will fit within the
+	work-area and alter the values, if needed, to make it fit.
+
+	altered = $$TRUE if the values returned have been altered
+
+FUNCTION  XgrPlaceWindow (windowType, xDisp, yDisp, width, height)
+:XgrProcessMessages()
+###################################
+#####  XgrProcessMessages ()  #####
+###################################
+
+	XgrProcessMessages ($$ProcessAllOrNone)
+
+		$$ProcessOneOnly      =  1
+		$$ProcessOneOrNone    =  0
+		$$ProcessOneOrAll     = -1
+		$$ProcessAllOrNone    = -2
+
+	An (argCount) of 1 or more will process exactly that
+	number of messages and then immediately return. Also,
+	it will not return until that number of messages are
+	processed. If the number of messages in the message
+	queue is less than argCount, this function blocks or
+	sleeps until the requested number of messages are
+	loaded in the queue and processed, and then returns.
+
+	An argCount of -3 or less, it will process one
+	message in the message queue and return, but if there
+	are no message in the queue, it will sleep for up to
+	absolute value in millicesonds or until a message is
+	availble, process it, and then return.
+
+	System messages are processed first.
+	User messages are processed second.
+	Mouse and keyboard messages are processed last.
+
+	If a Modal window is active, all keyboard input
+	is directed to the modal window and all mouse
+	action outside the modal window is ignored.
+
+FUNCTION  XgrProcessMessages (argCount)
+:XgrRedrawWindow()
+################################
+#####  XgrRedrawWindow ()  #####
+################################
+
+	error = XgrRedrawWindow (window, action, x, y, width, height)
+
+	Every grid within the window's coordinates will be redrawn
+
+	action = TRUE  : send #RedrawGrid
+	action = FALSE : add  #RedrawGrid to message queue
+	      (everybody sets the action to $$TRUE)
+
+FUNCTION  XgrRedrawWindow (window, action, x, y, width, height)
+:XgrRefreshGrid()
+###############################
+#####  XgrRefreshGrid ()  #####
+###############################
+
+FUNCTION  XgrRefreshGrid (grid)
+:XgrRegisterCursor()
+##################################
+#####  XgrRegisterCursor ()  #####
+##################################
+
+	error = XgrRegisterCursor (filename$, @cursor)
+
+	XgrRegisterCursor() assigns a unique cursor number for filename$
+
+	filename$, excluding the directory portion, is changed to
+	lower case characters and then checked for the following:
+	If filename$ = "",           cursor = 0
+	If filename$ = "default",    cursor = 0
+	If filename$ = "LastCursor", cursor = highest cursor number assigned
+	"crosshair" is converted to "plus"
+	"hourglass" is converted to "wait"
+
+FUNCTION  XgrRegisterCursor (filename$, @cursor)
+:XgrRegisterGridType()
+####################################
+#####  XgrRegisterGridType ()  #####
+####################################
+
+	XgrRegisterGridType (gridType$, @gridType)
+
+	See: XgrGridTypeNameToNumber(), XgrGridTypeNumberToName()
+
+FUNCTION  XgrRegisterGridType (gridType$, @gridType)
+:XgrRegisterIcon()
+################################
+#####  XgrRegisterIcon ()  #####
+################################
+
+	error = XgrRegisterIcon (filename$, @icon)
+
+	XgrRegisterIcon() assigns a unique icon number for filename$
+
+	If filename$ = "",         icon = 0
+	If filename$ = "default",  icon = 0
+	If filename$ = "LastIcon", icon = highest icon number assigned
+
+FUNCTION  XgrRegisterIcon (filename$, @icon)
+:XgrRegisterIconColor()
+#####################################
+#####  XgrRegisterIconColor ()  #####
+#####################################
+
+	this does not work, apparently because icons have to be bitmaps
+	(1 bit depth pixmaps), though I can't find this stated anywhere.
+
+FUNCTION  XgrRegisterIconColor (filename$, @icon)
+:XgrRegisterMessage()
+###################################
+#####  XgrRegisterMessage ()  #####
+###################################
+
+FUNCTION  XgrRegisterMessage (message$, message)
+:XgrRestoreWindow()
+#################################
+#####  XgrRestoreWindow ()  #####
+#################################
+
+	error = XgrRestoreWindow (wingrid)
+
+	See: RestoreWindow
+
+FUNCTION  XgrRestoreWindow (window)
+:XgrSaveImage()
+#############################
+#####  XgrSaveImage ()  #####
+#############################
+
+FUNCTION  XgrSaveImage (file$, UBYTE image[])
+:XgrSendMessage()
+###############################
+#####  XgrSendMessage ()  #####
+###############################
+
+FUNCTION  XgrSendMessage (wingrid, message, v0, v1, v2, v3, r0, r1)
+:XgrSendStringMessage()
+#####################################
+#####  XgrSendStringMessage ()  #####
+#####################################
+
+FUNCTION  XgrSendStringMessage (wingrid, message$, v0, v1, v2, v3, r0, r1)
+:XgrSetBackgroundColor()
+######################################
+#####  XgrSetBackgroundColor ()  #####
+######################################
+
+	error = XgrSetBackgroundColor (grid, color)
+
+FUNCTION  XgrSetBackgroundColor (grid, color)
+:XgrSetBackgroundRGB()
+####################################
+#####  XgrSetBackgroundRGB ()  #####
+####################################
+
+	error = XgrSetBackgroundRGB (grid, red, green, blue)
+
+FUNCTION  XgrSetBackgroundRGB (grid, red, green, blue)
+:XgrSetCEO()
+##########################
+#####  XgrSetCEO ()  #####
+##########################
+
+FUNCTION  XgrSetCEO (func)
+:XgrSetClipboard()
+################################
+#####  XgrSetClipboard ()  #####
+################################
+
+	error = XgrSetClipboard (clipboard, clipType, @text$, @image[])
+
+	XgrSetClipboard() installs text$ and/or image[] into clipboard,
+	depending on the type of data specified by clipType.
+	The system clipboard is clipboard=0.
+
+	clipType = 0 = $$ClipboardTypeNone
+	clipType = 1 = $$ClipboardTypeText
+	clipType = 2 = $$ClipboardTypeImage
+
+	See: XgrGetClipboard()
+
+FUNCTION  XgrSetClipboard (clipboard, type, data$, UBYTE data[])
+:XgrSetColors()
+#############################
+#####  XgrSetColors ()  #####
+#############################
+
+	error = XgrSetColors (grid, back, draw, low, high, dull, acc, lowtext, hightext)
+
+FUNCTION  XgrSetColors (grid, back, draw, low, high, dull, acc, lowtext, hightext)
+:XgrSetCursor()
+#############################
+#####  XgrSetCursor ()  #####
+#############################
+
+	Not used in Linux.
+
+	X11 changes the cursor as it moves from grid to grid
+	as defined in XgrSetGridCursor()
+
+	See: XgrSetGridCursor(), XuiSetCursor()
+
+FUNCTION  XgrSetCursor (cursor, @oldCursor)
+:XgrSetCursorOverride()
+#####################################
+#####  XgrSetCursorOverride ()  #####
+#####################################
+
+	error = XgrSetCursorOverride (cursor, @oldCursor)
+
+	XgrSetCursorOverride() sets the current cursorOverride and returns
+	the oldCursorOverride.  The displayed cursor changes to cursor.
+
+	If cursor = 0, the cursorOverride is removed and the
+	cursor is set to the value before the any override.
+
+	See: SetCursor, XgrRegisterCursor()
+
+FUNCTION  XgrSetCursorOverride (cursor, @oldCursorOverride)
+:XgrSetDebug()
+############################
+#####  XgrSetDebug ()  #####  set debug variable
+############################
+
+	XgrSetDebug (arg)
+
+	 $$DebugBrief          = 1
+	 $$DebugWordy          = 2
+	 $$DebugError          = 4
+
+FUNCTION  XgrSetDebug (arg)
+:XgrSetDefaultColors()
+####################################
+#####  XgrSetDefaultColors ()  #####
+####################################
+
+	XgrSetDefaultColors (back, draw, low, high, dull, acc, lowtext, hightext)
+
+FUNCTION  XgrSetDefaultColors (back, draw, low, high, dull, acc, lowtext, hightext)
+:XgrSetDrawingColor()
+###################################
+#####  XgrSetDrawingColor ()  #####
+###################################
+
+	error = XgrSetDrawingColor (wingrid, color)
+
+	color values range from $$Black = 0 to $$White = 124
+
+	See: "xgr.dec" for color constants
+
+FUNCTION  XgrSetDrawingColor (grid, color)
+:XgrSetDrawingRGB()
+#################################
+#####  XgrSetDrawingRGB ()  #####
+#################################
+
+	error = XgrSetDrawingRGB (grid, red, green, blue)
+
+	red, green and blue values range from 0 to 65535 (16-bits)
+
+FUNCTION  XgrSetDrawingRGB (grid, red, green, blue)
+:XgrSetDrawpoint()
+################################
+#####  XgrSetDrawpoint ()  #####
+################################
+
+	error = XgrSetDrawpoint (grid, x, y)
+
+FUNCTION  XgrSetDrawpoint (grid, x, y)
+:XgrSetDrawpointGrid()
+####################################
+#####  XgrSetDrawpointGrid ()  #####
+####################################
+
+	error = XgrSetDrawpointGrid (grid, xGrid, yGrid)
+
+FUNCTION  XgrSetDrawpointGrid (grid, xGrid, yGrid)
+:XgrSetDrawpointScaled()
+######################################
+#####  XgrSetDrawpointScaled ()  #####
+######################################
+
+	error = XgrSetDrawpointScaled (grid, x#, y#)
+
+FUNCTION  XgrSetDrawpointScaled (grid, x#, y#)
+:XgrSetGridBorder()
+#################################
+#####  XgrSetGridBorder ()  #####
+#################################
+
+	error = XgrSetGridBorder (grid, border, borderUp, borderDown, 0)
+
+	borderFlags is not implemented
+
+	See: XgrGetGridBorder()
+
+FUNCTION  XgrSetGridBorder (grid, border, borderUp, borderDown, borderFlags)
+:XgrSetGridBorderOffset()
+#######################################
+#####  XgrSetGridBorderOffset ()  #####
+#######################################
+
+	error = XgrSetGridBorderOffset (grid, left, top, right, bottom)
+
+	See: XgrGetGridBorderOffset()
+
+FUNCTION  XgrSetGridBorderOffset (grid, left, top, right, bottom)
+:XgrSetGridBox()
+##############################
+#####  XgrSetGridBox ()  #####
+##############################
+
+	error = XgrSetGridBox (grid, x1Grid, y1Grid, x2Grid, y2Grid)
+
+	Sets the (upper-left, lower-right) of the grid-box to the grid
+	coordinates. It does not change the position or size of the grid,
+	and if the values of x2Grid, y2Grid are inconsistent with grid width
+	and height, they are adjusted to make them so.
+
+FUNCTION  XgrSetGridBox (grid, x1Grid, y1Grid, x2Grid, y2Grid)
+:XgrSetGridBoxGrid()
+##################################
+#####  XgrSetGridBoxGrid ()  #####
+##################################
+
+	error = XgrSetGridBoxGrid (grid, x1Grid, y1Grid, x2Grid, y2Grid)
+
+	Sets the (upper-left, lower-right) of the grid-box to the grid
+	coordinates. It does not change the position or size of the grid,
+	and if the values of x2Grid, y2Grid are inconsistent with grid width
+	and height, they are adjusted to make them so.
+
+FUNCTION  XgrSetGridBoxGrid (grid, x1Grid, y1Grid, x2Grid, y2Grid)
+:XgrSetGridBoxScaled()
+####################################
+#####  XgrSetGridBoxScaled ()  #####
+####################################
+
+	error = XgrSetGridBoxScaled (grid, x1#, y1#, x2#, y2#)
+
+	Sets the (upper-left, lower-right) of the grid-box
+	to scaled coordinates  x1#, y1#, x2#, y2#.
+	It does not change the position or size of the grid,
+
+FUNCTION  XgrSetGridBoxScaled (grid, x1#, y1#, x2#, y2#)
+:XgrSetGridBoxScaledAt()
+######################################
+#####  XgrSetGridBoxScaledAt ()  #####
+######################################
+
+	error = XgrSetGridBoxScaledAt (grid, x1#, y1#, x2#, y2#, x1, y1, x2, y2)
+
+FUNCTION  XgrSetGridBoxScaledAt (grid, x1#, y1#, x2#, y2#, x1, y1, x2, y2)
+:XgrSetGridBuffer()
+#################################
+#####  XgrSetGridBuffer ()  #####
+#################################
+
+	error = XgrSetGridBuffer (grid, buffer, x, y)
+
+	See: XgrGetGridBuffer()
+
+FUNCTION  XgrSetGridBuffer (grid, buffer, x, y)
+:XgrSetGridCharacterMapArray()
+############################################
+#####  XgrSetGridCharacterMapArray ()  #####
+############################################
+
+	error = XgrSetGridCharacterMapArray (grid, @map[])
+
+	See: XgrGetGridCharacterMapArray()
+
+FUNCTION  XgrSetGridCharacterMapArray (grid, map[])
+:XgrSetGridClip()
+###############################
+#####  XgrSetGridClip ()  #####
+###############################
+
+FUNCTION  XgrSetGridClip (grid, clip)
+:XgrSetGridColors()
+################################
+#####  XgrSetGridColors()  #####
+################################
+
+	error = XgrSetGridColors (grid, back, draw, low, high, dull, acc, lowtext, hightext)
+
+FUNCTION  XgrSetGridColors (grid, back, draw, low, high, dull, acc, lowtext, hightext)
+:XgrSetGridCursor()
+#################################
+#####  XgrSetGridCursor ()  #####
+#################################
+
+	error = XgrSetGridCursor (grid, cursor)
+
+	XgrSetGridCursor() tells X11 the cursor to be displayed
+	when the mouse is in this grid.
+
+	See: XgrSetCursor(), XuiSetCursor()
+
+FUNCTION  XgrSetGridCursor (grid, cursor)
+:XgrSetGridDrawingMode()
+######################################
+#####  XgrSetGridDrawingMode ()  #####
+######################################
+
+	error = XgrSetGridDrawingMode (grid, drawMode, lineStyle, lineWidth)
+
+	$$DrawModeSET
+	$$DrawModeXOR
+	$$DrawModeAND
+	$$DrawModeOR
+
+	$$LineStyleSolid
+	$$LineStyleDash
+	$$LineStyleDot
+	$$LineStyleDashDot
+	$$LineStyleDashDotDot
+
+	lineWidth is in pixels. A line width of 0 (zero) is known in Linux as
+	          a "thin" line one pixel wide and usually drawn faster and looks
+	          better than a width of 1.
+
+	lineMode or lineStyle of -1 means no change
+
+	There can be strange drawing results if the program loses track of the
+	drawing mode.  One solution might be to save the existing mode at the
+	beginning of the program and restoring it at the end:
+
+	  XgrGetGridDrawingMode (grid, @drawMode, @lineStyle, @lineWidth) 'save mode
+	  XgrSetGridDrawingMode (grid, $$DrawModeSET, $$LineStyleDash, 4) 'new mode
+	    ... draw dashed lines ...
+	  XgrSetGridDrawingMode (grid, drawMode, lineStyle, lineWidth)  'restore mode
+
+	See: XgrGetGridDrawingMode()
+
+FUNCTION  XgrSetGridDrawingMode (grid, drawMode, lineStyle, lineWidth)
+:XgrSetGridFont()
+###############################
+#####  XgrSetGridFont ()  #####
+###############################
+
+	error = XgrSetGridFont (grid, font)
+
+	See: XgrGetGridFont()
+
+FUNCTION  XgrSetGridFont (grid, font)
+:XgrSetGridFunction()
+###################################
+#####  XgrSetGridFunction ()  #####
+###################################
+
+	error = XgrSetGridFunction (grid, &gridFunc())
+
+	Replaces the grid function address that was set by XgrCreateGrid()
+
+	CAUTION: Remember to put the "&" at the beginning and the "()"
+	at the end of the function name, so that it is the address of a
+	function and no the content or address of a variable.
+
+	Use SetGridFunction message or XuiSetGridFunction() on GUI Designer
+	windows so GUI and  Graphics programs have identical information.
+
+	See: SetGridFunction, XgrGetGridFunction()
+
+FUNCTION  XgrSetGridFunction (grid, gridFunc)
+:XgrSetGridParent()
+#################################
+#####  XgrSetGridParent ()  #####
+#################################
+
+	unimplemented
+
+	See: XgrGetGridParent(), XgrCreateGrid()
+
+FUNCTION  XgrSetGridParent (grid, parent)
+:XgrSetGridPositionAndSize()
+##########################################
+#####  XgrSetGridPositionAndSize ()  #####
+##########################################
+
+	error = XgrSetGridPositionAndSize (grid, x, y, width, height)
+
+FUNCTION  XgrSetGridPositionAndSize (grid, x, y, width, height)
+:XgrSetGridState()
+################################
+#####  XgrSetGridState ()  #####
+################################
+
+	error = XgrSetGridState (grid, state)
+
+	Use of this function is not recomended
+
+	See: XgrDisplayWindow(), XgrShowWindow(), XgrHideWindow()
+	     XgrGetWindowState(), XgrGetWindowVisibility()
+
+FUNCTION  XgrSetGridState (grid, state)
+:XgrSetGridTimer()
+################################
+#####  XgrSetGridTimer ()  #####
+################################
+
+	error = XgrSetGridTimer (grid, msec)
+
+	msec = 0 will stop the timer
+
+	See: XgrGetGridTimerID()
+
+FUNCTION  XgrSetGridTimer (grid, msec)
+:XgrSetGridType()
+###############################
+#####  XgrSetGridType ()  #####
+###############################
+
+	error = XgrSetGridType (grid, gridType)
+
+	See: XgrGetGridType()
+
+FUNCTION  XgrSetGridType (grid, gridType)
+:XgrSetImage()
+############################
+#####  XgrSetImage ()  #####
+############################
+
+FUNCTION  XgrSetImage (grid, UBYTE image[])
+:XgrSetImagePNM()
+###############################
+#####  XgrSetImagePNM ()  #####
+###############################
+
+	error = XgrSetImagePNM (grid, @image[])
+
+	pnm - portable anymap file format
+	pbm - portable bitmap file format  P1,P4
+	pgm - portable graymap file format P2,P5
+	ppm - portable pixmap file format  P3,P6
+
+	See: XgrSetImage(),
+
+FUNCTION  XgrSetImagePNM (grid, UBYTE image[])
+:XgrSetModalWindow()
+##################################
+#####  XgrSetModalWindow ()  #####
+##################################
+
+	error = XgrSetModalWindow (window)
+
+	replace current modal window with new modal window or zero (none)
+
+FUNCTION  XgrSetModalWindow (window)
+:XgrSetSelectedWindow()
+#####################################
+#####  XgrSetSelectedWindow ()  #####
+#####################################
+
+FUNCTION  XgrSetSelectedWindow (window)
+:XgrSetTextSelectionGrid()
+########################################
+#####  XgrSetTextSelectionGrid ()  #####
+########################################
+
+FUNCTION  XgrSetTextSelectionGrid (grid)
+:XgrSetWindowFunction()
+#####################################
+#####  XgrSetWindowFunction ()  #####
+#####################################
+
+	error = XgrSetWindowFunction (window, &function())
+
+FUNCTION  XgrSetWindowFunction (window, func)
+:XgrSetWindowIcon()
+#################################
+#####  XgrSetWindowIcon ()  #####
+#################################
+
+	error = XgrSetWindowIcon (window, icon)
+
+FUNCTION  XgrSetWindowIcon (window, icon)
+:XgrSetWindowMaxMinSize()
+#######################################
+#####  XgrSetWindowMaxMinSize ()  #####
+#######################################
+
+	error = XgrSetWindowMaxMinSize (window)
+
+FUNCTION  XgrSetWindowMaxMinSize (window)
+:XgrSetWindowPositionAndSize()
+############################################
+#####  XgrSetWindowPositionAndSize ()  #####
+############################################
+
+	error = XgrSetWindowPositionAndSize (window, x, y, width, height)
+
+FUNCTION  XgrSetWindowPositionAndSize (window, x, y, width, height)
+:XgrSetWindowState()
+##################################
+#####  XgrSetWindowState ()  #####
+##################################
+
+	error = XgrSetWindowState (window, visibility)
+
+FUNCTION  XgrSetWindowState (window, visibility)
+:XgrSetWindowTitle()
+##################################
+#####  XgrSetWindowTitle ()  #####
+##################################
+
+	error = XgrSetWindowTitle (window, title$)
+
+FUNCTION  XgrSetWindowTitle (window, title$)
+:XgrSetWindowVisibility()
+#######################################
+#####  XgrSetWindowVisibility ()  #####
+#######################################
+
+	error = XgrSetWindowVisibility (window, visibility)
+
+FUNCTION  XgrSetWindowVisibility (window, visibility)
+:XgrShowWindow()
+##############################
+#####  XgrShowWindow ()  #####
+##############################
+
+	error = XgrShowWindow (window)
+
+	 Make a window visible, but NOT active.
+	 Some window managers and how they are configured may still make the window active.
+
+	See: XgrDisplayWindow(), XgrHideWindow()
+
+FUNCTION  XgrShowWindow (window)
+:XgrSystemWindowToWindow()
+#####################################
+#####  XgrSystemWindowToWindow  #####
+#####################################
+
+	error = XgrSystemWindowToWindow (swindow, @window, @top)
+
+	swindow = requested Display Manager System Window number
+	window  = returned native window number
+	top     = returned native top level window number
+
+	error is set if window is destroyed or in the process of being destroyed
+
+	See: XgrWindowToSystemWindow()
+
+FUNCTION  XgrSystemWindowToWindow (swindow, window, top)
+:XgrUnsetTextSelectionGrid()
+##########################################
+#####  XgrUnsetTextSelectionGrid ()  #####
+##########################################
+
+FUNCTION  XgrUnsetTextSelectionGrid (grid)
+:XgrVersion$()
+############################
+#####  XgrVersion$ ()  #####
+############################
+
+	version$ = XgrVersion$ ()
+
+	XgrVersion$() returns the current Graphics User Interface version$.
+
+FUNCTION  XgrVersion$ ()
+:XgrWindowToSystemWindow()
+########################################
+#####  XgrWindowToSystemWindow ()  #####
+########################################
+
+	XgrWindowToSystemWindow (window, @swindow)
+
+	swindow = zero if no match found
+
+	See: XgrSystemWindowToWindow()
+
+FUNCTION  XgrWindowToSystemWindow (window, swindow)
+:XgrXcwCreateFontSet()
+####################################
+#####  XgrXcwCreateFontSet ()  #####
+####################################
+
+	sfontset = XgrXcwCreateFontSet (@fontSet, fontSetNames$, @missing$[], @def$)
+	XFreeStringList(missing)
+
+	Xlib default fonts directories:
+	/usr/lib/X11/fonts/misc            Several fixed-width fonts, the cursor font
+	/usr/lib/X11/fonts/75dpi           Fixed- and variable-width fonts, 75 dots per inch
+	/usr/lib/X11/fonts/100dpi          Fixed- and variable-width fonts, 100 dots per inch
+
+	/etc/X11/fonts/...
+
+FUNCTION  XgrXcwCreateFontSet (fontSet, fontSetNames$, missing$[], def$)
+:XgrXcwFreeFontSet()
+##################################
+#####  XgrXcwFreeFontSet ()  #####
+##################################
+
+	error = XgrXcwFreeFontSet (font)
+
+FUNCTION  XgrXcwFreeFontSet (fontSet)
+:XgrXcwGetFontsOfFontSet()
+########################################
+#####  XgrXcwGetFontsOfFontSet ()  #####
+########################################
+
+	numberOfFonts = XgrGetFontsOfFontSet (fontSet, @xfstructList[], @fontList$[])
+
+FUNCTION  XgrXcwGetFontsOfFontSet (fontSet, XFontStruct xfstructList[], fontList$[])
+:XgrXcwGetOneFontName()
+#####################################
+#####  XgrXcwGetOneFontName ()  #####
+#####################################
+
+	XgrXcwGetOneFontName (count, @fontName$)
+
+	XgrGetFontNames() returns the names of all typefaces
+	from which fonts can be created by XgrCreateFont().
+
+	count = -2 : list all typeface names
+	count = -3 : list everything with detail information
+
+	An X-Window font name is a string with 14 fields separated by "-"
+
+	"-f-t-w-s-w-?-p-t-h-v-s-a-c-#"
+	  | | | | | | | | | | | | | |
+	  foundry - Adobe, Bitstream, etc
+	    typeface - courier, helvetica, etc
+	      weight - thin, normal, medium, demibold, bold, heavy, etc
+	        slant - roman (normal), italic, oblique, ri (reverse italic), ro (reverse oblique), ot (other)
+	          width - normal, condensed, semicondensed, narrow, doublewidth
+	            ? - style ??? (informal, roman, serif, sansserif) ???
+	              pixels -
+	                tenpoints - 10 * point size (point = 1/72 inch)
+	                  hdpi - horizontal resolution in dots per inch
+	                    vdpi - vertical resolution in dots per inch
+	                      spacing - m = monospace : p = proportional : c = character cell
+	                        average width in 1/10 pixels
+	                          character set ("iso8859")
+	                            character set extension # ("1")
+
+FUNCTION  XgrXcwGetOneFontName (@count, @fontName$)
+:XgrXcwGetUfont()
+###############################
+#####  XgrXcwGetUfont ()  #####
+###############################
+
+	FONT fontInfo
+	errorUpper = XgrXcwGetUfont (font, @fontName$, @ufont$, @fontInfo)
+
+FUNCTION  XgrXcwGetUfont (font, fontName$, ufont$, FONT fontInfo)
+:XgrXcwInvalidGrid()
+##################################
+#####  XgrXcwInvalidGrid ()  #####
+##################################
+
+FUNCTION  XgrXcwInvalidGrid (grid)
+:XgrXcwLocalToBufferCoords()
+##########################################
+#####  XgrXcwLocalToBufferCoords ()  #####
+##########################################
+
+FUNCTION  XgrXcwLocalToBufferCoords (grid, buffer, @sbuffer, @overlap, x1, y1, x2, y2, @xx1, @yy1, @xx2, @yy2)
+:XgrXcwSetDrawingColor()
+######################################
+#####  XgrXcwSetDrawingColor ()  #####
+######################################
+
+FUNCTION  XgrXcwSetDrawingColor (window, color)
+:XgrXcwSetLocale$()
+################################
+#####  XgrXcwSetLocale$ ()  #####
+################################
+
+FUNCTION  XgrXcwSetLocale$ (category, locale$)
+:XgrXcwUtf8ToWc()
+###############################
+#####  XgrXcwUtf8ToWc ()  #####
+###############################
+
+	error = XgrUtf8ToWc (@utf8$, @wchar[])
+
+FUNCTION  XgrXcwUtf8ToWc (utf8$, ULONG wchar[])
+:XgrXcwWinGridDrawable()
+######################################
+#####  XgrXcwWinGridDrawable ()  #####
+######################################
+
+FUNCTION  XgrXcwWinGridDrawable (winGrid)
+:XgrXmbTextExtents()
+##################################
+#####  XgrXmbTextExtents ()  #####
+##################################
+
+FUNCTION  XgrXmbTextExtents (sfontset, mbString$, XRectangle rectInk, XRectangle rectOverall)
+:XgrXwcTextExtents()
+##################################
+#####  XgrXwcTextExtents ()  #####
+##################################
+
+FUNCTION  XgrXwcTextExtents (sfontset, wchar[], XRectangle rectInk, XRectangle rectOverall)

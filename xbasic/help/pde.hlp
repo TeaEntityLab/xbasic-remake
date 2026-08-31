@@ -1,0 +1,3032 @@
+:Environment
+#########################
+#####  Environment  #####
+#########################
+The program development environment.
+	
+	For more information, request help on individual
+	grids in the main window, or in accessory windows.
+	
+:FileNew
+:New,                            main menu > File
+##############################################################
+#####  New,                            main menu > File  #####
+##############################################################
+
+	Prepare to start editing a new
+	text file, program, or GUI program.
+	The existing file is lost.
+	
+:FileBox
+#####################
+#####  FileBox  #####
+#####################
+Select a disk file.  To select a particular file,
+	enter the name in the TextLine grid at the top of
+	the window, then press the Enter key or click on
+	the Enter button.  You can double click a filename
+	in the right hand List grid to enter that filename
+	into the TextLine.  You can navigate other drives
+	and directories with the DriveBox and DirectoryList
+	grids on the left.
+	
+:SelectFile
+########################
+#####  SelectFile  #####
+########################
+Select a file.
+	
+:FileTextLoad
+:Open As Text,                   main menu > File
+##############################################################
+#####  Open As Text,                   main menu > File  #####
+##############################################################
+
+	Load a text file.  The entire file is
+	loaded into the lower text area where
+	it can be edited and potentially saved.
+	
+:FileLoad
+:Open,                           main menu > File
+##############################################################
+#####  Open,                           main menu > File  #####
+##############################################################
+
+	Load a program file.  The program is
+	loaded, then broken into a PROLOG and
+	one or more functions.
+	
+	The PROLOG is initially displayed in
+	the lower text area.
+	
+:FileSave
+:Save,                           main menu > File
+##############################################################
+#####  Save,                           main menu > File  #####
+##############################################################
+
+	Save the currently loaded text or program file.
+	
+:FileMode
+:Mode,                           main menu > File
+##############################################################
+#####  Mode,                           main menu > File  #####
+##############################################################
+
+	Switch back and forth between text mode
+	and program mode.
+	
+:FileRename
+:RenameSave,                     main menu > File
+##############################################################
+#####  RenameSave,                     main menu > File  #####
+##############################################################
+
+	Save the currently loaded file under a new name.
+	The new name becomes the new default load and
+	save filename. (also known as "Save As...")
+	
+:EditFind
+:Find,                           main menu > Edit
+##############################################################
+#####  Find,                           main menu > Edit  #####
+##############################################################
+
+	Dispalys the "find and replace" window which is used
+	to search for and replace text in the loaded file.
+	
+	local      - limit search to within the current function
+	
+	match case - case sensitive search
+	
+	reverse    - search in a decending character position
+	             decending line number & decending function order
+	
+	whole word - locate only entire words (right-click on whole word
+	             button for information on '#' and '$' characters)
+	
+	find       - find the next occurence of the find: string
+	             the number of times in the repetitions label.
+	
+	replace    - find the next occurence of the find: string
+	             and replace it with the replace: string
+	             the number of times in the repetitions label.
+	             If the repetitions is 0 (zero) replace the
+	             last selected found string and find the next match.
+	
+	Shift + find    - put selected text in the    find: text area
+	
+	Shift + replace - put selected text in the replace: text area
+	
+	Cancel     - Clears the find text and replace text,
+	             and hides the "find / replace" window.
+	
+	Shift + Cancel - Clears the find text and replace text.
+	
+	Close (X)  - Hides the "find / replace" window leaving
+	             the find text and replace text in place.
+	
+:WholeWord
+#######################
+#####  WholeWord  #####
+#######################
+When the "whole word" toggle button is
+	operated, it tells the find operation
+	to locate only entire words and not
+	text that's part of a larger word.
+	Characters A-Z, a-z, 0-9, # and $
+	are considered part of a word.
+	The symbols '#' and '$' are included to
+	because XBasic labels use these symbols.
+	"cat" would match on "cat" but not on
+	"cats", "cat$" nor "#cat"
+	
+:EditRead
+:Read,                           main menu > Edit
+##############################################################
+#####  Read,                           main menu > Edit  #####
+##############################################################
+Read a text file from disk into the clipboard
+	so that it may then be pasted as desired.
+	
+:EditWrite
+:Paste To File,                  main menu > Edit
+:Extra To File,                  main menu > Edit
+:Console To File,                main menu > Edit
+##############################################################
+#####  Paste To File,                  main menu > Edit  #####
+#####  Extra To File,                  main menu > Edit  #####
+#####  Console To File,                main menu > Edit  #####
+##############################################################
+
+	Paste To File
+	Write the text from the clipboard to a file.
+	
+	Extra To File,                  main menu > Edit
+	Write the text from the extra (second) clipboard to a file.
+	
+	Console To File,                main menu > Edit
+	Write the entire text of the console to a file.
+	
+:ViewFunction
+:Function,                       main menu > View
+##############################################################
+#####  Function,                       main menu > View  #####
+##############################################################
+
+	View a function by loading it into
+	the lower text area.
+	
+:ViewNew
+:New Function,                   main menu > View
+##############################################################
+#####  New Function,                   main menu > View  #####
+##############################################################
+
+	Create and view a new function having
+	any valid function name that is not
+	currently defined.
+	
+:ViewDelete
+:Delete Function,                main menu > View
+##############################################################
+#####  Delete Function,                main menu > View  #####
+##############################################################
+
+	Delete any existing function.
+	
+:ViewRename
+:Rename Function,                main menu > View
+##############################################################
+#####  Rename Function,                main menu > View  #####
+##############################################################
+Rename the function currently loaded
+	into the lower text area.
+	
+:ViewClone
+:Clone Function,                 main menu > View
+##############################################################
+#####  Clone Function,                 main menu > View  #####
+##############################################################
+Create and view a new function with having a
+	new name  with the contents identical to the
+	currently displayed function.
+	
+:ViewImport
+:Import Function From *.x,       main menu > View
+##############################################################
+#####  Import Function From *.x,       main menu > View  #####
+##############################################################
+
+	Import and view a function from a valid
+	XBasic program, with a "*.x" filename.
+	
+:display/hide GuiDesigner toolkit,  main menu > View
+:GuiDesigner toolkit, display/hide, main menu > View
+:toolkit GuiDesigner, display/hide, main menu > View
+#################################################################
+#####  GuiDesigner toolkit, display/hide, main menu > View  #####
+#####  toolkit GuiDesigner, display/hide, main menu > View  #####
+#################################################################
+
+	To see how to use the GuiDesigner toolkit
+	see the GuiDesigner Guide at:
+	  https://www.maxreason.com/software/xbasic/documentation/guiguide.htm
+	  http://www.manmrk.net/tutorials/basic/xbasic/html/intro.htm
+	
+:OptionTabs
+:Tab Width (Pixels),             main menu > Options
+#################################################################
+#####  Tab Width (Pixels),             main menu > Options  #####
+#################################################################
+OptionTabs
+	
+:DebugMemory
+:Memory,                         main menu > Debug
+###############################################################
+#####  Memory,                         main menu > Debug  #####
+###############################################################
+DebugMemory
+	
+	Clear       c
+	Memory Map  m
+	Registers   r
+	Assembly    a [<hexAddr> [<hexBytes>]]
+	Display     d [<hexAddr> [<hexBytes>]]
+	Fill        f <hexAddr> <hexBytes> <hexValue>
+	Locate      l <hexValue>
+	Substitute  s [<hexAddr>] <hexValue>
+	
+:DebugAssembly
+:Assembly,                       main menu > Debug
+:F10
+###############################################################
+#####  Assembly,                       main menu > Debug  #####
+#####  F10                                                #####
+###############################################################
+
+	Display assembly language for cursor line.
+	The user program must be compiled.
+	
+:DebugRegisters
+:Registers,                      main menu > Debug
+###############################################################
+#####  Registers,                      main menu > Debug  #####
+###############################################################
+
+	Display CPU registers.
+	
+:WizardCompileErrors
+:Compilation Errors,             main menu > Status
+################################################################
+#####  Compilation Errors,             main menu > Status  #####
+################################################################
+
+	Displays the compile errors window with information on each error.
+	Normally the compile errors window is automatically displayed
+	when there is an error while compiling a program.
+	
+	See: stop compile on error
+	
+:WizardRuntimeErrors
+:Runtime Errors,                 main menu > Status
+################################################################
+#####  Runtime Errors,                 main menu > Status  #####
+################################################################
+
+	Display the latest Runtime Error.
+	
+:WizardProfiler
+############################
+#####  WizardProfiler  #####
+############################
+
+	WizardProfiler.
+	
+:Variables
+#######################
+#####  Variables  #####
+#######################
+Variables.
+	
+:Array
+###################
+#####  Array  #####
+###################
+Array.
+	
+:String
+####################
+#####  String  #####
+####################
+String.
+	
+:Composite
+#######################
+#####  Composite  #####
+#######################
+Composite.
+	
+:Frames
+####################
+#####  Frames  #####
+####################
+Frames.
+	
+:Warning3
+######################
+#####  Warning3  #####
+######################
+Warning3.
+	
+:Warning4
+######################
+#####  Warning4  #####
+######################
+Warning4.
+	
+:MenuBar
+#####################
+#####  MenuBar  #####
+#####################
+The main MenuBar contains catagories of program
+	development environment commands.  When you
+	select a MenuBar heading (File, Edit...), a
+	PullDown menu appears below the heading.
+	
+	Select any entry in the PullDown to
+	perform the indicated action, or click
+	elsewhere to disable the PullDown.
+	
+:FileLabel
+#######################
+#####  FileLabel  #####
+#######################
+Names the program or text file currently loaded.
+	Click the file name to display a list of the
+	most recent files that have been loaded.
+	Double-click any file name in the list to
+	reloaded that file with the same function
+	displayed and the cursor in the same position.
+	
+:RecentFileList
+############################
+#####  RecentFileList  #####
+############################
+This is a list of the most recent files
+	that have been loaded in the Program
+	Development Environment (PDE).
+	Double-click any file name in the list to
+	reloaded that file with the same function
+	displayed and the cursor in the same position.
+	
+:StatusLabel
+#########################
+#####  StatusLabel  #####
+#########################
+The current status of the program development
+	environment.  The defined states include:
+	
+	  initializing
+	  loading
+	  loaded
+	  parsing
+	  compiling
+	  compiled
+	  running
+	  paused
+	  errors
+	
+:Function
+######################
+#####  Function  #####
+######################
+Names the function currently displayed in the
+	lower TextArea.  Click the function name to
+	display a list of all functions in the program.
+	Click any function in the list to display that
+	function in the lower TextArea.
+	
+	If a text file is loaded or a program file is
+	in the text mode, "text" will be displayed as
+	the funtion name and the list will be empty.
+	
+:Command
+#####################
+#####  Command  #####
+#####################
+This is the command entry portion of the
+	program development environment main window.
+	Status information is printed here, and you
+	can enter a variety of dot commands here also.
+	
+	You can toggle the insert cursor between the upper
+	and lower text areas by pressing the escape key.
+	
+	You can enter "dot commands" in the upper text
+	area to perform various program development tasks,
+	including any operation you can select from the
+	main pulldown menus.
+	
+	DOT COMMAND SYNTAX =  .<command>[<space><argument>]
+	
+	  Commands:  all menu bar commands are executed using their 2-letter mnemonic
+	  Examples:  .fn = FileNew [filetype] (t | p | g)
+	             .ft = FileTextLoad [filename]
+	             .fl = FileLoad [filename]
+	             .fs = FileSave [filename]
+	             .fm = FileMode
+	             .fr = FileRename [filename]
+	             .fq = FileQuit
+	             .ec = EditCut  (selected text)
+	             .eg = EditGrab (selected text)
+	             .ep = EditPaste (at insert cursor)
+	  ... etc ...
+	
+	  accept filename argument : ft  fl  fs  fr  er  ew
+	  accept function name     : vv  vp  vn  vd  vr  vc
+	
+	*****  SPECIAL DOT COMMANDS  *****
+	
+	  .f        find text string  (see below)
+	  .r        replace text string  (see below)
+	  .c        clear command area
+	  .s#       set tag (a-z)
+	  .j#       jump to tag
+	  .         cursor line/character
+	  .#        move cursor to line #
+	  .v        view next function
+	  .v-       view previous function
+	  .v0       view PROLOG
+	  .a        again (repeat last command)
+	  .h        help (print dot command summary)
+	
+	FIND SYNTAX
+	  .[*|<#>][f|r][-][<space><find text>[<tab><replace text>]]
+	   [*|<#>]  = repetitions  (* = all instances, default = 1)
+	   [f|r]    = find | replace
+	   [-]      = reverse
+	   [<space>find text] = a single space delimits the find text
+	                         (optional: if not specified, last find text is used)
+	   [<tab>replace text] = a single tab (NOT 	) delimits the replace text
+	                          (optional: if not specified, last replace text is used)
+	
+	Example: .*r recieve	receive  (replace all instances)
+	            |       |                 (forward)
+	          space    tab
+	
+	
+:TextLower
+#######################
+#####  TextLower  #####
+#######################
+The lower TextArea is where text files and
+	programs are displayed.  You can edit your
+	text and programs here in conventional ways.
+	
+	Press the escape key to toggle the text
+	cursor between the upper and lower TextArea.
+	
+	In Program or GuiProgram mode, only one
+	function is displayed in the lower TextArea
+	at a time.  Select ViewFunction from the
+	MenuBar to display another function.
+	
+	In Text mode, the whole file is displayed.
+	
+	The appearance and operation of the TextLower
+	can be changed by selecting Options from the main menu:
+	
+	Options > Misc
+	Options > Color of Text Cursor and Line
+	OPtions > Tab Width
+	
+:HotProlog
+#######################
+#####  HotProlog  #####
+#######################
+Display program PROLOG.
+	
+:HotNew
+####################
+#####  HotNew  #####
+####################
+Create a new text-file or program or GuiProgram
+	and display it in the lower TextArea.
+	
+	 * New TextFile clears the lower TextArea.
+	
+	 * New Program creates a complete minimal
+	   program with PROLOG and Entry() function.
+	
+	 * New GuiProgram creates a complete minimal
+	   GuiDesigner program with PROLOG, Entry(),
+	   and other GuiDesigner-specific functions.
+	   You need to layout a GuiDesigner window
+	   with the toolkit and convert it into two
+	   new functions in the program by selecting
+	   "Window ToFunction" in the toolkit menu.
+	
+:HotLoad
+#####################
+#####  HotLoad  #####
+#####################
+Load a program or text-file.
+	
+:HotSave
+#####################
+#####  HotSave  #####
+#####################
+Save current program or text-file.
+	
+:HotSavePlus
+#########################
+#####  HotSavePlus  #####
+#########################
+Save current program or text-file.
+	This capability will be enhanced
+	someday to automatically save the
+	file with version number suffixes.
+	
+:HotCut
+####################
+#####  HotCut  #####
+####################
+Cut selected text from any XBasic window
+	TextArea and put a copy in the system
+	PRIMARY clipboard. To paste the text in
+	other programs, such as gedit, press the
+	mouse middle button.
+	
+	See: Keyboard shortcuts
+	
+:HotCopy
+#####################
+#####  HotCopy  #####
+#####################
+Copy selected text from any XBasic window
+	TextArea and put a copy in the system
+	PRIMARY clipboard. To paste the text in
+	other programs, such as gedit, press the
+	middle mouse button.
+	
+	See: Keyboard shortcuts
+	
+:HotPaste
+######################
+#####  HotPaste  #####
+######################
+Paste the text in the system PRIMARY
+	clipboard into the lower TextArea to
+	replace selected text or at the
+	current text cursor position.
+	
+	See: Keyboard shortcuts
+	
+:HotGui
+####################
+#####  HotGui  #####
+####################
+Display / Hide the GuiDesigner toolkit window.
+	
+:HotAbort
+######################
+#####  HotAbort  #####
+######################
+Abort the operation in progress:
+	
+	  loading a program or text file
+	  parsing a program
+	  compiling a program
+	  searching for a "find" string
+	
+:HotFind
+#####################
+#####  HotFind  #####
+#####################
+Find the most recent find string.
+	
+	 Shift-key down = replace find string with selected text
+	
+	 Shift-key down = copy selected text to the find text box
+	                  of the find/replace window
+	
+	 Ctrl-key  down = search in reverse
+	
+	 An F11 keystroke also executes HotFind.
+	
+:HotReplace
+########################
+#####  HotReplace  #####
+########################
+Replace the selected found text with the replace string
+	and then search for the next occurrance of the find string.
+	
+	 Shift-key down = copy selected text to the replace text box
+	                  of the find/replace window
+	
+	 Ctrl-key  down = search in reverse
+	
+	 An F12 keystroke also executes HotReplace.
+	
+:HotBack
+#####################
+#####  HotBack  #####
+#####################
+Display the function before this one.
+	The order of functions corresponds to
+	function declarations in the PROLOG.
+	
+:HotNext
+#####################
+#####  HotNext  #####
+#####################
+Display the function after this one.
+	The order of functions corresponds to
+	function declarations in the PROLOG.
+	
+:HotPrevious
+:Prior Function,                 main menu > View
+##############################################################
+#####  Prior Function,                 main menu > View  #####
+##############################################################
+Display the previously displayed function.
+	
+:HotStart
+:Start,                          main menu > Run
+#############################################################
+#####  Start,                          main menu > Run  #####
+#############################################################
+
+	Start executing the program.  If changes to
+	the program require that part or all of the
+	program be recompiled, this will take place
+	before execution.
+	
+	An F1 keystroke also executes HotStart.
+	
+:HotContinue
+:Continue,                       main menu > Run
+#############################################################
+#####  Continue,                       main menu > Run  #####
+#############################################################
+
+	Continue program execution at the point it
+	left off, if possible.
+	
+	An F2 keystroke also executes HotContinue.
+	
+:HotPause
+:Pause,                          main menu > Run
+#############################################################
+#####  Pause,                          main menu > Run  #####
+#############################################################
+
+	Pause program execution.
+	
+	An F3 keystroke also executes HotPause.
+	
+:HotKill
+:Kill,                           main menu > Run
+#############################################################
+#####  Kill,                           main menu > Run  #####
+#############################################################
+
+	Kill program execution.  Execution cannot
+	pick up where it was terminated, but it can
+	be restarted.
+	
+	An F4 keystroke also executes HotKill.
+	
+	An F4 keystroke also executes HotKill a program
+	running in the standalone mode.
+	
+:HotToCursor
+#########################
+#####  HotToCursor  #####
+#########################
+Place an invisible breakpoint at the cursor
+	line and continue program execution until it
+	hits any breakpoint.
+	
+	The invisible breakpoint is removed when the
+	program is paused, killed, or hits a breakpoint.
+	
+	An F5 keystroke also executes HotToCursor.
+	
+:HotStepLocal
+##########################
+#####  HotStepLocal  #####
+##########################
+Execute one program line.  If a function is
+	called on the line, do not display execution
+	in that function, just step to the next line
+	in the current function.
+	
+	StepLocal places breakpoints on every line in
+	the displayed function, then continues.  If
+	the function calls itself, StepLocal will step
+	to the first executable line in the function.
+	
+	An F6 keystroke also executes HotStepLocal.
+	
+:HotStepGlobal
+###########################
+#####  HotStepGlobal  #####
+###########################
+Execute one program line.  If a function in
+	the current program is called on the line,
+	display, step to the first executable line
+	in that function.
+	
+	StepGlobal places breakpoints on every line
+	in the program, then continues running.
+	
+	An F7 keystroke also executes HotStepGlobal.
+	
+:HotStepOut
+########################
+#####  HotStepOut  #####
+########################
+Continue program execution until it returns
+	to the function that called the function
+	that is presently active.
+	If the function is recursively calling
+	itself, execution continues until all
+	recursive calls are complete and return is
+	out to the function that started the
+	recursive call.
+	
+	HotStepOut searches the call stack information
+	in reverse for a function number that is not the
+	same as the last function and places breakpoints
+	on every line of that function, then continues
+	execution until it hits any breakpoint.
+	
+:HotToggleBreakpoint
+#################################
+#####  HotToggleBreakpoint  #####
+#################################
+Toggle breakpoint on cursor line on/off.
+	
+:HotClearBreakpoints
+:Clear All Breakpoints,          main menu > Debug
+###############################################################
+#####  Clear All Breakpoints,          main menu > Debug  #####
+###############################################################
+Clear all breakpoints in the program.
+	
+:HotVariables
+##########################
+#####  HotVariables  #####
+##########################
+The HotVariables button displays the values of
+	all variables accessed by a function.  Programs
+	must be paused for HotVariables to work.
+	
+	When programs enter a paused state, the function
+	executing when paused is displayed in the lower
+	text area, and HotVariables displays its variables.
+	Click the HotFrames button to display the series
+	of functions that called the executing function,
+	and select any function to examine its variables.
+	
+	An F8 keystroke also executes HotVariables.
+	
+:HotFrames
+#######################
+#####  HotFrames  #####
+#######################
+Display the stack of functions that have
+	led to the current location in the program.
+	The currently executing function is at the
+	bottom of the list.
+	
+	To learn the exact line in each function
+	that called the next lower function, double
+	click on the function name in the list.
+	
+	An F9 keystroke also executes HotFrames.
+	
+:HotAssembly
+#########################
+#####  HotAssembly  #####
+#########################
+Disassemble the binary machine code for the
+	program line containing the insert cursor and
+	display the results.  The address, hexadecimal,
+	and assembly for each machine instructions are
+	displayed.
+	
+	An F10 keystroke also executes HotAssembly.
+	
+:HotRegisters
+##########################
+#####  HotRegisters  #####
+##########################
+Display the contents of the CPU registers.
+	The values are valid only when the program
+	is paused because the program encountered
+	a breakpoint or HotPause was selected.
+	
+:HotMemory
+#######################
+#####  HotMemory  #####
+#######################
+Display a window that can display the contents
+	of any valid memory locations in hexadecimal
+	form or as disassembly.  Enter "m" in the
+	TextLine at the bottom to see where valid
+	memory regions are.  Trying to display any
+	other regions may crash the whole environment!
+	
+:HelpWindow
+########################
+#####  HelpWindow  #####
+########################
+The HelpWindow is built into all programs developed
+	with GuiDesigner.  Its purpose is to display helpful
+	information, usually about the operation of the
+	currently executing program.  Help text is displayed
+	in the HelpWindow in response to user requests, or
+	as directed by executing programs.
+	
+	To request help, place the mouse cursor over any
+	component of the user interface and press the right
+	mouse button, which is called the "HelpButton".
+	The help text for that component is displayed in
+	the TextArea of the HelpWindow.
+	
+	Help text is usually taken from a help file that
+	contains all the help text for a single program.
+	Such is the case when the HelpLabel above the help
+	text contains a filename and entry name like the
+	"pde.hlp:HelpWindow" at label at the top of
+	the HelpWindow now.
+	
+	"pde.hlp" is a file on disk that contains one
+	or more help entries.  ":HelpWindow" is one of the
+	entries in file "pde.hlp".  Entry names begin
+	with a ":" and start at the first character position
+	on the line.  All lines to the next entry name is
+	the help text for the entry.
+	
+	Text in the HelpWindow can be edited like any other
+	text area.  Text is entered with the keyboard, and
+	deleted by the "delete" and "backspace" keys.
+	Sections of text deleted (or copied) from other
+	windows are inserted at the cursor position
+	by an "insert" keystroke.  Sections of the help
+	text can be highlighted and deleted (or copied),
+	and inserted into other text areas if desired.
+	
+	When the "Update" button is pressed, the text in
+	"filename.hlp:entry" is replaced by the current
+	contents of the HelpWindow.
+	
+	Sometimes help text is supplied directly by an
+	executing program.  In this case the HelpLabel
+	contains a title between square brackets, as in
+	[CurrentTitle], or nothing at all.  In this case,
+	the "Update" button has no effect.
+	
+	The HelpWindow is hidden when the "Cancel" button
+	is pressed, or forced to stay visible when the
+	"POST" button is pressed.
+	
+:HelpLabel
+#######################
+#####  HelpLabel  #####
+#######################
+This label displays the "file:entry" name
+	where the help information displayed below
+	was found.  If the information is not from
+	a text file, but supplied directly by a grid
+	or an executing program, this label displays
+	a [ Help Title ] in square brackets.
+	
+:HelpText
+######################
+#####  HelpText  #####
+######################
+This TextArea grid contains the help text for the
+	grid whose name is displayed in the Label grid just
+	above.  You can perform normal edit operations like
+	cut/grab/paste on the contents of this TextArea grid,
+	so you can extract useful information and change the
+	help text.  If you change the contents of this grid
+	and press the "Update" button below it, the help text
+	for the named grid is updated, and further requests
+	for help on the grid will show the modified help text.
+	If you do not press the "Update" button, the help text
+	in the help file is not updated.
+	
+:HelpPostHide
+##########################
+#####  HelpPostHide  #####
+##########################
+Post or Hide the HelpWindow.  Press this button
+	when it says "POST" to keep the HelpWindow from
+	being hidden between help requests.  Press this
+	button when it says "HIDE" to make the HelpWindow
+	disappear.  The HelpWindow will display again the
+	next time you press the right mouse button over a
+	grid in your program for which there is help text.
+	
+	
+:HelpUpdate
+########################
+#####  HelpUpdate  #####
+########################
+Update the help entry currently displayed in
+	the HelpWindow.  The text in the HelpWindow is
+	written to the "filename:entry" displayed above
+	the text.  If "filename:entry" already exists,
+	the new text replaces it.  The first time a help
+	file is updated the original file is backed up
+	as "filename.hhh" before "filename:entry" is
+	changed and saved as "filename.hlp".  Original
+	help filenames should end in ".hlp", not ".hhh"
+	because no backup of the original would be left.
+	
+:HelpCancel
+########################
+#####  HelpCancel  #####
+########################
+Cancel the InstantHelp window, which hides it from
+	sight.  It is displayed again the next time you press
+	the HelpButton over another grid or otherwise request
+	help from an application (via the main menu).
+	
+	
+:Toolkit
+#####################
+#####  Toolkit  #####
+#####################
+With the GuiDesigner toolkit you can create, delete,
+	and configure design windows, choose grids to layout
+	in the design windows, check and set the appearance
+	properties of the grids, and display the behavior of
+	the grids (see how messages are processed).
+	
+	*****
+	
+	The "TestMode" CheckBox selects the operating mode
+	of the displayed design window.  When in "TestMode",
+	grids in the design window operate as they will in
+	running programs.  When in "DesignMode", MouseDown
+	and MouseDrag select/move/resize grids.
+	
+	*****
+	
+	The "_Window _Grid" MenuBar lets you select Window
+	or Grid pulldown menus to operate on design windows,
+	or grids in the displayed design window:
+	
+	Window
+	 New:           Create a new design window.
+	 Hide:          Hide displayed design window.
+	 Load:          Load a design window from disk.
+	 Save:          Save design window to disk.
+	 Delete:        Delete displayed design window.
+	 ToFunction:    Create function from design window.
+	 FromFunction:  Create design window from function.
+	 HideToolkit:   Hide toolkit from view.
+	 n: (name)...:  Display any existing design window.
+	
+	Grid
+	 Appearance:    Set appearance of selected grid.
+	 Behavior:      See how grid messages are processed.
+	 Delete:        Delete selected grid.
+	
+	*****
+	
+	The "DesignWindowName" TextLine lets you give a name
+	to each design window.  Choose a valid symbol name,
+	because the function created by WindowToFunction is
+	given the same name as the design window from which
+	it's created.
+	
+	*****
+	
+	The "Another" button lets you create another grid
+	of the same type as the last selected grid.  Since
+	every grid is created in the selected state, you
+	can create a row or column of grids easily - just
+	position the first grid, then click "Another" as
+	many times as necessary to create subsequent grids.
+	
+	*****
+	
+	The rest of the PushButtons in the toolkit create
+	grids of the types named on the buttons.  To create
+	a "Label" grid, for example, click on the "Label"
+	PushButton in the toolkit.
+	
+	*****
+	
+	For more detailed help on each element in the
+	toolkit, point at them and click the right mouse
+	button (the HelpButton).
+	
+:ToolkitMainMenu
+#############################
+#####  ToolkitMainMenu  #####
+#############################
+The "Window" pulldown menu lets you operate
+	on design windows.
+	
+	The "Grid" pulldown menu lets you operate on
+	the selected grid in the displayed design
+	window.
+	
+	Window
+	 New:           Create a new design window.
+	 Hide:          Hide displayed design window.
+	 Load:          Load a design window from disk.
+	 Save:          Save design window to disk.
+	 Delete:        Delete displayed design window.
+	 ToFunction:    Create function from design window.
+	 FromFunction:  Create design window from function.
+	 HideToolkit:   Hide toolkit from view.
+	 n: (name)...:  Display any existing design window.
+	
+	Grid
+	 Appearance:    Set appearance of selected grid.
+	 Behavior:      See how grid messages are processed.
+	 Delete:        Delete selected grid.
+	
+	
+:ToolkitMenuWindow
+###############################
+#####  ToolkitMenuWindow  #####
+###############################
+New:          Create/Display a new design window.
+	Hide:         Hide the displayed design window.
+	Load:         Load a design window from disk.
+	Save:         Save a design window to disk.
+	Delete:       Delete the visible design window.
+	ToFunction:   Convert design window to function.
+	FromFunction: Make design window from function.
+	
+:ToolkitMenuGrid
+#############################
+#####  ToolkitMenuGrid  #####
+#############################
+Appearance: Change appearance of selected grid.
+	Behavior:   Check behavior of selected grid.
+	Delete:     Delete the selected grid.
+	
+:ToolkitWindowDelete
+#################################
+#####  ToolkitWindowDelete  #####
+#################################
+Delete the design window that is currently
+	displayed.  The window and all grids in the
+	window are destroyed and permanently lost.
+	
+:ToolkitWindowToFunction
+#####################################
+#####  ToolkitWindowToFunction  #####
+#####################################
+Generate a new grid function that creates
+	a new type of grid from the contents of the
+	currently displayed design window.
+	
+:ToolkitWindowFromFunction
+#######################################
+#####  ToolkitWindowFromFunction  #####
+#######################################
+Create and display a design window, then
+	fill it with grids like those defined in
+	the "SUB Create" portion of the grid
+	function currently displayed in the
+	lower text area of the environment.
+	
+:ToolkitGridAppearance
+###################################
+#####  ToolkitGridAppearance  #####
+###################################
+Display an "appearances window" that lets
+	you set the appearance attributes of the
+	selected grid.  When you change attributes
+	in the appearance window, the selected grid
+	changes appearance accordingly.
+	
+	If no grid is selected, nothing happens.
+	
+:ToolkitGridBehavior
+#################################
+#####  ToolkitGridBehavior  #####
+#################################
+GridBehavior displays a BehaviorWindow that
+	displays the messages recognized by the grid
+	most recently selected in a design window.
+	
+	In the left column are the recognized messages.
+	To its right is the message processing function
+	or message processing subroutine executed by the
+	grid function responsible for the grid when it
+	receives the message.
+	
+	If both a message processing function and a
+	message processing subroutine exist for a grid,
+	the message appears twice in the list.  The
+	message processing function is executed first
+	in most cases.  Functions called by message
+	processing subroutines are not displayed.
+	
+	The message processing functions and subroutines
+	are executed by two lines at the beginning of
+	grid functions as generated by GuiDesigner:
+	
+	  XuiProcessMessage (grid, message, ... )
+	  IF (message < upperMessage) THEN GOSUB @sub[message]
+	
+:ToolkitGridDelete
+###############################
+#####  ToolkitGridDelete  #####
+###############################
+Delete the selected grid from the active
+	design window.
+	
+:ToolkitDesignWindowLabel
+######################################
+#####  ToolkitDesignWindowLabel  #####
+######################################
+Enter the name of the visible design window in
+	the XuiTextLine grid below this label.
+	
+	Design window names must be a valid symbols
+	composed solely of alphabetic characters and
+	no whitespace.  Grid functions generated from
+	design windows are given the same name as the
+	design window, so choose descriptive names!!!
+	
+:ToolkitDesignWindowName
+#####################################
+#####  ToolkitDesignWindowName  #####
+#####################################
+Enter the name of the active (displayed) design
+	window in this TextLine grid.
+	
+	The design window name must be a valid symbol
+	name because the grid function created from the
+	design window (by WindowToFunction) is given the
+	same name as the design window.
+	
+	Also make sure that no two design windows have
+	the same name.  You can see the names of all
+	design windows at the bottom of the "Window"
+	pulldown menu in the toolkit.
+	
+:ToolkitAnother
+############################
+#####  ToolkitAnother  #####
+############################
+Create another grid of the same grid type
+	as the most recently selected grid.
+	
+	The created grid is the same size as the
+	previously selected grid.  If there is
+	room in the design window, the new grid
+	is positioned relative to the previously
+	selected grid in the following manner:
+	
+	CntlKey  ShiftKey
+	  UP        UP      To right of previous.
+	  UP       DOWN     Below previous.
+	 DOWN       UP      To left of previous.
+	 DOWN      DOWN     Above previous.
+	
+:ToolkitXuiArea
+############################
+#####  ToolkitXuiArea  #####
+############################
+Create an "XuiArea" grid in the design window.
+	
+	Area grids send callback messages in response
+	to all mouse messages except MouseMove.  Your
+	program can put XuiArea grids in design windows
+	wherever it needs to receive the following
+	basic mouse messages:
+	
+	MouseDown MouseDrag MouseEnter MouseExit MouseUp
+	
+	  v0 = xWin of mouse cursor
+	  v1 = yWin of mouse cursor
+	  v2 = state (see GraphicsDesigner doc)
+	  v3 = time  (see GraphicsDesigner doc)
+	
+:ToolkitXuiCheckBox
+################################
+#####  ToolkitXuiCheckBox  #####
+################################
+Create an "XuiCheckBox" grid in the design window.
+	
+	A XuiCheckBox toggles between checked and unchecked
+	on MouseDown.  It is not checked when created.
+	
+	When a XuiCheckBox enters the unchecked state, it
+	sends a Selection callback message with v0 = 0.
+	
+	When a XuiCheckBox enters the checked state, it
+	sends a Selection callback message with v0 != 0.
+	
+:ToolkitXuiColor
+#############################
+#####  ToolkitXuiColor  #####
+#############################
+Create an "XuiColor" grid in the design window.
+	
+	XuiColor grids are fixed-size rectangular areas
+	containing small rectangular color samples of
+	the 125 standard color numbers.
+	
+	When MouseDown events occur on any color, an
+	XuiColor grid sends a Selection callback with:
+	
+	  v0 = standard color number (0 to 124)
+	  v1 = red intensity (0 to 65535)
+	  v2 = green intensity (0 to 65535)
+	  v3 = blue intensity (0 to 65535)
+	
+	  65535 = 0x0000FFFF  (maximum 16-bit value)
+	
+:ToolkitXuiDialog1B
+################################
+#####  ToolkitXuiDialog1B  #####
+################################
+Create an "XuiDialog1B" grid in the design window.
+	
+	XuiDialog1B grids contain:
+	
+	  kid 0 = XuiDialog2B (appears as the frame)
+	  kid 1 = Label       (across the top)
+	  kid 2 = TextLine    (across the middle)
+	  kid 3 = PushButton  ("Cancel" button)
+	
+	XuiDialog1B grids send Selection callback messages:
+	
+	  kid 2 : EnterKey or EscapeKey Down (v0 = state)
+	  kid 3 : CancelButton selected
+	
+	XuiDialog1B grids send TextEvent callback messages
+	whenever any key is depressed (v0 = state).
+	
+	The "state" argument is described in the
+	HelpMessage section of the main menu.
+	
+:ToolkitXuiDialog2B
+################################
+#####  ToolkitXuiDialog2B  #####
+################################
+Create an "XuiDialog2B" grid in the design window.
+	
+	XuiDialog2B grids contain:
+	
+	  kid 0 = XuiDialog2B (appears as the frame)
+	  kid 1 = Label       (across the top)
+	  kid 2 = TextLine    (across the middle)
+	  kid 3 = PushButton  ("Enter" button)
+	  kid 4 = PushButton  ("Cancel" button)
+	
+	XuiDialog2B grids send Selection callback messages:
+	
+	  kid 2 : EnterKey or EscapeKey Down (v0 = state)
+	  kid 3 : EnterButton selected
+	  kid 4 : CancelButton selected
+	
+	XuiDialog2B grids send TextEvent callback messages
+	whenever any key is depressed (v0 = state).
+	
+	The "state" argument is described in the
+	HelpMessages section of the main menu.
+	
+:ToolkitXuiDialog3B
+################################
+#####  ToolkitXuiDialog3B  #####
+################################
+Create an "XuiDialog3B" grid in the design window.
+	
+	XuiDialog3B grids contain:
+	
+	  kid 0 = XuiDialog3B (appears as the frame)
+	  kid 1 = Label       (across the top)
+	  kid 2 = TextLine    (across the middle)
+	  kid 3 = PushButton  ("Enter" button)
+	  kid 4 = PushButton  ("Retry" button)
+	  kid 5 = PushButton  ("Cancel" button)
+	
+	XuiDialog3B grids send Selection callback messages:
+	
+	  kid 2 : EnterKey or EscapeKey Down (v0 = state)
+	  kid 3 : EnterButton selected
+	  kid 4 : RetryButton selected
+	  kid 5 : CancelButton selected
+	
+	XuiDialog3B grids send TextEvent callback messages
+	whenever any key is depressed (v0 = state).
+	
+	The (r0 = kid) argument in the callback message
+	identifies the kid that initiated the callback.
+	
+	The "state" argument is described in the
+	HelpMessages section of the main menu.
+	
+:ToolkitXuiDialog4B
+################################
+#####  ToolkitXuiDialog4B  #####
+################################
+Create an "XuiDialog4B" grid in the design window.
+	
+	XuiDialog4B grids contain:
+	
+	  kid 0 = XuiDialog4B (appears as the frame)
+	  kid 1 = Label       (across the top)
+	  kid 2 = TextLine    (across the middle)
+	  kid 3 = PushButton  ("Enter" button)
+	  kid 4 = PushButton  ("Update" button)
+	  kid 5 = PushButton  ("Retry" button)
+	  kid 6 = PushButton  ("Cancel" button)
+	
+	XuiDialog4B grids send Selection callback messages:
+	
+	  kid 2 : EnterKey or EscapeKey Down (v0 = state)
+	  kid 3 : EnterButton selected
+	  kid 4 : UpdateButton selected
+	  kid 5 : RetryButton selected
+	  kid 6 : CancelButton selected
+	
+	XuiDialog4B grids send TextEvent callback messages
+	whenever any key is depressed (v0 = state).
+	
+	The (r0 = kid) argument in the callback message
+	identifies the kid that initiated the callback.
+	
+	The "state" argument is described in the
+	HelpMessages section of the main menu.
+	
+:ToolkitXuiFile
+############################
+#####  ToolkitXuiFile  #####
+############################
+Create an "XuiFile" grid in the design window.
+	
+	Files grids contain:
+	
+	  TextLine     - file names can be entered here
+	  DriveBox     - select a system drive
+	  DirectoryBox - select a subdirectory
+	  FileBox      - select a file
+	  EnterButton  - select the file in TextLine
+	  CancelButton - select nothing, cancel request
+	
+	XuiFile grids send Selection callbacks when a
+	double click selects a file in the FileBox,
+	and when an EnterKey is entered in the TextLine.
+	
+:ToolkitXuiFont
+############################
+#####  ToolkitXuiFont  #####
+############################
+Create an "XuiFont" grid in the design window.
+	
+	XuiFont grids contain:
+		XuiLabel      - FontName label
+	  XuiListBox    - FontName list
+		XuiLabel      - FontSize label
+		XuiDropBox    - FontSize drop down list
+		XuiLabel      - FontWeight label
+		XuiDropBox    - FontWeight drop down list
+		XuiLabel      - FontItalic label
+		XuiDropBox    - FontItalic drop down list
+	  XuiLabel      - font samples drawn here
+	  XuiPushButton - Enter  (select the font)
+	  XuiPushButton - View  (view sample of the font)
+	  XuiPushButton - Cancel  (cancel/hide font box)
+	
+:ToolkitXuiGraph
+#############################
+#####  ToolkitXuiGraph  #####
+#############################
+Create an "XuiGraph" grid in the design window.
+	
+:ToolkitXuiLabel
+#############################
+#####  ToolkitXuiLabel  #####
+#############################
+Create an "XuiLabel" grid in the design window.
+	
+	XuiLabel grids display text strings and text arrays,
+	but produce no callbacks.  They can also be used
+	to draw graphics onto and as simple style areas.
+	
+	Text strings with newline characters (\n) are
+	displayed on multiple lines, as are the strings
+	in the text array.  To print "\n" on a label,
+	an extra backslash is required, as in "\\n".
+	
+:ToolkitXuiList
+############################
+#####  ToolkitXuiList  #####
+############################
+Create an "XuiList" grid in the design window.
+	
+	XuiList grids are scrollable lists of text entries.
+	
+	XuiList grids send a Selection callback whenever an
+	entry is double clicked or an EnterKey is pressed.
+	The selected entry is drawn in the accent color.
+	The UpArrow and DownArrow keys move the selected
+	entry up and down.  The top entry in the list is
+	entry number 0.
+	
+:ToolkitXuiDropButton
+##################################
+#####  ToolkitXuiDropButton  #####
+##################################
+Create an "XuiDropButton" grid in the design window.
+	XuiListButton looks like a solitary button.
+	
+	Select the button to hide and display an XuiPullDown
+	grid below the button.  If the button has keyboard
+	focus, Alt+UpArrow and Alt+DownArrow hide / display
+	the "XuiPullDown" grid.
+	
+	MouseUp on any "XuiPullDown" entry selects it.
+	Or choose an entry with UpArrow / DownArrow keys,
+	then select the entry with an Enter keystroke.
+	
+:ToolkitXuiDropBox
+###############################
+#####  ToolkitXuiDropBox  #####
+###############################
+Create an "XuiDropBox" grid in the design window.
+	
+:ToolkitXuiListBox
+###############################
+#####  ToolkitXuiListBox  #####
+###############################
+Create an "XuiListBox" grid in the design window.
+	
+	XuiListBox grids contain:
+	
+	  TextLine  - shows selected item, can be edited
+	  Button    - toggles PullDown list up and down
+	  PullDown  - displays entries, supports selection
+	
+	style bit 0 - TextLine editable/not-editable (0/1)
+	style bit 1 - PullDown toggles/stays down (0/1)
+	
+	The list box is under development.  The style bits
+	will change in the next release with more choices.
+	
+:ToolkitXuiListButton
+##################################
+#####  ToolkitXuiListButton  #####
+##################################
+Create an "XuiListButton" grid in the design window.
+	
+	XuiListButton looks like a solitary button.
+	
+	Select the button to hide and display an "XuiList"
+	grid below the button.  If the button has keyboard
+	focus, Alt+UpArrow and Alt+DownArrow hide / display
+	the "XuiList" grid.
+	
+	Double click any "XuiList" entry to select it.
+	Or choose an entry with a single mouse click
+	or the UpArrow / DownArrow keys, then select
+	the highlighted entry with an Enter keystroke.
+	
+:ToolkitXuiListDialog2B
+####################################
+#####  ToolkitXuiListDialog2B  #####
+####################################
+Create an "XuiListDialog2B" grid in the design window.
+	
+:ToolkitXuiMenu
+############################
+#####  ToolkitXuiMenu  #####
+############################
+Create an "XuiMenu" grid in the design window.
+	
+	XuiMenu grids create a horizontal MenuBar and
+	as many XuiPullDown lists as there are headings
+	in the MenuBar.  To configure the MenuBar and
+	XuiPullDown menus, set the XuiMenu TextArray
+	property as follows:
+	
+	  1. MenuBar entries start in first column.
+	  2. XuiPullDown entries follow, indented.
+	
+	  Example:
+	
+	_File
+	 _Load
+	 _Save
+	 _Quit
+	_Edit
+	 _Cut
+	 _Grab
+	 _Paste
+	_Help
+	 _Index
+	 _Summary
+	 _Contents
+	
+	The _ characters cause an _ to be drawn under
+	the following character.  Underlined characters
+	in the menu bar can be selected by pressing
+	Alt+Key.  Pulldown list entries can be selected
+	by pressing Key.  (Key = underlined character).
+	
+	To configure an XuiMenu in a design window, select
+	the XuiMenu grid, double click it to display the
+	AppearanceWindow, then click the TextArray button
+	to display the TextArray Window.
+	
+	Enter the XuiMenu data in the TextArray window as
+	described above.
+	
+	XuiMenu grids send a callback message when a menu
+	entry is selected.  v0 = -1 for cancel (no entry):
+	
+	  v0 = MenuBar entry (1,2,3,4,5,6...)
+	  v1 = XuiPullDown entry (0,1,2,3,4...)
+	
+	For example, if you select HelpSummary, the
+	Selection callback arguments will be:
+	
+	  v0 = 3   Help       (File,Edit,Help)
+	  v1 = 1   Summary    (Index,Summary,Contents)
+	
+	Two space characters are automatically appended
+	to MenuBar entries that do not already end with
+	a space character.  To specify more or less space
+	following each MenuBar entry, simply append space
+	characters to the end of the MenuBar entry names
+	in the TextArray property.
+	
+:ToolkitXuiMenuBar
+###############################
+#####  ToolkitXuiMenuBar  #####
+###############################
+Create an "XuiMenuBar" grid in the design window.
+	
+	XuiMenuBar grids display a horizontal row of
+	headings, each of which can have a "HotKey"
+	(the character following an _underline).
+	
+	XuiMenuBar grids send Selection callback messages
+	when a heading is selected by AltKey + HotKey,
+	or by MouseDown or MouseDrag in the heading.
+	
+:ToolkitXuiMessage1B
+#################################
+#####  ToolkitXuiMessage1B  #####
+#################################
+Create an "XuiMessage1B" grid in the design window.
+	
+	XuiMessage1B grids contain:
+	
+	  kid 0 = XuiMessage1B  (appears as the frame)
+	  kid 1 = Label         (across the top)
+	  kid 2 = PushButton    ("Cancel" button)
+	
+	XuiMessage1B grids send Selection callback messages:
+	
+	  kid 0 : v0 = 0/-1 on EnterKey / EscapeKey
+	  kid 2 : CancelButton selected
+	
+:ToolkitXuiMessage2B
+#################################
+#####  ToolkitXuiMessage2B  #####
+#################################
+Create an "XuiMessage2B" grid in the design window.
+	
+	XuiMessage2B grids contain:
+	
+	  kid 0 = XuiMessage2B  (appears as the frame)
+	  kid 1 = Label         (across the top)
+	  kid 2 = PushButton    ("Enter" button)
+	  kid 3 = PushButton    ("Cancel" button)
+	
+	XuiMessage2B grids send Selection callback messages:
+	
+	  kid 0 : v0 = 0/-1 on EnterKey / EscapeKey
+	  kid 2 : EnterButton selected
+	  kid 3 : CancelButton selected
+	
+:ToolkitXuiMessage3B
+#################################
+#####  ToolkitXuiMessage3B  #####
+#################################
+Create an "XuiMessage3B" grid in the design window.
+	
+	XuiMessage3B grids contain:
+	
+	  kid 0 = XuiMessage3B  (appears as the frame)
+	  kid 1 = Label         (across the top)
+	  kid 2 = PushButton    ("Enter" button)
+	  kid 3 = PushButton    ("Retry" button)
+	  kid 4 = PushButton    ("Cancel" button)
+	
+	XuiMessage3B grids send Selection callback messages:
+	
+	  kid 0 : v0 = 0/-1 on EnterKey / EscapeKey
+	  kid 2 : Left Button selected
+	  kid 3 : Center Button selected
+	  kid 4 : Right Button selected
+	
+:ToolkitXuiMessage4B
+#################################
+#####  ToolkitXuiMessage4B  #####
+#################################
+Create an "XuiMessage4B" grid in the design window.
+	
+	XuiMessage4B grids contain:
+	
+	  kid 0 = XuiMessage4B  (appears as the frame)
+	  kid 1 = Label         (across the top)
+	  kid 2 = PushButton    ("Enter" button)
+	  kid 3 = PushButton    ("Option1" button)
+	  kid 4 = PushButton    ("Option2" button)
+	  kid 5 = PushButton    ("Cancel" button)
+	
+	Message4B grids send Selection callback messages:
+	
+	  kid 0 : v0 = 0/-1 on EnterKey / EscapeKey
+	  kid 2 : Enter Button selected
+	  kid 3 : Option1 Button selected
+	  kid 4 : Option2 Button selected
+	  kid 5 : Cancel Button selected
+	
+:ToolkitXuiPressButton
+###################################
+#####  ToolkitXuiPressButton  #####
+###################################
+Create an "XuiPressButton" grid in the design window.
+	
+	XuiPressButton grids immediately generate Selection
+	callback messages in response to a MouseDown events.
+	In contrast, XuiPushButton grids generate Selection
+	callback messages in response to MouseDown+MouseUp.
+	
+:ToolkitXuiProgress
+################################
+#####  ToolkitXuiProgress  #####
+################################
+Create an "XuiProgress" grid in the design window.
+	
+:ToolkitXuiPrompt4B
+################################
+#####  ToolkitXuiPrompt4B  #####
+################################
+Create an "XuiPrompt4B" grid in the design window.
+	
+:ToolkitXuiPullDown
+################################
+#####  ToolkitXuiPullDown  #####
+################################
+Create an "XuiPullDown" grid in the design window.
+	
+	XuiPullDown grids contain a list of text entries.
+	The top entry is entry number 0.
+	
+	XuiPullDown grids send Selection callback messages
+	when an entry is selected by a MouseUp over the
+	entry.  v0 = entry #, where the top entry = 0.
+	
+	XuiPullDown grids will not resize smaller than is
+	necessary to display the entries they contain.
+	
+:ToolkitXuiPushButton
+##################################
+#####  ToolkitXuiPushButton  #####
+##################################
+Create an "XuiPushButton" grid in the design window.
+	
+	PushButton grids are selected by mouse events:
+	
+	  style = 0  - MouseDown/MouseUp in the same grid
+	  style = 1  - MouseDown
+	  style = 2  - same as style 0 but with "flat" look
+	
+	XuiPushButton grids send a Selection callback when
+	selected, with v0/v1 = xWin,yWin of mouse cursor.
+	
+:ToolkitXuiRadioBox
+################################
+#####  ToolkitXuiRadioBox  #####
+################################
+Create an "XuiRadioBox" grid in the design window.
+	
+	XuiRadioBox grids are selected by MouseDown:
+	
+	Every XuiRadioBox with the same parent (enclosing)
+	grid is a member of that XuiRadioBox group.  Only
+	one XuiRadioBox in a group is selected at a time.
+	When a XuiRadioBox is selected, it first deselects
+	any currently selected XuiRadioBox in the group.
+	
+	XuiRadioBox grids send a Selection callback when
+	deselected/selected with v0 = -1/0.
+	
+:ToolkitXuiRadioButton
+###################################
+#####  ToolkitXuiRadioButton  #####
+###################################
+Create an "XuiRadioButton" grid in the design window.
+	
+	XuiRadioButton grids are selected by MouseDown:
+	
+	Every XuiRadioButton with the same parent (enclosing)
+	grid is a member of that XuiRadioButton group.  Only
+	one XuiRadioButton in a group is selected at a time.
+	When a XuiRadioButton is selected, it first deselects
+	any currently selected XuiRadioButton in the group.
+	
+	XuiRadioButton grids send a Selection callback when
+	deselected/selected with v0 = -1/0.
+	
+:ToolkitXuiRange
+#############################
+#####  ToolkitXuiRange  #####
+#############################
+Create an "XuiRange" grid in the design window.
+	
+:ToolkitXuiScrollBarH
+##################################
+#####  ToolkitXuiScrollBarH  #####
+##################################
+Create an "XuiScrollBarH" grid in the design window.
+	
+	XuiScrollBarH grids are horizontal position controls
+	with no kids, but the following components:
+	
+	  LeftButton  - Left end of XuiScrollBarH
+	  RightButton - Right end of XuiScrollBarH
+	  Trough      - Extends from left to right button
+	  Slider      - Moves left right in the trough
+	
+	XuiScrollBarH grids send callback messages as follows:
+	
+	  OneLess     - MouseDown on LeftButton
+	  OneMore     - MouseDown on RightButton
+	  SomeLess    - MouseDown in trough left of slider
+	  SomeMore    - MouseDown in trough right of slider
+	  Change      - MouseDrag slider left or right
+	                v0 = zero  (left end of trough)
+	                v1 = low   (left end of slider)
+	                v2 = high  (right end of slider)
+	                v3 = top   (right end of trough)
+	
+	Send SetPosition to XuiScrollBarH to position the
+	slider in the trough.  The v0 to v3 arguments are
+	the same as above, except they can be in any units,
+	not necessarily pixels (as reported by Change).
+	
+	XuiScrollBarH will draw left:right arrows in the
+	left:right buttons if style bits 1:0 are set.
+	
+:ToolkitXuiScrollBarV
+##################################
+#####  ToolkitXuiScrollBarV  #####
+##################################
+Create an "XuiScrollBarV" grid in the design window.
+	
+	XuiScrollBarV grids are vertical position controls
+	with no kids, but the following components:
+	
+	  TopButton    - Top of XuiScrollBarV
+	  BottomButton - Bottom of XuiScrollBarV
+	  Trough       - Extends from top to bottom button
+	  Slider       - Moves up/down in the trough
+	
+	XuiScrollBarV grids send callback messages as follows:
+	
+	  OneLess     - MouseDown on Top Button
+	  OneMore     - MouseDown on Bottom Button
+	  SomeLess    - MouseDown in trough above slider
+	  SomeMore    - MouseDown in trough below slider
+	  Change      - MouseDrag slider up or down
+	                v0 = zero  (top end of trough)
+	                v1 = low   (top end of slider)
+	                v2 = high  (bottom end of slider)
+	                v3 = top   (bottom end of trough)
+	
+	Send SetPosition to XuiScrollBarV to position the
+	slider in the trough.  The v0 to v3 arguments are
+	the same as above, except they can be in any units,
+	not necessarily pixels (as reported by Change).
+	
+	XuiScrollBarV will draw up:down arrows in the
+	top:bottom buttons if style bits 1:0 are set.
+	
+:EditLoadBackup
+:Clean Backup,                   main menu > Edit
+:Load Backup,                    main menu > Edit
+:XBASICBACKUPDIR
+##############################################################
+#####  Clean Backup,                   main menu > Edit  #####
+#####  Load Backup,                    main menu > Edit  #####
+#####  XBASICBACKUPDIR                                   #####
+##############################################################
+
+	When Environment variable XBASICBACKUPDIR is set to the full path
+	of the directory that the backup files are to be stored in,
+	XBasic will write a copy of the xbasic program each time it is saved.
+	
+	main menu > Edit > Load Backup
+	
+	Then to restore the program back to an earlier saved copy,
+	click on "Edit" in the main menu and select "Load Backup"
+	
+	A window with a list of backup files will appear.
+	The name of the files  is the name of the original file
+	appended with the date and time and  ".bak" for example:
+	
+	ademo.x_131128_173355.bak
+	
+	means that the program ademo.x was saved
+	in 2013 November 28 at 5:33:55 PM
+	
+	Select the file you want to put back as the working copy of the program.
+	
+	main menu > Edit > Clean Backup
+	
+	To control the buildup of backup files, use the "Clean Backup" to
+	delete backup files that are older than a specified number of hours.
+	The default is 48 hours.
+	
+	Other backup choices are:
+	
+	main menu > Options > Misc
+	  make backup file
+	  save before comp.
+	  save before run
+	
+:ToolkitXuiTextArea
+################################
+#####  ToolkitXuiTextArea  #####
+################################
+Create an "XuiTextArea" grid in the design window.
+	
+	XuiTextArea grids are multi-line editable scrollable
+	text fields.  They have basic edit abilities like
+	selection, cut/grab/paste : delete/buffer/insert.
+	Cursor control keys are supported.
+	
+	  kid 0  - XuiTextArea
+	  kid 1  - TextField      - 0 & 1 merged currently
+	  kid 2  - ScrollBarH
+	  kid 3  - ScrollBarV
+	
+	XuiTextArea grids send a TextEvent callback every time
+	a character is pressed.  If the callback function
+	returns r0 = -1, the keystroke is canceled and the
+	text does not change.
+	
+	GetTextArray gets a copy of the text array.
+	SetTextArray sets a copy of a text array in the grid.
+	GrabTextArray removes the text array from the grid,
+	  leaving the grid with an empty array.
+	PokeTextArray installs a text array in the grid,
+	  returning an empty array.
+	
+:ToolkitXuiTextArea3B
+##################################
+#####  ToolkitXuiTextArea3B  #####
+##################################
+Create an "XuiTextArea3B" grid in the design window.
+	
+	XuiTextArea3B grids contain:
+	
+	  kid 0 - XuiTextArea3B - the outer frame
+	  kid 1 - Label         - across top
+	  kid 2 - TextArea      - multi-line text editor
+	  kid 3 - PushButton    - left button
+	  kid 4 - PushButton    - center button
+	  kid 5 - PushButton    - right button
+	
+:ToolkitXuiTextArea4B
+##################################
+#####  ToolkitXuiTextArea4B  #####
+##################################
+Create an "XuiTextArea4B" grid in the design window.
+	
+	XuiTextArea4B grids contain:
+	
+	  kid 0 - XuiTextArea4B - the outer frame
+	  kid 1 - Label         - across top
+	  kid 2 - TextArea      - multi-line text editor
+	  kid 3 - PushButton    - left button
+	  kid 4 - PushButton    - left-center button
+	  kid 5 - PushButton    - right-center button
+	  kid 6 - PushButton    - right button
+	
+:ToolkitXuiTextLine
+################################
+#####  ToolkitXuiTextLine  #####
+################################
+Create an "XuiTextLine" grid in the design window.
+	
+	XuiTextLine grids are single line editable text fields.
+	
+	  kid 0 - outer border
+	  kid 1 - single line text field  (merged with 0)
+	
+	XuiTextLine grids send a TextEvent callback whenever a
+	keystroke occurs.  If the callback function returns
+	r0 = -1, the keystroke is canceled.
+	
+	XuiTextLine grids send a Selection callback whenever
+	an EnterKey is pressed.
+	
+:ToolkitXuiToggleButton
+####################################
+#####  ToolkitXuiToggleButton  #####
+####################################
+Create an "XuiToggleButton" grid in the design window.
+	
+:AppearanceWindow
+##############################
+#####  AppearanceWindow  #####
+##############################
+Set the appearance properties of a grid
+	in the displayed design window.
+	
+:AppearanceMenu
+############################
+#####  AppearanceMenu  #####
+############################
+Select a kid of the most recently selected grid
+	to view and set the appearance properties of.
+	Simple grids do not have kid grids and the Kids
+	pulldown menu only contains the base grid.
+	
+	Select a kid from the pulldown to display the
+	appearance properties for that kid.  You can
+	modify them just like the main grid.
+	
+:AppearanceGridTypeLabel
+#####################################
+#####  AppearanceGridTypeLabel  #####
+#####################################
+The GridType label indicates that the text to its
+	right is the GridType name of the selected grid.
+	
+	The name of the GridType and GridFunction must be
+	the same.
+	
+:AppearanceGridTypeText
+####################################
+#####  AppearanceGridTypeText  #####
+####################################
+The "GridType" of the selected grid.
+	
+:AppearanceGridFuncLabel
+#####################################
+#####  AppearanceGridFuncLabel  #####
+#####################################
+This label indicates that the label
+	to its right contains the name of the
+	GridFunction of the selected grid.
+	
+:AppearanceGridFuncText
+####################################
+#####  AppearanceGridFuncText  #####
+####################################
+The "GridFunction" of the selected grid.
+	
+:AppearanceGridNameLabel
+#####################################
+#####  AppearanceGridNameLabel  #####
+#####################################
+This label indicates that the label
+	to its right contains the name of the
+	selected grid.
+	
+:AppearanceGridNameText
+####################################
+#####  AppearanceGridNameText  #####
+####################################
+The name of the selected grid.
+	
+	A default name is created for every
+	grid, but you should replace it with
+	a more descriptive name.  The variable
+	that contains the grid number of the
+	selected grid is given this name.
+	The help string also defaults to this
+	name unless an explicit help string
+	name is entered.
+	
+:AppearanceHintStringLabel
+#######################################
+#####  AppearanceHintStringLabel  #####
+#######################################
+This label indicates that the TextLine grid
+	to the right contains the hint string for
+	the selected grid.
+	
+:AppearanceHintStringText
+######################################
+#####  AppearanceHintStringText  #####
+######################################
+This is the hint string for the selected grid.
+	
+:AppearanceHelpStringLabel
+#######################################
+#####  AppearanceHelpStringLabel  #####
+#######################################
+This label indicates that the TextLine
+	grid to its right contains the name of
+	the help string for the selected grid.
+	
+:AppearanceHelpStringText
+######################################
+#####  AppearanceHelpStringText  #####
+######################################
+The name of the help string for the
+	selected grid.  If this is an empty
+	string, the help string defaults to
+	the grid name.
+	
+	If an explicit help string name is
+	entered, make sure you enter a valid
+	help string name, such as:
+	
+	  helpfile.hlp:entryname
+	  :entryname
+	  [heading]\nHelp text line\n...or lines.
+	  Help text line\n... or lines
+	
+:AppearanceBackgroundColorButton
+#############################################
+#####  AppearanceBackgroundColorButton  #####
+#############################################
+Click this button before you set the
+	Background color of the selected grid.
+	
+	Then click on colors in the color
+	palette to change the Background
+	color of the selected grid.
+	
+	The Background color is the color grids
+	are cleared to before other elements
+	like borders and text are drawn.
+	
+:AppearanceBackgroundColor
+#######################################
+#####  AppearanceBackgroundColor  #####
+#######################################
+The Background color of the selected grid.
+	
+:AppearanceDrawingColorButton
+##########################################
+#####  AppearanceDrawingColorButton  #####
+##########################################
+Click this button before you set the
+	Drawing color of the selected grid.
+	
+	Then click on colors in the color
+	palette to change the Drawing color
+	of the selected grid.
+	
+	The Drawing color is the color in
+	which normal (non-textured) text
+	is drawn.
+	
+:AppearanceDrawingColor
+####################################
+#####  AppearanceDrawingColor  #####
+####################################
+The Drawing color of the selected grid.
+	
+:AppearanceLowlightColorButton
+###########################################
+#####  AppearanceLowlightColorButton  #####
+###########################################
+Click this button before you set the
+	Lowlight color of the selected grid.
+	
+	Then click on colors in the color
+	palette to change the Lowlight color
+	of the selected grid.
+	
+	The Lowlight color is the darker
+	color in 3D and other borders.
+	
+:AppearanceLowlightColor
+#####################################
+#####  AppearanceLowlightColor  #####
+#####################################
+The Lowlight color of the selected grid.
+	
+:AppearanceHightlightColorButton
+#############################################
+#####  AppearanceHightlightColorButton  #####
+#############################################
+Click this button before you set the
+	Highlight color of the selected grid.
+	
+	Then click on colors in the color
+	palette to change the Highlight color
+	of the selected grid.
+	
+	The Highlight color is the lighter
+	color in 3D and other borders.
+	
+:AppearanceHighlightColor
+######################################
+#####  AppearanceHighlightColor  #####
+######################################
+The Highlight color of the selected grid.
+	
+:AppearanceDullColorButton
+#######################################
+#####  AppearanceDullColorButton  #####
+#######################################
+Click this button before you set the
+	Dull color of the selected grid.
+	
+	Then click on colors in the color
+	palette to change the Dull color
+	of the selected grid.
+	
+	The Dull color is the color in which
+	text and other features of disabled
+	choices are displayed.
+	
+:AppearanceDullColor
+#################################
+#####  AppearanceDullColor  #####
+#################################
+The Dull color of the selected grid.
+	
+:AppearanceAccentColorButton
+#########################################
+#####  AppearanceAccentColorButton  #####
+#########################################
+Click this button before you set the
+	Accent color of the selected grid.
+	
+	Then click on colors in the color
+	palette to change the Accent color
+	of the selected grid.
+	
+	The Accent color is the color in which
+	selected text and other features are
+	displayed (as in pulldown entries).
+	
+:AppearanceAccentColor
+###################################
+#####  AppearanceAccentColor  #####
+###################################
+The Accent color of the selected grid.
+	
+:AppearanceLowtextColorButton
+##########################################
+#####  AppearanceLowtextColorButton  #####
+##########################################
+Click this button before you set the
+	Lowtext color of the selected grid.
+	
+	Then click on colors in the color
+	palette to change the Lowtext color
+	of the selected grid.
+	
+	The Lowtext color is the darker
+	"shadow" color of textured text.
+	(Textured text = raised or inset).
+	
+:AppearanceLowtextColor
+####################################
+#####  AppearanceLowtextColor  #####
+####################################
+The Lowtext color of the selected grid.
+	
+:AppearanceHightextColorButton
+###########################################
+#####  AppearanceHightextColorButton  #####
+###########################################
+Click this button before you set the
+	Hightext color of the selected grid.
+	
+	Then click on colors in the color
+	palette to change the Hightext color
+	of the selected grid.
+	
+	The Hightext color is the lighter
+	"highlight" color of textured text.
+	(Textured text = raised or inset).
+	
+:AppearanceHightextColor
+#####################################
+#####  AppearanceHightextColor  #####
+#####################################
+The Hightext color of the selected grid.
+	
+:AppearanceColorPalette
+####################################
+#####  AppearanceColorPalette  #####
+####################################
+Click on any color in the standard
+	color palette to assign that color
+	to the previously designated color
+	attribute of the selected grid.
+	
+	Be sure to press the desired color
+	attribute button before you select
+	colors.  Selected colors appear in
+	the samples squares to the right of
+	the color attribute buttons.
+	
+	The color attribute buttons are
+	Background, Drawing, Lowlight,
+	Highlight, Dull, Accent, Lowtext,
+	and Hightext.
+	
+:AppearanceSolidColor
+##################################
+#####  AppearanceSolidColor  #####
+##################################
+Click on any color in the solid
+	color palette to assign that color
+	to the designated color attribute
+	of the selected grid.
+	
+	The 16 colors in this solid color
+	palette are the 16 colors that are
+	displayed without dithering on most
+	systems that display only 16 colors.
+	
+	Be sure to press the desired color
+	attribute button before you select
+	colors.  Selected colors appear in
+	the samples squares to the right of
+	the color attribute buttons.
+	
+	The color attribute buttons are
+	Background, Drawing, Lowlight,
+	Highlight, Dull, Accent, Lowtext,
+	and Hightext.
+	
+:AppearanceBorders
+###############################
+#####  AppearanceBorders  #####
+###############################
+In this rectangle are a number of
+	border style samples.  Click on any
+	of them to change the "up" border
+	style of the selected grid.  Hold
+	the "Shift" key down to change the
+	"down" border style.
+	
+:AppearanceBorderNone
+##################################
+#####  AppearanceBorderNone  #####
+##################################
+Border style = no border drawn
+	Border color = none
+	Border name  = $$XuiNone
+	Border width = 0
+	
+:AppearanceBorderFlat1
+###################################
+#####  AppearanceBorderFlat1  #####
+###################################
+Border style = 1 pixel wide flat
+	Border color = Background color
+	Border name  = $$XuiFlat1
+	Border width = 1
+	
+:AppearanceBorderFlat2
+###################################
+#####  AppearanceBorderFlat2  #####
+###################################
+Border style = 2 pixel wide flat
+	Border color = Background color
+	Border name  = $$XuiFlat2
+	Border width = 2
+	
+:AppearanceBorderFlat4
+###################################
+#####  AppearanceBorderFlat4  #####
+###################################
+Border style = 4 pixel wide flat
+	Border color = Background color
+	Border name  = $$XuiFlat4
+	Border width = 4
+	
+:AppearanceBorderHiLine1
+#####################################
+#####  AppearanceBorderHiLine1  #####
+#####################################
+Border style = 1 pixel wide line
+	Border color = Highlight color
+	Border name  = $$XuiHiLine1
+	Border width = 1
+	
+:AppearanceBorderHiLine2
+#####################################
+#####  AppearanceBorderHiLine2  #####
+#####################################
+Border style = 2 pixel wide line
+	Border color = Highlight color
+	Border name  = $$XuiHiLine2
+	Border width = 2
+	
+:AppearanceBorderHiLine4
+#####################################
+#####  AppearanceBorderHiLine4  #####
+#####################################
+Border style = 4 pixel wide line
+	Border color = Highlight color
+	Border name  = $$XuiHiLine4
+	Border width = 4
+	
+:AppearanceBorderRaise1
+####################################
+#####  AppearanceBorderRaise1  #####
+####################################
+Border style = raised 1 pixel
+	Border color = Highlight and Lowlight
+	Border name  = $$XuiRaise1
+	Border width = 1
+	
+:AppearanceBorderRaise2
+####################################
+#####  AppearanceBorderRaise2  #####
+####################################
+Border style = raised 2 pixel
+	Border color = Highlight and Lowlight
+	Border name  = $$XuiRaise2
+	Border width = 2
+	
+:AppearanceBorderRaise4
+####################################
+#####  AppearanceBorderRaise4  #####
+####################################
+Border style = raised 4 pixel
+	Border color = Highlight and Lowlight
+	Border name  = $$XuiRaise4
+	Border width = 4
+	
+:AppearanceBorderRidge
+###################################
+#####  AppearanceBorderRidge  #####
+###################################
+Border style = 1 pixel high ridge
+	Border color = Highlight and Lowlight
+	Border name  = $$XuiRidge
+	Border width = 2
+	
+:AppearanceBorderValley
+####################################
+#####  AppearanceBorderValley  #####
+####################################
+Border style = 1 pixel deep valley
+	Border color = Highlight and Lowlight
+	Border name  = $$XuiValley
+	Border width = 2
+	
+:AppearanceBorderFrame
+###################################
+#####  AppearanceBorderFrame  #####
+###################################
+Border style = 1 pixel high frame
+	Border color = Highlight and Lowlight
+	Border name  = $$XuiFrame
+	Border width = 4
+	
+:AppearanceBorderDrain
+###################################
+#####  AppearanceBorderDrain  #####
+###################################
+Border style = 1 pixel deep drain
+	Border color = Highlight and Lowlight
+	Border name  = $$XuiDrain
+	Border width = 4
+	
+:AppearanceBorderLoLine1
+#####################################
+#####  AppearanceBorderLoLine1  #####
+#####################################
+Border style = 1 pixel wide dark line
+	Border color = Lowlight color
+	Border name  = $$XuiLoLine1
+	Border width = 1
+	
+:AppearanceBorderLoLine2
+#####################################
+#####  AppearanceBorderLoLine2  #####
+#####################################
+Border style = 2 pixel wide dark line
+	Border color = Lowlight color
+	Border name  = $$XuiLoLine2
+	Border width = 2
+	
+:AppearanceBorderLoLine4
+#####################################
+#####  AppearanceBorderLoLine4  #####
+#####################################
+Border style = 4 pixel wide dark line
+	Border color = Lowlight color
+	Border name  = $$XuiLoLine4
+	Border width = 4
+	
+:AppearanceBorderLower1
+####################################
+#####  AppearanceBorderLower1  #####
+####################################
+Border style = lowered 1 pixel
+	Border color = Highlight and Lowlight
+	Border name  = $$XuiLower1
+	Border width = 1
+	
+:AppearanceBorderLower2
+####################################
+#####  AppearanceBorderLower2  #####
+####################################
+Border style = lowered 2 pixel
+	Border color = Highlight and Lowlight
+	Border name  = $$XuiLower2
+	Border width = 2
+	
+:AppearanceBorderLower4
+####################################
+#####  AppearanceBorderLower4  #####
+####################################
+Border style = lowered 4 pixel
+	Border color = Highlight and Lowlight
+	Border name  = $$XuiLower4
+	Border width = 4
+	
+:AppearanceTextStringLabel
+#######################################
+#####  AppearanceTextStringLabel  #####
+#######################################
+This label indicates that the text line
+	to its right contains the name of the
+	text string for the selected grid.
+	
+:AppearanceTextStringText
+######################################
+#####  AppearanceTextStringText  #####
+######################################
+The text string for the selected grid.
+	
+:AppearanceTextTextureLabel
+########################################
+#####  AppearanceTextTextureLabel  #####
+########################################
+This label indicates that the buttons to
+	the right control the texture appearance
+	of text in grids that support text texture.
+	
+	Flat    - Drawing color
+	Lower   - Lowtext color with Hightext shadow
+	Raise   - Hightext color with Lowtext shadow
+	Shadow  - Hightext color with Lowtext shadow
+	
+:AppearanceFlatButton
+##################################
+#####  AppearanceFlatButton  #####
+##################################
+Display text with flat appearance.
+	Text is drawn in Drawing color.
+	
+:AppearanceLowerButton
+###################################
+#####  AppearanceLowerButton  #####
+###################################
+Display text with depressed appearance.
+	Text is drawn in Lowtext color with
+	a highlight in Hightext color.
+	
+:AppearanceRaiseButton
+###################################
+#####  AppearanceRaiseButton  #####
+###################################
+Display text with raised appearance.
+	Text is drawn in Hightext color with
+	a highlight in Lowtext color.
+	
+:AppearanceShadowButton
+####################################
+#####  AppearanceShadowButton  #####
+####################################
+Display text with shadow appearance.
+	Text is drawn in Hightext color with a
+	shadow in Lowtext color offset 4 pixels.
+	
+:AppearanceJustifyLabel
+####################################
+#####  AppearanceJustifyLabel  #####
+####################################
+Text justification for text in the selected grid
+	is set by the four buttons to the right to:
+	
+	  JustifyLeft
+	  JustifyCenter
+	  JustifyRight
+	  JustifyBoth
+	
+	Not all grids support all these selections.
+	
+:AppearanceJustifyLeftButton
+#########################################
+#####  AppearanceJustifyLeftButton  #####
+#########################################
+Left justify text in the selected grid.
+	
+:AppearanceJustifyCenterButton
+###########################################
+#####  AppearanceJustifyCenterButton  #####
+###########################################
+Center justify text in the selected grid.
+	
+:AppearanceJustifyRightButton
+##########################################
+#####  AppearanceJustifyRightButton  #####
+##########################################
+Right justify text in the selected grid.
+	
+:AppearanceJustifyBothButton
+#########################################
+#####  AppearanceJustifyBothButton  #####
+#########################################
+Left and Right justify text in the selected grid.
+	
+:AppearanceAlignUpperLeftButton
+############################################
+#####  AppearanceAlignUpperLeftButton  #####
+############################################
+Display text in upper left corner of selected grid.
+	
+:AppearanceAlignUpperCenterButton
+##############################################
+#####  AppearanceAlignUpperCenterButton  #####
+##############################################
+Display text in upper center part of selected grid.
+	
+:AppearanceAlignUpperRightButton
+#############################################
+#####  AppearanceAlignUpperRightButton  #####
+#############################################
+Display text in upper right corner of selected grid.
+	
+:AppearanceAlignMiddleLeftButton
+#############################################
+#####  AppearanceAlignMiddleLeftButton  #####
+#############################################
+Display text in middle left side of selected grid.
+	
+:AppearanceAlignMiddleCenterButton
+###############################################
+#####  AppearanceAlignMiddleCenterButton  #####
+###############################################
+Display text in middle center of selected grid.
+	
+:AppearanceAlignMiddleRightButton
+##############################################
+#####  AppearanceAlignMiddleRightButton  #####
+##############################################
+Display text in middle right side of selected grid.
+	
+:AppearanceAlignLowerLeftButton
+############################################
+#####  AppearanceAlignLowerLeftButton  #####
+############################################
+Display text in lower left corner of selected grid.
+	
+:AppearanceAlignLowerCenterButton
+##############################################
+#####  AppearanceAlignLowerCenterButton  #####
+##############################################
+Display text in lower center part of selected grid.
+	
+:AppearanceAlignLowerRightButton
+#############################################
+#####  AppearanceAlignLowerRightButton  #####
+#############################################
+Display text in lower right corner of selected grid.
+	
+:AppearanceIndentLeftRange
+#######################################
+#####  AppearanceIndentLeftRange  #####
+#######################################
+The IndentLeft property of the selected grid is
+	displayed in and can be set with this Range grid.
+	
+:AppearanceIndentRightRange
+########################################
+#####  AppearanceIndentRightRange  #####
+########################################
+The IndentRight property of the selected grid is
+	displayed in and can be set with this Range grid.
+	
+:AppearanceIndentTopRange
+######################################
+#####  AppearanceIndentTopRange  #####
+######################################
+The IndentTop property of the selected grid is
+	displayed in and can be set with this Range grid.
+	
+:AppearanceIndentBottomRange
+#########################################
+#####  AppearanceIndentBottomRange  #####
+#########################################
+The IndentBottom property of the selected grid is
+	displayed in and can be set with this Range grid.
+	
+:AppearanceStyleLabel
+##################################
+#####  AppearanceStyleLabel  #####
+##################################
+The style number of the selected grid is displayed
+	in and set by the XuiRange grid next to this label.
+	
+:AppearanceTimerLabel
+##################################
+#####  AppearanceTimerLabel  #####
+##################################
+The msec timer of the selected grid is displayed
+	in and set by the XuiRange grid next to this label.
+	
+:AppearanceStyleRange
+##################################
+#####  AppearanceStyleRange  #####
+##################################
+The style number of the selected grid is displayed here.
+	You can slewed the style number up/down to change it.
+	A style of 0 is the default style for all grid types.
+	
+:AppearanceTimerRange
+##################################
+#####  AppearanceTimerRange  #####
+##################################
+The millisecond timer value of the selected grid is
+	displayed here.  You can slew the timer value up/down
+	to change it.  A value of 0 disables the timer.
+	
+:AppearanceFontButton
+##################################
+#####  AppearanceFontButton  #####
+##################################
+Display / Hide the XuiFont grid that lets you see and
+	change the Font property of the selected grid.
+	
+:AppearanceTextArrayButton
+#######################################
+#####  AppearanceTextArrayButton  #####
+#######################################
+Display / Hide the XuiTextArea grid that lets you see
+	and change the TextArray property of the selected grid.
+	
+:AppearanceImageButton
+###################################
+#####  AppearanceImageButton  #####
+###################################
+Display / Hide the File grid that lets you see
+	and change the filename of the image property
+	of the selected grid.
+	
+:AppearanceEnterButton
+###################################
+#####  AppearanceEnterButton  #####
+###################################
+Assign contents of the appearance window
+	to the grid properties.  This assures the
+	current state of the properties in the
+	appearance window are assigned to the
+	selected grid.
+	
+:AppearanceRestoreButton
+#####################################
+#####  AppearanceRestoreButton  #####
+#####################################
+Restore the appearance properties of
+	the selected grid to the values it had
+	before the current session started in
+	the appearance window.
+	
+:AppearanceDefaultsButton
+######################################
+#####  AppearanceDefaultsButton  #####
+######################################
+Set the appearance properties of the
+	selected grid to the default values
+	of that grid type.  These are the
+	properties the grid type has just
+	after it is created, before any
+	appearance properties are changed.
+	
+:AppearanceCancelButton
+####################################
+#####  AppearanceCancelButton  #####
+####################################
+Remove the appearance window from the display.
+	
+	The appearance window can be displayed again in two ways.
+	You must be in "DesignMode" (not "TestMode"), and have a
+	a grid in the design window selected.  Then...
+	
+	1.  Double-click the selected grid in the design window.
+	2.  Select GridAppearances entry in the toolkit MenuBar.
+	
+:AppearanceTextArray
+#################################
+#####  AppearanceTextArray  #####
+#################################
+Enter text for the TextArray property of
+	the selected grid.
+	
+	This window is displayed by clicking on
+	the "TextArray" button in the Appearance
+	Window.  To update the TextArray property
+	of the selected grid, edit the TextArray,
+	then click on the "TextArray" button again.
+	
+	
+	
+:DesignWindowBackground
+####################################
+#####  DesignWindowBackground  #####
+####################################
+This "GraphGrid" is not part of the design window,
+	and does not appear in the grid or window created
+	by SaveGrid or SaveWindow.
+	
+:ToolkitTestMode
+#############################
+#####  ToolkitTestMode  #####
+#############################
+The "TestMode" CheckBox selects the operating mode
+	of the displayed design window.
+	
+	TestMode   : CheckBox is checked.
+	DesignMode : CheckBox is not checked.
+	
+	*****  TestMode  *****
+	
+	When in test mode, grids in the design window
+	operate pretty much the same as in running
+	programs.  When an event occurs that would
+	generate a callback in a running program, a
+	callback message is printed in the console.
+	
+	*****  DesignMode  *****
+	
+	When in design mode, MouseDown and MouseDrag
+	select/move/resize grids.  In design mode you
+	select grids from the toolkit and lay them
+	out in the design window.
+	
+:Console
+#####################
+#####  Console  #####
+#####################
+The console window is where conventional
+	input and output of text occurs.
+	
+	INPUT:   a$ = INLINE$("Enter here ===>>")
+	
+	OUTPUT:  PRINT a$
+	
+:Behavior
+######################
+#####  Behavior  #####
+######################
+The BehaviorWindow displays the message processing
+	functions and subroutines for the most recently
+	selected grid.
+	
+	Message processing functions and subroutines are
+	executed by grid functions in response to messages
+	they receive for one of their grids.  Any message
+	not listed in the left column is ignored.  Some
+	messages are processed by a message processing
+	function and message processing subroutine and
+	the message appears on two consecutive lines.
+	
+	Both Enter and Cancel hide the BehaviorWindow.
+	
+:BehaviorList
+##########################
+#####  BehaviorList  #####
+##########################
+This is a list of the messages processing functions
+	and message processing subroutines for all messages
+	the grid function responsible for the most recently
+	selected grid will respond.
+	
+:BehaviorText
+##########################
+#####  BehaviorText  #####
+##########################
+Enter a message in this XuiTextLine grid to bring
+	the message into view in the list.  The list is
+	updated with every keystroke, so you don't usually
+	have to type the whole message name to bring it
+	into the visible portion of the XuiList grid.
+	
+:BehaviorEnter
+###########################
+#####  BehaviorEnter  #####
+###########################
+Hide the BehaviorWindow.
+	
+:BehaviorCancel
+############################
+#####  BehaviorCancel  #####
+############################
+Hide the BehaviorWindow.
+	
+:Report
+####################
+#####  Report  #####
+####################
+Call XuiReportMessage() to display the normal GuiDesigner
+	message arguments for inspection.  XuiReportMessages() is
+	called in grid functions and callback functions generated
+	by GuiDesigner, though they may be commented out either or
+	both functions.  The XuiReportMessage() arguments are:
+	
+	XuiReportMessage (grid, message, v0, v1, v2, v3, r0, r1)
+	
+:gridLabel
+#######################
+#####  gridLabel  #####
+#######################
+The grid number or window number argument
+	is displayed to the right of this label.
+	
+:gridNumber
+########################
+#####  gridNumber  #####
+########################
+grid number = 1st message argument
+	
+:gridTypeName
+##########################
+#####  gridTypeName  #####
+##########################
+grid type name of specified grid
+	
+:messageLabel
+##########################
+#####  messageLabel  #####
+##########################
+The message number is displayed to the
+	right of this label.
+	
+:messageNumber
+###########################
+#####  messageNumber  #####
+###########################
+message number = 2nd message argument
+	
+:messageName
+#########################
+#####  messageName  #####
+#########################
+message name of specified message number
+	
+:v0Label
+#####################
+#####  v0Label  #####
+#####################
+The v0 argument is displayed to the right
+	of this label.
+	
+:v0Number
+######################
+#####  v0Number  #####
+######################
+v0 = 3rd argument (decimal)
+	
+:v0Hex
+###################
+#####  v0Hex  #####
+###################
+v0 = 3rd argument (hexadecimal)
+	
+:v1Label
+#####################
+#####  v1Label  #####
+#####################
+The v1 argument is displayed to the right
+	of this label.
+	
+:v1Number
+######################
+#####  v1Number  #####
+######################
+v1 = 4th argument (decimal)
+	
+:v1Hex
+###################
+#####  v1Hex  #####
+###################
+v1 = 4th argument (hexadecimal)
+	
+:v2Label
+#####################
+#####  v2Label  #####
+#####################
+The v2 argument is displayed to the right
+	of this label.
+	
+:v2Number
+######################
+#####  v2Number  #####
+######################
+v2 = 5th argument (decimal)
+	
+:v2Hex
+###################
+#####  v2Hex  #####
+###################
+v2 = 5th argument (hexadecimal)
+	
+:v3Label
+#####################
+#####  v3Label  #####
+#####################
+The v3 argument is displayed to the right
+	of this label.
+	
+:v3Number
+######################
+#####  v3Number  #####
+######################
+v3 = 6th argument (decimal)
+	
+:v3Hex
+###################
+#####  v3Hex  #####
+###################
+v3 = 6th argument (hexadecimal)
+	
+:r0Label
+#####################
+#####  r0Label  #####
+#####################
+The kid or r0 argument is displayed to the
+	right of this label.
+	
+:r0Number
+######################
+#####  r0Number  #####
+######################
+kid = r0 = 7th argument (decimal)
+	
+:r0Hex
+###################
+#####  r0Hex  #####
+###################
+kid = r0 = 7th argument (hexadecimal)
+	
+:r1Label
+#####################
+#####  r1Label  #####
+#####################
+The r1 argument is displayed to the right
+	of this label.
+	
+:r1Number
+######################
+#####  r1Number  #####
+######################
+r1 = 8th argument (decimal)
+	
+:r1Info
+####################
+#####  r1Info  #####
+####################
+r1 = 8th argument (hex, message, string)
+	
+:ReportCancel
+##########################
+#####  ReportCancel  #####
+##########################
+Hide the ReportMessage window from view.
+	
+:List
+##################
+#####  List  #####
+##################
+Select and item from the list with the
+	UpArrow and DownArrow keys and Enter,
+	or by double-clicking the item with
+	the left mouse button.
+	
+	
+	
+	
+	

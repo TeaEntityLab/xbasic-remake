@@ -100,8 +100,8 @@ fn xma_pure_library_behavior() {
     fs::create_dir_all(&tmp).unwrap();
 
     // Compile xma.x (and its dependency xst.x) through CEmitter.
-    let xma_src = root.join("xbasic-6.4.5/src/shared/xma.x");
-    let xst_src = root.join("xbasic-6.4.5/src/linux/xst.x");
+    let xma_src = root.join("xbasic/lib/xma.x");
+    let xst_src = root.join("xbasic/lib/xst.x");
     assert!(xma_src.exists(), "xma.x not found at {xma_src:?}");
     assert!(xst_src.exists(), "xst.x not found at {xst_src:?}");
 
@@ -461,8 +461,8 @@ fn xut_pure_library_behavior() {
     fs::create_dir_all(&tmp).unwrap();
 
     // Compile xut.x (and its dependency xst.x) through CEmitter.
-    let xut_src = root.join("xbasic-6.4.5/src/shared/xut.x");
-    let xst_src = root.join("xbasic-6.4.5/src/linux/xst.x");
+    let xut_src = root.join("xbasic/lib/xut.x");
+    let xst_src = root.join("xbasic/lib/xst.x");
     assert!(xut_src.exists(), "xut.x not found at {xut_src:?}");
     assert!(xst_src.exists(), "xst.x not found at {xst_src:?}");
 
@@ -547,8 +547,8 @@ fn xit_pure_library_behavior() {
     fs::create_dir_all(&tmp).unwrap();
 
     // Compile xit.x (and its dependency xst.x) through CEmitter.
-    let xit_src = root.join("xbasic-6.4.5/src/linux/xit.x");
-    let xst_src = root.join("xbasic-6.4.5/src/linux/xst.x");
+    let xit_src = root.join("xbasic/lib/xit.x");
+    let xst_src = root.join("xbasic/lib/xst.x");
     assert!(xit_src.exists(), "xit.x not found at {xit_src:?}");
     assert!(xst_src.exists(), "xst.x not found at {xst_src:?}");
 
@@ -650,8 +650,8 @@ fn xcm_pure_library_behavior() {
     // Atan2 is a pure DOUBLE function that uses $$PIDIV2/$$PI constants from
     // xma.x — cross-file $$ constant resolution now works via import resolution
     // in the CLI. Atan2(0,1)=0, Atan2(1,1)=PI/4, Atan2(1,0)=PI/2.
-    let xcm_src = root.join("xbasic-6.4.5/src/shared/xcm.x");
-    let xst_src = root.join("xbasic-6.4.5/src/linux/xst.x");
+    let xcm_src = root.join("xbasic/lib/xcm.x");
+    let xst_src = root.join("xbasic/lib/xst.x");
     assert!(xcm_src.exists(), "xcm.x not found at {xcm_src:?}");
     assert!(xst_src.exists(), "xst.x not found at {xst_src:?}");
 
@@ -1175,7 +1175,7 @@ fn xdis_pure_library_behavior() {
     fs::create_dir_all(&tmp).unwrap();
 
     // Compile xdis.x through CEmitter.
-    let xdis_src = root.join("xbasic-6.4.5/src/shared/xdis.x");
+    let xdis_src = root.join("xbasic/lib/xdis.x");
     assert!(xdis_src.exists(), "xdis.x not found at {xdis_src:?}");
 
     let xdis_c = emit_c(&xdis_src, &tmp, true);
@@ -1283,7 +1283,7 @@ fn xit_makestringhex_behavior() {
     fs::create_dir_all(&tmp).unwrap();
 
     // Compile xit.x through CEmitter.
-    let xit_src = root.join("xbasic-6.4.5/src/linux/xit.x");
+    let xit_src = root.join("xbasic/lib/xit.x");
     assert!(xit_src.exists(), "xit.x not found at {xit_src:?}");
 
     let xit_c = emit_c(&xit_src, &tmp, true);

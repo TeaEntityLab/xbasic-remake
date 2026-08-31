@@ -1,0 +1,263 @@
+'
+'
+' #########################  Max Reason
+' #####  shell32.dec  #####  copyright 1988-2000
+' #########################  Windows XBasic declarations for Windows "shell32"
+'
+' subject to LGPL license - see COPYING_LIB
+'
+' maxreason@maxreason.com
+'
+' for Windows XBasic
+'
+'
+' VERSION  "0.0002"    ' 2000/02/16
+'
+'
+' ###########################
+' #####  declare types  #####
+' ###########################
+'
+'
+TYPE POINTAPI
+  ULONG     .x
+  ULONG     .y
+END TYPE
+'
+TYPE RECT
+  ULONG      .Left
+  ULONG      .Top
+  ULONG      .Right
+  ULONG      .Bottom
+END TYPE
+'
+TYPE DRAGINFO
+  ULONG      .uSize
+  POINTAPI   .pt
+  ULONG      .fNC
+  ULONG      .lpFileList
+  ULONG      .grfKeyState
+END TYPE
+'
+TYPE APPBARDATA
+  ULONG      .cbSize
+  ULONG      .hwnd
+  ULONG      .uCallbackMessage
+  ULONG      .uEdge
+  RECT       .rc
+  ULONG      .lParam
+END TYPE
+'
+TYPE SHFILEOPSTRUCT
+  ULONG      .hwnd
+  ULONG      .wFunc
+  ULONG      .pFrom
+  ULONG      .pTo
+  USHORT     .fFlags
+  ULONG      .fAnyOperationsAborted
+  ULONG      .hNameMappings
+  ULONG      .lpszProgressTitle
+END TYPE
+'
+TYPE SHNAMEMAPPING
+  ULONG      .pszOldPath
+  ULONG      .pszNewPath
+  ULONG      .cchOldPath
+  ULONG      .cchNewPath
+END TYPE
+'
+TYPE SHELLEXECUTEINFO
+  ULONG      .cbSize
+  ULONG      .fMask
+  ULONG      .hwnd
+  ULONG      .lpVerb
+  ULONG      .lpFile
+  ULONG      .lpParameters
+  ULONG      .lpDirectory
+  ULONG      .nShow
+  ULONG      .hInstApp
+'
+'  Optional fields
+'
+  ULONG      .lpIDList
+  ULONG      .lpClass
+  ULONG      .hkeyClass
+  ULONG      .dwHotKey
+  ULONG      .hIcon
+  ULONG      .hProcess
+END TYPE
+'
+TYPE NOTIFYICONDATA
+  ULONG      .cbSize
+  ULONG      .hwnd
+  ULONG      .uID
+  ULONG      .uFlags
+  ULONG      .uCallbackMessage
+  ULONG      .hIcon
+  STRING*64  .szTip
+END TYPE
+'
+TYPE SHFILEINFO
+  ULONG      .hIcon
+  ULONG      .iIcon
+  ULONG      .dwAttributes
+  STRING*260 .szDisplayName
+  STRING*80  .szTypeName
+END TYPE
+'
+'
+'
+' ###############################
+' #####  declare functions  #####
+' ###############################
+'
+EXTERNAL FUNCTION DoEnvironmentSubstA (szStringAddr, cbString)
+EXTERNAL FUNCTION DragQueryFileA (HDROP, UINT, lpStrAddr, ch)
+EXTERNAL FUNCTION DragQueryPoint (HDROP, lpPoint)
+EXTERNAL FUNCTION DragFinish (hDrop)
+EXTERNAL FUNCTION DragAcceptFiles (hwnd, fAccept)
+EXTERNAL FUNCTION DuplicateIcon (hInst, hIcon)
+EXTERNAL FUNCTION ExtractAssociateIconA (hInst, lpIconPathAddr, lpiIcon)   'hInst,lpIconPathAddr,lpiIcon
+EXTERNAL FUNCTION ExtractIconA (hInst, lpszExeFileNameAddr, nIconIndex)
+EXTERNAL FUNCTION ExtractIconExA (lpszFileAddr, nIconIndex, phiconLarge, phiconSmall, nIcons)
+EXTERNAL FUNCTION FindExecutableA (lpFileAddr, lpDirectoryAddr, lpResultAddr)
+EXTERNAL FUNCTION FindEnvironmentStringA (szEnvVarAddr)
+EXTERNAL FUNCTION ShellAboutA (hwnd, szAppAddr, szOtherStuffAddr, hIcon)
+EXTERNAL FUNCTION ShellExecuteA (hwnd, lpOperationAddr, lpFileAddr, lpParametersAddr, lpDirectoryAddr, nShowCmd)
+EXTERNAL FUNCTION Shell_NotifyIconA (dwMessage, addrNOTIFYICONDATA)
+EXTERNAL FUNCTION SHAppBarMessage (dwMessage, addrAPPBARDATA)
+EXTERNAL FUNCTION SHFileOperationA (addrFileOp)
+EXTERNAL FUNCTION SHFreeNameMappings (hNameMappings)
+EXTERNAL FUNCTION SHGetFileInfoA (pszPathAddr, dwFileAttributes, psfi, cbFileInfo, uFlags)
+EXTERNAL FUNCTION SHGetNewLinkInfoA (pszLinktoAddr, pszDirAddr, pszNameAddr, pfMustCopy, uFlags)
+EXTERNAL FUNCTION WinExecErrorA (hwnd, error, lpstrFileNameAddr, lpstrTitleAddr)
+'
+'
+' #######################
+' #####  constants  #####
+' #######################
+'
+' AppBar constants
+'
+$$ABM_NEW                 = 0x00000000
+$$ABM_REMOVE              = 0x00000001
+$$ABM_QUERYPOS            = 0x00000002
+$$ABM_SETPOS              = 0x00000003
+$$ABM_GETSTATE            = 0x00000004
+$$ABM_GETTASKBARPOS       = 0x00000005
+$$ABM_ACTIVATE            = 0x00000006
+$$ABM_GETAUTOHIDEBAR      = 0x00000007
+$$ABM_SETAUTOHIDEBAR      = 0x00000008
+$$ABM_WINDOWPOSCHANGED    = 0x00000009
+'
+' constants for wparam of callback messages
+'
+$$ABN_STATECHANGE         = 0x00000000
+$$ABN_POSCHANGED          = 0x00000001
+$$ABN_FULLSCREENAPP       = 0x00000002
+$$ABN_WINDOWARRANGE       = 0x00000003
+'
+' constant flags for get state
+'
+$$ABS_AUTOHIDE            = 0x00000001
+$$ABS_ALWAYSONTOP         = 0x00000002
+$$ABE_LEFT                = 0x00000000
+$$ABE_TOP                 = 0x00000001
+$$ABE_RIGHT               = 0x00000002
+$$ABE_BOTTOM              = 0x00000003
+'
+$$EIRESID                 = -1
+'
+' Shell File Operations constants
+'
+$$FO_MOVE                 = 0x00000001
+$$FO_COPY                 = 0x00000002
+$$FO_DELETE               = 0x00000003
+$$FO_RENAME               = 0x00000004
+$$FOF_MULTIDESTFILES      = 0x00000001
+$$FOF_CONFIRMMOUSE        = 0x00000002
+$$FOF_SILENT              = 0x00000004
+$$FOF_RENAMEONCOLLISION   = 0x00000008
+$$FOF_NOCONFIRMATION      = 0x00000010
+$$FOF_WANTMAPPINGHANDLE   = 0x00000020
+
+$$FOF_ALLOWUNDO           = 0x00000040
+$$FOF_FILESONLY           = 0x00000080
+$$FOF_SIMPLEPROGRESS      = 0x00000100
+$$FOF_NOCONFIRMMKDIR      = 0x00000200
+
+$$PO_DELETE               = 0x00000013
+$$PO_RENAME               = 0x00000014
+$$PO_PORTCHANGE           = 0x00000020
+$$PO_REN_PORT             = 0x00000034
+'
+' ShellExecute() and ShellExecuteEx() constants
+'
+$$SE_ERR_FNF              =  2
+$$SE_ERR_PNF              =  3
+$$SE_ERR_ACCESSDENIED     =  5
+$$SE_ERR_OOM              =  8
+$$SE_ERR_DLLNOTFOUND      = 32
+'
+$$SEE_MASK_CLASSNAME      = 0x00000001
+$$SEE_MASK_CLASSKEY       = 0x00000003
+$$SEE_MASK_IDLIST         = 0x00000004
+$$SEE_MASK_INVOKEIDLIST   = 0x0000000C
+$$SEE_MASK_ICON           = 0x00000010
+$$SEE_MASK_HOTKEY         = 0x00000020
+$$SEE_MASK_NOCLOSEPROCESS = 0x00000040
+$$SEE_MASK_CONNECTNETDRV  = 0x00000080
+$$SEE_MASK_FLAG_DDEWAIT   = 0x00000100
+$$SEE_MASK_DOENVSUBST     = 0x00000200
+$$SEE_MASK_FLAG_NO_UI     = 0x00000400
+'
+' Tray notification constants
+'
+$$NIM_ADD                 = 0x00000000
+$$NIM_MODIFY              = 0x00000001
+$$NIM_DELETE              = 0x00000002
+$$NIF_MESSAGE             = 0x00000001
+$$NIF_ICON                = 0x00000002
+$$NIF_TIP                 = 0x00000004
+'
+' Shell get file info constants
+'
+$$SHGFI_ICON              = 0x00000100
+$$SHGFI_DISPLAYNAME       = 0x00000200
+$$SHGFI_TYPENAME          = 0x00000400
+$$SHGFI_ATTRIBUTES        = 0x00000800
+$$SHGFI_ICONLOCATION      = 0x00001000
+$$SHGFI_EXETYPE           = 0x00002000
+$$SHGFI_SYSICONINDEX      = 0x00004000
+$$SHGFI_LINKOVERLAY       = 0x00008000
+$$SHGFI_SELECTED          = 0x00010000
+$$SHGFI_LARGEICON         = 0x00000000
+$$SHGFI_SMALLICON         = 0x00000001
+$$SHGFI_OPENICON          = 0x00000002
+$$SHGFI_SHELLICONSIZE     = 0x00000004
+$$SHGFI_PIDL              = 0x00000008
+$$SHGFI_USEFILEATTRIBUTES = 0x00000010
+
+$$MAX_PATH                = 260
+'
+' Shell Get new link info constants
+'
+$$SHGNLI_PIDL             = 0x00000001
+$$SHGNLI_PREFIXNAME       = 0x00000002
+'
+' ShowWindow() Command constants
+'
+$$SW_HIDE                 =  0
+$$SW_SHOWNORMAL           =  1
+$$SW_NORMAL               =  1
+$$SW_SHOWMINIMIZED        =  2
+$$SW_SHOWMAXIMIZED        =  3
+$$SW_MAXIMIZE             =  3
+$$SW_SHOWNOACTIVATE       =  4
+$$SW_SHOW                 =  5
+$$SW_MINIMIZE             =  6
+$$SW_SHOWMINNOACTIVE      =  7
+$$SW_SHOWNA               =  8
+$$SW_RESTORE              =  9
+$$SW_SHOWDEFAULT          = 10
+$$SW_MAX                  = 10

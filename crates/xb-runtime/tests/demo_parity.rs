@@ -72,7 +72,7 @@ fn run_timed(cmd: &mut Command, timeout: Duration) -> Option<Vec<u8>> {
 #[test]
 fn demo_interp_matches_compiled() {
     let root = repo_root();
-    let demo_dir = root.join("xbasic-6.4.5/demo");
+    let demo_dir = root.join("xbasic/demo");
     let tmp = std::env::temp_dir().join("demo_parity");
     let _ = std::fs::create_dir_all(&tmp);
     let xb = common::xb_bin();

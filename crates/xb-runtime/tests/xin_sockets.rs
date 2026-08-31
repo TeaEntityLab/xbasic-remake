@@ -59,7 +59,7 @@ fn xin_sockets_xbasic_client_roundtrip() {
     // Patch the .x source to port 0x2021 (8225): the other test in this
     // binary runs an aserver on 0x2020 in parallel. Patching the source
     // covers both the #define and inlined constant uses.
-    let raw = std::fs::read_to_string(root.join("xbasic-6.4.5/demo/aserver.x")).unwrap();
+    let raw = std::fs::read_to_string(root.join("xbasic/demo/aserver.x")).unwrap();
     let patched_src = raw.replace("0x2020", "0x2021");
     let server_src = tmp.join("aserver.x");
     std::fs::write(&server_src, patched_src).unwrap();
@@ -197,7 +197,7 @@ fn xin_sockets_aserver_serves_timestamp() {
     let _ = std::fs::create_dir_all(&tmp);
 
     // Compile aserver through the C pipeline.
-    let src = root.join("xbasic-6.4.5/demo/aserver.x");
+    let src = root.join("xbasic/demo/aserver.x");
     let emit = Command::new(&xb)
         .arg("--emit-c")
         .arg(&src)

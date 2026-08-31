@@ -1,0 +1,18 @@
+18-04-2000 Eddie Penninkhof
+- Created mkxbvars, a utility to create the xbvars.bat file.
+- Adapted xapp.xxx for the multi-directory structure.
+- Added tools on which the binary distribution depends to the repository.
+
+14-04-2000 Eddie Penninkhof
+- Split xut.x into xut.x and xutpde.x. xutpde.x is ONLY used by the PDE;
+  xut.x is used by both the PDE and user programs.
+
+11-04-2000 Eddie Penninkhof
+- XBasic base-directory is now retrieved from full path of executable
+  (can be overruled by XBDIR environment-variable).
+- Created a setup-script for Inno Setup (win32)
+- Commandline-parsing now handles quotes. Spaces inside quotes are not
+  treated as command-line separators.
+  e.g. "c:\Program Files\XBasic\bin\xb.exe" is now 1 argument.
+- File Load/Save now default to the current directory.
+- XuiFile no longer skips directories with the archive bit set.

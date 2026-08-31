@@ -1,0 +1,178 @@
+'TYPE SOCKET
+'	XLONG     .socket						' socket number of this socket
+'	XLONG     .remote						' remote socket connected to this socket
+'	XLONG     .syssocket				' socket number to operating system
+'	XLONG     .sysremote				' remote socket number to operating system
+'	GIANT     .address					' IP address this socket is bound to
+'	XLONG     .port							' port this socket is connected to
+'	XLONG     .whomask					' whomask of program that owns this socket
+'	XLONG     .hostnumber				' host identifier for XinGetHostData()
+'	XLONG     .status						' socket status - see $$STATUS constants
+'	XLONG     .socketType				' type of socket - $$SOCK_STREAM
+'	XLONG     .addressType			' address type - $$AF_INET
+'	XLONG     .addressBytes			' bytes in address - 4 for short IP
+'	XLONG     .addressFamily		' address family - $$AF_INET
+'	XLONG     .protocolFamily		' protocol family - $$PF_INET
+'	USHORT    .protocol					' active protocol - $$TCP
+'	USHORT    .service					' service - $$FTP
+'END TYPE
+'
+'TYPE HOST
+'	STRING*32 .name							' "mhpcc.edu"
+'	STRING*32 .alias[2]					' "mhpcc.net", "mhpcc.org", "mhpcc.com"
+'	STRING*16 .system						' "Windows", "WindowsNT", "UNIX", "Linux"
+'	GIANT     .address					' 0x0104215C - can hold longer IP address
+'	GIANT     .addresses[7]			' host can support 8 more IP addresses
+'	XLONG     .hostnumber				' native host number
+'	XLONG     .addressBytes			' 4 for original IP addresses
+'	XLONG     .addressFamily		' $$AF_INET
+'	XLONG     .protocolFamily		' $$PF_INET
+'	XLONG     .protocol					' protocol # for "TCP"
+'	XLONG     .resv							'
+'	XLONG     .resw							'
+'	XLONG     .resx							'
+'	XLONG     .resy							'
+'	XLONG     .resz							'
+'END TYPE
+'
+'
+' Structure to contain information about address of a service provider.
+'
+'TYPE ADDRINFO
+'  SLONG     .ai_flags         ' Input flags.
+'  SLONG     .ai_family        ' Protocol family for socket.
+'  SLONG     .ai_socktype      ' Socket type.
+'  SLONG     .ai_protocol      ' Protocol for socket.
+'  SLONG     .ai_addrlen       ' Length of socket address.
+'  XLONG     .ai_addr          ' Socket address for socket TYPE SOCKADDR
+'  XLONG     .ai_canonname     ' address of Canonical name CSTRING for service location.
+'  XLONG     .ai_next          ' address of next ADDRINFO in list.
+'END TYPE
+'
+' Used in XxxXinSocket
+'
+'TYPE SOCKETOPEN
+'	XLONG  .syssocket
+'	XLONG  .whomask
+'END TYPE
+'
+'
+'
+TYPE SOCKET
+	SLONG     .socket						' socket number of this socket
+	SLONG     .remote						' remote socket connected to this socket
+	SLONG     .syssocket				' socket number to operating system
+	SLONG     .sysremote				' remote socket number to operating system
+	GIANT     .address					' IP address this socket is bound to
+	SLONG     .port							' port this socket is connected to
+	SLONG     .whomask					' whomask of program that owns this socket
+	SLONG     .hostnumber				' host identifier for XinGetHostData()
+	SLONG     .status						' socket status - see $$STATUS constants
+	SLONG     .socketType				' type of socket - $$SOCK_STREAM
+	SLONG     .addressType			' address type - $$AF_INET
+	SLONG     .addressBytes			' bytes in address - 4 for short IP
+	SLONG     .addressFamily		' address family - $$AF_INET
+	SLONG     .protocolFamily		' protocol family - $$PF_INET
+	USHORT    .protocol					' active protocol - $$TCP
+	USHORT    .service					' service - $$FTP
+END TYPE
+'
+TYPE HOST
+	STRING*32 .name							' "mhpcc.edu"
+	STRING*32 .alias[2]					' "mhpcc.net", "mhpcc.org", "mhpcc.com"
+	STRING*16 .system						' "Windows", "WindowsNT", "UNIX", "Linux"
+	GIANT     .address					' 0x0104215C - can hold longer IP address
+	GIANT     .addresses[7]			' host can support 8 more IP addresses
+	SLONG     .hostnumber				' native host number
+	SLONG     .addressBytes			' 4 for original IP addresses
+	SLONG     .addressFamily		' $$AF_INET
+	SLONG     .protocolFamily		' $$PF_INET
+	SLONG     .protocol					' protocol # for "TCP"
+	SLONG     .resv							'
+	SLONG     .resw							'
+	SLONG     .resx							'
+	SLONG     .resy							'
+	SLONG     .resz							'
+END TYPE
+'
+'
+' Structure to contain information about address of a service provider.
+'
+TYPE ADDRINFO
+  SLONG     .ai_flags         ' Input flags.
+  SLONG     .ai_family        ' Protocol family for socket.
+  SLONG     .ai_socktype      ' Socket type.
+  SLONG     .ai_protocol      ' Protocol for socket.
+  SLONG     .ai_addrlen       ' Length of socket address.
+  SLONG     .ai_addr          ' Socket address for socket TYPE SOCKADDR
+  SLONG     .ai_canonname     ' address of Canonical name CSTRING for service location.
+  SLONG     .ai_next          ' address of next ADDRINFO in list.
+END TYPE
+'
+' Used in XxxXinSocket
+'
+TYPE SOCKETOPEN
+	SLONG  .syssocket
+	SLONG  .whomask
+END TYPE
+'
+EXTERNAL FUNCTION  Xin                      ( )
+EXTERNAL FUNCTION  XinInitialize            (@base, @hosts, @version, @sockets, @comments$, @notes$)
+EXTERNAL FUNCTION  XinAddressNumberToString (addr$$, @addr$)
+EXTERNAL FUNCTION  XinAddressStringToNumber (addr$, @addr$$)
+EXTERNAL FUNCTION  XinGetCanonicalName      (canonicalName$)
+EXTERNAL FUNCTION  XinGetDomainName         (domain$)
+EXTERNAL FUNCTION  XinHostNameToInfo        (host$, HOST @info)
+EXTERNAL FUNCTION  XinHostNumberToInfo      (hostnum, HOST @info)
+EXTERNAL FUNCTION  XinHostAddressToInfo     (hostaddr, HOST @info)
+EXTERNAL FUNCTION  XinSocketOpen            (@socket, addressFamily, socketType, flags)
+EXTERNAL FUNCTION  XinSocketBind            (socket, block, address$$, port)
+EXTERNAL FUNCTION  XinSocketListen          (socket, block, flags)
+EXTERNAL FUNCTION  XinSocketAccept          (socket, block, @remote, flags)
+EXTERNAL FUNCTION  XinSocketConnectRequest  (socket, block, address$$, port)
+EXTERNAL FUNCTION  XinSocketConnectStatus   (socket, block, @connected)
+EXTERNAL FUNCTION  XinSocketGetAddress      (socket, @port, @address$$, @remote, @rport, @raddress$$)
+EXTERNAL FUNCTION  XinSocketGetStatus       (socket, @remote, @syssocket, @syserror, @status, @socketType, @readbytes, @writebytes)
+EXTERNAL FUNCTION  XinSocketRead            (socket, block, address, maxbytes, flags, @bytes)
+EXTERNAL FUNCTION  XinSocketSetOptions      (socket, level, optname, addrOptval, bytes)
+EXTERNAL FUNCTION  XinSocketToSystemSocket  (socket, @sysSocket)
+EXTERNAL FUNCTION  XinSocketWrite           (socket, block, address, maxbytes, flags, @bytes)
+EXTERNAL FUNCTION  XinSocketClose           (socket)
+EXTERNAL FUNCTION  XinSetDebug              (state)
+EXTERNAL FUNCTION  XinSetSocketBlocking     (socket)
+EXTERNAL FUNCTION  XinSetSocketNonBlocking  (socket)
+'
+EXTERNAL FUNCTION  XxxXinFreeIfaddrs           ()
+EXTERNAL FUNCTION  XxxXinGetIfaddrs            (addrAddrs)
+EXTERNAL FUNCTION  XxxXinSocket                (addressFamily, socketType, flags)
+EXTERNAL FUNCTION  XxxXinSocketConnectRequest  (socket, block, address$$, port)
+EXTERNAL FUNCTION  XxxXinGetNameInfo           (sockaddr, socklen, host$, server$, flags)
+EXTERNAL FUNCTION  XxxXinNTOP                  (af, addr_n, p$)
+EXTERNAL FUNCTION  XxxXinPTON                  (af, p$, sin6Addr$)
+EXTERNAL FUNCTION  ZzzXinCopySocket            (SOCKET socketdb[])   '*cw* 220920++
+'	$$NETWORKVERSION         = 0x0200
+	$$NETWORKVERSION         = 0x0101
+'
+' SOCKET.status bit definitions
+'
+	$$SocketStatusOpenSuccess        = 0x00000001		' XinSocketOpen()
+	$$SocketStatusBindSuccess        = 0x00000002		' XinSocketBind()
+	$$SocketStatusListenSuccess      = 0x00000004		' XinSocketListen()
+	$$SocketStatusAcceptSuccess      = 0x00000008		' XinSocketAccept()
+	$$SocketStatusConnectRequest     = 0x00000010		' XinSocketConnect()
+	$$SocketStatusConnectSuccess     = 0x00000020		' XinSocketConnecting()
+	$$SocketStatusConnected          = 0x00000040		' clear on disconnect detect
+	$$SocketStatusRemote             = 0x00000080		' remote socket accepted by XinSocketAccept()
+'
+	$$SocketStatusWaitingReadBuffer  = 0x00000100		' XinSocketRead()
+	$$SocketStatusWaitingWriteBuffer = 0x00000200		' XinSocketWrite()
+	$$SocketStatusUndefined1         = 0x00000400
+	$$SocketStatusUndefined2         = 0x00000800
+	$$SocketStatusUndefined3         = 0x00001000
+	$$SocketStatusUndefined4         = 0x00002000
+	$$SocketStatusUndefined5         = 0x00004000
+	$$SocketStatusFailed             = 0x00008000		' network/socket failure
+'
+' flags argument in XinSocketRead()
+'
+	$$SocketReadPeekData             = 0x00000002		' leave data in socket

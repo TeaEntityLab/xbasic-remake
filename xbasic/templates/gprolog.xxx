@@ -1,0 +1,34 @@
+'
+'
+' ####################
+' #####  PROLOG  #####
+' ####################
+'
+PROGRAM	"progname"
+VERSION	"0.0000"
+'
+' You can stop the PDE from inserting the following PROLOG comment lines
+' by removing them from the gprolog.xxx file in your \xb\xxx directory.
+'
+' Programs contain:  1: PROLOG          - no executable code - see below
+'                    2: Entry function  - start execution at 1st declared func
+' * = optional       3: Other functions - everything else - all other functions
+'
+' The PROLOG contains (in this order):
+' * 1. Program name statement             PROGRAM "progname"
+' * 2. Version number statement           VERSION "0.0000"
+' * 3. Import library statements          IMPORT  "libName"
+' * 4. Composite type definitions         TYPE <typename> ... END TYPE
+'   5. Internal function declarations     DECLARE/INTERNAL FUNCTION Func (args)
+' * 6. External function declarations     EXTERNAL FUNCTION FuncName (args)
+' * 7. Shared constant definitions        $$ConstantName = literal or constant
+' * 8. Shared variable declarations       SHARED  variable
+'
+' ******  Comment libraries in/out as needed  *****
+'
+'	IMPORT	"xma"   ' Math library     : SIN/ASIN/SINH/ASINH/LOG/EXP/SQRT...
+'	IMPORT	"xcm"   ' Complex library  : complex number library  (trig, etc)
+	IMPORT	"xst"   ' Standard library : required by most programs
+	IMPORT	"xgr"   ' GraphicsDesigner : required by GuiDesigner programs
+	IMPORT	"xui"   ' GuiDesigner      : required by GuiDesigner programs
+'

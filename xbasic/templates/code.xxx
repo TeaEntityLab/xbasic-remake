@@ -1,0 +1,60 @@
+'
+'
+' #####################
+' #####  Code ()  #####
+' #####################
+'
+' You can stop GuiDesigner from putting the following comment
+' lines in callback functions by removing the comment lines in
+' the code.xxx file in your \xb\xxx directory.
+'
+' This is a callback function that supports the grid function
+' of the same name less the last 4 letters (Code).
+'
+' When an important event occurs in the grid function created
+' from your design window, is sends a callback message to this
+' function, with the original message in r1.
+'
+' Most callback functions process only Selection messages
+' because usually that's enough to perform their function.
+'
+' When keystrokes are entered into a TextLine or TextArea grid,
+' this callback function receives a TextEvent callback message.
+' This function can prevent Keystrokes from inserting characters
+' in the TextLine or TextArea grid by returning a -1 in kid.
+'
+' The first time GuiDesigner generates this function, it puts
+' a "SUB Selection" subroutine at the bottom of the function.
+' It contains a SELECT CASE block with kid constants named the
+' same as the grids you put in the design window.  For grids
+' you didn't give a name (with the AppearanceWindow), a not
+' very useful default name is substituted, so be sure to enter
+' good GridNames in the Appearance window for every grid in
+' your design windows.  If you change the GridNames later, the
+' names in the SELECT CASE block are NOT updated, and you'll
+' get "Undefined Constant" errors on lines with obsolete constant
+' names when you recompile the program.  Then you'll have to
+' update the names in the SELECT CASE block by hand.
+'
+' It's easy to find out what your code has to respond to...
+' just run your program!  When you operate the grids in the
+' window, the XuiReportMessage() call in this function prints
+' the entry arguments in a ReportMessage window.  You can
+' comment out this lines to disable this feature, but don't
+' remove them entirely - it might come in handy later.
+'
+'
+FUNCTION  Code (grid, message, v0, v1, v2, v3, kid, r1)
+	SHARED  terminateProgram
+'
+'
+	XuiReportMessage (grid, message, v0, v1, v2, v3, kid, r1)
+	IF (message == #Callback) THEN message = r1
+'
+	SELECT CASE message
+		CASE #Selection		: GOSUB Selection            ' most common callback message
+'		CASE #TextEvent		: GOSUB TextEvent            ' KeyDown in TextArea or TextLine
+		CASE #CloseWindow	: terminateProgram = $$TRUE  ' tell entry() to exit the program
+	END SELECT
+	RETURN
+END FUNCTION

@@ -1,0 +1,4151 @@
+:messages
+######################
+#####  messages  #####
+######################
+
+	overview
+	
+	Messages and message processing functions are often closely related.
+	For example, #GetBorder and #SetBorder are messages programs send to
+	grids to get and set their border, borderUp , borderDown properties,
+	and XuiGetBorder() and XuiSetBorder() are the standard message
+	processing functions provided to process these messages.
+	Programs call XuiSendMessage() to send messages to grids, as in:
+	XuiSendMessage (grid, #SetBorder, $$BorderRaise2, -1, -1, 0, kid, 0)
+	Grid functions can control themselves and their kids in the same way.
+	But grid functions can also call message processing functions directly
+	to control their own properties and behavior. A grid function might call
+	XuiSetBorder() directly to control its own border. For example, the
+	MouseDown message processing subroutine in XuiPushButton calls
+	XuiGetBorder() and XuiSetBorder() directly to set the border property
+	equal to the borderDown property, something like the following:
+	
+	...
+	XuiGetBorder (grid, #GetBorder, @border, @up, @down, 0, 0, 0)
+	XuiSetBorder (grid, #SetBorder, down, up, down, 0, 0, 0)
+	...
+	GraphicsDesigner and GuiDesigner messages - details
+	
+:Callback
+######################
+#####  Callback  #####
+######################
+
+	XuiCallback (grid, message, v0, v1, v2, v3, @r0, r1)
+	
+	Grid functions call XuiCallback() directly to send a callback message.
+	If a callback function exists for the grid , XuiCallback() calls the
+	callback function and passes it the arguments, except that the original
+	message argument is transferred to r1 and replaced by #Callback.
+	XuiCallback() passes r0 reference so callback functions potentially
+	can cancel operations by returning -1 in r0.
+	
+	grid - grid sending callback message
+	message - message: callback message
+	v0,v1,v2,v3,r1 - original callback arguments
+	r0 - callback argument and possible cancel indicator
+	
+:CloseWindow
+#########################
+#####  CloseWindow  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #CloseWindow, 0, 0, 0, 0, 0, 0)
+	
+	See: WindowClose
+	
+:Create
+####################
+#####  Create  #####
+####################
+message
+	SUB Create
+	
+	GridFunc (@grid, #Create, x, y, width, height, window, parent)
+	
+	Call a grid function directly with a Create message
+	to create one grid of its grid type. Grid functions
+	return the grid number of the created grid, or 0 if
+	the grid could not be created for some reason.
+	Create messages must be processed in message processing
+	subroutines within grid functions, so there are no
+	standard message functions to handle Create messages.
+	Programs can call XuiSendMessage() to send all other
+	messages, but must call grid functions directly to
+	send Create and CreateWindow :
+	wrong: XuiSendMessage (@grid, #Create, x, y, w, y, window, parent)
+	right: XuiTextLine (@grid, #Create, x, y, w, h, window, parent)
+	GridFunc (@grid, #Create, x, y, width, height, window, parent)
+	
+	GridFunc - The name of the GUI function creating the grid
+	grid - grid number of grid created by grid function
+	#Create - message: create a grid
+	x, y - x,y coordinates of upper-left corner in parent
+	width, height - width,height size of grid in pixels
+	window - window number of window the grid is put in
+	parent - parent grid of the created grid (enclosing grid)
+	
+:CreateValueArray
+##############################
+#####  CreateValueArray  #####
+##############################
+message
+	
+	XuiSendMessage (grid, #CreateValueArray, uBound, 0, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	#CreateValueArray - message: to create a value array
+	uBound - value to use for dimensioning the array
+	
+	See: GetValueArray, GrabValueArray, PokeValueArray, SetValueArray
+	     GetValue, GetValues, SetValue, SetValues
+	
+	
+:CreateWindow
+##########################
+#####  CreateWindow  #####
+##########################
+message
+	SUB CreateWindow
+	
+	GridFunction (@grid, #CreateWindow, xDisp, yDisp, width, height, winTypeParent, display$)
+	
+	Call a grid function directly with a CreateWindow
+	message to create one grid of their grid type in a
+	window just big enough to contain the grid.
+	Grid  functions return the grid number of the created
+	grid and window, or 0 if they could not be created
+	for some reason. CreateWindow messages must be processed
+	in message processing subroutines within grid functions,
+	so no standard message functions are provided for CreateWindow.
+	Programs can call XuiSendMessage() to send all other messages, but
+	must call grid functions directly to send Create and CreateWindow :
+	wrong: XuiSendMessage (@grid, #CreateWindow, x, y, w, y, wt, 0)
+	right: XuiDialog3B (@grid, #CreateWindow, x, y, w, h, wt, 0)
+	
+	GridFunc (@grid, #CreateWindow, xDisp, yDisp, width, height, winType, disp$)
+	grid - grid number of grid created by grid function
+	#CreateWindow - message: create a window and grid
+	xDisp, yDisp - x,y display coordinates of upper-left corner of grid
+	width, height - width,height size of grid in pixels
+	winTypeParent - window type to create (bits 31-16) and parent window (bits 15-0)
+	disp$ - display name to contain window
+	winType - window type bits OR parent window
+	- window type bits are in high 16-bits
+	- parent window is in low 16-bits
+	- parent window is usually 0 except menu pulldown lists
+	winType constant - meaning (in xgr.DEC file : IMPORT "xgr")
+	$$WindowTopMost - stays above other windows
+	$$WindowNoSelect - window is not selected by mouse button events
+	$$WindowNoFrame - window has no resize frame
+	$$WindowResizeFrame - window has a resize frame
+	$$WindowTitleBar - window has a title bar
+	$$WindowSystemMenu - window has a system menu button
+	$$WindowMinimizeBox - window has a minimize button
+	$$WindowMaximizeBox - window has a maximize button
+	
+:Destroy
+#####################
+#####  Destroy  #####
+#####################
+message
+	
+	XuiSendMessage (grid, #Destroy, 0, 0, 0, 0, kid, 0)
+	
+	Send Destroy to a grid to destroy it. If the grid is
+	attached to a window, that is, it was created by
+	CreateWindow, the window containing the grid is also
+	destroyed and removed  from the display. Do not send
+	messages to grids after they  are destroyed. Their grid
+	numbers are reassigned to  subsequently created grids,
+	and the messages are erroneously sent to the new grids.
+	
+	grid,kid - target grid
+	#Destroy - message: destroy grids
+	
+:Destroyed
+#######################
+#####  Destroyed  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #Destroyed, 0, 0, 0, 0, kid, 0)
+	
+	When a user destroys a window manually, a WindowDestroyed
+	message is sent to the window function assigned to the
+	destroyed window. The window function sends a Destroyed
+	message to every parentless grid in the destroyed window.
+	Grids propogate Destroyed messages to their kids.
+	
+	grid,kid - target grid
+	#Destroyed - message: notify grids they've been destroyed
+	
+:DestroyWindow
+###########################
+#####  DestroyWindow  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #DestroyWindow, 0, 0, 0, 0, kid, 0)
+	
+	Send DestroyWindow to any grid in a window to destroy
+	the window and all kids in the window.
+	
+	grid,kid - target grid (any grid in the window)
+	#DestroyWindow - message: destroy the window containing the grid
+	
+:Disable
+#####################
+#####  Disable  #####
+#####################
+message
+	
+	XuiSendMessage (grid, #Disable, 0, 0, 0, 0, kid, 0)
+	
+	Send Disable to a grid to have GraphicsDesigner stop
+	sending keyboard and mouse messages to the grid.
+	Grids propogate Disable messages to their kids.
+	
+	grid,kid - target grid
+	#Disable - message: disable grid
+	
+:DisplayWindow
+###########################
+#####  DisplayWindow  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #DisplayWindow, 0, 0, 0, 0, kid, 0)
+	
+	Send DisplayWindow to any grid in a window to display the window.
+	
+	grid,kid - target grid (any grid in the window)
+	#DisplayWindow - message: display the window containing the grid
+	
+	See: HideWindow, ShowWindow, WindowDisplay, WindowHide, WindowShow
+	
+:Enable
+####################
+#####  Enable  #####
+####################
+message
+	
+	XuiSendMessage (grid, #Enable, 0, 0, 0, 0, kid, 0)
+	
+	Send Enable to a grid to have GraphicsDesigner resume
+	sending keyboard and mouse messages to the grid.
+	Grids propogate Enable messages to their kids.
+	
+	grid,kid - target grid
+	#Enable - message: enable grids
+	
+:GetAlign
+######################
+#####  GetAlign  #####
+######################
+message
+	
+	XuiSendMessage (grid, #GetAlign, @align, @justify, @indentLeft, @indentTop, kid, @borderWidth)
+	
+	See: SetAlign, GetJustify, SetJustify
+	
+:GetBorder
+#######################
+#####  GetBorder  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #GetBorder, @border, @borderUp, @borderDown, 0, kid, @width)
+	
+	Send GetBorder to a grid to get its current border style, two alternate border
+	styles, and border width of the current border style.
+	
+	grid,kid - target grid
+	#GetBorder - message: get grid border styles, etc...
+	border - the current border style
+	borderUp - alternate border style
+	borderDown - alternate border style
+	width - width of current border style
+	
+:GetBorderOffset
+#############################
+#####  GetBorderOffset  #####
+#############################
+message
+	
+	XuiSendMessage (grid, #GetBorderOffset, @offsetLeft, @offsetTop, @offsetRight, @offsetBottom, kid, @borderWidth)
+	
+	See: SetBorderOffset
+	
+:GetCallback
+#########################
+#####  GetCallback  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #GetCallback, @callGrid, @callFunc, @v2, @v3, @r0, @r1)
+	
+	Send GetCallback to a grid to get its callback information, which includes a
+	callback grid, a callback function address, and callback indicies.
+	
+	grid - target grid
+	#GetCallback - message: get the callback grid/function/indices
+	callGrid - grid argument in callback message
+	callFunc - address of function callback messages are sent to
+	v2,v3,r0,r1 - values sent back with callback messages (if not -1)
+	
+	See: SetCallback
+	
+:GetCallbackArgs
+#############################
+#####  GetCallbackArgs  #####
+#############################
+message
+	
+	XuiCallback (@g, #GetCallbackArgs, @v0, @v1, @v2, @v3, @r0, @r1)
+	
+	Call XuiCallback() directly with a GetCallbackArgs message to retreive the
+	most recently sent callback arguments, some of which may have been replaced
+	with values registered when the callback function was set.
+	When a callback function is set, values can be registered to be sent in
+	v2,v3,r0,r1 whenever the grid sends a callback message. When the grid calls
+	XuiCallback() to send a callback message, any of the v2,v3,r0,r1 arguments that
+	was not -1 in the SetCallback call is sent with the registered callback value.
+	Calling XuiCallback() with a GetCallbackArgs message retreives the original
+	v2,v3,r0,r1 the grid sent.
+	
+	#GetCallbackArgs - message: get original callback arguments
+	g,v0,v1,v2,v3,r0,r1 - original callback arguments sent by grid
+	
+:GetCan
+####################
+#####  GetCan  #####
+####################
+message
+	
+	XuiSendMessage (grid, #GetCan, @can, @focusKid, @inputTextArray, @inputTextString, kid, @redrawFlags)
+	
+	See: SetCan
+	
+:GetCharacterMapArray
+##################################
+#####  GetCharacterMapArray  #####
+##################################
+message
+	
+	XuiSendMessage (grid, #GetCharacterMapArray, 0, 0, 0, 0, kid, @characterMapArray[])
+	
+	See: SetCharacterMapArray
+	
+:GetCharacterMapEntry
+##################################
+#####  GetCharacterMapEntry  #####
+##################################
+message
+	
+	XuiSendMessage (grid, #GetCharacterMapEntry, character, @character, 0, 0, kid, 0)
+	
+	grid,kid - target grid containing the character map array
+	#GetCharacterMapEntry - message: get one corresponding character
+	character - input character
+	@character - returned character
+	
+	See: GetCharacterMapEntry, SetCharacterMapEntry
+	
+:GetClipGrid
+#########################
+#####  GetClipGrid  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #GetClipGrid, @clip, 0, 0, 0, kid, 0)
+	
+	See: SetClipGrid
+	
+:GetColor
+######################
+#####  GetColor  #####
+######################
+message
+	
+	XuiSendMessage (grid, #GetColor, @back, @draw, @low, @high, kid, 0)
+	
+	Send GetColor to a grid to get its background,
+	drawing, lowlight, and highlight colors.
+	
+	grid,kid - target grid
+	#GetColor - message: get main grid colors
+	back - background color
+	draw - drawing color
+	low - lowlight color (3D down slope color)
+	high - highlight color (3D up slope color)
+	
+	See: ......... GetColorExtra, GetFocusColor, GetFocusColorExtra
+	     SetColor, SetColorExtra, SetFocusColor, SetFocusColorExtra
+	
+:GetColorExtra
+###########################
+#####  GetColorExtra  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetColorExtra, @dull, @accent, @loText, @hiText, kid, 0)
+	
+	Send GetColorExtra to a grid to get its dull, accent, lowtext,
+	and hightext colors.
+	
+	grid,kid - target grid
+	#GetColorExtra - message: get auxiliary grid colors
+	dull - dull color (disabled features, etc...)
+	accent - accent color (selected text, etc...)
+	loText - lowText color (for 3D text texture)
+	hiText - accent color (for 3D text texture)
+	
+	See: GetColor, .............. GetFocusColor, GetFocusColorExtra
+	     SetColor, SetColorExtra, SetFocusColor, SetFocusColorExtra
+	
+:GetCursor
+#######################
+#####  GetCursor  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #GetCursor, @cursor, 0, 0, 0, kid, 0)
+	
+	Send GetCursor to a grid to get the cursor number of the cursor
+	that displays when the mouse cursor enters grid.
+	
+	grid,kid - target grid
+	#GetCursor - message: get cursor number
+	cursor - cursor number (0 = default cursor)
+	
+:GetDisplay
+########################
+#####  GetDisplay  #####
+########################
+message
+	
+	XuiSendMessage (grid, #GetDisplay, 0, 0, 0, 0, kid, @display$)
+	
+	Send GetDisplay to any grid in any window in a display to get the
+	name of the display. The default display is an empty string "".
+	
+	grid,kid - target grid
+	#GetDisplay - message: get display containing grid,kid
+	display$ - name of display
+	
+:GetEnclosedGrids
+##############################
+#####  GetEnclosedGrids  #####
+##############################
+message
+	
+	XuiSendMessage (grid, #GetEnclosedGrids, 0, 0, 0, kid, @enclosedGrid[])
+	
+	Send GetEnclosedGrids to a grid to get an array containing the grid numbers
+	of all grids whose grid-boxes are completely contained within the grid.
+	Coincident boundaries are considered enclosed. Some part of a grid must
+	fall outside to be classified as not enclosed.
+	
+	grid,kid - target grid
+	#GetEnclosedGrids - message: get array of enclosed grid numbers
+	grid[] - array of enclosed grid numbers (empty if none)
+	
+	See: GetEnclosingGrid
+	
+:GetEnclosingGrid
+##############################
+#####  GetEnclosingGrid  #####
+##############################
+message
+	
+	XuiSendMessage (grid, #GetEnclosingGrid, @enclosingGrid, 0, 0, 0, kid, 0)
+	
+	Send GetEnclosingGrid to a grid to get the grid number of the
+	smallest grid that completely encloses the grid. Coincident boundaries
+	are considered enclosed. In other words, if no part of a grid extends
+	outside another, it is enclosed by that enclosing grid.
+	
+	grid,kid - target grid
+	#GetEnclosingGrid - message: get smallest enclosing grid number
+	enclosingGrid - grid number of smallest enclosing grid
+	
+	See: GetEnclosedGrids
+	
+:GetFocusColor
+###########################
+#####  GetFocusColor  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetFocusColor, @focusBack, @focusDraw, @focusLow, @focusHigh, kid, 0)
+	
+	Send GetFocusColor to a grid to get its
+	background, drawing, highlight, and lowlight
+	colors when this grid has keyboard focus.
+	
+	grid,kid - target grid
+	#GetFocusColor - message: get main colors when grid has keyboard focus
+	focusBack - background color
+	focusDraw - drawing color
+	focusLow - lowlight color (3D down slope color)
+	focusHigh - highlight color (3D up slope color)
+	
+	See: GetColor, GetColorExtra, .............. GetFocusColorExtra
+	     SetColor, SetColorExtra, SetFocusColor, SetFocusColorExtra
+	
+:GetFocusColorExtra
+################################
+#####  GetFocusColorExtra  #####
+################################
+message
+	
+	XuiSendMessage (grid, #GetFocusColorExtra, @focusDull, @focusAccent, @focusLoText, @focusHiText, kid, 0)
+	
+	Send GetFocusColorExtra to a grid to get its dull, accent, lowtext,
+	and hightext colors when the grid has keyboard focus.
+	
+	grid,kid - target grid
+	#GetFocusColorExtra - message: get auxiliary colors when the grid has keyboard focus
+	focuDull - dull color (disabled features, etc...)
+	focusAccent - accent color (selected text, etc...)
+	focusLoText - lowText color (for 3D text texture)
+	focusHiText - accent color (for 3D text texture)
+	
+	See: GetColor, GetColorExtra, GetFocusColor, ..................
+	     SetColor, SetColorExtra, SetFocusColor, SetFocusColorExtra
+	
+:GetFont
+#####################
+#####  GetFont  #####
+#####################
+message
+	
+	XuiSendMessage (grid, #GetFont, @size, @weight, @italic, @angle, kid, @font$)
+	
+	Send GetFont to a grid to get its font name and characteristics.
+	XgrCreateFont() assigns a unique font number for each combination
+	of typeface, size, weight, italic, and angle.
+	
+	grid,kid - target grid
+	#GetFont - message: get font assigned to grid
+	size - font size in 1/20 point units
+	weight - font boldness from 0 to 1000 - 400 is normal
+	italic - font italic tilt from 0 to 1000 - 0 is no italic
+	angle - font baseline tilt in 0.1 degree units
+	
+	See: GetFontMetrics, GetFontNumber, XgrGetFontMetrics()
+	     SetFont, SetFontNumber
+	
+:GetFontMetrics
+############################
+#####  GetFontMetrics  #####
+############################
+message
+	
+	XuiSendMessage (grid, #GetFontMetrics, @maxCharWidth, @maxCharHeight, @ascent, @decent, kid, @gap)
+	
+	See: GetFont, GetFontNumber, XgrGetFontMetrics()
+	     SetFont, SetFontNumber
+	
+:GetFontNumber
+###########################
+#####  GetFontNumber  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetFontNumber, @font, 0, 0, 0, kid, 0)
+	
+	Send GetFontNumber to a grid to get its font number.
+	XgrCreateFont() assigns a unique font number for each combination
+	of typeface, size, weight, italic, and angle.
+	
+	grid,kid - target grid
+	#GetFontNumber - message: get font number assigned to grid
+	font - font number
+	
+	See:  GetFont, GetFontMetrics, XgrGetFontMetrics()
+	      SetFont, SetFontNumber
+	
+:GetGridFunction
+#############################
+#####  GetGridFunction  #####
+#############################
+message
+	
+	XuiSendMessage (grid, #GetGridFunction, @func, 0, 0, 0, kid, 0)
+	
+	Send GetGridFunction to a grid to get the addres of its grid function.
+	
+	grid,kid - target grid
+	#GetGridFunction - message: get grid number and grid function
+	func - address of grid function assigned to target grid
+	
+	See: GetGridFunctionName, SetGridFunction, SetGridFunctionName,
+	     XgrGetGridFunction, XgrSetGridFunction
+	
+:GetGridFunctionName
+#################################
+#####  GetGridFunctionName  #####
+#################################
+message
+	
+	XuiSendMessage (grid, #GetGridFunctionName, @func, 0, 0, 0, kid, func$)
+	
+	Send GetGridFunctionName to a grid to get the name of its grid function.
+	The address of the grid function is also available.
+	
+	grid,kid - target grid
+	#GetGridFunctionName - message: get grid function name
+	func - address of grid function assigned to grid
+	func$ - name of grid function assigned to grid
+	
+	See: GetGridFunction, SetGridFunction, SetGridFunctionName,
+	     XgrGetGridFunction, XgrSetGridFunction
+	
+:GetGridName
+#########################
+#####  GetGridName  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #GetGridName, @gridNumber, 0, 0, 0, kid, @gridName$)
+	
+	Send GetGridName to a grid to get its grid name. Default grid names
+	are assigned to grids when they are created, and you should assign
+	descriptive grid names during the design process.
+	
+	grid,kid - target grid
+	#GetGridName - message: get grid name
+	gridNumber - grid number of grid,kid
+	gridName$ - grid name of grid,kid
+	
+:GetGridNumber
+###########################
+#####  GetGridNumber  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetGridNumber, @g, @kid1, @kid2, @kid3, kid, @parent)
+	
+	Send GetGridNumber to a grid to get its grid number. The grid numbers
+	of its first three kids and its parent are also returned.
+	
+	grid,kid - target grid
+	#GetGridNumber - message to get grid number of a grid
+	g - grid number of grid,kid
+	kid1,kid2,kid3 - grid number of kid #1, kid #2, kid #3 of grid,kid
+	parent - grid number of parent of grid,kid
+	
+:GetGridProperties
+###############################
+#####  GetGridProperties  #####
+###############################
+message
+	
+	XuiSendMessage (grid, #GetGridProperties, 0, 0, 0, 0, kid, @properties$[])
+	
+	Send GetGridProperties to get a list of property names.
+	To get the value for an individual propert use XuiGetGridProperty()
+	
+	grid,kid - target grid
+	#GetGridProperties - message to get a list of properties
+	properties$[] - list of property names
+	
+	See: XuiGetGridProperty()
+	
+:GetGridType
+#########################
+#####  GetGridType  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #GetGridType, @gridType, 0, 0, 0, kid, 0)
+	
+	Send GetGridType to a grid to get its grid type.
+	
+	grid,kid - target grid
+	#GetGridType - message: get grid type
+	gridType - grid type of grid
+	
+:GetGridTypeName
+#############################
+#####  GetGridTypeName  #####
+#############################
+message
+	
+	XuiSendMessage (grid, #GetGridTypeName, @gridType, 0, 0, 0, kid, @gridType$)
+	
+	Send GetGridTypeName to a grid to get the name of its grid type.
+	The gridType number is also available.
+	
+	grid,kid - target grid
+	#GetGridTypeName - message: get grid type name
+	gridType - grid type number
+	gridType$ - grid type name
+	
+:GetGroup
+######################
+#####  GetGroup  #####
+######################
+message
+	
+	XuiSendMessage (grid, #GetGroup, @group, 0, 0, 0, kid, 0)
+	
+	Send GetGroup to a grid to get the group number that
+	the grid is in. This is only used in grid types
+	XuiRadioBox and XuiRadioButton
+	
+	XuiRadioBox    default group = 2
+	XuiRadioButton default group = 1
+	
+	See: SetGroup, XuiRadioBox(), XuiRadioButton()
+	
+:GetHelp
+#####################
+#####  GetHelp  #####
+#####################
+message
+	
+	XuiSendMessage (grid, #GetHelp, x, y, state, time, @kid, @help$)
+	
+	GetHelp is sent to a grid by the InstantHelp window when the user
+	presses the right mouse button over the grid. GetHelp can also be
+	send to a grid to achieve the same effect. The InstantHelp window
+	sends the x,y,state,time arguments from the mouse event, so programs
+	can send all zeros to distinguish itself from mouse events.
+	XuiGetHelp() , the standard message processing function for
+	the GetHelp message, does the following:
+	Sends a Help callback message on behalf of the grid.
+	The callback function can display customized help by
+	sending SetHelp to XuiHelp().
+	The callback function can return r0=-1 to cancel the
+	normal help request response.
+	If XuiGetHelp() detects r0=-1, it returns this cancel
+	notice and an empty help string.
+	If the help string for the grid is not empty,
+	XuiGetHelp() returns the help string in help$.
+	If the help string is empty, XuiGetHelp() returns (":" + gridName$) in help$.
+	
+	grid,kid - target grid
+	#GetHelp - message: get help string to display
+	x,y - mouse coordinates if initiated by MouseDown
+	state,time - mouse information if initiated by MouseDown
+	@kid - return as -1 to cancel the help response
+	help$ - the help string (file:entry, :entry, help$, or "")
+	
+	See: ........ GetHelpFile, GetHelpString, GetHelpStrings
+	     SetHelp, SetHelpFile, SetHelpString, SetHelpStrings
+	
+:GetHelpFile
+#########################
+#####  GetHelpFile  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #GetHelpFile, 0, 0, 0, 0, kid, @helpfile$)
+	
+	grid,kid - target grid (any valid grid)
+	#GetHelpFile - message: get current default help file
+	helpFile$ - help file name
+	
+	See: GetHelp, ............ GetHelpString, GetHelpStrings
+	     SetHelp, SetHelpFile, SetHelpString, SetHelpStrings
+	
+:GetHelpString
+###########################
+#####  GetHelpString  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetHelpString, 0, 0, 0, 0, kid, @help$)
+	
+	Send GetHelpString to a grid to get its current help string.
+	This can be an empty string, or "filename:entryname", or ":entryname",
+	or the help text itself. Also see the GetHelp message.
+	
+	grid,kid - target grid
+	#GetHelpString - message: get help string from grid
+	help$ - help string from grid
+	
+	See: GetHelp, GetHelpFile, .............. GetHelpStrings
+	     SetHelp, SetHelpFile, SetHelpString, SetHelpStrings
+	
+:GetHelpStrings
+############################
+#####  GetHelpStrings  #####
+############################
+message
+	
+	XuiSendMessage (grid, #GetHelpStrings, 0, 0, 0, 0, kid, @help$[])
+	
+	Send GetHelpStrings to a grid to get its help string and the help
+	strings from all its kids. Each help string can be an empty string,
+	or "filename:entryname", or ":entryname", or the help text itself.
+	
+	grid,kid - target grid
+	#GetHelpStrings - message: get help string from grid and its kids
+	help$[] - help string from grid and its kids
+	
+	See: GetHelp, GetHelpFile, GetHelpString, ..............
+	     SetHelp, SetHelpFile, SetHelpString, SetHelpStrings
+	
+:GetHintString
+###########################
+#####  GetHintString  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetHintString, 0, 0, 0, 0, kid, @hint$)
+	
+	See: SetHintString
+	
+:GetImage
+######################
+#####  GetImage  #####
+######################
+message
+	
+	XuiSendMessage (grid, #GetImage, @image, @align, @indentX, @indentY, kid, 0)
+	
+	Send GetImage to a grid to get the grid number of the image grid
+	assigned to the grid, as well as the indent from the left and top of
+	the grid that the image should be drawn. Not all grids display images.
+	
+	grid,kid - target grid
+	#GetImage - message: get grid number of image
+	image - image grid number
+	align - alignment of image relative to top, bottom, right of left border
+	indentX - indent from left or right border dependent on alignment
+	indentY - indent from top or bottom border dependent on alignment
+	
+:GetImageCoords
+############################
+#####  GetImageCoords  #####
+############################
+message
+	
+	XuiSendMessage (grid, #GetImageCoords, @offsetX, @offsetY, @width, @height, kid, 0)
+	
+	Send GetImageCoords to a grid to get the coordinates of the portion of the
+	image grid that are to drawn into the grid. These are 0,0 relative coordinates
+	in the image, so they determine what portion of the image is drawn in the grid,
+	not where the image is drawn in the grid. See indentX,indentY in GetImage.
+	
+	grid,kid - target grid
+	#GetImageCoords - message: get coordinate of portion of image to draw
+	offsetX - offset from image left to left of portion to draw
+	offsetY - offset from image top to top of portion to draw
+	width - width of portion of image to draw
+	height - height of portion of image to draw
+	
+:GetIndent
+#######################
+#####  GetIndent  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #GetIndent, @indentLeft, @indentTop, @indentRight, @indentBottom, kid, @bw)
+	
+:GetJustify
+########################
+#####  GetJustify  #####
+########################
+message
+	
+	XuiSendMessage (grid, #GetJustify, @justify, @align, @inL, @inT, kid, @bw)
+	
+	Send GetJustify to a grid to get its text justify, align,
+	indentLeft, indentTop properties, and its border width.
+	
+	grid,kid - target grid
+	#GetJustify - message: get justify, align, indent, border width
+	justify - text justify property
+	align - text align property
+	inL,inT - text indentLeft,indentTop property
+	bw - width of the border style
+	
+	See: GetAlign, SetAlign, SetJustify
+	
+:GetKeyboardFocus
+##############################
+#####  GetKeyboardFocus  #####
+##############################
+message
+	
+	XuiSendMessage (grid, #GetKeyboardFocus, @focusGrid, 0, 0, 0, kid, 0)
+	
+	Send GetKeyboardFocus to any grid to get the grid that currently has keyboard
+	focus. The grid with keyboard focus may not be in the same window.
+	
+	grid,kid - target grid
+	#GetKeyboardFocus - message: get current keyboard focus grid number
+	focusGrid - grid number of grid that has keyboard focus
+	
+	See: GetWindow,                  SetKeyboardFocus
+	     GetKeyboardFocusGrid,       SetKeyboardFocusGrid
+	     GotKeyboardFocus,           LostKeyboardFocus
+	     KeyboardFocusBackward,      KeyboardFocusForward
+	     WindowGetKeyboardFocusGrid, WindowSetKeyboardFocusGrid
+	
+:GetKeyboardFocusGrid
+##################################
+#####  GetKeyboardFocusGrid  #####
+##################################
+message
+	
+	XuiSendMessage (grid, #GetKeyboardFocusGrid, @focusGrid, 0, 0, 0, kid, 0)
+	
+	Send GetKeyboardFocusGrid to any grid in a window to get the grid number of
+	the grid that will get keyboard focus the next time the window is selected.
+	If the window is currently selected, focusGrid currently has keyboard focus.
+	
+	grid,kid - target grid
+	#GetKeyboardFocusGrid - message: get keyboard focus grid in window
+	focusGrid - grid that will get keyboard focus in window
+	
+	See: GetKeyboardFocus, SetKeyboardFocusGrid, GetWindow
+	
+:GetKidArray
+#########################
+#####  GetKidArray  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #GetKidArray, @g, @parent, 0, @lastkid, kid, @kid[])
+	
+	Send GetKidArray to a grid to get an array containing the grid numbers
+	of the grid kids. kid[0] is the grid number of the grid.
+	
+	grid,kid - target grid
+	#GetKidArray - message: get array of kid grid numbers
+	g - grid number of the grid,kid
+	parent - grid number of the parent grid
+	lastkid - last kid number
+	kid[] - grid numbers of grid,kid and its kids
+	
+:GetKidNumber
+##########################
+#####  GetKidNumber  #####
+##########################
+message
+	
+	XuiSendMessage (grid, #GetKidNumber, @kidNumber, @parent, 0, 0, kid, 0)
+	
+	Send GetKidNumber to a grid to get the parent grid number
+	and that parents kid number.
+	
+	grid,kid - target grid
+	kidNumber - kid number
+	parent - grid number of the parent
+	
+	See: GetKids
+	
+:GetKids
+#####################
+#####  GetKids  #####
+#####################
+message
+	
+	XuiSendMessage (grid, #GetKids, @g, @k1, @k2, @k3, kid, @k4)
+	
+	Send GetKids to a grid to get an array containing the grid number
+	of the grid and its kids. g is the grid number of the target grid.
+	
+	grid,kid - target grid
+	#GetKids - message: get array of kid grid numbers
+	g - grid number of grid,kid
+	k1,k2,k3,k4 - grid numbers of 1st 4 kids of grid,kid
+	
+	See: GetKidNumber
+	
+:GetMaxMinSize
+###########################
+#####  GetMaxMinSize  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetMaxMinSize, @maxW, @maxH, @minW, @minH, kid, 0)
+	
+	Send GetMaxMinSize to a grid to get is maximum and minimum
+	width, height under any circumstances.
+	
+	grid,kid - target grid
+	#GetMaxMinSize - message: get max/min width/height of grid,kid
+	maxW,maxH - maximum possible width and height of grid,kid
+	minW,minH - minimum possible width and height of grid,kid
+	
+	See: GetSmallestSize, SetMaxMinSize
+	
+:GetMessageFunc
+############################
+#####  GetMessageFunc  #####
+############################
+message
+	
+	XuiSendMessage (grid, #GetMessageFunc, message, @func, 0, 0, kid, 0)
+	
+	Send GetMessageFunc to a grid to get the address of the function
+	that handles message number message.
+	
+	grid,kid - target grid
+	#GetMessageFunc - message: get message function address for a message
+	message - message number to get function address for
+	func - address of function executed in response to msg
+	
+	See: GetMessageFuncArray, SetMessageFunc, SetMessageFuncArray, XuiGetDefaultMessageFuncArray()
+	
+:GetMessageFuncArray
+#################################
+#####  GetMessageFuncArray  #####
+#################################
+message
+	
+	XuiSendMessage (grid, #GetMessageFuncArray, 0, 0, 0, 0, kid, @func[])
+	
+	Send GetMessageFuncArray to a grid to get the addresses
+	of the functions that process messages for the grid.
+	
+	grid,kid - target grid
+	#GetMessageFuncArray - message: get message function addresses
+	func[] - message function addresses
+	
+	See: GetMessageFunc, SetMessageFunc, SetMessageFuncArray, XuiGetDefaultMessageFuncArray()
+	
+:GetMessageSub
+###########################
+#####  GetMessageSub  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetMessageSub, message, @sub, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	#GetMessageSub - message: get message subroutine address
+	message - message to get subroutine address for
+	sub - subroutine address
+	
+	See: GetMessageSubArray
+	
+:GetMessageSubArray
+################################
+#####  GetMessageSubArray  #####
+################################
+message
+	
+	XuiSendMessage (grid, #GetMessageSubArray, 0, 0, 0, 0, kid, @sub[])
+	
+	grid,kid - target grid
+	#GetMessageSubArray - message: get array of message subroutines
+	sub[] - array of message subroutine addresses
+	
+	See: GetMessageSub
+	
+:GetModalInfo
+##########################
+#####  GetModalInfo  #####
+##########################
+message
+	
+	XuiSendMessage (grid, #GetModalInfo, @v0, @v1, @v2, @v3, kid, @r1)
+	
+	grid,kid - target grid
+	#GetModalInfo - message: display modal window, accept response
+	v0,v1,v2,v3,r1 - arguments returned by response callback
+	
+:GetModalWindow
+############################
+#####  GetModalWindow  #####
+############################
+message
+	
+	XuiSendMessage (grid, #GetModalWindow, @modalWindow, @modalGrid, 0, 0, 0, 0)
+	
+:GetParent
+#######################
+#####  GetParent  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #GetParent, @parent, @kidGrid, @kid1, @kid2, kid, @kid3)
+	
+	Send GetParent to a grid to get its grid number
+	and the grid number of its parent grid.
+	
+	grid,kid - target grid
+	#GetParent - message to get grid number of parent grid
+	parent - grid number of parent of grid,kid
+	kidGrid - grid number of the target grid,kid
+	kid1 - grid number of kid 1
+	kid2 - grid number of kid 2
+	kid3 - grid number of kid 3
+	
+:GetPosition
+#########################
+#####  GetPosition  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #GetPosition, @lowest, @low, @high, @highest, kid, 0)
+	
+	The GetPosition message is used to obtain the values in the
+	XuiScrollBarH or XuiScrollBarV grid which are typically
+	part of an XuiTextArea grid.
+	
+	grid,kid - target grid
+	#GetPosition - message: get scale/scroll position
+	lowest - lowest possible value, usually 0
+	low - low end of range (scroll-bar slider)
+	high - high end of current range (scroll-bar slider)
+	highest - highest possible value, usually max line #
+	
+	See: SetPosition, XuiScrollBarH, XuiScrollBarV
+	
+:GetRedrawFlags
+############################
+#####  GetRedrawFlags  #####
+############################
+message
+	
+	XuiSendMessage (grid, #GetRedrawFlags, @redrawFlags, 0, 0, 0, kid, 0)
+	
+	See: SetRedrawFlags
+	
+:GetSize
+#####################
+#####  GetSize  #####
+#####################
+message
+	
+	XuiSendMessage (grid, #GetSize, @x, @y, @width, @height, kid, 0)
+	
+	Send GetSize to a grid to get the position of its upper-left
+	corner in window coordinates, and its size in pixels.
+	
+	grid,kid - target grid
+	#GetSize - message: get grid position in window and width,height
+	x,y - upper-left corner of grid,kid in parent
+	width,height - width and height of grid,kid in pixels
+	
+	See: SetSize
+	
+:GetSmallestSize
+#############################
+#####  GetSmallestSize  #####
+#############################
+message
+	
+	XuiSendMessage (grid, #GetSmallestSize, 0, 0, @width, @height, kid, minWH)
+	XuiSendMessage (grid, #GetSmallestSize, columns, rows, @width, @height, kid, minWH)
+	
+	Grids that contain scrollable text areas such as
+	XuiTextArea(), XuiList(), XuiDialog() should have:
+	   columns = number of text characters to fit horizontally
+	   rows    = number of rows of text to fit vertically
+	
+	Send GetSmallestSize to a grid to get the smallest size it can be resized to
+	and still reasonably contain its contents. Not every grid type supports this
+	message, so routines should be prepared to have the width, height arguments
+	returned unchanged, or possibly with the current grid size returned by
+	GetSize, or possibly filled with the grid minimums returned by GetMaxMinSize.
+	
+	grid,kid - target grid
+	#GetSmallestSize - message: get smallest size that fits contents
+	width,height - smallest width and height
+	minWH - minimum width and height
+	
+	See: GetMaxMinSize, SetMaxMinSize
+	
+:GetState
+######################
+#####  GetState  #####
+######################
+message
+	
+	XuiSendMessage (grid, #GetState, @state, @keyboard, @mouse, @redraw, kid, 0)
+	
+	Send GetState to a grid to get its master disabled/enabled state,
+	as well as disabled/enabled states for keyboard messages,
+	mouse messages, and redraw messages.
+	See the Disable and Enable messages for related information.
+	
+	grid,kid - target grid
+	#GetState - message: get disable/enable state (FALSE / TRUE)
+	state - FALSE/TRUE = disabled/enabled (everything)
+	keyboard - FALSE/TRUE = disabled/enabled keyboard
+	mouse - FALSE/TRUE = disabled/enabled mouse
+	redraw - FALSE/TRUE = disabled/enabled redraw
+	
+	See: SetState
+	
+:GetStyle
+######################
+#####  GetStyle  #####
+######################
+message
+	
+	XuiSendMessage (grid, #GetStyle, @style, @styleMax, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	#GetStyle - message: get style property
+	style - style property
+	styleMax - maximum valid value for style property
+	
+:GetTabArray
+#########################
+#####  GetTabArray  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #GetTabArray, 0, 0, 0, 0, kid, @tabArray[])
+	
+	(tab array not implemented yet)
+	
+	TabArray is not implemented yet
+	
+	See: GetTabWidth
+	
+:GetTabWidth
+#########################
+#####  GetTabWidth  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #GetTabWidth, @tabWidth, 0, 0, 0, kid, @uboundTabArray)
+	
+	grid,kid - target grid
+	GetTabArray - message: get tab width
+	tabWidth - tab width in pixels
+	uboundTabArray - upper bounds of the tab array (not implemented)
+	
+:GetTextArray
+##########################
+#####  GetTextArray  #####
+##########################
+message
+	
+	XuiSendMessage (grid, #GetTextArray, 0, 0, 0, 0, kid, @text$[])
+	
+	Send GetTextArray to a grid to get its text array.
+	
+	grid,kid - target grid
+	#GetTextArray - message: get text array
+	text$[] - text array from grid,kid
+	
+	See: GetTextArrayBounds, GetTextArrayLine, GetTextArrayLines,
+	     GrabTextArray, PokeTextArray,
+	     SetTextArray, SetTextArrayLine, SetTextArrayLines
+	
+:GetTextArrayBounds
+################################
+#####  GetTextArrayBounds  #####
+################################
+message
+	
+	XuiSendMessage (grid, #GetTextArrayBounds, @cursorPos, @cursorLine, @lastPos, @lastLine, kid, 0)
+	
+	grid,kid - target grid
+	#GetTextArrayBounds - message: get text array bounds
+	cursorPos - current cursor position
+	cursorLine - current cursor line
+	lastPos - last character position in last line
+	lastLine - last line (UBOUND text array)
+	
+	See: GetTextArray, GetTextArrayLine, GetTextArrayLines,
+	     SetTextArray, SetTextArrayLine, SetTextArrayLines
+	
+:GetTextArrayLine
+##############################
+#####  GetTextArrayLine  #####
+##############################
+message
+	
+	XuiSendMessage (grid, #GetTextArrayLine, line, @lineRead, 0, @upper, kid, @text$)
+	
+	Send GetTextArrayLine to a grid to get one text string from
+	its text array. The lower bound of the text array is 0.
+	
+	grid,kid - target grid
+	#GetTextArrayLine - message: get one line from text array
+	line - line number to get (0 to UBOUND(text$[]))
+	lineRead - line number successfully read (-1 if failed)
+	upper - UBOUND(text$[])
+	text$ - text line from text array in grid,kid
+	
+	See: GetTextArray, GetTextArrayBounds, GetTextArrayLines,
+	     SetTextArray, SetTextArrayLine, SetTextArrayLines
+	
+:GetTextArrayLines
+###############################
+#####  GetTextArrayLines  #####
+###############################
+message
+	
+	XuiSendMessage (grid, #GetTextArrayLines, first, count, 0, @upper, kid, @text$[])
+	
+	Send GetTextArrayLines to a grid to get consecutive lines from
+	its text array. The lower bound of the text array is 0.
+	
+	grid,kid - target grid
+	#GetTextArrayLines - message: get consecutive lines from text array
+	first - first line number to get (starts at 0)
+	count - number of lines to get
+	upper - upper bound of text$[]
+	text$[] - text array with lines from text array
+	
+	See: GetTextArray, GetTextArrayBounds, GetTextArrayLine,
+	     SetTextArray, SetTextArrayLine, SetTextArrayLines
+	
+:GetTextCursor
+###########################
+#####  GetTextCursor  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetTextCursor, @cursorPos, @cursorLine, @topIndent, @topLine, kid, @rows)
+	
+	grid,kid - target grid
+	#GetTextCursor - meesage: obtain the current cursor position
+	cursorPos - cursor location character number
+	cursorLine - cursor location line number
+	topIndent - number of left-most pixel displayed
+	topLine - number of first text line displayed
+	rows - number of rows visible in grid
+	
+	See: SetTextCursor
+	
+:GetTextFilename
+#############################
+#####  GetTextFilename  #####
+#############################
+message
+	
+	XuiSendMessage (grid, #GetTextFilename, 0, 0, 0, 0, kid, @filename$)
+	
+	See: SetTextFilename
+	
+:GetTextFlag
+#########################
+#####  GetTextFlag  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #GetTextFlag, flagConstant, @setReset, 0, 0, kid, 0)
+	
+	Send GetTextFlag to an XuiTextArea type grid to see status of flagged features.
+	
+	grid,kid - target grid
+	#GetTextFlag - messsage: get text flag in XuiTextArea type grid
+	flagConstant - textarea flag Constant number
+	setReset - $$TRUE if activated, $$FALSE if deactivated
+	
+	See: SetTextFlag, XuiTextArea()
+	
+:GetTextPosition
+#############################
+#####  GetTextPosition  #####
+#############################
+message
+	
+	XuiSendMessage (grid, #GetTextPosition, xDisp, yDisp, @charPos, @lineNum, kid, @outOfBounds)
+	
+	grid,kid - target grid
+	#GetTextPosition - message : get text position for given X/Y coordinate
+	xDisp - x displacement in pixels
+	yDisp - y displacement in pixels
+	charPos - character position number
+	lineNum - closest line number in text array
+	outOfBounds - TRUE if beyond end-of-line or below last line
+	
+:GetTextSelection
+##############################
+#####  GetTextSelection  #####
+##############################
+message
+	
+	XuiSendMessage (grid, #GetTextSelection, @begPos, @begLine, @endPos, @endLine, kid, @string$)
+	
+	grid,kid - target grid
+	#GetTextSelection - message: get text slection location and text
+	begPos - beginning position
+	begLine - beginning line
+	endPos - end position
+	endLine - end line
+	string$ - copy of selected text
+	
+:GetTextSpacing
+############################
+#####  GetTextSpacing  #####
+############################
+message
+	
+	XuiSendMessage (grid, #GetTextSpacing, @xgap, @ygap, 0, 0, kid, 0)
+	
+:GetTextString
+###########################
+#####  GetTextString  #####
+###########################
+
+	NOTE: Text spacing not implemented
+	
+	XuiSendMessage (grid, #GetTextString, 0, 0, 0, 0, kid, @text$)
+	
+	Send GetTextString to a grid to get its text string.
+	
+	grid,kid - target grid
+	#GetTextString - message: get text string
+	text$ - text string from grid,kid
+	
+	See: SetTextString
+	
+:GetTextStrings
+############################
+#####  GetTextStrings  #####
+############################
+message
+	
+	XuiSendMessage (grid, #GetTextStrings, 0, 0, 0, @uboundKids, kid, @text$[])
+	
+	Send GetTextStrings to a grid to get the text strings from the grid and its kids.
+	
+	grid,kid - target grid
+	#GetTextStrings - message: get text string from grid,kid and its kids
+	uboundKids - highest kid number for this grid
+	text$[] - text strings from grid,kid and its kids
+	
+	See: SetTextStrings
+	
+:GetTexture
+########################
+#####  GetTexture  #####
+########################
+message
+	
+	XuiSendMessage (grid, #GetTexture, @texture, 0, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	#GetTexture - message: get text texture
+	texture - texture property (Flat/Lower/Raise/Shadow)
+	
+	See: SetTexture
+	
+:GetTimer
+######################
+#####  GetTimer  #####
+######################
+message
+	
+	XuiSendMessage (grid, #GetTimer, @time, 0, 0, 0, kid, 0)
+	
+	Send GetTimer to a grid to get the default time, milliseconds,
+	that is used by StartTimer message.
+	
+	grid,kid - target grid
+	time - time in milliseconds
+	
+	See: SetTimer, StartTimer, TimeOut
+	
+:GetValue
+######################
+#####  GetValue  #####
+######################
+message
+	
+	XuiSendMessage (grid, #GetValue, @v0, @v1, @v2, @v3, kid, index)
+	
+	grid,kid - target grid
+	#GetValue - message: return four sequential values from value[]
+	v0,v1,v2,v3 - value[r1+0] to value[r1+3]
+	index - index to first element in value array to return
+	
+	See: CreateValueArray, GetValues, SetValue, SetValues
+	
+:GetValueArray
+###########################
+#####  GetValueArray  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetValueArray, 0, 0, 0, 0, kid, @value[])
+	
+	grid,kid - target grid
+	#GetValueArray - message: get copy of XLONG value array property
+	value[] - XLONG value array property
+	
+	See: CreateValueArray
+	
+:GetValues
+#######################
+#####  GetValues  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #GetValues, @v0, @v1, @v2, @v3, kid, index)
+	
+	Send GetValues to a grid to get four elements from its XLONG value[] array
+	starting at value[r1].
+	
+	grid,kid - target grid
+	#GetValues - message: return four sequential values from value[]
+	v0,v1,v2,v3 - value[r1+0] to value[r1+3]
+	index - index to first element in value array to return
+	
+	See: CreateValueArray, GetValue, SetValue, SetValues
+	
+:GetWindow
+#######################
+#####  GetWindow  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #GetWindow, @window, @winType, @func, @windowGrid, kid, @focusGrid)
+	
+	Send GetWindow to a grid to get the
+	window number of the window containing it.
+	The windowType, windowFunction, windowGrid,
+	and keyboardFocusGrid are also returned.
+	
+	grid,kid - target grid
+	#GetWindow - message: get window containing grid,kid
+	window - window number of window containing grid,kid
+	winType - window type assigned to window at create time
+	func - window function assigned to window
+	windowGrid - grid attached to window (so they resize together)
+	focusGrid - grid given keyboard focus when window is selected
+	
+	See: GetWindowFunction, GetWindowGrid, GetKeyboardFocusGrid
+	
+:GetWindowFunction
+###############################
+#####  GetWindowFunction  #####
+###############################
+message
+	
+	XuiSendMessage (grid, #GetWindowFunction, @winFunc, 0, 0, 0, kid, 0)
+	
+	Send GetWindowFunction to a grid to get the window function of the window
+	that contains the grid.
+	
+	grid,kid - target grid
+	#GetWindowFunction - message: get window containing the grid
+	winFunc - address of window function of window
+	
+	See: GetWindow, SetWindowFunction, WindowGetFunction, WindowSetFunction
+	
+:GetWindowGrid
+###########################
+#####  GetWindowGrid  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetWindowGrid, @windowGrid, 0, 0, 0, kid, 0)
+	
+	Send GetWindowGrid to a grid to get the window grid
+	assigned to the window that contains grid.
+	A window grid is a grid attached to a window
+	so that the window resizes if the grid is resized.
+	Grid functions establish this connection when their
+	CreateWindow subroutines send RegisterGrid messages to XuiWindow().
+	
+	grid,kid - target grid
+	#GetWindowGrid - message: get window containing the grid
+	windowGrid - grid number of grid attached to window
+	
+	See: GetWindow
+	
+:GetWindowIcon
+###########################
+#####  GetWindowIcon  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetWindowIcon, @icon, 0, 0, 0, kid, @iconName$)
+	
+	Send GetWindowIcon to a grid to get the icon number of
+	the icon assigned to the window that contains the grid.
+	
+	grid,kid - target grid
+	#GetWindowIcon - message: get icon number
+	icon - icon number of window containing grid,kid
+	iconName$ - name of icon
+	
+	See: SetWindowIcon, WindowGetIcon, WindowSetIcon
+	
+:GetWindowSize
+###########################
+#####  GetWindowSize  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GetWindowSize, @xDisp, @yDisp, @width, @height, kid, 0)
+	
+	Send GetWindowSize to a grid to get the position and size
+	of the window that contains the grid.
+	
+	grid,kid - target grid
+	#GetWindowSize - message: get position and size of window
+	xDisp,yDisp - display coordinates of upper left corner of window
+	width,height - width and height of window in pixels
+	
+:GetWindowTitle
+############################
+#####  GetWindowTitle  #####
+############################
+message
+	
+	XuiSendMessage (grid, #GetWindowTitle, @window, 0, 0, 0, kid, @title$)
+	
+	Send GetWindowTitle to a grid to get the title string
+	displayed on the window containing the grid.
+	
+	grid,kid - target grid
+	#GetWindowTitle - message: get window title
+	title$ - title of window containing grid
+	
+	See: SetWindowTitle, WindowGetTitle, WindowSetTitle
+	
+	
+:GotKeyboardFocus
+##############################
+#####  GotKeyboardFocus  #####
+##############################
+message
+	
+	XuiSendMessage (grid, #GotKeyboardFocus, 0, 0, 0, 0, kid, 0)
+	
+	GotKeyboardFocus is sent to a grid by its window function
+	when the grid is given keyboard focus, which means
+	subsequent keyboard messages will be sent to the grid.
+	Text grids normally display their text cursor when they receive
+	GotKeyboardFocus and erase it when they receive LostKeyboardFocus.
+	
+	grid,kid - target grid
+	#GotKeyboardFocus - message: got keyboard focus
+	
+	See: GetKeyboardFocus, LostKeyboardFocus
+	
+:GrabArray
+#######################
+#####  GrabArray  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #GrabArray, 0, 0, 0, 0, kid, @array[])
+	
+	Send GrabArray to a grid to grab its array.
+	The array[] in the grid is left empty.
+	
+	grid,kid - target grid
+	#GrabArray - message: grab array
+	array[] - array that is taken from the grid
+	
+	See: PokeArray
+	
+:GrabTextArray
+###########################
+#####  GrabTextArray  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #GrabTextArray, 0, 0, 0, 0, kid, @text$[])
+	
+	Send GrabTextArray to a grid to grab its text array.
+	Unlike GetTextArray , the original text array is returned,
+	so the grid is left with an empty text array until it is
+	reinstated or replaced by SetTextArray or PokeTextArray.
+	GrabTextArray is provided for cases where a TextArea
+	grid contains a large amount of text and the overhead
+	of copying the entire text array with
+	GetTextArray involves excessive overhead.
+	
+	grid,kid - target grid
+	#GrabTextArray - message: Grab text array from grid
+	text$[] - original text array stolen from grid
+	
+	See: GetTextArray, PokeTextArray, SetTextArray
+	
+:GrabTextString
+############################
+#####  GrabTextString  #####
+############################
+message
+	
+	XuiSendMessage (grid, #GradTextString, 0, 0, 0, @uboundString, kid, @text$)
+	
+	Send GrabTextString to a grid to grab its text string.
+	The grid is left with an empty text string.
+	
+	grid,kid - target grid
+	#GrabTextString - message: ATTACH string to grid
+	uboundString - upper bound of the string
+	text$ - text string from grid
+	
+	See: PokeTextString, ATTACH, SWAP
+	
+:GrabValueArray
+############################
+#####  GrabValueArray  #####
+############################
+message
+	
+	XuiSendMessage (grid, #GrabValueArray, 0, 0, 0, 0, kid, @array[])
+	
+	Send GrabValueArray to a grid to grab its values[] array.
+	The original array is returned, so the grid is left with an
+	empty value[] array until it is replaced by PokeValueArray.
+	GrabValueArray is provided for cases where a grid contains
+	more data than is conveniently accessible with GetValues.
+	
+	grid,kid - target grid
+	#GrabValueArray - message: Grab value array from grid
+	array[] - original values[] array removed from grid
+	
+	See: CreateValueArray, GetValueArray, PokeValueArray, SetValueArray
+	
+:Help
+##################
+#####  Help  #####
+##################
+message
+	
+	XuiSendMessage (grid, #Help, x, y, state, time, @r0, 0)
+	
+	The Help message is sent to callback functions by XuiGetHelp() in response to
+	GetHelp messages. Normally callback functions ignore Help messages and let
+	the automatic help system function normally.
+	If a callback function wants to suppress help, it can set r0 to -1 and return. If a
+	callback function wants to provide special purpose help, it can send SetHelp
+	and a help string to XuiHelp() for display in the HelpWindow, then set r0=-1 to
+	suppress the normal help response (which would overwrite the custom help).
+	The most common use of special purpose help is to provide more selective help
+	information. If the help request originated in a TextArea grid, for example, a
+	program could learn from the MouseDown coordinates in the x,y arguments
+	what word the user clicked on, and provide special help for that word.
+	
+	grid - target grid
+	#Help - message: Help callback
+	x,y - window coordinates of MouseDown that initiated request
+	state,time - mouse information that initiated request
+	r0 - set to -1 to suppress displaying of help
+	
+:Hidden
+####################
+#####  Hidden  #####
+####################
+message
+	
+	XuiSendMessage (grid, #Hidden, displayState, 0, 0, 0, kid, 0)
+	
+	The Hidden message is sent to all subbordinate grids when
+	a window has gone into the hidden state.
+	
+	grid,kid - target grid
+	#Hidden - message: indicating grid is now hidden
+	displayState - $$WindowHidden/$$WindowDisplayed/$$WindowMinimized/$$WindowMaximized
+	
+:HideWindow
+########################
+#####  HideWindow  #####
+########################
+message
+	
+	XuiSendMessage (grid, #HideWindow, 0, 0, 0, 0, kid, 0)
+	
+	Send HideWindow to a grid to remove the window
+	that contains the grid from the display.
+	
+	grid,kid - target grid
+	#HideWindow - message: hide the window that contains the grid
+	
+	See: DisplayWindow, ShowWindow, WindowDisplay, WindowHide, WindowShow
+	
+:KeyboardFocusBackward
+###################################
+#####  KeyboardFocusBackward  #####
+###################################
+message
+	
+	XuiSendMessage (focusGrid, #KeyboardFocusBackward, 0, 0, 0, 0, kid, 0)
+	
+	KeyboardFocusBackward is sent to the grid that has keyboard focus when
+	the "Alt" + Left Arrow key are pressed.
+	
+	focusGrid,kid - target grid, which has current focus
+	#KeyboardFocusBackward - message: move focus grid backward
+	
+	See: KeyboardFocusForward
+	
+:KeyboardFocusForward
+##################################
+#####  KeyboardFocusForward  #####
+##################################
+message
+	
+	XuiSendMessage (focusGrid, #KeyboardFocusForward, 0, 0, 0, 0, kid, 0)
+	
+	
+	KeyboardFocusForward is sent to the grid that has keyboard focus when
+	the "Alt" + Right Arrow key are pressed.
+	
+	focusGrid,kid - target grid, which has current focus
+	#KeyboardFocusBackward - message: move focus grid forward
+	
+	See: KeyboardFocusBackward
+	
+:KeyDown
+#####################
+#####  KeyDown  #####
+#####################
+message
+	
+	XuiSendMessage (grid, #KeyDown, x, y, state, time, kid, 0)
+	
+	KeyDown is sent to a grid by a window function when it receives
+	a WindowKeyDown message and the grid has keyboard focus.
+	The arguments tell the position of the mouse cursor at
+	the time the key down event was detected, the key that
+	was depressed, other keyboard status information, and the
+	system millisecond time that the key event was detected.
+	Most programs respond to KeyDown and ignor KeyUp.
+	This can go on to generate a TextInsert message.
+	
+	See: TextInsert, WindowKeyDown
+	
+	grid,kid - target grid
+	#KeyDown - message: keyboard key was pressed
+	x,y - x,y coordinates of mouse cursor when key went down
+	state - key that went down and other keyboard status information
+	time - free running system millisecond time when key went down
+	
+:KeyUp
+###################
+#####  KeyUp  #####
+###################
+message
+	
+	XuiSendMessage (grid, KeyUp, x, y, state, time, kid, 0)
+	
+	KeyUp is sent to a grid by a window function when it receives
+	a WindowKeyUp message and the grid has keyboard focus. The
+	arguments tell the position of the mouse cursor at the time
+	the key up event was detected, the key that was released,
+	other keyboard status information, and the system millisecond
+	time that the key up event was detected. Most programs respond
+	to KeyDown and ignore KeyUp.
+	
+	grid,kid - target grid
+	#KeyUp - message: keyboard key was released
+	x,y - x,y coordinates of mouse cursor when key went up
+	state - key that went down and other keyboard status information
+	time - free running system millisecond time when key went up
+	
+:LostKeyboardFocus
+###############################
+#####  LostKeyboardFocus  #####
+###############################
+message
+	
+	XuiSendMessage (grid, #LostKeyboardFocus, 0, 0, 0, 0, kid, 0)
+	
+	LostKeyboardFocus is sent to a grid by window functions when the
+	keyboard focus is taken from the grid and assigned to another.
+	Subsequent keyboard messages will be sent to the new grid.
+	Text grids normally display their text cursor when they
+	receive a GotKeyboardFocus message, and erase it when they
+	receive a LostKeyboardFocus message.
+	
+	grid,kid - target grid
+	#LostKeyboardFocus - message: grid,kid lost keyboard focus
+	
+	See: GetKeyboardFocus, GotKeyboardFocus
+	
+:LostTextSelection
+###############################
+#####  LostTextSelection  #####
+###############################
+message
+	
+	XuiSendMessage (grid, #LostTextSelection, 0, 0, 0, 0, kid, 0)
+	
+	LostTextSelection is sent to a grid by window functions when the
+	text selection is taken from the grid and assigned to another.
+	Subsequent selection messages will be sent to the new grid.
+	
+	grid,kid - target grid
+	#LostTextSelection - message: grid,kid lost textselection
+	
+:Maximized
+#######################
+#####  Maximized  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #Maximized, state, 0, 0, 0, 0, 0)
+	
+	See: WindowMaximized
+	
+:MaximizeWindow
+############################
+#####  MaximizeWindow  #####
+############################
+message
+	
+	XuiSendMessage (grid, #MaximizeWindow, 0, 0, 0, 0, kid, 0)
+	
+	Send MaximizeWindow to a grid to display the window that contains
+	the grid as large as possible up to the size of the display.
+	
+	grid,kid - target grid
+	#MaximizeWindow - message: maximize the window that contains grid
+	
+	See: MinimizeWindow, RestoreWindow, WindowMaximize, XgrFullscreenWindow()
+	
+:Minimized
+#######################
+#####  Minimized  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #Minimized, state, 0, 0, 0, 0, 0)
+	
+	See: WindowMinimized
+	
+:MinimizeWindow
+############################
+#####  MinimizeWindow  #####
+############################
+message
+	
+	XuiSendMessage (grid, #MinimizeWindow, 0, 0, 0, 0, kid, 0)
+	
+	Send MinimizeWindow to a grid to remove the window that contains
+	the grid from the display, and replace it with a small icon that
+	can be double-clicked to restore the window.
+	
+	See: MaximizeWindow, RestoreWindow, WindowMinimize
+	
+	grid,kid - target grid
+	#MinimizeWindow - message: minimize the window that contains grid
+	
+:MonitorContext
+############################
+#####  MonitorContext  #####
+############################
+message
+	
+	XuiSendMessage (grid, #MonitorContext, callGrid, callFunc, 0, 0, kid, installDelete)
+	
+	grid,kid - target grid
+	#MonitorContext - message: monitor context of window (Deselected, Resized, Selected)
+	callGrid - grid argument in ContextChange callback message
+	callFunc - function called with ContextChange message
+	installDelete - TRUE/FALSE means install/delete
+	
+:MonitorKeyboard
+#############################
+#####  MonitorKeyboard  #####
+#############################
+message
+	
+	XuiSendMessage (grid, #MonitorKeyboard, callGrid, callFunc, 0, 0, kid,  installDelete)
+	
+	grid,kid - target grid
+	#MonitorKeyboard - message: monitor keyboard events
+	callGrid - grid argument in keyboard callback messages
+	callFunc - function called with keyboard callback messages
+	installDelete - TRUE/FALSE means install/delete
+	
+:MonitorMouse
+##########################
+#####  MonitorMouse  #####
+##########################
+message
+	
+	XuiSendMessage (grid, #MonitorMouse, callGrid, callFunc, 0, 0, kid, installDelete)
+	
+	grid,kid - target grid
+	#MonitorMouse - message: monitor mouse events
+	callGrid - grid argument in mouse callback messages
+	callFunc - function called with mouse callback messages
+	installDelete - TRUE/FALSE means install/delete
+	
+:MouseDown
+#######################
+#####  MouseDown  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #MouseDown, x, y, state, time, kid, 0)
+	
+	MouseDown is sent to a grid when one of the mouse buttons is
+	depressed. The window coordinates of the mouse cursor, the state
+	of the mouse buttons, and the millisecond system time are provided.
+	
+	grid,kid - target grid
+	#MouseDown - message: mouse button was pressed
+	x,y - coordinates of mouse cursor
+	state - state of mouse buttons and keyboard keys
+	time - system millisecond timer when mouse button was pressed
+	
+:MouseDrag
+#######################
+#####  MouseDrag  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #MouseDrag, x, y, state, time, kid, 0)
+	
+	MouseDrag is sent to a grid when the mouse moves while one or more mouse
+	buttons is down. The window coordinates of the mouse cursor, the state of the
+	mouse buttons, and the millisecond system time are provided.
+	
+	grid,kid - target grid
+	#MouseDrag - message: mouse moved with one or more buttons down
+	x,y - coordinates of mouse cursor
+	state - state of mouse buttons and keyboard keys
+	time - system millisecond timer when drag was detected
+	
+:MouseEnter
+########################
+#####  MouseEnter  #####
+########################
+message
+	
+	XuiSendMessage (grid, #MouseEnter, x, y, state, time, kid, 0)
+	
+	MouseEnter is sent to a grid when the mouse cursor enters the
+	grid, (after MouseExit is sent to the grid it left, if any).
+	
+	grid,kid - target grid
+	#MouseEnter - message: mouse entered grid
+	x,y - coordinates of mouse cursor
+	state - state of mouse buttons and keyboard
+	time - system millisecond timer when enter was detected
+	
+:MouseExit
+#######################
+#####  MouseExit  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #MouseExit, x, y, state, time, kid, 0)
+	
+	MouseExit is sent to a grid when the mouse cursor leaves the grid,
+	before a MouseEnter is sent to the grid it enters, if any.
+	
+	grid,kid - target grid
+	#MouseExit - message: mouse exited grid
+	x,y - coordinates of mouse cursor
+	state - state of mouse buttons and keyboard
+	time - system millisecond timer when exit was detected
+	
+:MouseMove
+#######################
+#####  MouseMove  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #MouseMove, x, y, state, time, kid, 0)
+	
+	MouseMove is sent to a grid when the mouse cursor moves from
+	its last reported position. If any mouse buttons are down,
+	MouseDrag is sent instead of MouseMove.
+	
+	grid,kid - target grid
+	#MouseMove - message: mouse moved with no buttons down
+	x,y - coordinates of mouse cursor
+	state - state of mouse buttons and keyboard
+	time - system millisecond timer when move was detected
+	
+:MouseUp
+#####################
+#####  MouseUp  #####
+#####################
+message
+	
+	XuiSendMessage (grid, #MouseUp, x, y, state, time, kid, 0)
+	
+	MouseUp is sent to a grid when a mouse button is released
+	while the mouse cursor is within grid.
+	
+	grid,kid - target grid
+	#MouseUp - message: mouse button released in grid
+	x,y - coordinates of mouse cursor
+	state - state of mouse buttons and keyboard
+	time - system millisecond timer when move was detected
+	
+:PokeArray
+#######################
+#####  PokeArray  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #PokeArray, 0, 0, 0, 0, kid, @array[])
+	
+	Send PokeArray to a grid to give it the array.
+	The array[] is empty on return.
+	
+	grid,kid - target grid
+	#PokeArray - message: poke array
+	array[] - array to poke
+	
+	See: GrabArray
+	
+:PokeTextArray
+###########################
+#####  PokeTextArray  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #PokeTextArray, 0, 0, 0, 0, kid, @text$[])
+	
+	Send PokeTextArray to a grid to give it the text array.
+	The text array, text$[], is empty on return.
+	
+	grid,kid - target grid
+	#PokeTextArray - message: poke text array
+	text$[] - text array to poke
+	
+	A RedrawText message may be necessary, if the window is displayed.
+	
+	See: GetTextArray, GrabTextArray, SetTextArray
+	
+:PokeTextString
+############################
+#####  PokeTextString  #####
+############################
+message
+	
+	XuiSendMessage (grid, #PokeTextString, 0, 0, 0, 0, kid, @text$)
+	
+	Send PokeTextString to a grid to give it the text string.
+	The string "@text$" is returned empty if passed by reference.
+	
+	grid,kid - target grid
+	#PokeTextString - message: ATTACH string to grid
+	text$ - text string to poke
+	
+	A RedrawText message may be necessary, if the window is displayed.
+	
+	See: GrabTextString, ATTACH, SWAP
+	
+:PokeValueArray
+############################
+#####  PokeValueArray  #####
+############################
+message
+	
+	XuiSendMessage (grid, #PokeValueArray, 0, 0, 0, 0, kid, @array[])
+	
+	Send PokeValueArray to install its value[] array. The original array
+	is installed in the grid, so an empty value[] array is returned.
+	PokeValueArray is provided for cases where a grid contains more data
+	than is accessible with SetValues.
+	
+	grid,kid - target grid
+	#PokeValueArray - message: Poke value array into grid
+	array[] - value[] array to install in grid (stolen)
+	
+	See: CreateValueArray, GetValueArray, GrabValueArray, SetValueArray
+	
+:Redraw
+####################
+#####  Redraw  #####
+####################
+message
+	
+	XuiSendMessage (grid, #Redraw, x, y, width, height, kid, 0)
+	
+	Send Redraw to a grid to make it redraw itself and its kids.
+	Grids first redraw themselves, then send redraw messages to
+	their kids. If the redraw is in response to a WindowExpose
+	message, the window coordinates of the rectangle that was
+	exposed is supplied. Grids can return without redrawing themselves
+	if they do not extend into the area delimited by x,y,width,height.
+	width or height <= 0 means redraw is required.
+	
+	grid,kid - target grid
+	#Redraw - message: redraw grid and kids
+	x,y - coordinates of upper-left of exposed area
+	width,height - size of exposed area (<= 0 means always redraw)
+	
+	See: RedrawGrid, RedrawText, RedrawWindow
+	
+:RedrawGrid
+########################
+#####  RedrawGrid  #####
+########################
+message
+	
+	XuiSendMessage (grid, #RedrawGrid, x, y, width, height, kid, 0)
+	
+	Send RedrawGrid to a grid to make it redraw itself, but not its kids.
+	If the redraw is in response to a WindowExpose message, the window
+	coordinates of the rectangle that was exposed is supplied.
+	Grids can  return without redrawing themselves if they do
+	not extend into the  area delimited by x,y,width,height.
+	width <= 0 or height <= 0 means redraw is required.
+	
+	grid,kid - target grid
+	#RedrawGrid - message: redraw grid, but not kids
+	x,y - coordinates of upper-left of exposed area
+	width,height - size of exposed area (<= 0 means always redraw)
+	
+	See: Redraw, RedrawText, RedrawWindow
+	
+:Redrawn
+#####################
+#####  Redrawn  #####
+#####################
+message
+	
+	XuiCallback (grid, #Redrawn, @v0, @v1, @v2, @v3, 0, grid)
+	
+	A child grid sends a Redrawn message with an XuiCallback()
+	to notify the parent grid that it has redrawn itself.
+	Usually this is because the child grid has processed a
+	Redraw or RedrawGrid message.
+	
+	grid - the child grid number
+	v0,v1,v2,v3 - the x,y,width,height values that were redrawn
+	
+:RedrawText
+########################
+#####  RedrawText  #####
+########################
+message
+	
+	XuiSendMessage (grid, #RedrawText, 0, 0, 0, 0, kid, 0)
+	
+	Send RedrawText to a grid to redraw the text portion of the grid.
+	
+	grid,kid - target grid
+	
+	See: Redraw, RedrawGrid, RedrawWindow
+	
+	grid,kid - target grid
+	#RedrawWindow - message: redraw the window that contains grid
+	xWin,yWin - window coords of upper-left of rectangle to redraw
+	width,height - size of rectangle to be redrawn
+	
+:RedrawWindow
+##########################
+#####  RedrawWindow  #####
+##########################
+message
+	
+	XuiSendMessage (grid, #RedrawWindow, xWin, yWin, width, height, kid, 0)
+	
+	Send RedrawWindow to a grid to redraw all or part of the window that
+	contains the grid. A Redraw message with the xWin,yWin,width,height
+	arguments is sent to every parentless grid in the window. To force
+	the entire window to be redrawn, set width or height to 0.
+	
+	grid,kid - target grid
+	#RedrawWindow - message: redraw the window that contains grid
+	xWin,yWin - window coords of upper-left of rectangle to redraw
+	width,height - size of rectangle to be redrawn
+	
+	See: Redraw, RedrawGrid, RedrawText
+	
+:Resize
+####################
+#####  Resize  #####
+####################
+message
+	
+	XuiSendMessage (grid, #Resize, x, y, width, height, kid, 0)
+	
+	Send Resize to a grid to change its position and/or size in its window.
+	Most grids comply to reasonable resize requests, but some grids do not
+	resize, or do not resize below or above certain limits. Therefore it
+	may be necessary to check the size of a grid after a resize request.
+	
+	grid,kid - target grid
+	#Resize - message: resize a grid
+	x,y - coords of upper-left corner of grid in parent
+	width,height - size of grid
+	
+:ResizeNot
+#######################
+#####  ResizeNot  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #Resize, x, y, width, height, kid, 0)
+	
+	Send Resize to a grid to change its position,
+	but leave its width and height unchanged.
+	
+	grid,kid - target grid
+	#Resize - message: resize (#ResizeNot also acceptable)
+	x,y - coords of new upper-left corner of grid
+	width,height - ignored
+	
+:ResizeWindow
+##########################
+#####  ResizeWindow  #####
+##########################
+message
+	
+	XuiSendMessage (grid, #ResizeWindow, xDisp, yDisp, width, height, kid, 0)
+	
+	Send ResizeWindow to a grid to reposition and/or
+	resize the window that contains the grid.
+	
+	grid,kid - target grid
+	#ResizeWindow - message: resize the window that contains grid
+	xDisp,yDisp - display coordinates of upper-left corner of window
+	width,height - size of window
+	
+:ResizeWindowToGrid
+################################
+#####  ResizeWindowToGrid  #####
+################################
+message
+	
+	XuiSendMessage (grid, #ResizeWindowToGrid, 0, 0, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	#ResizeWindowToGrid - message: resize window to fit window grid
+	
+:SelectWindow
+##########################
+#####  SelectWindow  #####
+##########################
+message
+	
+	XuiSendMessage (grid, #SelectWindow, 0, 0, 0, 0, kid, 0)
+	
+	Send SelectWindow to any grid in a window to select the window.
+	The window is given keyboard focus.
+	
+	grid,kid - target grid
+	#SelectWindow - message: give keyboard focus to window
+	
+:RestoreWindow
+###########################
+#####  RestoreWindow  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #RestoreWindow, 0, 0, 0, 0, kid, 0)
+	
+	Send RestoreWindow to any grid in a window that has been
+	maximixed, minimized or made fullscreen to restore the
+	window to its previous size.
+	
+	See: MaximizeWindow, MinimizeWindow, WindowRestore
+	
+:Selection
+#######################
+#####  Selection  #####
+#######################
+message
+	
+	XuiCallback (grid, #Selection, v0, v1, v2, v3, kid, r1)
+	
+	grid,kid - target grid
+	#Selection - message: selection callback message
+	
+	See: XuiCallback(), SetCallback
+	
+:SetAlign
+######################
+#####  SetAlign  #####
+######################
+message
+	
+	XuiSendMessage (grid, #SetAlign, align, justify, indentLeftRight, indentTopBottom, kid, 0)
+	
+	grid,kid - target grid
+	Set the kid to -1 to set alignment of all kids of the grid
+	
+	align - one of the following constants - See: Help > GuiDesigner Library (Xui)
+		$$AlignUpperLeft
+		$$AlignUpperCenter
+		$$AlignUpperRight
+		$$AlignMiddleLeft
+		$$AlignMiddleCenter
+		$$AlignMiddleRight
+		$$AlignLowerLeft
+		$$AlignLowerCenter
+		$$AlignLowerRight
+	
+	justify - one of the following constants:
+		$$JustifyLeft
+		$$JustifyCenter
+		$$JustifyRight
+	
+	indentLeftRight - left and right indent in pixels
+	indentTopBottom - top and bottom indent in pixels
+	                  To set the left indent different than the right indent or the
+	                  top different than the bottom indent, use the SetIndent message
+	
+	See: GetAlign, GetJustify, SetJustify, SetIndent
+	
+:SetBorder
+#######################
+#####  SetBorder  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #SetBorder, border, borderUp, borderDown, 0, kid, 0)
+	
+	Send SetBorder to a grid to set its current border style, borderUp style, and/or
+	borderDown style. Send -1 in any argument to leave the current value
+	unchanged.
+	
+	grid,kid - target grid
+	#SetBorder - message: set grid border styles and/or text indent
+	border - the current border style
+	borderUp - the borderUp style
+	borderDown - the borderDown style
+	'
+	' *****  grid border styles  ***** See: Help > Gaphics Library (Xgr)
+	'
+	  $$BorderNone
+	  $$BorderFlat1    same as $$BorderFlat
+	  $$BorderFlat2
+	  $$BorderFlat4
+	  $$BorderHiLine1  same as $$BorderLine1
+	  $$BorderHiLine2  same as $$BorderLine2
+	  $$BorderHiLine4  same as $$BorderLine4
+	  $$BorderLoLine1
+	  $$BorderLoLine2
+	  $$BorderLoLine4
+	  $$BorderRaise1   same as $$BorderRaise
+	  $$BorderRaise2
+	  $$BorderRaise4
+	  $$BorderLower1   same as $$BorderLower
+	  $$BorderLower2
+	  $$BorderLower4
+	  $$BorderFrame
+	  $$BorderDrain
+	  $$BorderRidge
+	  $$BorderValley
+	  $$BorderWide             ' wide window frame border w/o resize marks
+	  $$BorderWideResize       ' wide window frame border with resize marks
+	  $$BorderWindow           ' window frame border w/o resize marks
+	  $$BorderWindowResize     ' window frame border with resize marks
+	  $$BorderRise2
+	  $$BorderSink2
+	
+:SetBorderOffset
+#############################
+#####  SetBorderOffset  #####
+#############################
+message
+	
+	XuiSendMessage (grid, #SetBorderOffset, offsetLeft, offsetTop, offsetRight, offsetBottom, kid, 0)
+	
+	See: GetBorderOffset
+	
+:SetCallback
+#########################
+#####  SetCallback  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #SetCallback, callGrid, callFunc, v2, v3, r0, r1)
+	
+	Send SetCallback to a grid to set its callback information, which
+	includes a callback grid, callback function, and callback indices.
+	To cancel a callback, send 0 in callGrid and callFunc.
+	Whenever the grid sends a callback message, the function
+	whose address is callFunc is called and passed arguments
+	callGrid,#Callback,v0,v1,v2,v3,r0,message.
+	message,v0,v1 are values from the original callback message,
+	and callGrid is from the SetCallback call.
+	v2,v3,r0 are values from the original callback message
+	if v2,v3,r0 in the SetCallback message were -1.
+	Arguments that were not -1 contain their SetCallback value.
+	Functions called with callback messages can get the
+	original callback message arguments by calling XuiCallback()
+	directly with a GetCallbackArgs message.
+	
+	Note: If the callFunc is &XuiQueueCallbacks() and therefore
+	read with XuiGetNextCallback(), r0 is shifted left by 16 bits
+	and OR'd with the kid of the Callback sender.
+	See XuiGetNextCallback() for more information.
+	
+	grid - target grid
+	#SetCallback - message: set the callback function for grid
+	callGrid - becomes grid argument in callback message
+	callFunc - address of function to send callback messages to
+	v2,v3,r0,r1 - values to send back with callback messages
+	
+	See: XuiCallback(), XuiGetCallback(), XuiGetNextCallback(), XuiQueueCallbacks(), XuiSetCallback
+	
+:SetCharacterMapArray
+##################################
+#####  SetCharacterMapArray  #####
+##################################
+message
+	
+	XuiSendMessage (grid, #SetCharacterMapArray, 0, 0, 0, 0, kid, @characterMapArray[])
+	
+:SetCharacterMapEntry
+##################################
+#####  SetCharacterMapEntry  #####
+##################################
+message
+	
+	XuiSendMessage (grid, #SetCharacterMapEntry, characterEntry, characterExit, 0, 0, kid, 0)
+	
+:SetClipGrid
+#########################
+#####  SetClipGrid  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #SetClipGrid, clip, 0, 0, 0, kid, 0)
+	
+	See: GetClipGrid
+	
+:SetColor
+######################
+#####  SetColor  #####
+######################
+message
+	
+	XuiSendMessage (grid, #SetColor, back, draw, low, high, kid, 0)
+	
+	Send SetColor to a grid to set its background, drawing, highlight, and/or
+	lowlight colors. Send -1 in any argument to leave the current value unchanged.
+	
+	grid,kid - target grid
+	#SetColor - message: set main grid colors
+	back - background color
+	draw - drawing color
+	low - lowlight color (3D down slope color)
+	high - highlight color (3D up slope color)
+	
+	
+:SetColorAll
+#########################
+#####  SetColorAll  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #SetColorAll, back, draw, low, high, kid, 0)
+	
+	Send a SetColor to a grid and all
+	of the child grids of the given grid.
+	
+	See: SetColor
+	
+:SetColorExtra
+###########################
+#####  SetColorExtra  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #SetColorExtra, dull, accent, lowText, highText, kid, 0)
+	
+	Send SetColorExtra to a grid to set its dull, accent, lowText, and highText
+	colors. Send -1 in any argument to leave the current value unchanged.
+	
+	grid,kid - target grid
+	#SetColorExtra - message: set auxiliary grid colors
+	dull - dull color (disabled features, etc...)
+	accent - accent color (selected text, etc...)
+	loText - text 3D texture color (darker)
+	hiText - text 3D texture color (lighter)
+	
+:SetColorExtraAll
+##############################
+#####  SetColorExtraAll  #####
+##############################
+message
+	
+	XuiSendMessage (grid, #SetColorExtraAll, dull, accent, lowText, highText, kid, 0)
+	
+	Send SetColorExtra to a grid and all
+	of the child grids of the given grid.
+	
+	See: SetColorExtra
+	
+:SetCursor
+#######################
+#####  SetCursor  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #SetCursor, cursor, 0, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	#SetCursor - message: set mouse cursor number
+	cursor - mouse cursor number
+	
+	See: XgrRegisterCursor(), XgrGetCursor(), XgrCursorNumberToName()
+	
+:SetFocusColor
+###########################
+#####  SetFocusColor  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #SetFocusColor, focusBack, focusDraw, focusLow, focusHigh, kid, 0)
+	
+	Send SetFocusColor to a grid to set its
+	background, drawing, highlight, and lowlight
+	colors when this grid has keyboard focus.
+	
+	grid,kid - target grid
+	#SetFocusColor - message: get main colors when grid has keyboard focus
+	focusBack - background color
+	focusDraw - drawing color
+	focusLow - lowlight color (3D down slope color)
+	focusHigh - highlight color (3D up slope color)
+	
+	See: GetColor, GetColorExtra, SetFocusColor, GetFocusColorExtra
+	     SetColor, SetColorExtra, .............. SetFocusColorExtra
+	
+:SetFocusColorExtra
+################################
+#####  SetFocusColorExtra  #####
+################################
+message
+	
+	XuiSendMessage (grid, #SetFocusColorExtra, focusDull, focusAccent, focusLoText, focusHiText, kid, 0)
+	
+	Send SetFocusColorExtra to a grid to get its dull, accent, lowtext,
+	and hightext colors when the grid has keyboard focus.
+	
+	grid,kid - target grid
+	#SetFocusColorExtra - message: set auxiliary colors when grid has keyboard focus
+	focusDull - dull color (disabled features, etc...)
+	focusAccent - accent color (selected text, etc...)
+	focusLoText - lowText color (for 3D text texture)
+	focusHiText - accent color (for 3D text texture)
+	
+	See: GetColor, GetColorExtra, GetFocusColor, GetFocusColorExtra
+	     SetColor, SetColorExtra, SetFocusColor, ..................
+	
+:SetFont
+#####################
+#####  SetFont  #####
+#####################
+message
+	
+	XuiSendMessage (grid, #SetFont, size, weight, italic, angle, kid, @typeface$)
+	
+	grid,kid - target grid
+	#SetFont - message: set font to specified characteristics
+	size - point size in 0.1 point units
+	weight - boldness from 0 to 1000 (extra thin to extra heavy)
+	italic - italic tilt (T/F)
+	angle - angle of text from horizontal in 0.1 degree units
+	typeface$ - name of font typeface (Courier New, Times New Roman...)
+	
+:SetFontNumber
+###########################
+#####  SetFontNumber  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #SetFontNumber, font, 0, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	#SetFontNumber - message: set font number property
+	font - font number
+	
+:SetGridFunction
+#############################
+#####  SetGridFunction  #####
+#############################
+message
+	
+	XuiSendMessage (grid, #SetGridFunction, gridFunc, 0, 0, 0, kid, 0)
+	
+	Send SetGridFunction to a grid to replace the grid function address
+	that was set by XuiCreateGrid() when a window and its grids were created.
+	
+	grid,kid - target grid
+	#SetGridFunction - message: set grid function
+	gridFunc - address of grid function assigned to grid,kid
+	
+	CAUTION: Remember to put the "&" at the beginning and the "()"
+	at the end of the function name, as shown here:
+	
+	   XuiSendMessage (grid, #SetGridFunction, &FunctionName(), 0, 0, 0, kid, 0)
+	
+	Another method is th use FUNCADDRESS() like this:
+	
+	   funcAddress = FUNCADDRESS(FunctionName())
+	   XuiSendMessage (grid, #SetGridFunction, funcAddress, 0, 0, 0, kid, 0)
+	
+:SetGridFunctionName
+#################################
+#####  SetGridFunctionName  #####
+#################################
+message
+	
+	XuiSendMessage (grid, #SetGridFunctionName, 0, 0, 0, 0, kid, @name$)
+	
+	grid,kid - target grid
+	#SetGridFunctionName - message: set grid function name property
+	name$ - grid function name
+	
+:SetGridName
+#########################
+#####  SetGridName  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #SetGridName, 0, 0, 0, 0, kid, @gridName$)
+	
+	Send SetGridName to a grid to set its grid name. If you never assign a name to a
+	grid, a default name based on the grid type and grid number is assigned.
+	
+	grid,kid - target grid
+	#SetGridName - message: set grid name
+	gridName$ - grid name of grid,kid
+	
+:SetGridType
+#########################
+#####  SetGridType  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #SetGridType, gridType, 0, 0, 0, kid, 0)
+	
+	Send SetGridType to a grid to set its grid type.
+	
+	grid,kid - target grid
+	#SetGridFunction - message: set grid type
+	g - grid number of grid,kid
+	gridType - grid type of grid,kid
+	
+:SetGridTypeName
+#############################
+#####  SetGridTypeName  #####
+#############################
+message
+	
+	XuiSendMessage (grid, #SetGridTypeName, 0, 0, 0, 0, kid, @name$)
+	
+	grid,kid - target grid
+	#SetGridTypeName - message: set grid type name property
+	name$ - grid type name
+	
+:SetGroup
+######################
+#####  SetGroup  #####
+######################
+message
+	
+	XuiSendMessage (grid, #SetGroup, @group, 0, 0, 0, kid, 0)
+	
+	Send SetGroup to a grid to change the group number that
+	the grid is in. This is only used in grid types
+	XuiRadioBox and XuiRadioButton
+	
+	XuiRadioBox    defaults to group 2
+	XuiRadioButton defaults to group 1
+	
+	See: GetGroup
+	
+:SetHelp
+#####################
+#####  SetHelp  #####
+#####################
+message
+	
+	XuiSendMessage (grid, #SetHelp, 0, 0, 0, 0, kid, help$)
+	
+	grid,kid - target grid
+	#SetHelp - message: set string in InstantHelp window
+	help$ - string to display in InstantHelp window
+	
+	See: GetHelp, GetHelpFile, GetHelpString, GetHelpStrings
+	     ........ SetHelpFile, SetHelpString, SetHelpStrings
+	
+:SetHelpFile
+#########################
+#####  SetHelpFile  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #SetHelpFile, 0, 0, 0, 0, kid, filename$)
+	
+	grid,kid - target grid (any valid grid)
+	#SetHelpFile - message: set default help file name
+	filename$ - default help file name
+	
+	See: GetHelp, GetHelpFile, GetHelpString, GetHelpStrings
+	     SetHelp, ............ SetHelpString, SetHelpStrings
+	
+:SetHelpString
+###########################
+#####  SetHelpString  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #SetHelpString, wild, 0, 0, 0, kid, @help$)
+	
+	Send SetHelpString to a grid to set its current help string.
+	This can be an empty string, or "filename:entryname", or
+	":entryname", or help text.
+	
+	grid,kid - target grid
+	#SetHelpString - message: set help string
+	wild - message also sent to kids of grid,kid if wild = -1
+	       if the kid does not already have its own help string
+	help$ - help string
+	
+	See: GetHelp, GetHelpFile, GetHelpString, GetHelpStrings
+	     SetHelp, SetHelpFile, .............. SetHelpStrings
+	
+:SetHelpStrings
+############################
+#####  SetHelpStrings  #####
+############################
+message
+	
+	XuiSendMessage (grid, #SetHelpStrings, 0, 0, 0, 0, kid, @help$[])
+	
+	Send SetHelpStrings to a grid to set its help string and the help
+	strings of all its kids. Each help string can be an empty string,
+	or "filename:entryname", or ":entryname", or the help text itself.
+	
+	grid,kid - target grid
+	#SetHelpStrings - message: set help string for grid and its kids
+	help$[] - help string for grid and its kids
+	
+	See: GetHelp, GetHelpFile, GetHelpString, GetHelpStrings
+	     SetHelp, SetHelpFile, SetHelpString  ..............
+	
+:SetHintString
+###########################
+#####  SetHintString  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #SetHintString, 0, 0, 0, 0, kid, @hint$)
+	
+	See: GetHintString
+	
+:SetImage
+######################
+#####  SetImage  #####
+######################
+message
+	
+	XuiSendMessage (grid, #SetImage, @image, align, inX, inY, kid, image$)
+	
+	grid,kid - target grid
+	#SetImage - message: set image grid property
+	image - optional image grid number (if image$ is empty)
+	align - image alignment in grid (may not be implemented)
+	inX - x-axis indent from grid border
+	inY - y-axis indent from grid border
+	image$ - filename of bitmap image
+	
+	If an image$ filename is supplied, an image grid is created to hold the
+	image and assigned to the target grid. If the filename is blank ("") or -1
+	the image grid number in @image is checked to see if it is valid and is
+	assigned to the target grid.
+	
+	If there is a failure @image will be retured 0 (zero).
+	
+:SetImageCoords
+############################
+#####  SetImageCoords  #####
+############################
+message
+	
+	XuiSendMessage (grid, #SetImageCoords, offsetX, offsetY, width, height, kid, 0)
+	
+	grid,kid - target grid
+	#SetImageCoords - message: set active area of image grid properties
+	offsetX,offsetY - x,y offset in image grid to begin display
+	width,height - width,height of image grid to display
+	
+:SetIndent
+#######################
+#####  SetIndent  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #SetIndent, indentLeft, indentTop, indentRight, indentBottom, kid, 0)
+	
+	grid,kid - target grid
+	           Set the kid to -1 to set justify of all kids of the grid
+	
+	#SetIndent
+	message
+	indentLeft   - left indent in pixels
+	indentTop    - top indent in pixels
+	indentRight  - right indent in pixels
+	indentBottom - bottom indent in pixels
+	
+	See: SetAlign
+	
+:SetJustify
+########################
+#####  SetJustify  #####
+########################
+message
+	
+	XuiSendMessage (grid, #SetJustify, justify, 0, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	           Set the kid to -1 to set justify of all kids of the grid
+	
+	#SetJustify
+	message
+	justify - one of the following constants:
+	          $$JustifyLeft
+	          $$JustifyCenter
+	          $$JustifyRight
+	
+	See: Help > GuiDesigner Library (Xui) for $$Justify... constants
+	
+	See: GetAlign, GetJustify, SetAlign
+	
+:SetKeyboardFocus
+##############################
+#####  SetKeyboardFocus  #####
+##############################
+message
+	
+	XuiSendMessage (grid, #SetKeyboardFocus, focusGrid, 0, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	#SetKeyboardFocus - message: set keyboard focus
+	focusGrid - keyboard focus grid if non-zero else target
+	
+	See: GetKeyboardFocus
+	
+:SetKeyboardFocusGrid
+##################################
+#####  SetKeyboardFocusGrid  #####
+##################################
+message
+	
+	XuiSendMessage (grid, #SetKeyboardFocusGrid, focusGrid, 0, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	#SetKeyboardFocusGrid - message: set keyboard focus grid for window
+	focusGrid - keyboard focus grid if non-zero else target
+	
+	See: GetKeyboardFocus, GetKeyboardFocusGrid
+	
+:SetMaxMinSize
+###########################
+#####  SetMaxMinSize  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #SetMaxMinSize, maxW, maxH, minW, minH, kid, 0)
+	
+	Send SetMaxMinSize to a grid to set is maximum and minimum width,height
+	under any circumstances. -1 in any min/max argument means don't change the
+	current value.
+	
+	grid,kid - target grid
+	#SetMaxMinSize - message: set max/min width/height of grid,kid
+	maxW,maxH - maximum possible width and height of grid,kid
+	minW,minH - minimum possible width and height of grid,kid
+	
+	See: GetMaxMinSize, GetSmallestSize
+	
+:SetMessageFunc
+############################
+#####  SetMessageFunc  #####
+############################
+message
+	
+	XuiSendMessage (grid, #SetMessageFunc, msg, func, 0, 0, kid, 0)
+	
+	Send SetMessageFunc to a grid to set the address of the function
+	that processes message number msg.
+	
+	grid,kid - target grid
+	#SetMessageFunc - message: set message function address for a message
+	msg - message number to set function address for
+	func - address of function executed in response to msg
+	
+	See: GetMessageFunc, GetMessageFuncArray, SetMessageFuncArray, XuiGetDefaultMessageFuncArray()
+	
+:SetMessageFuncArray
+#################################
+#####  SetMessageFuncArray  #####
+#################################
+message
+	
+	XuiSendMessage (grid, #SetMessageFuncArray, 0, 0, 0, 0, kid, @func[])
+	
+	Send SetMessageFuncArray to a grid to set the addresses
+	of the functions that process messages for the grid.
+	
+	grid,kid - target grid
+	#SetMessageFuncs - message: set message function addresses
+	func[] - addresses of message functions
+	
+	See: GetMessageFunc, GetMessageFuncArray, SetMessageFunc, XuiGetDefaultMessageFuncArray()
+	
+:SetModalWindow
+############################
+#####  SetModalWindow  #####
+############################
+message
+	
+	XuiSendMessage (grid, #SetModalWindow, window, v1grid, 0, 0, 0, 0)
+	
+	If window is not specified, use the window that v1grid is in.
+	If v1grid is not specified, use the window that grid is in.
+	
+	This message is only used by XuiGetModalInfo()
+	
+:SetPosition
+#########################
+#####  SetPosition  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #SetPosition, lowest, low, high, highest, kid, 0)
+	
+	grid,kid - target grid
+	#SetPosition - message: set scale/scroll position
+	lowest - lowest possible value, usually 0
+	low - low end of range (scroll-bar slider)
+	high - high end of current range (scroll-bar slider)
+	highest - highest possible value, usually max line #
+	
+	See: GetPosition, XuiScrollBarH, XuiScrollBarV
+	
+:SetRedrawFlags
+############################
+#####  SetRedrawFlags  #####
+############################
+message
+	
+	XuiSendMessage (grid, #SetRedrawFlags, @redrawFlags, 0, 0, 0, kid, 0)
+	
+	See: GetRedrawFlags
+	
+:SetSize
+#####################
+#####  SetSize  #####
+#####################
+message
+	
+	XuiSendMessage (grid, #SetSize, x, y, width, height, kid, 0)
+	
+	Send SetSize to a grid to set the position of its upper-left corner in window
+	coordinates, and its size in pixels.
+	
+	grid,kid - target grid
+	#SetSize - message: set position in window and width,height
+	x,y - upper-left corner of grid,kid in parent
+	width,height - width and height of grid,kid in pixels
+	
+	See: GetSize
+	
+:SetState
+######################
+#####  SetState  #####
+######################
+message
+	
+	XuiSendMessage (grid, #SetState, state, keyboard, mouse, redraw, kid, 0)
+	
+	Send SetState to a grid to set its master, keyboard, mouse, and redraw
+	disabled/enabled states. See the Disable and Enable messages for related
+	information.
+	
+	grid,kid - target grid
+	#SetState - message: set disable/enable state (FALSE / TRUE)
+	state - master disable/enable state (keyboard,mouse,redraw)
+	keyboard - keyboard disable/enable state
+	mouse - mouse disable/enable state
+	redraw - redraw disable/enable state
+	
+	See: GetState
+	
+:SetStateFlags
+###########################
+#####  SetStateFlags  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #SetStateFlags, state, keyboard, mouse, redraw, kid, 0)
+	
+	Send SetStateFlags to a grid to set its master, keyboard, mouse, and redraw
+	disabled/enabled state flags.
+	
+	grid,kid - target grid
+	#SetStateFlags - message: set disable/enable state (FALSE / TRUE)
+	state - master disable/enable state flags
+	keyboard - keyboard disable/enable state flags
+	mouse - mouse disable/enable state flags
+	redraw - redraw disable/enable state flags
+	
+:SetStyle
+######################
+#####  SetStyle  #####
+######################
+message
+	
+	XuiSendMessage (grid, #SetStyle, style, @styleMax, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	#SetStyle - message: set style property
+	style - style property
+	styleMax - returned maximum valid value of style property
+	           (some grid types do not return the maximum value)
+	
+:SetTabArray
+#########################
+#####  SetTabArray  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #SetTabArray, 0, 0, 0, 0, kid, @tabArray[])
+	
+	(tab array not implemented yet)
+	
+	TabArray is not implemented yet
+	
+:SetTabWidth
+#########################
+#####  SetTabWidth  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #SetTabWidth, @tabWidth, 0, 0, 0, kid, @tabArray[])
+	
+	grid,kid - target grid
+	SetTabWidth - message: set tab width
+	tabWidth - tab width in pixels
+	tabArray - array of tab positions (not implemented)
+	
+:SetTextArray
+##########################
+#####  SetTextArray  #####
+##########################
+message
+	
+	XuiSendMessage (grid, #SetTextArray, 0, 0, 0, 0, kid, @text$[])
+	
+	Send SetTextArray to a grid to set its text array.
+	
+	grid,kid - target grid
+	#SetTextArray - message: set text array
+	text$[] - text array
+	
+	A RedrawText message may be necessary, if the window is displayed.
+	
+	See: GetTextArray, GetTextArrayBounds, GetTextArrayLine, GetTextArrayLines,
+	     GrabTextArray, PokeTextArray,
+	     SetTextArray, SetTextArrayLine, SetTextArrayLines
+	
+:SetTextArrayLine
+##############################
+#####  SetTextArrayLine  #####
+##############################
+message
+	
+	XuiSendMessage (grid, #SetTextArrayLine, line, 0, 0, @upper, kid, @text$)
+	
+	Send SetTextArrayLine to a grid to set one line of text of the grid text array.
+	A line value of -1 will cause the text$ to be added at the beginning of the
+	grids existing text array. A line value of 1 higher than the UBOUND of the
+	grids text array will append text$ to the end of the text array. A line value
+	of 0 to UBOUND of the grids text array will cause the existing line to be
+	replaced with text$.
+	
+	grid,kid - target grid
+	#SetTextArrayLine - message: set one line in text array
+	line - line number to set (-1 to UBOUND(text$[])+1)
+	upper - upper bound of text$[]
+	text$ - text line to put in text array
+	
+	See: GetTextArray, GetTextArrayBounds, GetTextArrayLine,
+	     GetTextArrayLines, SetTextArray, SetTextArrayLine, SetTextArrayLines
+	
+:SetTextArrayLines
+###############################
+#####  SetTextArrayLines  #####
+###############################
+message
+	
+	XuiSendMessage (grid, #SetTextArrayLines, firstDest, @count, firstSrc, @upper, kid, @text$[])
+	
+	Send SetTextArrayLines to a grid to set consecutive lines in its text array.
+	The lowest value for firstDest is (0 - count). The highest value for count is
+	the number of lines in text$[]. The highest value of firstDest is the UBOUND
+	of the existing text array +1.
+	
+	grid,kid - target grid
+	#SetTextArrayLines - message: Set consecutive lines from text array
+	firstDest - first line number of existing array to set (starts at 0 - count)
+	firstSrc  - first line number of source text$[]
+	count - number of lines to set, maximum value is number of lines in text$[]
+	upper - new upper bound of grid text array after set completed
+	text$[] - source text array
+	
+	See: GetTextArray, GetTextArrayBounds, GetTextArrayLine, GetTextArrayLines,
+	     SetTextArray, SetTextArrayLine, SetTextArrayLines
+	
+:SetTextCursor
+###########################
+#####  SetTextCursor  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #SetTextCursor, cursorPos, cursorLine, topIndent, topLine, kid, 0)
+	
+	grid,kid - target grid
+	#SetTextCursor - message: set the cursor to the specified location
+	cursorPos - cursor location character number    (-1 for do not change)
+	cursorLine - cursor location line number        (-1 for do not change)
+	topIndent - number of left-most pixel displayed (-1 for do not change)
+	topLine - number of first text line displayed   (-1 for do not change)
+	
+	See: GetTextCursor
+	
+:SetTextFilename
+#############################
+#####  SetTextFilename  #####
+#############################
+message
+	
+	XuiSendMessage (grid, #SetTextFilename, 0, 0, 0, 0, kid, filename$)
+	
+	See: GetTextFilename
+	
+:SetTextFlag
+#########################
+#####  SetTextFlag  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #SetTextFlag, flagConstant, setReset, 0, 0, kid, 0)
+	
+	Send SetTextFlag to an XuiTextArea type grid to activate or deactivate features.
+	
+	grid,kid - target grid
+	#SetTextFlag - messsage: set text flag in XuiTextArea type grid
+	flagConstant - textarea flag Constant number
+	setReset - $$TRUE to set the flag, $$FALSE to reset
+	
+	Textarea Flag Constants:
+	       $$TextFlagAutoIndent
+	       $$TextFlagTabBlockIndent
+	       $$TextFlagOverwrite
+	       $$TextFlagCursorLineHilite
+	       $$TextFlagLineNum
+	       $$TextFlagRuler
+	
+	See: GetTextFlag, XuiTextArea()
+	
+:SetTextSpacing
+############################
+#####  SetTextSpacing  #####
+############################
+message
+	
+	XuiSendMessage (grid, #SetTextSpacing, xgap, ygap, 0, 0, kid, 0)
+	
+	See: GetTextSpacing
+	
+	NOTE: Text spacing not implemented
+	
+:SetTextString
+###########################
+#####  SetTextString  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #SetTextString, 0, 0, 0, 0, kid, @text$)
+	
+	Send SetTextString to a grid to set its text string.
+	
+	grid,kid - target grid
+	#SetTextString - message: set text string
+	text$ - text string to put in grid
+	
+	A RedrawText message may be necessary, if the window is displayed.
+	
+	See: GetTextString, GrabTextString, PokeTextString
+	
+:SetTextStrings
+############################
+#####  SetTextStrings  #####
+############################
+message
+	
+	XuiSendMessage (grid, #SetTextStrings, 0, 0, 0, 0, kid, @text$[])
+	
+	Send SetTextStrings to a grid to set text strings for the grid
+	and its kids. If the last element in text$[] is reached before the
+	last kid, the text strings in the rest of the kids are not changed.
+	
+	grid,kid - target grid
+	#SetTextStrings - message: set text strings in grid and its kids
+	text$[] - text strings for grid and its kids
+	
+	See: GetTextStrings
+	
+:SetTexture
+########################
+#####  SetTexture  #####
+########################
+message
+	
+	XuiSendMessage (grid, #SetTexture, texture, 0, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	#SetTexture - message: set text texture property
+	texture - text texture : see Help > GUIDesigner Library (Xui)
+	          $$TextureFlat
+	          $$TextureLower4
+	          $$TextureLower2
+	          $$TextureLower1
+	          $$TextureShadow
+	          $$TextureRaise1
+	          $$TextureRaise2
+	          $$TextureRaise4
+	
+	See: GetTexture
+	
+:SetTimer
+######################
+#####  SetTimer  #####
+######################
+message
+	
+	XuiSendMessage (grid, #SetTimer, time, 0, 0, 0, kid, 0)
+	
+	Send SetTimer to a grid to set a default time, in milliseconds,
+	that can be used by the StartTimer message.
+	
+	grid,kid - target grid
+	#SetTimer - message: set timer
+	time - time in milliseconds
+	
+	See: GetTimer, StartTimer, TimeOut
+	
+:SetValue
+######################
+#####  SetValue  #####
+######################
+message
+	
+	XuiSendMessage (grid, #SetValue, v0, v1, v2, v3, kid, r1)
+	
+	Send SetValue to a grid to set the value of value[r1].
+	XuiSendMessage (grid, #SetValue, v0, 0, 0, 0, kid, r1)
+	grid,kid - target grid
+	#SetValue - message: set value[r1] to v0
+	v0 - value to assign to value[r1]
+	r1 - index into value[]
+	
+	See: CreateValueArray, GetValue, GetValues, SetValues
+	
+:SetValues
+#######################
+#####  SetValues  #####
+#######################
+message
+	
+	XuiSendMessage (grid, #SetValues, v0, v1, v2, v3, kid, startIndex)
+	
+	Send SetValues to a grid to set the values of up to four
+	elements in its XLONG value[] array starting with value[r1].
+	
+	grid,kid - target grid
+	#SetValues - message: set value[r1+0] thru value[r1+3] for grid
+	v0,v1,v2,v3, - value[r1+0] to value[r1+3]
+	startIndex - starting index (value[r1+0], value[r1+1] ...)
+	
+	See: CreateValueArray, GetValue, GetValues, SetValue
+	
+:SetValueArray
+###########################
+#####  SetValueArray  #####
+###########################
+message
+	
+	XuiSendMessage (grid, #SetValueArray, 0, 0, 0, 0, kid, @value[])
+	
+	grid,kid - target grid
+	#SetValueArray - message: set XLONG value array property
+	value[] - XLONG value array
+	
+	See: CreateValueArray, GetValueArray, GrabValueArray, PokeValueArray
+	
+:SetWindowFunction
+###############################
+#####  SetWindowFunction  #####
+###############################
+message
+	
+	XuiSendMessage (grid, #SetWindowFunction, winFunc, 0, 0, 0, kid, 0)
+	
+	Send SetWindowFunction to a grid to set the address of the
+	window function of the window that contains the grid.
+	
+	grid,kid - target grid
+	#SetWindowFunction - message: set window function address
+	winFunc - address of window function for window
+	
+	See: GetWindow, GetWindowFunction, WindowGetFunction, WindowSetFunction
+	
+:SetWindowIcon
+###########################
+#####  SetWindowIcon  #####
+###########################
+
+	XuiSendMessage (grid, #SetWindowIcon, icon, 0, 0, 0, kid, @iconName$)
+	
+	grid,kid - target grid
+	#SetWindowIcon - message: set window icon
+	icon - icon number if icon$ is an empty string
+	icon$ - name of icon
+	
+	See: GetWindowIcon, WindowGetIcon, WindowSetIcon
+	
+:SetWindowTitle
+############################
+#####  SetWindowTitle  #####
+############################
+message
+	
+	XuiSendMessage (grid, #SetWindowTitle, 0, 0, 0, 0, kid, @title$)
+	
+	Send SetWindowTitle to a grid to set the title string displayed
+	on the window that contains the grid.
+	
+	grid,kid - target grid
+	#SetWindowTitle - message: set window title
+	title$ - title of window
+	
+	See: GetWindowTitle, WindowGetTitle, WindowSetTitle
+	
+:ShowWindow
+########################
+#####  ShowWindow  #####
+########################
+message
+	
+	XuiSendMessage (grid, #ShowWindow, 0, 0, 0, 0, kid, 0)
+	
+	grid,kid - target grid
+	#ShowWindow - message: show window but don't select it
+	
+	See: DisplayWindow, HideWindow, WindowDisplay WindowHide, WindowShow
+	
+:StartTimer
+########################
+#####  StartTimer  #####
+########################
+message
+	
+	XuiSendMessage (grid, #StartTimer, time, 0, 0, 0, kid, 0)
+	
+	Send StartTimer to grid to initiate a time interval that will
+	then send a TimeOut message to the target grid. If the time is
+	zero or less, the time interval of the SetTimer message is used.
+	
+	grid,kid - target grid
+	#StartTimer - message: start timer
+	time - time in milliseconds, if <=0 use time set by SetTimer message
+	
+	See: GetTimer, SetTimer, TimeOut
+	
+:TextEvent
+#######################
+#####  TextEvent  #####
+#######################
+message
+	
+	XuiCallback (grid, #TextEvent, v0, v1, state, v3, @abort, grid)
+	
+	Send this callback message to find out if it is safe to alter the
+	text in an XuiTextArea() or XuiTextLine() type of grid.
+	abort is returned TRUE if text alteration is not allowed.
+	
+	grid - target grid
+	#TextEvent - message: TextEvent action request
+	state - keyboard key information
+	abort - returned TRUE if event not permitted
+	
+	See: KeyDown, TextInsert, TextReplace, WindowKeyDown
+	
+:TextInsert
+########################
+#####  TextInsert  #####
+########################
+message
+	
+	TextMessage (grid, #TextInsert, 0, 0, state, key, 0, 0)
+	
+	This message is sent to an XuiTextArea() or XuiTextLine() type of
+	grid to alter the text appropriate to the key pressed. It is preceeded
+	by a TextEvent message to check if text altering is allowed.
+	
+	grid - target grid
+	#TextInsert - message number for TextInsert
+	state - information from the EventKeyPress()
+	key - virtual key derived by translating the state information
+	
+	See: KeyDown, TextEvent, WindowKeyDown
+	
+:TextReplace
+#########################
+#####  TextReplace  #####
+#########################
+message
+	
+	XuiSendMessage (grid, #TextReplace, @begPos, @begLine, @endPos, @endLine, kid, text$)
+	XuiSendMessage (grid, #TextReplace, begPos, 0, endPos, 0, kid, text$)
+	
+	Send TextReplace to a XuiTextArea type grid to replace text in the text array
+	specified by the parameters begPos, begLine, endPos, endLine,  with text$.
+	This message is used for XuiTextArea() and XuiList() as in the first form shown above,
+	and in an XuiTextLine() type grid in the second form, (begLine and endLine not used).
+	
+	grid,kid - target grid
+	#TextReplace - message: TextReplace
+	begPos - beginning-character-position in begLine of text to be replaced (deleted)
+	begLine - beginning-line-number of text to be replaced (deleted)
+	endPos - end-character-position in endLine of text to be replaced (deleted)
+	endLine - end-line-number of text to be replaced (deleted)
+	text$ - new text to replace deleted text
+	
+	After returning from processing this message,
+	the following variables have these values:
+	@begPos - beginning-character-position in begLine of the new text (inserted)
+	@begLine - beginning-line-number of the new text (inserted)
+	@endPos - end-character-position in endLine oof the new text (inserted)
+	@endLine - end-line-number of the new text (inserted)
+	
+:TimeOut
+#####################
+#####  TimeOut  #####
+#####################
+message
+	
+	XuiSendMessage (grid, #TimeOut, msTime, 0, 0, 0, kid, 0)
+	
+	A TimeOut is sent to a grid by GraphicsDesigner
+	when its grid timer has timed out.
+	
+	grid,kid - target grid
+	#TimeOut - message: grid timer has timed out
+	msTime - free-running system millisecond time
+	
+	See: GetTimer, SetTimer, StartTimer
+	
+:WindowClose
+#########################
+#####  WindowClose  #####
+#########################
+message
+	
+	XuiSendMessage (window, #WindowClose, 0, 0, 0, 0, 0, window)
+	
+	The WindowClose results from the:
+	EventClientMessage #XA_WM_DELETE_WINDOW
+	
+	See: CloseWindow
+	
+:WindowCreate
+##########################
+#####  WindowCreate  #####
+##########################
+message
+	
+	XuiSendMessage (@grid, #WindowCreate, xDisp, yDisp, width, height, winType, display$)
+	
+	grid - grid number of created window grid
+	#WindowCreate - message: create window filled with a window grid
+	xDisp,yDisp - display coords of upper-left corner of window innards
+	width,height - width,height in pixels of window innards
+	winType - windowType OR parentWindow
+	display$ - display name to contain window
+	
+:WindowDeselected
+##############################
+#####  WindowDeselected  #####
+##############################
+message
+	
+	XuiSendMessage (window, #WindowDeselected, 0, 0, 0, 0, 0, window)
+	
+	WindowDeselected is sent to a window by GraphicsDesigner after
+	the window is deselected because another window was selected.
+	WindowDeselected is sent before WindowSelected.
+	
+	window - window number
+	#WindowDeselected - message: window deselected (another was selected)
+	window - duplicate of 1st argument sent by GraphicsDesigner
+	
+:WindowDestroy
+###########################
+#####  WindowDestroy  #####
+###########################
+message
+	
+	XuiSendMessage (window, #WindowDestroy, 0, 0, 0, 0, 0, 0)
+	
+	Send WindowDestroy to a window to destroy the window and
+	all grids in the window. The window sends Destroyed messages
+	to all parentless grids in the window before it destroys
+	itself and removes itself from the display. The first
+	argument must be a window number, not a grid number.
+	DestroyWindow is a grid message that accomplishes the same
+	thing, but takes a grid number (of any grid in the window).
+	
+	window - window number
+	#WindowDestroy - message: destroy window and all grids in window
+	
+:WindowDestroyed
+#############################
+#####  WindowDestroyed  #####
+#############################
+message
+	
+	XuiSendMessage (window, #WindowDestroyed, 0, 0, 0, 0, 0, window)
+	
+	WindowDestroyed is sent to a window by GraphicsDesigner when
+	the window has been destroyed by the user or program.
+	
+	window - window number
+	#WindowDestroyed - message: window has been destroyed
+	window - duplicate of 1st argument sent by GraphicsDesigner
+	
+:WindowDisplay
+###########################
+#####  WindowDisplay  #####
+###########################
+message
+	
+	XuiSendMessage (window, #WindowDisplay, 0, 0, 0, 0, 0, 0)
+	
+	Send WindowDisplay to a window to display and select the window.
+	The first argument must be a grid number, not a window number.
+	DisplayWindow is a grid message that accomplishes the same thing
+	but takes a grid number (of any grid in the window).
+	
+	window - window number
+	#WindowDisplay - message: display window
+	
+	See: DisplayWindow, HideWindow, ShowWindow, WindowHide, WindowShow
+	
+:WindowDisplayed
+#############################
+#####  WindowDisplayed  #####
+#############################
+message
+	
+	XuiSendMessage (window, #WindowDisplayed, 0, 0, 0, 0, 0, window)
+	
+	WindowDisplayed is sent to a window by GraphicsDesigner when
+	the window state changes from hidden or iconified to displayed,
+	whether by the user or program.
+	
+	window - window number
+	#WindowDisplayed - message: window has been displayed
+	window - duplicate of 1st argument sent by GraphicsDesigner
+	
+:WindowGetDisplay
+##############################
+#####  WindowGetDisplay  #####
+##############################
+message
+	
+	XuiSendMessage (window, #WindowGetDisplay, 0, 0, 0, 0, 0, @display$)
+	
+	window - window number
+	#WindowGetDisplay - message: get display associated with window
+	display$ - name of display - empty string = default display
+	
+:WindowGetFunction
+###############################
+#####  WindowGetFunction  #####
+###############################
+message
+	
+	XuiSendMessage (window, #WindowGetFunction, @winFunc, 0, 0, 0, kid, 0)
+	
+	Send WindowGetFunction to a grid to get the address
+	of the window function of the window.
+	
+	window - window number
+	#WindowGetFunction - message: get window function address
+	winFunc - address of window function for window
+	
+	See: GetWindow, GetWindowFunction, SetWindowFunction, WindowSetFunction
+	
+:WindowGetIcon
+###########################
+#####  WindowGetIcon  #####
+###########################
+message
+	
+	XuiSendMessage (window, #WindowGetIcon, @icon, 0, 0, 0, 0, @iconName$)
+	
+	window - window number
+	#WindowGetIcon - message: assign icon to this window
+	icon - number of the icon
+	iconName$ - name of the icon
+	
+	See: GetWindowIcon, SetWindowIcon, WindowSetIcon
+	
+:WindowGetKeyboardFocusGrid
+########################################
+#####  WindowGetKeyboardFocusGrid  #####
+########################################
+
+	XuiSendMessage (window, #WindowGetKeyboardFocusGrid, @focusGrid, 0, 0, 0, 0, 0)
+	
+	window - window number
+	#WindowGetKeyboardFocusGrid - message: get window keyboard focus grid
+	focusGrid - grid with most recent focus in window
+	
+	See: GetKeyboardFocus, GetKeyboardFocusGrid, WindowSetKeyboardFocusGrid
+	
+:WindowGetSelectedWindow
+#####################################
+#####  WindowGetSelectedWindow  #####
+#####################################
+message
+	
+	XuiSendMessage (window, #WindowGetSelectedWindow, @selectedWindow, 0, 0, 0, 0, 0)
+	
+	window - window number
+	#WindowGetSelectedWindow - message: get selected window (0 = none)
+	selectedWindow - currently selected window
+	
+:WindowGetSize
+###########################
+#####  WindowGetSize  #####
+###########################
+message
+	
+	XuiSendMessage (window, #WindowGetSize, @xDisp, @yDisp, @width, @height, 0, 0)
+	
+	window - window number
+	#WindowGetSize - message: get display position and size of window
+	xDisp,yDisp - x,y position of window innards on display
+	width,height - width,height in pixels of window innards
+	
+:WindowGetTitle
+############################
+#####  WindowGetTitle  #####
+############################
+message
+	
+	XuiSendMessage (window, #WindowGetTitle, 0, 0, 0, 0, 0, @title$)
+	
+	Send WindowGetTitle to a window to get its title string.
+	The first argument must be a window number, not a grid number.
+	GetWindowTitle is a grid message that accomplishes the same
+	thing but takes a grid number (of any grid in the window).
+	
+	window - window number
+	#WindowGetTitle - message: get window title string
+	title$ - title string
+	
+	See: GetWindowTitle, SetWindowTitle, WindowSetTitle
+	
+:WindowHide
+########################
+#####  WindowHide  #####
+########################
+message
+	
+	XuiSendMessage (window, #WindowHide, 0, 0, 0, 0, 0, 0)
+	
+	Send WindowHide to a window to remove it from the display.
+	The first argument must be a window number, not a grid number.
+	HideWindow is a grid message that accomplishes the same
+	thing but takes a grid number (of any grid in the window).
+	
+	window - window number
+	#WindowHide - message: hide the window
+	
+	See: DisplayWindow, HideWindow, ShowWindow, WindowDisplay, WindowShow
+	
+:WindowHidden
+##########################
+#####  WindowHidden  #####
+##########################
+message
+	
+	XuiSendMessage (window, #WindowHidden, 0, 0, 0, 0, 0, window)
+	
+	WindowHidden is sent to a window by GraphicsDesigner
+	when the window is hidden by the user or program.
+	
+	window - window number
+	#WindowHidden - message: window has been hidden
+	window - duplicate of 1st argument sent by GraphicsDesigner
+	
+	See: Hidden
+	
+:WindowKeyDown
+###########################
+#####  WindowKeyDown  #####
+###########################
+message
+	
+	XuiSendMessage (window, #WindowKeyDown, xWin, yWin, state, time, 0, 0)
+	
+	This message is generated by EventKeyPress() in Xgr.x and will normally
+	generate a KeyDown message to the grid for XuiTextArea(), XuiTextLine()
+	or XuiConsole() type windows.
+	
+	window - window number
+	#WindowKeyDown - message: key down event in selected window
+	xWin,yWin - window coords of current mouse cursor
+	state - keyboard key and mouse button state information
+	time - free-running system millisecond timer
+	
+	See: KeyDown
+	
+:WindowKeyUp
+#########################
+#####  WindowKeyUp  #####
+#########################
+message
+	
+	XuiSendMessage (window, #WindowKeyUp, xWin, yWin, state, time, 0, 0)
+	
+	window - window number
+	#WindowKeyUp - message key up event in selected window
+	xWin,yWin - window coords of current mouse cursor
+	state - keyboard key and mouse button state information
+	time - free-running system millisecond timer
+	
+:WindowMaximize
+############################
+#####  WindowMaximize  #####
+############################
+message
+	
+	XuiSendMessage (window, #WindowMaximize, 0, 0, 0, 0, 0, 0)
+	
+	Send WindowMaximize to a window to make it as large
+	as possible, up to the size of the display.
+	The first argument must be a window number, not a grid number.
+	MaximizeWindow is a grid message that accomplishes the same
+	thing but takes a grid number (of any grid in the window).
+	
+	window - window number
+	#WindowMaximize - message: maximize the window
+	
+:WindowMaximized
+#############################
+#####  WindowMaximized  #####
+#############################
+message
+	
+	XuiSendMessage (window, #WindowMaximized, 0, 0, 0, 0, 0, window)
+	
+	WindowMaximized is sent to a window when the window
+	is maximized by the user.
+	
+	window - window number
+	#WindowMaximized - message: window has been maximized
+	window - duplicate of 1st argument
+	
+	See: Maximized
+	
+:WindowMinimize
+############################
+#####  WindowMinimize  #####
+############################
+message
+	
+	XuiSendMessage (window, #WindowMinimize, 0, 0, 0, 0, 0, 0)
+	
+	Send WindowMinimize to a window to remove it from
+	the  display and replace it with a small icon,
+	usually along the bottom edge of the display.
+	The first argument must be a window number, not a grid number.
+	MinimizeWindow is a grid message that accomplishes the same
+	thing but takes a grid number (of any grid in the window).
+	
+	window - window number
+	#WindowMinimize - message: minimize the window
+	
+	See: MinimizeWindow, WindowMaximize, WindowRestore
+	
+:WindowMinimized
+#############################
+#####  WindowMinimized  #####
+#############################
+message
+	
+	XuiSendMessage (window, #WindowMinimized, 0, 0, 0, 0, 0, window)
+	
+	WindowMinimized is sent to a window when the window
+	is minimized by the user or program.
+	
+	window - window number
+	#WindowMinimized - message: window has been minimized
+	window - duplicate of 1st argument
+	
+	See: Minimized
+	
+:WindowMonitorContext
+##################################
+#####  WindowMonitorContext  #####
+##################################
+message
+	
+	XuiSendMessage (window, #WindowMonitorContext, @callGrid, @callFunc, 0, 0, 0, 0)
+	
+	window - window number
+	#WindowMonitorContext - message: monitor window changes
+	callGrid - grid argument in ContextChange callbacks
+	callFunc - callback function
+	
+:WindowMonitorKeyboard
+###################################
+#####  WindowMonitorKeyboard  #####
+###################################
+message
+	
+	XuiSendMessage (window, #WindowMonitorKeyboard, @callGrid, @callFunc, 0, 0, 0, 0)
+	
+	window - window number
+	#WindowMonitorKeyboard - message: monitor keyboard events
+	callGrid - grid argument in keyboard callbacks
+	callFunc - callback function
+	
+:WindowMonitorMouse
+################################
+#####  WindowMonitorMouse  #####
+################################
+message
+	
+	XuiSendMessage (window, #WindowMonitorMouse, @callGrid, @callFunc, 0, 0, 0, 0)
+	
+	window - window number
+	#WindowMonitorMouse - message: monitor mouse events
+	callGrid - grid argument in mouse callbacks
+	callFunc - callback function
+	
+:WindowRedraw
+##########################
+#####  WindowRedraw  #####
+##########################
+message
+	
+	XuiSendMessage (window, #WindowRedraw, xWin, yWin, width, height, 0, window)
+	
+	WindowRedraw is sent to a window by GraphicsDesigner when all or part of
+	the window needs to be redrawn because its was uncovered by another window,
+	or because its was displayed from a hidden or iconified state. If width <= 0 or
+	height <= 0 , the whole window needs to be redrawn, otherwise the part of the
+	window in the rectangle described by xWin,yWin,width,height needs to be redrawn.
+	In response to WindowRedraw messages, window functions send a
+	Redraw message to every parentless grid in the window,
+	along with the x,y,width,height arguments.
+	
+	window - window number
+	#WindowRedraw - message: redraw all or part of a window
+	window - duplicate of 1st argument sent by GraphicsDesigner
+	
+:WindowRegister
+############################
+#####  WindowRegister  #####
+############################
+message
+	
+	XuiWindow (window, #WindowRegister, winGrid, -1, width, height, @win, title$)
+	
+	window - window number
+	#WindowRegister - message: register window grid, title, etc
+	winGrid - window grid (grid to fill window)
+	width,height - width,height in pixels of window innards
+	win - window number returned
+	title$ - window title
+	
+:WindowResize
+##########################
+#####  WindowResize  #####
+##########################
+message
+	
+	XuiSendMessage (window, #WindowResize, xDisp, yDisp, width, height, 0, 0)
+	
+	Send WindowResize to a window to reposition it on the display and/or
+	resize it. -1 can be sent in xDisp and/or yDisp to accept a default
+	window position on that axis. A value <=0 can be supplied in width
+	and/or height to tell the window to resize to its window grid.
+	The first argument must be a window number, not a grid number.
+	Resize is a grid message that accomplishes the same thing if
+	sent to a grid created by CreateWindow , but takes a grid number
+	of any  grid in the window.
+	
+	window - window number
+	#WindowResize - message: Resize the window
+	xDisp,yDisp - display coords of upper-left corner of window
+	width,height - size of window in pixels
+	
+:WindowResized
+###########################
+#####  WindowResized  #####
+###########################
+message
+	
+	XuiSendMessage (window, #WindowResized, xDisp, yDisp, width, height, 0, window)
+	
+	WindowResized is sent to a window by GraphicsDesigner
+	after its has been resized.
+	
+	window - window number
+	#WindowResized - message: Window has been resized by user
+	
+:WindowRestore
+###########################
+#####  WindowRestore  #####
+###########################
+message
+	
+	XuiSendMessage (window, #WindowRestore, 0, 0, 0, 0, kid, 0)
+	
+	Send WindowRestore to a window that has been
+	maximixed, minimized or made fullscreen to
+	restore the window to its previous size.
+	
+	See: RestoreWindow, WindowMaximize, WindowMinimize
+	
+:WindowSelect
+##########################
+#####  WindowSelect  #####
+##########################
+message
+	
+	XuiSendMessage (window, #WindowSelect, 0, 0, 0, 0, 0, 0)
+	
+	Send WindowSelect to a window to display and select the window.
+	The first argument must be a window number, not a grid number.
+	SelectWindow is a grid message that accomplishes the same thing
+	but takes a grid number (of any grid in the window).
+	
+	window - window number
+	#WindowSelect - message: display and select window
+	
+:WindowSelected
+############################
+#####  WindowSelected  #####
+############################
+message
+	
+	XuiSendMessage (window, #WindowSelected, 0, 0, 0, 0, 0, window)
+	
+	WindowSelected is sent to a window by GraphicsDesigner when the
+	window state changes from not selected to selected, whether the
+	change is caused by the user or the program. The selected window
+	is the window with keyboard focus, which means that keyboard
+	messages are sent to that window.
+	
+	window - window number
+	#WindowSelected - message: window has been selected
+	window - duplicate of 1st argument sent by GraphicsDesigner
+	
+:WindowSetDisplay
+##############################
+#####  WindowSetDisplay  #####
+##############################
+message
+	
+	XuiSendMessage (window, #WindowSetDisplay, 0, 0, 0, 0, 0, @display$)
+	
+	window - window number
+	#WindowSetDisplay - message: set window display
+	display$ - display name (empty string = default display)
+	
+:WindowSetFunction
+###############################
+#####  WindowSetFunction  #####
+###############################
+message
+	
+	XuiSendMessage (window, #WindowSetFunction, winFunc, 0, 0, 0, kid, 0)
+	
+	Send WindowSetFunction to a grid to get the address
+	of the window function of the window.
+	
+	window - window number
+	#WindowSetFunction - message: set window function address
+	winFunc - address of window function for window
+	
+	See: GetWindow, GetWindowFunction, SetWindowFunction, WindowGetFunction
+	
+:WindowSetIcon
+###########################
+#####  WindowSetIcon  #####
+###########################
+message
+	
+	XuiSendMessage (window, #WindowSetIcon, icon, 0, 0, 0, 0, 0)
+	
+	window - window number
+	#WindowSetIcon - message: assign icon to this window
+	icon - number of a registered icon
+	
+	See: GetWindowIcon, SetWindowIcon, WindowGetIcon
+	
+:WindowSetKeyboardFocusGrid
+########################################
+#####  WindowSetKeyboardFocusGrid  #####
+########################################
+message
+	
+	XuiSendMessage (window, #WindowSetKeyboardFocusGrid, focusGrid, 0, 0, 0, 0, 0)
+	
+	window - window number
+	#WindowSetKeyboardFocusGrid - message: set window keyboard focus grid
+	focusGrid - keyboard focus grid for window
+	
+	See: GetKeyboardFocus, WindowGetKeyboardFocusGrid
+	
+:WindowSetTitle
+############################
+#####  WindowSetTitle  #####
+############################
+message
+	
+	XuiSendMessage (window, #WindowSetTitle, 0, 0, 0, 0, 0, @title$)
+	
+	Send WindowSetTitle to a window to set its title string.
+	The first argument must be a window number, not a grid number.
+	SetWindowTitle is a grid message that accomplishes the same thing but takes a
+	grid number (of any grid in the window).
+	
+	window - window number
+	#WindowSetTitle - message: set window title string
+	title$ - title string
+	
+	See: GetWindowTitle, SetWindowTitle, WindowGetTitle
+	
+:WindowShow
+########################
+#####  WindowShow  #####
+########################
+message
+	
+	XuiSendMessage (window, #WindowShow, 0, 0, 0, 0, 0, 0)
+	
+	Send WindowShow to a window to display the window without
+	selecting it. If the window cannot be displayed without
+	selecting it, it is displayed and selected.
+	
+	window - window number
+	#WindowShow - message: show window (display without selecting)
+	
+	See: DisplayWindow, HideWindow, ShowWindow, WindowDisplay, WindowHide
+	
+	

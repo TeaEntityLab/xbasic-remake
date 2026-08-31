@@ -1,0 +1,1710 @@
+'
+' #######################
+' #####  X-Windows  #####  type and function declarations   *****  64-bit  *****
+' #######################
+'
+'	PROGRAM	"xwin"					' xlib TYPE, FUNCTION, $$CONSTANT declarations
+'	VERSION	"0.0018"
+'
+' function arguments starting with "s" are often "system" arguments.
+' "sfont", "swindow", "sdisplay", are X numbers, not GraphicsDesigner numbers.
+' "font", "window", "display", "grid", are GraphicsDesigner numbers.
+'
+' See also: wsock32.dec
+'
+' *****************************
+' *****  COMPOSITE TYPES  *****
+' *****************************
+'
+TYPE XKeyboardControl     '*cw* 190913-+
+	SLONG   .keyClickPercent
+	SLONG   .bellPercent
+	SLONG   .bellPitch
+	SLONG   .bellDuration
+	SLONG   .led
+	SLONG   .ledMode
+	SLONG   .key
+	SLONG   .autoRepeatMode
+END TYPE
+'
+TYPE XKeyboardState       '*cw* 190913-+
+	SLONG   .keyClickPercent
+	SLONG   .bellPercent
+	ULONG   .bellPitch
+	ULONG   .bellDuration
+	XLONG   .ledMask
+	SLONG   .globalAutoRepeat
+	UBYTE   .autoRepeats[31]
+END TYPE
+'
+TYPE XWindowAttributes    ' size is 136 bytes  *cw* 190912-+
+	SLONG		.x                  '+0   0x0
+	SLONG		.y                  '+4   0x4
+	SLONG		.width              '+8   0x8
+	SLONG		.height             '+12  0xC
+	SLONG		.borderWidth        '+16  0x10
+	SLONG		.depth              '+20  0x14
+	XLONG		.visual             '+24  0x18
+	XLONG		.root               '+32  0x20
+	SLONG		.class              '+40  0x28
+	SLONG		.bitGravity         '+44  0x2C
+	SLONG		.winGravity         '+48  0x30
+	SLONG		.backingStore       '+52  0x34
+	XLONG		.backingPlanes      '+56  0x38
+	XLONG		.backingPixel       '+64  0x40
+	SLONG		.saveUnder          '+72  0x48
+	XLONG		.colormap           '+80  0x50
+	SLONG		.mapInstalled       '+88  0x58
+	SLONG		.mapState           '+92  0x5C
+	XLONG		.allEventMasks      '+96  0x60
+	XLONG		.yourEventMask      '+104 0x68
+	XLONG		.doNotPropagateMask '+112 0x70
+	SLONG		.overrideRedirect   '+120 0x78
+	XLONG		.screen             '+128 0x80
+END TYPE
+'
+TYPE XSetWindowAttributes    '*cw* 190912-+
+	XLONG		.backgroundPixmap
+	XLONG		.backgroundPixel
+	XLONG		.borderPixmap
+	XLONG		.borderPixel
+	SLONG		.bitGravity
+	SLONG		.winGravity
+	SLONG		.backingStore
+	XLONG   .backingPlanes
+	XLONG		.backingPixel
+	XLONG		.saveUnder
+	XLONG		.eventMask
+	XLONG		.doNotPropagate
+	SLONG		.overrideRedirect
+	XLONG		.colormap
+	XLONG		.cursor
+END TYPE
+'
+TYPE XSizeHints          '*cw* 190912-+
+	XLONG		.flags
+	SLONG		.x             'Obsolete
+	SLONG		.y             'Obsolete
+	SLONG		.width         'Obsolete
+	SLONG		.height        'Obsolete
+	SLONG		.minWidth
+	SLONG		.minHeight
+	SLONG		.maxWidth
+	SLONG		.maxHeight
+	SLONG		.widthInc
+	SLONG		.heightInc
+	SLONG		.minAspectX    'numerator
+	SLONG		.minAspectY    'denominator
+	SLONG		.maxAspectX    'numerator
+	SLONG		.maxAspectY    'denominator
+	SLONG		.baseWidth
+	SLONG		.baseHeight
+	SLONG		.winGravity
+	SLONG		.pad
+END TYPE
+'
+TYPE XIconSize           '*cw* 190912-+
+	SLONG   .minWidth
+	SLONG   .minHeight
+	SLONG   .maxWidth
+	SLONG   .maxHeight
+	SLONG   .widthInc
+	SLONG   .heightInc
+END TYPE
+'
+TYPE XWMHints            '*cw* 190912-+
+	XLONG   .flags
+	SLONG   .input
+	SLONG   .initialState
+	XLONG   .iconPixmap
+	XLONG   .iconWindow
+	SLONG   .iconX
+	SLONG   .iconY
+	XLONG   .iconMask
+	XLONG   .windowGroup
+END TYPE
+'
+TYPE XWindowChanges      '*cw* 190912-+
+	SLONG   .x
+	SLONG   .y
+	SLONG   .width
+	SLONG   .height
+	SLONG   .borderWidth
+	XLONG   .sibling       ' xwindow ID
+	SLONG   .stackMode
+END TYPE
+'
+TYPE XGCValues                 '*cw* 190912-+
+	SLONG   .function
+	XLONG   .planeMask
+	XLONG   .foreground          ' foreground pixel (color)
+	XLONG   .background          ' background pixel (color)
+	SLONG   .lineWidth
+	SLONG   .lineStyle
+	SLONG   .capStyle
+	SLONG   .joinStyle
+	SLONG   .fillStyle
+	SLONG   .fillRule
+	SLONG   .arcMode
+	XLONG   .tile                ' Pixmap
+	XLONG   .stipple             ' Pixmap
+	SLONG   .tsXorigin
+	SLONG   .tsYorigin
+	XLONG   .font
+	SLONG   .subwindowMode
+	SLONG   .graphicsExposures
+	SLONG   .clipXorigin
+	SLONG   .clipYorigin
+	XLONG   .clipMask            ' Pixmap
+	SLONG   .dashOffset
+	UBYTE   .dashes
+	UBYTE   .res1
+	UBYTE   .res2
+	UBYTE   .res3
+	XLONG   .res4
+END TYPE
+'
+TYPE XColor                 '*cw* 190912   Okay
+	XLONG		.scolor
+	USHORT	.r
+	USHORT	.g
+	USHORT	.b
+	SBYTE		.flags
+	SBYTE		.pad
+END TYPE
+'
+TYPE XPoint
+	SSHORT  .x
+	SSHORT  .y
+END TYPE
+'
+TYPE XSegment
+	SSHORT  .x1
+	SSHORT  .y1
+	SSHORT  .x2
+	SSHORT  .y2
+END TYPE
+'
+TYPE XCharStruct
+	SSHORT  .lbearing            ' origin to left edge of first drawn pixel
+	SSHORT  .rbearing            ' origin to right edge of last drawn pixel
+	SSHORT  .width               ' advance to next char origin
+	SSHORT  .ascent              ' baseline to top edge of highest drawn pixel
+	SSHORT  .descent             ' baseline to bottom edge of lowest drawn pixel
+	USHORT  .attributes          ' per character flags
+END TYPE
+'
+TYPE XFontStruct               '*cw* 190912-+
+	XLONG   .extData             '
+	XLONG   .fid                 ' font number
+	ULONG   .direction           ' draw direction
+	ULONG   .minChar             '
+	ULONG   .maxChar             '
+	ULONG   .minByte
+	ULONG   .maxByte
+	SLONG   .allCharsExist
+	ULONG   .defaultChar
+	SLONG   .nProperties
+	XLONG   .properties          ' address of XFontProp
+	SSHORT  .minBoundsLBearing   ' struct XCharStruct (next 6 entries)
+	SSHORT  .minBoundsRBearing   '
+	SSHORT  .minBoundsWidth      '
+	SSHORT  .minBoundsAscent     '
+	SSHORT  .minBoundsDescent    '
+	USHORT  .minBoundsAttributes '
+	SSHORT  .maxBoundsLBearing   ' struct XCharStruct (next 6 entries)
+	SSHORT  .maxBoundsRBearing   '
+	SSHORT  .maxBoundsWidth      '
+	SSHORT  .maxBoundsAscent     '
+	SSHORT  .maxBoundsDescent    '
+	USHORT  .maxBoundsAttributes '
+	XLONG   .perChar             ' pointer to XCharStruct
+	SLONG   .ascent              '
+	SLONG   .descent             '
+END TYPE
+'
+TYPE XImage                    '*cw* 190912-+
+	SLONG   .width               ' image width
+	SLONG   .height              ' image height
+	SLONG   .xoffset             ' x pixel offset
+	SLONG   .format              ' XYBitmap, XYPixmap, ZPixmap
+	XLONG   .addrImage           ' address of image data
+	SLONG   .byteOrder           ' LSB first, MSB first
+	SLONG   .bitmapUnit          ' 8, 16, 32
+	SLONG   .bitmapBitOrder      ' LSb first, MSb first
+	SLONG   .bitmapPad           ' 8, 16, 32
+	SLONG   .depth               '
+	SLONG   .bytesPerLine        '
+	SLONG   .bitsPerPixel        ' for ZPixmap only
+	XLONG   .redMask             ' for ZPixmap only
+	XLONG   .greenMask           ' for ZPixmap only
+	XLONG   .blueMask            ' for ZPixmap only
+	XLONG   .addrObjectData      ' the rest are function addresses
+	XLONG   .addrCreateImage     '
+	XLONG   .addrDestroyImage    '
+	XLONG   .addrGetPixel        '
+	XLONG   .addrPutPixel        '
+	XLONG   .addrSubImage        '
+	XLONG   .addrAddPixel        '
+END TYPE
+'
+TYPE XClassHint                '*cw* 190912   okay
+	XLONG   .addrAppName         ' ascii string
+	XLONG   .addrClassName       ' ascii string
+END TYPE
+'
+TYPE XRectangle                '*cw* 190912 okay
+	SSHORT .x
+	SSHORT .y
+	USHORT .w
+	USHORT .h
+END TYPE
+'
+TYPE XTextProperty             '*cw* 190912-+
+	XLONG   .value               ' address of text property
+	XLONG   .encoding            ' atom that specifies the property
+	SLONG   .format              ' property data format (8, 16, 32)
+	XLONG   .nItems              ' number of characters (not bytes) in text
+END TYPE
+'
+'
+' ************************************
+' *****  system event structures *****
+' ************************************
+'
+' Each event function handles the one event that gives the function its name.
+' The following table shows what event structures are passed to each function.
+' The structure definitions follow.
+'
+' event               function                    xlib structure
+'
+' ButtonPress         EventButtonPress()          XButtonEvent
+' ButtonRelease       EventButtonRelease()        XButtonEvent
+' CirculateNotify     EventCirculateNotify()      XCirculateEvent
+' CirculateRequest    EventCirculateRequest()     XCirculateRequestEvent
+' ClientMessage       EventClientMessage()        XClientMessageEvent
+' ColormapNotify      EventColormapNotify()       XColormapEvent
+' ConfigureNotify     EventConfigureNotify()      XConfigureEvent
+' ConfigureRequest    EventConfigureRequest()     XConfigureRequestEvent
+' CreateNotify        EventCreateNotify()         XCreateWindowEvent
+' DestroyNotify       EventDestroyNotify()        XDestroyWindowEvent
+' EnterNotify         EventEnterNotify()          XCrossingEvent
+' Error               EventError()                XErrorEvent
+' Expose              EventExpose()               XExposeEvent
+' FocusIn             EventFocusIn()              XFocusChangeEvent
+' FocusOut            EventFocusOut()             XFocusChangeEvent
+' GraphicsExpose      EventGraphicsExpose()       XGraphicsExposeEvent
+' GravityNotify       EventGravityNotify()        XGravityEvent
+' KeyPress            EventKeyPress()             XKeyEvent
+' KeyRelease          EventKeyRelease()           XKeyEvent
+' KeymapNotify        EventKeymapNotify()         XKeymapEvent
+' LeaveNotify         EventLeaveNotify()          XCrossingEvent
+' MapNotify           EventMapNotify()            XMapEvent
+' MapRequest          EventMapRequest()           XMapRequestEvent
+' MappingNotify       EventMappingNotify()        XMappingEvent
+' MotionNotify        EventMotionNotify()         XMotionEvent
+' NoExpose            EventNoExpose()             XNoExposeEvent
+' PropertyNotify      EventPropertyNotify()       XPropertyEvent
+' ReparentNotify      EventReparentNotify()       XReparentEvent
+' ResizeRequest       EventResizeRequest()        XResizeRequestEvent
+' SelectionClear      EventSelectionClear()       XSelectionClearEvent
+' SelectionNotify     EventSelectionNotify()      XSelectionEvent
+' SelectionRequest    EventSelectionRequest()     XSelectionRequestEvent
+' UnmapNotify         EventUnmapNotify()          XUnmapEvent
+' VisibilityNotify    EventVisibilityNotify()     XVisibilityEvent
+'
+' When xlib detects an event, it creates an event structure appropriate
+' to the event.  When an application function calls an xlib function to
+' get the event, the application function passes the address of XAnyEvent
+' structure which the xlib function copies whatever event structure it
+' has created into the XAnyEvent variable the application passed it, as
+' in XNextEvent (&anyEvent).  The application function then looks at the
+' first XLONG in the anyEvent variable to find out what kind of event,
+' and therefore what kind of event structure it has been supplied.
+'
+' The following are the xlib event type definitions.
+'
+TYPE XAnyEvent                 ' big enough to hold any event type
+	SLONG   .type                ' event type - can be any event type
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .overlay[59]         ' room for event structures up to 256 bytes
+END TYPE                       ' 256 bytes
+'
+'
+TYPE XButtonEvent              '
+	SLONG   .type                ' event type - $$ButtonPress : $$ButtonRelease
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	XLONG   .root                '
+	XLONG   .subwindow           '
+	XLONG   .time                ' milliseconds
+	SLONG   .x                   ' mouse coords in window
+	SLONG   .y                   ' mouse coords in window
+	SLONG   .xRoot               ' mouse coords in display (root window)
+	SLONG   .yRoot               ' mouse coords in display (root window)
+	ULONG   .state               ' key or button mask
+	ULONG   .button              ' detail
+	SLONG   .sameScreen          '
+END TYPE
+'
+TYPE XCirculateEvent           '
+	SLONG   .type                ' event type - $$CirculateNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .event               ' event window
+	XLONG   .window              '
+	SLONG   .place               ' $$PlaceOnTop, $$PlaceOnBottom
+END TYPE
+'
+TYPE XCirculateRequestEvent    '
+	SLONG   .type                ' event type - $$CirculateRequest
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .parent              ' parent window
+	XLONG   .window              '
+	SLONG   .place               '
+END TYPE
+'
+TYPE XClientMessageEvent       '
+	SLONG   .type                ' event type - $$ClientMessage
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	XLONG   .messageType         '
+	SLONG   .format              '
+	ULONG   .data[4]             '
+END TYPE
+'
+TYPE XColormapEvent            '
+	SLONG   .type                ' event type - $$ColormapNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	XLONG   .colormap            '
+	SLONG   .new                 '
+	SLONG   .state               '
+END TYPE
+'
+TYPE XConfigureEvent             '
+	SLONG   .type                ' event type - $$ConfigureNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .event               ' type Window
+	XLONG   .window              ' type Window
+	SLONG   .x                   '
+	SLONG   .y                   '
+	SLONG   .width               '
+	SLONG   .height              '
+	SLONG   .borderWidth         '
+	XLONG   .above               ' type Window
+	SLONG   .overrideRedirect    '
+END TYPE
+'
+TYPE XConfigureRequestEvent    '
+	SLONG   .type                ' event type - $$ConfigureRequest
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .parent              ' type Window
+	XLONG   .window              ' type Window
+	SLONG   .x                   '
+	SLONG   .y                   '
+	SLONG   .width               '
+	SLONG   .height              '
+	SLONG   .borderWidth         '
+	XLONG   .above               ' type Window
+	SLONG   .detail              ' $$Above $$Below $$TopIf $$BottomIf $$Opposite
+	XLONG		.valuemask           '
+END TYPE
+'
+TYPE XCreateWindowEvent        '
+	SLONG   .type                ' event type - $$CreateNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .parent              ' type Window
+	XLONG   .window              ' type Window
+	SLONG   .x                   '
+	SLONG   .y                   '
+	SLONG   .width               '
+	SLONG   .height              '
+	SLONG   .borderWidth         '
+	SLONG   .overrideRedirect    '
+END TYPE
+'
+TYPE XDestroyWindowEvent       '
+	SLONG   .type                ' event type - $$DestroyNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .event               ' type Window
+	XLONG   .window              ' type Window
+END TYPE
+'
+TYPE XCrossingEvent            '
+	SLONG   .type                ' event type - $$EnterNotify : $$LeaveNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	XLONG   .root                '
+	XLONG   .subwindow           '
+	XLONG   .time                ' milliseconds
+	SLONG   .x                   ' mouse coords in event window
+	SLONG   .y                   ' ditto
+	SLONG   .xRoot               ' mouse coords in root window
+	SLONG   .yRoot               ' ditto
+	SLONG   .mode                ' $$NotifyNormal, $$NotifyGrab, $$NotifyUngrab
+	SLONG   .detail              ' $$NotifyAncestor, $$Notify ... others
+	SLONG   .sameScreen          '
+	SLONG   .focus               '
+	ULONG   .state               ' key or button mask
+END TYPE
+'
+TYPE XErrorEvent32             ' structure layout not same as others              OLD
+	SLONG   .type                ' event type - $$Error
+	XLONG   .display             ' display this event was read from
+'	XLONG   .resourceid          '
+	XLONG   .serial              ' # of last request processed by server
+	UBYTE   .errorCode           ' error code of failed request
+	UBYTE   .requestCode         ' major opcode of failed request
+	UBYTE   .minorCode           ' minor opcode of failed request
+	UBYTE   .pad                 '
+END TYPE
+TYPE XErrorEvent             ' structure layout not same as others               NEW
+	ULONG   .type                ' event type - $$Error
+	ULONG   .bool                ' event type - $$Error
+	XLONG   .display             ' display this event was read from
+	XLONG   .resourceid          '
+	XLONG   .serial              ' # of last request processed by server
+	UBYTE   .errorCode           ' error code of failed request
+	UBYTE   .requestCode         ' major opcode of failed request
+	UBYTE   .minorCode           ' minor opcode of failed request
+	UBYTE   .pad                 '
+END TYPE
+'
+TYPE XExposeEvent              '
+	SLONG   .type                ' event type - $$Expose
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	SLONG   .x                   '
+	SLONG   .y                   '
+	SLONG   .width               '
+	SLONG   .height              '
+	SLONG   .count               ' # of redraws to same grid following
+END TYPE
+'
+TYPE XFocusChangeEvent         '
+	SLONG   .type                ' event type - $$FocusIn : $$FocusOut
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              ' event window
+	SLONG   .mode                ' $$NotifyNormal, $$NotifyGrab, $$NotifyUngrab
+	SLONG   .detail              ' $$NotifyAncestor, $$Notify... others
+END TYPE
+'
+TYPE XGraphicsExposeEvent      '
+	SLONG   .type                ' event type - $$GraphicsExpose
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG		.drawable            '
+	SLONG   .x                   '
+	SLONG   .y                   '
+	SLONG   .width               '
+	SLONG   .height              '
+	SLONG   .count               '
+	SLONG   .majorCode           '
+	SLONG   .minorCode           '
+END TYPE
+'
+TYPE XGravityEvent             '
+	SLONG   .type                ' event type - $$GravityNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .event               ' type Window
+	XLONG   .window              ' type Window
+	SLONG   .x                   '
+	SLONG   .y                   '
+END TYPE
+'
+TYPE XKeyEvent                 '
+	SLONG   .type                ' event type - $$KeyPress : $$KeyRelease
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	XLONG   .root                '
+	XLONG   .subwindow           '
+	XLONG   .time                '
+	SLONG   .x                   '
+	SLONG   .y                   '
+	SLONG   .xRoot               '
+	SLONG   .yRoot               '
+	ULONG   .state               '
+	ULONG   .keycode             '
+	SLONG   .sameScreen          '
+END TYPE
+'
+TYPE XKeymapEvent_OlD              '
+	SLONG   .type                ' event type - $$KeymapNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	XLONG   .x                   '
+	XLONG   .y                   '
+	XLONG   .width               '
+	XLONG   .height              '
+	XLONG   .count               '
+END TYPE
+TYPE XKeymapEvent              '
+	SLONG   .type                ' event type - $$KeymapNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	UBYTE   .keyVextor[31]
+END TYPE
+'
+TYPE XMapEvent                 '
+	SLONG   .type                ' event type - $$MapNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .event               ' type Window
+	XLONG   .window              '
+	SLONG   .overrideRedirect    '
+END TYPE
+'
+TYPE XMapRequestEvent          '
+	SLONG   .type                ' event type - $$MapRequest
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .parent              ' parent window
+	XLONG   .window              '
+END TYPE
+'
+TYPE XMappingEvent             '
+	SLONG   .type                ' event type - $$MappingNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	SLONG   .request             '
+	SLONG   .firstKeycode        '
+	SLONG   .count               '
+END TYPE
+'
+TYPE XMotionEvent              '
+	SLONG   .type                ' event type - $$MotionNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	XLONG   .root                '
+	XLONG   .subwindow           '
+	XLONG   .time                ' milliseconds
+	SLONG   .x                   ' x mouse coords within window
+	SLONG   .y                   ' y mouse coords within window
+	SLONG   .xRoot               ' x mouse coords within display
+	SLONG   .yRoot               ' y mouse coords within display
+	ULONG   .state               '
+	UBYTE   .isHint              '
+	SLONG   .sameScreen          '
+END TYPE
+'
+TYPE XNoExposeEvent            '
+	SLONG   .type                ' event type - $$NoExpose
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .drawable            ' window or pixmap
+	SLONG   .majorOpcode         '
+	SLONG   .minorOpcode         '
+END TYPE
+'
+TYPE XPropertyEvent            '
+	SLONG   .type                ' event type - $$PropertyNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	XLONG   .atom                '
+	XLONG   .time                '
+	SLONG   .state               '
+END TYPE
+'
+TYPE XReparentEvent            '
+	SLONG   .type                ' event type - $$ReparentNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG		.event               ' type Window
+	XLONG   .window              '
+	XLONG   .parent              '
+	SLONG   .x                   '
+	SLONG   .y                   '
+	SLONG   .overrideRedirect    '
+END TYPE
+'
+TYPE XResizeRequestEvent       '
+	SLONG   .type                ' event type - $$ResizeRequest
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	SLONG   .width               '
+	SLONG   .height              '
+END TYPE
+'
+TYPE XSelectionClearEvent      '
+	SLONG   .type                ' event type - $$SelectionClear
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	XLONG   .atom                '
+	XLONG   .time                '
+END TYPE
+'
+TYPE XSelectionEvent           '
+	SLONG   .type                ' event type - $$SelectionNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .requestor           ' type Window
+	XLONG   .selection           ' type Atom
+	XLONG   .target              ' type Atom
+	XLONG   .property            ' type Atom
+	XLONG   .time                '
+END TYPE
+'
+TYPE XSelectionRequestEvent    '
+	SLONG   .type                ' event type - $$SelectionRequest
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .owner               ' type Window
+	XLONG   .requestor           ' type Window
+	XLONG   .selection           ' type Atom
+	XLONG   .target              ' type Atom
+	XLONG   .property            ' type Atom
+	XLONG   .time                '
+END TYPE
+'
+TYPE XUnmapEvent               '
+	SLONG   .type                ' event type - $$UnmapNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .event               ' type Window
+	XLONG   .window              ' ditto
+	SLONG   .fromConfigure       '
+END TYPE
+'
+TYPE XVisibilityEvent          '
+	SLONG   .type                ' event type - $$VisibilityNotify
+	XLONG   .serial              ' # of last request processed by server
+	SLONG   .sendEvent           ' true if this came from SendEvent request
+	XLONG   .display             ' display this event was read from
+	XLONG   .window              '
+	XLONG   .state               '
+END TYPE
+'
+'
+' *****  xlib "fake" types  *****
+'
+' TYPE Display     = XLONG       '
+' TYPE Screen      = XLONG       '
+' TYPE Visual      = XLONG       '
+' TYPE Pixmap      = XLONG       '
+' TYPE GC          = XLONG       ' address of opaque structure
+' TYPE Font        = XLONG       ' font ID number
+' TYPE XFontStruct = XLONG       ' address of font structure
+'
+'
+'
+'
+'
+TYPE WidgetGeometry
+	ULONG		.mask
+	SSHORT	.x
+	SSHORT	.y
+	USHORT	.width
+	USHORT	.height
+	USHORT	.borderWidth
+	ULONG		.widget
+	ULONG		.stackMode
+END TYPE
+'
+TYPE XtResource
+	ULONG		.name
+	ULONG		.class
+	ULONG		.type
+	ULONG		.size
+	ULONG		.offset
+	ULONG		.defaultType
+	ULONG		.valueAddr
+END TYPE
+'
+'
+' ************************************************
+' *****  XWindows / Motif Support Functions  *****
+' ************************************************
+'
+EXTERNAL CFUNCTION  XAddPixel (ximage, value)
+EXTERNAL CFUNCTION  XAllocColor (sdisplay, cmap, gColor)
+EXTERNAL CFUNCTION  XAllocColorCells (sdisplay, cmap, contig, pMasks, nplanes, pixels, ncolors)
+EXTERNAL CFUNCTION  XAllocStandardColormap ()
+EXTERNAL CFUNCTION  XBell (sdisplay, percent)
+EXTERNAL CFUNCTION  XBlackPixel (sdisplay, screen)
+EXTERNAL CFUNCTION  XChangeKeyboardControl (sdisplay, mask, addrXKeyboardControl)
+EXTERNAL CFUNCTION  XChangePointerControl (sdisplay, doAccel, doThresh, accelNum, accelDenom, thresh)
+EXTERNAL CFUNCTION  XChangeProperty (sdisplay, swindow, property, type, format, mode, data, elements)
+EXTERNAL CFUNCTION  XChangeWindowAttribytes (sdisplay, swindow, valuemask, addrSetAttributes)
+EXTERNAL CFUNCTION  XCheckTypedEvent (sdisplay, eventType, addrXEvent)
+EXTERNAL CFUNCTION  XCheckTypedWindowEvent (sdisplay, swindow, eventType, addrXEvent)
+EXTERNAL CFUNCTION  XClearWindow (sdisplay, swindow)
+EXTERNAL CFUNCTION  XCloseDisplay (sdisplay)
+EXTERNAL CFUNCTION  XConnectionNumber (sdisplay)
+EXTERNAL CFUNCTION  XConfigureWindow (sdisplay, swindow, valueMask, addrValues)
+EXTERNAL CFUNCTION  XConvertSelection (sdisplay, selection, target, property, requestor, time)
+EXTERNAL CFUNCTION  XCopyArea (sdisplay, src_drawable, dest_drawable, gc, src_x, src_y, width, height, dest_x, dest_y)
+EXTERNAL CFUNCTION  XCreateColormap (sdisplay, swindow, visualPtr, allocation)
+EXTERNAL CFUNCTION  XCreateGC (sdisplay, swindow, mask, values)
+EXTERNAL CFUNCTION  XCreateFontCursor (sdisplay, cursor)
+EXTERNAL CFUNCTION  XCreateImage(display, visual, depth, format, offset, data, width, height, bitmap_pad, bytes_per_line)
+EXTERNAL CFUNCTION  XCreatePixmap (sdisplay, swindow, width, height, depth)
+'EXTERNAL CFUNCTION  XCreatePixmapFromData (sdisplay, swindow, data, width, height)
+EXTERNAL CFUNCTION  XCreatePixmapFromBitmapData (display, d, data, width, height, fg, bg, depth)
+EXTERNAL CFUNCTION  XCreatePixmapCursor (sdisplay, cursorPixmap, maskPixmap, addrXColorForeground, addrXColorBackground, hotX, hotY)
+EXTERNAL CFUNCTION  XCreateSimpleWindow (sdisplay, parent, x, y, width, height, borderWidth, borderColor, backgroundColor)
+EXTERNAL CFUNCTION  XCreateWindow (sdisplay, parent, x, y, width, height, borderWidth, depth, class, visual, valuemask, attributes)
+EXTERNAL CFUNCTION  XDefaultColormap (sdisplay, screen)
+EXTERNAL CFUNCTION  XDefaultColormapOfScreen (screen)
+EXTERNAL CFUNCTION  XDefaultDepth (sdisplay, screen)
+EXTERNAL CFUNCTION  XDefaultScreen (sdisplay)
+EXTERNAL CFUNCTION  XDefaultScreenOfDisplay (sdisplay)
+EXTERNAL CFUNCTION  XDefaultVisual (sdisplay, screen)
+EXTERNAL CFUNCTION  XDefineCursor (sdisplay, swindow, cursor)
+EXTERNAL CFUNCTION  XDestroyImage (ximage)
+EXTERNAL CFUNCTION  XDestroyWindow (sdisplay, swindow)
+EXTERNAL CFUNCTION  XDisplayCells (sdisplay, screen)
+EXTERNAL CFUNCTION  XDisplayHeight (sdisplay, screen)
+EXTERNAL CFUNCTION  XDisplayName (addrName)
+EXTERNAL CFUNCTION  XDisplayWidth (sdisplay, screen)
+EXTERNAL CFUNCTION  XDoesSaveUnders (screen)
+EXTERNAL CFUNCTION  XDrawArc (sdisplay, swindow, gc, xUL, yUL, width, height, angle1, angle2)
+EXTERNAL CFUNCTION  XFillArc (sdisplay, swindow, gc, xUL, yUL, width, height, angle1, angle2)
+EXTERNAL CFUNCTION  XDrawImageString (sdisplay, swindow, gc, x, y, stringAddr, length)
+EXTERNAL CFUNCTION  XDrawLine (sdisplay, swindow, gc, x1, y1, x2, y2)
+EXTERNAL CFUNCTION  XDrawLines (sdisplay, swindow, gc, arrAddr, npoints, mode)
+EXTERNAL CFUNCTION  XDrawPoint (sdisplay, swindow, gc, x, y)
+EXTERNAL CFUNCTION  XDrawPoints (sdisplay, swindow, gc, arrAddr, npoints, mode)
+EXTERNAL CFUNCTION  XDrawRectangle (sdisplay, swindow, gc, xUL, yUL, width, height)
+EXTERNAL CFUNCTION  XDrawSegments (sdisplay, swindow, gc, arrAddr, nsegments)
+EXTERNAL CFUNCTION  XDrawString (sdisplay, swindow, gc, x, y, stringAddr, length)
+EXTERNAL CFUNCTION  XEventsQueued (sdisplay, mode)
+EXTERNAL CFUNCTION  XFetchName (sdisplay, swindow, addrText)
+EXTERNAL CFUNCTION  XFillRectangle (sdisplay, swindow, gc, xUL, yUL, width, height)
+EXTERNAL CFUNCTION  XFlush (sdisplay)
+EXTERNAL CFUNCTION  XFree (address)
+EXTERNAL CFUNCTION  XFreeFontNames (addrFontNameList)
+EXTERNAL CFUNCTION  XFreeGC (sdisplay, gc)
+EXTERNAL CFUNCTION  XFreePixmap (sdisplay, pixmap)
+EXTERNAL CFUNCTION  XGContextFromGC (gc)
+EXTERNAL CFUNCTION  XGetAtomName (sdisplay, atom)
+EXTERNAL CFUNCTION  XGetAtomNames (sdisplay, atom, count, addrNames)
+EXTERNAL CFUNCTION  XGetErrorText (sdisplay, xerror, addrText, bytes)
+EXTERNAL CFUNCTION  XGetGeometry (sdisplay, drawable, root, x, y, width, height, borderWidth, depth)
+EXTERNAL CFUNCTION  XGetIconSizes (sdisplay, sroot, addrList, addrCount)
+EXTERNAL CFUNCTION  XGetImage (sdisplay, swindow, xWin, yWin, width, height, planeMask, format)
+EXTERNAL CFUNCTION  XGetInputFocus (sdisplay, addrFocusWindow, addrRevertToWindow)
+EXTERNAL CFUNCTION  XGetKeyboardControl (sdisplay, addrXKeyboardState)
+EXTERNAL CFUNCTION  XGetPixel (ximage, x, y)
+EXTERNAL CFUNCTION  XGetPointerControl (sdisplay, accelNum, accelDenom, thresh)
+EXTERNAL CFUNCTION  XGetRGBColormaps(display, w, std_colormap_return, count_return, property)
+EXTERNAL CFUNCTION  XGetStandardColormap(display, w, std_colormap_return, count_return, property)
+EXTERNAL CFUNCTION  XGetSelectionOwner (sdisplay, selection)
+EXTERNAL CFUNCTION  XGetTextProperty (sdisplay, swindow, addrText, atomProperty)
+EXTERNAL CFUNCTION  XGetTransientForHint (sdisplay, swindow, forswindow)                 '*cw* 091006
+EXTERNAL CFUNCTION  XGetWindowAttributes (sdisplay, swindow, attributes)
+EXTERNAL CFUNCTION  XGetWindowProperty (sdisplay, swindow, property, offset, length, delete, requestType, returnType, returnFormat, returnItems, returnBytesAfter, returnPropertyData)
+EXTERNAL CFUNCTION  XGetWMNormalHints (sdisplay, swindow, addrNormalXSizeHints, addrSuppliedXSizeHints)
+EXTERNAL CFUNCTION  XGetWMProtocols (sdisplay, swindow, addrProtocols, addrCount)
+EXTERNAL CFUNCTION  XGrabPointer (sdisplay, swindow, ownerEvents, eventMask, pointerMode, keyboardMode, confineTo, cursor, time)
+EXTERNAL CFUNCTION  XIconifyWindow (sdisplay, swindow, screenNumber)
+EXTERNAL CFUNCTION  XInstallColormap (sdisplay, cmap)
+EXTERNAL CFUNCTION  XInternAtom (sdisplay, addrString, exists)
+EXTERNAL CFUNCTION  XListDepths (sdisplay, screen, addrCount)
+EXTERNAL CFUNCTION  XListFonts (sdisplay, pattern, maxNames, count)
+EXTERNAL CFUNCTION  XListFontsWithInfo (sdisplay, pattern, maxNames, count, info)
+EXTERNAL CFUNCTION  XListPixmapFormats (sdisplay, addrCount)
+EXTERNAL CFUNCTION  XListProperties (sdisplay, swindow, addrCount)
+EXTERNAL CFUNCTION  XLoadFont (sdisplay, name)
+EXTERNAL CFUNCTION  XLoadQueryFont (sdisplay, name)
+EXTERNAL CFUNCTION  XLookupString (xEvent, buffer, bytes, keysym, status)
+EXTERNAL CFUNCTION  XLowerWindow (sdisplay, swindow)
+EXTERNAL CFUNCTION  XMapRaised (sdisplay, swindow)
+EXTERNAL CFUNCTION  XMapSubwindows (sdisplay, swindow)
+EXTERNAL CFUNCTION  XMapWindow (sdisplay, swindow)
+EXTERNAL CFUNCTION  XMoveResizeWindow (sdisplay, swindow, x, y, width, height)
+EXTERNAL CFUNCTION  XMoveWindow (sdisplay, swindow, xDisp, yDisp)
+EXTERNAL CFUNCTION  XNextEvent (sdisplay, addrReport)
+EXTERNAL CFUNCTION  XOpenDisplay (sdisplayName)
+EXTERNAL CFUNCTION  XPending (sdisplay)
+EXTERNAL CFUNCTION  XPutImage (sdisplay, swindow, gc, image, xSrc, ySrc, xDest, yDest, width, height)
+EXTERNAL CFUNCTION  XPutPixel (ximage, x, y, pixel)
+EXTERNAL CFUNCTION  XQueryColor (sdisplay, cmap, colorPtr)
+EXTERNAL CFUNCTION  XQueryColors (sdisplay, cmap, colorArray, arrayEntries)
+EXTERNAL CFUNCTION  XQueryFont (sdisplay, sfont)
+EXTERNAL CFUNCTION  XQueryPointer (sdisplay, swindow, root, child, xDisp, yDisp, xWin, yWin, keyMouseState)
+EXTERNAL CFUNCTION  XQueryTextExtents (sdisplay, sfont, addrText, chars, direction, ascent, descent, addrXCharStruct)
+EXTERNAL CFUNCTION  XQueryTree (sdisplay, swindow, root, parent, childArray, count)
+EXTERNAL CFUNCTION  XRaiseWindow (sdisplay, swindow)
+EXTERNAL CFUNCTION  XReadBitmapFile (sdisplay, swindow, addrFile, addrWidth, addrHeight, addrPixmap, addrHotX, addrHotY)
+EXTERNAL CFUNCTION  XResizeWindow (sdisplay, swindow, width, height)
+EXTERNAL CFUNCTION  XRestackWindows (sdisplay, addrSWindows, nswindows)
+EXTERNAL CFUNCTION  XRootWindow (sdisplay, screen)
+EXTERNAL CFUNCTION  XSelectInput (sdisplay, swindow, eventMask)
+EXTERNAL CFUNCTION  XSendEvent (sdisplay, swindow, propogate, eventMask, addrXEvent)
+EXTERNAL CFUNCTION  XServerVendor (sdisplay)
+EXTERNAL CFUNCTION  XSetBackground (sdisplay, gc, background)
+EXTERNAL CFUNCTION  XSetClassHint (sdisplay, w, addrXClassHint)
+EXTERNAL CFUNCTION  XSetClipOrigin (sdisplay, gc, xUL, yUL)
+EXTERNAL CFUNCTION  XSetClipMask (sdisplay, gc, bitmap)
+EXTERNAL CFUNCTION  XSetClipRectangles (sdisplay, gc, xUL, yUL, rectAddr, rects, mode)
+EXTERNAL CFUNCTION  XSetDashes (sdisplay, gc, first, addrDashBytes, bytes)
+EXTERNAL CFUNCTION  XSetErrorHandler (addrHandlerCFUNCTION)
+EXTERNAL CFUNCTION  XSetFont (sdisplay, gc, font)
+EXTERNAL CFUNCTION  XSetForeground (sdisplay, gc, foreground)
+EXTERNAL CFUNCTION  XSetFunction (sdisplay, gc, gcFunction)
+EXTERNAL CFUNCTION  XSetInputFocus (sdisplay, sfocusWindow, srevertToWindow, time)
+EXTERNAL CFUNCTION  XSetIOErrorHandler (addrHandlerCFUNCTION)
+EXTERNAL CFUNCTION  XSetLineAttributes (sdisplay, gc, lineWidth, lineStyle, capStyle, joinStyle)
+EXTERNAL CFUNCTION  XSetSelectionOwner (sdisplay, selection, swindow, time)
+EXTERNAL CFUNCTION  XSetStandardProperties (sdisplay, swindow, addrWindowName, addrIconName, pixmap, addrArgv, argc, addrXSizeHints)
+EXTERNAL CFUNCTION  XSetSubwindowMode (sdisplay, gc, subwindowMode)
+EXTERNAL CFUNCTION  XSetTextProperty (sdisplay, swindow, addrText, atomProperty)
+EXTERNAL CFUNCTION  XSetTransientForHint (sdisplay, swindow, forswindow)
+EXTERNAL CFUNCTION  XSetWindowBorderWidth (sdisplay, swindow, width)
+EXTERNAL CFUNCTION  XSetWindowColormap (sdisplay, swindow, cmap)
+EXTERNAL CFUNCTION  XSetWMClientMachine (sdisplay, swindow, addrText)
+EXTERNAL CFUNCTION  XSetWMHints (sdisplay, swindow, addrXWMHints)
+EXTERNAL CFUNCTION  XSetWMIconName (sdisplay, swindow, addrText)
+EXTERNAL CFUNCTION  XSetWMName (sdisplay, swindow, addrXTextProperty)
+EXTERNAL CFUNCTION  XSetWMNormalHints (sdisplay, swindow, addrXSizeHints)
+EXTERNAL CFUNCTION  XSetZoomHints (sdisplay, swindow, addrXSizeHints)             '*cw* 091008
+EXTERNAL CFUNCTION  XSetWMProperties (sdisplay, swindow, addrText, addrText, addrArgv, argc, addrXSizeHints, addrXWMHints, addrXClassHint)
+EXTERNAL CFUNCTION  XSetWMProtocols (sdisplay, swindow, addrProtocols, count)
+EXTERNAL CFUNCTION  XSetWMSizeHints (sdisplay, swindow, addrXSizeHints, atom)
+EXTERNAL CFUNCTION  XStoreColor (sdisplay, cmap, colorPtr)
+EXTERNAL CFUNCTION  XStoreColors (sdisplay, cmap, colorArray, arrayEntries)
+EXTERNAL CFUNCTION  XStoreName (sdisplay, swindow, addrText)
+EXTERNAL CFUNCTION  XSync (sdisplay, discard)
+EXTERNAL CFUNCTION  XTextExtents (addrFontStruct, addrString, length, addrDirection, addrAscent, addrDescent, addrXCharStruct)
+EXTERNAL CFUNCTION  XTextWidth (font, stringAddr, length)
+EXTERNAL CFUNCTION  XTranslateCoordinates (sdisplay, swindow, sroot, x, y, xDisp, yDisp, child)
+EXTERNAL CFUNCTION  XUngrabPointer (sdisplay, time)
+EXTERNAL CFUNCTION  XUnloadFont (sdisplay, xfont)
+EXTERNAL CFUNCTION  XUnmapWindow (sdisplay, swindow)
+EXTERNAL CFUNCTION  XWriteBitmapFile (sdisplay, swindow, addrFilename, width, height, hotX, hotY)
+EXTERNAL CFUNCTION  XWhitePixel (sdisplay, screen)
+EXTERNAL CFUNCTION  XWithdrawWindow (sdisplay, swindow, screenNumber)
+'
+' UTF-8 Functions
+'
+EXTERNAL CFUNCTION  XCreateFontSet (sdisplay, addrFontName, addrMissing, addrNMssing, addrDef)
+EXTERNAL CFUNCTION  XFreeStringList (missing)
+EXTERNAL CFUNCTION  XFreeFontSet (sdisplay, fontset)
+EXTERNAL CFUNCTION  XFreeFontPath (addFontPaths)
+EXTERNAL CFUNCTION  XGetFontPath (sdisplay, nPaths)
+EXTERNAL CFUNCTION  XLocaleOfFontSet (sfontset)
+EXTERNAL CFUNCTION  XOpenOM (sdisplay, XrmDatabase, addrResName, addrResClass)
+EXTERNAL CFUNCTION  XFontsOfFontSet (fontset, addrList, addrListString)
+EXTERNAL CFUNCTION  XwcDrawString (sdisplay, swindow, fontset, gc, x, y, addrWcharString, numChars)
+EXTERNAL CFUNCTION  XwcDrawImageString (sdisplay, swindow, fontset, gc, x, y, addrWcharString, numChars)
+EXTERNAL CFUNCTION  XmbDrawImageString (sdisplay, swindow, fontset, gc, x, y, addrString, numBytes)
+EXTERNAL CFUNCTION  XwcTextExtents (fontset, addrWcharString, numChars, addrRectInkLocal, addrRrectOverallLocal)
+EXTERNAL CFUNCTION  XmbTextExtents (fontset, addrString, numBytes, addrRectInkLocal, addrRrectOverallLocal)
+'
+'
+'
+' #######################
+' #####  CONSTANTS  #####
+' #######################
+'
+' xlib "atoms"
+'
+	$$XA_PRIMARY                =  1
+	$$XA_SECONDARY              =  2
+	$$XA_ARC                    =  3
+	$$XA_ATOM                   =  4
+	$$XA_BITMAP                 =  5
+	$$XA_CARDINAL               =  6
+	$$XA_COLORMAP               =  7
+	$$XA_CURSOR                 =  8
+	$$XA_CUT_BUFFER_0           =  9
+	$$XA_CUT_BUFFER_1           = 10
+	$$XA_CUT_BUFFER_2           = 11
+	$$XA_CUT_BUFFER_3           = 12
+	$$XA_CUT_BUFFER_4           = 13
+	$$XA_CUT_BUFFER_5           = 14
+	$$XA_CUT_BUFFER_6           = 15
+	$$XA_CUT_BUFFER_7           = 16
+	$$XA_DRAWABLE               = 17
+	$$XA_FONT                   = 18
+	$$XA_INTEGER                = 19
+	$$XA_PIXMAP                 = 20
+	$$XA_POINT                  = 21
+	$$XA_RECTANGLE              = 22
+	$$XA_RESOURCE_MANAGER       = 23
+	$$XA_RGB_COLOR_MAP          = 24
+	$$XA_RGB_BEST_MAP           = 25
+	$$XA_RGB_BLUE_MAP           = 26
+	$$XA_RGB_DEFAULT_MAP        = 27
+	$$XA_RGB_GRAY_MAP           = 28
+	$$XA_RGB_GREEN_MAP          = 29
+	$$XA_RGB_RED_MAP            = 30
+	$$XA_STRING                 = 31
+	$$XA_VISUALID               = 32
+	$$XA_WINDOW                 = 33
+	$$XA_WM_COMMAND             = 34
+	$$XA_WM_HINTS               = 35
+	$$XA_WM_CLIENT_MACHINE      = 36
+	$$XA_WM_ICON_NAME           = 37
+	$$XA_WM_ICON_SIZE           = 38
+	$$XA_WM_NAME                = 39
+	$$XA_WM_NORMAL_HINTS        = 40
+	$$XA_WM_SIZE_HINTS          = 41
+	$$XA_WM_ZOOM_HINTS          = 42
+	$$XA_MIN_SPACE              = 43
+	$$XA_NORM_SPACE             = 44
+	$$XA_MAX_SPACE              = 45
+	$$XA_END_SPACE              = 46
+	$$XA_SUPERSCRIPT_X          = 47
+	$$XA_SUPERSCRIPT_Y          = 48
+	$$XA_SUBSCRIPT_X            = 49
+	$$XA_SUBSCRIPT_Y            = 50
+	$$XA_UNDERLINE_POSITION     = 51
+	$$XA_UNDERLINE_THICKNESS    = 52
+	$$XA_STRIKEOUT_ASCENT       = 53
+	$$XA_STRIKEOUT_DESCENT      = 54
+	$$XA_ITALIC_ANGLE           = 55
+	$$XA_X_HEIGHT               = 56
+	$$XA_QUAD_WIDTH             = 57
+	$$XA_WEIGHT                 = 58
+	$$XA_POINT_SIZE             = 59
+	$$XA_RESOLUTION             = 60
+	$$XA_COPYRIGHT              = 61
+	$$XA_NOTICE                 = 62
+	$$XA_FONT_NAME              = 63
+	$$XA_FAMILY_NAME            = 64
+	$$XA_FULL_NAME              = 65
+	$$XA_CAP_HEIGHT             = 66
+	$$XA_WM_CLASS               = 67
+	$$XA_WM_TRANSIENT_FOR       = 68
+	$$XA_LAST_PREDEFINED        = 68
+'
+	$$NET_WM_STATE_REMOVE       = 0
+	$$NET_WM_STATE_ADD          = 1
+	$$NET_WM_STATE_TOGGLE       = 2
+'
+	$$PropModeReplace           = 0
+	$$PropModePrepend           = 1
+	$$PropModeAppend            = 2
+'
+' mask for XKeyboardControl composite in XChangeKeyboardControl()
+'
+	$$KBKeyClickPercent					= 0x0001
+	$$KBBellPercent							= 0x0002
+	$$KBBellPitch								= 0x0004
+	$$KBBellDuration						= 0x0008
+	$$KBLed											= 0x0010
+	$$KBLedMode									= 0x0020
+	$$KBKey											= 0x0040
+	$$KBAutoRepeatMode					= 0x0080
+'
+' .flags in XWMHints - window manager hint selection
+'
+	$$HintInput                 = 0x0001
+	$$HintState                 = 0x0002
+	$$HintIconPixmap            = 0x0004
+	$$HintIconWindow            = 0x0008
+	$$HintIconPosition          = 0x0010
+	$$HintIconMask              = 0x0020
+	$$HintWindowGroup           = 0x0040
+'
+' for XEventsQueued ()
+'
+	$$QueuedAlready             = 0
+	$$QueuedAfterReading        = 1
+	$$QueuedAfterFlush          = 2
+'
+' window class constants
+'
+	$$CopyFromParent            = 0x00
+	$$InputOutput               = 0x01
+	$$InputOnly                 = 0x02
+'
+' window attributes for XCreateWindow() and XChangeWindowAttributes()
+'
+	$$CWBackPixmap              = 0x00000001
+	$$CWBackPixel               = 0x00000002
+	$$CWBorderPixmap            = 0x00000004
+	$$CWBorderPixel             = 0x00000008
+	$$CWBitGravity              = 0x00000010
+	$$CWWinGravity              = 0x00000020
+	$$CWBackingStore            = 0x00000040
+	$$CWBackingPlanes           = 0x00000080
+	$$CWBackintPixel            = 0x00000100
+	$$CWOverrideRedirect        = 0x00000200
+	$$CWSaveUnder               = 0x00000400
+	$$CWEventMask               = 0x00000800
+	$$CWDontPropagate           = 0x00001000
+	$$CWColormap                = 0x00002000
+	$$CWCursor                  = 0x00004000
+'
+' window configure constants - XConfigureWindow() : struct XWindowChanges
+'
+	$$CWX                       = 0x00000001
+	$$CWY                       = 0x00000002
+	$$CWWidth                   = 0x00000004
+	$$CWHeight                  = 0x00000008
+	$$CWBorderWidth             = 0x00000010
+	$$CWSibling                 = 0x00000020
+	$$CWStackMode               = 0x00000040
+'
+' pixmap and image constants
+'
+	$$LSBFirst                  = 0		' least significant bit/byte first
+	$$MSBFirst                  = 1		' most significant bit/byte first
+'
+	$$AllPlanes                 = 0
+	$$XYBitmap                  = 0
+	$$XYPixmap                  = 1
+	$$ZPixmap                   = 2
+'
+' event numbers
+'
+	$$KeyPress                  =   2
+	$$KeyRelease                =   3
+	$$ButtonPress               =   4
+	$$ButtonRelease             =   5
+	$$MotionNotify              =   6
+	$$EnterNotify               =   7
+	$$LeaveNotify               =   8
+	$$FocusIn                   =   9
+	$$FocusOut                  =  10
+	$$KeymapNotify              =  11
+	$$Expose                    =  12
+	$$GrapicsExpose             =  13
+	$$NoExpose                  =  14
+	$$VisibilityNotify          =  15
+	$$CreateNotify              =  16
+	$$DestroyNotify             =  17
+	$$UnmapNotify               =  18
+	$$MapNotify                 =  19
+	$$MapRequest                =  20
+	$$ReparentNotify            =  21
+	$$ConfigureNotify           =  22
+	$$ConfigureRequest          =  23
+	$$GravityNotify             =  24
+	$$ResizeRequest             =  25
+	$$CirculateNotify           =  26
+	$$CirculateRequest          =  27
+	$$PropertyNotify            =  28
+	$$SelectionClear            =  29
+	$$SelectionRequest          =  30
+	$$SelectionNotify           =  31
+	$$ColormapNotify            =  32
+	$$ClientMessage             =  33
+	$$MappingNotify             =  34
+	$$LastEvent                 =  35
+'
+' input event masks
+'
+	$$NoEventMask               = 0x00000000
+	$$KeyPressMask              = 0x00000001
+	$$KeyReleaseMask            = 0x00000002
+	$$ButtonPressMask           = 0x00000004
+	$$ButtonReleaseMask         = 0x00000008
+	$$EnterWindowMask           = 0x00000010
+	$$LeaveWindowMask           = 0x00000020
+	$$PointerMotionMask         = 0x00000040
+	$$PointerMotionHintMask     = 0x00000080
+	$$Button1MotionMask         = 0x00000100
+	$$Button2MotionMask         = 0x00000200
+	$$Button3MotionMask         = 0x00000400
+	$$Button4MotionMask         = 0x00000800
+	$$Button5MotionMask         = 0x00001000
+	$$ButtonMotionMask          = 0x00002000
+	$$KeymapStateMask           = 0x00004000
+	$$ExposureMask              = 0x00008000
+	$$VisibilityChangeMask      = 0x00010000
+	$$StructureNotifyMask       = 0x00020000
+	$$ResizeRedirectMask        = 0x00040000
+	$$SubstructureNotifyMask    = 0x00080000
+	$$SubstructureRedirectMask  = 0x00100000
+	$$FocusChangeMask           = 0x00200000
+	$$PropertyChangeMask        = 0x00400000
+	$$ColormapChangeMask        = 0x00800000
+	$$OwnerGrabButtonMask       = 0x01000000
+'
+' graphics context values mask
+'
+	$$GCFunction                = 0x00000001
+	$$GCPlaneMask               = 0x00000002
+	$$GCForeground              = 0x00000004
+	$$GCBackground              = 0x00000008
+	$$GCLineWidth               = 0x00000010
+	$$GCLineStyle               = 0x00000020
+	$$GCCapStyle                = 0x00000040
+	$$GCJoinStyle               = 0x00000080
+	$$GCFillStyle               = 0x00000100
+	$$GCFillRule                = 0x00000200
+	$$GCTile                    = 0x00000400
+	$$GCStipple                 = 0x00000800
+	$$GCTileStipXOrigin         = 0x00001000
+	$$GCTileStipYOrigin         = 0x00002000
+	$$GCFont                    = 0x00004000
+	$$GCSubwindowMode           = 0x00008000
+	$$GCGraphicsExposure        = 0x00010000
+	$$GCClipXOrigin             = 0x00020000
+	$$GCClipYOrigin             = 0x00040000
+	$$GCClipMask                = 0x00080000
+	$$GCDashOffset              = 0x00100000
+	$$GCDashList                = 0x00200000
+	$$GCArcMode                 = 0x00400000
+'
+' graphics context drawing "function" values
+'
+	$$GXClear                   = 0x00000000  ' 0  ( ??? huh ??? )
+	$$GXAnd                     = 0x00000001  ' src AND dst
+	$$GXAndReverse              = 0x00000002  ' src AND NOT dst
+	$$GXCopy                    = 0x00000003  ' src (normal draw)
+	$$GXAndInverted             = 0x00000004  ' NOT src AND dst
+	$$GXNoop                    = 0x00000005  ' dst (no operation)
+	$$GXXor                     = 0x00000006  ' src XOR dst (rubber band)
+	$$GXOr                      = 0x00000007  ' src OR dst
+	$$GXNor                     = 0x00000008  ' NOT src AND NOT dst
+	$$GXEquiv                   = 0x00000009  ' NOT src XOR dst
+	$$GXInvert                  = 0x0000000A  ' NOT dst
+	$$GXOrReverse               = 0x0000000B  ' src OR NOT dst
+	$$GXCopyInverted            = 0x0000000C  ' NOT src
+	$$GXOrInverted              = 0x0000000D  ' NOT src OR dst
+	$$GXNand                    = 0x0000000E  ' NOT src OR NOT dst
+	$$GXSet                     = 0x0000000F  ' 1  ( ??? huh ??? )
+'
+' line styles
+'
+	$$XLineSolid                = 0
+	$$XLineOnOffDash            = 1
+	$$XLineDoubleDash           = 2
+'
+' cap style
+'
+	$$CapNotLast                = 0
+	$$CapButt                   = 1
+	$$CapRound                  = 2
+	$$CapProjecting             = 3
+'
+' join style
+'
+	$$JoinMiter                 = 0
+	$$JoinRound                 = 1
+	$$JoinBevel                 = 2
+'
+' fill style
+'
+	$$FillSolid                 = 0
+	$$FillTiled                 = 1
+	$$FillStippled              = 2
+	$$FillOpaqueStippled        = 3
+'
+' fill rule
+'
+	$$EvenOddRule               = 0
+	$$WindingRule               = 1
+'
+' subwindow mode
+'
+	$$ClipByChildren            = 0
+	$$IncludeInferiors          = 1
+'
+' SetClipRectangles() ordering
+'
+	$$Unsorted                  = 0
+	$$YSorted                   = 1
+	$$YXSorted                  = 2
+	$$YXBanded                  = 3
+'
+' coordinate mode for drawing functions
+'
+	$$CoordModeOrigin           = 0          ' relative to origin
+	$$CoordModePrevious         = 1          ' relative to previous point
+'
+' polygon shapes
+'
+	$$Complex                   = 0          ' paths may intersect
+	$$Nonconvex                 = 1          ' no path intersect but not convex
+	$$Convex                    = 2          ' wholly convex
+'
+' PolyFillArc() arc modes
+'
+	$$ArcChord                  = 0          ' join endpoints of arc
+	$$ArcPieSlice               = 1          ' join endpoints to center of arc
+'
+' text draw direction
+'
+	$$FontLeftToRight          = 0
+	$$FontRightToLeft          = 1
+	$$FontChange               = 255         ' something else - not direction
+'
+' colormap
+'
+	$$AllocNone                = 0           ' create colormap with no entries
+	$$AllocAll                 = 1           ' allocate entire map writable
+'
+' flags in StoreColors() : StoreNamedColor()
+'
+	$$DoRed                    = 0x00000001
+	$$DoGreen                  = 0x00000002
+	$$DoBlue                   = 0x00000004
+'
+' display classes - .class in display
+'
+	$$StaticGray               = 0
+	$$StaticGrey               = 0
+	$$GrayScale                = 1
+	$$GreyScale                = 1
+	$$StaticColor              = 2
+	$$PseudoColor              = 3
+	$$TrueColor                = 4
+	$$DirectColor              = 5
+'
+' CirculationRequest events
+'
+	$$PlaceOnTop               = 0
+	$$PlaceOnBottom            = 1
+'
+' ColormapNotify events
+'
+	$$ColormapUnInstalled      = 0
+	$$ColormapInstalled        = 1
+'
+' VisibilityNotify events
+'
+	$$VisibilityUnobscured		     = 0
+	$$VisibilityPartiallyObscured  = 1
+	$$VisibilityFullyObscured      = 2
+'
+'
+' *****  keyboard and mouse  *****
+'
+	$$AutoRepeatModeOff        = 0
+	$$AutoRepeatModeOn         = 1
+	$$AutoRepeatModeDefault    = 2
+'
+	$$LedModeOff               = 0
+	$$LedModeOn                = 1
+'
+	$$MappingSuccess           = 0
+	$$MappingBusy              = 1
+	$$MappingFailed            = 2
+'
+	$$MappingModifier          = 0
+	$$MappingKeyboard          = 1
+	$$MappingPointer           = 2
+'
+' ButtonPress and ButtonRelease events
+'
+	$$ShiftMask                = 0x0001
+	$$LeftShiftMask            = 0x0001
+	$$LockMask                 = 0x0002
+	$$ControlMask              = 0x0004
+	$$LeftControlMask          = 0x0004
+	$$AltMask                  = 0x0008  ' AltKey is called Mod1 in XWindows
+	$$Mod1Mask                 = 0x0008
+	$$LeftAltMask              = 0x0008
+	$$Mod2Mask                 = 0x0010
+	' Right alt is not 0x0010 on XFree86
+	'$$RightAltMask             = 0x0010
+	' But num lock is!
+	$$NumLockMask              = 0x0010
+	$$Mod3Mask                 = 0x0020
+	$$RightShiftMask           = 0x0020
+	$$Mod4Mask                 = 0x0040
+	$$RightControlMask         = 0x0040
+	$$Mod5Mask                 = 0x0080
+'
+	$$Button1Mask              = 0x0100
+	$$Button2Mask              = 0x0200
+	$$Button3Mask              = 0x0400
+	$$Button4Mask              = 0x0800
+	$$Button5Mask              = 0x1000
+
+	' Right alt seems to be 0x2000 on XFree86
+	$$RightAltMask             = 0x2000
+'
+	$$ButtonNone               = 0x0000
+	$$Button1                  = 0x0001
+	$$Button2                  = 0x0002
+	$$Button3                  = 0x0003
+	$$Button4                  = 0x0004
+	$$Button5                  = 0x0005
+'
+' XSetInputFocus() constants
+'
+	$$RevertToNone             = 0  ' revert_to argument
+	$$RevertToPointerRoot      = 1  ' revert_to argument
+	$$RevertToParent           = 2  ' revert_to argument
+	$$CurrentTime              = 0  ' time argument
+'
+'
+' *****  keysyms  *****  X-Windows "portable" key definitions
+'
+	$$XK_space                 = 0x0020
+	$$XK_exclam                = 0x0021
+	$$XK_quotedbl              = 0x0022
+	$$XK_numbersign            = 0x0023
+	$$XK_dollar                = 0x0024
+	$$XK_percent               = 0x0025
+	$$XK_ampersand             = 0x0026
+	$$XK_apostrophe            = 0x0027
+	$$XK_quoteright            = 0x0027
+	$$XK_parenleft             = 0x0028
+	$$XK_parenright            = 0x0029
+	$$XK_asterisk              = 0x002A
+	$$XK_plus                  = 0x002B
+	$$XK_comma                 = 0x002C
+	$$XK_minus                 = 0x002D
+	$$XK_period                = 0x002E
+	$$XK_slash                 = 0x002F
+	$$XK_0                     = 0x0030
+	$$XK_1                     = 0x0031
+	$$XK_2                     = 0x0032
+	$$XK_3                     = 0x0033
+	$$XK_4                     = 0x0034
+	$$XK_5                     = 0x0035
+	$$XK_6                     = 0x0036
+	$$XK_7                     = 0x0037
+	$$XK_8                     = 0x0038
+	$$XK_9                     = 0x0039
+	$$XK_colon                 = 0x003A
+	$$XK_semicolon             = 0x003B
+	$$XK_less                  = 0x003C
+	$$XK_equal                 = 0x003D
+	$$XK_greater               = 0x003E
+	$$XK_question              = 0x003F
+	$$XK_at                    = 0x0040
+	$$XK_A                     = 0x0041
+	$$XK_B                     = 0x0042
+	$$XK_C                     = 0x0043
+	$$XK_D                     = 0x0044
+	$$XK_E                     = 0x0045
+	$$XK_F                     = 0x0046
+	$$XK_G                     = 0x0047
+	$$XK_H                     = 0x0048
+	$$XK_I                     = 0x0049
+	$$XK_J                     = 0x004A
+	$$XK_K                     = 0x004B
+	$$XK_L                     = 0x004C
+	$$XK_M                     = 0x004D
+	$$XK_N                     = 0x004E
+	$$XK_O                     = 0x004F
+	$$XK_P                     = 0x0050
+	$$XK_Q                     = 0x0051
+	$$XK_R                     = 0x0052
+	$$XK_S                     = 0x0053
+	$$XK_T                     = 0x0054
+	$$XK_U                     = 0x0055
+	$$XK_V                     = 0x0056
+	$$XK_W                     = 0x0057
+	$$XK_X                     = 0x0058
+	$$XK_Y                     = 0x0059
+	$$XK_Z                     = 0x005A
+	$$XK_bracketleft           = 0x005B
+	$$XK_backslash             = 0x005C
+	$$XK_bracketright          = 0x005D
+	$$XK_asciicircum           = 0x005E
+	$$XK_underscore            = 0x005F
+	$$XK_grave                 = 0x0060
+	$$XK_quoteleft             = 0x0060
+	$$XK_a                     = 0x0061
+	$$XK_b                     = 0x0062
+	$$XK_c                     = 0x0063
+	$$XK_d                     = 0x0064
+	$$XK_e                     = 0x0065
+	$$XK_f                     = 0x0066
+	$$XK_g                     = 0x0067
+	$$XK_h                     = 0x0068
+	$$XK_i                     = 0x0069
+	$$XK_j                     = 0x006A
+	$$XK_k                     = 0x006B
+	$$XK_l                     = 0x006C
+	$$XK_m                     = 0x006D
+	$$XK_n                     = 0x006E
+	$$XK_o                     = 0x006F
+	$$XK_p                     = 0x0070
+	$$XK_q                     = 0x0071
+	$$XK_r                     = 0x0072
+	$$XK_s                     = 0x0073
+	$$XK_t                     = 0x0074
+	$$XK_u                     = 0x0075
+	$$XK_v                     = 0x0076
+	$$XK_w                     = 0x0077
+	$$XK_x                     = 0x0078
+	$$XK_y                     = 0x0079
+	$$XK_z                     = 0x007A
+	$$XK_braceleft             = 0x007B
+	$$XK_bar                   = 0x007C
+	$$XK_braceright            = 0x007D
+	$$XK_asciitilde            = 0x007E
+'
+	$$XK_nobreakspace          = 0x00A0
+	$$XK_exclamdown            = 0x00A1
+	$$XK_cent                  = 0x00A2
+	$$XK_sterling              = 0x00A3
+	$$XK_currency              = 0x00A4
+	$$XK_yen                   = 0x00A5
+	$$XK_brokenbar             = 0x00A6
+	$$XK_section               = 0x00A7
+	$$XK_diaeresis             = 0x00A8
+	$$XK_copyright             = 0x00A9
+	$$XK_ordfeminine           = 0x00AA
+	$$XK_guillemotleft         = 0x00AB
+	$$XK_notsign               = 0x00AC
+	$$XK_hyphen                = 0x00AD
+	$$XK_registered            = 0x00AE
+	$$XK_macron                = 0x00AF
+	$$XK_degree                = 0x00B0
+	$$XK_plusminus             = 0x00B1
+	$$XK_twosuperior           = 0x00B2
+	$$XK_threesuperior         = 0x00B3
+	$$XK_acute                 = 0x00B4
+	$$XK_mu                    = 0x00B5
+	$$XK_paragraph             = 0x00B6
+	$$XK_periodcentered        = 0x00B7
+	$$XK_cedilla               = 0x00B8
+	$$XK_onesuperior           = 0x00B9
+	$$XK_masculine             = 0x00BA
+	$$XK_guillemotright        = 0x00BB
+	$$XK_onequarter            = 0x00BC
+	$$XK_onhalf                = 0x00BD
+	$$XK_threequarters         = 0x00BE
+	$$XK_questiondown          = 0x00BF
+	$$XK_Agrave                = 0x00C0
+	$$XK_Aacute                = 0x00C1
+	$$XK_Acircumflex           = 0x00C2
+	$$XK_Atilde                = 0x00C3
+	$$XK_Adiaeresis            = 0x00C4
+	$$XK_Aring                 = 0x00C5
+	$$XK_AE                    = 0x00C6
+	$$XK_Ccedilla              = 0x00C7
+	$$XK_Egrave                = 0x00C8
+	$$XK_Eacute                = 0x00C9
+	$$XK_Ecircumflex           = 0x00CA
+	$$XK_Ediaeresis            = 0x00CB
+	$$XK_Igrave                = 0x00CC
+	$$XK_Iacute                = 0x00CD
+	$$XK_Icircumflex           = 0x00CE
+	$$XK_Idiaeresis            = 0x00CF
+	$$XK_ETH                   = 0x00D0
+	$$XK_Eth                   = 0x00D0
+	$$XK_Ntilde                = 0x00D1
+	$$XK_Ograve                = 0x00D2
+	$$XK_Oacute                = 0x00D3
+	$$XK_Ocircumflex           = 0x00D4
+	$$XK_Otilde                = 0x00D5
+	$$XK_Odiaeresis            = 0x00D6
+	$$XK_multiply              = 0x00D7
+	$$XK_Ooblique              = 0x00D8
+	$$XK_Ugrave                = 0x00D9
+	$$XK_Uacute                = 0x00DA
+	$$XK_Ucircumflex           = 0x00DB
+	$$XK_Udiaeresis            = 0x00DC
+	$$XK_Yacute                = 0x00DD
+	$$XK_THORN                 = 0x00DE
+	$$XK_Thorn                 = 0x00DE
+	$$XK_ssharp                = 0x00DF
+	$$XK_agrave                = 0x00E0
+	$$XK_aacute                = 0x00E1
+	$$XK_acircumflex           = 0x00E2
+	$$XK_atilde                = 0x00E3
+	$$XK_adiaeresis            = 0x00E4
+	$$XK_aring                 = 0x00E5
+	$$XK_ae                    = 0x00E6
+	$$XK_ccedilla              = 0x00E7
+	$$XK_egrave                = 0x00E8
+	$$XK_eacute                = 0x00E9
+	$$XK_ecircumflex           = 0x00EA
+	$$XK_ediaeresis            = 0x00EB
+	$$XK_igrave                = 0x00EC
+	$$XK_iacute                = 0x00ED
+	$$XK_icircumflex           = 0x00EE
+	$$XK_idiaeresis            = 0x00EF
+	$$XK_eth                   = 0x00F0
+	$$XK_ntilde                = 0x00F1
+	$$XK_ograve                = 0x00F2
+	$$XK_oacute                = 0x00F3
+	$$XK_ocircumflex           = 0x00F4
+	$$XK_otilde                = 0x00F5
+	$$XK_odiaeresis            = 0x00F6
+	$$XK_division              = 0x00F7
+	$$XK_oslash                = 0x00F8
+	$$XK_ugrave                = 0x00F9
+	$$XK_uacute                = 0x00FA
+	$$XK_ucircumflex           = 0x00FB
+	$$XK_udiaeresis            = 0x00FC
+	$$XK_yacute                = 0x00FD
+	$$XK_thorn                 = 0x00FE
+	$$XK_ydiaeresis            = 0x00FF
+'
+	$$XK_Backspace             = 0xFF08
+	$$XK_Tab                   = 0xFF09
+	$$XK_Linefeed              = 0xFF0A
+	$$XK_Clear                 = 0xFF0B
+	$$XK_Return                = 0xFF0D
+	$$XK_Pause                 = 0xFF13
+	$$XK_Scroll_Lock           = 0xFF14
+	$$XK_Sys_Req               = 0xFF15
+	$$XK_Escape                = 0xFF1B
+	$$XK_Delete                = 0xFFFF
+'
+	$$XK_Multi_Key             = 0xFF20   ' multiple key character compose
+'
+	$$XK_Home                  = 0xFF50
+	$$XK_Left                  = 0xFF51   ' left arrow
+	$$XK_Up                    = 0xFF52   ' up arrow
+	$$XK_Right                 = 0xFF53   ' right arrow
+	$$XK_Down                  = 0xFF54   ' down arrow
+	$$XK_Prior                 = 0xFF55   ' alias for PageUp
+	$$XK_PageUp                = 0xFF55   ' alias for Prior
+	$$XK_Next                  = 0xFF56   ' alias for PageDown
+	$$XK_PageDown              = 0xFF56   ' alias for Next
+	$$XK_End                   = 0xFF57   ' EOL
+	$$XK_Begin                 = 0xFF58   ' BOL
+'
+	$$XK_Select                = 0xFF60   '
+	$$XK_Print                 = 0xFF61   '
+	$$XK_Execute               = 0xFF62   '
+	$$XK_Insert                = 0xFF63   '
+	$$XK_Undo                  = 0xFF65   '
+	$$XK_Redo                  = 0xFF66   '
+	$$XK_Menu                  = 0xFF67   '
+	$$XK_Find                  = 0xFF68   '
+	$$XK_Cancel                = 0xFF69   '
+	$$XK_Help                  = 0xFF6A   '
+	$$XK_Break                 = 0xFF6B   '
+	$$XK_Mode_Switch           = 0xFF7E   '
+	$$XK_Script_Switch         = 0xFF7E   '
+	$$XK_Num_Lock              = 0xFF7F   '
+	$$XK_KeypadSpace           = 0xFF80   '
+	$$XK_KeypadTab             = 0xFF89   '
+	$$XK_KeypadEnter           = 0xFF8D   '
+	$$XK_KeypadF1              = 0xFF91   '
+	$$XK_KeypadF2              = 0xFF92   '
+	$$XK_KeypadF3              = 0xFF93   '
+	$$XK_KeypadF4              = 0xFF94   '
+'
+	$$XK_KeypadHome            = 0xFF95   '
+	$$XK_KeypadLeft            = 0xFF96   '
+	$$XK_KeypadUp              = 0xFF97   '
+	$$XK_KeypadRight           = 0xFF98   '
+	$$XK_KeypadDown            = 0xFF99   '
+	$$XK_KeypadPrior           = 0xFF9A   '
+	$$XK_KeypadPageUp          = 0xFF9A   ' alias for KeypadPrior
+	$$XK_KeypadNext            = 0xFF9B   '
+	$$XK_KeypadPageDown        = 0xFF9B   ' alias for KeypadNext
+	$$XK_KeypadEnd             = 0xFF9C   '
+	$$XK_KeypadBegin           = 0xFF9D   '
+	$$XK_KeypadInsert          = 0xFF9E   '
+	$$XK_KeypadDelete          = 0xFF9F   '
+'
+	$$XK_KeypadEqual           = 0xFFBD   ' =
+	$$XK_KeypadMultiply        = 0xFFAA   ' *
+	$$XK_KeypadAdd             = 0xFFAB   ' +
+	$$XK_KeypadSeparator       = 0xFFAC   ' , or other separator
+	$$XK_KeypadSubtract        = 0xFFAD   ' -
+	$$XK_KeypadDecimal         = 0xFFAE   ' .
+	$$XK_KeypadDivide          = 0xFFAF   ' /
+'
+	$$XK_Keypad_0              = 0xFFB0   ' 0
+	$$XK_Keypad_1              = 0xFFB1   ' 1
+	$$XK_Keypad_2              = 0xFFB2   ' 2
+	$$XK_Keypad_3              = 0xFFB3   ' 3
+	$$XK_Keypad_4              = 0xFFB4   ' 4
+	$$XK_Keypad_5              = 0xFFB5   ' 5
+	$$XK_Keypad_6              = 0xFFB6   ' 6
+	$$XK_Keypad_7              = 0xFFB7   ' 7
+	$$XK_Keypad_8              = 0xFFB8   ' 8
+	$$XK_Keypad_9              = 0xFFB9   ' 9
+'
+	$$XK_F1                    = 0xFFBE   ' F1
+	$$XK_F2                    = 0xFFBF   ' F2
+	$$XK_F3                    = 0xFFC0   ' F3
+	$$XK_F4                    = 0xFFC1   ' F4
+	$$XK_F5                    = 0xFFC2   ' F5
+	$$XK_F6                    = 0xFFC3   ' F6
+	$$XK_F7                    = 0xFFC4   ' F7
+	$$XK_F8                    = 0xFFC5   ' F8
+	$$XK_F9                    = 0xFFC6   ' F9
+	$$XK_F10                   = 0xFFC7   ' F10
+	$$XK_F11                   = 0xFFC8   ' F11
+	$$XK_F12                   = 0xFFC9   ' F12
+	$$XK_F13                   = 0xFFCA   ' F13
+	$$XK_F14                   = 0xFFCB   ' F14
+	$$XK_F15                   = 0xFFCC   ' F15
+	$$XK_F16                   = 0xFFCD   ' F16
+	$$XK_F17                   = 0xFFCE   ' F17
+	$$XK_F18                   = 0xFFCF   ' F18
+	$$XK_F19                   = 0xFFD0   ' F19
+	$$XK_F20                   = 0xFFD1   ' F20
+	$$XK_F21                   = 0xFFD2   ' F21
+	$$XK_F22                   = 0xFFD3   ' F22
+	$$XK_F23                   = 0xFFD4   ' F23
+	$$XK_F24                   = 0xFFD5   ' F24
+	$$XK_F25                   = 0xFFD6   ' F25
+	$$XK_F26                   = 0xFFD7   ' F26
+	$$XK_F27                   = 0xFFD8   ' F27
+	$$XK_F28                   = 0xFFD9   ' F28
+	$$XK_F29                   = 0xFFDA   ' F29
+	$$XK_F30                   = 0xFFDB   ' F30
+	$$XK_F31                   = 0xFFDC   ' F31
+	$$XK_F32                   = 0xFFDD   ' F32
+	$$XK_F33                   = 0xFFDE   ' F33
+	$$XK_F34                   = 0xFFDF   ' F34
+	$$XK_F35                   = 0xFFE0   ' F35
+'
+	$$XK_Shift_Left            = 0xFFE1   '
+	$$XK_Shift_Right           = 0xFFE2   '
+	$$XK_Control_Left          = 0xFFE3   '
+	$$XK_Control_Right         = 0xFFE4   '
+	$$XK_Caps_Lock             = 0xFFE5   '
+	$$XK_Shift_Lock            = 0xFFE6   '
+	$$XK_Meta_Left             = 0xFFE7   '
+	$$XK_Meta_Right            = 0xFFE8   '
+	$$XK_Alt_Left              = 0xFFE9   '
+	$$XK_Alt_Right             = 0xFFEA   '
+	$$XK_Super_Left            = 0xFFEB   '
+	$$XK_Super_Right           = 0xFFEC   '
+	$$XK_Hyper_Left            = 0xFFED   '
+	$$XK_Hyper_Right           = 0xFFEE   '
+ '
+	$$XK_ISO_Left_Tab          = 0xFE20   '

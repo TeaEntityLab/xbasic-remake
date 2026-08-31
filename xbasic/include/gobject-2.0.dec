@@ -1,0 +1,986 @@
+''Version 0.0.7
+''Date: 31.07.2009
+''author: Liviu Armeanu
+''see http:\\homepages.ihug.co.nz\~armeanu for updates
+
+'#########################
+'########  gtype
+'#########################
+$$G_TYPE_INVALID = 0
+$$G_TYPE_NONE = 4
+$$G_TYPE_INTERFACE = 8
+$$G_TYPE_CHAR = 12
+$$G_TYPE_UCHAR = 16
+$$G_TYPE_BOOLEAN = 20
+$$G_TYPE_INT = 24
+$$G_TYPE_UINT = 28
+$$G_TYPE_LONG = 32
+$$G_TYPE_ULONG = 36
+$$G_TYPE_INT64 = 40
+$$G_TYPE_UINT64 = 44
+$$G_TYPE_ENUM = 48
+$$G_TYPE_FLAGS = 52
+$$G_TYPE_FLOAT = 56
+$$G_TYPE_DOUBLE = 60
+$$G_TYPE_STRING = 64
+$$G_TYPE_POINTER = 68
+$$G_TYPE_BOXED = 72
+$$G_TYPE_PARAM = 76
+$$G_TYPE_OBJECT = 80
+
+TYPE GTYPE = ULONG
+
+'/* Basic Type TYPEures
+TYPE GTYPECLASS
+'  /*< private >*/
+  GTYPE .g_type
+END TYPE
+
+TYPE GTYPEINSTANCE
+'  /*< private >*/
+  XLONG .g_class
+END TYPE
+
+TYPE GTYPEINTERFACE
+'  /*< private >*/
+  GTYPE .g_type         '/* iface type */
+  GTYPE .g_instance_type
+END TYPE
+
+TYPE GTYPEQUERY
+  GTYPE		.type
+  XLONG .type_name
+  ULONG .class_size
+  ULONG .instance_size
+END TYPE
+
+
+'/* Casts, checks and accessors for structured types
+' * usage of these macros is reserved to type implementations only
+
+'/* debug flags for g_type_init_with_debug_flags() */
+$$G_TYPE_DEBUG_NONE	= 0
+$$G_TYPE_DEBUG_OBJECTS	= 1
+$$G_TYPE_DEBUG_SIGNALS	= 2
+$$G_TYPE_DEBUG_MASK	= 0x03
+'GTypeDebugFlags
+
+'/* --- prototypes --- */
+EXTERNAL CFUNCTION g_type_init                    ()
+EXTERNAL CFUNCTION g_type_init_with_debug_flags   (XLONG)
+EXTERNAL CFUNCTION XLONG g_type_name                    (ULONG)
+EXTERNAL CFUNCTION XLONG g_type_qname                   (ULONG)
+EXTERNAL CFUNCTION ULONG g_type_from_name               (XLONG)
+EXTERNAL CFUNCTION ULONG g_type_parent                  (ULONG)
+EXTERNAL CFUNCTION ULONG g_type_depth                   (ULONG)
+EXTERNAL CFUNCTION ULONG g_type_next_base               (ULONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_type_is_a                    (ULONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_type_class_ref               (ULONG)
+EXTERNAL CFUNCTION XLONG g_type_class_peek              (ULONG)
+EXTERNAL CFUNCTION XLONG g_type_class_peek_static       (ULONG)
+EXTERNAL CFUNCTION g_type_class_unref             (XLONG)
+EXTERNAL CFUNCTION XLONG g_type_class_peek_parent       (XLONG)
+EXTERNAL CFUNCTION XLONG g_type_interface_peek          (XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_type_interface_peek_parent   (XLONG)
+
+EXTERNAL CFUNCTION XLONG g_type_default_interface_ref   (ULONG)
+EXTERNAL CFUNCTION XLONG g_type_default_interface_peek  (ULONG)
+EXTERNAL CFUNCTION g_type_default_interface_unref (XLONG)
+
+'/* g_free() the returned arrays */
+EXTERNAL CFUNCTION XLONG g_type_children                (ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_type_interfaces              (ULONG,	XLONG)
+
+'/* per-type _static_ data */
+EXTERNAL CFUNCTION g_type_set_qdata               (ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_type_get_qdata               (ULONG,	XLONG)
+EXTERNAL CFUNCTION g_type_query		     (ULONG,	XLONG)
+
+$$G_TYPE_FLAG_CLASSED           = 1
+$$G_TYPE_FLAG_INSTANTIATABLE    = 2
+$$G_TYPE_FLAG_DERIVABLE         = 4
+$$G_TYPE_FLAG_DEEP_DERIVABLE    = 8
+' GTypeFundamentalFlags;
+
+$$G_TYPE_FLAG_ABSTRACT		= 16
+$$G_TYPE_FLAG_VALUE_ABSTRACT	= 32
+' GTypeFlags;
+
+TYPE GTYPEINFO
+'  /* interface types, classed types, instantiated types */
+  USHORT .class_size
+  XLONG .base_init
+  XLONG .base_finalize
+'  /* interface types, classed types, instantiated types */
+  XLONG .class_init
+  XLONG .class_finalize
+  XLONG .class_data
+'  /* instantiated types */
+  USHORT .instance_size
+  USHORT .n_preallocs
+  XLONG .instance_init
+'  /* value handling */
+  XLONG .value_table
+END TYPE
+
+TYPE GTYPEFUNDAMENTALINFO
+  XLONG .type_flags
+END TYPE
+
+TYPE GINTERFACEINFO
+  XLONG .interface_init
+  XLONG .interface_finalize
+  XLONG .interface_data
+END TYPE
+
+EXTERNAL CFUNCTION ULONG g_type_register_static		(ULONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_type_register_static_simple     (ULONG,	XLONG,	ULONG,	XLONG,	ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_type_register_dynamic		(ULONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_type_register_fundamental	(ULONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_type_add_interface_static	(ULONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION g_type_add_interface_dynamic	(ULONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION g_type_interface_add_prerequisite (ULONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_type_interface_prerequisites    (ULONG,	XLONG)
+EXTERNAL CFUNCTION g_type_class_add_private       (XLONG, ULONG)
+EXTERNAL CFUNCTION XLONG g_type_instance_get_private    (XLONG, ULONG)
+
+'/* --- protected (for fundamental type implementations) --- */
+EXTERNAL CFUNCTION XLONG g_type_get_plugin		(ULONG)
+EXTERNAL CFUNCTION XLONG g_type_interface_get_plugin	(ULONG,		ULONG)
+EXTERNAL CFUNCTION ULONG g_type_fundamental_next	()
+EXTERNAL CFUNCTION ULONG g_type_fundamental		(ULONG)
+EXTERNAL CFUNCTION XLONG g_type_create_instance         (ULONG)
+EXTERNAL CFUNCTION g_type_free_instance           (XLONG)
+EXTERNAL CFUNCTION g_type_add_class_cache_func    (XLONG,		XLONG)
+EXTERNAL CFUNCTION g_type_remove_class_cache_func (XLONG,		XLONG)
+EXTERNAL CFUNCTION g_type_class_unref_uncached    (XLONG)
+EXTERNAL CFUNCTION g_type_add_interface_check     (XLONG,		XLONG)
+EXTERNAL CFUNCTION g_type_remove_interface_check  (XLONG,		XLONG)
+EXTERNAL CFUNCTION XLONG g_type_value_table_peek        (ULONG)
+
+'/*< private >*/
+EXTERNAL CFUNCTION XLONG g_type_check_instance          (XLONG)
+EXTERNAL CFUNCTION XLONG g_type_check_instance_cast     (XLONG,		ULONG)
+EXTERNAL CFUNCTION XLONG g_type_check_instance_is_a	(XLONG,		ULONG)
+EXTERNAL CFUNCTION XLONG g_type_check_class_cast        (XLONG,		ULONG)
+EXTERNAL CFUNCTION XLONG g_type_check_class_is_a        (XLONG,		ULONG)
+EXTERNAL CFUNCTION XLONG g_type_check_is_value_type     (ULONG)
+EXTERNAL CFUNCTION XLONG g_type_check_value             (XLONG)
+EXTERNAL CFUNCTION XLONG g_type_check_value_holds	(XLONG,		ULONG)
+EXTERNAL CFUNCTION XLONG g_type_test_flags              (ULONG,		ULONG)
+
+'/* --- debugging functions --- */
+EXTERNAL CFUNCTION XLONG g_type_name_from_instance	(XLONG)
+EXTERNAL CFUNCTION XLONG g_type_name_from_class	(XLONG)
+
+EXTERNAL CFUNCTION g_value_c_init          () '/* sync with gvalue.c */
+EXTERNAL CFUNCTION g_value_types_init      () '/* sync with gvaluetypes.c */
+EXTERNAL CFUNCTION g_enum_types_init       () '/* sync with genums.c */
+EXTERNAL CFUNCTION g_param_type_init       () '/* sync with gparam.c */
+EXTERNAL CFUNCTION g_boxed_type_init       () '/* sync with gboxed.c */
+EXTERNAL CFUNCTION g_object_type_init      () '/* sync with gobject.c */
+EXTERNAL CFUNCTION g_param_spec_types_init () '/* sync with gparamspecs.c */
+EXTERNAL CFUNCTION g_value_transforms_init () '/* sync with gvaluetransform.c */
+EXTERNAL CFUNCTION g_signal_init           () '/* sync with gsignal.c */
+
+'#########################
+'########  genums
+'#########################
+
+TYPE	GENUMCLASS
+  GTYPECLASS  .g_type_class
+'  /*< public >*/  
+  XLONG .minimum
+  XLONG .maximum
+  ULONG .n_values
+  XLONG .values
+END TYPE
+
+TYPE	GFLAGSCLASS
+  GTYPECLASS   .g_type_class
+'  /*< public >*/  
+  ULONG .mask
+  ULONG .n_values
+  XLONG .values
+END TYPE
+
+TYPE GENUMVALUE
+  SLONG .value
+  XLONG .value_name
+  XLONG .value_nick
+END TYPE
+
+TYPE GFLAGSVALUE
+  ULONG .value
+  XLONG .value_name
+  XLONG .value_nick
+END TYPE
+
+'/* --- prototypes --- */
+EXTERNAL CFUNCTION XLONG g_enum_get_value		(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_enum_get_value_by_name	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_enum_get_value_by_nick	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_flags_get_first_value		(XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_flags_get_value_by_name	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_flags_get_value_by_nick	(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_value_set_enum        	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_get_enum        	(XLONG)
+EXTERNAL CFUNCTION g_value_set_flags       	(XLONG,	ULONG)
+EXTERNAL CFUNCTION ULONG g_value_get_flags       	(XLONG)
+
+'/* --- registration functions --- */
+'/* const_static_values is a NULL terminated array of enum/flags
+' * values that is taken over!
+EXTERNAL CFUNCTION ULONG g_enum_register_static	   (XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_flags_register_static	   (XLONG,	XLONG)
+'/* functions to complete the type information
+' * for enums/flags implemented by plugins
+EXTERNAL CFUNCTION g_enum_complete_type_info  (ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_flags_complete_type_info (ULONG,	XLONG,	XLONG)
+
+'#########################
+'########  gclosure
+'#########################
+
+'/* --- TYPEures --- */
+TYPE GCLOSURENOTIFYDATA
+  XLONG .data
+  XLONG .notify
+END TYPE
+
+TYPE GCLOSURE
+'  /*< private >*/
+   ULONG .flags
+'  ULONG .ref_count ': 15;
+'  ULONG .meta_marshal ': 1;
+'  ULONG .n_guards ': 1;
+'  ULONG .n_fnotifiers ': 2;	/* finalization notifiers */
+'  ULONG .n_inotifiers ': 8;	/* invalidation notifiers */
+'  ULONG .in_inotify ': 1;
+'  ULONG .floating ': 1;
+'  /*< protected >*/
+'  ULONG .derivative_flag ': 1;
+'  /*< public >*/
+'  ULONG .in_marshal ': 1;
+'  ULONG .is_invalid ': 1;
+'  /*< private >*/
+	XLONG .marshal
+'	/*< protected >*/	
+	XLONG .data
+'  /*< private >*/	
+	XLONG .notifiers
+'  /* invariants/constrains:
+'   * - ->marshal and ->data are _invalid_ as soon as ->is_invalid==TRUE
+'   * - invocation of all inotifiers occours prior to fnotifiers
+'   * - order of inotifiers is random
+'   *   inotifiers may _not_ free/invalidate parameter values (e.g. ->data)
+'   * - order of fnotifiers is random
+'   * - each notifier may only be removed before or during its invocation
+'   * - reference counting may only happen prior to fnotify invocation
+'   *   (in that sense, fnotifiers are really finalization handlers)
+END TYPE
+
+'/* closure for C function calls, callback() is the user function
+TYPE GCCLOSURE
+  GCLOSURE	.closure
+  XLONG	.callback
+END TYPE
+
+'/* --- prototypes --- */
+EXTERNAL CFUNCTION XLONG g_cclosure_new			(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_cclosure_new_swap			(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_signal_type_cclosure_new		(ULONG,	ULONG)
+
+'/* --- prototypes --- */
+EXTERNAL CFUNCTION XLONG g_closure_ref				(XLONG)
+EXTERNAL CFUNCTION g_closure_sink			(XLONG)
+EXTERNAL CFUNCTION g_closure_unref			(XLONG)
+'/* intimidating */
+EXTERNAL CFUNCTION XLONG g_closure_new_simple			(ULONG,	XLONG)
+EXTERNAL CFUNCTION g_closure_add_finalize_notifier	(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_closure_remove_finalize_notifier	(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_closure_add_invalidate_notifier	(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_closure_remove_invalidate_notifier	(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_closure_add_marshal_guards		(XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_closure_set_marshal			(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_closure_set_meta_marshal		(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_closure_invalidate			(XLONG)
+EXTERNAL CFUNCTION g_closure_invoke			(XLONG,	XLONG, ULONG,	XLONG,	XLONG)
+
+'#########################
+'########  gobject
+'#########################
+
+TYPE GOBJECT
+  GTYPEINSTANCE .g_type_instance
+'< private >
+  ULONG .ref_count
+  XLONG	.qdata
+END TYPE
+
+EXTERNAL CFUNCTION XLONG g_object_get_data (XLONG, XLONG)
+EXTERNAL CFUNCTION g_object_set_data (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_object_unref (XLONG)
+EXTERNAL CFUNCTION XLONG g_object_ref (XLONG)
+EXTERNAL CFUNCTION g_object_set (XLONG, XLONG, ...)
+
+TYPE GOBJECTCONSTRUCTPARAM
+  XLONG .pspec
+  XLONG .value
+END TYPE
+
+'/* --- prototypes --- */
+EXTERNAL CFUNCTION ULONG g_initially_unowned_get_type      ()
+EXTERNAL CFUNCTION g_object_class_install_property   (XLONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_object_class_find_property      (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_object_class_list_properties    (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_class_override_property  (XLONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION g_object_interface_install_property (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_object_interface_find_property    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_object_interface_list_properties  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_object_new                      (ULONG,	XLONG,	...)
+EXTERNAL CFUNCTION XLONG g_object_newv		      (ULONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_object_new_valist               (ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_get                      (XLONG,	XLONG,	...)
+EXTERNAL CFUNCTION XLONG g_object_connect                  (XLONG,	XLONG,	...)
+EXTERNAL CFUNCTION g_object_disconnect               (XLONG,	XLONG,	...)
+EXTERNAL CFUNCTION g_object_set_valist               (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_get_valist               (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_set_property             (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_get_property             (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_freeze_notify            (XLONG)
+EXTERNAL CFUNCTION g_object_notify                   (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_thaw_notify              (XLONG)
+EXTERNAL CFUNCTION XLONG g_object_is_floating    	      (XLONG)
+EXTERNAL CFUNCTION XLONG g_object_ref_sink       	      (XLONG)
+EXTERNAL CFUNCTION g_object_weak_ref		      (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_weak_unref		      (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_add_weak_pointer         (XLONG, XLONG)
+EXTERNAL CFUNCTION g_object_remove_weak_pointer      (XLONG, XLONG)
+
+EXTERNAL CFUNCTION g_object_add_toggle_ref    (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_remove_toggle_ref (XLONG,	XLONG,	XLONG)
+
+EXTERNAL CFUNCTION XLONG g_object_get_qdata                (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_set_qdata                (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_set_qdata_full           (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_object_steal_qdata              (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_set_data_full            (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_object_steal_data               (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_object_watch_closure            (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_cclosure_new_object             (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_cclosure_new_object_swap        (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_closure_new_object              (ULONG,	XLONG)
+EXTERNAL CFUNCTION g_value_set_object                (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_get_object                (XLONG)
+EXTERNAL CFUNCTION XLONG g_value_dup_object                (XLONG)
+EXTERNAL CFUNCTION ULONG g_signal_connect_object           (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+
+'/*< protected >*/
+EXTERNAL CFUNCTION g_object_force_floating           (XLONG)
+EXTERNAL CFUNCTION g_object_run_dispose	      (XLONG)
+
+EXTERNAL CFUNCTION g_value_take_object               (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_value_set_object_take_ownership (XLONG,	XLONG)
+
+EXTERNAL CFUNCTION ULONG g_object_compat_control	      (ULONG,	XLONG)
+
+'#########################
+'########  gsignal
+'#########################
+
+EXTERNAL CFUNCTION ULONG g_signal_connect_data (XLONG, XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_signal_handler_block (XLONG, ULONG)
+EXTERNAL CFUNCTION g_signal_handler_unblock (XLONG, ULONG)
+
+$$G_TYPE_FLAG_RESERVED_ID_BIT = 1
+
+'/* --- run, match and connect types --- */
+$$G_SIGNAL_RUN_FIRST	= 1
+$$G_SIGNAL_RUN_LAST	= 2
+$$G_SIGNAL_RUN_CLEANUP	= 4
+$$G_SIGNAL_NO_RECURSE	= 8
+$$G_SIGNAL_DETAILED	= 16
+$$G_SIGNAL_ACTION	= 32
+$$G_SIGNAL_NO_HOOKS	= 64
+' GSignalFlags;
+$$G_SIGNAL_FLAGS_MASK  = 0x7f
+
+$$G_CONNECT_AFTER	= 1
+$$G_CONNECT_SWAPPED	= 2
+' GConnectFlags;
+
+$$G_SIGNAL_MATCH_ID	   = 1
+$$G_SIGNAL_MATCH_DETAIL	   = 2
+$$G_SIGNAL_MATCH_CLOSURE   = 4
+$$G_SIGNAL_MATCH_FUNC	   = 8
+$$G_SIGNAL_MATCH_DATA	   = 16
+$$G_SIGNAL_MATCH_UNBLOCKED = 32
+' GSignalMatchType;
+$$G_SIGNAL_MATCH_MASK = 0x3f
+$$G_SIGNAL_TYPE_STATIC_SCOPE = $$G_TYPE_FLAG_RESERVED_ID_BIT
+
+'/* --- signal information --- */
+TYPE GSIGNALINVOCATIONHINT
+  ULONG .signal_id
+  XLONG .detail
+  XLONG .run_type
+END TYPE
+
+TYPE GSIGNALQUERY
+  ULONG .signal_id
+  XLONG .signal_name
+  ULONG .itype
+  XLONG .signal_flags
+  ULONG .return_type '/* mangled with G_SIGNAL_TYPE_STATIC_SCOPE flag */
+  ULONG .n_params
+  XLONG .param_types '/* mangled with G_SIGNAL_TYPE_STATIC_SCOPE flag */
+END TYPE
+
+'/* --- signals --- */
+EXTERNAL CFUNCTION ULONG g_signal_newv         (XLONG,	ULONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	ULONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_signal_new_valist   (XLONG,	ULONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	ULONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_signal_new          (XLONG,	ULONG,	XLONG,	ULONG,	XLONG,	XLONG,	XLONG,	ULONG,	ULONG,	...)
+EXTERNAL CFUNCTION g_signal_emitv        (XLONG,	ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_signal_emit_valist  (XLONG,	ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_signal_emit         (XLONG,	ULONG,	XLONG,	...)
+EXTERNAL CFUNCTION g_signal_emit_by_name (XLONG,	XLONG,	...)
+EXTERNAL CFUNCTION ULONG g_signal_lookup       (XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_signal_name         (ULONG)
+EXTERNAL CFUNCTION g_signal_query        (ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_signal_list_ids     (ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_signal_parse_name   (XLONG,	ULONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_signal_get_invocation_hint (XLONG)
+
+'/* --- signal emissions --- */
+EXTERNAL CFUNCTION g_signal_stop_emission		    (XLONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION g_signal_stop_emission_by_name	    (XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_signal_add_emission_hook	    (ULONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_signal_remove_emission_hook	    (ULONG,	ULONG)
+
+'/* --- signal handlers --- */
+EXTERNAL CFUNCTION XLONG g_signal_has_handler_pending	      (XLONG,	ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_signal_connect_closure_by_id	      (XLONG,	ULONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_signal_connect_closure	      (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_signal_handler_disconnect	      (XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_signal_handler_is_connected	      (XLONG,	ULONG)
+EXTERNAL CFUNCTION ULONG g_signal_handler_find		      (XLONG,	XLONG,	ULONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_signal_handlers_block_matched      (XLONG,	XLONG,	ULONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_signal_handlers_unblock_matched    (XLONG,	XLONG,	ULONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_signal_handlers_disconnect_matched (XLONG,	XLONG,	ULONG,	XLONG,	XLONG,	XLONG,	XLONG)
+
+'/* --- overriding and chaining --- */
+EXTERNAL CFUNCTION g_signal_override_class_closure	      (ULONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION g_signal_override_class_handler       (XLONG,GTYPE,XLONG)
+EXTERNAL CFUNCTION g_signal_chain_from_overridden	      (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_signal_chain_from_overridden_handler (XLONG,...)
+
+EXTERNAL CFUNCTION XLONG g_signal_accumulator_true_handled (XLONG,	XLONG,	XLONG,	XLONG)
+
+'/*< private >*/
+EXTERNAL CFUNCTION g_signal_handlers_destroy	      (XLONG)
+EXTERNAL CFUNCTION _g_signals_destroy		      (ULONG)
+
+'#########################
+'########  gtypeplugin
+'#########################
+
+TYPE GTYPEPLUGINCLASS
+'  /*< private >*/
+  GTYPEINTERFACE		   .base_iface
+'  /*< public >*/
+  XLONG .use_plugin
+  XLONG .unuse_plugin
+  XLONG .complete_type_info
+  XLONG .complete_interface_info
+END TYPE
+
+'/* --- prototypes --- */
+EXTERNAL CFUNCTION ULONG g_type_plugin_get_type			()
+EXTERNAL CFUNCTION g_type_plugin_use			(XLONG)
+EXTERNAL CFUNCTION g_type_plugin_unuse			(XLONG)
+EXTERNAL CFUNCTION g_type_plugin_complete_type_info	(XLONG,	ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_type_plugin_complete_interface_info	(XLONG,	ULONG,	ULONG,	XLONG)
+
+'#########################
+'########  gvalue
+'#########################
+
+TYPE GVALUE
+'  /*< private >*/
+  GTYPE		.g_type
+'  /* public for GTypeValueTable methods */
+  UNION 
+    XLONG .v_int
+    ULONG .v_uint
+    XLONG .v_long
+    ULONG .v_ulong
+    DOUBLE .v_int64
+    DOUBLE .v_uint64
+    SINGLE .v_float
+    DOUBLE .v_double
+    XLONG .v_pointer
+	END UNION
+'  } data[2];
+END TYPE
+
+'/* --- prototypes --- */
+EXTERNAL CFUNCTION XLONG g_value_init	   	(XLONG,	ULONG)
+EXTERNAL CFUNCTION g_value_copy    	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_reset   	(XLONG)
+EXTERNAL CFUNCTION g_value_unset   	(XLONG)
+EXTERNAL CFUNCTION g_value_set_instance	(XLONG,	XLONG)
+
+'/* --- private --- */
+EXTERNAL CFUNCTION XLONG g_value_fits_pointer	(XLONG)
+EXTERNAL CFUNCTION XLONG g_value_peek_pointer	(XLONG)
+
+'/* --- implementation details --- */
+EXTERNAL CFUNCTION XLONG g_value_type_compatible	(ULONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_value_type_transformable	(ULONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_value_transform		(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_value_register_transform_func	(ULONG,	ULONG,	XLONG)
+
+$$G_VALUE_NOCOPY_CONTENTS		= 134217728
+
+'#########################
+'########  gvaluearray
+'#########################
+
+'/* --- typedefs & structs --- */
+TYPE GVALUEARRAY
+  ULONG .n_values
+  XLONG .values
+'  /*< private >*/
+  ULONG .n_prealloced
+END TYPE
+
+'/* --- prototypes --- */
+EXTERNAL CFUNCTION XLONG g_value_array_get_nth	     (XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_value_array_new	     (ULONG)
+EXTERNAL CFUNCTION g_value_array_free	     (XLONG)
+EXTERNAL CFUNCTION XLONG g_value_array_copy	     (XLONG)
+EXTERNAL CFUNCTION XLONG g_value_array_prepend	     (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_array_append	     (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_array_insert	     (XLONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_array_remove	     (XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_value_array_sort	     (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_array_sort_with_data (XLONG,	XLONG,	XLONG)
+
+'#########################
+'########  gvaluetypes
+'#########################
+
+'/* --- prototypes --- */
+EXTERNAL CFUNCTION g_value_set_char		(XLONG,	SBYTE)
+EXTERNAL CFUNCTION SBYTE g_value_get_char		(XLONG)
+EXTERNAL CFUNCTION g_value_set_uchar		(XLONG,	UBYTE)
+EXTERNAL CFUNCTION UBYTE g_value_get_uchar		(XLONG)
+EXTERNAL CFUNCTION g_value_set_boolean	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_get_boolean	(XLONG)
+EXTERNAL CFUNCTION g_value_set_int		(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_get_int		(XLONG)
+EXTERNAL CFUNCTION g_value_set_uint		(XLONG,	ULONG)
+EXTERNAL CFUNCTION ULONG g_value_get_uint		(XLONG)
+EXTERNAL CFUNCTION g_value_set_long		(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_get_long		(XLONG)
+EXTERNAL CFUNCTION g_value_set_ulong		(XLONG,	ULONG)
+EXTERNAL CFUNCTION ULONG g_value_get_ulong		(XLONG)
+EXTERNAL CFUNCTION g_value_set_int64		(XLONG,	DOUBLE)
+EXTERNAL CFUNCTION DOUBLE g_value_get_int64		(XLONG)
+EXTERNAL CFUNCTION g_value_set_uint64	(XLONG,	DOUBLE)
+EXTERNAL CFUNCTION DOUBLE g_value_get_uint64	(XLONG)
+EXTERNAL CFUNCTION g_value_set_float		(XLONG,	SINGLE)
+EXTERNAL CFUNCTION SINGLE g_value_get_float		(XLONG)
+EXTERNAL CFUNCTION g_value_set_double	(XLONG,	DOUBLE)
+EXTERNAL CFUNCTION DOUBLE g_value_get_double	(XLONG)
+EXTERNAL CFUNCTION g_value_set_string	(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_value_set_static_string (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_get_string	(XLONG)
+EXTERNAL CFUNCTION XLONG g_value_dup_string	(XLONG)
+EXTERNAL CFUNCTION g_value_set_pointer	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_get_pointer	(XLONG)
+EXTERNAL CFUNCTION ULONG g_gtype_get_type		()
+EXTERNAL CFUNCTION g_value_set_gtype	        (XLONG,	ULONG)
+EXTERNAL CFUNCTION ULONG g_value_get_gtype	        (XLONG)
+
+'/* Convenience for registering new pointer types */
+EXTERNAL CFUNCTION ULONG g_pointer_type_register_static (XLONG)
+
+'/* debugging aid, describe value contents as string */
+EXTERNAL CFUNCTION XLONG g_strdup_value_contents   (XLONG)
+
+EXTERNAL CFUNCTION g_value_take_string		        (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_value_set_string_take_ownership		(XLONG,	XLONG)
+
+'#########################
+'########  gboxed
+'#########################
+
+'/* --- prototypes --- */
+EXTERNAL CFUNCTION XLONG g_boxed_copy			(ULONG,	XLONG)
+EXTERNAL CFUNCTION g_boxed_free			(ULONG,	XLONG)
+EXTERNAL CFUNCTION g_value_set_boxed		(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_value_set_static_boxed	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_get_boxed		(XLONG)
+EXTERNAL CFUNCTION XLONG g_value_dup_boxed		(XLONG)
+
+'/* --- convenience --- */
+EXTERNAL CFUNCTION ULONG g_boxed_type_register_static		(XLONG,	XLONG,	XLONG)
+
+EXTERNAL CFUNCTION g_value_take_boxed      (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_value_set_boxed_take_ownership	(XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_closure_get_type	()
+EXTERNAL CFUNCTION ULONG g_value_get_type	()
+EXTERNAL CFUNCTION ULONG g_value_array_get_type	()
+EXTERNAL CFUNCTION ULONG g_date_get_type	        ()
+EXTERNAL CFUNCTION ULONG g_strv_get_type	        ()
+EXTERNAL CFUNCTION ULONG g_gstring_get_type      ()
+EXTERNAL CFUNCTION ULONG g_hash_table_get_type   ()
+EXTERNAL CFUNCTION ULONG g_regex_get_type        ()
+
+'#########################
+'########  gsourceclosure
+'#########################
+
+EXTERNAL CFUNCTION g_source_set_closure (XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_io_channel_get_type   ()
+EXTERNAL CFUNCTION ULONG g_io_condition_get_type ()
+
+'#########################
+'########  gparam
+'#########################
+
+'/* --- flags --- */
+$$G_PARAM_READABLE            = 1
+$$G_PARAM_WRITABLE            = 2
+$$G_PARAM_CONSTRUCT	      = 4
+$$G_PARAM_CONSTRUCT_ONLY      = 8
+$$G_PARAM_LAX_VALIDATION      = 16
+$$G_PARAM_STATIC_NAME	      = 32
+$$G_PARAM_PRIVATE	      = $$G_PARAM_STATIC_NAME
+$$G_PARAM_STATIC_NICK	      = 64
+$$G_PARAM_STATIC_BLURB	      = 128
+'} GParamFlags;
+$$G_PARAM_MASK	=	0x000000ff
+'/* bits in the range 0xffffff00 are reserved for 3rd party usage */
+$$G_PARAM_USER_SHIFT	= 8
+
+'/* --- typedefs & structures --- */
+TYPE GPARAMSPEC
+  GTYPEINSTANCE  .g_type_instance
+  XLONG .name
+  XLONG .flags
+  ULONG .value_type
+  ULONG .owner_type	'/* class or interface using this property */
+'  /*< private >*/
+  XLONG .nick
+  XLONG .blurb
+  XLONG .qdata
+  ULONG .ref_count
+  ULONG .param_id	'/* sort-criteria */
+END TYPE
+
+TYPE GPARAMETER '/* auxillary structure for _setv() variants */
+  XLONG .name
+  GVALUE .value
+END TYPE
+
+'/* --- prototypes --- */
+EXTERNAL CFUNCTION XLONG g_param_spec_ref		(XLONG)
+EXTERNAL CFUNCTION g_param_spec_unref		(XLONG)
+EXTERNAL CFUNCTION g_param_spec_sink		(XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_ref_sink   	(XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_get_qdata		(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_param_spec_set_qdata		(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_param_spec_set_qdata_full	(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_steal_qdata	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_get_redirect_target (XLONG)
+
+EXTERNAL CFUNCTION g_param_value_set_default	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_value_defaults		(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_value_validate		(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_value_convert		(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_values_cmp		(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_get_name	(XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_get_nick	(XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_get_blurb	(XLONG)
+EXTERNAL CFUNCTION g_value_set_param               (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_value_get_param               (XLONG)
+EXTERNAL CFUNCTION XLONG g_value_dup_param               (XLONG)
+
+EXTERNAL CFUNCTION g_value_take_param               (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_value_set_param_take_ownership (XLONG,	XLONG)
+
+EXTERNAL CFUNCTION ULONG g_param_type_register_static	(XLONG,XLONG)
+
+'/* For registering builting types */
+EXTERNAL CFUNCTION ULONG _g_param_type_register_static_constant (XLONG,	XLONG, ULONG)
+
+'/* --- protected --- */
+EXTERNAL CFUNCTION XLONG g_param_spec_internal		(ULONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_pool_new		(XLONG)
+EXTERNAL CFUNCTION g_param_spec_pool_insert	(XLONG,	XLONG, ULONG)
+EXTERNAL CFUNCTION g_param_spec_pool_remove	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_pool_lookup	(XLONG,	XLONG, ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_pool_list_owned	(XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_pool_list		(XLONG,	ULONG,	XLONG)
+
+'#########################
+'########  gparamspecs
+'#########################
+
+TYPE GPARAMSPECCHAR
+  GPARAMSPEC   .parent_instance 
+  SBYTE .minimum 
+  SBYTE .maximum 
+  SBYTE .default_value 
+END TYPE
+
+TYPE GPARAMSPECUCHAR
+  GPARAMSPEC   .parent_instance 
+  UBYTE .minimum 
+  UBYTE .maximum 
+  UBYTE .default_value 
+END TYPE
+
+TYPE GPARAMSPECBOOLEAN
+  GPARAMSPEC   .parent_instance 
+  XLONG .default_value 
+END TYPE
+
+TYPE GPARAMSPECINT
+  GPARAMSPEC   .parent_instance 
+  XLONG .minimum 
+  XLONG .maximum 
+  XLONG .default_value 
+END TYPE
+
+TYPE GPARAMSPECUINT
+  GPARAMSPEC   .parent_instance 
+  XLONG .minimum 
+  XLONG .maximum 
+  XLONG .default_value 
+END TYPE
+
+TYPE GPARAMSPECLONG
+  GPARAMSPEC   .parent_instance 
+  ULONG .minimum 
+  ULONG .maximum 
+  ULONG .default_value 
+END TYPE
+
+TYPE GPARAMSPECULONG
+  GPARAMSPEC   .parent_instance 
+  ULONG .minimum 
+  ULONG .maximum 
+  ULONG .default_value 
+END TYPE
+
+TYPE GPARAMSPECINT64
+  GPARAMSPEC   .parent_instance 
+  DOUBLE .minimum 
+  DOUBLE .maximum 
+  DOUBLE .default_value 
+END TYPE
+
+TYPE GPARAMSPECUINT64
+  GPARAMSPEC   .parent_instance 
+  DOUBLE .minimum 
+  DOUBLE .maximum 
+  DOUBLE .default_value 
+END TYPE
+
+TYPE GPARAMSPECUNICHAR
+  GPARAMSPEC   .parent_instance 
+  ULONG .default_value 
+END TYPE
+
+TYPE GPARAMSPECENUM
+  GPARAMSPEC   .parent_instance 
+  XLONG .enum_class 
+  XLONG .default_value 
+END TYPE
+
+TYPE GPARAMSPECFLAGS
+  GPARAMSPEC   .parent_instance 
+  XLONG .flags_class 
+  ULONG .default_value 
+END TYPE
+
+TYPE GPARAMSPECFLOAT
+  GPARAMSPEC   .parent_instance 
+  SINGLE .minimum 
+  SINGLE .maximum 
+  SINGLE .default_value 
+  SINGLE .epsilon 
+END TYPE
+
+TYPE GPARAMSPECDOUBLE
+  GPARAMSPEC   .parent_instance 
+  DOUBLE .minimum 
+  DOUBLE .maximum 
+  DOUBLE .default_value 
+  DOUBLE .epsilon 
+END TYPE
+
+TYPE GPARAMSPECSTRING
+  GPARAMSPEC   .parent_instance 
+  XLONG .default_value 
+  XLONG .cset_first 
+  XLONG .cset_nth 
+  SBYTE .substitutor 
+  ULONG .flags
+'  ULONG .null_fold_if_empty ': 1
+'  ULONG .ensure_non_null ': 1
+END TYPE
+
+TYPE GPARAMSPECPARAM
+  GPARAMSPEC   .parent_instance 
+END TYPE
+
+TYPE GPARAMSPECBOXED
+  GPARAMSPEC   .parent_instance 
+END TYPE
+
+TYPE GPARAMSPECPOINTER
+  GPARAMSPEC   .parent_instance 
+END TYPE
+
+TYPE GPARAMSPECVALUEARRAY
+  GPARAMSPEC   .parent_instance 
+  XLONG .element_spec 
+  ULONG .fixed_n_elements 
+END TYPE
+
+TYPE GPARAMSPECOBJECT
+  GPARAMSPEC   .parent_instance 
+END TYPE
+
+TYPE GPARAMSPECOVERRIDE
+'  /*< private >*/
+  GPARAMSPEC   .parent_instance 
+  XLONG .overridden 
+END TYPE
+
+TYPE GPARAMSPECGTYPE
+  GPARAMSPEC   .parent_instance 
+  ULONG .is_a_type 
+END TYPE
+
+'/* --- GParamSpec prototypes --- */
+EXTERNAL CFUNCTION XLONG g_param_spec_char	 (XLONG,	XLONG,	XLONG,	SBYTE,	SBYTE,	SBYTE,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_uchar	 (XLONG,	XLONG,	XLONG,	UBYTE,	UBYTE,	UBYTE,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_boolean	 (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_int	 (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_uint	 (XLONG,	XLONG,	XLONG,	ULONG,	ULONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_long	 (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_ulong	 (XLONG,	XLONG,	XLONG,	ULONG,	ULONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_int64	 (XLONG,	XLONG,	XLONG,	DOUBLE,	DOUBLE,	DOUBLE,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_uint64	 (XLONG,	XLONG,	XLONG,	DOUBLE,	DOUBLE,	DOUBLE,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_unichar      (XLONG,	XLONG,	XLONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_enum	 (XLONG,	XLONG,	XLONG,	ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_flags	 (XLONG,	XLONG,	XLONG,	ULONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_float	 (XLONG,	XLONG,	XLONG,	SINGLE,	SINGLE,	SINGLE,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_double	 (XLONG,	XLONG,	XLONG,	DOUBLE,	DOUBLE,	DOUBLE,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_string	 (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_param	 (XLONG,	XLONG,	XLONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_boxed	 (XLONG,	XLONG,	XLONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_pointer	 (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_value_array (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_object	 (XLONG,	XLONG,	XLONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG  g_param_spec_override    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_param_spec_gtype	 (XLONG,	XLONG,	XLONG,	ULONG,	XLONG)
+
+'#########################
+'########  gvaluecolector
+'#########################
+
+'/* we may want to add aggregate types here some day, if requested
+' * by users. the basic C types are covered already, everything
+' * smaller than an int is promoted to an integer and floats are
+' * always promoted to doubles for varargs call constructions.
+$$G_VALUE_COLLECT_INT		= 'i'
+$$G_VALUE_COLLECT_LONG		= 'l'
+$$G_VALUE_COLLECT_INT64         = 'q'
+$$G_VALUE_COLLECT_DOUBLE	= 'd'
+$$G_VALUE_COLLECT_POINTER	= 'p'
+
+'/* vararg union holding actuall values collected
+TYPE  GTYPECVALUE
+	UNION
+  XLONG .v_int
+  XLONG .v_long
+  DOUBLE .v_int64
+  DOUBLE .v_double
+  XLONG .v_pointer
+	END UNION
+END TYPE
+
+'#########################
+'########  gmarshal
+'#########################
+
+'/* VOID:VOID (./gmarshal.list:26) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__VOID (XLONG, XLONG, ULONG, XLONG, XLONG, XLONG)
+'/* VOID:BOOLEAN (./gmarshal.list:27) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__BOOLEAN (XLONG, XLONG, ULONG, XLONG, XLONG, XLONG)
+'/* VOID:CHAR (./gmarshal.list:28) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__CHAR (XLONG, XLONG, ULONG, XLONG, XLONG, XLONG)
+'/* VOID:UCHAR (./gmarshal.list:29) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__UCHAR (XLONG,XLONG,ULONG,XLONG,XLONG,XLONG)
+'/* VOID:INT (./gmarshal.list:30) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__INT (XLONG,XLONG,ULONG,XLONG,XLONG,XLONG)
+'/* VOID:UINT (./gmarshal.list:31) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__UINT (XLONG, XLONG, ULONG, XLONG, XLONG, XLONG)
+'/* VOID:LONG (./gmarshal.list:32) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__LONG (XLONG, XLONG, ULONG, XLONG, XLONG, XLONG)
+'/* VOID:ULONG (./gmarshal.list:33) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__ULONG (XLONG,XLONG,ULONG,XLONG,XLONG,XLONG)
+'/* VOID:ENUM (./gmarshal.list:34) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__ENUM (XLONG, XLONG, ULONG, XLONG, XLONG, XLONG)
+'/* VOID:FLAGS (./gmarshal.list:35) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__FLAGS (XLONG,XLONG,ULONG,XLONG,XLONG,XLONG)
+'/* VOID:FLOAT (./gmarshal.list:36) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__FLOAT (XLONG,XLONG,ULONG,XLONG,XLONG,XLONG)
+'/* VOID:DOUBLE (./gmarshal.list:37) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__DOUBLE (XLONG,XLONG,ULONG,XLONG,XLONG,XLONG)
+'/* VOID:STRING (./gmarshal.list:38) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__STRING (XLONG,XLONG,ULONG,XLONG,XLONG,XLONG)
+'/* VOID:PARAM (./gmarshal.list:39) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__PARAM (XLONG,XLONG,ULONG,XLONG,XLONG,XLONG)
+'/* VOID:BOXED (./gmarshal.list:40) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__BOXED (XLONG,XLONG,ULONG,XLONG,XLONG,XLONG)
+'/* VOID:POINTER (./gmarshal.list:41) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__POINTER (XLONG, XLONG, ULONG, XLONG, XLONG, XLONG)
+'/* VOID:OBJECT (./gmarshal.list:42) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__OBJECT (XLONG,XLONG,ULONG,XLONG,XLONG,XLONG)
+'/* VOID:UINT,POINTER (./gmarshal.list:45) */
+EXTERNAL CFUNCTION g_cclosure_marshal_VOID__UINT_POINTER (XLONG, XLONG, ULONG, XLONG,XLONG,XLONG)
+'/* BOOL:FLAGS (./gmarshal.list:46) */
+EXTERNAL CFUNCTION g_cclosure_marshal_BOOLEAN__FLAGS (XLONG,XLONG,ULONG,XLONG,XLONG,XLONG)
+'/* STRING:OBJECT,POINTER (./gmarshal.list:47) */
+EXTERNAL CFUNCTION g_cclosure_marshal_STRING__OBJECT_POINTER (XLONG, XLONG, ULONG, XLONG, XLONG, XLONG)
+
+'#########################
+'########  gtypemodule
+'#########################
+
+TYPE GTYPEMODULE 
+  GOBJECT .parent_instance
+  ULONG .use_count
+  XLONG .type_infos
+  XLONG .interface_infos
+'  /*< public >*/
+  XLONG .name
+END TYPE
+
+EXTERNAL CFUNCTION ULONG g_type_module_get_type       ()
+EXTERNAL CFUNCTION XLONG g_type_module_use            (XLONG)
+EXTERNAL CFUNCTION g_type_module_unuse          (XLONG)
+EXTERNAL CFUNCTION g_type_module_set_name       (XLONG, XLONG)
+EXTERNAL CFUNCTION ULONG g_type_module_register_type  (XLONG, ULONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_type_module_add_interface  (XLONG, ULONG, ULONG, XLONG)
+EXTERNAL CFUNCTION ULONG g_type_module_register_enum  (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION ULONG g_type_module_register_flags (XLONG, XLONG, XLONG)
+

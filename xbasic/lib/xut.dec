@@ -1,0 +1,7 @@
+'
+' Constants
+'
+	$$XBSysLinux		= 1
+	$$XBSysWin32		= 2
+																				' $$XBSysLinux, $$XBSysWin32)
+	EXTERNAL FUNCTION XutInit ()

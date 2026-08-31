@@ -1,0 +1,68 @@
+' ####################  Max Reason
+' #####  XBasic  #####  Copyright 1988-2000
+' ####################  features not in documentation
+'
+' subject to GPL and LGPL licenses - see COPYING, COPYING_LIB
+'
+' http://xbasic.sf.net
+' http://groups.yahoo.com/group/xbasic
+' xbasic@yahoogroups.com
+'
+' The latest Unofficial Versions of XBasic are available at:
+'   http://groups.yahoo.com/group/xbasic
+'   and selecting "Files" and then "dist"
+'
+' #####
+'
+' The following information may or may not be included
+' in the printed documentation or other documentation.
+'
+' Use the "Help Index" from the "main menu" > "Help" for more information.
+'
+' -----------------------------------------------------------------------------------
+'
+' #####  v6.4.5 (Unofficial) ##### 20230827
+'
+' - Modified the conpiler (xcol.x) so that when a call to a CFUNCTION is made,
+'   the stack pointer (rsp) will be adjusted to a 128-bit boundary before the function
+'   is called and restored to the original value after the CFUNCTION returns.
+'   Corrected errors compiling binary code for passing argument to registers r8 and r9.
+'
+' #####  v6.4.4 (Unofficial) ##### 20230731
+'
+' - Modified the conpiler (xcol.x) so that when a call to an EXTERNAL CFUNCTION is made in a user program
+'   the 64-bit address of the function is moved to the rax register followed by a call *%rax.
+'      movabsq 0x0000FED77524DF50,%rax
+'      call    *%rax
+'
+' #####  v6.4.3 (Unofficial) ##### 20230407
+'
+' - Modified the function XuiFont() so that when the "view font" button is pushed,
+'   "Font Nonexistant" will be displayed if the font criteria cannot be found.
+'   This should make the demo program tfont.x more usefule for a person using it
+'   to choose a font that he might want to use in a program.
+'
+' #####  v6.4.2 (Unofficial) ##### 20230201
+'
+' - Segment violations occurred when run on Debian 10 when X11 functuions where called
+'   with the stack pointer (rsp) not set to a 128-bit boundary. Two new functions are
+'   used to adjust the rsp before calling the X11 function: XxxRspEven() and XxxRspOdd()
+'   XxxRspEven() is used if 6 or less, 8, 10, or 12 variables are being passed.
+'   XxxRspOdd() is used if 7, 9, or 11 variables are being passed.
+'   In the following example code, 12 variables are being passed to the C-function XGetWindowProperty;
+'   6 are put in cpu registers and 6 (an EVEN number) are pushed on the stack, so XxxRspEven is used.
+'   If it modifies the rsp, it returns a value of 8 to rspMod,
+'   After the X11 function XGetWindowProperty is called, rspMod is checked to see if XxxRestoreRsp
+'   should be called to put the rsp register back to the original value.
+'
+'			rspMod = XxxRspEven ()
+'			error = XGetWindowProperty (sdisplay, swindow, #XA_TEXT, offset, length, delete, #XA_STRING, &rtype, &format, &items, &after, &data)
+'			IF rspMod THEN XxxRestoreRsp ()
+'
+' #####  v6.4.1 (Unofficial) ##### 20220901
+'
+' - Thousands of changes made to enable Xbasic to run in 64-bit mode.
+' - The executable file is called xb64
+'
+' #####  v6.3.26 (Unofficial) ##### 20180608
+'

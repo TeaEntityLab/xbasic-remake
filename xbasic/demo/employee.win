@@ -1,0 +1,371 @@
+'
+'
+'	#########################
+'	#####  Employee ()  #####
+'	#########################
+'
+'	"Anatomy of Grid Functions" in the GuiDesigner Programmer Guide
+'	describes the operation and modification of grid functions in detail.
+'
+'	WindowFromFunction and/or WindowToFunction may not work, or may not generate the desired results if you:
+'		* Modify the kid constant definition improperly.
+'		* Modify the code in the Create subroutine improperly.
+'		* Imbed blank or comment lines in the Create subroutine.
+'		* Remove the GOSUB Resize line in the Create subroutine (comment out is okay).
+'		* Imbed special purpose code in the Create subroutine before the GOSUB Resize line.
+'		* Delete any of the four lines that assign values to designX, designY, designWidth, designHeight.
+'
+FUNCTION  Employee (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+	STATIC  designX,  designY,  designWidth,  designHeight
+	STATIC  SUBADDR  sub[]
+	STATIC  upperMessage
+	STATIC  Employee
+'
+	$Employee          =   0  ' kid   0 grid type = Employee
+	$FirstNameLabel    =   1  ' kid   1 grid type = XuiLabel
+	$FirstNameText     =   2  ' kid   2 grid type = XuiTextLine
+	$MiddleNameLabel   =   3  ' kid   3 grid type = XuiLabel
+	$MiddleNameText    =   4  ' kid   4 grid type = XuiTextLine
+	$LastNameLabel     =   5  ' kid   5 grid type = XuiLabel
+	$LastNameText      =   6  ' kid   6 grid type = XuiTextLine
+	$Address1Label     =   7  ' kid   7 grid type = XuiLabel
+	$Address1Text      =   8  ' kid   8 grid type = XuiTextLine
+	$Address2Label     =   9  ' kid   9 grid type = XuiLabel
+	$Address2Text      =  10  ' kid  10 grid type = XuiTextLine
+	$CityLabel         =  11  ' kid  11 grid type = XuiLabel
+	$CityText          =  12  ' kid  12 grid type = XuiTextLine
+	$StateLabel        =  13  ' kid  13 grid type = XuiLabel
+	$StateText         =  14  ' kid  14 grid type = XuiTextLine
+	$ZipLabel          =  15  ' kid  15 grid type = XuiLabel
+	$ZipText           =  16  ' kid  16 grid type = XuiTextLine
+	$PhoneLabel        =  17  ' kid  17 grid type = XuiLabel
+	$PhoneText         =  18  ' kid  18 grid type = XuiTextLine
+	$FaxLabel          =  19  ' kid  19 grid type = XuiLabel
+	$FaxText           =  20  ' kid  20 grid type = XuiTextLine
+	$EmailLabel        =  21  ' kid  21 grid type = XuiLabel
+	$EmailText         =  22  ' kid  22 grid type = XuiTextLine
+	$WebLabel          =  23  ' kid  23 grid type = XuiLabel
+	$WebText           =  24  ' kid  24 grid type = XuiTextLine
+	$SSNLabel          =  25  ' kid  25 grid type = XuiLabel
+	$SSNText           =  26  ' kid  26 grid type = XuiTextLine
+	$Expertise1Label   =  27  ' kid  27 grid type = XuiLabel
+	$Expertise1Text    =  28  ' kid  28 grid type = XuiTextLine
+	$Expertise2Label   =  29  ' kid  29 grid type = XuiLabel
+	$Expertise2Text    =  30  ' kid  30 grid type = XuiTextLine
+	$Expertise3Label   =  31  ' kid  31 grid type = XuiLabel
+	$Expertise3Text    =  32  ' kid  32 grid type = XuiTextLine
+	$CommentsLabel     =  33  ' kid  33 grid type = XuiLabel
+	$CommentsTextArea  =  34  ' kid  34 grid type = XuiTextArea
+	$LoadButton        =  35  ' kid  35 grid type = XuiPushButton
+	$SaveButton        =  36  ' kid  36 grid type = XuiPushButton
+	$UpperKid          =  36  ' kid maximum
+'
+'
+	IFZ sub[] THEN GOSUB Initialize
+'	XuiReportMessage (grid, message, v0, v1, v2, v3, r0, r1)
+	IF XuiProcessMessage (grid, message, @v0, @v1, @v2, @v3, @r0, @r1, Employee) THEN RETURN
+	IF (message <= upperMessage) THEN GOSUB @sub[message]
+	RETURN
+'
+'
+' *****  Callback  *****  message = Callback : r1 = original message
+'
+SUB Callback
+	message = r1
+	callback = message
+	IF (message <= upperMessage) THEN GOSUB @sub[message]
+END SUB
+'
+'
+' *****  Create  *****  v0123 = xywh : r0 = window : r1 = parent
+'
+SUB Create
+	IF (v0 <= 0) THEN v0 = 0
+	IF (v1 <= 0) THEN v1 = 0
+	IF (v2 <= 0) THEN v2 = designWidth
+	IF (v3 <= 0) THEN v3 = designHeight
+	XuiCreateGrid  (@grid, Employee, @v0, @v1, @v2, @v3, r0, r1, &Employee())
+	XuiSendMessage ( grid, #SetGridName, 0, 0, 0, 0, 0, @"Employee")
+	XuiLabel       (@g, #Create, 4, 4, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"FirstNameLabel")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"First Name")
+	XuiTextLine    (@g, #Create, 104, 4, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $FirstNameText, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"FirstNameText")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea704")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 28, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"MiddleNameLabel")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Middle Name")
+	XuiTextLine    (@g, #Create, 104, 28, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $MiddleNameText, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"MiddleNameText")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea707")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 52, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LastNameLabel")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Last Name")
+	XuiTextLine    (@g, #Create, 104, 52, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $LastNameText, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LastNameText")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea710")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 76, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Address1Label")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Address1")
+	XuiTextLine    (@g, #Create, 104, 76, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $Address1Text, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Address1Text")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea713")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 100, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Address2Label")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Address2")
+	XuiTextLine    (@g, #Create, 104, 100, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $Address2Text, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Address2Text")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea716")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 124, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"CityLabel")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"City")
+	XuiTextLine    (@g, #Create, 104, 124, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $CityText, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"CityText")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea719")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 148, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"StateLabel")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"State")
+	XuiTextLine    (@g, #Create, 104, 148, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $StateText, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"StateText")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea722")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 172, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"ZipLabel")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Zip")
+	XuiTextLine    (@g, #Create, 104, 172, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $ZipText, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"ZipText")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea725")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 196, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"PhoneLabel")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Phone")
+	XuiTextLine    (@g, #Create, 104, 196, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $PhoneText, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"PhoneText")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea728")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 220, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"FaxLabel")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Fax")
+	XuiTextLine    (@g, #Create, 104, 220, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $FaxText, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"FaxText")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea731")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 244, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"EmailLabel")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Email")
+	XuiTextLine    (@g, #Create, 104, 244, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $EmailText, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"EmailText")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea734")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 268, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"WebLabel")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Web")
+	XuiTextLine    (@g, #Create, 104, 268, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $WebText, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"WebText")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea737")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 292, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"SSNLabel")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"SS#")
+	XuiTextLine    (@g, #Create, 104, 292, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $SSNText, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"SSNText")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea740")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 316, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Expertise1Label")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Expertise 1")
+	XuiTextLine    (@g, #Create, 104, 316, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $Expertise1Text, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Expertise1Text")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea743")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 340, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Expertise2Label")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Expertise 2")
+	XuiTextLine    (@g, #Create, 104, 340, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $Expertise2Text, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Expertise2Text")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea746")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 364, 100, 24, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Expertise3Label")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetAlign, $$AlignMiddleRight, $$JustifyCenter, -1, -1, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Expertise 3")
+	XuiTextLine    (@g, #Create, 104, 364, 288, 24, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $Expertise3Text, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Expertise3Text")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea749")
+	XuiSendMessage ( g, #SetColorExtra, $$BrightGrey, $$LightYellow, $$Black, $$White, 1, 0)
+	XuiLabel       (@g, #Create, 4, 388, 388, 32, r0, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"CommentsLabel")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetColor, $$BrightCyan, $$Black, $$Black, $$White, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"\x1F Our Comments : Employee Quicky Resume \x1F")
+	XuiTextArea    (@g, #Create, 4, 420, 388, 116, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $CommentsTextArea, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"CommentsTextArea")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"Text")
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 2, @"ScrollH")
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 3, @"ScrollV")
+	XuiPushButton  (@g, #Create, 4, 536, 196, 32, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $LoadButton, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LoadButton")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetColor, 17, $$Black, $$Black, $$White, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Load Employee")
+	XuiPushButton  (@g, #Create, 200, 536, 192, 32, r0, grid)
+	XuiSendMessage ( g, #SetCallback, grid, &Employee(), -1, -1, $SaveButton, grid)
+	XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"SaveButton")
+	XuiSendMessage ( g, #SetStyle, 0, 0, 0, 0, 0, 0)
+	XuiSendMessage ( g, #SetColor, $$BrightOrange, $$Black, $$Black, $$White, 0, 0)
+	XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Save Employee")
+	GOSUB Resize
+END SUB
+'
+'
+' *****  CreateWindow  *****  v0123 = xywh : r0 = windowType : r1$ = display$
+'
+SUB CreateWindow
+	IF (v0  = 0) THEN v0 = designX
+	IF (v1  = 0) THEN v1 = designY
+	IF (v2 <= 0) THEN v2 = designWidth
+	IF (v3 <= 0) THEN v3 = designHeight
+	XuiWindow (@window, #WindowCreate, v0, v1, v2, v3, r0, @r1$)
+	v0 = 0 : v1 = 0 : r0 = window : ATTACH r1$ TO display$
+	GOSUB Create
+	r1 = 0 : ATTACH display$ TO r1$
+	XuiWindow (window, #WindowRegister, grid, -1, v2, v3, @r0, @"Employee")
+END SUB
+'
+'
+' *****  GetSmallestSize  *****  See "Anatomy of Grid Functions"
+'
+SUB GetSmallestSize
+END SUB
+'
+'
+' *****  Resize  *****  See "Anatomy of Grid Functions"
+'
+SUB Resize
+END SUB
+'
+'
+' *****  Selection  *****  See "Anatomy of Grid Functions"
+'
+SUB Selection
+END SUB
+'
+'
+' *****  Initialize  *****  ' see "Anatomy of Grid Functions"
+'
+SUB Initialize
+	XuiGetDefaultMessageFuncArray (@func[])
+	XgrMessageNameToNumber (@"LastMessage", @upperMessage)
+'
+	func[#Callback]           = &XuiCallback ()               ' disable to handle Callback messages internally
+' func[#GetSmallestSize]    = 0                             ' enable to add internal GetSmallestSize routine
+' func[#Resize]             = 0                             ' enable to add internal Resize routine
+'
+	DIM sub[upperMessage]
+' sub[#Callback]            = SUBADDRESS (Callback)         ' enable to handle Callback messages internally
+	sub[#Create]              = SUBADDRESS (Create)           ' must be internal routine
+	sub[#CreateWindow]        = SUBADDRESS (CreateWindow)     ' must be internal routine
+' sub[#GetSmallestSize]     = SUBADDRESS (GetSmallestSize)  ' enable to add internal GetSmallestSize routine
+' sub[#Resize]              = SUBADDRESS (Resize)           ' enable to add internal Resize routine
+	sub[#Selection]           = SUBADDRESS (Selection)        ' routes Selection callbacks to subroutine
+'
+	IF sub[0] THEN PRINT "Employee() : Initialize : error ::: (undefined message)"
+	IF func[0] THEN PRINT "Employee() : Initialize : error ::: (undefined message)"
+	XuiRegisterGridType (@Employee, "Employee", &Employee(), @func[], @sub[])
+'
+' Don't remove the following 4 lines, or WindowFromFunction/WindowToFunction will not work
+'
+	designX = 880
+	designY = 23
+	designWidth = 396
+	designHeight = 572
+'
+	gridType = Employee
+	XuiSetGridTypeValue (gridType, @"x",                designX)
+	XuiSetGridTypeValue (gridType, @"y",                designY)
+	XuiSetGridTypeValue (gridType, @"width",            designWidth)
+	XuiSetGridTypeValue (gridType, @"height",           designHeight)
+	XuiSetGridTypeValue (gridType, @"maxWidth",         designWidth)
+	XuiSetGridTypeValue (gridType, @"maxHeight",        designHeight)
+	XuiSetGridTypeValue (gridType, @"minWidth",         designWidth)
+	XuiSetGridTypeValue (gridType, @"minHeight",        designHeight)
+	XuiSetGridTypeValue (gridType, @"border",           $$BorderFrame)
+	XuiSetGridTypeValue (gridType, @"can",              $$Focus OR $$Respond OR $$Callback OR $$InputTextString OR $$TextSelection)
+	XuiSetGridTypeValue (gridType, @"focusKid",         $FirstNameText)
+	XuiSetGridTypeValue (gridType, @"inputTextArray",   $CommentsTextArea)
+	XuiSetGridTypeValue (gridType, @"inputTextString",  $FirstNameText)
+	IFZ message THEN RETURN
+END SUB
+END FUNCTION

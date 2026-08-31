@@ -1,0 +1,64 @@
+TYPE WNDCLASS
+  XLONG  .style
+  XLONG  .lpfnWndProc
+  XLONG  .cbClsExtra
+  XLONG  .cbWndExtra
+  XLONG  .hInstance
+  XLONG  .hIcon
+  XLONG  .hCursor
+  XLONG  .hbrBackground
+  XLONG  .lpszMenuName
+  XLONG  .lpszClassName
+END TYPE
+'
+EXTERNAL FUNCTION  AdjustWindowRectEx (rect, style, menu, moreStyle)
+EXTERNAL FUNCTION  BringWindowToTop (hwnd)
+EXTERNAL FUNCTION  ClientToScreen (hwnd, point)
+EXTERNAL FUNCTION  CloseClipboard ()
+EXTERNAL FUNCTION  CreateWindowExA (styleEx, className, windowName, style, x, y, w, h, owner, menu, inst, param)
+EXTERNAL FUNCTION  DefWindowProcA (hwnd, message, wParam, lParam)
+EXTERNAL FUNCTION  DestroyWindow (hwnd)
+EXTERNAL FUNCTION  DispatchMessageA (msg)
+EXTERNAL FUNCTION  DrawIcon (hdc, x, y, hIcon)
+EXTERNAL FUNCTION  EmptyClipboard ()
+EXTERNAL FUNCTION  EnableWindow (hwnd, enable)
+EXTERNAL FUNCTION  FillRect (hdc, rect, hbrush)
+EXTERNAL FUNCTION  GetAsyncKeyState (key)
+EXTERNAL FUNCTION  GetCapture ()
+EXTERNAL FUNCTION  GetClientRect (hwnd, addrRect)
+EXTERNAL FUNCTION  GetClipboardData (format)
+EXTERNAL FUNCTION  GetCursorPos (point)
+EXTERNAL FUNCTION  GetDC (hwnd)
+EXTERNAL FUNCTION  GetKeyState (key)
+EXTERNAL FUNCTION  GetQueueStatus (flags)
+EXTERNAL FUNCTION  GetSystemMetrics (nIndex)
+EXTERNAL FUNCTION  GetUpdateRect (hwnd, rect, erase)
+EXTERNAL FUNCTION  GetWindowTextA (hwnd, lpText, nMaxCount)
+EXTERNAL FUNCTION  GetWindowTextLengthA (hwnd)
+EXTERNAL FUNCTION  IsClipboardFormatAvailable (format)
+EXTERNAL FUNCTION  IsIconic (hwnd)
+EXTERNAL FUNCTION  IsZoomed (hwnd)
+EXTERNAL FUNCTION  KillTimer (hwnd, timer)
+EXTERNAL FUNCTION  LoadCursorA (hInst, lpszCursor)
+EXTERNAL FUNCTION  LoadIconA (hInst, lpszIcon)
+EXTERNAL FUNCTION  MessageBeep (type)
+EXTERNAL FUNCTION  MoveWindow (hwnd, x, y, nWidth, nHeight, bRepaint)
+EXTERNAL FUNCTION  OpenClipboard (handle)
+EXTERNAL FUNCTION  PeekMessageA (lpmsg, hwnd, wMsgFilterMin, wMsgFilterMax, fuRemoveMsg)
+EXTERNAL FUNCTION  RegisterClassA (WNDCLASS class)
+EXTERNAL FUNCTION  ReleaseCapture ()
+EXTERNAL FUNCTION  ReleaseDC (hwnd, hdc)
+EXTERNAL FUNCTION  ScreenToClient (hwnd, point)
+EXTERNAL FUNCTION  SetActiveWindow (hwnd)
+EXTERNAL FUNCTION  SetCapture (hwnd)
+EXTERNAL FUNCTION  SetClipboardData (format, handle)
+EXTERNAL FUNCTION  SetCursor (hCursor)
+EXTERNAL FUNCTION  SetFocus (hwnd)
+EXTERNAL FUNCTION  SetTimer (hwnd, timer, msec, callFunc)
+EXTERNAL FUNCTION  SetWindowPos (hwnd, stackAction, x, y, cx, cy, action)
+EXTERNAL FUNCTION  SetWindowTextA (hwnd, lpszText)
+EXTERNAL FUNCTION  ShowWindow (hwnd, show)
+EXTERNAL FUNCTION  TranslateMessage (msg)
+EXTERNAL FUNCTION  UpdateWindow (hwnd)
+EXTERNAL FUNCTION  ValidateRect (hwnd, rect)
+EXTERNAL FUNCTION  WaitMessage ()

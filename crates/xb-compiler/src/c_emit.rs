@@ -2253,7 +2253,7 @@ mod c_emit_argv_tests {
         // startup init, not a scalar stub. This test guards the panel's
         // strongest objection falsifier (XstGetCommandLineArguments(-1)).
         let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let xst_path = manifest_dir.join("../../xbasic-6.4.5/src/linux/xst.x");
+        let xst_path = manifest_dir.join("../../xbasic/lib/xst.x");
         let src = std::fs::read_to_string(&xst_path)
             .unwrap_or_else(|e| panic!("read {}: {e}", xst_path.display()));
         let prog = crate::FrontendUnit::parse(&src)

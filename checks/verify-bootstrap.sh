@@ -13,10 +13,10 @@ cargo check --workspace
 cargo test --workspace
 cargo clippy --workspace --all-targets
 
-[ ! -e xbasic-6.5.0 ] || fail "nested xbasic-6.5.0/ must not exist"
+[ ! -e xbasic ] || fail "nested xbasic/ must not exist"
 ! grep -RIn 'xbasic-6\.5\.0' docs >/tmp/xbasic-verify-docrefs.txt 2>&1 || {
   cat /tmp/xbasic-verify-docrefs.txt >&2
-  fail "docs still reference nested xbasic-6.5.0"
+  fail "docs still reference nested xbasic"
 }
 [ -f docs/14-self-hosting-progress.md ] || fail "self-hosting progress report missing"
 grep -Fq '# 14 — Self-Hosting Progress' docs/14-self-hosting-progress.md \

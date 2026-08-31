@@ -1,0 +1,222 @@
+ ###################  Max Reason
+ #####  notes  #####  copyright 1988-2000
+ ###################  XBasic release notes
+
+ http://www.maxreason.com/software/xbasic/xbasic.html
+ http://groups.yahoo.com/group/xbasic
+ MaxReason@MaxReason.com
+
+ for Windows XBasic
+ for Linux XBasic
+
+
+ #####  IMPORTANT  #####
+
+ Read the "readme.txt" file with this distribution.
+
+
+
+ #####  v5.0005  #####
+
+ BUG : Windows95/98/NT
+ The default color of the text insert cursor on the
+ XuiTextLine grid was similar to the background color
+ with some video cards.
+
+ FIX : The color of the text insert cursor has always
+ been configurable from the Option menu in the main window
+ with "option + color text cursor".  The default color of
+ the XuiTextLine has been changed to hopefully make this
+ problem less common.
+
+
+ #####  v4.0013  #####
+
+ BUG : Windows95/98 only
+ When programs running in the PDE are paused or hit a
+ breakpoint, the mouse is sometimes disabled.  Clicking
+ on any XBasic window does nothing.  This problem does
+ not occur in WindowsNT or Linux.
+
+ FIX : This bug in Window95 is not yet fixed, but you
+ can free the mouse by clicking on the desktop or any
+ window belonging to another application, or by pressing
+ any keyboard key.
+
+
+ #####  v4.0013  #####
+
+ BUG : Windows95 only
+ Windows95 has a bug that prevents programs from
+ opening themselves.  If the XBasic console window
+ displays a message that says XBasic cannot load
+ external symbols or cannot compile programs in
+ the PDE, then try the following work around.
+
+ FIX : Make a duplicate of xb.dll called xb.dup.
+
+ 1: terminate the PDE          ".fq" or "FileQuit"
+ 2: start up an MSDOS window
+ 3: get into \xb directory     "cd \xb"
+ 4: copy xb.dll to xb.dup      "copy xb.dll xb.dup"
+
+ XBasic should now be able to compile programs.
+ When you get a new version of Windows95, delete
+ xb.dup and try again.  The original release of
+ WindowsNT had the same bug, but it was fixed in
+ the next release.  Windows95 is not yet fixed.
+ Windows98 seems to work okay without xb.dup .
+
+
+ #####  v4.0013  #####
+
+ BUG : Windows only
+ When building standalone executables, the linker says
+ it doesn't recognize some linker command line switches.
+
+ FIX : Older WindowsNT 3.1 linkers do not support
+ some of the command line switches in win32.mak.
+ You might be able to kludge a modified win32.mak
+ file together from the ntwin32.mak file that came
+ with your WindowsNT 3.1 development tools, but a
+ much better solution is to get the current version
+ of the Win32 linker, LINK.EXE.  Attempts to link
+ with the old linker and updated win32.mak sometimes
+ succeed, but not reliably.  To develop programs for
+ all versions of Windows and WindowsNT, you need to
+ get the new linker.
+
+
+ #####  v4.0013  #####
+
+ BUG : Windows only
+ When building executables and libraries, the
+ linker sometimes warns of a duplicate _malloc
+ symbol in MSVCRT20.DLL.
+
+ FIX : This will not hurt anything.  Eventually
+ MSVCRTxx.DLL should not reference _malloc says
+ Microsoft support.  If the linker warns of a
+ duplicate _malloc reference in one of the XBasic
+ files you MUST change the makefile so the linker
+ sees the XBasic version of _malloc before the
+ MSVCRT20 version of _malloc.  Otherwise your
+ executables will not work.
+
+
+ #####  v4.0013  #####
+
+ BUG : Linux only
+ When windows appear they are not displayed in the
+ specified location.  Generally they appear 4 pixels
+ left and 22 pixels above the specified location.
+
+ FIX : This problem does not usually occur when
+ you are running the "fvwm" window manager, but
+ the problem has been reported with some other
+ window managers.  The reason for the difference
+ is the window managers and is being investigated.
+
+
+ #####  v4.0013  #####
+
+ LIMITATION : Linux only
+ Linux XBasic cannot produce "dynamic link libraries" or
+ "DLLs" since the ELF specification foolishly requires
+ the compiler generate PIC aka position independent code,
+ which XBasic cannot do without a rewrite.  This does not
+ prevent an XBasic program from calling functions in DLLs,
+ however.  In fact Linux XBasic itself is linked with the
+ DLL versions of the X-Windows "xlib" library, the standard
+ operating system library, and the ELF support library.
+
+ FIX : This limitation is under investigation.
+
+
+ #####  v4.0013  #####
+
+ BUG : Linux only
+ On some computers, Linux XBasic may take a long time
+ to "initialize" before program compilation begins.
+ This is probably due to the enormous size of the ELF
+ symbol table imbedded in Linux XBasic.  The symbol table
+ is enormous because all local as well as global symbols
+ are put in the ELF binary.  As soon as I find out how
+ to tell the linker not to put these local symbols in
+ the binary, the "Initialize" step will speed up.
+
+ FIX : This problem is under investigation.
+
+
+ #####  v4.0013  #####
+
+ NOTE : Linux only
+ Though exceptions do exist in Windows and UNIX, the usual
+ "text selection paradyme" on Windows and UNIX differs.
+
+ In XBasic, a few UNIX applications, and most Windows apps,
+ text can be selected at any time, but the text is not
+ transferred to the interapplication clipboard until the
+ user enters ^X (cut) or ^C (copy) or some other keystrokes
+ or pulldown menu selection.
+
+ In most UNIX applications and a few Windows applications,
+ text is transferred to the interapplication clipboard as
+ soon as it is selected.
+
+ All implementations of XBasic read from and write to the
+ interapplication clipboard in response to explicit user
+ actions, typically:
+
+  ^C and ^Insert copy the selected text and
+  put it in the interapplication clipboard.
+
+  ^X and Delete cut the selected text and
+  put it in the interapplication clipboard.
+
+  ^V and Insert paste the interapplication clipboard
+  into the current or previous text cursor position.
+
+ To copy from a typical UNIX "xterm" window into XBasic
+ requires that you select the source text in the "xterm"
+ window, click the mouse cursor at the desired insert
+ position in the desired XBasic text grid, then enter
+ ^V or Insert to transfer the text from the clipboard
+ to the text grid.
+
+ To copy from XBasic to a typical "xterm" window, copy or
+ cut text from an XBasic grid in the normal way, then point
+ the mouse cursor at the desired position in the "xterm"
+ window and press the center mouse button to transfer the
+ text from the clipboard to the "xterm" window.
+
+
+ #####  all versions  #####
+
+ NOTE : Linux only
+ Make sure the .fvwmrc file in your home directory
+ enables "SmartPlacement" or "RandomPlacement".
+ The above filename will be different if your
+ window manager is not "fvwm".
+
+ Make sure any "NoPPosition" line is removed, or
+ the line is disabled by a "#" prefix, like this:
+ # NoPPosition
+
+ FIX : this problem is under investigation
+
+
+ #####  all versions  #####
+
+ LIMITATION : Linux only
+ Linux XBasic cannot produce "dynamic link libraries"
+ aka "DLLs" since the ELF specification requires the
+ compiler generate PIC aka position independent code,
+ which XBasic cannot do without a substantial rewrite.
+ This does not prevent an XBasic program from calling
+ functions in DLLs, however - in fact Linux XBasic itself
+ is linked with the DLL versions of the X-Windows "xlib"
+ library, the standard operating system library, and
+ the ELF support library.
+
+ FIX : this limitation is under investigation.

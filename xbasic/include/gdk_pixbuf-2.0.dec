@@ -1,0 +1,526 @@
+' Version 0.0.2
+' For GTK 2.16.2
+' Date: July 31, 2009
+' Ported to xblite by Julien Rouiller
+' Contributors: Liviu Armeanu,
+' ******** WORK IN PROGRESS ********
+
+'#########################
+'########  gdk-pixbuf-core
+'#########################
+
+''/* Alpha compositing mode */
+$$GDK_PIXBUF_ALPHA_BILEVEL = 0
+$$GDK_PIXBUF_ALPHA_FULL = 1
+'} GdkPixbufAlphaMode;
+
+'/* Color spaces; right now only RGB is supported.
+' * Note that these values are encoded in inline pixbufs
+' * as ints, so don't reorder them
+' */
+$$GDK_COLORSPACE_RGB = 0
+'} GdkColorspace;
+
+'/* All of these are opaque structures' */
+
+        '/* image data hosed' */
+$$GDK_PIXBUF_ERROR_CORRUPT_IMAGE = 0
+        '/* no mem to load image' */
+$$GDK_PIXBUF_ERROR_INSUFFICIENT_MEMORY = 1
+        '/* bad option passed to save routine' */
+$$GDK_PIXBUF_ERROR_BAD_OPTION = 2
+        '/* unsupported image type (sort of an ENOSYS)' */
+$$GDK_PIXBUF_ERROR_UNKNOWN_TYPE = 3
+        '/* unsupported operation (load, save) for image type' */
+$$GDK_PIXBUF_ERROR_UNSUPPORTED_OPERATION = 4
+$$GDK_PIXBUF_ERROR_FAILED = 5
+'} GdkPixbufError;
+
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_error_quark ()
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_get_type ()
+
+'/* GdkPixbuf accessors' */
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_get_colorspace      (XLONG)
+EXTERNAL CFUNCTION SLONG gdk_pixbuf_get_n_channels      (XLONG)
+EXTERNAL CFUNCTION SLONG gdk_pixbuf_get_has_alpha       (XLONG)
+EXTERNAL CFUNCTION SLONG gdk_pixbuf_get_bits_per_sample (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_get_pixels          (XLONG)
+EXTERNAL CFUNCTION SLONG gdk_pixbuf_get_width           (XLONG)
+EXTERNAL CFUNCTION SLONG gdk_pixbuf_get_height          (XLONG)
+EXTERNAL CFUNCTION SLONG gdk_pixbuf_get_rowstride       (XLONG)
+
+'/* Create a blank pixbuf with an optimal rowstride and a new buffer' */
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_new (XLONG, SLONG, SLONG,SLONG, SLONG)
+
+'/* Copy a pixbuf' */
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_copy (XLONG)
+
+'/* Create a pixbuf which points to the pixels of another pixbuf' */
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_new_subpixbuf (XLONG,SLONG,SLONG,SLONG,SLONG)
+
+'/* Simple loading' */
+
+'/* DLL ABI stability hack.' */
+'#define gdk_pixbuf_new_from_file gdk_pixbuf_new_from_file_utf8
+'#define gdk_pixbuf_new_from_file_at_size gdk_pixbuf_new_from_file_at_size_utf8
+'#define gdk_pixbuf_new_from_file_at_scale gdk_pixbuf_new_from_file_at_scale_utf8
+
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_new_from_file_utf8 (XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_new_from_file_at_size_utf8 (XLONG,SLONG, SLONG,XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_new_from_file_at_scale (XLONG,SLONG, SLONG,SLONG,XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_new_from_data (XLONG,XLONG,SLONG,SLONG,SLONG, SLONG,SLONG,XLONG,SLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_new_from_xpm_data (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_new_from_inline	(SLONG,XLONG,SLONG,XLONG)
+       
+'/* Mutations' */
+EXTERNAL CFUNCTION gdk_pixbuf_fill              (XLONG,ULONG)
+
+'/* Saving' */
+'/* DLL ABI stability hack.' */
+'#define gdk_pixbuf_save gdk_pixbuf_save_utf8
+'#define gdk_pixbuf_savev gdk_pixbuf_savev_utf8
+
+EXTERNAL CFUNCTION gdk_pixbuf_save_utf8           (XLONG, XLONG, XLONG, XLONG,...)
+
+EXTERNAL CFUNCTION gdk_pixbuf_savev_utf8          (XLONG, XLONG, XLONG,XLONG,XLONG,XLONG)
+
+'/* Saving to a callback function' */
+
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_save_to_callback    (XLONG,XLONG,XLONG,XLONG, XLONG,...)
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_save_to_callbackv   (XLONG, XLONG,XLONG,XLONG,XLONG,XLONG,XLONG)
+
+'/* Saving into a newly allocated char array' */
+
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_save_to_buffer      (XLONG,XLONG,XLONG,XLONG, XLONG,...)
+
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_save_to_bufferv     (XLONG,XLONG,XLONG,XLONG, XLONG,XLONG,XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_new_from_stream   (XLONG,XLONG,XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_new_from_stream_at_scale   (XLONG,SLONG,SLONG,SLONG,XLONG,XLONG)
+
+EXTERNAL CFUNCTION SLONG gdk_pixbuf_save_to_stream    (XLONG,XLONG,XLONG,XLONG,XLONG,...)
+
+'/* Adding an alpha channel' */
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_add_alpha (XLONG, SLONG,UBYTE, UBYTE, UBYTE)
+
+'/* Copy an area of a pixbuf onto another one' */
+EXTERNAL CFUNCTION gdk_pixbuf_copy_area (XLONG,SLONG, SLONG,SLONG, SLONG,XLONG,SLONG, SLONG)
+
+'/* Brighten/darken and optionally make it pixelated-looking' */
+EXTERNAL CFUNCTION gdk_pixbuf_saturate_and_pixelate (XLONG,XLONG,SINGLE,SLONG)
+
+'/* Transform an image to agree with its embedded orientation option / tag' */
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_apply_embedded_orientation (XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_get_option (XLONG,XLONG)
+
+'#########################
+'########  gdk-pixbuf-enum-types
+'#########################
+
+'/* enumerations from "gdk-pixbuf-core.h"' */
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_alpha_mode_get_type ()
+'#define GDK_TYPE_PIXBUF_ALPHA_MODE (gdk_pixbuf_alpha_mode_get_type ())
+EXTERNAL CFUNCTION ULONG gdk_colorspace_get_type ()
+'#define GDK_TYPE_COLORSPACE (gdk_colorspace_get_type ())
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_error_get_type ()
+'#define GDK_TYPE_PIXBUF_ERROR (gdk_pixbuf_error_get_type ())
+
+'/* enumerations from "gdk-pixbuf-transform.h"' */
+EXTERNAL CFUNCTION ULONG gdk_interp_type_get_type ()
+'#define GDK_TYPE_INTERP_TYPE (gdk_interp_type_get_type ())
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_rotation_get_type ()
+'#define GDK_TYPE_PIXBUF_ROTATION (gdk_pixbuf_rotation_get_type ())
+
+'#########################
+'########  gdk-pixbuf-animation
+'#########################
+
+' Version 0.0.1
+' For GTK 2.16.2
+' Date: July 17, 2009
+' Ported to xblite by Julien Rouiller
+' ******** WORK IN PROGRESS ********
+
+''/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 8 -*-' */
+''/* GdkPixbuf library - Animation support
+' *
+'' * Copyright (C) 1999 The Free Software Foundation
+' *
+'' * Authors: Mark Crichton <crichton@gimp.org>
+'' *          Miguel de Icaza <miguel@gnu.org>
+'' *          Federico Mena-Quintero <federico@gimp.org>
+'' *          Havoc Pennington <hp@redhat.com>
+' *
+'' * This library is free software; you can redistribute it and/or
+'' * modify it under the terms of the GNU Lesser General Public
+'' * License as published by the Free Software Foundation; either
+'' * version 2 of the License, or (at your option) any later version.
+' *
+'' * This library is distributed in the hope that it will be useful,
+'' * but WITHOUT ANY WARRANTY; without even the implied warranty of
+'' * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+'' * Lesser General Public License for more details.
+' *
+'' * You should have received a copy of the GNU Lesser General Public
+'' * License along with this library; if not, write to the
+'' * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+'' * Boston, MA 02111-1307, USA.
+'' */
+
+'TYPE POINTER = XLONG	' added
+TYPE GBOOLEAN = XLONG	' added
+TYPE PITER = XLONG	' added (pointer to an iter)
+
+
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_animation_get_type	()
+
+' '#define gdk_pixbuf_animation_new_from_file gdk_pixbuf_animation_new_from_file_utf8
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_animation_new_from_file_utf8 (XLONG, XLONG)
+
+' #ifndef GDK_PIXBUF_DISABLE_DEPRECATED
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_animation_ref (XLONG)
+EXTERNAL CFUNCTION gdk_pixbuf_animation_unref (XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_animation_get_width       (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_animation_get_height      (XLONG)
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_animation_is_static_image  (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_animation_get_static_image (XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_animation_get_iter                        (XLONG, XLONG)
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_animation_iter_get_type                   ()
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_animation_iter_get_delay_time             (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_animation_iter_get_pixbuf                 (PITER)
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_animation_iter_on_currently_loading_frame (PITER)
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_animation_iter_advance                    (PITER, XLONG)
+
+' '/* Private part of the GdkPixbufAnimation structure' */
+TYPE GDKPIXBUFANIMATION
+         GOBJECT .parent_instance
+END TYPE
+
+TYPE GDKPIXBUFANIMATIONITER 
+         GOBJECT .parent_instance
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_non_anim_get_type ()
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_non_anim_new (XLONG)
+
+'#########################
+'########  gdk-pixdata
+'#########################
+
+'/**
+' * GDK_PIXBUF_MAGIC_NUMBER:
+' *
+' * Magic number for #GdkPixdata structures.
+' **/
+$$GDK_PIXBUF_MAGIC_NUMBER = 0x47646b50    '/* 'GdkP'' */
+
+'/**
+' * GdkPixdataType:
+' * @GDK_PIXDATA_COLOR_TYPE_RGB:  each pixel has red, green and blue samples.
+' * @GDK_PIXDATA_COLOR_TYPE_RGBA: each pixel has red, green and blue samples 
+' *    and an alpha value.
+' * @GDK_PIXDATA_COLOR_TYPE_MASK: mask for the colortype flags of the enum.
+' * @GDK_PIXDATA_SAMPLE_WIDTH_8: each sample has 8 bits.
+' * @GDK_PIXDATA_SAMPLE_WIDTH_MASK: mask for the sample width flags of the enum.
+' * @GDK_PIXDATA_ENCODING_RAW: the pixel data is in raw form. 
+' * @GDK_PIXDATA_ENCODING_RLE: the pixel data is run-length encoded. Runs may 
+' *    be up to 127 bytes long; their length is stored in a single byte 
+' *    preceding the pixel data for the run. If a run is constant, its length
+' *    byte has the high bit set and the pixel data consists of a single pixel
+' *    which must be repeated. 
+' * @GDK_PIXDATA_ENCODING_MASK: mask for the encoding flags of the enum.
+' *
+' * An enumeration containing three sets of flags for a #GdkPixdata struct: 
+' * one for the used colorspace, one for the width of the samples and one 
+' * for the encoding of the pixel data.  
+' **/
+  '/* colorspace + alpha' */
+$$GDK_PIXDATA_COLOR_TYPE_RGB    = 0x01
+$$GDK_PIXDATA_COLOR_TYPE_RGBA   = 0x02
+$$GDK_PIXDATA_COLOR_TYPE_MASK   = 0xff
+  '/* width, support 8bits only currently' */
+$$GDK_PIXDATA_SAMPLE_WIDTH_8    = 0x01 '<< 16,
+$$GDK_PIXDATA_SAMPLE_WIDTH_MASK = 0x0f '<< 16,
+  '/* encoding' */
+$$GDK_PIXDATA_ENCODING_RAW      = 0x01 '<< 24,
+$$GDK_PIXDATA_ENCODING_RLE      = 0x02 '<< 24,
+$$GDK_PIXDATA_ENCODING_MASK     = 0x0f '<< 24
+'} GdkPixdataType;
+
+'/**
+' * GdkPixdata:
+' * @magic: magic number. A valid #GdkPixdata structure must have 
+' *    #GDK_PIXBUF_MAGIC_NUMBER here.
+' * @length: less than 1 to disable length checks, otherwise 
+' *    #GDK_PIXDATA_HEADER_LENGTH + length of @pixel_data. 
+' * @pixdata_type: information about colorspace, sample width and 
+' *    encoding, in a #GdkPixdataType. 
+' * @rowstride: Distance in bytes between rows.
+' * @width: Width of the image in pixels.
+' * @height: Height of the image in pixels.
+' * @pixel_data: @width x @height pixels, encoded according to @pixdata_type
+' *   and @rowstride.
+' *
+' * A #GdkPixdata contains pixbuf information in a form suitable for 
+' * serialization and streaming.
+' **/
+TYPE GDKPIXDATA
+  ULONG .magic        '/* GDK_PIXBUF_MAGIC_NUMBER' */
+  SLONG .length       '/* <1 to disable length checks, otherwise:
+			' * GDK_PIXDATA_HEADER_LENGTH + pixel_data length
+			' */
+  ULONG .pixdata_type '/* GdkPixdataType' */
+  ULONG .rowstride
+  ULONG .width
+  ULONG .height
+  XLONG .pixel_data
+END TYPE
+
+'/**
+' * GDK_PIXDATA_HEADER_LENGTH:
+' *
+' * The length of a #GdkPixdata structure without the @pixel_data pointer.
+' **/
+$$GDK_PIXDATA_HEADER_LENGTH	= 24
+
+'/* the returned stream is plain htonl of GdkPixdata members + pixel_data' */
+EXTERNAL CFUNCTION XLONG gdk_pixdata_serialize	(XLONG,XLONG)
+EXTERNAL CFUNCTION SLONG gdk_pixdata_deserialize	(XLONG,ULONG,XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixdata_from_pixbuf	(XLONG,XLONG,SLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_from_pixdata	(XLONG,SLONG,XLONG)
+'/** 
+' * GdkPixdataDumpType:
+' * @GDK_PIXDATA_DUMP_PIXDATA_STREAM: Generate pixbuf data stream (a single 
+' *    string containing a serialized #GdkPixdata structure in network byte 
+' *    order).
+' * @GDK_PIXDATA_DUMP_PIXDATA_STRUCT: Generate #GdkPixdata structure (needs 
+' *    the #GdkPixdata structure definition from gdk-pixdata.h).
+' * @GDK_PIXDATA_DUMP_MACROS: Generate <function>*_ROWSTRIDE</function>,     
+' *    <function>*_WIDTH</function>, <function>*_HEIGHT</function>,
+' *    <function>*_BYTES_PER_PIXEL</function> and 
+' *    <function>*_RLE_PIXEL_DATA</function> or <function>*_PIXEL_DATA</function>
+' *    macro definitions for the image.
+' * @GDK_PIXDATA_DUMP_GTYPES: Generate GLib data types instead of 
+' *    standard C data types.
+' * @GDK_PIXDATA_DUMP_CTYPES: Generate standard C data types instead of 
+' *    GLib data types.
+' * @GDK_PIXDATA_DUMP_STATIC: Generate static symbols.
+' * @GDK_PIXDATA_DUMP_CONST: Generate const symbols.
+' * @GDK_PIXDATA_DUMP_RLE_DECODER: Provide a <function>*_RUN_LENGTH_DECODE(image_buf, rle_data, size, bpp)</function> 
+' *    macro definition  to  decode  run-length encoded image data.
+' *  
+' * An enumeration which is used by gdk_pixdata_to_csource() to
+' * determine the form of C source to be generated. The three values
+' * @GDK_PIXDATA_DUMP_PIXDATA_STREAM, @GDK_PIXDATA_DUMP_PIXDATA_STRUCT
+' * and @GDK_PIXDATA_DUMP_MACROS are mutually exclusive, as are
+' * @GDK_PIXBUF_DUMP_GTYPES and @GDK_PIXBUF_DUMP_CTYPES. The remaining
+' * elements are optional flags that can be freely added. 
+' **/
+  '/* type of source to save' */
+$$GDK_PIXDATA_DUMP_PIXDATA_STREAM	= 0
+$$GDK_PIXDATA_DUMP_PIXDATA_STRUCT	= 1
+$$GDK_PIXDATA_DUMP_MACROS		= 2
+  '/* type of variables to use' */
+$$GDK_PIXDATA_DUMP_GTYPES		= 0
+$$GDK_PIXDATA_DUMP_CTYPES		= 256
+$$GDK_PIXDATA_DUMP_STATIC		= 512
+$$GDK_PIXDATA_DUMP_CONST		= 1024
+  '/* save RLE decoder macro?' */
+$$GDK_PIXDATA_DUMP_RLE_DECODER		= 65536
+'} GdkPixdataDumpType;
+
+EXTERNAL CFUNCTION XLONG gdk_pixdata_to_csource	(XLONG,XLONG,XLONG)
+
+'#########################
+'########  gdk-pixbuf-transform
+'#########################
+
+'/* Scaling' */
+
+'/* Interpolation modes' */
+$$GDK_INTERP_NEAREST = 0
+$$GDK_INTERP_TILES = 1
+$$GDK_INTERP_BILINEAR = 2
+$$GDK_INTERP_HYPER = 3
+'} GdkInterpType;
+
+$$GDK_PIXBUF_ROTATE_NONE             =   0
+$$GDK_PIXBUF_ROTATE_COUNTERCLOCKWISE =  90
+$$GDK_PIXBUF_ROTATE_UPSIDEDOWN       = 180
+$$GDK_PIXBUF_ROTATE_CLOCKWISE        = 270
+'} GdkPixbufRotation;
+
+EXTERNAL CFUNCTION gdk_pixbuf_scale           (XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,DOUBLE,DOUBLE,DOUBLE,DOUBLE,XLONG)
+EXTERNAL CFUNCTION gdk_pixbuf_composite       (XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,DOUBLE,DOUBLE,DOUBLE,DOUBLE,XLONG,SLONG)
+EXTERNAL CFUNCTION gdk_pixbuf_composite_color (XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,DOUBLE,DOUBLE,DOUBLE,DOUBLE,XLONG,SLONG,SLONG,SLONG,SLONG,ULONG,ULONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_scale_simple           (XLONG,SLONG,SLONG,XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_composite_color_simple (XLONG,SLONG,SLONG,XLONG,SLONG,SLONG,ULONG,ULONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_rotate_simple          (XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_flip                   (XLONG,SLONG)
+
+'#########################
+'########  gdk-pixbuf-simple-anim
+'#########################
+
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_simple_anim_get_type ()
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_simple_anim_iter_get_type ()
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_simple_anim_new           (SLONG, SLONG,SINGLE)
+EXTERNAL CFUNCTION           gdk_pixbuf_simple_anim_add_frame     (XLONG,XLONG)
+
+'#########################
+'########  gdk-pixbuf-loader
+'#########################
+
+' Version 0.0.1
+' For GTK 2.16.2
+' Date: July 17, 2009
+' Ported to xblite by Julien Rouiller
+' ******** WORK IN PROGRESS ********
+
+''/* GdkPixbuf library - Progressive loader object
+' *
+'' * Copyright (C) 1999 The Free Software Foundation
+' *
+'' * Authors: Mark Crichton <crichton@gimp.org>
+'' *          Miguel de Icaza <miguel@gnu.org>
+'' *          Federico Mena-Quintero <federico@gimp.org>
+'' *          Jonathan Blandford <jrb@redhat.com>
+' *
+'' * This library is free software; you can redistribute it and/or
+'' * modify it under the terms of the GNU Lesser General Public
+'' * License as published by the Free Software Foundation; either
+'' * version 2 of the License, or (at your option) any later version.
+' *
+'' * This library is distributed in the hope that it will be useful,
+'' * but WITHOUT ANY WARRANTY; without even the implied warranty of
+'' * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+'' * Lesser General Public License for more details.
+' *
+'' * You should have received a copy of the GNU Lesser General Public
+'' * License along with this library; if not, write to the
+'' * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+'' * Boston, MA 02111-1307, USA.
+'' */
+
+'TYPE XLONG = XLONG	' added
+'TYPE GBOOLEAN = XLONG	' added
+
+'IMPORT "glib-20"
+'IMPORT "gobject-20"
+'IMPORT "gdk-pixbuf/gdk-pixbuf-core"
+'IMPORT "gdk-pixbuf/gdk-pixbuf-animation"
+'IMPORT "gdk-pixbuf/gdk-pixbuf-io"
+
+TYPE GDKPIXBUFLOADER
+
+	GOBJECT .parent_instance
+  
+'  '/*< private >*/
+  XLONG .priv
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_loader_get_type      ()
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_loader_new           ()
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_loader_new_with_type (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_loader_new_with_mime_type (XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_pixbuf_loader_set_size		(XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_loader_write	(XLONG, XLONG, XLONG, XLONG)
+                                                      
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_loader_get_pixbuf		(XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_loader_get_animation	(XLONG)
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_loader_close			(XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_loader_get_format		(XLONG)
+
+'#########################
+'########  gdk-pixbuf-io
+'#########################
+
+' Version 0.0.1
+' For GTK 2.16.2
+' Date: July 17, 2009
+' Ported to xblite by Julien Rouiller
+' ******** WORK IN PROGRESS ********
+
+
+' '/* GdkPixbuf library - Io handling.  This is an internal header for 
+' ' * GdkPixbuf. You should never use it unless you are doing development for 
+' ' * GdkPixbuf itself.
+'  *
+' ' * Copyright (C) 1999 The Free Software Foundation
+'  *
+' ' * Authors: Mark Crichton <crichton@gimp.org>
+' ' *          Miguel de Icaza <miguel@gnu.org>
+' ' *          Federico Mena-Quintero <federico@gimp.org>
+' ' *          Jonathan Blandford <jrb@redhat.com>
+' ' *          Michael Fulbright <drmike@redhat.com>
+'  *
+' ' * This library is free software; you can redistribute it and/or
+' ' * modify it under the terms of the GNU Lesser General Public
+' ' * License as published by the Free Software Foundation; either
+' ' * version 2 of the License, or (at your option) any later version.
+'  *
+' ' * This library is distributed in the hope that it will be useful,
+' ' * but WITHOUT ANY WARRANTY; without even the implied warranty of
+' ' * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+' ' * Lesser General Public License for more details.
+'  *
+' ' * You should have received a copy of the GNU Lesser General Public
+' ' * License along with this library; if not, write to the
+' ' * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+' ' * Boston, MA 02111-1307, USA.
+' ' */
+' 
+TYPE PSTR = XLONG	' added (pointer to a C string)
+
+TYPE GDKPIXBUFMODULEPATTERN
+	XLONG .prefix
+	XLONG .mask
+	XLONG .relevance
+END TYPE
+
+TYPE GdkPixbufFormat
+	XLONG .name
+	XLONG .signature
+	XLONG .domain
+	XLONG .description
+	XLONG .mime_types
+	XLONG .extensions
+	ULONG .flags
+	GBOOLEAN .disabled
+	XLONG .license
+END TYPE
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_get_formats	()
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_format_get_name        (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_format_get_description (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_format_get_mime_types  (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_format_get_extensions  (XLONG)
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_format_is_writable     (XLONG)
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_format_is_scalable     (XLONG)
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_format_is_disabled     (XLONG)
+EXTERNAL CFUNCTION gdk_pixbuf_format_set_disabled    (XLONG, GBOOLEAN)
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_format_get_license     (XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_get_file_info    (XLONG, XLONG, XLONG)
+
+EXTERNAL CFUNCTION ULONG gdk_pixbuf_set_option (XLONG, XLONG, XLONG)
+
+' } GdkPixbufFormatFlags;
+$$GDK_PIXBUF_FORMAT_WRITABLE = 1
+$$GDK_PIXBUF_FORMAT_SCALABLE = 2
+$$GDK_PIXBUF_FORMAT_THREADSAFE = 4
+
+

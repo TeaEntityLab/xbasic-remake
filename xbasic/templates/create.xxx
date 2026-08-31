@@ -1,0 +1,18 @@
+INTERNAL FUNCTION  CreateWindows ()
+'
+'
+' ##############################
+' #####  CreateWindows ()  #####
+' ##############################
+'
+' GuiDesigner puts code in CreateWindows() to create, initialize, display
+' every window you design graphically.  Don't modify this function unless
+' absolutely necessary - GuiDesigner needs to read and update it at times.
+'
+' CreateWindows() usually should not be executed when compiled as library.
+' Start CreateWindows() with "IF LIBRARY(0) THEN RETURN" to assure this.
+'
+FUNCTION  CreateWindows ()
+'
+	IF LIBRARY(0) THEN RETURN
+END FUNCTION

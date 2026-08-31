@@ -1,0 +1,5 @@
+These files are the beginning of the conversion of the XBasic runtime library
+from Assembly to C.
+These sources are highly experimental and not yet working.
+Please contact Wade Maxfield <maxfield@ctelcom.net> or Eddie Penninkhof
+<wizball@xs4all.nl> if you'd like to contribute.

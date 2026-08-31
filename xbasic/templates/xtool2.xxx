@@ -1,0 +1,39 @@
+			xb			XuiColor					XuiColor					xcolor.bmp		Basic
+			xb			XuiArea						XuiArea						xlabel.bmp		Basic
+			xb			XuiCheckBox				XuiCheckBox				xcheckbx.bmp	Button
+			xb			XuiRadioBox				XuiRadioBox				xradiobx.bmp	Button
+
+			xb			XuiPressButton		XuiPressButton		xpress.bmp		Button
+			xb			XuiPushButton			XuiPushButton			xpush.bmp			Button
+			xb			XuiToggleButton		XuiToggleButton		xtoggle.bmp		Button
+			xb			XuiRadioButton		XuiRadioButton		xradio.bmp		Button
+
+			xb			XuiScrollBarH			XuiScrollBarH			xscrollh.bmp	Scroll
+			xb			XuiScrollBarV			XuiScrollBarV			xscrollv.bmp	Scroll
+			xb			XuiTextLine				XuiTextLine				xtxtline.bmp	Text
+			xb			XuiTextArea				XuiTextArea				xtxtarea.bmp	Text
+
+			xb			XuiMenu						XuiMenu						xmenu.bmp			Menu
+			xb			XuiMenuBar				XuiMenuBar				xmenubar.bmp	Menu
+			xb			XuiPullDown				XuiPullDown				xpullist.bmp	List
+			xb			XuiList						XuiList						xsclist.bmp		List
+
+			xb			XuiMessage1B			XuiMessage1B			xmess1.bmp		Message
+			xb			XuiMessage2B			XuiMessage2B			xmess2.bmp		Message
+			xb			XuiMessage3B			XuiMessage3B			xmess3.bmp		Message
+			xb			XuiMessage4B			XuiMessage4B			xmess4.bmp		Message
+
+			xb			XuiProgress				XuiProgress				xprogres.bmp	Display
+			xb			XuiDialog2B				XuiDailog2B				xdialog2.bmp	Dialog
+			xb			XuiDialog3B				XuiDialog3B				xdialog3.bmp	Dialog
+			xb			XuiDialog4B				XuiDialog4B				xdialog4.bmp	Dialog
+
+			xb			XuiDropButton			XuiDropButton			xdropbut.bmp	List
+			xb			XuiDropBox				XuiDropBox				xdropbox.bmp	List
+			xb			XuiListButton			XuiDropButton			xlistbut.bmp	List
+			xb			XuiListBox				XuiDropBox				xlistbox.bmp	List
+
+			xb			XuiRange					XuiRange					xrange.bmp		Range
+			xb			XuiFile						XuiFile						xfile.bmp			File
+			xb			XuiFont						XuiFont						xfont.bmp			Font
+			xb			XuiListDialog2B		XuiListDialog2B		xlist2b.bmp		List

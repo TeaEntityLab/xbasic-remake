@@ -9,7 +9,7 @@
 //! false-fail legitimately tiny files). The swallow guard therefore only fires
 //! on *large* sources (>20 lines) that collapse to <=2 IR lines.
 //!
-//! Corpus = `xbasic-6.4.5/**/*.x` + `XBSourceLib/**/*.x` + XBSourceLib's
+//! Corpus = `xbasic/**/*.x` + `XBSourceLib/**/*.x` + XBSourceLib's
 //! per-function source `.txt` fragments (docs/README + WorkLog + *Notes are docs,
 //! excluded by the source-header heuristic).
 
@@ -101,7 +101,7 @@ fn legacy_corpus_lowers_to_ir_without_swallow() {
     let root = root();
 
     let mut legacy_x = Vec::new();
-    collect_ext(&root.join("xbasic-6.4.5"), "x", &mut legacy_x);
+    collect_ext(&root.join("xbasic"), "x", &mut legacy_x);
     let mut lib_x = Vec::new();
     collect_ext(&root.join("XBSourceLib"), "x", &mut lib_x);
     let mut lib_txt_all = Vec::new();
@@ -116,21 +116,27 @@ fn legacy_corpus_lowers_to_ir_without_swallow() {
         .collect();
 
     // Pin current coverage: additions are fine (must still lower); removals fail.
+    // The tracked xbasic port is always present; XBSourceLib has no
+    // explicit license and remains gitignored local-only reference material,
+    // so its counts are only enforced when the tree is present.
     assert!(
         legacy_x.len() >= 151,
-        "xbasic-6.4.5 .x count regressed: {} (<151)",
+        "xbasic .x count regressed: {} (<151)",
         legacy_x.len()
     );
-    assert!(
-        lib_x.len() >= 13,
-        "XBSourceLib .x count regressed: {} (<13)",
-        lib_x.len()
-    );
-    assert!(
-        lib_src_txt.len() >= 40,
-        "XBSourceLib source .txt count regressed: {} (<40)",
-        lib_src_txt.len()
-    );
+    let has_xbsourcelib = root.join("XBSourceLib").exists();
+    if has_xbsourcelib {
+        assert!(
+            lib_x.len() >= 13,
+            "XBSourceLib .x count regressed: {} (<13)",
+            lib_x.len()
+        );
+        assert!(
+            lib_src_txt.len() >= 40,
+            "XBSourceLib source .txt count regressed: {} (<40)",
+            lib_src_txt.len()
+        );
+    }
 
     let mut all = Vec::new();
     all.extend(legacy_x.iter().cloned());
@@ -151,8 +157,9 @@ fn legacy_corpus_lowers_to_ir_without_swallow() {
         total,
         failures.join("\n")
     );
+    let floor = if has_xbsourcelib { 204 } else { 151 };
     assert!(
-        total >= 204,
-        "combined migration corpus shrank: {total} (<204)"
+        total >= floor,
+        "combined migration corpus shrank: {total} (<{floor})"
     );
 }

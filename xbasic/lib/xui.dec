@@ -1,0 +1,454 @@
+'
+' To see how to use the GuiDesigner toolkit
+' see the GuiDesigner Guide at:
+'   https://www.maxreason.com/software/xbasic/documentation/guiguide.htm
+'   http://www.manmrk.net/tutorials/basic/xbasic/html/intro.htm
+'
+' ***********************************
+' *****  GuiDesigner Functions  *****
+' ***********************************
+'
+EXTERNAL FUNCTION  Xui                        ()
+EXTERNAL FUNCTION  XuiMessage                 (message$)
+EXTERNAL FUNCTION  XuiMessageRetry            (prompt$, @reply$)
+EXTERNAL FUNCTION  XuiDialog                  (message$, default$, kid, reply$)
+EXTERNAL FUNCTION  XuiGetResponse             (gridType$, title$, message$, grids$, v0, v1, kid, reply$)
+EXTERNAL FUNCTION  XuiGetReply                (grid, title$, message$, grids$, v0, v1, kid, reply$)
+EXTERNAL FUNCTION  XuiCreateWindow            (grid, gridType$, xDisp, yDisp, width, height, winType, display$)
+EXTERNAL FUNCTION  XuiReportMessage           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSendStringMessage       (grid, message$, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetNextCallback         (grid, message$, v0, v1, v2, v3, kid, r1$)
+EXTERNAL FUNCTION  XuiQueueCallbacks          (grid, message, v0, v1, v2, v3, kid, r1)
+'
+' *****  GuiDesigner Conversion Functions  *****
+'
+EXTERNAL FUNCTION  XuiAlignNameToNumber       (@name$, @number)
+EXTERNAL FUNCTION  XuiCanNameToNumber         (@name$, @number)
+EXTERNAL FUNCTION  XuiCanStringToNumber       (@name$, @number)
+EXTERNAL FUNCTION  XuiJustifyNameToNumber     (@name$, @number)
+EXTERNAL FUNCTION  XuiTextureNameToNumber     (@name$, @number)
+'
+EXTERNAL FUNCTION  XuiAlignNumberToName       (number, @name$)
+EXTERNAL FUNCTION  XuiCanNumberToName         (number, @name$)
+EXTERNAL FUNCTION  XuiCanNumberToString       (number, @name$)
+EXTERNAL FUNCTION  XuiJustifyNumberToName     (number, @name$)
+EXTERNAL FUNCTION  XuiTextureNumberToName     (number, @name$)
+'
+EXTERNAL FUNCTION  XuiPropertyValueNameToNumber (property$, value$, @value)
+'
+' *****  GuiDesigner Support Functions  *****
+'
+EXTERNAL FUNCTION  XuiCreateGrid              (@grid, gridType, @xWin, @yWin, @width, @height, window, parent, func)
+EXTERNAL FUNCTION  XuiGetDefaultColors        (@back, @draw, @low, @high, @dull, @acc, @lowtext, @hightext)
+EXTERNAL FUNCTION  XuiGetDefaultCursor        (@cursor)
+EXTERNAL FUNCTION  XuiGetDefaultMessageFuncArray (@func[])
+EXTERNAL FUNCTION  XuiEditCopy                (bufferNumber)
+EXTERNAL FUNCTION  XuiEditCut                 (bufferNumber)
+EXTERNAL FUNCTION  XuiEditPaste               (pasteGrid, bufferNumber)
+EXTERNAL FUNCTION  XuiGetGridRegion           (grid, xWin, yWin, @region, @cursor, @defaultCursor)
+EXTERNAL FUNCTION  XuiGetGridProperty         (grid, kid, @property$, @ANY)
+EXTERNAL FUNCTION  XuiGetGridTypeGrids        (gridType, @grid[])
+EXTERNAL FUNCTION  XuiGetGridTypeMessageFuncArray  (gridType, @func[])
+EXTERNAL FUNCTION  XuiGetGridTypeMessageSubArray   (gridType, SUBADDR sub[])
+EXTERNAL FUNCTION  XuiGetGridTypeProperty     (gridType, @property$, @ANY)
+EXTERNAL FUNCTION  XuiGetGridTypeValue        (gridType, @property$, @ANY)
+EXTERNAL FUNCTION  XuiGetGridValue            (grid, @property$, @ANY)
+EXTERNAL FUNCTION  XuiGetHelpWindowGrid       (@window, @grid)
+EXTERNAL FUNCTION  XuiGetKidGridNumber        (grid, kid)
+EXTERNAL FUNCTION  XuiGetPropertyDatabase     (@data$[])
+EXTERNAL FUNCTION  XuiGetTextArraySize        (@text$[], font, @w, @h, @width, @height, extraX, extraY)
+EXTERNAL FUNCTION  XuiGridContainsGridCoord   (grid, messageGrid, x, y, @xx, @yy)
+EXTERNAL FUNCTION  XuiGridFuncNameToAddr      (@name$, @address)
+EXTERNAL FUNCTION  XuiGridKid                 (grid, checkGrid)
+EXTERNAL FUNCTION  XuiGridTypeToGridFunc      (gridtype, @gridFunc)
+EXTERNAL FUNCTION  XuiHelpDisable             ()
+EXTERNAL FUNCTION  XuiHelpEnable              ()
+EXTERNAL FUNCTION  XuiPassOn                  (grid, message, @v0, @v1, @v2, @v3, kid, @ANY)
+EXTERNAL FUNCTION  XuiPlaceWindow             (window, windowType, @xDisp, @yDisp, @width, @height)
+EXTERNAL FUNCTION  XuiPositionGrid            (grid, @x, @y, @width, @height)
+EXTERNAL FUNCTION  XuiProcessMessage          (grid, message, v0, v1, v2, v3, kid, ANY, gridType)
+EXTERNAL FUNCTION  XuiRegisterGridType        (@gridType, @gridType$, gridFunc, func[], SUBADDR sub[])
+EXTERNAL FUNCTION  XuiSendMessage             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSendToKid               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSendToKids              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetDefaultColors        (back, draw, low, high, dull, acc, lowtext, hightext)
+EXTERNAL FUNCTION  XuiSetDefaultCursor        (cursor)
+EXTERNAL FUNCTION  XuiSetGridProperty         (grid, kid, @property$, ANY)
+EXTERNAL FUNCTION  XuiSetGridTypeProperty     (gridType, @property$, ANY)
+EXTERNAL FUNCTION  XuiSetGridTypeValue        (gridType, @property$, ANY)
+EXTERNAL FUNCTION  XuiSetGridValue            (grid, @property$, ANY)
+EXTERNAL FUNCTION  XuiSetPropertyDatabase     (@data$[])
+EXTERNAL FUNCTION  XuiVersion$                ()
+EXTERNAL FUNCTION  XuiWindow                  (wingrid, message, v0, v1, v2, v3, kid, ANY)
+'
+EXTERNAL FUNCTION  XuiArea                    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiBase                    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiCheckBox                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiColor                   (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiColors                  (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiConsole                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiCoordinate              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiDialog2B                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiDialog3B                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiDialog4B                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiDriveBox                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiDropBox                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiDropButton              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiImage                   (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiFile                    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiFont                    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGrip                    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiLabel                   (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiList                    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiListBox                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiListButton              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiListDialog2B            (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMenu                    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMenuBar                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMenuTextArea1B          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMessage1B               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMessage2B               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMessage3B               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMessage4B               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiPressButton             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiProgress                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiPullDown                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiPushButton              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiRadioBox                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiRadioButton             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiRange                   (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiScrollBarH              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiScrollBarV              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSolidColor              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiText                    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiTextArea                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiTextArea2B              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiTextArea3B              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiTextArea4B              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiTextLine                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiToggleButton            (grid, message, v0, v1, v2, v3, kid, ANY)
+'
+' *****  message processing functions for common messages  *****
+'
+EXTERNAL FUNCTION  XuiCallback                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiCloseWindow             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiCreateValueArray        (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiDestroy                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiDestroyWindow           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiDisable                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiDisplayed               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiDisplayWindow           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiEnable                  (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetAlign                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetBorder               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetBorderOffset         (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetCallback             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetCan                  (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetClipGrid             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetColor                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetColorExtra           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetCursor               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetDisplay              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetEnclosedGrids        (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetEnclosingGrid        (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetFocusColor           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetFocusColorExtra      (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetFont                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetFontMetrics          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetFontNumber           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetGridFunction         (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetGridFunctionName     (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetGridName             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetGridNumber           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetGridProperties       (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetGridType             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetGridTypeName         (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetGroup                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetHelp                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetHelpFile             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetHelpString           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetHelpStrings          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetHintString           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetImage                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetImageCoords          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetIndent               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetInfo                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetJustify              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetKeyboardFocus        (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetKeyboardFocusGrid    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetKidArray             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetKidNumber            (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetKids                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetCharacterMapArray    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetCharacterMapEntry    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetMaxMinSize           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetMenuEntryArray       (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetMessageFunc          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetMessageFuncArray     (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetMessageSub           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetMessageSubArray      (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetModalInfo            (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetModalWindow          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetParent               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetRedrawFlags          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetSize                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetSmallestSize         (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetState                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetStyle                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTabArray             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTabWidth             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTextArray            (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTextArrayBounds      (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTextArrayLine        (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTextArrayLines       (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTextFilename         (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTextSpacing          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTextString           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTextStrings          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTextFlag             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTexture              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetTimer                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetValue                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetValues               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetValueArray           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetWindow               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetWindowFunction       (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetWindowGrid           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetWindowIcon           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetWindowSize           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGetWindowTitle          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGotKeyboardFocus        (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGrabArray               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGrabTextArray           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGrabTextString          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiGrabValueArray          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiHidden                  (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiHideWindow              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiInitialize              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiKeyboardFocusBackward   (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiKeyboardFocusForward    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiLostKeyboardFocus       (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMaximized               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMaximizeWindow          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMinimized               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMinimizeWindow          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMonitorContext          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMonitorHelp             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMonitorKeyboard         (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMonitorMouse            (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMouseDownSetKeyboardFocus  (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiMouseEnter              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiPokeArray               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiPokeTextArray           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiPokeTextString          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiPokeValueArray          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiRedraw                  (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiRedrawGrid              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiRedrawText              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiRedrawWindow            (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiResize                  (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiResizeNot               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiResizeWindow            (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiResizeWindowToGrid      (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiRestoreWindow           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSelectWindow            (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetAlign                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetBorder               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetBorderOffset         (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetCallback             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetCan                  (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetClipGrid             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetColor                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetColorAll             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetColorExtra           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetColorExtraAll        (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetCursor               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetFocusColor           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetFocusColorExtra      (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetFont                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetFontNumber           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetGridFunction         (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetGridFunctionName     (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetGridName             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetGridProperties       (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetGridType             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetGridTypeName         (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetGroup                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetHelp                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetHelpFile             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetHelpString           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetHelpStrings          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetHintString           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetImage                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetImageCoords          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetIndent               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetInfo                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetJustify              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetKeyboardFocus        (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetKeyboardFocusGrid    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetKidArray             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetCharacterMapArray    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetCharacterMapEntry    (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetMaxMinSize           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetMenuEntryArray       (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetMessageFunc          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetMessageFuncArray     (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetMessageSub           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetMessageSubArray      (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetModalWindow          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetParent               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetRedrawFlags          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetSize                 (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetState                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetStyle                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetTabArray             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetTabWidth             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetTextArray            (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetTextArrayLine        (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetTextArrayLines       (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetTextFilename         (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetTextSpacing          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetTextString           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetTextStrings          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetTextFlag             (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetTexture              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetTimer                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetValue                (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetValues               (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetValueArray           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetWindowFunction       (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetWindowIcon           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSetWindowTitle          (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiShowWindow              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiStartTimer              (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiSystemMessage           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiTextModifyNot           (grid, message, v0, v1, v2, v3, kid, ANY)
+EXTERNAL FUNCTION  XuiReturnZeros             (grid, message, v0, v1, v2, v3, kid, ANY)
+'
+'
+' ***********************************
+' *****  GuiDesigner Constants  *****
+' ***********************************
+'
+'
+' *****  Redraw Flags  *****
+'
+	$$RedrawClip						= 0x80000000
+	$$RedrawFocus						= 0x00000400
+	$$RedrawClear						= 0x00000200
+	$$RedrawBuffer					= 0x00000100
+	$$RedrawImage						= 0x00000080
+	$$RedrawBorder					= 0x00000020
+	$$RedrawTexture					= 0x00000010
+	$$RedrawTextArray				= 0x00000008
+	$$RedrawTextString			= 0x00000004
+	$$RedrawTextAccent			= 0x00000002
+	$$RedrawTextDull				= 0x00000001
+	$$RedrawNone						= 0x00000000
+	$$RedrawClearBorder			= 0x00000220	' clear, border
+	$$RedrawDefault					= 0x800006FC	' clip, focus, clear, image, border, texture, array, string
+	$$RedrawNoTexture				= 0x800006EC	' ditto without texture
+	$$RedrawDefaultNoFocus	= 0x800002FC	' $$RedrawDefault w/o $$RedrawFocus
+'
+' *****  Texture  *****
+'
+	$$TextureFlat					=  0
+	$$TextureLower4				=  1
+	$$TextureLower2				=  2
+	$$TextureLower1				=  3
+	$$TextureShadow				=  4
+	$$TextureRaise1				=  5
+	$$TextureRaise2				=  6
+	$$TextureRaise4				=  7
+'
+' *****  Text Align and Text Justify  *****
+'
+	$$AlignUpperLeft			=  1			' bits 32 = vertical
+	$$AlignUpperCenter		=  2			' bits 10 = horizontal
+	$$AlignUpperRight			=  3
+	$$AlignMiddleLeft			=  5
+	$$AlignMiddleCenter		=  6
+	$$AlignMiddleRight		=  7
+	$$AlignLowerLeft			=  9
+	$$AlignLowerCenter		= 10
+	$$AlignLowerRight			= 11
+	$$AlignLeft						=  1			' x value
+	$$AlignCenter					=  2			' x value
+	$$AlignRight					=  3			' x value
+	$$AlignUpper					=  0			' y value
+	$$AlignMiddle					=  4			' y value
+	$$AlignLower					=  8			' y value
+	$$AlignHorizontal			=  3			' x mask
+	$$AlignVertical				= 12			' y mask
+'
+	$$JustifyLeft					=  1
+	$$JustifyCenter				=  2
+	$$JustifyRight				=  3
+	$$JustifyBoth					=  4
+'
+' *****  General Constants  *****
+'
+	$$XuiDisable					=  0
+	$$XuiEnable						= -1
+	$$XuiError						= 0x80000000
+	$$XuiCursorFlashRate	= 400 'Flash rate of text cursor in ms
+	$$PreKidKid           = 0xC0FFEE
+'
+' *****  Textarea Flag Constants  *****
+'
+	$$TextFlagAutoIndent       = 0
+	$$TextFlagTabBlockIndent   = 1
+	$$TextFlagOverwrite        = 2
+	$$TextFlagCursorLineHilite = 3
+	$$TextFlagLineNum          = 4
+	$$TextFlagRuler            = 5
+'
+' *****  Text Selection Constants  *****
+'
+	$$SelectNoChange			= 0
+	$$SelectCancel				= 1								'	cancel text selection
+	$$SelectSet						= 2								' set text selection (single-click)
+	$$SelectDrag					= 3								' drag text selection
+	$$SelectExtend				= 4								' extend (shift-click)
+'
+'
+' *****  State Constants  *****
+'
+	$$ButtonNumber				= BITFIELD (3, 0)
+	$$LeftButtonNumber		= 1
+	$$MiddleButtonNumber	= 2
+	$$RightButtonNumber		= 3
+	$$HelpButtonNumber		= 3
+'
+	$$KeyKind							= BITFIELD ( 3,20)
+	$$KeyKindVirtual			= 0
+	$$KeyKindASCII				= 1
+	$$KeyKindWide					= 2
+	$$KeyKindUnicode			= 2
+	$$KeyVirtual					= BITFIELD ( 8, 0)
+	$$KeyASCII						= BITFIELD ( 8, 0)
+	$$KeyWide							= BITFIELD (16, 0)
+	$$KeyUnicode					= BITFIELD (16, 0)
+'
+'
+' *****  .can  *****
+'
+	$$Focus								= 0x01
+	$$Respond							= 0x02
+	$$Callback						= 0x04
+	$$InputTextArray			= 0x10
+	$$InputTextString			= 0x20
+	$$TextSelection				= 0x40
+'
+' *****  messageType  *****
+'
+	$$Context							= 1
+	$$Help								= 2
+	$$Keyboard						= 4
+	$$Mouse								= 8
+'
+' *****  XuiFile kid constants  *****
+'
+	$$FileTextLine				= 2
+	$$FileFilterDropBox		= 4
+	$$FileBox							= 6

@@ -20,18 +20,22 @@ version line, and Preamble; the root copies restore the full texts):
 | `crates/xb-runtime`, `crates/xb-gui` | `LGPL-2.1-or-later` | Declared in each `Cargo.toml`. New code; LGPL so user programs linking the runtime stay freely licensable. |
 | `selfhost/` | `GPL-2.0-or-later` | Self-hosted compiler sources written in XBasic for this project (compiler component). |
 | `fixtures/`, `docs/`, `checks/`, `scripts/`, `prompts/` | `GPL-2.0-or-later` | Project test fixtures, documentation, and tooling. |
-| `xbasic-6.2.3/`, `xbasic-6.3.26-D/`, `xbasic-6.4.5/`, `XBSourceLib/` | upstream GPL-2 / LGPL-2.1 | **Local reference material only — gitignored, not distributed with this repository.** Each tree carries its own `COPYING`/`COPYING_LIB`; per-file headers govern. Copyright 1988-2000+ Max Reason; C runtime ports (`xbasic-6.4.5/src/crtl/`) copyright 2000 Wade Maxfield (LGPL). |
+| `xbasic/` | upstream GPL-2 / LGPL-2.1 | **Tracked, distributed.** Verbatim port of license-cleared source material from the upstream 6.4.5 release, reorganized (`lib/`, `include/`, `demo/`, `crtl/`, …). Per-file audit in [`xbasic/LICENSES.md`](xbasic/LICENSES.md); canonical `COPYING`/`COPYING_LIB` copies in the tree. |
+| `xbasic-6.2.3/`, `xbasic-6.3.26-D/`, `xbasic-6.4.5/`, `XBSourceLib/` | upstream GPL-2 / LGPL-2.1 (XBSourceLib: none stated) | **Local reference material only — gitignored, not distributed.** Each XBasic tree carries its own `COPYING`/`COPYING_LIB`; per-file headers govern. XBSourceLib has no explicit license statement and is therefore excluded from the tracked port. Copyright 1988-2000+ Max Reason; C runtime ports copyright 2000 Wade Maxfield (LGPL). |
 
 ## Provenance rules
 
-1. **Legacy trees are inputs, not sources.** The gitignored
-   `xbasic-*/` and `XBSourceLib/` trees are used locally as a parse/
-   compile corpus and behavior reference. Corpus-dependent tests skip
-   when the trees are absent.
-2. **LGPL-derived C code lives in exactly one place** —
-   `xbasic-6.4.5/src/crtl/` (upstream's own C ports). The `.c`
-   counterpart files beside legacy `.s` files are pure reference stubs
-   with no duplicated code; superseded dated snapshots are isolated in
+1. **The tracked corpus is `xbasic/`.** The gitignored legacy
+   trees remain local-only inputs (superseded versions, generated `.s`
+   assembly, binaries, unlicensed XBSourceLib). Tests targeting the
+   ported tree run everywhere; tests targeting local-only material
+   (`.s` source-coverage guard, XBSourceLib corpus rows) skip when the
+   trees are absent.
+2. **LGPL-derived C code lives in exactly one place** — `crtl/`
+   (upstream's own C ports; `xbasic/crtl/` in the tracked tree,
+   mirrored from `xbasic-6.4.5/src/crtl/`). The `.c` counterpart files
+   beside legacy `.s` files are pure reference stubs with no duplicated
+   code; superseded dated snapshots are isolated in
    `xbasic-6.4.5/src/linux/lib/old-versions/` with their own README.
 3. **The Rust runtime (`crates/xb-runtime`) is a fresh implementation**
    of the documented XBasic runtime behavior, not a translation of the

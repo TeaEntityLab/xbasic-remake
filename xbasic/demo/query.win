@@ -1,0 +1,222 @@
+'
+'
+' ######################
+' #####  Query ()  #####
+' ######################
+'
+' "Anatomy of Grid Functions" in the GuiDesigner Programmer Guide
+' describes the operation and modification of grid functions in detail.
+'
+' WindowFromFunction and/or WindowToFunction may not work, or may not generate the desired results if you:
+'   * Modify the kid constant definition improperly.
+'   * Modify the code in the Create subroutine improperly.
+'   * Imbed blank or comment lines in the Create subroutine.
+'   * Remove the GOSUB Resize line in the Create subroutine (comment out is okay).
+'   * Imbed special purpose code in the Create subroutine before the GOSUB Resize line.
+'   * Delete any of the four lines that assign values to designX, designY, designWidth, designHeight.
+'
+FUNCTION  Query (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+  STATIC  designX,  designY,  designWidth,  designHeight
+  STATIC  SUBADDR  sub[]
+  STATIC  upperMessage
+  STATIC  Query
+'
+  $Query         =   0  ' kid   0 grid type = Query
+  $DataMenu      =   1  ' kid   1 grid type = XuiMenu
+  $LastLabel     =   2  ' kid   2 grid type = XuiLabel
+  $LastText      =   3  ' kid   3 grid type = XuiTextLine
+  $FirstLabel    =   4  ' kid   4 grid type = XuiLabel
+  $FirstText     =   5  ' kid   5 grid type = XuiTextLine
+  $PhoneLabel    =   6  ' kid   6 grid type = XuiLabel
+  $PhoneText     =   7  ' kid   7 grid type = XuiTextLine
+  $NewButton     =   8  ' kid   8 grid type = XuiPushButton
+  $DeleteButton  =   9  ' kid   9 grid type = XuiPushButton
+  $UpdateButton  =  10  ' kid  10 grid type = XuiPushButton
+  $QueryButton   =  11  ' kid  11 grid type = XuiPushButton
+  $ExitButton    =  12  ' kid  12 grid type = XuiPushButton
+  $UpperKid      =  12  ' kid maximum
+'
+'
+  IFZ sub[] THEN GOSUB Initialize
+' XuiReportMessage (grid, message, v0, v1, v2, v3, r0, r1)
+  IF XuiProcessMessage (grid, message, @v0, @v1, @v2, @v3, @r0, @r1, Query) THEN RETURN
+  IF (message <= upperMessage) THEN GOSUB @sub[message]
+  RETURN
+'
+'
+' *****  Callback  *****  message = Callback : r1 = original message
+'
+SUB Callback
+  message = r1
+  callback = message
+  IF (message <= upperMessage) THEN GOSUB @sub[message]
+END SUB
+'
+'
+' *****  Create  *****  v0123 = xywh : r0 = window : r1 = parent
+'
+SUB Create
+  IF (v0 <= 0) THEN v0 = 0
+  IF (v1 <= 0) THEN v1 = 0
+  IF (v2 <= 0) THEN v2 = designWidth
+  IF (v3 <= 0) THEN v3 = designHeight
+  XuiCreateGrid (@grid, Query, @v0, @v1, @v2, @v3, r0, r1, &Query())
+  XuiSendMessage ( grid, #SetGridName, 0, 0, 0, 0, 0, @"Query")
+  XuiMenu        (@g, #Create, 4, 4, 312, 20, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Query(), -1, -1, $DataMenu, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"DataMenu")
+  XuiSendMessage ( g, #SetColor, $$LightRed, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"_File  _Edit  _Data  _Help  ")
+  DIM text$[16]
+  text$[ 0] = "_File"
+  text$[ 1] = " _Load"
+  text$[ 2] = " _Save"
+  text$[ 3] = " _Quit"
+  text$[ 4] = "_Edit"
+  text$[ 5] = " _Cut"
+  text$[ 6] = " _Grab"
+  text$[ 7] = " _Paste"
+  text$[ 8] = "_Data"
+  text$[ 9] = " _Sort"
+  text$[10] = " _Convert"
+  text$[11] = " _Destroy"
+  text$[12] = " _Encript"
+  text$[13] = "_Help"
+  text$[14] = " _Index"
+  text$[15] = " _Summary"
+  text$[16] = " _Contents"
+  XuiSendMessage ( g, #SetTextArray, 0, 0, 0, 0, 0, @text$[])
+  XuiLabel       (@g, #Create, 4, 24, 88, 36, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LastLabel")
+  XuiSendMessage ( g, #SetColor, $$Grey, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Last")
+  XuiTextLine    (@g, #Create, 92, 24, 224, 36, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Query(), -1, -1, $LastText, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LastText")
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"McDonald")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea798")
+  XuiLabel       (@g, #Create, 4, 60, 88, 36, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"FirstLabel")
+  XuiSendMessage ( g, #SetColor, $$Grey, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"First")
+  XuiTextLine    (@g, #Create, 92, 60, 224, 36, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Query(), -1, -1, $FirstText, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"FirstText")
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Ronald")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea801")
+  XuiLabel       (@g, #Create, 4, 96, 88, 36, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"PhoneLabel")
+  XuiSendMessage ( g, #SetColor, $$Grey, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Phone")
+  XuiTextLine    (@g, #Create, 92, 96, 224, 36, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Query(), -1, -1, $PhoneText, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"PhoneText")
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"1-800-BURGERS")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"XuiArea804")
+  XuiPushButton  (@g, #Create, 4, 132, 104, 36, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Query(), -1, -1, $NewButton, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"NewButton")
+  XuiSendMessage ( g, #SetColor, 17, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"New")
+  XuiPushButton  (@g, #Create, 108, 132, 104, 36, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Query(), -1, -1, $DeleteButton, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"DeleteButton")
+  XuiSendMessage ( g, #SetColor, 17, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Delete")
+  XuiPushButton  (@g, #Create, 212, 132, 104, 36, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Query(), -1, -1, $UpdateButton, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"UpdateButton")
+  XuiSendMessage ( g, #SetColor, 17, $$Black, $$DarkBlue, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Update")
+  XuiPushButton  (@g, #Create, 4, 168, 156, 36, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Query(), -1, -1, $QueryButton, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"QueryButton")
+  XuiSendMessage ( g, #SetColor, 17, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Query")
+  XuiPushButton  (@g, #Create, 160, 168, 156, 36, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Query(), -1, -1, $ExitButton, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"ExitButton")
+  XuiSendMessage ( g, #SetColor, 102, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureShadow, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Exit")
+  GOSUB Resize
+END SUB
+'
+'
+' *****  CreateWindow  *****  v0123 = xywh : r0 = windowType : r1 = &WindowFunc()
+'
+SUB CreateWindow
+  IF (v0 =  0) THEN v0 = designX
+  IF (v1 =  0) THEN v1 = designY
+  IF (v2 <= 0) THEN v2 = designWidth
+  IF (v3 <= 0) THEN v3 = designHeight
+  XuiWindow (@window, #WindowCreate, v0, v1, v2, v3, r0, r1)
+  v0 = 0 : v1 = 0 : r0 = window : r1 = 0
+  GOSUB Create
+  XuiWindow (window, #WindowRegister, grid, -1, v2, v3, @r0, @"Query")
+END SUB
+'
+'
+' *****  GetSmallestSize  *****  See "Anatomy of Grid Functions"
+'
+SUB GetSmallestSize
+END SUB
+'
+'
+' *****  Resize  *****  See "Anatomy of Grid Functions"
+'
+SUB Resize
+END SUB
+'
+'
+' *****  Selection  *****  See "Anatomy of Grid Functions"
+'
+SUB Selection
+END SUB
+'
+'
+' *****  Initialize  *****  ' see "Anatomy of Grid Functions"
+'
+SUB Initialize
+  XuiGetDefaultMessageFuncArray (@func[])
+  XgrMessageNameToNumber (@"LastMessage", @upperMessage)
+'
+  func[#Callback]           = &XuiCallback ()               ' disable to handle Callback messages internally
+' func[#GetSmallestSize]    = 0                             ' enable to add internal GetSmallestSize routine
+' func[#Resize]             = 0                             ' enable to add internal Resize routine
+'
+  DIM sub[upperMessage]
+' sub[#Callback]            = SUBADDRESS (Callback)         ' enable to handle Callback messages internally
+  sub[#Create]              = SUBADDRESS (Create)           ' must be internal routine
+  sub[#CreateWindow]        = SUBADDRESS (CreateWindow)     ' must be internal routine
+' sub[#GetSmallestSize]     = SUBADDRESS (GetSmallestSize)  ' enable to add internal GetSmallestSize routine
+' sub[#Resize]              = SUBADDRESS (Resize)           ' enable to add internal Resize routine
+  sub[#Selection]           = SUBADDRESS (Selection)        ' routes Selection callbacks to subroutine
+'
+  IF sub[0] THEN PRINT "Query(): Initialize: Error::: (Undefined Message)
+  IF func[0] THEN PRINT "Query(): Initialize: Error::: (Undefined Message)
+  XuiRegisterGridType (@Query, "Query", &Query(), @func[], @sub[])
+'
+' Don't remove the following 4 lines, or WindowFromFunction/WindowToFunction will not work
+'
+  designX = 524
+  designY = 75
+  designWidth = 320
+  designHeight = 208
+'
+  gridType = Query
+  XuiSetGridTypeValue (gridType, @"x",                designX)
+  XuiSetGridTypeValue (gridType, @"y",                designY)
+  XuiSetGridTypeValue (gridType, @"width",            designWidth)
+  XuiSetGridTypeValue (gridType, @"height",           designHeight)
+  XuiSetGridTypeValue (gridType, @"maxWidth",         designWidth)
+  XuiSetGridTypeValue (gridType, @"maxHeight",        designHeight)
+  XuiSetGridTypeValue (gridType, @"minWidth",         designWidth)
+  XuiSetGridTypeValue (gridType, @"minHeight",        designHeight)
+  XuiSetGridTypeValue (gridType, @"border",           $$BorderFrame)
+  XuiSetGridTypeValue (gridType, @"can",              $$Focus OR $$Respond OR $$Callback OR $$TextSelection)
+  XuiSetGridTypeValue (gridType, @"focusKid",         $LastText)
+  XuiSetGridTypeValue (gridType, @"inputTextString",  $LastText)
+  IFZ message THEN RETURN
+END SUB
+END FUNCTION

@@ -1,0 +1,824 @@
+'
+'
+' **********************************************
+' *****  GraphicsDesigner COMPOSITE TYPES  *****
+' **********************************************
+'
+TYPE MESSAGE
+	XLONG			.wingrid						' window/grid number
+	XLONG			.message						' message number
+	XLONG			.v0									' arguments
+	XLONG			.v1
+	XLONG			.v2
+	XLONG			.v3
+	XLONG			.r0
+	XLONG			.r1
+END TYPE
+TYPE FONT
+	XLONG   .font								' native font #
+	XLONG   .sfont							' system font #
+	XLONG   .addrFont						' system font structure address
+	XLONG   .count							' number of times created
+	XLONG   .width							' max width of character cell
+	XLONG   .height							' max height of character cell
+	XLONG   .ascent							' baseline to highest top
+	XLONG   .descent						' baseline to lowest bottom
+	XLONG   .size               ' point size * 10
+	XLONG   .weight             ' 0-1000 : thin, light, medium, bold, heavy
+	XLONG   .italic             ' 0-1000 : slant-left, upright, slant-right
+	XLONG   .angle              ' baseline angle in .1 degree units
+	XLONG   .space
+	XLONG   .gap
+	XLONG   .resX
+	XLONG   .resY
+END TYPE
+EXTERNAL FUNCTION  Xgr                         ()
+EXTERNAL FUNCTION  XgrBorderNameToNumber       (border$, @border)
+EXTERNAL FUNCTION  XgrBorderNumberToName       (border, @border$)
+EXTERNAL FUNCTION  XgrBorderNumberToWidth      (border, @width)
+EXTERNAL FUNCTION  XgrColorNameToNumber        (color$, @color)
+EXTERNAL FUNCTION  XgrColorNumberToName        (color, @color$)
+EXTERNAL FUNCTION  XgrCursorNameToNumber       (cursor$, @cursor)
+EXTERNAL FUNCTION  XgrCursorNumberToName       (cursor, @cursor$)
+EXTERNAL FUNCTION  XgrGetClipboard             (clipboard, type, @data$, UBYTE @data[])
+EXTERNAL FUNCTION  XgrGetCursor                (cursor)
+EXTERNAL FUNCTION  XgrGetCursorOverride        (cursor)
+EXTERNAL FUNCTION  XgrGetDisplayOffset         (display$, @xOffset, @yOffset, @bw, @th)
+EXTERNAL FUNCTION  XgrGetDisplaySize           (display$, @w, @h, @bw, @th)
+EXTERNAL FUNCTION  XgrGetKeystateModify        (state, @modify, @edit)
+EXTERNAL FUNCTION  XgrGetWorkArea              (@workAreaX, @workAreaY, @workAreaWidth, @workAreaHeight)
+EXTERNAL FUNCTION  XgrIconNameToNumber         (icon$, @icon)
+EXTERNAL FUNCTION  XgrIconNumberToName         (icon, @icon$)
+EXTERNAL FUNCTION  XgrRegisterCursor           (cursor$, @cursor)
+EXTERNAL FUNCTION  XgrRegisterIcon             (icon$, @icon)
+EXTERNAL FUNCTION  XgrSetClipboard             (clipboard, type, @data$, UBYTE @data[])
+EXTERNAL FUNCTION  XgrSetCursor                (cursor, @oldCursor)
+EXTERNAL FUNCTION  XgrSetCursorOverride        (cursor, @oldCursorOverride)
+EXTERNAL FUNCTION  XgrSetDebug                 (debug)
+EXTERNAL FUNCTION  XgrSetGridCursor            (grid, cursor)
+EXTERNAL FUNCTION  XgrSystemWindowToWindow     (swindow, @wingrid, @top)
+EXTERNAL FUNCTION  XgrWindowToSystemWindow     (wingrid, @swindow)
+EXTERNAL FUNCTION  XgrVersion$                 ()
+'
+' font functions
+'
+EXTERNAL FUNCTION  XgrCreateFont               (@font, fontName$, fontSize, fontWeight, fontItalic, fontAngle)
+EXTERNAL FUNCTION  XgrDestroyFont              (font)
+EXTERNAL FUNCTION  XgrGetFontInfo              (font, @fontName$, @fontSize, @fontWeight, @fontItalic, @fontAngle)
+EXTERNAL FUNCTION  XgrGetFontMetrics           (font, @maxCharWidth, @maxCharHeight, @ascent, @descent, @gap, @space)
+EXTERNAL FUNCTION  XgrGetFontNames             (@count, @fontName$[])
+EXTERNAL FUNCTION  XgrGetTextArrayImageSize    (font, @text$[], @w, @h, @width, @height, extraX, extraY)
+EXTERNAL FUNCTION  XgrGetTextImageSize         (font, @text$, @dx, @dy, @width, @height, @gap, @space)
+'
+' color functions
+'
+EXTERNAL FUNCTION  XgrConvertColorToRGB        (color, red, green, blue)
+EXTERNAL FUNCTION  XgrConvertRGBToColor        (red, green, blue, color)
+EXTERNAL FUNCTION  XgrGetBackgroundColor       (grid, color)
+EXTERNAL FUNCTION  XgrGetBackgroundRGB         (grid, red, green, blue)
+EXTERNAL FUNCTION  XgrGetDefaultColors         (back, draw, low, high, dull, acc, lowtext, hightext)
+EXTERNAL FUNCTION  XgrGetDrawingColor          (grid, color)
+EXTERNAL FUNCTION  XgrGetDrawingRGB            (grid, red, green, blue)
+EXTERNAL FUNCTION  XgrGetGridColors            (grid, back, draw, low, high, dull, acc, lowtext, hightext)
+EXTERNAL FUNCTION  XgrSetBackgroundColor       (grid, color)
+EXTERNAL FUNCTION  XgrSetBackgroundRGB         (grid, red, green, blue)
+EXTERNAL FUNCTION  XgrSetDefaultColors         (back, draw, low, high, dull, acc, lowtext, hightext)
+EXTERNAL FUNCTION  XgrSetDrawingColor          (grid, color)
+EXTERNAL FUNCTION  XgrSetDrawingRGB            (grid, red, green, blue)
+EXTERNAL FUNCTION  XgrSetGridColors            (grid, back, draw, low, high, dull, acc, lowtext, hightext)
+'
+' window functions
+'
+EXTERNAL FUNCTION  XgrCreateWindow             (@window, windowType, x, y, width, height, winFunc, display$)
+EXTERNAL FUNCTION  XgrDestroyWindow            (window)
+EXTERNAL FUNCTION  XgrDisplayWindow            (window)
+EXTERNAL FUNCTION  XgrFullscreenWindow         (window)
+EXTERNAL FUNCTION  XgrGetModalWindow           (@window)
+EXTERNAL FUNCTION  XgrGetWindowDisplay         (window, @display$)
+EXTERNAL FUNCTION  XgrGetWindowFunction        (window, @func)
+EXTERNAL FUNCTION  XgrGetWindowIcon            (window, @icon)
+EXTERNAL FUNCTION  XgrGetWindowGrid            (window, @grid)
+EXTERNAL FUNCTION  XgrGetWindowPositionAndSize (window, @x, @y, @width, @height)
+EXTERNAL FUNCTION  XgrGetWindowState           (window, @visibility)
+EXTERNAL FUNCTION  XgrGetWindowTitle           (window, @title$)
+EXTERNAL FUNCTION  XgrGetWindowVisibility      (window, @visibility)
+EXTERNAL FUNCTION  XgrHideWindow               (window)
+EXTERNAL FUNCTION  XgrMaximizeWindow           (window)
+EXTERNAL FUNCTION  XgrMinimizeWindow           (window)
+EXTERNAL FUNCTION  XgrPlaceWindow              (windowType, xDisp, yDisp, width, height)
+EXTERNAL FUNCTION  XgrRestoreWindow            (window)
+EXTERNAL FUNCTION  XgrSetModalWindow           (window)
+EXTERNAL FUNCTION  XgrSetWindowFunction        (window, func)
+EXTERNAL FUNCTION  XgrSetWindowIcon            (window, icon)
+EXTERNAL FUNCTION  XgrSetWindowMaxMinSize      (window)
+EXTERNAL FUNCTION  XgrSetWindowPositionAndSize (window, xDisp, yDisp, width, height)
+EXTERNAL FUNCTION  XgrSetWindowState           (window, visibility)
+EXTERNAL FUNCTION  XgrSetWindowTitle           (window, title$)
+EXTERNAL FUNCTION  XgrSetWindowVisibility      (window, visibility)
+EXTERNAL FUNCTION  XgrShowWindow               (window)
+'
+' coordinate functions
+'
+EXTERNAL FUNCTION  XgrConvertDisplayToGrid     (grid, xDisp, yDisp, @xGrid, @yGrid)
+EXTERNAL FUNCTION  XgrConvertDisplayToLocal    (grid, xDisp, yDisp, @x, @y)
+EXTERNAL FUNCTION  XgrConvertDisplayToScaled   (grid, xDisp, yDisp, @x#, @y#)
+EXTERNAL FUNCTION  XgrConvertDisplayToWindow   (grid, xDisp, yDisp, @xWin, @yWin)
+EXTERNAL FUNCTION  XgrConvertGridToDisplay     (grid, xGrid, yGrid, @xDisp, @yDisp)
+EXTERNAL FUNCTION  XgrConvertGridToLocal       (grid, xGrid, yGrid, @x, @y)
+EXTERNAL FUNCTION  XgrConvertGridToScaled      (grid, xGrid, yGrid, @x#, @y#)
+EXTERNAL FUNCTION  XgrConvertGridToWindow      (grid, xGrid, yGrid, @xWin, @yWin)
+EXTERNAL FUNCTION  XgrConvertLocalToDisplay    (grid, x, y, @xDisp, @yDisp)
+EXTERNAL FUNCTION  XgrConvertLocalToGrid       (grid, x, y, @xGrid, @yGrid)
+EXTERNAL FUNCTION  XgrConvertLocalToScaled     (grid, x, y, @x#, @y#)
+EXTERNAL FUNCTION  XgrConvertLocalToWindow     (grid, x, y, @xWin, @yWin)
+EXTERNAL FUNCTION  XgrConvertScaledToDisplay   (grid, x#, y#, @xDisp, @yDisp)
+EXTERNAL FUNCTION  XgrConvertScaledToGrid      (grid, x#, y#, @x, @y)
+EXTERNAL FUNCTION  XgrConvertScaledToLocal     (grid, x#, y#, @x, @y)
+EXTERNAL FUNCTION  XgrConvertScaledToWindow    (grid, x#, y#, @xWin, @yWin)
+EXTERNAL FUNCTION  XgrConvertWindowToDisplay   (grid, xWin, yWin, @xDisp, @yDisp)
+EXTERNAL FUNCTION  XgrConvertWindowToGrid      (grid, xWin, yWin, @xGrid, @yGrid)
+EXTERNAL FUNCTION  XgrConvertWindowToLocal     (grid, xWin, yWin, @x, @y)
+EXTERNAL FUNCTION  XgrConvertWindowToScaled    (grid, xWin, yWin, @x#, @y#)
+'
+EXTERNAL FUNCTION  XgrGetGridBox               (grid, @x1Grid, @y1Grid, @x2Grid, @y2Grid)
+EXTERNAL FUNCTION  XgrGetGridBoxDisplay        (grid, @x1Disp, @y1Disp, @x2Disp, @y2Disp)
+EXTERNAL FUNCTION  XgrGetGridBoxGrid           (grid, @x1Grid, @y1Grid, @x2Grid, @y2Grid)
+EXTERNAL FUNCTION  XgrGetGridBoxLocal          (grid, @x1, @y1, @x2, @y2)
+EXTERNAL FUNCTION  XgrGetGridBoxScaled         (grid, @x1#, @y1#, @x2#, @y2#)
+EXTERNAL FUNCTION  XgrGetGridBoxWindow         (grid, @x1Win, @y1Win, @x2Win, @y2Win)
+EXTERNAL FUNCTION  XgrGetGridCoordinates       (grid, @x, @y, @x1, @y1, @x2, @y2)
+EXTERNAL FUNCTION  XgrGetGridCoords       (grid, @x, @y, @x1, @y1, @x2, @y2)
+EXTERNAL FUNCTION  XgrGetGridPositionAndSize   (grid, @x, @y, @width, @height)
+EXTERNAL FUNCTION  XgrSetGridBox               (grid, x1Grid, y1Grid, x2Grid, y2Grid)
+EXTERNAL FUNCTION  XgrSetGridBoxGrid           (grid, x1Grid, y1Grid, x2Grid, y2Grid)
+EXTERNAL FUNCTION  XgrSetGridBoxScaled         (grid, x1#, y1#, x2#, y2#)
+EXTERNAL FUNCTION  XgrSetGridBoxScaledAt       (grid, x1#, y1#, x2#, y2#, x1, y1, x2, y2)
+EXTERNAL FUNCTION  XgrSetGridPositionAndSize   (grid, x, y, width, height)
+'
+' grid functions
+'
+EXTERNAL FUNCTION  XgrCreateGrid               (@grid, gridType, x, y, width, height, window, parent, func)
+EXTERNAL FUNCTION  XgrDestroyGrid              (grid)
+EXTERNAL FUNCTION  XgrGetGridBorder            (grid, @border, @borderA, @borderB, @borderFlags)
+EXTERNAL FUNCTION  XgrGetGridBorderOffset      (grid, @left, @top, @right, @bottom)
+EXTERNAL FUNCTION  XgrGetGridBuffer            (grid, @buffer, @x, @y)
+EXTERNAL FUNCTION  XgrGetGridCharacterMapArray (grid, @map[])
+EXTERNAL FUNCTION  XgrGetGridDrawingMode       (grid, @mode, @lineStyle, @lineWidth)
+EXTERNAL FUNCTION  XgrGetGridFont              (grid, @font)
+EXTERNAL FUNCTION  XgrGetGridFunction          (grid, @func)
+EXTERNAL FUNCTION  XgrGetGridParent            (grid, @parent)
+EXTERNAL FUNCTION  XgrGetGridState             (grid, @state)
+EXTERNAL FUNCTION  XgrGetGridTimerID           (grid, @timeOutID)
+EXTERNAL FUNCTION  XgrGetGridType              (grid, @type)
+EXTERNAL FUNCTION  XgrGetGridWindow            (grid, @window)
+EXTERNAL FUNCTION  XgrGridTypeNameToNumber     (type$, @type)
+EXTERNAL FUNCTION  XgrGridTypeNumberToName     (type, @type$)
+EXTERNAL FUNCTION  XgrRegisterGridType         (type$, @type)
+EXTERNAL FUNCTION  XgrSetGridBorder            (grid, border, borderA, borderB, borderFlags)
+EXTERNAL FUNCTION  XgrSetGridBorderOffset      (grid, left, top, right, bottom)
+EXTERNAL FUNCTION  XgrSetGridBuffer            (grid, buffer, x, y)
+EXTERNAL FUNCTION  XgrSetGridDrawingMode       (grid, mode, lineStyle, lineWidth)
+EXTERNAL FUNCTION  XgrSetGridFont              (grid, font)
+EXTERNAL FUNCTION  XgrSetGridFunction          (grid, func)
+EXTERNAL FUNCTION  XgrSetGridParent            (grid, parent)
+EXTERNAL FUNCTION  XgrSetGridState             (grid, state)
+EXTERNAL FUNCTION  XgrSetGridTimer             (grid, msec)
+EXTERNAL FUNCTION  XgrSetGridType              (grid, type)
+EXTERNAL FUNCTION  XgrSetGridCharacterMapArray (grid, @map[])
+'
+' drawing functions
+'
+EXTERNAL FUNCTION  XgrClearGrid                (grid, color)
+EXTERNAL FUNCTION  XgrClearWindow              (window, color)
+EXTERNAL FUNCTION  XgrDrawArc                  (grid, color, r, startAngle#, endAndge#)
+EXTERNAL FUNCTION  XgrDrawArcGrid              (grid, color, r, startAngle#, endAndge#)
+EXTERNAL FUNCTION  XgrDrawArcScaled            (grid, color, r#, startAngle#, endAndge#)
+EXTERNAL FUNCTION  XgrDrawBorder               (grid, border, back, low, high, x1, y1, x2, y2)
+EXTERNAL FUNCTION  XgrDrawBorderGrid           (grid, border, back, low, high, x1Grid, y1Grid, x2Grid, y2Grid)
+EXTERNAL FUNCTION  XgrDrawBorderScaled         (grid, border, back, low, high, x1#, y1#, x2#, y2#)
+EXTERNAL FUNCTION  XgrDrawBox                  (grid, color, x1, y1, x2, y2)
+EXTERNAL FUNCTION  XgrDrawBoxGrid              (grid, color, x1Grid, y1Grid, x2Grid, y2Grid)
+EXTERNAL FUNCTION  XgrDrawBoxScaled            (grid, color, x1#, y1#, x2#, y2#)
+EXTERNAL FUNCTION  XgrDrawCircle               (grid, color, r)
+EXTERNAL FUNCTION  XgrDrawCircleGrid           (grid, color, r)
+EXTERNAL FUNCTION  XgrDrawCircleScaled         (grid, color, r#)
+EXTERNAL FUNCTION  XgrDrawEllipse              (grid, color, rx, ry)
+EXTERNAL FUNCTION  XgrDrawEllipseGrid          (grid, color, rx, ry)
+EXTERNAL FUNCTION  XgrDrawEllipseScaled        (grid, color, rx#, ry#)
+EXTERNAL FUNCTION  XgrDrawCurve                (grid, color, segments, x0, y0, x1, y1, x2, y2, x3, y3)
+EXTERNAL FUNCTION  XgrDrawCurveGrid            (grid, color, segments, x0g, y0g, x1g, y1g, x2g, y2g, x3g, y3g)
+EXTERNAL FUNCTION  XgrDrawCurveScaled          (grid, color, segments, x0#, y0#, x1#, y1#, x2#, y2#, x3#, y3#)
+EXTERNAL FUNCTION  XgrDrawGridBorder           (grid, border)
+EXTERNAL FUNCTION  XgrDrawLine                 (grid, color, x1, y1, x2, y2)
+EXTERNAL FUNCTION  XgrDrawLineGrid             (grid, color, x1Grid, y1Grid, x2Grid, y2Grid)
+EXTERNAL FUNCTION  XgrDrawLineScaled           (grid, color, x1#, y1#, x2#, y2#)
+EXTERNAL FUNCTION  XgrDrawLineTo               (grid, color, x, y)
+EXTERNAL FUNCTION  XgrDrawLineToGrid           (grid, color, xGrid, yGrid)
+EXTERNAL FUNCTION  XgrDrawLineToScaled         (grid, color, x#, y#)
+EXTERNAL FUNCTION  XgrDrawLineToDelta          (grid, color, dx, dy)
+EXTERNAL FUNCTION  XgrDrawLineToDeltaGrid      (grid, color, dxGrid, dyGrid)
+EXTERNAL FUNCTION  XgrDrawLineToDeltaScaled    (grid, color, dx#, dy#)
+EXTERNAL FUNCTION  XgrDrawLines                (grid, color, first, count, ANY line[])
+EXTERNAL FUNCTION  XgrDrawLinesGrid            (grid, color, first, count, ANY line[])
+EXTERNAL FUNCTION  XgrDrawLinesScaled          (grid, color, first, count, ANY line[])
+EXTERNAL FUNCTION  XgrDrawLinesTo              (grid, color, start, count, ANY line[])
+EXTERNAL FUNCTION  XgrDrawLinesToGrid          (grid, color, start, count, ANY line[])
+EXTERNAL FUNCTION  XgrDrawLinesToScaled        (grid, color, start, count, ANY line[])
+EXTERNAL FUNCTION  XgrDrawPoint                (grid, color, x, y)
+EXTERNAL FUNCTION  XgrDrawPointGrid            (grid, color, xGrid, yGrid)
+EXTERNAL FUNCTION  XgrDrawPointScaled          (grid, color, x#, y#)
+EXTERNAL FUNCTION  XgrDrawPoints               (grid, color, first, count, ANY point[])
+EXTERNAL FUNCTION  XgrDrawPointsGrid           (grid, color, first, count, ANY point[])
+EXTERNAL FUNCTION  XgrDrawPointsScaled         (grid, color, first, count, ANY point[])
+EXTERNAL FUNCTION  XgrDrawText                 (grid, color, text$)
+EXTERNAL FUNCTION  XgrDrawTextGrid             (grid, color, text$)
+EXTERNAL FUNCTION  XgrDrawTextScaled           (grid, color, text$)
+EXTERNAL FUNCTION  XgrDrawTextFill             (grid, color, text$)
+EXTERNAL FUNCTION  XgrDrawTextFillGrid         (grid, color, text$)
+EXTERNAL FUNCTION  XgrDrawTextFillScaled       (grid, color, text$)
+EXTERNAL FUNCTION  XgrFillBox                  (grid, color, x1, y1, x2, y2)
+EXTERNAL FUNCTION  XgrFillBoxGrid              (grid, color, x1Grid, y1Grid, x2Grid, y2Grid)
+EXTERNAL FUNCTION  XgrFillBoxScaled            (grid, color, x1#, y1#, x2#, y2#)
+EXTERNAL FUNCTION  XgrFillCircle               (grid, color, r)
+EXTERNAL FUNCTION  XgrFillCircleGrid           (grid, color, r)
+EXTERNAL FUNCTION  XgrFillCircleScaled         (grid, color, r#)
+EXTERNAL FUNCTION  XgrFillEllipse              (grid, color, rx, ry)
+EXTERNAL FUNCTION  XgrFillEllipseGrid          (grid, color, rx, ry)
+EXTERNAL FUNCTION  XgrFillEllipseScaled        (grid, color, rx#, ry#)
+EXTERNAL FUNCTION  XgrFillTriangle             (grid, color, style, direction, x1, y1, x2, y2)
+EXTERNAL FUNCTION  XgrFillTriangleGrid         (grid, color, style, direction, x1Grid, y1Grid, x2Grid, y2Grid)
+EXTERNAL FUNCTION  XgrFillTriangleScaled       (grid, color, style, direction, x1#, y1#, x2#, y2#)
+EXTERNAL FUNCTION  XgrGetDrawpoint             (grid, x, y)
+EXTERNAL FUNCTION  XgrGetDrawpointGrid         (grid, xGrid, yGrid)
+EXTERNAL FUNCTION  XgrGetDrawpointScaled       (grid, x#, y#)
+EXTERNAL FUNCTION  XgrGrabPoint                (grid, x, y, @r, @g, @b, @color)
+EXTERNAL FUNCTION  XgrGrabPointGrid            (grid, xGrid, yGrid, @r, @g, @b, @color)
+EXTERNAL FUNCTION  XgrGrabPointScaled          (grid, x#, y#, @r, @g, @b, @color)
+EXTERNAL FUNCTION  XgrMoveDelta                (grid, dx, dy)
+EXTERNAL FUNCTION  XgrMoveDeltaGrid            (grid, dxGrid, dyGrid)
+EXTERNAL FUNCTION  XgrMoveDeltaScaled          (grid, dx#, dy#)
+EXTERNAL FUNCTION  XgrMoveTo                   (grid, x, y)
+EXTERNAL FUNCTION  XgrMoveToGrid               (grid, xGrid, yGrid)
+EXTERNAL FUNCTION  XgrMoveToScaled             (grid, x#, y#)
+EXTERNAL FUNCTION  XgrRedrawWindow             (window, action, x, y, width, height)
+EXTERNAL FUNCTION  XgrSetDrawpoint             (grid, x, y)
+EXTERNAL FUNCTION  XgrSetDrawpointGrid         (grid, xGrid, yGrid)
+EXTERNAL FUNCTION  XgrSetDrawpointScaled       (grid, x#, y#)
+'
+' image functions
+'
+EXTERNAL FUNCTION  XgrCopyImage                (grid, source)
+EXTERNAL FUNCTION  XgrDrawImage                (grid, source, sx1, sy1, sx2, sy2, dx1, dy1)
+EXTERNAL FUNCTION  XgrGetImage                 (grid, UBYTE image[])
+EXTERNAL FUNCTION  XgrGetImage32               (grid, UBYTE image[])
+EXTERNAL FUNCTION  XgrGetImageArrayInfo        (UBYTE image[], @depth, @width, @height)
+EXTERNAL FUNCTION  XgrGetImageArrayInfoPNM     (UBYTE image[], @depth, @width, @height)
+EXTERNAL FUNCTION  XgrLoadFile                 (file$, UBYTE file[])
+EXTERNAL FUNCTION  XgrLoadImage                (file$, UBYTE image[])
+EXTERNAL FUNCTION  XgrRefreshGrid              (grid)
+EXTERNAL FUNCTION  XgrSaveImage                (file$, UBYTE image[])
+EXTERNAL FUNCTION  XgrSetImage                 (grid, UBYTE image[])
+EXTERNAL FUNCTION  XgrSetImagePNM              (grid, UBYTE image[])
+'
+' focus functions
+'
+EXTERNAL FUNCTION  XgrGetMouseInfo             (@window, @grid, @x, @y, @state, @time)
+EXTERNAL FUNCTION  XgrGetSelectedWindow        (@window)
+EXTERNAL FUNCTION  XgrGetTextSelectionGrid     (@grid)
+EXTERNAL FUNCTION  XgrSetSelectedWindow        (window)
+EXTERNAL FUNCTION  XgrSetTextSelectionGrid     (grid)
+EXTERNAL FUNCTION  XgrUnsetTextSelectionGrid   (grid)
+'
+' message functions
+'
+EXTERNAL FUNCTION  XgrAddMessage               (wingrid, message, v0, v1, v2, v3, r0, r1)
+EXTERNAL FUNCTION  XgrDeleteMessages           (count)
+EXTERNAL FUNCTION  XgrGetCEO                   (func)
+EXTERNAL FUNCTION  XgrGetMessages              (@count, MESSAGE @message[])
+EXTERNAL FUNCTION  XgrGetMessageType           (message, @messageType)
+EXTERNAL FUNCTION  XgrGetMonitors              (grid, MESSAGE @monitor[])
+EXTERNAL FUNCTION  XgrJamMessage               (wingrid, message, v0, v1, v2, v3, r0, r1)
+EXTERNAL FUNCTION  XgrMallocInfo               (arena, ordblks, smblks, hblks, hblkhd, usmblks, fsmblks, wordblks, fordblks, keepcost)
+EXTERNAL FUNCTION  XgrMessageNameToNumber      (message$, @message)
+EXTERNAL FUNCTION  XgrMessageNames             (@count, @message$[])
+EXTERNAL FUNCTION  XgrMessageNumberToName      (message, @message$)
+EXTERNAL FUNCTION  XgrMessagesPending          (count)
+EXTERNAL FUNCTION  XgrMonitor                  (grid, message, v0, v1, v2, v3, r0, r1)
+EXTERNAL FUNCTION  XgrPeekMessage              (wingrid, message, v0, v1, v2, v3, r0, r1)
+EXTERNAL FUNCTION  XgrProcessMessages          (count)
+EXTERNAL FUNCTION  XgrRegisterMessage          (message$, @message)
+EXTERNAL FUNCTION  XgrSendMessage              (wingrid, message, v0, v1, v2, v3, r0, r1)
+EXTERNAL FUNCTION  XgrSendStringMessage        (wingrid, message$, v0, v1, v2, v3, r0, r1)
+EXTERNAL FUNCTION  XgrSetCEO                   (func)
+'
+' old names and functions - stubs to be link compatible with GuiDesigner
+'
+EXTERNAL FUNCTION  XgrGetColors                (grid, @back, @draw, @low, @high, @dull, @acc, @lowtext, @hightext)
+EXTERNAL FUNCTION  XgrGetGridClip              (grid, @clip)
+EXTERNAL FUNCTION  XgrRegisterIconColor        (icon$, @icon)
+EXTERNAL FUNCTION  XgrSetColors                (grid, back, draw, low, high, dull, acc, lowtext, hightext)
+EXTERNAL FUNCTION  XgrSetGridClip              (grid, clip)
+EXTERNAL FUNCTION  XgrGetSystemDisplay					()
+'
+'END EXPORT
+'
+EXTERNAL FUNCTION  XgrChangeProperty           (wingrid, property, type, mode, @data[])
+EXTERNAL FUNCTION  XgrGetWindowPropertyXLONG   (wingrid, property, type, items, @data[])
+'END EXPORT
+EXTERNAL FUNCTION  XxxXgrAlarmBlock            ()
+EXTERNAL FUNCTION  XxxXgrAlarmUnblock          ()
+EXTERNAL FUNCTION  XxxXgrAsignAtom             (atom$, @atom)
+EXTERNAL FUNCTION  XxxXgrAtomNameToNumber      (atom$, @atom)
+EXTERNAL FUNCTION  XxxXgrAtomNumberToName      (atom, @atom$)
+EXTERNAL FUNCTION  XxxXgrChangeProperty        (wingrid, property, type, format, mode, UBYTE data[], elements)
+EXTERNAL FUNCTION  XxxXgrGetWindowMapped       (window, mapped)
+EXTERNAL FUNCTION  XxxXgrGetWindowProperty     (wingrid, prop, off, longs, type, @rType, @rFormat, @rItems, @rAfter, UBYTE data[])
+EXTERNAL FUNCTION  XxxXgrGetWMNormalHints      (window, XSizeHints sizeHints)
+EXTERNAL FUNCTION  XxxXgrListProperties        (wingrid, @atoms[])
+EXTERNAL FUNCTION  XxxXgrGetTransientForHint   (wingrid, @forwindow)
+EXTERNAL FUNCTION  XxxXgrSetTransientForHint   (wingrid, forwingrid)
+EXTERNAL FUNCTION  XxxXgrGetAllWindows         (WINDOW @windowReturn[], DISPLAY @displayReturn[], FONT fontReturn[])
+EXTERNAL FUNCTION  XxxXgrLowerWindow           (window)
+EXTERNAL FUNCTION  XxxXgrRaiseWindow           (window)
+EXTERNAL FUNCTION  XxxXgrRestackWindows        (@windows[])
+EXTERNAL FUNCTION  XxxXgrSendEvent             (wingrid, propogate, eventMask, addrXEvent)
+EXTERNAL FUNCTION  XxxXgrConfigureWindow       (wingrid, valueMask, XWindowChanges values)
+'END EXPORT
+'
+' private externally visible functions
+'
+EXTERNAL FUNCTION  XxxCheckMessages            ()
+EXTERNAL FUNCTION  XxxCheckStack               ()
+EXTERNAL FUNCTION  XxxXgrSysMessages           ()
+EXTERNAL FUNCTION  XxxDispatchEvents           (sync, wait)
+EXTERNAL FUNCTION  XxxXgrBlowback              ()
+EXTERNAL FUNCTION  XxxXgrConsoleUpdateRequest  (consolePrinting)
+EXTERNAL FUNCTION  XxxXgrGridTimer             (tgrid, timer, count, msec, time)
+EXTERNAL FUNCTION  XxxXgrQuit                  ()
+EXTERNAL FUNCTION  XxxXgrResetUserMode         ()
+EXTERNAL FUNCTION  XxxXgrSetHelpWindow         (helpWindow)
+EXTERNAL FUNCTION  XxxXgrSetHuh                (huh)
+EXTERNAL FUNCTION  XxxXgrSleep                 (msec)
+EXTERNAL FUNCTION  XxxXgrWindowToSystemDisplayAndWindow (window, @sdisplay, @swindow)
+'
+EXTERNAL FUNCTION  XxxDIBToDIB24               (UBYTE simage[], UBYTE dimage[])
+EXTERNAL FUNCTION  XxxDIBToDIB32               (UBYTE simage[], UBYTE dimage[])
+'
+EXTERNAL FUNCTION  XgrXcwCreateFontSet        (fontSet, fontSetNames$, missing$[], def$)
+EXTERNAL FUNCTION  XgrXcwGetFontsOfFontSet    (fontSet, XFontStruct xfstructList[], list$[])
+EXTERNAL FUNCTION  XgrXcwSetDrawingColor      (window, color)
+EXTERNAL FUNCTION  XgrXcwUtf8ToWc             (utf8$, ULONG wchar[])
+EXTERNAL FUNCTION  XgrXwcTextExtents          (fontSet, wchar[], XRectangle rectInk, XRectangle rectOverall)
+EXTERNAL FUNCTION  XgrXcwInvalidGrid          (grid)
+EXTERNAL FUNCTION  XgrXcwWinGridDrawable      (winGrid)
+EXTERNAL FUNCTION  XgrXcwLocalToBufferCoords  (grid, buffer, @sbuffer, @overlap, x1, y1, x2, y2, @xx1, @yy1, @xx2, @yy2)
+EXTERNAL FUNCTION  XgrXmbTextExtents          (fontSet, mbString$, XRectangle rectInk, XRectangle rectOverall)
+EXTERNAL FUNCTION  XgrXcwGetUfont             (font, fontName$, ufont$, FONT fontInfo)
+EXTERNAL FUNCTION  XgrXcwGetOneFontName       (@count, @fontName$)
+EXTERNAL FUNCTION  XgrXcwFreeFontSet          (fontSet)
+EXTERNAL FUNCTION  XgrXcwSetLocale$           (category, locale$)
+'
+'
+' ****************************************
+' *****  GraphicsDesigner Constants  *****
+' ****************************************
+'
+' *****  kind of entity  *****
+'
+	$$KindWindow          = 1    ' same as $$Window
+	$$KindGrid            = 2    ' same as $$Grid
+	$$KindImage           = 4    ' same as $$Image
+	$$Window              = 1    ' window = top level window, including pop-up
+	$$Grid                = 2    ' grid = subwindow
+	$$Image               = 4    ' image = pixmap
+'
+' permanently defined grid types (also registered as #GridTypeXXXX)
+'
+	$$GridTypeCoordinate  = 0    ' coordinate grid
+	$$GridTypeImage       = 1    ' memory image
+	$$GridTypeBuffer      = 1    ' alias
+'
+' permanently defined clipboard types
+'
+	$$ClipboardTypeNone   = 0    ' no contents
+	$$ClipboardTypeText   = 1    ' ASCII text
+	$$ClipboardTypeImage  = 2    ' DIB image
+'
+' *****  debug type  *****
+'
+	$$DebugBrief          = 1
+	$$DebugWordy          = 2
+	$$DebugError          = 4
+'
+' *****  monitor type  *****
+'
+	$$MonitorContext      = 1
+	$$MonitorHelp         = 2
+	$$MonitorKeyboard     = 4
+	$$MonitorMouse        = 8
+'
+' *****  window types  *****
+'
+	$$WindowTypeTopMost        = 0x80000000
+	$$WindowTypeNoSelect       = 0x40000000
+	$$WindowTypeNoFrame        = 0x20000000
+	$$WindowTypeResizeFrame    = 0x10000000
+	$$WindowTypeTitleBar       = 0x08000000
+	$$WindowTypeSystemMenu     = 0x04000000
+	$$WindowTypeMinimizeBox    = 0x02000000
+	$$WindowTypeMinimizeButton = 0x02000000
+	$$WindowTypeMaximizeBox    = 0x01000000
+	$$WindowTypeMaximizeButton = 0x01000000
+	$$WindowTypeModal          = 0x99000000
+	$$WindowTypeNormal         = 0x17000000
+	$$WindowTypeFixedSize      = 0x08000000
+	$$WindowTypeNoIcon         = 0x00100000
+	$$WindowTypeDefault        = 0x00000000
+	$$WindowTypeCloseMinimize  = 0x00010000
+	$$WindowTypeCloseHide      = 0x00020000
+	$$WindowTypeCloseDestroy   = 0x00040000
+	$$WindowTypeCloseTerminate = 0x00080000
+'
+' *****  window states  *****
+'
+	$$WindowHidden        = 0
+	$$WindowDisplayed     = 1
+	$$WindowMinimized     = 2
+	$$WindowMaximized     = 3
+'
+' *****  window minimum size *****
+'
+	$$WindowMinimumHeight = 16
+	$$WindowMinimumWidth  = 16
+'
+' *****  grid states  *****
+'
+	$$GridDisabled        = 0
+	$$GridEnabled         = 1
+'
+' *****  grid border styles  *****
+'
+	$$BorderNone          =  0
+	$$BorderFlat          =  1 : $$BorderFlat1  =  1
+	$$BorderFlat2         =  2
+	$$BorderFlat4         =  3
+	$$BorderHiLine1       =  4 : $$BorderLine1  =  4
+	$$BorderHiLine2       =  5 : $$BorderLine2  =  5
+	$$BorderHiLine4       =  6 : $$BorderLine4  =  6
+	$$BorderLoLine1       =  7
+	$$BorderLoLine2       =  8
+	$$BorderLoLine4       =  9
+	$$BorderRaise1        = 10 : $$BorderRaise  = 10
+	$$BorderRaise2        = 11
+	$$BorderRaise4        = 12
+	$$BorderLower1        = 13 : $$BorderLower  = 13
+	$$BorderLower2        = 14
+	$$BorderLower4        = 15
+	$$BorderFrame         = 16
+	$$BorderDrain         = 17
+	$$BorderRidge         = 18
+	$$BorderValley        = 19
+	$$BorderWide          = 20  ' wide window frame border w/o resize marks
+	$$BorderWideResize    = 21  ' wide window frame border with resize marks
+	$$BorderWindow        = 22  ' window frame border w/o resize marks
+	$$BorderWindowResize  = 23  ' window frame border with resize marks
+	$$BorderRise2         = 24
+	$$BorderSink2         = 25
+	$$BorderUpper         = 31  ' highest valid border number
+'
+' *****  drawing modes  *****
+'
+	$$DrawCOPY            = 0    ' obsolete set
+	$$DrawSET             = 0
+	$$DrawXOR             = 1
+	$$DrawAND             = 2
+	$$DrawOR              = 3
+	$$DrawMax             = 3
+'
+	$$DrawModeCOPY        = 0    ' new set
+	$$DrawModeSET         = 0
+	$$DrawModeXOR         = 1
+	$$DrawModeAND         = 2
+	$$DrawModeOR          = 3
+	$$DrawModeMax         = 3
+'
+	$$LineSolid           = 0    ' obsolete set
+	$$LineDash            = 1
+	$$LineDot             = 2
+	$$LineDashDot         = 3
+	$$LineDashDotDot      = 4
+	$$LineMax             = 4
+'
+	$$LineStyleSolid      = 0    ' new set
+	$$LineStyleDash       = 1
+	$$LineStyleDot        = 2
+	$$LineStyleDashDot    = 3
+	$$LineStyleDashDotDot = 4
+	$$LineStyleMax        = 4
+'
+	$$LineFill            = 0x0010
+	$$LineFillDash        = 0x0011
+	$$LineFillDot         = 0x0012
+	$$LineFillDashDot     = 0x0013
+	$$LineFillDashDotDot  = 0x0014
+'
+	$$TriangleUp          = 0x0010
+	$$TriangleRight       = 0x0014
+	$$TriangleDown        = 0x0018
+	$$TriangleLeft        = 0x001C
+'
+	$$CurrentColor        = -1
+	$$DefaultColor        = -1
+'
+	$$ClipTypeNone        = 0    ' none = no contents
+	$$ClipTypeText        = 1    ' ASCII text
+	$$ClipTypeImage       = 2    ' DIB format image
+'
+' ****************************************************
+' *****  standard colors with names  (0 to 124)  *****
+' ****************************************************
+'
+'   0xRRGGBBCC
+'     RR          = 0x00 to 0xFF (0 to 255) red intensity
+'       GG        = 0x00 to 0xFF (0 to 255) green intensity
+'         BB      = 0x00 to 0xFF (0 to 255) blue intensity
+'           CC    = 0x00 to 0x7C (0 to 124) standard color number
+'
+' ColorConstant  Decimal  Hexadecimal
+'
+'                         color#    RRGGBBCC
+	$$Black               =   0   ' 0x00000000
+	$$DarkBlue            =   1   ' 0x00003F01
+	$$MediumBlue          =   2   ' 0x00007F02
+	$$Blue                =   2   ' 0x00007F02
+	$$BrightBlue          =   3   ' 0x0000BF03
+	$$LightBlue           =   4   ' 0x0000FF04
+	$$DarkGreen           =   5   ' 0x003F0005
+	$$MediumGreen         =  10   ' 0x007F000A
+	$$Green               =  10   ' 0x007F000A
+	$$BrightGreen         =  15   ' 0x00BF000F
+	$$LightGreen          =  20   ' 0x00FF0014
+	$$DarkCyan            =   6   ' 0x003F3F06
+	$$MediumCyan          =  12   ' 0x007F7F0C
+	$$Cyan                =  12   ' 0x007F7F0C
+	$$BrightCyan          =  18   ' 0x00BFBF12
+	$$LightCyan           =  24   ' 0x00FFFF18
+	$$DarkRed             =  25   ' 0x3F000019
+	$$MediumRed           =  50   ' 0x7F000032
+	$$Red                 =  50   ' 0x7F000032
+	$$BrightRed           =  75   ' 0xBF00004B
+	$$LightRed            = 100   ' 0xFF000064
+	$$DarkMagenta         =  26   ' 0x3F003F1A
+	$$MediumMagenta       =  52   ' 0x7F007F34
+	$$Magenta             =  52   ' 0x7F007F34
+	$$BrightMagenta       =  78   ' 0xBF00BF4E
+	$$LightMagenta        = 104   ' 0xFF00FF68
+	$$DarkBrown           =  30   ' 0x3F3F001E
+	$$MediumBrown         =  60   ' 0x7F7F003C
+	$$Brown               =  60   ' 0x7F7F003C
+	$$Yellow              =  90   ' 0xBFBF005A
+	$$BrightYellow        = 120   ' 0xFFFF0078
+	$$LightYellow         = 120   ' 0xFFFF0078
+	$$DarkGrey            =  31   ' 0x3F3F3F1F
+	$$MediumGrey          =  62   ' 0x7F7F7F3E
+	$$Grey                =  62   ' 0x7F7F7F3E
+	$$BrightGrey          =  93   ' 0xBFBFBF5D
+	$$LightGrey           =  93   ' 0xBFBFBF5D
+	$$DarkSteel           =  32   ' 0x3F3F7F20
+	$$MediumSteel         =  63   ' 0x7F7FBF3F
+	$$Steel               =  63   ' 0x7F7FBF3F
+	$$BrightSteel         =  94   ' 0xBFBFFF5E
+	$$MediumOrange        =  81   ' 0xBF3F3F51
+	$$Orange              =  81   ' 0xBF3F3F51
+	$$BrightOrange        = 112   ' 0xFF7F7F70
+	$$LightOrange         = 112   ' 0xFF7F7F70
+	$$MediumAqua          =  42   ' 0x3FBF7F2A
+	$$Aqua                =  42   ' 0x3FBF7F2A
+	$$BrightAqua          =  73   ' 0x7FFFBF49
+	$$DarkViolet          =  57   ' 0x7F3F7F39
+	$$MediumViolet        =  88   ' 0xBF7FBF58
+	$$Violet              =  88   ' 0xBF7FBF58
+	$$BrightViolet        = 119   ' 0xFFBFFF77
+	$$LightViolet         = 119   ' 0xFFBFFF77
+	$$White               = 124   ' 0xFFFFFF7C
+'
+' keyboard key and mouse button bits in mouse messages
+'
+	$$MouseShiftKey       = 0x00010000  ' bit 16 = ShiftKey
+	$$MouseControlKey     = 0x00020000  ' bit 17 = ControlKey
+	$$MouseAltKey         = 0x00040000  ' bit 18 = AltKey
+	$$MouseMod1Key        = 0x00040000  ' bit 18 = Mod1Key (alias AltKey)
+	$$MouseMod2Key        = 0x00080000  ' bit 19 = Mod2Key
+	$$MouseMod3Key        = 0x00100000  ' bit 20 = Mod3Key
+	$$MouseMod4Key        = 0x00200000  ' bit 21 = Mod4Key
+	$$MouseMod5Key        = 0x00400000  ' bit 22 = Mod5Key
+	$$MouseButton1        = 0x01000000  ' bit 24 = MouseButton1  left button
+	$$MouseButton2        = 0x02000000  ' bit 25 = MouseButton2  middle button
+	$$MouseButton3        = 0x04000000  ' bit 26 = MouseButton3  right button
+	$$MouseButton4        = 0x08000000  ' bit 27 = MouseButton4  extra button
+	$$MouseButton5        = 0x10000000  ' bit 28 = MouseButton5  extra button
+	$$MouseButtonMask     = 0x1F000000  '
+'
+	$$ShiftBit            = 0x00010000  ' bit 16
+	$$ControlBit          = 0x00020000  ' bit 17
+	$$CtrlBit             = 0x00020000  ' bit 17  alias
+	$$AltBit              = 0x00040000  ' bit 18
+	$$RightAltBit         = 0x00080000  ' bit 19
+	$$RightShiftBit       = 0x00400000  ' bit 22
+	$$RightControlBit     = 0x00800000  ' bit 23
+	$$LeftButtonBit       = 0x01000000  ' bit 24
+	$$MiddleButtonBit     = 0x02000000  ' bit 25
+	$$RightButtonBit      = 0x04000000  ' bit 26
+	$$HelpButtonBit       = 0x04000000  ' bit 26
+'
+' *****  key types  *****
+'
+	$$KeyTypeVirtualKey   = 0
+	$$KeyTypeAscii        = 1
+	$$KeyTypeUnicode      = 2
+'
+' *****  ASCII "control" characters  *****
+'
+	$$AsciiAlarm          = 0x07    ' \a
+	$$AsciiBell           = 0x07    ' \a
+	$$AsciiBackspace      = 0x08    ' \b
+	$$AsciiTab            = 0x09    ' \t
+	$$AsciiLinefeed       = 0x0A    ' \n
+	$$AsciiNewline        = 0x0A    ' \n
+	$$AsciiVerticalTab    = 0x0B    ' \v
+	$$AsciiFormFeed       = 0x0C    ' \f
+	$$AsciiEnter          = 0x0D    ' \r
+	$$AsciiReturn         = 0x0D    ' \r
+	$$AsciiEscape         = 0x1B    ' \e
+	$$AsciiDelete         = 0x7F    ' \d
+'
+' *****  virtual key codes  *****
+'
+	$$VirtualKey          = BITFIELD (8,24)
+	$$KeyLeftButton       = 0x01
+	$$KeyRightButton      = 0x02
+	$$KeyBreak            = 0x03
+	$$KeyMiddleButton     = 0x04
+	$$KeyBackspace        = 0x08
+	$$KeyTab              = 0x09
+	$$KeyClear            = 0x0C
+	$$KeyEnter            = 0x0D
+	$$KeyShift            = 0x10
+	$$KeyControl          = 0x11
+	$$KeyAlt              = 0x12
+	$$KeyPause            = 0x13
+	$$KeyCapLock          = 0x14
+	$$KeyEscape           = 0x1B
+	$$KeyControlA         = 0x01
+	$$KeyControlB         = 0x02
+	$$KeyControlC         = 0x03
+	$$KeyControlD         = 0x04
+	$$KeyControlE         = 0x05
+	$$KeyControlF         = 0x06
+	$$KeyControlG         = 0x07
+	$$KeyControlH         = 0x08
+	$$KeyControlI         = 0x09
+	$$KeyControlJ         = 0x0A
+	$$KeyControlK         = 0x0B
+	$$KeyControlL         = 0x0C
+	$$KeyControlM         = 0x0D
+	$$KeyControlN         = 0x0E
+	$$KeyControlO         = 0x0F
+	$$KeyControlP         = 0x10
+	$$KeyControlQ         = 0x11
+	$$KeyControlR         = 0x12
+	$$KeyControlS         = 0x13
+	$$KeyControlT         = 0x14
+	$$KeyControlU         = 0x15
+	$$KeyControlV         = 0x16
+	$$KeyControlW         = 0x17
+	$$KeyControlX         = 0x18
+	$$KeyControlY         = 0x19
+	$$KeyControlZ         = 0x1A
+	$$KeySpace            = 0x20
+	$$KeyPageUp           = 0x21
+	$$KeyPageDown         = 0x22
+	$$KeyEnd              = 0x23
+	$$KeyHome             = 0x24
+	$$KeyLeftArrow        = 0x25
+	$$KeyUpArrow          = 0x26
+	$$KeyRightArrow       = 0x27
+	$$KeyDownArrow        = 0x28
+	$$KeySelect           = 0x29
+	$$KeyExecute          = 0x2B
+	$$KeyPrintScreen      = 0x2C
+	$$KeyInsert           = 0x2D
+	$$KeyDelete           = 0x2E
+	$$KeyHelp             = 0x2F
+	$$Key0                = 0x30
+	$$Key1                = 0x31
+	$$Key2                = 0x32
+	$$Key3                = 0x33
+	$$Key4                = 0x34
+	$$Key5                = 0x35
+	$$Key6                = 0x36
+	$$Key7                = 0x37
+	$$Key8                = 0x38
+	$$Key9                = 0x39
+	$$KeyA                = 0x41
+	$$KeyB                = 0x42
+	$$KeyC                = 0x43
+	$$KeyD                = 0x44
+	$$KeyE                = 0x45
+	$$KeyF                = 0x46
+	$$KeyG                = 0x47
+	$$KeyH                = 0x48
+	$$KeyI                = 0x49
+	$$KeyJ                = 0x4A
+	$$KeyK                = 0x4B
+	$$KeyL                = 0x4C
+	$$KeyM                = 0x4D
+	$$KeyN                = 0x4E
+	$$KeyO                = 0x4F
+	$$KeyP                = 0x50
+	$$KeyQ                = 0x51
+	$$KeyR                = 0x52
+	$$KeyS                = 0x53
+	$$KeyT                = 0x54
+	$$KeyU                = 0x55
+	$$KeyV                = 0x56
+	$$KeyW                = 0x57
+	$$KeyX                = 0x58
+	$$KeyY                = 0x59
+	$$KeyZ                = 0x5A
+	$$KeyLeftWindow       = 0x5B
+	$$KeyRightWindow      = 0x5C
+	$$KeyApps             = 0x5D
+	$$Keypad0             = 0x60
+	$$Keypad1             = 0x61
+	$$Keypad2             = 0x62
+	$$Keypad3             = 0x63
+	$$Keypad4             = 0x64
+	$$Keypad5             = 0x65
+	$$Keypad6             = 0x66
+	$$Keypad7             = 0x67
+	$$Keypad8             = 0x68
+	$$Keypad9             = 0x69
+	$$KeypadMultiply      = 0x6A
+	$$KeypadAdd           = 0x6B
+	$$KeypadSubtract      = 0x6D
+	$$KeypadDecimalPoint  = 0x6E
+	$$KeypadDivide        = 0x6F
+	$$KeyF1               = 0x70
+	$$KeyF2               = 0x71
+	$$KeyF3               = 0x72
+	$$KeyF4               = 0x73
+	$$KeyF5               = 0x74
+	$$KeyF6               = 0x75
+	$$KeyF7               = 0x76
+	$$KeyF8               = 0x77
+	$$KeyF9               = 0x78
+	$$KeyF10              = 0x79
+	$$KeyF11              = 0x7A
+	$$KeyF12              = 0x7B
+	$$KeyF13              = 0x7C
+	$$KeyF14              = 0x7D
+	$$KeyF15              = 0x7E
+	$$KeyF16              = 0x7F
+	$$KeyF17              = 0x80
+	$$KeyF18              = 0x81
+	$$KeyF19              = 0x82
+	$$KeyF20              = 0x83
+	$$KeyF21              = 0x84
+	$$KeyF22              = 0x85
+	$$KeyF23              = 0x86
+	$$KeyF24              = 0x87
+	$$KeyNumLock          = 0x90
+	$$KeyScroll           = 0x91
+	$$KeyLeftShift        = 0xA0
+	$$KeyRightShift       = 0xA1
+	$$KeyLeftControl      = 0xA2
+	$$KeyRightControl     = 0xA3
+	$$KeyLeftAlt          = 0xA4
+	$$KeyLeftMenu         = 0xA4
+	$$KeyRightAlt         = 0xA5
+	$$KeyRightMenu        = 0xA5
+'
+' XgrXcwSetLocale$() categories
+'
+  $$LC_CTYPE            =  0
+  $$LC_NUMERIC          =  1
+  $$LC_TIME             =  2
+  $$LC_COLLATE          =  3
+  $$LC_MONETARY         =  4
+  $$LC_MESSAGES         =  5
+  $$LC_ALL              =  6
+  $$LC_PAPER            =  7
+  $$LC_NAME             =  8
+  $$LC_ADDRESS          =  9
+  $$LC_TELEPHONE        = 10
+  $$LC_MEASUREMENT      = 11
+  $$LC_IDENTIFICATION   = 12
+'
+' XgrProcessMessages() values for "maxcount" number of messages to process
+'
+	$$ProcessOneOnly      =  1
+	$$ProcessOneOrNone    =  0
+	$$ProcessOneOrAll     = -1
+	$$ProcessAllOrNone    = -2
+'

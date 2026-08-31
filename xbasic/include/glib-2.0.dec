@@ -1,0 +1,3068 @@
+''Version 0.0.7
+''Date: 31.07.2009
+''author: Liviu Armeanu
+''see http:\\homepages.ihug.co.nz\~armeanu for updates
+''this version is checked agains glib 2.20.3
+
+'#########################
+'########  gtypes
+'#########################
+
+'/* Define some mathematical constants that aren't available
+' * symbolically in some strict ISO C implementations.
+$$G_E  =   2.7182818284590452353602874713526624977572470937000
+$$G_LN2  = 0.69314718055994530941723212145817656807550013436026
+$$G_LN10 = 2.3025850929940456840179914546843642076011014886288
+$$G_PI  =  3.1415926535897932384626433832795028841971693993751
+$$G_PI_2 = 1.5707963267948966192313216916397514420985846996876
+$$G_PI_4 = 0.78539816339744830961566084581987572104929234984378
+$$G_SQRT2 = 1.4142135623730950488016887242096980785696718753769
+
+'/* IEEE Standard 754 Single Precision Storage Format (gfloat):
+' *
+' *        31 30           23 22            0
+' * +--------+---------------+---------------+
+' * | s 1bit | e[30:23] 8bit | f[22:0] 23bit |
+' * +--------+---------------+---------------+
+' * B0------------------->B1------->B2-->B3-->
+' *
+' * IEEE Standard 754 Double Precision Storage Format (gdouble):
+' *
+' *        63 62            52 51            32   31            0
+' * +--------+----------------+----------------+ +---------------+
+' * | s 1bit | e[62:52] 11bit | f[51:32] 20bit | | f[31:0] 32bit |
+' * +--------+----------------+----------------+ +---------------+
+' * B0--------------->B1---------->B2--->B3---->  B4->B5->B6->B7->
+' */
+'/* subtract from biased_exponent to form base2 exponent (normal numbers) */
+$$G_IEEE754_FLOAT_BIAS	= 127
+$$G_IEEE754_DOUBLE_BIAS	= 1023
+'/* multiply with base2 exponent to get base10 exponent (normal numbers) */
+$$G_LOG_2_BASE_10		= 0.30102999566398119521
+
+TYPE MPNF
+     ULONG .flags
+'    ULONG .mantissa ': 23;
+'    ULONG .biased_exponent ': 8;
+'    ULONG .sign ': 1;
+END TYPE
+
+TYPE GFLOATIEEE754
+UNION
+  SINGLE .v_float
+  MPNF .mpn
+END UNION
+END TYPE
+
+TYPE MPND
+     ULONG .flags1
+     ULONG .flags2
+'    ULONG .mantissa_low ': 32;
+'    ULONG .mantissa_high ': 20;
+'    ULONG .biased_exponent ': 11;
+'    ULONG .sign ': 1;
+END TYPE
+
+TYPE GDOUBLEIEEE754
+UNION
+  DOUBLE .v_double
+  MPND .mpn
+END UNION
+END TYPE
+
+TYPE GTIMEVAL
+	SLONG .tv_sec
+  SLONG .tv_usec
+END TYPE
+
+'#########################
+'########  gutils
+'#########################
+
+EXTERNAL CFUNCTION XLONG glib_check_version (ULONG, ULONG, ULONG)
+
+EXTERNAL CFUNCTION XLONG g_get_user_name        ()
+EXTERNAL CFUNCTION XLONG g_get_real_name        ()
+EXTERNAL CFUNCTION XLONG g_get_home_dir         ()
+EXTERNAL CFUNCTION XLONG g_get_tmp_dir          ()
+EXTERNAL CFUNCTION XLONG g_get_host_name	     ()
+EXTERNAL CFUNCTION XLONG g_get_prgname          ()
+EXTERNAL CFUNCTION g_set_prgname          (XLONG)
+EXTERNAL CFUNCTION XLONG g_get_application_name ()
+EXTERNAL CFUNCTION g_set_application_name (XLONG)
+
+EXTERNAL CFUNCTION XLONG g_get_user_data_dir      ()
+EXTERNAL CFUNCTION XLONG g_get_user_config_dir    ()
+EXTERNAL CFUNCTION XLONG g_get_user_cache_dir     ()
+EXTERNAL CFUNCTION XLONG g_get_system_data_dirs   ()
+EXTERNAL CFUNCTION XLONG g_win32_get_system_data_dirs_for_module (XLONG)
+
+EXTERNAL CFUNCTION XLONG g_get_system_config_dirs ()
+
+EXTERNAL CFUNCTION XLONG g_get_language_names ()
+
+' * GUserDirectory:
+' * @G_USER_DIRECTORY_DESKTOP: the user's Desktop directory
+' * @G_USER_DIRECTORY_DOCUMENTS: the user's Documents directory
+' * @G_USER_DIRECTORY_DOWNLOAD: the user's Downloads directory
+' * @G_USER_DIRECTORY_MUSIC: the user's Music directory
+' * @G_USER_DIRECTORY_PICTURES: the user's Pictures directory
+' * @G_USER_DIRECTORY_PUBLIC_SHARE: the user's shared directory
+' * @G_USER_DIRECTORY_TEMPLATES: the user's Templates directory
+' * @G_USER_DIRECTORY_VIDEOS: the user's Movies directory
+' * @G_USER_N_DIRECTORIES: the number of enum values
+' *
+' * These are logical ids for special directories which are defined
+' * depending on the platform used. You should use g_get_user_special_dir()
+' * to retrieve the full path associated to the logical id.
+' *
+' * The #GUserDirectory enumeration can be extended at later date. Not
+' * every platform has a directory for every logical id in this
+' * enumeration.
+
+$$G_USER_DIRECTORY_DESKTOP = 0
+$$G_USER_DIRECTORY_DOCUMENTS = 1
+$$G_USER_DIRECTORY_DOWNLOAD = 2
+$$G_USER_DIRECTORY_MUSIC = 3
+$$G_USER_DIRECTORY_PICTURES = 4
+$$G_USER_DIRECTORY_PUBLIC_SHARE = 5
+$$G_USER_DIRECTORY_TEMPLATES = 6
+$$G_USER_DIRECTORY_VIDEOS = 7
+$$G_USER_N_DIRECTORIES = 8
+' GUserDirectory
+
+EXTERNAL CFUNCTION XLONG g_get_user_special_dir (XLONG)
+
+TYPE GDEBUGKEY
+  XLONG .key
+  ULONG .value
+END TYPE
+
+'/* Miscellaneous utility functions
+EXTERNAL CFUNCTION ULONG g_parse_debug_string (XLONG,	XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_snprintf           (XLONG,	ULONG,	XLONG,	...)
+EXTERNAL CFUNCTION XLONG g_vsnprintf          (XLONG,	ULONG,	XLONG,	XLONG)
+
+'/* Check if a file name is an absolute path */
+EXTERNAL CFUNCTION XLONG g_path_is_absolute   (XLONG)
+
+'/* In case of absolute paths, skip the root part */
+EXTERNAL CFUNCTION XLONG g_path_skip_root     (XLONG)
+
+'/* These two functions are deprecated and will be removed in the next
+' * major release of GLib. Use g_path_get_dirname/g_path_get_basename
+' * instead. Whatch out! The string returned by g_path_get_basename
+' * must be g_freed, while the string returned by g_basename must not.*/
+EXTERNAL CFUNCTION XLONG g_basename           (XLONG)
+
+'/* The returned strings are newly allocated with g_malloc() */
+EXTERNAL CFUNCTION XLONG g_get_current_dir_utf8    ()
+EXTERNAL CFUNCTION XLONG g_path_get_basename  (XLONG)
+EXTERNAL CFUNCTION XLONG g_path_get_dirname   (XLONG)
+
+'/* Set the pointer at the specified location to NULL */
+EXTERNAL CFUNCTION g_nullify_pointer    (XLONG)
+
+EXTERNAL CFUNCTION XLONG g_getenv_utf8             (XLONG)
+EXTERNAL CFUNCTION XLONG g_setenv_utf8             (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_unsetenv_utf8           (XLONG)
+EXTERNAL CFUNCTION XLONG g_listenv            ()
+
+'/* we use a GLib function as a replacement for ATEXIT, so
+' * the programmer is not required to check the return value
+' * (if there is any in the implementation) and doesn't encounter
+' * missing include files.
+EXTERNAL CFUNCTION g_atexit		(XLONG)
+
+'/* Look for an executable in PATH, following execvp() rules */
+EXTERNAL CFUNCTION XLONG g_find_program_in_path_utf8  (XLONG)
+
+'/* Bit tests
+EXTERNAL CFUNCTION g_bit_nth_lsf (ULONG,	XLONG)
+EXTERNAL CFUNCTION g_bit_nth_msf (ULONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_bit_storage (ULONG)
+
+'/* Trash Stacks
+' * elements need to be >= sizeof (gpointer)
+
+TYPE GTRASHSTACK
+  XLONG .next
+END TYPE
+
+EXTERNAL CFUNCTION g_trash_stack_push	(XLONG,						 XLONG)
+EXTERNAL CFUNCTION XLONG g_trash_stack_pop	(XLONG)
+EXTERNAL CFUNCTION XLONG g_trash_stack_peek	(XLONG)
+EXTERNAL CFUNCTION ULONG g_trash_stack_height	(XLONG)
+
+'#########################
+'########  gatomic
+'#########################
+
+EXTERNAL CFUNCTION XLONG g_atomic_int_get  (XLONG)
+EXTERNAL CFUNCTION g_atomic_int_set  (XLONG, XLONG)
+EXTERNAL CFUNCTION g_atomic_int_add  (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_atomic_int_exchange_and_add   (XLONG, XLONG)
+EXTERNAL CFUNCTION SLONG g_atomic_int_compare_and_exchange  (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_atomic_pointer_get (XLONG)
+EXTERNAL CFUNCTION g_atomic_pointer_set (XLONG, XLONG)
+EXTERNAL CFUNCTION SLONG g_atomic_pointer_compare_and_exchange (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_atomic_int_inc  (XLONG)
+EXTERNAL CFUNCTION XLONG g_atomic_int_dec_and_test  (XLONG)
+
+'#########################
+'########  gmessages
+'#########################
+
+EXTERNAL CFUNCTION g_print (XLONG, ...)
+'/* calculate a string size, guaranteed to fit format + args.
+EXTERNAL CFUNCTION ULONG g_printf_string_upper_bound (XLONG, XLONG)
+'/* Glib log levels and flags.
+'  /* log flags */
+$$G_LOG_FLAG_RECURSION          = 1
+$$G_LOG_FLAG_FATAL              = 2
+'  /* GLib log levels */
+$$G_LOG_LEVEL_ERROR             = 4       '/* always fatal */
+$$G_LOG_LEVEL_CRITICAL          = 8
+$$G_LOG_LEVEL_WARNING           = 16
+$$G_LOG_LEVEL_MESSAGE           = 32
+$$G_LOG_LEVEL_INFO              = 64
+$$G_LOG_LEVEL_DEBUG             = 128
+$$G_LOG_LEVEL_MASK              = 0
+
+'/* Logging mechanism
+EXTERNAL CFUNCTION ULONG g_log_set_handler       (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_log_remove_handler    (XLONG, XLONG)
+EXTERNAL CFUNCTION g_log_default_handler   (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_log_set_default_handler (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_log                   (XLONG, XLONG, XLONG, ...)
+EXTERNAL CFUNCTION g_logv                  (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_log_set_fatal_mask    (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_log_set_always_fatal  (XLONG)
+'/* Internal functions, used to implement the following macros */
+EXTERNAL CFUNCTION g_return_if_fail_warning (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_warn_message (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_assert_warning  (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+
+EXTERNAL CFUNCTION XLONG g_set_print_handler     (XLONG)
+EXTERNAL CFUNCTION g_printerr              (XLONG, ...)
+EXTERNAL CFUNCTION XLONG g_set_printerr_handler  (XLONG)
+
+'#########################
+'########  glist
+'#########################
+
+TYPE GLIST
+  XLONG .data
+  XLONG .next
+  XLONG .prev
+END TYPE
+'/* Doubly linked lists
+EXTERNAL CFUNCTION XLONG g_list_alloc  ()
+EXTERNAL CFUNCTION g_list_free   (XLONG)
+EXTERNAL CFUNCTION g_list_free_1 (XLONG)
+EXTERNAL CFUNCTION XLONG g_list_append (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_prepend(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_insert (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_insert_sorted (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_insert_sorted_with_data (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_insert_before (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_concat (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_remove (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_remove_all    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_remove_link   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_delete_link   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_reverse(XLONG)
+EXTERNAL CFUNCTION XLONG g_list_copy   (XLONG)
+EXTERNAL CFUNCTION XLONG g_list_nth    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_nth_prev      (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_find   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_find_custom   (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_position      (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_index  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_last   (XLONG)
+EXTERNAL CFUNCTION XLONG g_list_first  (XLONG)
+EXTERNAL CFUNCTION XLONG g_list_length (XLONG)
+EXTERNAL CFUNCTION g_list_foreach(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_sort   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_sort_with_data(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_list_nth_data      (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_list_push_allocator(XLONG)
+EXTERNAL CFUNCTION g_list_pop_allocator ()
+
+'#########################
+'########  gstrfuncs
+'#########################
+
+'/* Functions like the ones in <ctype.h> that are not affected by locale. */
+$$G_ASCII_ALNUM  = 1
+$$G_ASCII_ALPHA  = 2
+$$G_ASCII_CNTRL  = 4
+$$G_ASCII_DIGIT  = 8
+$$G_ASCII_GRAPH  = 16
+$$G_ASCII_LOWER  = 32
+$$G_ASCII_PRINT  = 64
+$$G_ASCII_PUNCT  = 128
+$$G_ASCII_SPACE  = 256
+$$G_ASCII_UPPER  = 516
+$$G_ASCII_XDIGIT = 1024
+
+EXTERNAL CFUNCTION SBYTE g_ascii_tolower  (SBYTE)
+EXTERNAL CFUNCTION SBYTE g_ascii_toupper  (SBYTE)
+EXTERNAL CFUNCTION XLONG g_ascii_digit_value  (SBYTE)
+EXTERNAL CFUNCTION XLONG g_ascii_xdigit_value (SBYTE)
+'/* String utility functions that modify a string argument or
+' * return a constant string that must not be freed.
+$$G_STR_DELIMITERS$	= "_-|> <."
+EXTERNAL CFUNCTION XLONG g_strdelimit     (XLONG,	XLONG,	UBYTE)
+EXTERNAL CFUNCTION XLONG g_strcanon       (XLONG,	XLONG,	UBYTE)
+EXTERNAL CFUNCTION XLONG g_strerror       (XLONG)
+EXTERNAL CFUNCTION XLONG g_strsignal      (XLONG)
+EXTERNAL CFUNCTION XLONG g_strreverse     (XLONG)
+EXTERNAL CFUNCTION XLONG g_strlcpy	       (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_strlcat        (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_strstr_len     (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_strrstr        (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_strrstr_len    (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_str_has_suffix (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_str_has_prefix (XLONG,	XLONG)
+'/* String to/from double conversion functions */
+EXTERNAL CFUNCTION DOUBLE g_strtod         (XLONG,	XLONG)
+EXTERNAL CFUNCTION DOUBLE g_ascii_strtod   (XLONG,	XLONG)
+EXTERNAL CFUNCTION DOUBLE g_ascii_strtoull (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION DOUBLE g_ascii_strtoll  (XLONG,	XLONG,	XLONG)
+'/* 29 bytes should enough for all possible values that
+' * g_ascii_dtostr can produce.
+' * Then add 10 for good measure */
+EXTERNAL CFUNCTION XLONG g_ascii_dtostr   (XLONG,	XLONG,	DOUBLE)
+EXTERNAL CFUNCTION XLONG g_ascii_formatd  (XLONG,	XLONG,	XLONG,	DOUBLE)
+'/* removes leading spaces */
+EXTERNAL CFUNCTION XLONG g_strchug        (XLONG)
+'/* removes trailing spaces */
+EXTERNAL CFUNCTION XLONG g_strchomp       (XLONG)
+'/* removes leading & trailing spaces */
+
+EXTERNAL CFUNCTION XLONG g_ascii_strcasecmp  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_ascii_strncasecmp (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_ascii_strdown     (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_ascii_strup       (XLONG,	XLONG)
+
+'/* String utility functions that return a newly allocated string which
+' * ought to be freed with g_free from the caller at some point.
+EXTERNAL CFUNCTION XLONG g_strdup	       (XLONG)
+EXTERNAL CFUNCTION XLONG g_strdup_printf  (XLONG,	...)
+EXTERNAL CFUNCTION XLONG g_strdup_vprintf (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_strndup	       (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_strnfill       (XLONG,  	UBYTE)
+EXTERNAL CFUNCTION XLONG g_strconcat      (XLONG,	...)
+EXTERNAL CFUNCTION XLONG g_strjoin	       (XLONG,	...)
+'/* Make a copy of a string interpreting C string -style escape
+' * sequences. Inverse of g_strescape. The recognized sequences are \b
+' * \f \n \r \t \\ \" and the octal format.
+EXTERNAL CFUNCTION XLONG g_strcompress    (XLONG)
+'/* Copy a string escaping nonprintable characters like in C strings.
+' * Inverse of g_strcompress. The exceptions parameter, if non-NULL, points
+' * to a string containing characters that are not to be escaped.
+' *
+' * Deprecated API: gchar* g_strescape (XLONG)
+' * Luckily this function wasn't used much, using NULL as second parameter
+' * provides mostly identical semantics.
+EXTERNAL CFUNCTION XLONG g_strescape      (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_memdup	       (XLONG,	XLONG)
+'/* NULL terminated string arrays.
+' * g_strsplit(), g_strsplit_set() split up string into max_tokens tokens
+' * at delim and return a newly allocated string array.
+' * g_strjoinv() concatenates all of str_array's strings, sliding in an
+' * optional separator, the returned string is newly allocated.
+' * g_strfreev() frees the array itself and all of its strings.
+' * g_strdupv() copies a NULL-terminated array of strings
+' * g_strv_length() returns the length of a NULL-terminated array of strings
+EXTERNAL CFUNCTION XLONG g_strsplit       (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_strsplit_set   (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_strjoinv       (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_strfreev       (XLONG)
+EXTERNAL CFUNCTION XLONG g_strdupv        (XLONG)
+EXTERNAL CFUNCTION XLONG g_strv_length    (XLONG)
+EXTERNAL CFUNCTION XLONG g_stpcpy         (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_strip_context  (XLONG, 	XLONG)
+
+EXTERNAL CFUNCTION XLONG g_dgettext       (XLONG,XLONG)
+
+EXTERNAL CFUNCTION XLONG g_dngettext      (XLONG, XLONG,XLONG,ULONG)
+EXTERNAL CFUNCTION XLONG g_dpgettext      (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_dpgettext2     (XLONG,XLONG,XLONG)
+
+'#########################
+'########  grand
+'#########################
+
+'/* GRand - a good and fast random number generator: Mersenne Twister
+' * see http://www.math.keio.ac.jp/~matumoto/emt.html for more info.
+' * The range functions return a value in the intervall [begin, end).
+' * int          -> [0..2^32-1]
+' * int_range    -> [begin..end-1]
+' * double       -> [0..1)
+' * double_range -> [begin..end)
+' */
+
+EXTERNAL CFUNCTION XLONG g_rand_new_with_seed  (ULONG)
+EXTERNAL CFUNCTION XLONG g_rand_new_with_seed_array (XLONG,ULONG)
+EXTERNAL CFUNCTION XLONG g_rand_new ()
+EXTERNAL CFUNCTION g_rand_free           (XLONG)
+EXTERNAL CFUNCTION XLONG g_rand_copy           (XLONG)
+EXTERNAL CFUNCTION g_rand_set_seed       (XLONG,ULONG)
+EXTERNAL CFUNCTION g_rand_set_seed_array (XLONG,XLONG,ULONG)
+
+EXTERNAL CFUNCTION ULONG g_rand_int (XLONG)
+EXTERNAL CFUNCTION SLONG g_rand_int_range      (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION DOUBLE g_rand_double         (XLONG)
+EXTERNAL CFUNCTION DOUBLE g_rand_double_range   (XLONG,DOUBLE,DOUBLE)
+EXTERNAL CFUNCTION g_random_set_seed     (ULONG)
+
+EXTERNAL CFUNCTION ULONG g_random_int          ()
+EXTERNAL CFUNCTION XLONG g_random_int_range    (XLONG,XLONG)
+EXTERNAL CFUNCTION DOUBLE g_random_double       ()
+EXTERNAL CFUNCTION DOUBLE g_random_double_range (DOUBLE,DOUBLE)
+
+'#########################
+'########  gmain
+'#########################
+
+TYPE GSOURCE
+'  /*< private >*/
+  XLONG .callback_data
+  XLONG .callback_funcs
+  XLONG .source_funcs
+  XLONG .ref_count
+  XLONG .context
+  XLONG .priority
+  XLONG .flags
+  XLONG .source_id
+  XLONG .poll_fds
+  XLONG .prev
+  XLONG .next
+  XLONG .reserved1
+  XLONG .reserved2
+END TYPE
+
+'/* Any definitions using GPollFD or GPollFunc are primarily
+' * for Unix and not guaranteed to be the compatible on all
+' * operating systems on which GLib runs. Right now, the
+' * GLib does use these functions on Win32 as well, but interprets
+' * them in a fairly different way than on Unix. If you use
+' * these definitions, you are should be prepared to recode
+' * for different operating systems.
+' *
+' *
+' * On Win32, the fd in a GPollFD should be Win32 HANDLE (*not* a file
+' * descriptor as provided by the C runtime) that can be used by
+' * MsgWaitForMultipleObjects. This does *not* include file handles
+' * from CreateFile, SOCKETs, nor pipe handles. (But you can use
+' * WSAEventSelect to signal events when a SOCKET is readable).
+' *
+' * On Win32, fd can also be the special value G_WIN32_MSG_HANDLE to
+' * indicate polling for messages.
+' *
+' * But note that G_WIN32_MSG_HANDLE GPollFDs should not be used by GDK
+' * (GTK) programs, as GDK itself wants to read messages and convert them
+' * to GDK events.
+' *
+' * So, unless you really know what you are doing, it's best not to try
+' * to use the main loop polling stuff for your own needs on
+' * Win32. It's really only written for the GIMP's needs so
+' * far.
+
+'TYPE GPOLLFD
+'  XLONG .fd
+'  USHORT .events
+'  USHORT .revents
+'END TYPE
+
+'/* Standard priorities */
+
+$$G_PRIORITY_HIGH       =     -100
+$$G_PRIORITY_DEFAULT     =     0
+$$G_PRIORITY_HIGH_IDLE    =    100
+$$G_PRIORITY_DEFAULT_IDLE  =   200
+$$G_PRIORITY_LOW	        =    300
+
+'/* GMainContext: */
+
+EXTERNAL CFUNCTION XLONG g_main_context_new       ()
+EXTERNAL CFUNCTION XLONG g_main_context_ref       (XLONG)
+EXTERNAL CFUNCTION g_main_context_unref     (XLONG)
+EXTERNAL CFUNCTION XLONG g_main_context_default   ()
+EXTERNAL CFUNCTION XLONG g_main_context_iteration (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_main_context_pending   (XLONG)
+'/* For implementation of legacy interfaces
+EXTERNAL CFUNCTION XLONG g_main_context_find_source_by_id              (XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_main_context_find_source_by_user_data       (XLONG,	SLONG)
+EXTERNAL CFUNCTION XLONG g_main_context_find_source_by_funcs_user_data (XLONG, 	XLONG,	XLONG)
+'/* Low level functions for implementing custom main loops.
+EXTERNAL CFUNCTION g_main_context_wakeup  (XLONG)
+EXTERNAL CFUNCTION XLONG g_main_context_acquire (XLONG)
+EXTERNAL CFUNCTION g_main_context_release (XLONG)
+EXTERNAL CFUNCTION XLONG g_main_context_is_owner (XLONG)
+EXTERNAL CFUNCTION XLONG g_main_context_wait    (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_main_context_prepare  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_main_context_query    (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_main_context_check    (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_main_context_dispatch (XLONG)
+EXTERNAL CFUNCTION g_main_context_set_poll_func (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_main_context_get_poll_func (XLONG)
+'/* Low level functions for use by source implementations
+EXTERNAL CFUNCTION g_main_context_add_poll    (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_main_context_remove_poll (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_main_depth               ()
+EXTERNAL CFUNCTION XLONG g_main_current_source      ()
+'/* GMainLoop: */
+EXTERNAL CFUNCTION XLONG g_main_loop_new        (XLONG,	SLONG)
+EXTERNAL CFUNCTION g_main_loop_run        (XLONG)
+EXTERNAL CFUNCTION g_main_loop_quit       (XLONG)
+EXTERNAL CFUNCTION XLONG g_main_loop_ref        (XLONG)
+EXTERNAL CFUNCTION g_main_loop_unref      (XLONG)
+EXTERNAL CFUNCTION XLONG g_main_loop_is_running (XLONG)
+EXTERNAL CFUNCTION XLONG g_main_loop_get_context (XLONG)
+'/* GSource: */
+EXTERNAL CFUNCTION XLONG g_source_new             (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_source_ref             (XLONG)
+EXTERNAL CFUNCTION g_source_unref           (XLONG)
+EXTERNAL CFUNCTION ULONG g_source_attach          (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_source_destroy         (XLONG)
+EXTERNAL CFUNCTION g_source_set_priority    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_source_get_priority    (XLONG)
+EXTERNAL CFUNCTION g_source_set_can_recurse (XLONG,	XLONG)
+EXTERNAL CFUNCTION SLONG g_source_get_can_recurse (XLONG)
+EXTERNAL CFUNCTION ULONG g_source_get_id          (XLONG)
+EXTERNAL CFUNCTION SLONG g_source_get_context (XLONG)
+EXTERNAL CFUNCTION g_source_set_callback    (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_source_set_funcs       (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_source_is_destroyed    (XLONG)
+'/* Used to implement g_source_connect_closure and internally*/
+EXTERNAL CFUNCTION g_source_set_callback_indirect (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_source_add_poll         (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_source_remove_poll      (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_source_get_current_time (XLONG,	XLONG)
+'/* Specific source types
+EXTERNAL CFUNCTION XLONG g_idle_source_new        ()
+EXTERNAL CFUNCTION XLONG g_child_watch_source_new (XLONG)
+EXTERNAL CFUNCTION XLONG g_timeout_source_new     (ULONG)
+EXTERNAL CFUNCTION XLONG g_timeout_source_new_seconds (ULONG)
+'/* Miscellaneous functions
+EXTERNAL CFUNCTION g_get_current_time		        (XLONG)
+'/* Source manipulation by ID */
+EXTERNAL CFUNCTION SLONG g_source_remove                     (XLONG)
+EXTERNAL CFUNCTION SLONG g_source_remove_by_user_data        (XLONG)
+EXTERNAL CFUNCTION SLONG g_source_remove_by_funcs_user_data  (XLONG,	XLONG)
+'/* Idles, child watchers and timeouts */
+EXTERNAL CFUNCTION ULONG g_timeout_add_full     (ULONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_timeout_add          (ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_child_watch_add_full (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_child_watch_add      (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_idle_add             (XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_idle_add_full        (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION SLONG g_idle_remove_by_data  (XLONG)
+EXTERNAL CFUNCTION ULONG g_timeout_add_seconds_full (XLONG,ULONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION ULONG g_timeout_add_seconds      (ULONG,XLONG,XLONG)
+
+'#########################
+'########  gthread
+'#########################
+
+$$G_THREAD_PRIORITY_LOW = 0
+$$G_THREAD_PRIORITY_NORMAL = 1
+$$G_THREAD_PRIORITY_HIGH  = 2
+$$G_THREAD_PRIORITY_URGENT = 3
+
+TYPE GTHREAD
+'  /*< private >*/
+  XLONG .func
+  XLONG .data
+  SLONG .joinable
+  XLONG .priority
+END TYPE
+
+'/* initializes the mutex/cond/private implementation for glib, might
+' * only be called once, and must not be called directly or indirectly
+' * from another glib-function, e.g. as a callback.
+EXTERNAL CFUNCTION XLONG g_thread_init   (XLONG)
+'/* Errorcheck mutexes. If you define G_ERRORCHECK_MUTEXES, then all
+' * mutexes will check for re-locking and re-unlocking */
+
+'/* Initialize thread system with errorcheck mutexes. vtable must be
+' * NULL. Do not call directly. Use #define G_ERRORCHECK_MUTEXES
+' * instead.
+EXTERNAL CFUNCTION XLONG g_thread_init_with_errorcheck_mutexes (XLONG)
+'/* Checks if thread support is initialized.  Identical to the
+' * g_thread_supported macro but provided for language bindings.
+' */
+EXTERNAL CFUNCTION SLONG g_thread_get_initialized ()
+'/* A random number to recognize debug calls to g_mutex_... */
+$$G_MUTEX_DEBUG_MAGIC = 0xf8e18ad7
+
+'/* A random number to recognize debug calls to g_mutex_... */
+'/* internal function for fallback static mutex implementation */
+EXTERNAL CFUNCTION XLONG g_static_mutex_get_mutex_impl   (XLONG)
+EXTERNAL CFUNCTION XLONG g_thread_create_full  (XLONG, XLONG, ULONG, SLONG, SLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_thread_self         ()
+EXTERNAL CFUNCTION g_thread_exit         (XLONG)
+EXTERNAL CFUNCTION XLONG g_thread_join         (XLONG)
+EXTERNAL CFUNCTION g_thread_set_priority (XLONG, XLONG)
+EXTERNAL CFUNCTION g_static_mutex_init (XLONG)
+EXTERNAL CFUNCTION g_static_mutex_free (XLONG)
+
+TYPE GSTATICPRIVATE
+'  /*< private >*/
+  ULONG .index
+END TYPE
+
+EXTERNAL CFUNCTION g_static_private_init           (XLONG)
+EXTERNAL CFUNCTION XLONG g_static_private_get            (XLONG)
+EXTERNAL CFUNCTION g_static_private_set            (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_static_private_free           (XLONG)
+
+TYPE GSTATICRECMUTEX
+'  /*< private >*/
+  XLONG .mutex
+  ULONG .depth
+  XLONG .owner
+END TYPE
+
+EXTERNAL CFUNCTION g_static_rec_mutex_init        (XLONG)
+EXTERNAL CFUNCTION g_static_rec_mutex_lock        (XLONG)
+EXTERNAL CFUNCTION XLONG g_static_rec_mutex_trylock     (XLONG)
+EXTERNAL CFUNCTION g_static_rec_mutex_unlock      (XLONG)
+EXTERNAL CFUNCTION g_static_rec_mutex_lock_full   (XLONG, XLONG)
+EXTERNAL CFUNCTION ULONG g_static_rec_mutex_unlock_full (XLONG)
+EXTERNAL CFUNCTION g_static_rec_mutex_free        (XLONG)
+
+TYPE GSTATICRWLOCK
+'  /*< private >*/
+  XLONG .mutex
+  XLONG .read_cond
+  XLONG .write_cond
+  ULONG .read_counter
+  XLONG .have_writer
+  ULONG .want_to_read
+  ULONG .want_to_write
+END TYPE
+
+EXTERNAL CFUNCTION g_static_rw_lock_init           (XLONG)
+EXTERNAL CFUNCTION g_static_rw_lock_reader_lock    (XLONG)
+EXTERNAL CFUNCTION XLONG g_static_rw_lock_reader_trylock (XLONG)
+EXTERNAL CFUNCTION g_static_rw_lock_reader_unlock  (XLONG)
+EXTERNAL CFUNCTION g_static_rw_lock_writer_lock    (XLONG)
+EXTERNAL CFUNCTION XLONG g_static_rw_lock_writer_trylock (XLONG)
+EXTERNAL CFUNCTION g_static_rw_lock_writer_unlock  (XLONG)
+EXTERNAL CFUNCTION g_static_rw_lock_free           (XLONG)
+
+EXTERNAL CFUNCTION g_thread_foreach   (XLONG,	XLONG)
+
+$$G_ONCE_STATUS_NOTCALLED = 0
+$$G_ONCE_STATUS_PROGRESS = 1
+$$G_ONCE_STATUS_READY = 2
+
+EXTERNAL CFUNCTION XLONG g_once_impl (XLONG, XLONG, XLONG)
+
+'/* initialize-once guards, keyed by value_location */
+EXTERNAL CFUNCTION XLONG g_once_init_enter       (XLONG)
+EXTERNAL CFUNCTION XLONG g_once_init_enter_impl  (XLONG)
+EXTERNAL CFUNCTION g_once_init_leave       (XLONG,XLONG)
+
+'#########################
+'########  gthreadpool
+'#########################
+
+'/* Thread Pools
+'/* The real GThreadPool is bigger, so you may only create a thread
+' * pool with the constructor function */
+TYPE GTHREADPOOL
+  XLONG .func
+  XLONG .user_data
+  SLONG .exclusive
+END TYPE
+'/* Get a thread pool with the function func, at most max_threads may
+' * run at a time (max_threads == -1 means no limit), exclusive == TRUE
+' * means, that the threads shouldn't be shared and that they will be
+' * prestarted (otherwise they are started as needed) user_data is the
+' * 2nd argument to the func */
+EXTERNAL CFUNCTION XLONG g_thread_pool_new             (XLONG, XLONG, XLONG, SLONG, XLONG)
+'/* Push new data into the thread pool. This task is assigned to a thread later
+' * (when the maximal number of threads is reached for that pool) or now
+' * (otherwise). If necessary a new thread will be started. The function
+' * returns immediatly */
+EXTERNAL CFUNCTION g_thread_pool_push            (XLONG, XLONG, XLONG)
+'/* Set the number of threads, which can run concurrently for that pool, -1
+' * means no limit. 0 means has the effect, that the pool won't process
+' * requests until the limit is set higher again */
+EXTERNAL CFUNCTION g_thread_pool_set_max_threads (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_thread_pool_get_max_threads (XLONG)
+'/* Get the number of threads assigned to that pool. This number doesn't
+' * necessarily represent the number of working threads in that pool */
+EXTERNAL CFUNCTION ULONG g_thread_pool_get_num_threads (XLONG)
+'/* Get the number of unprocessed items in the pool */
+EXTERNAL CFUNCTION ULONG g_thread_pool_unprocessed     (XLONG)
+'/* Free the pool, immediate means, that all unprocessed items in the queue
+' * wont be processed, wait means, that the function doesn't return immediatly,
+' * but after all threads in the pool are ready processing items. immediate
+' * does however not mean, that threads are killed. */
+EXTERNAL CFUNCTION g_thread_pool_free            (XLONG, SLONG, SLONG)
+'/* Set the maximal number of unused threads before threads will be stopped by
+' * GLib, -1 means no limit */
+EXTERNAL CFUNCTION g_thread_pool_set_max_unused_threads (XLONG)
+EXTERNAL CFUNCTION XLONG g_thread_pool_get_max_unused_threads ()
+EXTERNAL CFUNCTION ULONG g_thread_pool_get_num_unused_threads ()
+'/* Stop all currently unused threads, but leave the limit untouched */
+EXTERNAL CFUNCTION g_thread_pool_stop_unused_threads    ()
+'/* Set sort function for priority threading */
+EXTERNAL CFUNCTION g_thread_pool_set_sort_function      (XLONG,	XLONG,	XLONG)
+'/* Set maximum time a thread can be idle in the pool before it is stopped */
+EXTERNAL CFUNCTION g_thread_pool_set_max_idle_time      (ULONG)
+EXTERNAL CFUNCTION ULONG g_thread_pool_get_max_idle_time      ()
+
+'#########################
+'########  gasyncqueue
+'#########################
+
+'/* Asyncronous Queues, can be used to communicate between threads */
+'/* Get a new GAsyncQueue with the ref_count 1 */
+EXTERNAL CFUNCTION XLONG g_async_queue_new                 ()
+EXTERNAL CFUNCTION XLONG g_async_queue_new_full            (XLONG)
+'/* Lock and unlock a GAsyncQueue. All functions lock the queue for
+' * themselves, but in certain cirumstances you want to hold the lock longer,
+' * thus you lock the queue, call the *_unlocked functions and unlock it again.
+EXTERNAL CFUNCTION g_async_queue_lock                 (XLONG)
+EXTERNAL CFUNCTION g_async_queue_unlock               (XLONG)
+'/* Ref and unref the GAsyncQueue. */
+EXTERNAL CFUNCTION XLONG g_async_queue_ref                  (XLONG)
+EXTERNAL CFUNCTION g_async_queue_unref                (XLONG)
+'/* You don't have to hold the lock for calling *_ref and *_unref anymore. */
+EXTERNAL CFUNCTION g_async_queue_ref_unlocked         (XLONG)
+EXTERNAL CFUNCTION g_async_queue_unref_and_unlock     (XLONG)
+'/* Push data into the async queue. Must not be NULL. */
+EXTERNAL CFUNCTION g_async_queue_push                 (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_async_queue_push_unlocked        (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_async_queue_push_sorted          (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_async_queue_push_sorted_unlocked (XLONG,	XLONG,	XLONG,	XLONG)
+'/* Pop data from the async queue. When no data is there, the thread is blocked
+' * until data arrives.
+EXTERNAL CFUNCTION XLONG     g_async_queue_pop                  (XLONG)
+EXTERNAL CFUNCTION XLONG     g_async_queue_pop_unlocked         (XLONG)
+'/* Try to pop data. NULL is returned in case of empty queue. */
+EXTERNAL CFUNCTION XLONG     g_async_queue_try_pop              (XLONG)
+EXTERNAL CFUNCTION XLONG     g_async_queue_try_pop_unlocked     (XLONG)
+'/* Wait for data until at maximum until end_time is reached. NULL is returned
+' * in case of empty queue.
+EXTERNAL CFUNCTION XLONG     g_async_queue_timed_pop            (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG     g_async_queue_timed_pop_unlocked   (XLONG,	XLONG)
+'/* Return the length of the queue. Negative values mean that threads
+' * are waiting, positve values mean that there are entries in the
+' * queue. Actually this function returns the length of the queue minus
+' * the number of waiting threads, g_async_queue_length == 0 could also
+' * mean 'n' entries in the queue and 'n' thread waiting. Such can
+' * happen due to locking of the queue or due to scheduling.
+EXTERNAL CFUNCTION XLONG         g_async_queue_length               (XLONG)
+EXTERNAL CFUNCTION XLONG         g_async_queue_length_unlocked      (XLONG)
+EXTERNAL CFUNCTION g_async_queue_sort                 (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_async_queue_sort_unlocked        (XLONG,	XLONG,	XLONG)
+
+'#########################
+'########  gmem
+'#########################
+
+'/* Memory allocation functions
+' */
+EXTERNAL CFUNCTION XLONG g_malloc         (ULONG)
+EXTERNAL CFUNCTION XLONG g_malloc0        (ULONG)
+EXTERNAL CFUNCTION XLONG g_realloc        (XLONG,	ULONG)
+EXTERNAL CFUNCTION	 g_free	          (XLONG)
+EXTERNAL CFUNCTION XLONG g_try_malloc     (ULONG)
+EXTERNAL CFUNCTION XLONG g_try_malloc0    (ULONG)
+EXTERNAL CFUNCTION XLONG g_try_realloc    (XLONG,	ULONG)
+
+EXTERNAL CFUNCTION	 g_mem_set_vtable (XLONG)
+EXTERNAL CFUNCTION XLONG g_mem_is_system_malloc ()
+'/* Memory profiler and checker, has to be enabled via g_mem_set_vtable()
+' */
+EXTERNAL CFUNCTION	g_mem_profile	()
+
+EXTERNAL CFUNCTION XLONG g_mem_chunk_new     (XLONG,XLONG,XLONG,SLONG)
+EXTERNAL CFUNCTION g_mem_chunk_destroy (XLONG)
+EXTERNAL CFUNCTION XLONG g_mem_chunk_alloc   (XLONG)
+EXTERNAL CFUNCTION XLONG g_mem_chunk_alloc0  (XLONG)
+EXTERNAL CFUNCTION g_mem_chunk_free    (XLONG,XLONG)
+EXTERNAL CFUNCTION g_mem_chunk_clean   (XLONG)
+EXTERNAL CFUNCTION g_mem_chunk_reset   (XLONG)
+EXTERNAL CFUNCTION g_mem_chunk_print   (XLONG)
+EXTERNAL CFUNCTION g_mem_chunk_info    ()
+EXTERNAL CFUNCTION g_blow_chunks       ()
+EXTERNAL CFUNCTION XLONG g_allocator_new     (XLONG,ULONG)
+EXTERNAL CFUNCTION g_allocator_free    (XLONG)
+
+'#########################
+'########  giochannel
+'#########################
+
+$$G_IO_ERROR_NONE = 0
+$$G_IO_ERROR_AGAIN = 1
+$$G_IO_ERROR_INVAL = 2
+$$G_IO_ERROR_UNKNOWN = 3
+'  /* Derived from errno */
+$$G_IO_CHANNEL_ERROR_FBIG = 0
+$$G_IO_CHANNEL_ERROR_INVAL = 1
+$$G_IO_CHANNEL_ERROR_IO = 2
+$$G_IO_CHANNEL_ERROR_ISDIR = 3
+$$G_IO_CHANNEL_ERROR_NOSPC = 4
+$$G_IO_CHANNEL_ERROR_NXIO = 5
+$$G_IO_CHANNEL_ERROR_OVERFLOW = 6
+$$G_IO_CHANNEL_ERROR_PIPE = 7
+'  /* Other */
+$$G_IO_CHANNEL_ERROR_FAILED = 8
+
+$$G_IO_STATUS_ERROR = 0
+$$G_IO_STATUS_NORMAL = 1
+$$G_IO_STATUS_EOF = 2
+$$G_IO_STATUS_AGAIN = 3
+
+$$G_SEEK_CUR = 0
+$$G_SEEK_SET = 1
+$$G_SEEK_END = 2
+
+$$G_IO_FLAG_APPEND = 1
+$$G_IO_FLAG_NONBLOCK = 2
+$$G_IO_FLAG_IS_READABLE = 4	'/* Read only flag */
+$$G_IO_FLAG_IS_WRITEABLE = 8	'/* Read only flag */
+$$G_IO_FLAG_IS_SEEKABLE = 16	'/* Read only flag */
+$$G_IO_FLAG_MASK = 31
+$$G_IO_FLAG_GET_MASK = 31
+$$G_IO_FLAG_SET_MASK = 0
+
+TYPE GIOCHANNEL
+'  /*< private >*/
+  XLONG .ref_count
+  XLONG .funcs
+  XLONG .encoding
+  XLONG .read_cd
+  XLONG .write_cd
+  XLONG .line_term		'/* String which indicates the end of a line of text */
+  ULONG .line_term_len		'/* So we can have null in the line term */
+  XLONG .buf_size
+  XLONG .read_buf		'/* Raw data from the channel */
+  XLONG .encoded_read_buf    '/* Channel data converted to UTF-8 */
+  XLONG .write_buf		'/* Data ready to be written to the file */
+  UBYTE .partial_write_buf[6]	'/* UTF-8 partial characters, null terminated */
+'  /* Group the flags together, immediately after partial_write_buf, to save memory */
+   ULONG .flags
+'  ULONG .use_buffer     ': 1;	/* The encoding uses the buffers */
+'  ULONG .do_encode      ': 1;	/* The encoding uses the GIConv coverters */
+'  ULONG .close_on_unref ': 1;	/* Close the channel on final unref */
+'  ULONG .is_readable    ': 1;	/* Cached GIOFlag */
+'  ULONG .is_writeable   ': 1;	/* ditto */
+'  ULONG .is_seekable    ': 1;	/* ditto */
+  XLONG .reserved1
+  XLONG .reserved2
+END TYPE
+
+EXTERNAL CFUNCTION g_io_channel_init   (XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_ref    (XLONG)
+EXTERNAL CFUNCTION g_io_channel_unref  (XLONG)
+
+EXTERNAL CFUNCTION XLONG g_io_channel_read   (XLONG, 			         XLONG, 			         XLONG,			         XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_write    (XLONG, 			         XLONG, 			         XLONG,			         XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_seek     (XLONG,			         DOUBLE, 			         XLONG)
+EXTERNAL CFUNCTION g_io_channel_close    (XLONG)
+
+EXTERNAL CFUNCTION XLONG g_io_channel_shutdown (XLONG,				 XLONG,				 XLONG)
+EXTERNAL CFUNCTION XLONG g_io_add_watch_full   (XLONG,				 XLONG,				 XLONG,				 XLONG,				 XLONG,				 XLONG)
+EXTERNAL CFUNCTION XLONG g_io_create_watch     (XLONG,				 XLONG)
+EXTERNAL CFUNCTION XLONG g_io_add_watch        (XLONG,				 XLONG,				 XLONG,				 XLONG)
+'/* character encoding conversion involved functions.
+EXTERNAL CFUNCTION g_io_channel_set_buffer_size      (XLONG,							 XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_get_buffer_size      (XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_get_buffer_condition (XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_set_flags            (XLONG,							 XLONG,							 XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_get_flags            (XLONG)
+EXTERNAL CFUNCTION g_io_channel_set_line_term        (XLONG,							 XLONG,							 XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_get_line_term        (XLONG,							 XLONG)
+EXTERNAL CFUNCTION g_io_channel_set_buffered		(XLONG,							 XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_get_buffered		(XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_set_encoding         (XLONG,							 XLONG,							 XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_get_encoding         (XLONG)
+EXTERNAL CFUNCTION g_io_channel_set_close_on_unref	(XLONG,							 XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_get_close_on_unref	(XLONG)
+
+EXTERNAL CFUNCTION XLONG g_io_channel_flush            (XLONG,					   XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_read_line        (XLONG,					   XLONG,					   XLONG,					   XLONG,				   XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_read_line_string (XLONG,					   XLONG,					   XLONG,					   XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_read_to_end      (XLONG,					   XLONG,					   XLONG,					   XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_read_chars       (XLONG,					   XLONG,					   XLONG,					   XLONG,					   XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_read_unichar     (XLONG,					   XLONG,					   XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_write_chars      (XLONG,					   XLONG,					   XLONG,					   XLONG,					   XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_write_unichar    (XLONG,					   UBYTE,					   XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_seek_position    (XLONG,					   DOUBLE,					   XLONG,					   XLONG)
+
+EXTERNAL CFUNCTION XLONG g_io_channel_new_file         (XLONG,					   XLONG,					   XLONG)
+'/* Error handling */
+EXTERNAL CFUNCTION XLONG g_io_channel_error_quark      ()
+EXTERNAL CFUNCTION XLONG g_io_channel_error_from_errno (XLONG)
+
+'/* On Unix, IO channels created with this function for any file
+' * descriptor or socket.
+' *
+' * On Win32, this can be used either for files opened with the MSVCRT
+' * (the Microsoft run-time C library) _open() or _pipe, including file
+' * descriptors 0, 1 and 2 (corresponding to stdin, stdout and stderr),
+' * or for Winsock SOCKETs. If the parameter is a legal file
+' * descriptor, it is assumed to be such, otherwise it should be a
+' * SOCKET. This relies on SOCKETs and file descriptors not
+' * overlapping. If you want to be certain, call either
+' * g_io_channel_win32_new_fd() or g_io_channel_win32_new_socket()
+' * instead as appropriate.
+' *
+' * The term file descriptor as used in the context of Win32 refers to
+' * the emulated Unix-like file descriptors MSVCRT provides. The native
+' * corresponding concept is file HANDLE. There isn't as of yet a way to
+' * get GIOChannels for Win32 file HANDLEs.
+' */
+EXTERNAL CFUNCTION XLONG g_io_channel_unix_new    (XLONG)
+EXTERNAL CFUNCTION XLONG g_io_channel_unix_get_fd (XLONG)
+'/* You can use this "pseudo file descriptor" in a GPollFD to add
+' * polling for Windows messages. GTK applications should not do that.
+$$G_WIN32_MSG_HANDLE = 19981206
+'/* Use this to get a GPollFD from a GIOChannel, so that you can call
+' * g_io_channel_win32_poll(). After calling this you should only use
+' * g_io_channel_read() to read from the GIOChannel, i.e. never read()
+' * from the underlying file descriptor. For SOCKETs, it is possible to call
+' * recv().
+EXTERNAL CFUNCTION g_io_channel_win32_make_pollfd (XLONG,					    XLONG,					    XLONG)
+'/* This can be used to wait a until at least one of the channels is readable.
+' * On Unix you would do a select() on the file descriptors of the channels.
+EXTERNAL CFUNCTION XLONG g_io_channel_win32_poll   (XLONG,				       XLONG,				       XLONG)
+'/* Create an IO channel for Windows messages for window handle hwnd. */
+EXTERNAL CFUNCTION XLONG g_io_channel_win32_new_messages (XLONG)
+'/* Create an IO channel for C runtime (emulated Unix-like) file
+' * descriptors. After calling g_io_add_watch() on a IO channel
+' * returned by this function, you shouldn't call read() on the file
+' * descriptor. This is because adding polling for a file descriptor is
+' * implemented on Win32 by starting a thread that sits blocked in a
+' * read() from the file descriptor most of the time. All reads from
+' * the file descriptor should be done by this internal GLib
+' * thread. Your code should call only g_io_channel_read().
+EXTERNAL CFUNCTION XLONG g_io_channel_win32_new_fd (SLONG)
+'/* Get the C runtime file descriptor of a channel. */
+EXTERNAL CFUNCTION SLONG g_io_channel_win32_get_fd (XLONG)
+'/* Create an IO channel for a winsock socket. The parameter should be
+' * a SOCKET. Contrary to IO channels for file descriptors (on *Win32),
+' * you can use normal recv() or recvfrom() on sockets even if GLib
+' * is polling them.
+EXTERNAL CFUNCTION XLONG g_io_channel_win32_new_socket (XLONG)
+
+'#########################
+'########  gerror
+'#########################
+
+TYPE GERROR
+  XLONG .domain
+  XLONG .code
+  XLONG .message
+END TYPE
+
+EXTERNAL CFUNCTION XLONG g_error_new           (XLONG, SLONG, XLONG, ...)
+EXTERNAL CFUNCTION XLONG g_error_new_literal   (XLONG, SLONG, XLONG)
+EXTERNAL CFUNCTION g_error_free          (XLONG)
+EXTERNAL CFUNCTION XLONG g_error_copy          (XLONG)
+EXTERNAL CFUNCTION SLONG g_error_matches       (XLONG, XLONG, SLONG)
+'/* if (err) *err = g_error_new(domain, code, format, ...), also has
+' * some sanity checks.
+EXTERNAL CFUNCTION g_set_error           (XLONG, XLONG, SLONG, XLONG, ...)
+EXTERNAL CFUNCTION g_set_error_literal   (XLONG,XLONG,SLONG,XLONG)
+
+'/* if (dest) *dest = src; also has some sanity checks.
+EXTERNAL CFUNCTION g_propagate_error     (XLONG,	XLONG)
+'/* if (err && *err) { g_error_free(*err) *err = NULL; } */
+EXTERNAL CFUNCTION g_clear_error         (XLONG)
+'/* if (err) prefix the formatted string to the ->message */
+EXTERNAL CFUNCTION g_prefix_error               (XLONG,XLONG,...)
+'/* g_propagate_error then g_error_prefix on dest */
+EXTERNAL CFUNCTION g_propagate_prefixed_error   (XLONG,XLONG,XLONG,...)
+
+'#########################
+'########  gconvert
+'#########################
+
+$$G_CONVERT_ERROR_NO_CONVERSION = 0
+$$G_CONVERT_ERROR_ILLEGAL_SEQUENCE = 1
+$$G_CONVERT_ERROR_FAILED = 2
+$$G_CONVERT_ERROR_PARTIAL_INPUT = 3
+$$G_CONVERT_ERROR_BAD_URI = 4
+$$G_CONVERT_ERROR_NOT_ABSOLUTE_PATH = 5
+
+EXTERNAL CFUNCTION XLONG g_convert_error_quark ()
+'/* Thin wrappers around iconv
+EXTERNAL CFUNCTION XLONG g_iconv_open   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_iconv        (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION SLONG g_iconv_close  (XLONG)
+EXTERNAL CFUNCTION XLONG g_convert               (XLONG,	XLONG, XLONG,	XLONG,	XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_convert_with_iconv    (XLONG,	XLONG,	XLONG,	XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_convert_with_fallback (XLONG,	XLONG, XLONG,	XLONG,	XLONG,	XLONG, XLONG, XLONG)
+
+'/* Convert between libc's idea of strings and UTF-8.
+EXTERNAL CFUNCTION XLONG g_locale_to_utf8   (XLONG,	XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_locale_from_utf8 (XLONG,	XLONG, XLONG, XLONG, XLONG)
+'/* Convert between the operating system (or C runtime)
+' * representation of file names and UTF-8.
+EXTERNAL CFUNCTION XLONG g_filename_to_utf8_utf8   (XLONG,	XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_filename_from_utf8_utf8 (XLONG,	XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_filename_from_uri_utf8 (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_filename_to_uri_utf8   (XLONG,	XLONG,	XLONG)
+
+EXTERNAL CFUNCTION XLONG g_filename_display_name (XLONG)
+EXTERNAL CFUNCTION SLONG g_get_filename_charsets (XLONG)
+EXTERNAL CFUNCTION XLONG g_filename_display_basename (XLONG)
+EXTERNAL CFUNCTION XLONG g_uri_list_extract_uris (XLONG)
+
+'#########################
+'########  gunicode
+'#########################
+
+'/* These are the possible character classifications.
+' * See http://www.unicode.org/Public/UNIDATA/UCD.html#General_Category_Values
+$$G_UNICODE_CONTROL = 0
+$$G_UNICODE_FORMAT = 1
+$$G_UNICODE_UNASSIGNED = 2
+$$G_UNICODE_PRIVATE_USE = 3
+$$G_UNICODE_SURROGATE = 4
+$$G_UNICODE_LOWERCASE_LETTER = 5
+$$G_UNICODE_MODIFIER_LETTER = 6
+$$G_UNICODE_OTHER_LETTER = 7
+$$G_UNICODE_TITLECASE_LETTER = 8
+$$G_UNICODE_UPPERCASE_LETTER = 9
+$$G_UNICODE_COMBINING_MARK = 10
+$$G_UNICODE_ENCLOSING_MARK = 11
+$$G_UNICODE_NON_SPACING_MARK = 12
+$$G_UNICODE_DECIMAL_NUMBER = 13
+$$G_UNICODE_LETTER_NUMBER = 14
+$$G_UNICODE_OTHER_NUMBER = 15
+$$G_UNICODE_CONNECT_PUNCTUATION = 16
+$$G_UNICODE_DASH_PUNCTUATION = 17
+$$G_UNICODE_CLOSE_PUNCTUATION = 18
+$$G_UNICODE_FINAL_PUNCTUATION = 19
+$$G_UNICODE_INITIAL_PUNCTUATION = 20
+$$G_UNICODE_OTHER_PUNCTUATION = 21
+$$G_UNICODE_OPEN_PUNCTUATION = 22
+$$G_UNICODE_CURRENCY_SYMBOL = 23
+$$G_UNICODE_MODIFIER_SYMBOL = 24
+$$G_UNICODE_MATH_SYMBOL = 25
+$$G_UNICODE_OTHER_SYMBOL = 26
+$$G_UNICODE_LINE_SEPARATOR = 27
+$$G_UNICODE_PARAGRAPH_SEPARATOR = 28
+$$G_UNICODE_SPACE_SEPARATOR = 29
+
+'/* These are the possible line break classifications.
+' * Note that new types may be added in the future.
+' * Implementations may regard unknown values like G_UNICODE_BREAK_UNKNOWN
+' * See http://www.unicode.org/unicode/reports/tr14/
+$$G_UNICODE_BREAK_MANDATORY = 0
+$$G_UNICODE_BREAK_CARRIAGE_RETURN = 1
+$$G_UNICODE_BREAK_LINE_FEED = 2
+$$G_UNICODE_BREAK_COMBINING_MARK = 3
+$$G_UNICODE_BREAK_SURROGATE = 4
+$$G_UNICODE_BREAK_ZERO_WIDTH_SPACE = 5
+$$G_UNICODE_BREAK_INSEPARABLE = 6
+$$G_UNICODE_BREAK_NON_BREAKING_GLUE = 7
+$$G_UNICODE_BREAK_CONTINGENT = 8
+$$G_UNICODE_BREAK_SPACE = 9
+$$G_UNICODE_BREAK_AFTER = 10
+$$G_UNICODE_BREAK_BEFORE = 11
+$$G_UNICODE_BREAK_BEFORE_AND_AFTER = 12
+$$G_UNICODE_BREAK_HYPHEN = 13
+$$G_UNICODE_BREAK_NON_STARTER = 14
+$$G_UNICODE_BREAK_OPEN_PUNCTUATION = 15
+$$G_UNICODE_BREAK_CLOSE_PUNCTUATION = 16
+$$G_UNICODE_BREAK_QUOTATION = 17
+$$G_UNICODE_BREAK_EXCLAMATION = 18
+$$G_UNICODE_BREAK_IDEOGRAPHIC = 19
+$$G_UNICODE_BREAK_NUMERIC = 20
+$$G_UNICODE_BREAK_INFIX_SEPARATOR = 21
+$$G_UNICODE_BREAK_SYMBOL = 22
+$$G_UNICODE_BREAK_ALPHABETIC = 23
+$$G_UNICODE_BREAK_PREFIX = 24
+$$G_UNICODE_BREAK_POSTFIX = 25
+$$G_UNICODE_BREAK_COMPLEX_CONTEXT = 26
+$$G_UNICODE_BREAK_AMBIGUOUS = 27
+$$G_UNICODE_BREAK_UNKNOWN = 28
+$$G_UNICODE_BREAK_NEXT_LINE = 29
+$$G_UNICODE_BREAK_WORD_JOINER = 30
+$$G_UNICODE_BREAK_HANGUL_L_JAMO = 31
+$$G_UNICODE_BREAK_HANGUL_V_JAMO = 32
+$$G_UNICODE_BREAK_HANGUL_T_JAMO = 33
+$$G_UNICODE_BREAK_HANGUL_LV_SYLLABLE = 34
+$$G_UNICODE_BREAK_HANGUL_LVT_SYLLABLE = 35
+
+'{                         /* ISO 15924 code */
+'  G_UNICODE_SCRIPT_INVALID_CODE = -1,
+'  G_UNICODE_SCRIPT_COMMON       = 0,   /* Zyyy */
+'  G_UNICODE_SCRIPT_INHERITED,          /* Qaai */
+'  G_UNICODE_SCRIPT_ARABIC,             /* Arab */
+'  G_UNICODE_SCRIPT_ARMENIAN,           /* Armn */
+'  G_UNICODE_SCRIPT_BENGALI,            /* Beng */
+'  G_UNICODE_SCRIPT_BOPOMOFO,           /* Bopo */
+'  G_UNICODE_SCRIPT_CHEROKEE,           /* Cher */
+'  G_UNICODE_SCRIPT_COPTIC,             /* Qaac */
+'  G_UNICODE_SCRIPT_CYRILLIC,           /* Cyrl (Cyrs) */
+'  G_UNICODE_SCRIPT_DESERET,            /* Dsrt */
+'  G_UNICODE_SCRIPT_DEVANAGARI,         /* Deva */
+'  G_UNICODE_SCRIPT_ETHIOPIC,           /* Ethi */
+'  G_UNICODE_SCRIPT_GEORGIAN,           /* Geor (Geon, Geoa) */
+'  G_UNICODE_SCRIPT_GOTHIC,             /* Goth */
+'  G_UNICODE_SCRIPT_GREEK,              /* Grek */
+'  G_UNICODE_SCRIPT_GUJARATI,           /* Gujr */
+'  G_UNICODE_SCRIPT_GURMUKHI,           /* Guru */
+'  G_UNICODE_SCRIPT_HAN,                /* Hani */
+'  G_UNICODE_SCRIPT_HANGUL,             /* Hang */
+'  G_UNICODE_SCRIPT_HEBREW,             /* Hebr */
+'  G_UNICODE_SCRIPT_HIRAGANA,           /* Hira */
+'  G_UNICODE_SCRIPT_KANNADA,            /* Knda */
+'  G_UNICODE_SCRIPT_KATAKANA,           /* Kana */
+'  G_UNICODE_SCRIPT_KHMER,              /* Khmr */
+'  G_UNICODE_SCRIPT_LAO,                /* Laoo */
+'  G_UNICODE_SCRIPT_LATIN,              /* Latn (Latf, Latg) */
+'  G_UNICODE_SCRIPT_MALAYALAM,          /* Mlym */
+'  G_UNICODE_SCRIPT_MONGOLIAN,          /* Mong */
+'  G_UNICODE_SCRIPT_MYANMAR,            /* Mymr */
+'  G_UNICODE_SCRIPT_OGHAM,              /* Ogam */
+'  G_UNICODE_SCRIPT_OLD_ITALIC,         /* Ital */
+'  G_UNICODE_SCRIPT_ORIYA,              /* Orya */
+'  G_UNICODE_SCRIPT_RUNIC,              /* Runr */
+'  G_UNICODE_SCRIPT_SINHALA,            /* Sinh */
+'  G_UNICODE_SCRIPT_SYRIAC,             /* Syrc (Syrj, Syrn, Syre) */
+'  G_UNICODE_SCRIPT_TAMIL,              /* Taml */
+'  G_UNICODE_SCRIPT_TELUGU,             /* Telu */
+'  G_UNICODE_SCRIPT_THAANA,             /* Thaa */
+'  G_UNICODE_SCRIPT_THAI,               /* Thai */
+'  G_UNICODE_SCRIPT_TIBETAN,            /* Tibt */
+'  G_UNICODE_SCRIPT_CANADIAN_ABORIGINAL, /* Cans */
+'  G_UNICODE_SCRIPT_YI,                 /* Yiii */
+'  G_UNICODE_SCRIPT_TAGALOG,            /* Tglg */
+'  G_UNICODE_SCRIPT_HANUNOO,            /* Hano */
+'  G_UNICODE_SCRIPT_BUHID,              /* Buhd */
+'  G_UNICODE_SCRIPT_TAGBANWA,           /* Tagb */
+
+'  /* Unicode-4.0 additions */
+'  G_UNICODE_SCRIPT_BRAILLE,            /* Brai */
+'  G_UNICODE_SCRIPT_CYPRIOT,            /* Cprt */
+'  G_UNICODE_SCRIPT_LIMBU,              /* Limb */
+'  G_UNICODE_SCRIPT_OSMANYA,            /* Osma */
+'  G_UNICODE_SCRIPT_SHAVIAN,            /* Shaw */
+'  G_UNICODE_SCRIPT_LINEAR_B,           /* Linb */
+'  G_UNICODE_SCRIPT_TAI_LE,             /* Tale */
+'  G_UNICODE_SCRIPT_UGARITIC,           /* Ugar */
+
+'  /* Unicode-4.1 additions */
+'  G_UNICODE_SCRIPT_NEW_TAI_LUE,        /* Talu */
+'  G_UNICODE_SCRIPT_BUGINESE,           /* Bugi */
+'  G_UNICODE_SCRIPT_GLAGOLITIC,         /* Glag */
+'  G_UNICODE_SCRIPT_TIFINAGH,           /* Tfng */
+'  G_UNICODE_SCRIPT_SYLOTI_NAGRI,       /* Sylo */
+'  G_UNICODE_SCRIPT_OLD_PERSIAN,        /* Xpeo */
+'  G_UNICODE_SCRIPT_KHAROSHTHI,         /* Khar */
+
+'  /* Unicode-5.0 additions */
+'  G_UNICODE_SCRIPT_UNKNOWN,            /* Zzzz */
+'  G_UNICODE_SCRIPT_BALINESE,           /* Bali */
+'  G_UNICODE_SCRIPT_CUNEIFORM,          /* Xsux */
+'  G_UNICODE_SCRIPT_PHOENICIAN,         /* Phnx */
+'  G_UNICODE_SCRIPT_PHAGS_PA,           /* Phag */
+'  G_UNICODE_SCRIPT_NKO,                /* Nkoo */
+
+'  /* Unicode-5.1 additions */
+'  G_UNICODE_SCRIPT_KAYAH_LI,           /* Kali */
+'  G_UNICODE_SCRIPT_LEPCHA,             /* Lepc */
+'  G_UNICODE_SCRIPT_REJANG,             /* Rjng */
+'  G_UNICODE_SCRIPT_SUNDANESE,          /* Sund */
+'  G_UNICODE_SCRIPT_SAURASHTRA,         /* Saur */
+'  G_UNICODE_SCRIPT_CHAM,               /* Cham */
+'  G_UNICODE_SCRIPT_OL_CHIKI,           /* Olck */
+'  G_UNICODE_SCRIPT_VAI,                /* Vaii */
+'  G_UNICODE_SCRIPT_CARIAN,             /* Cari */
+'  G_UNICODE_SCRIPT_LYCIAN,             /* Lyci */
+'  G_UNICODE_SCRIPT_LYDIAN              /* Lydi */
+'} GUnicodeScript;
+
+
+'/* Returns TRUE if current locale uses UTF-8 charset.  If CHARSET is
+' * not null, sets *CHARSET to the name of the current locale's
+' * charset.  This value is statically allocated, and should be copied
+' * in case the locale's charset will be changed later using setlocale()
+' * or in some other way.
+EXTERNAL CFUNCTION XLONG g_get_charset (XLONG)
+
+'/* These are all analogs of the <ctype.h> functions.
+EXTERNAL CFUNCTION SLONG g_unichar_isalnum   (UBYTE)
+EXTERNAL CFUNCTION SLONG g_unichar_isalpha   (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_iscntrl   (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_isdigit   (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_isgraph   (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_islower   (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_isprint   (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_ispunct   (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_isspace   (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_isupper   (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_isxdigit  (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_istitle   (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_isdefined (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_iswide    (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_iswide_cjk (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_iszerowidth (UBYTE)
+EXTERNAL CFUNCTION SLONG  g_unichar_ismark    (UBYTE)
+
+'/* More <ctype.h> functions.  These convert between the three cases.
+' * See the Unicode book to understand title case.  */
+EXTERNAL CFUNCTION UBYTE g_unichar_toupper (UBYTE)
+EXTERNAL CFUNCTION UBYTE g_unichar_tolower (UBYTE)
+EXTERNAL CFUNCTION UBYTE g_unichar_totitle (UBYTE)
+
+'/* If C is a digit (according to `g_unichar_isdigit'), then return its
+'   numeric value.  Otherwise return -1.  */
+EXTERNAL CFUNCTION XLONG g_unichar_digit_value (UBYTE)
+EXTERNAL CFUNCTION XLONG g_unichar_xdigit_value (UBYTE)
+'/* Return the Unicode character type of a given character.  */
+EXTERNAL CFUNCTION XLONG g_unichar_type (UBYTE)
+'/* Return the line break property for a given character */
+EXTERNAL CFUNCTION XLONG g_unichar_break_type (UBYTE)
+'/* Returns the combining class for a given character */
+EXTERNAL CFUNCTION XLONG g_unichar_combining_class (UBYTE)
+'/* Compute canonical ordering of a string in-place.  This rearranges
+'   decomposed characters in the string according to their combining
+'   classes.  See the Unicode manual for more information.  */
+EXTERNAL CFUNCTION g_unicode_canonical_ordering (XLONG,	XLONG)
+'/* Compute canonical decomposition of a character.  Returns g_malloc()d
+'   string of Unicode characters.  RESULT_LEN is set to the resulting
+'   length of the string.  */
+EXTERNAL CFUNCTION XLONG g_unicode_canonical_decomposition (UBYTE,	XLONG)
+
+EXTERNAL CFUNCTION UBYTE g_utf8_get_char           (XLONG)
+EXTERNAL CFUNCTION UBYTE g_utf8_get_char_validated (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_offset_to_pointer (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_pointer_to_offset (XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_prev_char         (XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_find_next_char    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_find_prev_char    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_strlen (XLONG, XLONG)
+'/* Copies n characters from src to dest */
+EXTERNAL CFUNCTION XLONG g_utf8_strncpy (XLONG,	XLONG,	XLONG)
+'/* Find the UTF-8 character corresponding to ch, in string p. These
+'   functions are equivalants to strchr and strrchr */
+EXTERNAL CFUNCTION XLONG g_utf8_strchr  (XLONG,	XLONG,	UBYTE)
+EXTERNAL CFUNCTION XLONG g_utf8_strrchr (XLONG,	XLONG,	UBYTE)
+EXTERNAL CFUNCTION XLONG g_utf8_strreverse (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_to_utf16     (XLONG,	XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_to_ucs4      (XLONG,	XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_to_ucs4_fast (XLONG,	XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_utf16_to_ucs4     (XLONG,	XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_utf16_to_utf8     (XLONG,	XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_ucs4_to_utf16     (XLONG,	XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_ucs4_to_utf8      (XLONG,	XLONG, XLONG, XLONG, XLONG)
+'/* Convert a single character into UTF-8. outbuf must have at
+' * least 6 bytes of space. Returns the number of bytes in the
+' * result.
+EXTERNAL CFUNCTION XLONG g_unichar_to_utf8 (UBYTE,	XLONG)
+'/* Validate a UTF8 string, return TRUE if valid, put pointer to
+' * first invalid char in **end
+EXTERNAL CFUNCTION XLONG g_utf8_validate (XLONG, XLONG,   XLONG)
+'/* Validate a Unicode character */
+EXTERNAL CFUNCTION XLONG g_unichar_validate (UBYTE)
+
+EXTERNAL CFUNCTION XLONG g_utf8_strup   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_strdown (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_casefold (XLONG,XLONG)
+
+$$G_NORMALIZE_DEFAULT = 0
+$$G_NORMALIZE_NFD = $$G_NORMALIZE_DEFAULT
+$$G_NORMALIZE_DEFAULT_COMPOSE = 1
+$$G_NORMALIZE_NFC = $$G_NORMALIZE_DEFAULT_COMPOSE
+$$G_NORMALIZE_ALL = 2
+$$G_NORMALIZE_NFKD = $$G_NORMALIZE_ALL
+$$G_NORMALIZE_ALL_COMPOSE = 3
+$$G_NORMALIZE_NFKC = $$G_NORMALIZE_ALL_COMPOSE
+
+EXTERNAL CFUNCTION XLONG g_utf8_normalize (XLONG,	XLONG,	XLONG)
+
+EXTERNAL CFUNCTION XLONG g_utf8_collate     (XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_collate_key (XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_utf8_collate_key_for_filename (XLONG,	XLONG)
+
+EXTERNAL CFUNCTION SLONG g_unichar_get_mirror_char (UBYTE,  XLONG)
+
+EXTERNAL CFUNCTION XLONG g_unichar_get_script (UBYTE)
+
+'#########################
+'########  gbase64
+'#########################
+
+EXTERNAL CFUNCTION XLONG g_base64_encode_step  (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_base64_encode_close (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_base64_encode       (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_base64_decode_step  (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_base64_decode       (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_base64_decode_inplace (XLONG,XLONG)
+
+'#########################
+'########  gdate
+'#########################
+
+'/* enum used to specify order of appearance in parsed date strings */
+$$G_DATE_DAY   = 0
+$$G_DATE_MONTH = 1
+$$G_DATE_YEAR  = 2
+'/* actual week and month values */
+$$G_DATE_BAD_WEEKDAY  = 0
+$$G_DATE_MONDAY       = 1
+$$G_DATE_TUESDAY      = 2
+$$G_DATE_WEDNESDAY    = 3
+$$G_DATE_THURSDAY     = 4
+$$G_DATE_FRIDAY       = 5
+$$G_DATE_SATURDAY     = 6
+$$G_DATE_SUNDAY       = 7
+
+$$G_DATE_BAD_MONTH = 0
+$$G_DATE_JANUARY   = 1
+$$G_DATE_FEBRUARY  = 2
+$$G_DATE_MARCH     = 3
+$$G_DATE_APRIL     = 4
+$$G_DATE_MAY       = 5
+$$G_DATE_JUNE      = 6
+$$G_DATE_JULY      = 7
+$$G_DATE_AUGUST    = 8
+$$G_DATE_SEPTEMBER = 9
+$$G_DATE_OCTOBER   = 10
+$$G_DATE_NOVEMBER  = 11
+$$G_DATE_DECEMBER  = 12
+
+'/* Note: directly manipulating structs is generally a bad idea, but
+' * in this case it's an *incredibly* bad idea, because all or part
+' * of this struct can be invalid at any given time. Use the functions,
+' * or you will get hosed, I promise.
+TYPE GDATE
+  ULONG .julian_days ': 32; /* julian days representation - we use a
+                           '*  bitfield hoping that 64 bit platforms
+                           '*  will pack this whole struct in one big int
+  ULONG .flags
+'  ULONG .julian ': 1;    /* julian is valid */
+'  ULONG .dmy    ': 1;    /* dmy is valid */
+'  /* DMY representation */
+'  ULONG .day    ': 6;
+'  ULONG .month  ': 4;
+'  ULONG .year   ': 16;
+END TYPE
+
+'/* g_date_new() returns an invalid date, you then have to _set() stuff
+' * to get a usable object. You can also allocate a GDate statically,
+' * then call g_date_clear() to initialize.
+EXTERNAL CFUNCTION XLONG g_date_new ()
+EXTERNAL CFUNCTION XLONG g_date_new_dmy (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_date_new_julian (ULONG)
+EXTERNAL CFUNCTION g_date_free(XLONG)
+
+'/* check g_date_valid() after doing an operation that might fail, like
+' * _parse.  Almost all g_date operations are undefined on invalid
+' * dates (the exceptions are the mutators, since you need those to
+' * return to validity).
+EXTERNAL CFUNCTION XLONG g_date_valid   (XLONG)
+EXTERNAL CFUNCTION XLONG g_date_valid_day  (XLONG)
+EXTERNAL CFUNCTION XLONG g_date_valid_month(XLONG)
+EXTERNAL CFUNCTION XLONG g_date_valid_year (XLONG)
+EXTERNAL CFUNCTION XLONG g_date_valid_weekday (XLONG)
+EXTERNAL CFUNCTION XLONG g_date_valid_julian  (XLONG)
+EXTERNAL CFUNCTION XLONG g_date_valid_dmy  (XLONG, XLONG, XLONG)
+
+EXTERNAL CFUNCTION XLONG g_date_get_weekday(XLONG)
+EXTERNAL CFUNCTION XLONG g_date_get_month  (XLONG)
+EXTERNAL CFUNCTION XLONG g_date_get_year(XLONG)
+EXTERNAL CFUNCTION XLONG g_date_get_day (XLONG)
+EXTERNAL CFUNCTION ULONG g_date_get_julian (XLONG)
+EXTERNAL CFUNCTION ULONG g_date_get_day_of_year       (XLONG)
+'/* First monday/sunday is the start of week 1; if we haven't reached
+' * that day, return 0. These are not ISO weeks of the year; that
+' * routine needs to be added.
+' * these functions return the number of weeks, starting on the
+' * corrsponding day
+
+EXTERNAL CFUNCTION ULONG g_date_get_monday_week_of_year (XLONG)
+EXTERNAL CFUNCTION ULONG g_date_get_sunday_week_of_year (XLONG)
+EXTERNAL CFUNCTION ULONG g_date_get_iso8601_week_of_year (XLONG)
+
+'/* If you create a static date struct you need to clear it to get it
+' * in a sane state before use. You can clear a whole array at
+' * once with the ndates argument.
+
+EXTERNAL CFUNCTION g_date_clear   (XLONG, ULONG)
+
+'/* The parse routine is meant for dates typed in by a user, so it
+' * permits many formats but tries to catch common typos. If your data
+' * needs to be strictly validated, it is not an appropriate function.
+EXTERNAL CFUNCTION g_date_set_parse  (XLONG, XLONG)
+EXTERNAL CFUNCTION g_date_set_time_t (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_date_set_time_val  (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_date_set_time(XLONG, XLONG)
+EXTERNAL CFUNCTION g_date_set_month  (XLONG, XLONG)
+EXTERNAL CFUNCTION g_date_set_day (XLONG, XLONG)
+EXTERNAL CFUNCTION g_date_set_year(XLONG, XLONG)
+EXTERNAL CFUNCTION g_date_set_dmy (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_date_set_julian (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_date_is_first_of_month     (XLONG)
+EXTERNAL CFUNCTION XLONG g_date_is_last_of_month      (XLONG)
+
+'/* To go forward by some number of weeks just go forward weeks*7 days */
+EXTERNAL CFUNCTION g_date_add_days(XLONG, ULONG)
+EXTERNAL CFUNCTION g_date_subtract_days (XLONG, ULONG)
+
+'/* If you add/sub months while day > 28, the day might change' */
+EXTERNAL CFUNCTION g_date_add_months (XLONG, ULONG)
+EXTERNAL CFUNCTION g_date_subtract_months       (XLONG, ULONG)
+
+'/* If it's feb 29, changing years can move you to the 28th */
+EXTERNAL CFUNCTION g_date_add_years  (XLONG, ULONG)
+EXTERNAL CFUNCTION g_date_subtract_years(XLONG, ULONG)
+EXTERNAL CFUNCTION XLONG g_date_is_leap_year  (XLONG)
+EXTERNAL CFUNCTION UBYTE g_date_get_days_in_month     (XLONG, XLONG)
+EXTERNAL CFUNCTION UBYTE g_date_get_monday_weeks_in_year  (XLONG)
+EXTERNAL CFUNCTION UBYTE g_date_get_sunday_weeks_in_year  (XLONG)
+
+'/* Returns the number of days between the two dates.  If date2 comes
+'   before date1, a negative value is return. */
+EXTERNAL CFUNCTION XLONG g_date_days_between  (XLONG,	XLONG)
+
+'/* qsort-friendly (with a cast...) */
+EXTERNAL CFUNCTION XLONG g_date_compare (XLONG, XLONG)
+EXTERNAL CFUNCTION g_date_to_struct_tm  (XLONG, XLONG)
+EXTERNAL CFUNCTION g_date_clamp   (XLONG,	XLONG,	XLONG)
+
+'/* Swap date1 and date2's values if date1 > date2. */
+EXTERNAL CFUNCTION g_date_order   (XLONG, XLONG)
+
+'/* Just like strftime() except you can only use date-related formats.
+' *   Using a time format is undefined.
+EXTERNAL CFUNCTION XLONG g_date_strftime(XLONG, XLONG, XLONG, XLONG)
+
+'#########################
+'########  ghook
+'#########################
+
+$$G_HOOK_FLAG_ACTIVE	    = 1
+$$G_HOOK_FLAG_IN_CALL	    = 2
+$$G_HOOK_FLAG_MASK	    = 0x0f
+
+TYPE GHOOKLIST
+  ULONG .seq_id
+  ULONG .flags
+'  ULONG .hook_size ': 16;
+'  ULONG .is_setup ': 1;
+  XLONG .hooks
+  XLONG .dummy3
+  XLONG .finalize_hook
+  XLONG .dummy[2]
+END TYPE
+
+TYPE GHOOK
+  XLONG .data
+  XLONG .next
+  XLONG .prev
+  ULONG .ref_count
+  ULONG .hook_id
+  ULONG .flags
+  XLONG .func
+  XLONG .destroy
+END TYPE
+
+'/* --- prototypes --- */
+'/* callback maintenance functions */
+EXTERNAL CFUNCTION g_hook_list_init		(XLONG,	ULONG)
+EXTERNAL CFUNCTION g_hook_list_clear		(XLONG)
+EXTERNAL CFUNCTION XLONG g_hook_alloc			(XLONG)
+EXTERNAL CFUNCTION g_hook_free			(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_hook_ref			(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_hook_unref			(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_hook_destroy			(XLONG,	ULONG)
+EXTERNAL CFUNCTION g_hook_destroy_link		(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_hook_prepend			(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_hook_insert_before		(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_hook_insert_sorted		(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_hook_get			(XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG g_hook_find			(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_hook_find_data		(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_hook_find_func		(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_hook_find_func_data		(XLONG,	XLONG,	XLONG,	XLONG)
+'/* return the first valid hook, and increment its reference count */
+EXTERNAL CFUNCTION XLONG g_hook_first_valid		(XLONG,	XLONG)
+'/* return the next valid hook with incremented reference count, and
+' * decrement the reference count of the original hook
+EXTERNAL CFUNCTION XLONG g_hook_next_valid		(XLONG,	XLONG,	XLONG)
+'/* GHookCompareFunc implementation to insert hooks sorted by their id */
+EXTERNAL CFUNCTION XLONG g_hook_compare_ids		(XLONG,	XLONG)
+'/* convenience macros */
+'/* invoke all valid hooks with the (*GHookFunc) signature.
+EXTERNAL CFUNCTION g_hook_list_invoke		(XLONG,	XLONG)
+'/* invoke all valid hooks with the (*GHookCheckFunc) signature,
+' * and destroy the hook if FALSE is returned.
+EXTERNAL CFUNCTION g_hook_list_invoke_check	(XLONG,	XLONG)
+'/* invoke a marshaller on all valid hooks.
+EXTERNAL CFUNCTION g_hook_list_marshal		(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_hook_list_marshal_check	(XLONG,	XLONG,	XLONG,	XLONG)
+
+'#########################
+'########  gscanner
+'#########################
+
+'/* GScanner: Flexible lexical scanner for general purpose.
+
+'/* Character sets */
+$$G_CSET_A_2_Z$		= "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+$$G_CSET_a_2_z$		= "abcdefghijklmnopqrstuvwxyz"
+$$G_CSET_DIGITS$	= "0123456789"
+$$G_CSET_LATINC$	= "\300\301\302\303\304\305\306\307\310\311\312\313\314\315\316\317\320\321\322\323\324\325\326\330\331\332\333\334\335\336"
+$$G_CSET_LATINS$	= "\337\340\341\342\343\344\345\346\347\350\351\352\353\354\355\356\357\360\361\362\363\364\365\366\370\371\372\373\374\375\376\377"
+
+'/* Error types */
+$$G_ERR_UNKNOWN = 0
+$$G_ERR_UNEXP_EOF = 1
+$$G_ERR_UNEXP_EOF_IN_STRING = 2
+$$G_ERR_UNEXP_EOF_IN_COMMENT = 3
+$$G_ERR_NON_DIGIT_IN_CONST = 4
+$$G_ERR_DIGIT_RADIX = 5
+$$G_ERR_FLOAT_RADIX = 6
+$$G_ERR_FLOAT_MALFORMED = 7
+
+'/* Token types */
+$$G_TOKEN_EOF			=   0
+
+$$G_TOKEN_LEFT_PAREN$		= "("
+$$G_TOKEN_RIGHT_PAREN$	= ")"
+$$G_TOKEN_LEFT_CURLY$		= "{"
+$$G_TOKEN_RIGHT_CURLY$	= "}"
+$$G_TOKEN_LEFT_BRACE$		= "["
+$$G_TOKEN_RIGHT_BRACE$	= "]"
+$$G_TOKEN_EQUAL_SIGN$		= "="
+$$G_TOKEN_COMMA$				= ","
+
+$$G_TOKEN_NONE			= 256
+
+$$G_TOKEN_ERROR = 0
+
+$$G_TOKEN_CHAR = 0
+$$G_TOKEN_BINARY = 1
+$$G_TOKEN_OCTAL = 2
+$$G_TOKEN_INT = 3
+$$G_TOKEN_HEX = 4
+$$G_TOKEN_FLOAT = 5
+$$G_TOKEN_STRING = 6
+
+$$G_TOKEN_SYMBOL = 0
+$$G_TOKEN_IDENTIFIER = 1
+$$G_TOKEN_IDENTIFIER_NULL = 2
+
+$$G_TOKEN_COMMENT_SINGLE = 0
+$$G_TOKEN_COMMENT_MULTI = 1
+$$G_TOKEN_LAST = 2
+
+TYPE GTOKENVALUE
+	UNION
+		XLONG .v_symbol
+		XLONG .v_identifier
+		ULONG .v_binary
+		ULONG .v_octal
+		ULONG .v_int
+		DOUBLE .v_int64
+		DOUBLE .v_float
+		ULONG .v_hex
+		XLONG .v_string
+		XLONG .v_comment
+		UBYTE	.v_char
+		ULONG .v_error
+	END UNION
+END TYPE
+
+TYPE	GSCANNERCONFIG
+'  /* Character sets
+  XLONG .set_skip_characters		'/* default: " \t\n" */
+  XLONG .cset_identifier_first
+  XLONG .cset_identifier_nth
+  XLONG .cpair_comment_single		'/* default: "#\n" */
+'  /* Should symbol lookup work case sensitive?
+   ULONG .flags
+'  ULONG .case_sensitive ': 1;
+'  /* Boolean values to be adjusted "on the fly"
+'   * to configure scanning behaviour.
+'  ULONG .skip_comment_multi ': 1;		/* C like comment */
+'  ULONG .skip_comment_single ': 1;	/* single line comment */
+'  ULONG .scan_comment_multi ': 1;		/* scan multi line comments? */
+'  ULONG .scan_identifier ': 1;
+'  ULONG .scan_identifier_1char ': 1;
+'  ULONG .scan_identifier_NULL ': 1;
+'  ULONG .scan_symbols ': 1;
+'  ULONG .scan_binary ': 1;
+'  ULONG .scan_octal ': 1;
+'  ULONG .scan_float ': 1;
+'  ULONG .scan_hex ': 1;			/* `0x0ff0' */
+'  ULONG .scan_hex_dollar ': 1;		/* `$0ff0' */
+'  ULONG .scan_string_sq ': 1;		/* string: 'anything' */
+'  ULONG .scan_string_dq ': 1;		/* string: "\\-escapes!\n" */
+'  ULONG .numbers_2_int ': 1;		/* bin, octal, hex => int */
+'  ULONG .int_2_float ': 1;		/* int => G_TOKEN_FLOAT? */
+'  ULONG .identifier_2_string ': 1;
+'  ULONG .char_2_token ': 1;		/* return G_TOKEN_CHAR? */
+'  ULONG .symbol_2_token ': 1;
+'  ULONG .scope_0_fallback ': 1;		/* try scope 0 on lookups? */
+'  ULONG .store_int64 ': 1; 		/* use value.v_int64 rather than v_int */
+  ULONG .padding_dummy
+END TYPE
+
+TYPE	GSCANNER
+'  /* unused fields */
+  XLONG .user_data
+  ULONG .max_parse_errors
+'  /* g_scanner_error() increments this field */
+  ULONG .parse_errors
+'  /* name of input stream, featured by the default message handler */
+  XLONG .input_name
+'  /* quarked data */
+  XLONG .qdata
+'  /* link into the scanner configuration */
+  XLONG .config
+'  /* fields filled in after g_scanner_get_next_token() */
+  XLONG .token
+  XLONG .value
+  ULONG .line
+  ULONG .position
+'  /* fields filled in after g_scanner_peek_next_token() */
+  XLONG .next_token
+  XLONG .next_value
+  XLONG .next_line
+  XLONG .next_position
+'  /* to be considered private */
+  XLONG .symbol_table
+  XLONG .input_fd
+  XLONG .text
+  XLONG .text_end
+  XLONG .buffer
+  ULONG .scope_id
+  '/* handler function for _warn and _error */
+  XLONG .msg_handler
+END TYPE
+
+EXTERNAL CFUNCTION XLONG g_scanner_new			(XLONG)
+EXTERNAL CFUNCTION g_scanner_destroy		(XLONG)
+EXTERNAL CFUNCTION g_scanner_input_file		(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_scanner_sync_file_offset	(XLONG)
+EXTERNAL CFUNCTION g_scanner_input_text		(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_scanner_get_next_token	(XLONG)
+EXTERNAL CFUNCTION XLONG g_scanner_peek_next_token	(XLONG)
+EXTERNAL CFUNCTION XLONG g_scanner_cur_token		(XLONG)
+EXTERNAL CFUNCTION XLONG g_scanner_cur_value		(XLONG)
+EXTERNAL CFUNCTION ULONG g_scanner_cur_line		(XLONG)
+EXTERNAL CFUNCTION ULONG g_scanner_cur_position		(XLONG)
+EXTERNAL CFUNCTION XLONG g_scanner_eof			(XLONG)
+EXTERNAL CFUNCTION ULONG g_scanner_set_scope		(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_scanner_scope_add_symbol	(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_scanner_scope_remove_symbol	(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_scanner_scope_lookup_symbol	(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_scanner_scope_foreach_symbol	(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_scanner_lookup_symbol		(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_scanner_unexp_token		(XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_scanner_error			(XLONG,	XLONG,	...)
+EXTERNAL CFUNCTION g_scanner_warn			(XLONG,	XLONG,	...)
+
+'#########################
+'########  gcompletion
+'#########################
+
+TYPE GCOMPLETION
+  XLONG .items
+  XLONG .func
+  XLONG .prefix
+  XLONG .cache
+  XLONG .strncmp_func
+END TYPE
+
+EXTERNAL CFUNCTION XLONG g_completion_new           (XLONG)
+EXTERNAL CFUNCTION g_completion_add_items     (XLONG, XLONG)
+EXTERNAL CFUNCTION g_completion_remove_items  (XLONG, XLONG)
+EXTERNAL CFUNCTION g_completion_clear_items   (XLONG)
+EXTERNAL CFUNCTION XLONG g_completion_complete      (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_completion_complete_utf8 (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_completion_set_compare   (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_completion_free          (XLONG)
+
+'#########################
+'########  gtimer
+'#########################
+
+EXTERNAL CFUNCTION XLONG g_timer_new	         ()
+EXTERNAL CFUNCTION g_timer_destroy         (XLONG)
+EXTERNAL CFUNCTION g_timer_start	         (XLONG)
+EXTERNAL CFUNCTION g_timer_stop	         (XLONG)
+EXTERNAL CFUNCTION g_timer_reset	         (XLONG)
+EXTERNAL CFUNCTION g_timer_continue        (XLONG)
+EXTERNAL CFUNCTION DOUBLE g_timer_elapsed         (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_usleep                (XLONG)
+EXTERNAL CFUNCTION g_time_val_add          (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_time_val_from_iso8601 (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_time_val_to_iso8601   (XLONG)
+
+'#########################
+'########  gspawn
+'#########################
+
+$$G_SPAWN_ERROR_FORK = 0   '/* fork failed due to lack of memory */
+$$G_SPAWN_ERROR_READ = 1   '/* read or select on pipes failed */
+$$G_SPAWN_ERROR_CHDIR = 2  '/* changing to working dir failed */
+$$G_SPAWN_ERROR_ACCES = 3  '/* execv() returned EACCES */
+$$G_SPAWN_ERROR_PERM = 4   '/* execv() returned EPERM */
+$$G_SPAWN_ERROR_2BIG = 5   '/* execv() returned E2BIG */
+$$G_SPAWN_ERROR_NOEXEC = 6 '/* execv() returned ENOEXEC */
+$$G_SPAWN_ERROR_NAMETOOLONG = 7 '/* ""  "" ENAMETOOLONG */
+$$G_SPAWN_ERROR_NOENT = 8       '/* ""  "" ENOENT */
+$$G_SPAWN_ERROR_NOMEM = 9       '/* ""  "" ENOMEM */
+$$G_SPAWN_ERROR_NOTDIR = 10      '/* ""  "" ENOTDIR */
+$$G_SPAWN_ERROR_LOOP = 11        '/* ""  "" ELOOP   */
+$$G_SPAWN_ERROR_TXTBUSY = 12     '/* ""  "" ETXTBUSY */
+$$G_SPAWN_ERROR_IO = 13          '/* ""  "" EIO */
+$$G_SPAWN_ERROR_NFILE = 14       '/* ""  "" ENFILE */
+$$G_SPAWN_ERROR_MFILE = 15       '/* ""  "" EMFLE */
+$$G_SPAWN_ERROR_INVAL = 16       '/* ""  "" EINVAL */
+$$G_SPAWN_ERROR_ISDIR = 17       '/* ""  "" EISDIR */
+$$G_SPAWN_ERROR_LIBBAD = 18      '/* ""  "" ELIBBAD */
+$$G_SPAWN_ERROR_FAILED = 19     '/* other fatal failure, error->message                            * should explain
+
+$$G_SPAWN_LEAVE_DESCRIPTORS_OPEN = 1
+$$G_SPAWN_DO_NOT_REAP_CHILD      = 2
+'  /* look for argv[0] in the path i.e. use execvp() */
+$$G_SPAWN_SEARCH_PATH            = 4
+'  /* Dump output to /dev/null */
+$$G_SPAWN_STDOUT_TO_DEV_NULL     = 8
+$$G_SPAWN_STDERR_TO_DEV_NULL     = 16
+$$G_SPAWN_CHILD_INHERITS_STDIN   = 32
+$$G_SPAWN_FILE_AND_ARGV_ZERO     = 64
+
+EXTERNAL CFUNCTION XLONG g_spawn_error_quark ()
+
+EXTERNAL CFUNCTION XLONG g_spawn_async_utf8 (XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG)
+'/* Opens pipes for non-NULL standard_output, standard_input, standard_error,
+' * and returns the parent's end of the pipes.
+EXTERNAL CFUNCTION XLONG g_spawn_async_with_pipes_utf8 (XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG)
+'/* If standard_output or standard_error are non-NULL, the full
+' * standard output or error of the command will be placed there.
+EXTERNAL CFUNCTION XLONG g_spawn_sync_utf8         (XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_spawn_command_line_sync_utf8  (XLONG, XLONG, XLONG,   XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_spawn_command_line_async_utf8 (XLONG, XLONG)
+EXTERNAL CFUNCTION g_spawn_close_pid (XLONG)
+
+'#########################
+'########  gfileutils
+'#########################
+
+$$G_FILE_ERROR_EXIST = 0
+$$G_FILE_ERROR_ISDIR = 1
+$$G_FILE_ERROR_ACCES = 2
+$$G_FILE_ERROR_NAMETOOLONG = 3
+$$G_FILE_ERROR_NOENT = 4
+$$G_FILE_ERROR_NOTDIR = 5
+$$G_FILE_ERROR_NXIO = 6
+$$G_FILE_ERROR_NODEV = 7
+$$G_FILE_ERROR_ROFS = 8
+$$G_FILE_ERROR_TXTBSY = 9
+$$G_FILE_ERROR_FAULT = 10
+$$G_FILE_ERROR_LOOP = 11
+$$G_FILE_ERROR_NOSPC = 12
+$$G_FILE_ERROR_NOMEM = 13
+$$G_FILE_ERROR_MFILE = 14
+$$G_FILE_ERROR_NFILE = 15
+$$G_FILE_ERROR_BADF = 16
+$$G_FILE_ERROR_INVAL = 17
+$$G_FILE_ERROR_PIPE = 18
+$$G_FILE_ERROR_AGAIN = 19
+$$G_FILE_ERROR_INTR = 20
+$$G_FILE_ERROR_IO = 21
+$$G_FILE_ERROR_PERM = 22
+$$G_FILE_ERROR_NOSYS = 23
+$$G_FILE_ERROR_FAILED = 24
+
+'/* For backward-compat reasons, these are synced to an old
+' * anonymous enum in libgnome. But don't use that enum
+' * in new code.
+$$G_FILE_TEST_IS_REGULAR    = 1
+$$G_FILE_TEST_IS_SYMLINK    = 2
+$$G_FILE_TEST_IS_DIR        = 4
+$$G_FILE_TEST_IS_EXECUTABLE = 8
+$$G_FILE_TEST_EXISTS        = 16
+
+EXTERNAL CFUNCTION XLONG g_file_error_quark      ()
+'/* So other code can generate a GFileError */
+EXTERNAL CFUNCTION XLONG g_file_error_from_errno (XLONG)
+
+EXTERNAL CFUNCTION XLONG g_file_test_utf8         (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_file_get_contents_utf8 (XLONG, XLONG, XLONG,     XLONG)
+EXTERNAL CFUNCTION XLONG g_file_set_contents (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_file_read_link    (XLONG,	XLONG)
+
+'/* Wrapper / workalike for mkstemp() */
+EXTERNAL CFUNCTION XLONG g_mkstemp_utf8            (XLONG)
+'/* Wrapper for g_mkstemp */
+EXTERNAL CFUNCTION XLONG g_file_open_tmp_utf8      (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_format_size_for_display (XLONG)
+EXTERNAL CFUNCTION XLONG g_build_path     (XLONG,	XLONG,	...)
+EXTERNAL CFUNCTION XLONG g_build_pathv    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_build_filename (XLONG,	...)
+EXTERNAL CFUNCTION XLONG g_build_filenamev (XLONG)
+EXTERNAL CFUNCTION XLONG g_mkdir_with_parents (XLONG,	XLONG)
+
+'#########################
+'########  gshell
+'#########################
+
+'  /* mismatched or otherwise mangled quoting */
+$$G_SHELL_ERROR_BAD_QUOTING = 0
+'  /* string to be parsed was empty */
+$$G_SHELL_ERROR_EMPTY_STRING = 1
+$$G_SHELL_ERROR_FAILED  = 2
+
+EXTERNAL CFUNCTION XLONG g_shell_error_quark ()
+
+EXTERNAL CFUNCTION XLONG g_shell_quote      (XLONG)
+EXTERNAL CFUNCTION XLONG g_shell_unquote    (XLONG, XLONG)
+EXTERNAL CFUNCTION SLONG g_shell_parse_argv (XLONG, XLONG, XLONG, XLONG)
+
+'#########################
+'########  goption
+'#########################
+
+$$G_OPTION_FLAG_HIDDEN		= 1
+$$G_OPTION_FLAG_IN_MAIN		= 2
+$$G_OPTION_FLAG_REVERSE		= 4
+$$G_OPTION_FLAG_NO_ARG		= 8
+$$G_OPTION_FLAG_FILENAME	= 16
+$$G_OPTION_FLAG_OPTIONAL_ARG    = 32
+$$G_OPTION_FLAG_NOALIAS	        = 64
+
+$$G_OPTION_ARG_NONE = 0
+$$G_OPTION_ARG_STRING = 1
+$$G_OPTION_ARG_INT = 2
+$$G_OPTION_ARG_CALLBACK = 3
+$$G_OPTION_ARG_FILENAME = 4
+$$G_OPTION_ARG_STRING_ARRAY = 5
+$$G_OPTION_ARG_FILENAME_ARRAY = 6
+$$G_OPTION_ARG_DOUBLE = 7
+$$G_OPTION_ARG_INT64 = 8
+
+$$G_OPTION_ERROR_UNKNOWN_OPTION = 0
+$$G_OPTION_ERROR_BAD_VALUE = 1
+$$G_OPTION_ERROR_FAILED = 2
+
+EXTERNAL CFUNCTION XLONG g_option_error_quark ()
+
+TYPE GOPTIONENTRY
+  XLONG .long_name
+  UBYTE .short_name
+  SLONG .flags
+  XLONG .arg
+  XLONG .arg_data
+  XLONG .description
+  XLONG .arg_description
+END TYPE
+
+EXTERNAL CFUNCTION XLONG g_option_context_new              (XLONG)
+EXTERNAL CFUNCTION g_option_context_set_summary      (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_option_context_get_summary (XLONG)
+EXTERNAL CFUNCTION g_option_context_set_description  (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_option_context_get_description (XLONG)
+EXTERNAL CFUNCTION g_option_context_free             (XLONG)
+EXTERNAL CFUNCTION g_option_context_set_help_enabled (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_option_context_get_help_enabled (XLONG)
+EXTERNAL CFUNCTION g_option_context_set_ignore_unknown_options (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_option_context_get_ignore_unknown_options (XLONG)
+EXTERNAL CFUNCTION g_option_context_add_main_entries (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_option_context_parse            (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_option_context_set_translate_func (XLONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION g_option_context_set_translation_domain (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_option_context_add_group      (XLONG,XLONG)
+EXTERNAL CFUNCTION g_option_context_set_main_group (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_option_context_get_main_group (XLONG)
+EXTERNAL CFUNCTION XLONG g_option_context_get_help      (XLONG,XLONG,XLONG)
+
+EXTERNAL CFUNCTION XLONG g_option_group_new                    (XLONG,XLONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION g_option_group_set_parse_hooks	    (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION g_option_group_set_error_hook	    (XLONG,XLONG)
+EXTERNAL CFUNCTION g_option_group_free                   (XLONG)
+EXTERNAL CFUNCTION g_option_group_add_entries            (XLONG,XLONG)
+EXTERNAL CFUNCTION g_option_group_set_translate_func     (XLONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION g_option_group_set_translation_domain (XLONG,XLONG)
+
+'#########################
+'########  gpattern
+'#########################
+
+EXTERNAL CFUNCTION XLONG g_pattern_spec_new       (XLONG)
+EXTERNAL CFUNCTION g_pattern_spec_free      (XLONG)
+EXTERNAL CFUNCTION XLONG g_pattern_spec_equal     (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_pattern_match          (XLONG,	ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_pattern_match_string   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_pattern_match_simple   (XLONG,	XLONG)
+
+'#########################
+'########  gmarkup
+'#########################
+
+$$G_MARKUP_ERROR_BAD_UTF8 = 0
+$$G_MARKUP_ERROR_EMPTY = 1
+$$G_MARKUP_ERROR_PARSE = 2
+'  /* These three are primarily intended for specific GMarkupParser
+'   * implementations to set.
+$$G_MARKUP_ERROR_UNKNOWN_ELEMENT = 0
+$$G_MARKUP_ERROR_UNKNOWN_ATTRIBUTE = 1
+$$G_MARKUP_ERROR_INVALID_CONTENT = 2
+
+EXTERNAL CFUNCTION XLONG g_markup_error_quark ()
+
+$$G_MARKUP_DO_NOT_USE_THIS_UNSUPPORTED_FLAG = 1
+$$G_MARKUP_TREAT_CDATA_AS_TEXT              = 2
+$$G_MARKUP_PREFIX_ERROR_POSITION            = 4
+
+EXTERNAL CFUNCTION XLONG g_markup_parse_context_new   (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_markup_parse_context_free  (XLONG)
+EXTERNAL CFUNCTION XLONG g_markup_parse_context_parse (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_markup_parse_context_push  (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_markup_parse_context_pop   (XLONG)
+
+EXTERNAL CFUNCTION XLONG g_markup_parse_context_end_parse (XLONG,   XLONG)
+EXTERNAL CFUNCTION XLONG g_markup_parse_context_get_element (XLONG)
+EXTERNAL CFUNCTION XLONG g_markup_parse_context_get_element_stack (XLONG)
+
+'/* For user-constructed error messages, has no precise semantics */
+EXTERNAL CFUNCTION g_markup_parse_context_get_position (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_markup_parse_context_get_user_data (XLONG)
+'/* useful when saving */
+EXTERNAL CFUNCTION XLONG g_markup_escape_text (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_markup_printf_escaped (XLONG,	...)
+EXTERNAL CFUNCTION XLONG g_markup_vprintf_escaped (XLONG,	XLONG)
+
+$$G_MARKUP_COLLECT_INVALID = 0
+$$G_MARKUP_COLLECT_STRING = 1
+$$G_MARKUP_COLLECT_STRDUP = 2
+$$G_MARKUP_COLLECT_BOOLEAN = 4
+$$G_MARKUP_COLLECT_TRISTATE = 8
+
+$$G_MARKUP_COLLECT_OPTIONAL = 65536
+
+EXTERNAL CFUNCTION SLONG g_markup_collect_attributes (XLONG,XLONG,XLONG,XLONG,XLONG,XLONG, ...)
+
+'#########################
+'########  gkeyfile
+'#########################
+
+$$G_KEY_FILE_ERROR_UNKNOWN_ENCODING = 0
+$$G_KEY_FILE_ERROR_PARSE = 1
+$$G_KEY_FILE_ERROR_NOT_FOUND = 2
+$$G_KEY_FILE_ERROR_KEY_NOT_FOUND = 3
+$$G_KEY_FILE_ERROR_GROUP_NOT_FOUND = 4
+$$G_KEY_FILE_ERROR_INVALID_VALUE = 5
+
+EXTERNAL CFUNCTION XLONG g_key_file_error_quark ()
+
+$$G_KEY_FILE_NONE              = 0
+$$G_KEY_FILE_KEEP_COMMENTS     = 1
+$$G_KEY_FILE_KEEP_TRANSLATIONS = 2
+
+EXTERNAL CFUNCTION XLONG g_key_file_new ()
+EXTERNAL CFUNCTION g_key_file_free (XLONG)
+EXTERNAL CFUNCTION g_key_file_set_list_separator (XLONG, UBYTE)
+EXTERNAL CFUNCTION XLONG g_key_file_load_from_file (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_load_from_data (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_load_from_dirs (XLONG,XLONG,XLONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_load_from_data_dirs(XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_to_data (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_start_group(XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_groups     (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_keys(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_has_group      (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_has_key (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_value      (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_key_file_set_value      (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_string     (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_key_file_set_string     (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_locale_string  (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_key_file_set_locale_string  (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_boolean    (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_key_file_set_boolean    (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_integer    (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_key_file_set_integer    (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION DOUBLE g_key_file_get_double     (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_key_file_set_double     (XLONG, XLONG, XLONG, DOUBLE)
+EXTERNAL CFUNCTION XLONG g_key_file_get_string_list(XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_key_file_set_string_list(XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_locale_string_list (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_key_file_set_locale_string_list (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_boolean_list   (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_key_file_set_boolean_list   (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_integer_list   (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_key_file_set_double_list(XLONG, XLONG, XLONG, DOUBLE, XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_double_list(XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_key_file_set_integer_list   (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_key_file_set_comment    (XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_key_file_get_comment    (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_key_file_remove_comment (XLONG, XLONG, XLONG,	XLONG)
+EXTERNAL CFUNCTION g_key_file_remove_key     (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_key_file_remove_group   (XLONG,	XLONG,	XLONG)
+
+'/* Defines for handling freedesktop.org Desktop files */
+$$G_KEY_FILE_DESKTOP_GROUP$ = "Desktop Entry"
+$$G_KEY_FILE_DESKTOP_KEY_TYPE$ = "Type"
+$$G_KEY_FILE_DESKTOP_KEY_VERSION$ = "Version"
+$$G_KEY_FILE_DESKTOP_KEY_NAME$ = "Name"
+$$G_KEY_FILE_DESKTOP_KEY_GENERIC_NAME$ = "GenericName"
+$$G_KEY_FILE_DESKTOP_KEY_NO_DISPLAY$ = "NoDisplay"
+$$G_KEY_FILE_DESKTOP_KEY_COMMENT$ = "Comment"
+$$G_KEY_FILE_DESKTOP_KEY_ICON$ = "Icon"
+$$G_KEY_FILE_DESKTOP_KEY_HIDDEN$ = "Hidden"
+$$G_KEY_FILE_DESKTOP_KEY_ONLY_SHOW_IN$ = "OnlyShowIn"
+$$G_KEY_FILE_DESKTOP_KEY_NOT_SHOW_IN$ = "NotShowIn"
+$$G_KEY_FILE_DESKTOP_KEY_TRY_EXEC$ = "TryExec"
+$$G_KEY_FILE_DESKTOP_KEY_EXEC$ = "Exec"
+$$G_KEY_FILE_DESKTOP_KEY_PATH$ = "Path"
+$$G_KEY_FILE_DESKTOP_KEY_TERMINAL$ = "Terminal"
+$$G_KEY_FILE_DESKTOP_KEY_MIME_TYPE$ = "MimeType"
+$$G_KEY_FILE_DESKTOP_KEY_CATEGORIES$ = "Categories"
+$$G_KEY_FILE_DESKTOP_KEY_STARTUP_NOTIFY$ = "StartupNotify"
+$$G_KEY_FILE_DESKTOP_KEY_STARTUP_WM_CLASS$ = "StartupWMClass"
+$$G_KEY_FILE_DESKTOP_KEY_URL$ = "URL"
+$$G_KEY_FILE_DESKTOP_TYPE_APPLICATION$ = "Application"
+$$G_KEY_FILE_DESKTOP_TYPE_LINK$ = "Link"
+$$G_KEY_FILE_DESKTOP_TYPE_DIRECTORY$ = "Directory"
+
+
+'#########################
+'########  gbookmarkfile
+'#########################
+
+$$G_BOOKMARK_FILE_ERROR_INVALID_URI = 0
+$$G_BOOKMARK_FILE_ERROR_INVALID_VALUE = 1
+$$G_BOOKMARK_FILE_ERROR_APP_NOT_REGISTERED = 2
+$$G_BOOKMARK_FILE_ERROR_URI_NOT_FOUND = 3
+$$G_BOOKMARK_FILE_ERROR_READ = 4
+$$G_BOOKMARK_FILE_ERROR_UNKNOWN_ENCODING = 5
+$$G_BOOKMARK_FILE_ERROR_WRITE = 6
+$$G_BOOKMARK_FILE_ERROR_FILE_NOT_FOUND = 7
+
+EXTERNAL CFUNCTION XLONG g_bookmark_file_error_quark ()
+' * GBookmarkFile
+EXTERNAL CFUNCTION XLONG g_bookmark_file_new ()
+EXTERNAL CFUNCTION g_bookmark_file_free(XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_load_from_file (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_load_from_data (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_load_from_data_dirs (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_to_data        (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_to_file        (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_bookmark_file_set_title      (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_title      (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_bookmark_file_set_description(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_description(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_bookmark_file_set_mime_type  (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_mime_type  (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_bookmark_file_set_groups     (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_bookmark_file_add_group      (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_has_group      (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_groups     (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_bookmark_file_add_application(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_has_application(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_applications    (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_set_app_info   (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_app_info   (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_bookmark_file_set_is_private (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_is_private (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_bookmark_file_set_icon       (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_icon       (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_bookmark_file_set_added      (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_added      (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_bookmark_file_set_modified   (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_modified   (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_bookmark_file_set_visited    (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_visited    (XLONG,	XLONG, 	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_has_item       (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_size       (XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_get_uris       (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_remove_group   (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_remove_application  (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_remove_item    (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_bookmark_file_move_item      (XLONG,	XLONG,	XLONG,	XLONG)
+
+'#########################
+'########  gwin32
+'#########################
+
+'/* For some POSIX functions that are not provided by the MS runtime,
+' * we provide emulation functions in glib, which are prefixed with
+' * g_win32_. Or that was the idea at some time, but there is just one
+' * of those:
+EXTERNAL CFUNCTION SLONG g_win32_ftruncate	(SLONG,	ULONG)
+'/* The MS setlocale uses locale names of the form "English_United
+' * States.1252" etc. We want the Unixish standard form "en", "zh_TW"
+' * etc. This function gets the current thread locale from Windows and
+' * returns it as a string of the above form for use in forming file
+' * names etc. The returned string should be deallocated with g_free().
+EXTERNAL CFUNCTION XLONG g_win32_getlocale  ()
+'/* Translate a Win32 error code (as returned by GetLastError()) into
+' * the corresponding message. The returned string should be deallocated
+' * with g_free().
+EXTERNAL CFUNCTION XLONG g_win32_error_message (SLONG)
+EXTERNAL CFUNCTION XLONG g_win32_get_package_installation_directory_utf8 (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_win32_get_package_installation_subdirectory_utf8 (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_win32_get_package_installation_directory_of_module (XLONG)
+EXTERNAL CFUNCTION XLONG g_win32_get_windows_version ()
+EXTERNAL CFUNCTION XLONG g_win32_locale_filename_from_utf8 (XLONG)
+
+'#########################
+'########  gslice
+'#########################
+
+'/* slices - fast allocation/release of small memory blocks
+EXTERNAL CFUNCTION XLONG g_slice_alloc (XLONG)
+EXTERNAL CFUNCTION XLONG g_slice_alloc0(XLONG)
+EXTERNAL CFUNCTION XLONG g_slice_copy  (XLONG, XLONG)
+EXTERNAL CFUNCTION g_slice_free1 (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_slice_free_chain_with_offset (XLONG,	XLONG,	XLONG)
+
+'/* --- internal debugging API --- */
+$$G_SLICE_CONFIG_ALWAYS_MALLOC = 1
+$$G_SLICE_CONFIG_BYPASS_MAGAZINES = 2
+$$G_SLICE_CONFIG_WORKING_SET_MSECS = 3
+$$G_SLICE_CONFIG_COLOR_INCREMENT = 4
+$$G_SLICE_CONFIG_CHUNK_SIZES = 5
+$$G_SLICE_CONFIG_CONTENTION_COUNTER = 6
+
+EXTERNAL CFUNCTION g_slice_set_config	   (XLONG, DOUBLE)
+EXTERNAL CFUNCTION DOUBLE g_slice_get_config	   (XLONG)
+EXTERNAL CFUNCTION XLONG g_slice_get_config_state  (XLONG, DOUBLE, XLONG)
+
+
+'#########################
+'########  gslist
+'#########################
+
+TYPE GSLIST
+  XLONG .data
+  XLONG .next
+END TYPE
+'/* Singly linked lists
+EXTERNAL CFUNCTION XLONG g_slist_alloc ()
+EXTERNAL CFUNCTION g_slist_free  (XLONG)
+EXTERNAL CFUNCTION g_slist_free_1(XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_append(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_prepend (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_insert(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_insert_sorted (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_insert_sorted_with_data (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_insert_before (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_concat(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_remove(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_remove_all    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_remove_link   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_delete_link   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_reverse (XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_copy  (XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_nth   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_find  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_find_custom   (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_position(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_index (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_last  (XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_length(XLONG)
+EXTERNAL CFUNCTION g_slist_foreach (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_sort  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_sort_with_data(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_slist_nth_data(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_slist_push_allocator(XLONG)
+EXTERNAL CFUNCTION g_slist_pop_allocator ()
+
+'#########################
+'########  gqueue
+'#########################
+
+TYPE GQUEUE
+  XLONG .head
+  XLONG .tail
+  ULONG .length
+END TYPE
+'/* Queues
+EXTERNAL CFUNCTION XLONG g_queue_new ()
+EXTERNAL CFUNCTION g_queue_free(XLONG)
+EXTERNAL CFUNCTION g_queue_init           (XLONG)
+EXTERNAL CFUNCTION g_queue_clear          (XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_is_empty (XLONG)
+EXTERNAL CFUNCTION ULONG g_queue_get_length     (XLONG)
+EXTERNAL CFUNCTION g_queue_reverse  (XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_copy(XLONG)
+EXTERNAL CFUNCTION g_queue_foreach  (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_find(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_find_custom    (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_sort(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_push_head(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_push_tail(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_push_nth (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_pop_head (XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_pop_tail (XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_pop_nth  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_peek_head(XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_peek_tail(XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_peek_nth (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_index    (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_remove   (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_remove_all     (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_insert_before  (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_insert_after   (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_insert_sorted  (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_push_head_link (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_push_tail_link (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_push_nth_link  (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_pop_head_link  (XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_pop_tail_link  (XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_pop_nth_link   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_peek_head_link (XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_peek_tail_link (XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_peek_nth_link  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_queue_link_index     (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_unlink   (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_queue_delete_link    (XLONG,	XLONG)
+
+'#########################
+'########  ghash
+'#########################
+
+'/* Hash tables
+EXTERNAL CFUNCTION XLONG g_hash_table_new	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_hash_table_new_full (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_hash_table_destroy(XLONG)
+EXTERNAL CFUNCTION g_hash_table_insert	(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_hash_table_replace      (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_hash_table_remove	(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_hash_table_remove_all   (XLONG)
+EXTERNAL CFUNCTION XLONG g_hash_table_steal        (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_hash_table_steal_all    (XLONG)
+EXTERNAL CFUNCTION XLONG g_hash_table_lookup	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_hash_table_lookup_extended   (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_hash_table_foreach(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_hash_table_find	      (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_hash_table_foreach_remove(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG g_hash_table_foreach_steal(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_hash_table_size	(XLONG)
+EXTERNAL CFUNCTION XLONG g_hash_table_get_keys (XLONG)
+EXTERNAL CFUNCTION XLONG g_hash_table_get_values (XLONG)
+'/* keeping hash tables alive */
+EXTERNAL CFUNCTION XLONG g_hash_table_ref   	(XLONG)
+EXTERNAL CFUNCTION g_hash_table_unref        (XLONG)
+'/* The following two functions are deprecated and will be removed in
+' * the next major release. They do no good. */
+'/* Hash Functions
+EXTERNAL CFUNCTION XLONG g_str_equal (XLONG, XLONG)
+EXTERNAL CFUNCTION ULONG g_str_hash  (XLONG)
+EXTERNAL CFUNCTION XLONG g_int_equal (XLONG, XLONG)
+EXTERNAL CFUNCTION ULONG g_int_hash  (XLONG)
+'/* This "hash" function will just return the key's address as an
+' * unsigned integer. Useful for hashing on plain addresses or
+' * simple integer values.
+' * Passing NULL into g_hash_table_new() as GHashFunc has the
+' * same effect as passing g_direct_hash().
+EXTERNAL CFUNCTION ULONG g_direct_hash  (XLONG)
+EXTERNAL CFUNCTION XLONG g_direct_equal (XLONG,    XLONG)
+
+'#########################
+'########  gstring
+'#########################
+
+TYPE GSTRING
+  XLONG .str
+  XLONG .len
+  XLONG .allocated_len
+END TYPE
+'/* String Chunks
+EXTERNAL CFUNCTION XLONG g_string_chunk_new	(XLONG)
+EXTERNAL CFUNCTION g_string_chunk_free	(XLONG)
+EXTERNAL CFUNCTION XLONG g_string_chunk_insert	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_string_chunk_insert_len	(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_string_chunk_insert_const  (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_string_chunk_clear	   (XLONG)
+'/* Strings
+EXTERNAL CFUNCTION XLONG g_string_new	(XLONG)
+EXTERNAL CFUNCTION XLONG g_string_new_len   (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_string_sized_new (XLONG)
+EXTERNAL CFUNCTION XLONG g_string_free	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_string_equal     (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_string_hash      (XLONG)
+EXTERNAL CFUNCTION XLONG g_string_assign    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_string_truncate  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_string_set_size  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_string_insert_len(XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_string_append    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_string_append_len(XLONG,	XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_string_append_c  (XLONG,	UBYTE)
+EXTERNAL CFUNCTION XLONG g_string_append_unichar (XLONG,	UBYTE)
+EXTERNAL CFUNCTION XLONG g_string_prepend   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_string_prepend_c (XLONG,	UBYTE)
+EXTERNAL CFUNCTION XLONG g_string_prepend_unichar(XLONG,	UBYTE)
+EXTERNAL CFUNCTION XLONG g_string_prepend_len    (XLONG,	XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_string_insert    (XLONG,	XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_string_insert_c  (XLONG,	XLONG, UBYTE)
+EXTERNAL CFUNCTION XLONG g_string_insert_unichar (XLONG,	XLONG, UBYTE)
+EXTERNAL CFUNCTION XLONG g_string_erase	(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_string_ascii_down(XLONG)
+EXTERNAL CFUNCTION XLONG g_string_ascii_up  (XLONG)
+EXTERNAL CFUNCTION g_string_printf    (XLONG,	XLONG,	...)
+EXTERNAL CFUNCTION g_string_append_printf  (XLONG,	XLONG,	...)
+EXTERNAL CFUNCTION g_string_append_vprintf    (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_string_vprintf           (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_string_append_uri_escaped(XLONG,XLONG,XLONG,SLONG)
+
+
+EXTERNAL CFUNCTION XLONG g_string_overwrite         (XLONG,XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_string_overwrite_len     (XLONG,XLONG, XLONG,XLONG)
+
+'#########################
+'########  garray
+'#########################
+
+TYPE GARRAY
+	XLONG .data
+  ULONG .len
+END TYPE
+
+TYPE GBYTEARRAY
+	XLONG .data
+  ULONG .len
+END TYPE
+
+TYPE GPTRARRAY
+	XLONG .pdata
+  ULONG .len
+END TYPE
+
+'/* Resizable arrays. remove fills any cleared spot and shortens the
+' * array, while preserving the order. remove_fast will distort the
+' * order by moving the last element to the position of the removed.
+EXTERNAL CFUNCTION XLONG g_array_new (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_array_sized_new (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_array_free(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_array_append_vals (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_array_prepend_vals(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_array_insert_vals (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_array_set_size  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_array_remove_index(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_array_remove_index_fast (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_array_remove_range(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_array_sort(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_array_sort_with_data    (XLONG,	XLONG,	XLONG)
+'/* Resizable pointer array.  This interface is much less complicated
+' * than the above.  Add appends a pointer.  Remove fills any cleared
+' * spot and shortens the array. remove_fast will again distort order.
+EXTERNAL CFUNCTION XLONG g_ptr_array_new  ()
+EXTERNAL CFUNCTION XLONG g_ptr_array_sized_new  (XLONG)
+EXTERNAL CFUNCTION XLONG g_ptr_array_free (XLONG,		XLONG)
+EXTERNAL CFUNCTION g_ptr_array_set_size   (XLONG,		XLONG)
+EXTERNAL CFUNCTION XLONG g_ptr_array_remove_index (XLONG,		XLONG)
+EXTERNAL CFUNCTION XLONG g_ptr_array_remove_index_fast  (XLONG,		XLONG)
+EXTERNAL CFUNCTION XLONG g_ptr_array_remove     (XLONG,		XLONG)
+EXTERNAL CFUNCTION XLONG g_ptr_array_remove_fast(XLONG,		XLONG)
+EXTERNAL CFUNCTION g_ptr_array_remove_range (XLONG,		XLONG,		XLONG)
+EXTERNAL CFUNCTION g_ptr_array_add  (XLONG,		XLONG)
+EXTERNAL CFUNCTION g_ptr_array_sort (XLONG,		XLONG)
+EXTERNAL CFUNCTION g_ptr_array_sort_with_data     (XLONG,		XLONG,		XLONG)
+EXTERNAL CFUNCTION g_ptr_array_foreach    (XLONG,		XLONG,		XLONG)
+'/* Byte arrays, an array of guint8.  Implemented as a GArray,
+' * but type-safe.
+EXTERNAL CFUNCTION XLONG g_byte_array_new ()
+EXTERNAL CFUNCTION XLONG g_byte_array_sized_new (XLONG)
+EXTERNAL CFUNCTION XLONG g_byte_array_free(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_byte_array_append    (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_byte_array_prepend   (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_byte_array_set_size  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_byte_array_remove_index(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_byte_array_remove_index_fast (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_byte_array_remove_range(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_byte_array_sort(XLONG,	XLONG)
+EXTERNAL CFUNCTION g_byte_array_sort_with_data    (XLONG,	XLONG,	XLONG)
+
+'#########################
+'########  gtree
+'#########################
+
+EXTERNAL CFUNCTION XLONG g_tree_new (XLONG)
+EXTERNAL CFUNCTION XLONG g_tree_new_with_data (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_tree_new_full (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_tree_destroy  (XLONG)
+EXTERNAL CFUNCTION g_tree_insert   (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_tree_replace  (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_tree_remove   (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_tree_steal    (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_tree_lookup   (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_tree_lookup_extended (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_tree_foreach  (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_tree_traverse (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_tree_search   (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_tree_height   (XLONG)
+EXTERNAL CFUNCTION XLONG g_tree_nnodes   (XLONG)
+
+'#########################
+'########  gnode
+'#########################
+
+'/* Tree traverse flags */
+$$G_TRAVERSE_LEAVES     = 1
+$$G_TRAVERSE_NON_LEAVES = 2
+$$G_TRAVERSE_ALL        = 3
+$$G_TRAVERSE_MASK       = 0x03
+$$G_TRAVERSE_LEAFS      = $$G_TRAVERSE_LEAVES
+$$G_TRAVERSE_NON_LEAFS  = $$G_TRAVERSE_NON_LEAVES
+'/* Tree traverse orders */
+$$G_IN_ORDER = 0
+$$G_PRE_ORDER = 1
+$$G_POST_ORDER = 2
+$$G_LEVEL_ORDER = 3
+'/* N-way tree implementation
+TYPE GNODE
+  XLONG .data
+  XLONG .next
+  XLONG .prev
+  XLONG .parent
+  XLONG .children
+END TYPE
+EXTERNAL CFUNCTION XLONG g_node_new		(XLONG)
+EXTERNAL CFUNCTION g_node_destroy		(XLONG)
+EXTERNAL CFUNCTION g_node_unlink		(XLONG)
+EXTERNAL CFUNCTION XLONG g_node_copy_deep       (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_node_copy            (XLONG)
+EXTERNAL CFUNCTION XLONG g_node_insert		(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_node_insert_before	(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_node_insert_after    (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_node_prepend		(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_node_n_nodes		(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_node_get_root	(XLONG)
+EXTERNAL CFUNCTION XLONG g_node_is_ancestor	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_node_depth		(XLONG)
+EXTERNAL CFUNCTION XLONG g_node_find		(XLONG,	XLONG,	XLONG,	XLONG)
+'/* traversal function, assumes that `node' is root
+' * (only traverses `node' and its subtree).
+' * this function is just a high level interface to
+' * low level traversal functions, optimized for speed.
+EXTERNAL CFUNCTION g_node_traverse	(XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+'/* return the maximum tree height starting with `node', this is an expensive
+' * operation, since we need to visit all nodes. this could be shortened by
+' * adding `guint height' to struct _GNode, but then again, this is not very
+' * often needed, and would make g_node_insert() more time consuming.
+EXTERNAL CFUNCTION ULONG g_node_max_height	 (XLONG)
+EXTERNAL CFUNCTION g_node_children_foreach (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION g_node_reverse_children (XLONG)
+EXTERNAL CFUNCTION ULONG g_node_n_children	 (XLONG)
+EXTERNAL CFUNCTION XLONG g_node_nth_child	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_node_last_child	 (XLONG)
+EXTERNAL CFUNCTION XLONG g_node_find_child	 (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_node_child_position	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_node_child_index	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_node_first_sibling	 (XLONG)
+EXTERNAL CFUNCTION XLONG g_node_last_sibling	 (XLONG)
+EXTERNAL CFUNCTION g_node_push_allocator  (XLONG)
+EXTERNAL CFUNCTION g_node_pop_allocator   ()
+
+'#########################
+'########  gquark
+'#########################
+
+'/* Quarks (string<->id association)
+EXTERNAL CFUNCTION ULONG g_quark_try_string         (XLONG)
+EXTERNAL CFUNCTION ULONG g_quark_from_static_string (XLONG)
+EXTERNAL CFUNCTION ULONG g_quark_from_string        (XLONG)
+EXTERNAL CFUNCTION XLONG g_quark_to_string          (XLONG)
+EXTERNAL CFUNCTION XLONG g_intern_string            (XLONG)
+EXTERNAL CFUNCTION XLONG g_intern_static_string     (XLONG)
+
+'#########################
+'########  gdataset
+'#########################
+
+'/* Keyed Data List
+EXTERNAL CFUNCTION g_datalist_init (XLONG)
+EXTERNAL CFUNCTION g_datalist_clear(XLONG)
+EXTERNAL CFUNCTION XLONG g_datalist_id_get_data (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_datalist_id_set_data_full    (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_datalist_id_remove_no_notify (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_datalist_foreach     (XLONG,	XLONG,	XLONG)
+' * G_DATALIST_FLAGS_MASK:
+' *
+' * A bitmask that restricts the possible flags passed to
+' * g_datalist_set_flags(). Passing a flags value where
+' * flags & ~G_DATALIST_FLAGS_MASK != 0 is an error.
+$$G_DATALIST_FLAGS_MASK = 0x3
+EXTERNAL CFUNCTION g_datalist_set_flags   (XLONG,	XLONG)
+EXTERNAL CFUNCTION g_datalist_unset_flags (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_datalist_get_flags   (XLONG)
+'/* Location Associated Keyed Data
+EXTERNAL CFUNCTION g_datalist_destroy     (XLONG)
+
+'#########################
+'########  grel
+'#########################
+
+TYPE GTUPLES
+  ULONG .len
+END TYPE
+'/* GRelation
+' *
+' * Indexed Relations.  Imagine a really simple table in a
+' * database.  Relations are not ordered.  This data type is meant for
+' * maintaining a N-way mapping.
+' *
+' * g_relation_new() creates a relation with FIELDS fields
+' *
+' * g_relation_destroy() frees all resources
+' * g_tuples_destroy() frees the result of g_relation_select()
+' *
+' * g_relation_index() indexes relation FIELD with the provided
+' *   equality and hash functions.  this must be done before any
+' *   calls to insert are made.
+' *
+' * g_relation_insert() inserts a new tuple.  you are expected to
+' *   provide the right number of fields.
+' *
+' * g_relation_delete() deletes all relations with KEY in FIELD
+' * g_relation_select() returns ...
+' * g_relation_count() counts ...
+EXTERNAL CFUNCTION XLONG g_relation_new     (XLONG)
+EXTERNAL CFUNCTION g_relation_destroy (XLONG)
+EXTERNAL CFUNCTION g_relation_index   (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_relation_insert  (XLONG, ...)
+EXTERNAL CFUNCTION XLONG g_relation_delete  (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_relation_select  (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_relation_count   (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_relation_exists  (XLONG, ...)
+EXTERNAL CFUNCTION g_relation_print   (XLONG)
+EXTERNAL CFUNCTION g_tuples_destroy   (XLONG)
+EXTERNAL CFUNCTION XLONG g_tuples_index     (XLONG, XLONG, XLONG)
+
+'#########################
+'########  gcache
+'#########################
+
+'/* Caches
+EXTERNAL CFUNCTION XLONG g_cache_new           (XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_cache_destroy       (XLONG)
+EXTERNAL CFUNCTION XLONG g_cache_insert        (XLONG, XLONG)
+EXTERNAL CFUNCTION g_cache_remove        (XLONG, XLONG)
+EXTERNAL CFUNCTION g_cache_key_foreach   (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_cache_value_foreach (XLONG, XLONG, XLONG)
+
+'#########################
+'########  gregex
+'#########################
+
+$$G_REGEX_ERROR_COMPILE = 0
+$$G_REGEX_ERROR_OPTIMIZE = 1
+$$G_REGEX_ERROR_REPLACE = 2
+$$G_REGEX_ERROR_MATCH = 3
+
+$$G_REGEX_ERROR_STRAY_BACKSLASH = 101
+$$G_REGEX_ERROR_MISSING_CONTROL_CHAR = 102
+$$G_REGEX_ERROR_UNRECOGNIZED_ESCAPE = 103
+$$G_REGEX_ERROR_QUANTIFIERS_OUT_OF_ORDER = 104
+$$G_REGEX_ERROR_QUANTIFIER_TOO_BIG = 105
+$$G_REGEX_ERROR_UNTERMINATED_CHARACTER_CLASS = 106
+$$G_REGEX_ERROR_INVALID_ESCAPE_IN_CHARACTER_CLASS = 107
+$$G_REGEX_ERROR_RANGE_OUT_OF_ORDER = 108
+$$G_REGEX_ERROR_NOTHING_TO_REPEAT = 109
+$$G_REGEX_ERROR_UNRECOGNIZED_CHARACTER = 112
+$$G_REGEX_ERROR_POSIX_NAMED_CLASS_OUTSIDE_CLASS = 113
+$$G_REGEX_ERROR_UNMATCHED_PARENTHESIS = 114
+$$G_REGEX_ERROR_INEXISTENT_SUBPATTERN_REFERENCE = 115
+$$G_REGEX_ERROR_UNTERMINATED_COMMENT = 118
+$$G_REGEX_ERROR_EXPRESSION_TOO_LARGE = 120
+$$G_REGEX_ERROR_MEMORY_ERROR = 121
+$$G_REGEX_ERROR_VARIABLE_LENGTH_LOOKBEHIND = 125
+$$G_REGEX_ERROR_MALFORMED_CONDITION = 126
+$$G_REGEX_ERROR_TOO_MANY_CONDITIONAL_BRANCHES = 127
+$$G_REGEX_ERROR_ASSERTION_EXPECTED = 128
+$$G_REGEX_ERROR_UNKNOWN_POSIX_CLASS_NAME = 130
+$$G_REGEX_ERROR_POSIX_COLLATING_ELEMENTS_NOT_SUPPORTED = 131
+$$G_REGEX_ERROR_HEX_CODE_TOO_LARGE = 134
+$$G_REGEX_ERROR_INVALID_CONDITION = 135
+$$G_REGEX_ERROR_SINGLE_BYTE_MATCH_IN_LOOKBEHIND = 136
+$$G_REGEX_ERROR_INFINITE_LOOP = 140
+$$G_REGEX_ERROR_MISSING_SUBPATTERN_NAME_TERMINATOR = 142
+$$G_REGEX_ERROR_DUPLICATE_SUBPATTERN_NAME = 143
+$$G_REGEX_ERROR_MALFORMED_PROPERTY = 146
+$$G_REGEX_ERROR_UNKNOWN_PROPERTY = 147
+$$G_REGEX_ERROR_SUBPATTERN_NAME_TOO_LONG = 148
+$$G_REGEX_ERROR_TOO_MANY_SUBPATTERNS = 149
+$$G_REGEX_ERROR_INVALID_OCTAL_VALUE = 151
+$$G_REGEX_ERROR_TOO_MANY_BRANCHES_IN_DEFINE = 154
+$$G_REGEX_ERROR_DEFINE_REPETION = 155
+$$G_REGEX_ERROR_INCONSISTENT_NEWLINE_OPTIONS = 156
+$$G_REGEX_ERROR_MISSING_BACK_REFERENCE = 157
+
+' GRegexError;
+
+EXTERNAL CFUNCTION XLONG g_regex_error_quark ()
+
+$$G_REGEX_CASELESS          = 1
+$$G_REGEX_MULTILINE         = 2
+$$G_REGEX_DOTALL            = 4
+$$G_REGEX_EXTENDED          = 8
+$$G_REGEX_ANCHORED          = 16
+$$G_REGEX_DOLLAR_ENDONLY    = 32
+$$G_REGEX_UNGREEDY          = 64
+$$G_REGEX_RAW               = 128
+$$G_REGEX_NO_AUTO_CAPTURE   = 256
+$$G_REGEX_OPTIMIZE          = 512
+$$G_REGEX_DUPNAMES          = 1024
+$$G_REGEX_NEWLINE_CR        = 2048
+$$G_REGEX_NEWLINE_LF        = 4096
+$$G_REGEX_NEWLINE_CRLF      = 4096 'G_REGEX_NEWLINE_CR | G_REGEX_NEWLINE_LF
+' GRegexCompileFlags;
+
+$$G_REGEX_MATCH_ANCHORED      = 16
+$$G_REGEX_MATCH_NOTBOL        = 128
+$$G_REGEX_MATCH_NOTEOL        = 256
+$$G_REGEX_MATCH_NOTEMPTY      = 1024
+$$G_REGEX_MATCH_PARTIAL       = 32768
+$$G_REGEX_MATCH_NEWLINE_CR    = 1048576
+$$G_REGEX_MATCH_NEWLINE_LF    = 2097152
+$$G_REGEX_MATCH_NEWLINE_CRLF  = 2097152 'G_REGEX_MATCH_NEWLINE_CR | G_REGEX_MATCH_NEWLINE_LF,
+$$G_REGEX_MATCH_NEWLINE_ANY   = 4194304
+' GRegexMatchFlags;
+
+EXTERNAL CFUNCTION XLONG g_regex_new			(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_ref			(XLONG)
+EXTERNAL CFUNCTION g_regex_unref			(XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_get_pattern		(XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_get_max_backref	(XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_get_capture_count	(XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_get_string_number	(XLONG, 	XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_escape_string		(XLONG,	XLONG)
+
+'/* Matching. */
+EXTERNAL CFUNCTION XLONG g_regex_match_simple		(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_match			(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_match_full		(XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_match_all		(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_match_all_full	(XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+
+'/* String splitting. */
+EXTERNAL CFUNCTION XLONG g_regex_split_simple		(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_split			(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_split_full		(XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+
+'/* String replacement. */
+EXTERNAL CFUNCTION XLONG g_regex_replace		(XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_replace_literal	(XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_replace_eval		(XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_regex_check_replacement	(XLONG,	XLONG,	XLONG)
+
+'/* Match info */
+EXTERNAL CFUNCTION XLONG g_match_info_get_regex	(XLONG)
+EXTERNAL CFUNCTION XLONG g_match_info_get_string       (XLONG)
+
+EXTERNAL CFUNCTION g_match_info_free		(XLONG)
+EXTERNAL CFUNCTION XLONG g_match_info_next		(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_match_info_matches		(XLONG)
+EXTERNAL CFUNCTION XLONG g_match_info_get_match_count	(XLONG)
+EXTERNAL CFUNCTION XLONG g_match_info_is_partial_match	(XLONG)
+EXTERNAL CFUNCTION XLONG g_match_info_expand_references(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_match_info_fetch		(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_match_info_fetch_pos	(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_match_info_fetch_named	(XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_match_info_fetch_named_pos	(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG g_match_info_fetch_all	(XLONG)
+
+'#########################
+'########  gsequence
+'#########################
+
+'/* GSequence */
+EXTERNAL CFUNCTION XLONG g_sequence_new                (XLONG)
+EXTERNAL CFUNCTION g_sequence_free               (XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_get_length         (XLONG)
+EXTERNAL CFUNCTION g_sequence_foreach            (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_sequence_foreach_range      (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_sequence_sort               (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_sequence_sort_iter          (XLONG, XLONG, XLONG)
+
+'/* Getting iters */
+EXTERNAL CFUNCTION XLONG g_sequence_get_begin_iter     (XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_get_end_iter       (XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_get_iter_at_pos    (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_append             (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_prepend            (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_insert_before      (XLONG, XLONG)
+EXTERNAL CFUNCTION g_sequence_move               (XLONG, XLONG)
+EXTERNAL CFUNCTION g_sequence_swap               (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_insert_sorted      (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_insert_sorted_iter (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_sequence_sort_changed       (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_sequence_sort_changed_iter  (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION g_sequence_remove             (XLONG)
+EXTERNAL CFUNCTION g_sequence_remove_range       (XLONG, XLONG)
+EXTERNAL CFUNCTION g_sequence_move_range         (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_search             (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_search_iter        (XLONG, XLONG, XLONG, XLONG)
+
+'/* Dereferencing */
+EXTERNAL CFUNCTION XLONG g_sequence_get                (XLONG)
+EXTERNAL CFUNCTION g_sequence_set                (XLONG, XLONG)
+
+'/* Operations on GSequenceIter * */
+EXTERNAL CFUNCTION XLONG g_sequence_iter_is_begin      (XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_iter_is_end        (XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_iter_next          (XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_iter_prev          (XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_iter_get_position  (XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_iter_move          (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_iter_get_sequence  (XLONG)
+
+'/* Search */
+EXTERNAL CFUNCTION XLONG g_sequence_iter_compare       (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG g_sequence_range_get_midpoint (XLONG, XLONG)
+
+'#########################
+'########  gtestutils
+'#########################
+
+EXTERNAL CFUNCTION SLONG g_strcmp0                       (XLONG,XLONG)
+'/* report performance results */
+EXTERNAL CFUNCTION g_test_minimized_result         (DOUBLE ,XLONG,...)
+EXTERNAL CFUNCTION g_test_maximized_result         (DOUBLE,XLONG,...)
+'/* initialize testing framework */
+EXTERNAL CFUNCTION g_test_init                     (XLONG,XLONG,...)
+'/* run all tests under toplevel suite (path: /) */
+EXTERNAL CFUNCTION SLONG g_test_run                      ()
+'/* hook up a test functions under test path */
+EXTERNAL CFUNCTION g_test_add_func                 (XLONG,XLONG)
+EXTERNAL CFUNCTION g_test_add_data_func            (XLONG,XLONG,XLONG)
+'/* hook up a test with fixture under test path */
+'/* add test messages to the test report */
+EXTERNAL CFUNCTION g_test_message                  (XLONG,...)
+EXTERNAL CFUNCTION g_test_bug_base                 (XLONG)
+EXTERNAL CFUNCTION g_test_bug                      (XLONG)
+'/* measure test timings */
+EXTERNAL CFUNCTION g_test_timer_start              ()
+EXTERNAL CFUNCTION DOUBLE  g_test_timer_elapsed            ()' /* elapsed seconds */
+EXTERNAL CFUNCTION DOUBLE  g_test_timer_last               ()' /* repeat last elapsed() result */
+
+'/* automatically g_free or g_object_unref upon teardown */
+EXTERNAL CFUNCTION g_test_queue_free               (XLONG)
+EXTERNAL CFUNCTION g_test_queue_destroy            (XLONG,XLONG)
+'/* test traps are guards used around forked tests */
+$$G_TEST_TRAP_SILENCE_STDOUT    = 128
+$$G_TEST_TRAP_SILENCE_STDERR    = 256
+$$G_TEST_TRAP_INHERIT_STDIN     = 512
+
+EXTERNAL CFUNCTION SLONG g_test_trap_fork               (DOUBLE,XLONG)
+EXTERNAL CFUNCTION SLONG g_test_trap_has_passed         ()
+EXTERNAL CFUNCTION SLONG g_test_trap_reached_timeout    (XLONG)
+'/* provide seed-able random numbers for tests */
+EXTERNAL CFUNCTION SLONG g_test_rand_int                ()
+EXTERNAL CFUNCTION SLONG g_test_rand_int_range          (SLONG,SLONG)
+EXTERNAL CFUNCTION DOUBLE  g_test_rand_double             ()
+EXTERNAL CFUNCTION DOUBLE  g_test_rand_double_range       (DOUBLE,DOUBLE)
+'/* semi-internal API */
+EXTERNAL CFUNCTION XLONG g_test_create_case        (XLONG,XLONG,XLONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_test_create_suite       (XLONG)
+EXTERNAL CFUNCTION XLONG g_test_get_root           ()
+EXTERNAL CFUNCTION g_test_suite_add          (XLONG,XLONG)
+EXTERNAL CFUNCTION g_test_suite_add_suite    (XLONG,XLONG)
+EXTERNAL CFUNCTION SLONG g_test_run_suite          (XLONG)
+
+'/* internal ABI */
+EXTERNAL CFUNCTION g_test_trap_assertions          (XLONG,XLONG,SLONG,XLONG,DOUBLE, XLONG) '/* 0-pass, 1-fail, 2-outpattern, 4-errpattern */
+EXTERNAL CFUNCTION g_assertion_message             (XLONG,XLONG,SLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION g_assertion_message_expr        (XLONG,XLONG,SLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION g_assertion_message_cmpstr      (XLONG,XLONG,SLONG,XLONG,XLONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION g_assertion_message_cmpnum      (XLONG,XLONG,SLONG,XLONG,XLONG,LONGDOUBLE,XLONG,LONGDOUBLE,SBYTE)
+EXTERNAL CFUNCTION g_assertion_message_error       (XLONG,XLONG,SLONG,XLONG,XLONG,XLONG,ULONG,SLONG)
+EXTERNAL CFUNCTION g_test_add_vtable               (XLONG,XLONG,XLONG,XLONG,XLONG,XLONG)
+
+TYPE GTESTCONFIG
+  SLONG .test_initialized
+  SLONG .test_quick     '/* disable thorough tests */
+  SLONG .test_perf      '/* run performance tests */
+  SLONG .test_verbose   '/* extra info */
+  SLONG .test_quiet     '/* reduce output */
+END TYPE
+
+'/* internal logging API */
+$$G_TEST_LOG_NONE = 0
+$$G_TEST_LOG_ERROR = 1             '/* s:msg */
+$$G_TEST_LOG_START_BINARY = 2      '/* s:binaryname s:seed */
+$$G_TEST_LOG_LIST_CASE = 3         '/* s:testpath */
+$$G_TEST_LOG_SKIP_CASE = 4         '/* s:testpath */
+$$G_TEST_LOG_START_CASE = 5        '/* s:testpath */
+$$G_TEST_LOG_STOP_CASE = 6         '/* d:status d:nforks d:elapsed */
+$$G_TEST_LOG_MIN_RESULT = 7        '/* s:blurb d:result */
+$$G_TEST_LOG_MAX_RESULT = 8        '/* s:blurb d:result */
+$$G_TEST_LOG_MESSAGE = 9            '/* s:blurb */
+' GTestLogType;
+
+TYPE GTESTLOGMSG
+  XLONG .log_type
+  ULONG .n_strings
+  XLONG .strings '/* NULL terminated */
+  ULONG .n_nums
+  XLONG .nums
+END TYPE
+
+EXTERNAL CFUNCTION XLONG g_test_log_type_name    (XLONG)
+EXTERNAL CFUNCTION XLONG g_test_log_buffer_new   ()
+EXTERNAL CFUNCTION g_test_log_buffer_free  (XLONG)
+EXTERNAL CFUNCTION g_test_log_buffer_push  (XLONG,ULONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_test_log_buffer_pop   (XLONG)
+EXTERNAL CFUNCTION g_test_log_msg_free     (XLONG)
+
+'#########################
+'########  gurifuncs
+'#########################
+
+'/**
+' * G_URI_RESERVED_CHARS_GENERIC_DELIMITERS:
+' *
+' * Generic delimiters characters as defined in RFC 3986. Includes ":/?#[]@".
+' **/
+$$G_URI_RESERVED_CHARS_GENERIC_DELIMITERS$ = ":/?#[]@"
+
+'/**
+' * G_URI_RESERVED_CHARS_SUBCOMPONENT_DELIMITERS
+' *
+' * Subcomponent delimiter characters as defined in RFC 3986. Includes "!$&'()*+,;=".
+' **/
+$$G_URI_RESERVED_CHARS_SUBCOMPONENT_DELIMITERS$ = "!$&'()*+,;="
+
+'/**
+' * G_URI_RESERVED_CHARS_ALLOWED_IN_PATH_ELEMENT:
+' *
+' * Allowed characters in path elements. Includes "!$&'()*+,;=:@".
+' **/
+$$G_URI_RESERVED_CHARS_ALLOWED_IN_PATH_ELEMENT$ = ":@"
+
+'/**
+' * G_URI_RESERVED_CHARS_ALLOWED_IN_PATH:
+' *
+' * Allowed characters in a path. Includes "!$&'()*+,;=:@/".
+' **/
+$$G_URI_RESERVED_CHARS_ALLOWED_IN_PATH$ = "/"
+
+'/**
+' * G_URI_RESERVED_CHARS_ALLOWED_IN_USERINFO:
+' *
+' * Allowed characters in userinfo as defined in RFC 3986. Includes "!$&'()*+,;=:".
+' **/
+$$G_URI_RESERVED_CHARS_ALLOWED_IN_USERINFO$ = ":"
+
+EXTERNAL CFUNCTION XLONG g_uri_unescape_string       (XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_uri_unescape_segment      (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_uri_parse_scheme          (XLONG)
+EXTERNAL CFUNCTION XLONG g_uri_escape_string         (XLONG,XLONG,SLONG)
+
+'#########################
+'########  gbacktrace
+'#########################
+
+'/* Fatal error handlers.
+' * g_on_error_query() will prompt the user to either
+' * [E]xit, [H]alt, [P]roceed or show [S]tack trace.
+' * g_on_error_stack_trace() invokes gdb, which attaches to the current
+' * process and shows a stack trace.
+' * These function may cause different actions on non-unix platforms.
+' * The prg_name arg is required by gdb to find the executable, if it is
+' * passed as NULL, g_on_error_query() will try g_get_prgname().
+' */
+EXTERNAL CFUNCTION g_on_error_query (XLONG)
+EXTERNAL CFUNCTION g_on_error_stack_trace (XLONG)
+
+'#########################
+'########  gchecksum
+'#########################
+
+' * GChecksumType:
+' * @G_CHECKSUM_MD5: Use the MD5 hashing algorithm
+' * @G_CHECKSUM_SHA1: Use the SHA-1 hashing algorithm
+' * @G_CHECKSUM_SHA256: Use the SHA-256 hashing algorithm
+' *
+' * The hashing algorithm to be used by #GChecksum when performing the
+' * digest of some data.
+' *
+' * Note that the #GChecksumType enumeration may be extended at a later
+' * date to include new hashing algorithm types.
+
+$$G_CHECKSUM_MD5 = 0
+$$G_CHECKSUM_SHA1 = 1
+$$G_CHECKSUM_SHA256 = 2
+' GChecksumType;
+
+' * An opaque structure representing a checksumming operation.
+' * To create a new GChecksum, use g_checksum_new(). To free
+' * a GChecksum, use g_checksum_free().
+
+EXTERNAL CFUNCTION XLONG g_checksum_type_get_length (XLONG)
+
+EXTERNAL CFUNCTION XLONG g_checksum_new        (XLONG)
+EXTERNAL CFUNCTION g_checksum_reset      (XLONG)
+EXTERNAL CFUNCTION XLONG g_checksum_copy       (XLONG)
+EXTERNAL CFUNCTION g_checksum_free       (XLONG)
+EXTERNAL CFUNCTION g_checksum_update     (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_checksum_get_string (XLONG)
+EXTERNAL CFUNCTION g_checksum_get_digest (XLONG,XLONG,XLONG)
+
+EXTERNAL CFUNCTION XLONG g_compute_checksum_for_data   (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_compute_checksum_for_string (XLONG,XLONG,XLONG)
+
+'#########################
+'########  gdir
+'#########################
+
+EXTERNAL CFUNCTION XLONG g_dir_open_utf8           (XLONG,ULONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_dir_read_name_utf8      (XLONG)
+EXTERNAL CFUNCTION g_dir_rewind         (XLONG)
+EXTERNAL CFUNCTION g_dir_close          (XLONG)
+
+'#########################
+'########  gmappedfile
+'#########################
+
+EXTERNAL CFUNCTION XLONG g_mapped_file_new          (XLONG,SLONG,XLONG)
+EXTERNAL CFUNCTION XLONG g_mapped_file_get_length   (XLONG)
+EXTERNAL CFUNCTION XLONG g_mapped_file_get_contents (XLONG)
+EXTERNAL CFUNCTION g_mapped_file_free         (XLONG)
+
+'#########################
+'########  gpoll
+'#########################
+
+'/* Any definitions using GPollFD or GPollFunc are primarily
+' * for Unix and not guaranteed to be the compatible on all
+' * operating systems on which GLib runs. Right now, the
+' * GLib does use these functions on Win32 as well, but interprets
+' * them in a fairly different way than on Unix. If you use
+' * these definitions, you are should be prepared to recode
+' * for different operating systems.
+' *
+' * Note that on systems with a working poll(2), that function is used
+' * in place of g_poll(). Thus g_poll() must have the same signature as
+' * poll(), meaning GPollFD must have the same layout as struct pollfd.
+' *
+' *
+' * On Win32, the fd in a GPollFD should be Win32 HANDLE (*not* a file
+' * descriptor as provided by the C runtime) that can be used by
+' * MsgWaitForMultipleObjects. This does *not* include file handles
+' * from CreateFile, SOCKETs, nor pipe handles. (But you can use
+' * WSAEventSelect to signal events when a SOCKET is readable).
+' *
+' * On Win32, fd can also be the special value G_WIN32_MSG_HANDLE to
+' * indicate polling for messages.
+' *
+' * But note that G_WIN32_MSG_HANDLE GPollFDs should not be used by GDK
+' * (GTK) programs, as GDK itself wants to read messages and convert them
+' * to GDK events.
+' *
+' * So, unless you really know what you are doing, it's best not to try
+' * to use the main loop polling stuff for your own needs on
+' * Windows.
+' */
+
+TYPE GPOLLFD
+  DOUBLE	.fd
+  USHORT 	.events
+  USHORT 	.revents
+END TYPE
+
+$$G_POLLFD_FORMAT$ = "%#I64x"
+
+EXTERNAL CFUNCTION SLONG g_poll (XLONG,ULONG,SLONG)
+
+'#########################
+'########  gprimes
+'#########################
+
+'/* Prime numbers.
+' */
+
+'/* This function returns prime numbers spaced by approximately 1.5-2.0
+' * and is for use in resizing data structures which prefer
+' * prime-valued sizes.	The closest spaced prime function returns the
+' * next largest prime, or the highest it knows about which is about
+' * MAXINT/4.
+' */
+EXTERNAL CFUNCTION ULONG g_spaced_primes_closest (ULONG)
+
+'#########################
+'########  gprintf
+'#########################
+
+EXTERNAL CFUNCTION SLONG g_printf    (XLONG,...)
+EXTERNAL CFUNCTION SLONG g_fprintf   (XLONG,XLONG,...)
+EXTERNAL CFUNCTION SLONG g_sprintf   (XLONG,XLONG,...)
+EXTERNAL CFUNCTION SLONG g_vprintf   (XLONG,XLONG)
+EXTERNAL CFUNCTION SLONG g_vfprintf  (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION SLONG g_vsprintf  (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION SLONG g_vasprintf (XLONG,XLONG,XLONG)
+
+'#########################
+'########  gqsort
+'#########################
+
+EXTERNAL CFUNCTION g_qsort_with_data (XLONG,SLONG,XLONG,XLONG,XLONG)
+
+'#########################
+'########  gstdio
+'#########################
+
+EXTERNAL CFUNCTION SLONG g_access (XLONG,SLONG)
+EXTERNAL CFUNCTION SLONG g_chdir  (XLONG)
+EXTERNAL CFUNCTION SLONG g_unlink (XLONG)
+EXTERNAL CFUNCTION SLONG g_rmdir  (XLONG)
+
+'#else /* ! G_OS_UNIX */
+
+'/* Wrappers for C library functions that take pathname arguments. On
+' * Unix, the pathname is a file name as it literally is in the file
+' * system. On well-maintained systems with consistent users who know
+' * what they are doing and no exchange of files with others this would
+' * be a well-defined encoding, preferrably UTF-8. On Windows, the
+' * pathname is always in UTF-8, even if that is not the on-disk
+' * encoding, and not the encoding accepted by the C library or Win32
+' * API.
+' */
+
+'int g_access    (const gchar *filename, int          mode);
+
+'int g_chmod     (const gchar *filename,int          mode);
+
+'int g_open      (const gchar *filename,int          flags,int          mode);
+
+'int g_creat     (const gchar *filename,int          mode);
+
+'int g_rename    (const gchar *oldfilename,const gchar *newfilename);
+
+'int g_mkdir     (const gchar *filename,int          mode);
+
+'int g_chdir     (const gchar *path);
+
+'int g_stat      (const gchar *filename,struct stat *buf);
+
+'int g_lstat     (const gchar *filename,struct stat *buf);
+
+'int g_unlink    (const gchar *filename);
+
+'int g_remove    (const gchar *filename);
+
+'int g_rmdir     (const gchar *filename);
+
+'FILE *g_fopen   (const gchar *filename,const gchar *mode);
+
+'FILE *g_freopen (const gchar *filename,const gchar *mode,FILE        *stream);
+
+'struct utimbuf;			/* Don't need the real definition of struct utimbuf when just
+'				 * including this header.
+'				 */
+
+'int g_utime     (const gchar    *filename,struct utimbuf *utb);

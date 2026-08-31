@@ -1,0 +1,1361 @@
+About,                          main menu > Help <misc:>
+ABS() <lang:>
+ACOS() <lang:>
+ACOSH() <lang:>
+ACSC() <lang:>
+ACSCH() <lang:>
+ALL <lang:>
+AND <lang:>
+Angles <misc:>
+ANY <lang:>
+ANY[] <lang:>
+ASC() <lang:>
+ASCII <lang:>
+ASEC() <lang:>
+ASECH() <lang:>
+ASIN() <lang:>
+ASINH() <lang:>
+Assembler,                      main menu > Run <misc:>
+Assembly,                       main menu > Debug <pde:>
+ATAN() <lang:>
+ATAN() <lang:>
+ATANH() <lang:>
+ATANH() <lang:>
+ATTACH <lang:>
+AUTO <lang:>
+auto indent,                    main menu > Options > Misc <misc:>
+auto upper case,                main menu > Options > Misc <misc:>
+AUTOX <lang:>
+Backslash characters <lang:>
+BIN$() <lang:>
+BINB$() <lang:>
+BITFIELD() <lang:>
+Brace Notation for Bitfields <lang:>
+Brace Notation for Strings <lang:>
+Breakpoint Trace Off,           main menu > Debug <misc:>
+Breakpoint Trace On,            main menu > Debug <misc:>
+Callback <messages:>
+CASE <lang:>
+CFUNCTION <lang:>
+Change Log,                     main menu > Help <misc:>
+Character Set <lang:>
+check bounds,                   main menu > Options > Misc <misc:>
+CHR$() <lang:>
+CJUST$() <lang:>
+Clean Backup,                   main menu > Edit <pde:>
+Clear All Breakpoints,          main menu > Debug <pde:>
+Clear Errors,                   main menu > Status <misc:>
+Clone Function,                 main menu > View <pde:>
+CLOSE() <lang:>
+CloseWindow <messages:>
+CLR() <lang:>
+Color of Text Cursor and Line,  main menu > Options <misc:>
+Compilation Errors,             main menu > Status <pde:>
+Complex Number Function Library <misc:>
+Complex Number Library (Xcm),   main menu > Help <misc:>
+console dark color,             main menu > Options > Misc <misc:>
+console large bars,             main menu > Options > Misc <misc:>
+console large font,             main menu > Options > Misc <misc:>
+Console To File,                main menu > Edit <pde:>
+Constants <lang:>
+Continue,                       main menu > Run <pde:>
+Copy Extra,                     main menu > Edit <misc:>
+Copy,                           main menu > Edit <misc:>
+COS() <lang:>
+COSH() <lang:>
+COT() <lang:>
+COTH() <lang:>
+Create <messages:>
+CreateValueArray <messages:>
+CreateWindow <messages:>
+CSC() <lang:>
+CSCH() <lang:>
+CSIZE$() <lang:>
+CSIZE() <lang:>
+CSTRING$() <lang:>
+CuT,                            main menu > Edit <misc:>
+Data types <lang:>
+DCOMPLEX <lang:>
+DEC <lang:>
+Declaration <lang:>
+DECLARE FUNCTION <lang:>
+Degrees <misc:>
+Delete Extra,                   main menu > Edit <misc:>
+Delete Function,                main menu > View <pde:>
+Destroy <messages:>
+Destroyed <messages:>
+DestroyWindow <messages:>
+DHIGH() <lang:>
+DIM <lang:>
+Direct Memory Access <lang:>
+Disable <messages:>
+DisplayWindow <messages:>
+DLOW() <lang:>
+DMAKE() <lang:>
+DO <lang:>
+DO DO <lang:>
+DO FOR <lang:>
+DO LOOP <lang:>
+DO NEXT <lang:>
+DO UNTIL <lang:>
+DO WHILE <lang:>
+Dot Command,                    main menu > Help <misc:>
+DOUBLE <lang:>
+DOUBLE Image <misc:>
+DOUBLE() <lang:>
+DOUBLEAT() <lang:>
+EditPopupWindow <misc:>
+ELSE <lang:>
+Enable <messages:>
+END EXPORT <lang:>
+END FUNCTION <lang:>
+END IF <lang:>
+END PACKED <lang:>
+END SELECT <lang:>
+END SUB <lang:>
+END TYPE <lang:>
+END UNION <lang:>
+Environment Variables <misc:>
+EOF() <lang:>
+Erase Local Breakpoints,        main menu > Debug <misc:>
+Erase Output,                   main menu > Run <misc:>
+Erase,                          main menu > Edit <misc:>
+ERROR$() <lang:>
+ERROR() <lang:>
+Execute Standalone,             main menu > Run <misc:>
+EXIT DO <lang:>
+EXIT FOR <lang:>
+EXIT FUNCTION <lang:>
+EXIT IF <lang:>
+EXIT SELECT <lang:>
+EXIT SUB <lang:>
+Exit,                           main menu > File <misc:>
+EXP() <lang:>
+EXP10() <lang:>
+EXPORT <lang:>
+EXTERNAL <lang:>
+EXTERNAL FUNCTION <lang:>
+Extra To File,                  main menu > Edit <pde:>
+EXTS() <lang:>
+EXTU() <lang:>
+F10 <pde:>
+FALSE <lang:>
+Find,                           main menu > Edit <pde:>
+FIX() <lang:>
+FOR <lang:>
+FORMAT$() <lang:>
+FUNCADDR <lang:>
+FUNCADDR() <lang:>
+FUNCADDRESS() <lang:>
+FUNCTION <lang:>
+Function Keys (F1-F12) <misc:>
+Function,                       main menu > View <pde:>
+GetAlign <messages:>
+GetBorder <messages:>
+GetBorderOffset <messages:>
+GetCallback <messages:>
+GetCallbackArgs <messages:>
+GetCan <messages:>
+GetCharacterMapArray <messages:>
+GetCharacterMapEntry <messages:>
+GetClipGrid <messages:>
+GetColor <messages:>
+GetColorExtra <messages:>
+GetCursor <messages:>
+GetDisplay <messages:>
+GetEnclosedGrids <messages:>
+GetEnclosingGrid <messages:>
+GetFocusColor <messages:>
+GetFocusColorExtra <messages:>
+GetFont <messages:>
+GetFontMetrics <messages:>
+GetFontNumber <messages:>
+GetGridFunction <messages:>
+GetGridFunctionName <messages:>
+GetGridName <messages:>
+GetGridNumber <messages:>
+GetGridProperties <messages:>
+GetGridType <messages:>
+GetGridTypeName <messages:>
+GetGroup <messages:>
+GetHelp <messages:>
+GetHelpFile <messages:>
+GetHelpString <messages:>
+GetHelpStrings <messages:>
+GetHintString <messages:>
+GetImage <messages:>
+GetImageCoords <messages:>
+GetIndent <messages:>
+GetJustify <messages:>
+GetKeyboardFocus <messages:>
+GetKeyboardFocusGrid <messages:>
+GetKidArray <messages:>
+GetKidNumber <messages:>
+GetKids <messages:>
+GetMaxMinSize <messages:>
+GetMessageFunc <messages:>
+GetMessageFuncArray <messages:>
+GetMessageSub <messages:>
+GetMessageSubArray <messages:>
+GetModalInfo <messages:>
+GetModalWindow <messages:>
+GetParent <messages:>
+GetPosition <messages:>
+GetRedrawFlags <messages:>
+GetSize <messages:>
+GetSmallestSize <messages:>
+GetState <messages:>
+GetStyle <messages:>
+GetTabArray <messages:>
+GetTabWidth <messages:>
+GetTextArray <messages:>
+GetTextArrayBounds <messages:>
+GetTextArrayLine <messages:>
+GetTextArrayLines <messages:>
+GetTextCursor <messages:>
+GetTextFilename <messages:>
+GetTextFlag <messages:>
+GetTextPosition <messages:>
+GetTextSelection <messages:>
+GetTextSpacing <messages:>
+GetTextString <messages:>
+GetTextStrings <messages:>
+GetTexture <messages:>
+GetTimer <messages:>
+GetValue <messages:>
+GetValueArray <messages:>
+GetValues <messages:>
+GetWindow <messages:>
+GetWindowFunction <messages:>
+GetWindowGrid <messages:>
+GetWindowIcon <messages:>
+GetWindowSize <messages:>
+GetWindowTitle <messages:>
+GHIGH() <lang:>
+GIANT <lang:>
+GIANT() <lang:>
+GIANTAT() <lang:>
+Global <lang:>
+GLOW() <lang:>
+GMAKE() <lang:>
+GOADDR <lang:>
+GOADDR() <lang:>
+GOADDRAT() <lang:>
+GOADDRESS() <lang:>
+GOSUB <lang:>
+GotKeyboardFocus <messages:>
+GOTO <lang:>
+GrabArray <messages:>
+GrabTextArray <messages:>
+GrabTextString <messages:>
+GrabValueArray <messages:>
+Graphics Library  (Xgr),        main menu > Help <misc:>
+GuiDesigner Library (Xui),      main menu > Help <misc:>
+GuiDesigner toolkit, display/hide, main menu > View <pde:>
+Help <messages:>
+Help Index Find,                main menu > Help <misc:>
+Help Index,                     main menu > Help <misc:>
+HEX$() <lang:>
+HEXX$() <lang:>
+Hidden <messages:>
+HideWindow <messages:>
+HIGH0() <lang:>
+HIGH1() <lang:>
+IF <lang:>
+IFF <lang:>
+IFT <lang:>
+IFZ <lang:>
+IMPORT <lang:>
+Import Function From *.x,       main menu > View <pde:>
+INC <lang:>
+INCHR() <lang:>
+INCHRI() <lang:>
+INFILE$() <lang:>
+INKEY$() <lang:>
+INLINE$() <lang:>
+INSTR() <lang:>
+INSTRI() <lang:>
+INT() <lang:>
+INTERNAL FUNCTION <lang:>
+ISDATA() <lang:>
+ISNODE() <lang:>
+Jump,                           main menu > Run <misc:>
+Keyboard shortcuts <misc:>
+KeyboardFocusBackward <messages:>
+KeyboardFocusForward <messages:>
+KeyDown <messages:>
+KeyUp <messages:>
+Kill,                           main menu > Run <pde:>
+Language,                       main menu > Help <misc:>
+LCASE$() <lang:>
+LCLIP$() <lang:>
+LEFT$() <lang:>
+LEN() <lang:>
+LIBRARY() <lang:>
+Library,                        main menu > Run <misc:>
+LJUST$() <lang:>
+Load Backup,                    main menu > Edit <pde:>
+Load Function,                  main menu > View <misc:>
+LOF() <lang:>
+LOG() <lang:>
+LOG10() <lang:>
+Logical not operator <lang:>
+Logical Test operator <lang:>
+LOOP <lang:>
+LOOP UNTIL <lang:>
+LOOP WHILE <lang:>
+LostKeyboardFocus <messages:>
+LostTextSelection <messages:>
+LTRIM$() <lang:>
+make backup file,               main menu > Options > Misc <misc:>
+make Standalone,                main menu > Run <misc:>
+MAKE() <lang:>
+Math Function Library <misc:>
+Mathematics Library  (Xma),     main menu > Help <misc:>
+MAX() <lang:>
+Maximized <messages:>
+MaximizeWindow <messages:>
+Memory,                         main menu > Debug <pde:>
+Merge Prolog,                   main menu > View <misc:>
+Message,                        main menu > Help <misc:>
+messages <messages:>
+MID$() <lang:>
+MID$()= <lang:>
+MIN() <lang:>
+Minimized <messages:>
+MinimizeWindow <messages:>
+Misc,                           main menu > Options <misc:>
+MOD <lang:>
+Mode,                           main menu > File <pde:>
+MonitorContext <messages:>
+MonitorKeyboard <messages:>
+MonitorMouse <messages:>
+MouseDown <messages:>
+MouseDrag <messages:>
+MouseEnter <messages:>
+MouseExit <messages:>
+MouseMove <messages:>
+MouseUp <messages:>
+Network/Internet Library (Xin), main menu > Help <misc:>
+New Function,                   main menu > View <pde:>
+New,                            main menu > File <pde:>
+NEXT <lang:>
+NEXT CASE <lang:>
+NOT <lang:>
+NULL$() <lang:>
+OCT$() <lang:>
+OCTO$() <lang:>
+Open As Text,                   main menu > File <pde:>
+OPEN() <lang:>
+Open,                           main menu > File <pde:>
+Operator Summary <lang:>
+Operator,                       main menu > Help <lang:>
+OR <lang:>
+PACKED <lang:>
+Paste Extra,                    main menu > Edit <misc:>
+Paste To File,                  main menu > Edit <pde:>
+Paste,                          main menu > Edit <misc:>
+Pause,                          main menu > Run <pde:>
+POF() <lang:>
+PokeArray <messages:>
+PokeTextArray <messages:>
+PokeTextString <messages:>
+PokeValueArray <messages:>
+POWER() <lang:>
+Prefixes <lang:>
+PRINT <lang:>
+Prior Function,                 main menu > View <pde:>
+PROGRAM <lang:>
+program large bars,             main menu > Options > Misc <misc:>
+program large font,             main menu > Options > Misc <misc:>
+program line numbers,           main menu > Options > Misc <misc:>
+PROGRAM$() <lang:>
+PROLOG <lang:>
+QUIT() <lang:>
+Radians <misc:>
+RCLIP$() <lang:>
+READ <lang:>
+Read Me,                        main menu > Help <misc:>
+Read,                           main menu > Edit <pde:>
+Recompile,                      main menu > Run <misc:>
+REDIM <lang:>
+Redraw <messages:>
+RedrawGrid <messages:>
+Redrawn <messages:>
+RedrawText <messages:>
+RedrawWindow <messages:>
+Registers,                      main menu > Debug <pde:>
+reload last file,               main menu > Options > Misc <misc:>
+Rename Function,                main menu > View <pde:>
+RenameSave,                     main menu > File <pde:>
+Resize <messages:>
+ResizeNot <messages:>
+ResizeWindow <messages:>
+ResizeWindowToGrid <messages:>
+RestoreWindow <messages:>
+RETURN <lang:>
+RIGHT$() <lang:>
+RINCHR() <lang:>
+RINCHRI() <lang:>
+RINSTR() <lang:>
+RINSTRI() <lang:>
+RJUST$() <lang:>
+ROTATEL() <lang:>
+ROTATER() <lang:>
+RTRIM$() <lang:>
+Runtime Errors,                 main menu > Status <pde:>
+save before comp.,              main menu > Options > Misc <misc:>
+save before run,                main menu > Options > Misc <misc:>
+Save Function,                  main menu > View <misc:>
+save with \r\n,                 main menu > Options > Misc <misc:>
+Save,                           main menu > File <pde:>
+SBYTE <lang:>
+SBYTE() <lang:>
+SBYTEAT() <lang:>
+SCOMPLEX <lang:>
+Scope Prefixes <lang:>
+Scopes <lang:>
+SEC() <lang:>
+SECH() <lang:>
+SEEK() <lang:>
+SELECT CASE <lang:>
+Selection <messages:>
+SelectWindow <messages:>
+SET() <lang:>
+SetAlign <messages:>
+SetBorder <messages:>
+SetBorderOffset <messages:>
+SetCallback <messages:>
+SetCharacterMapArray <messages:>
+SetCharacterMapEntry <messages:>
+SetClipGrid <messages:>
+SetColor <messages:>
+SetColorAll <messages:>
+SetColorExtra <messages:>
+SetColorExtraAll <messages:>
+SetCursor <messages:>
+SetFocusColor <messages:>
+SetFocusColorExtra <messages:>
+SetFont <messages:>
+SetFontNumber <messages:>
+SetGridFunction <messages:>
+SetGridFunctionName <messages:>
+SetGridName <messages:>
+SetGridType <messages:>
+SetGridTypeName <messages:>
+SetGroup <messages:>
+SetHelp <messages:>
+SetHelpFile <messages:>
+SetHelpString <messages:>
+SetHelpStrings <messages:>
+SetHintString <messages:>
+SetImage <messages:>
+SetImageCoords <messages:>
+SetIndent <messages:>
+SetJustify <messages:>
+SetKeyboardFocus <messages:>
+SetKeyboardFocusGrid <messages:>
+SetMaxMinSize <messages:>
+SetMessageFunc <messages:>
+SetMessageFuncArray <messages:>
+SetModalWindow <messages:>
+SetPosition <messages:>
+SetRedrawFlags <messages:>
+SetSize <messages:>
+SetState <messages:>
+SetStateFlags <messages:>
+SetStyle <messages:>
+SetTabArray <messages:>
+SetTabWidth <messages:>
+SetTextArray <messages:>
+SetTextArrayLine <messages:>
+SetTextArrayLines <messages:>
+SetTextCursor <messages:>
+SetTextFilename <messages:>
+SetTextFlag <messages:>
+SetTextSpacing <messages:>
+SetTextString <messages:>
+SetTextStrings <messages:>
+SetTexture <messages:>
+SetTimer <messages:>
+SetValue <messages:>
+SetValueArray <messages:>
+SetValues <messages:>
+SetWindowFunction <messages:>
+SetWindowIcon <messages:>
+SetWindowTitle <messages:>
+SFUNCTION <lang:>
+SGN() <lang:>
+SHARED <lang:>
+SHELL() <lang:>
+Shortcut Keys <misc:>
+ShowWindow <messages:>
+SIGN() <lang:>
+SIGNED$() <lang:>
+SIN() <lang:>
+SINGLE <lang:>
+SINGLE Image <misc:>
+SINGLE() <lang:>
+SINGLEAT() <lang:>
+SINH() <lang:>
+SIZE() <lang:>
+SLONG <lang:>
+SLONG() <lang:>
+SLONGAT() <lang:>
+SMAKE() <lang:>
+SPACE$() <lang:>
+SQRT() <lang:>
+SSHORT <lang:>
+SSHORT() <lang:>
+SSHORTAT() <lang:>
+Standalone Program <misc:>
+Standard Library (Xst),         main menu > Help <misc:>
+Start,                          main menu > Run <pde:>
+StartTimer <messages:>
+STATIC <lang:>
+STEP <lang:>
+STOP <lang:>
+stop compile on error,          main menu > Options > Misc <misc:>
+STR$() <lang:>
+STRING <lang:>
+STRING$() <lang:>
+STRING() <lang:>
+STUFF$() <lang:>
+SUB <lang:>
+SUBADDR <lang:>
+SUBADDR() <lang:>
+SUBADDRAT() <lang:>
+SUBADDRESS() <lang:>
+Suffixes <lang:>
+Support,                        main menu > Help <misc:>
+SWAP <lang:>
+Symbolic Links <misc:>
+tab block indent,               main menu > Options > Misc <misc:>
+Tab Width (Pixels),             main menu > Options <pde:>
+TAB() <lang:>
+TAN() <lang:>
+TANH() <lang:>
+TextEvent <messages:>
+TextInsert <messages:>
+TextReplace <messages:>
+THEN <lang:>
+TimeOut <messages:>
+TO <lang:>
+Toggle Breakpoint,              main menu > Debug <misc:>
+toolkit GuiDesigner, display/hide, main menu > View <pde:>
+TRIM$() <lang:>
+TRUE <lang:>
+TYPE <lang:>
+Type Conversion <lang:>
+Type Suffixes <lang:>
+TYPE() <lang:>
+UBOUND() <lang:>
+UBYTE <lang:>
+UBYTE() <lang:>
+UBYTEAT() <lang:>
+UCASE$() <lang:>
+ULONG <lang:>
+ULONG() <lang:>
+ULONGAT() <lang:>
+UNION <lang:>
+UNTIL <lang:>
+USHORT <lang:>
+USHORT() <lang:>
+USHORTAT() <lang:>
+Variables <lang:>
+VERSION <lang:>
+VERSION$() <lang:>
+VOID <lang:>
+WAITKEY() <lang:>
+WHILE <lang:>
+WindowClose <messages:>
+WindowCreate <messages:>
+WindowDeselected <messages:>
+WindowDestroy <messages:>
+WindowDestroyed <messages:>
+WindowDisplay <messages:>
+WindowDisplayed <messages:>
+WindowGetDisplay <messages:>
+WindowGetFunction <messages:>
+WindowGetIcon <messages:>
+WindowGetKeyboardFocusGrid <messages:>
+WindowGetSelectedWindow <messages:>
+WindowGetSize <messages:>
+WindowGetTitle <messages:>
+WindowHidden <messages:>
+WindowHide <messages:>
+WindowKeyDown <messages:>
+WindowKeyUp <messages:>
+WindowMaximize <messages:>
+WindowMaximized <messages:>
+WindowMinimize <messages:>
+WindowMinimized <messages:>
+WindowMonitorContext <messages:>
+WindowMonitorKeyboard <messages:>
+WindowMonitorMouse <messages:>
+WindowRedraw <messages:>
+WindowRegister <messages:>
+WindowResize <messages:>
+WindowResized <messages:>
+WindowRestore <messages:>
+WindowSelect <messages:>
+WindowSelected <messages:>
+WindowSetDisplay <messages:>
+WindowSetFunction <messages:>
+WindowSetIcon <messages:>
+WindowSetKeyboardFocusGrid <messages:>
+WindowSetTitle <messages:>
+WindowShow <messages:>
+WRITE <lang:>
+XBASICBACKUPDIR <pde:>
+Xgr() <xgr:>
+XgrAddMessage() <xgr:>
+XgrBorderNameToNumber() <xgr:>
+XgrBorderNumberToName() <xgr:>
+XgrBorderNumberToWidth() <xgr:>
+XgrChangeProperty() <xgr:>
+XgrClearGrid() <xgr:>
+XgrClearWindow() <xgr:>
+XgrColorNameToNumber() <xgr:>
+XgrColorNumberToName() <xgr:>
+XgrConvertColorToRGB() <xgr:>
+XgrConvertDisplayToGrid() <xgr:>
+XgrConvertDisplayToLocal() <xgr:>
+XgrConvertDisplayToScaled() <xgr:>
+XgrConvertDisplayToWindow() <xgr:>
+XgrConvertGridToDisplay() <xgr:>
+XgrConvertGridToLocal() <xgr:>
+XgrConvertGridToScaled() <xgr:>
+XgrConvertGridToWindow() <xgr:>
+XgrConvertLocalToDisplay() <xgr:>
+XgrConvertLocalToGrid() <xgr:>
+XgrConvertLocalToScaled() <xgr:>
+XgrConvertLocalToWindow() <xgr:>
+XgrConvertRGBToColor() <xgr:>
+XgrConvertScaledToDisplay() <xgr:>
+XgrConvertScaledToGrid() <xgr:>
+XgrConvertScaledToLocal() <xgr:>
+XgrConvertScaledToWindow() <xgr:>
+XgrConvertWindowToDisplay() <xgr:>
+XgrConvertWindowToGrid() <xgr:>
+XgrConvertWindowToLocal() <xgr:>
+XgrConvertWindowToScaled() <xgr:>
+XgrCopyImage() <xgr:>
+XgrCreateFont() <xgr:>
+XgrCreateGrid() <xgr:>
+XgrCreateWindow() <xgr:>
+XgrCursorNameToNumber() <xgr:>
+XgrCursorNumberToName() <xgr:>
+XgrDeleteMessages() <xgr:>
+XgrDestroyFont() <xgr:>
+XgrDestroyGrid() <xgr:>
+XgrDestroyWindow() <xgr:>
+XgrDisplayWindow() <xgr:>
+XgrDrawArc() <xgr:>
+XgrDrawArcGrid() <xgr:>
+XgrDrawArcScaled() <xgr:>
+XgrDrawBorder() <xgr:>
+XgrDrawBorderGrid() <xgr:>
+XgrDrawBorderScaled() <xgr:>
+XgrDrawBox() <xgr:>
+XgrDrawBoxGrid() <xgr:>
+XgrDrawBoxScaled() <xgr:>
+XgrDrawCircle() <xgr:>
+XgrDrawCircleGrid() <xgr:>
+XgrDrawCircleScaled() <xgr:>
+XgrDrawCurve() <xgr:>
+XgrDrawCurveGrid() <xgr:>
+XgrDrawCurveScaled() <xgr:>
+XgrDrawEllipse() <xgr:>
+XgrDrawEllipseGrid() <xgr:>
+XgrDrawEllipseScaled() <xgr:>
+XgrDrawGridBorder() <xgr:>
+XgrDrawImage() <xgr:>
+XgrDrawLine() <xgr:>
+XgrDrawLineGrid() <xgr:>
+XgrDrawLines() <xgr:>
+XgrDrawLineScaled() <xgr:>
+XgrDrawLinesGrid() <xgr:>
+XgrDrawLinesScaled() <xgr:>
+XgrDrawLinesTo() <xgr:>
+XgrDrawLinesToGrid() <xgr:>
+XgrDrawLinesToScaled() <xgr:>
+XgrDrawLineTo() <xgr:>
+XgrDrawLineToDelta() <xgr:>
+XgrDrawLineToDeltaGrid() <xgr:>
+XgrDrawLineToDeltaScaled() <xgr:>
+XgrDrawLineToGrid() <xgr:>
+XgrDrawLineToScaled() <xgr:>
+XgrDrawPoint() <xgr:>
+XgrDrawPointGrid() <xgr:>
+XgrDrawPoints() <xgr:>
+XgrDrawPointScaled() <xgr:>
+XgrDrawPointsGrid() <xgr:>
+XgrDrawPointsScaled() <xgr:>
+XgrDrawText() <xgr:>
+XgrDrawTextFill() <xgr:>
+XgrDrawTextFillGrid() <xgr:>
+XgrDrawTextFillScaled() <xgr:>
+XgrDrawTextGrid() <xgr:>
+XgrDrawTextScaled() <xgr:>
+XgrFillBox() <xgr:>
+XgrFillBoxGrid() <xgr:>
+XgrFillBoxScaled() <xgr:>
+XgrFillCircle() <xgr:>
+XgrFillCircleGrid() <xgr:>
+XgrFillCircleScaled() <xgr:>
+XgrFillEllipse() <xgr:>
+XgrFillEllipseGrid() <xgr:>
+XgrFillEllipseScaled() <xgr:>
+XgrFillTriangle() <xgr:>
+XgrFillTriangleGrid() <xgr:>
+XgrFillTriangleScaled() <xgr:>
+XgrFullscreenWindow() <xgr:>
+XgrGetBackgroundColor() <xgr:>
+XgrGetBackgroundRGB() <xgr:>
+XgrGetCEO() <xgr:>
+XgrGetClipboard() <xgr:>
+XgrGetColors() <xgr:>
+XgrGetCursor() <xgr:>
+XgrGetCursorOverride() <xgr:>
+XgrGetDefaultColors() <xgr:>
+XgrGetDisplayOffset() <xgr:>
+XgrGetDisplaySize() <xgr:>
+XgrGetDrawingColor() <xgr:>
+XgrGetDrawingRGB() <xgr:>
+XgrGetDrawpoint() <xgr:>
+XgrGetDrawpointGrid() <xgr:>
+XgrGetDrawpointScaled() <xgr:>
+XgrGetFontInfo() <xgr:>
+XgrGetFontMetrics() <xgr:>
+XgrGetFontNames() <xgr:>
+XgrGetGridBorder() <xgr:>
+XgrGetGridBorderOffset() <xgr:>
+XgrGetGridBox() <xgr:>
+XgrGetGridBoxDisplay() <xgr:>
+XgrGetGridBoxGrid() <xgr:>
+XgrGetGridBoxLocal() <xgr:>
+XgrGetGridBoxScaled() <xgr:>
+XgrGetGridBoxWindow() <xgr:>
+XgrGetGridBuffer() <xgr:>
+XgrGetGridCharacterMapArray() <xgr:>
+XgrGetGridClip() <xgr:>
+XgrGetGridColors() <xgr:>
+XgrGetGridCoordinates() <xgr:>
+XgrGetGridCoords() <xgr:>
+XgrGetGridDrawingMode() <xgr:>
+XgrGetGridFont() <xgr:>
+XgrGetGridFunction() <xgr:>
+XgrGetGridParent() <xgr:>
+XgrGetGridPositionAndSize() <xgr:>
+XgrGetGridState() <xgr:>
+XgrGetGridTimerID() <xgr:>
+XgrGetGridType() <xgr:>
+XgrGetGridWindow() <xgr:>
+XgrGetImage() <xgr:>
+XgrGetImage32() <xgr:>
+XgrGetImageArrayInfo() <xgr:>
+XgrGetImageArrayInfoPNM() <xgr:>
+XgrGetKeystateModify() <xgr:>
+XgrGetMessages() <xgr:>
+XgrGetMessageType() <xgr:>
+XgrGetModalWindow() <xgr:>
+XgrGetMonitors() <xgr:>
+XgrGetMouseInfo() <xgr:>
+XgrGetSelectedWindow() <xgr:>
+XgrGetSystemDisplay() <xgr:>
+XgrGetTextArrayImageSize() <xgr:>
+XgrGetTextImageSize() <xgr:>
+XgrGetTextSelectionGrid() <xgr:>
+XgrGetWindowDisplay() <xgr:>
+XgrGetWindowFunction() <xgr:>
+XgrGetWindowGrid() <xgr:>
+XgrGetWindowIcon() <xgr:>
+XgrGetWindowPositionAndSize() <xgr:>
+XgrGetWindowPropertyXLONG() <xgr:>
+XgrGetWindowState() <xgr:>
+XgrGetWindowTitle() <xgr:>
+XgrGetWindowVisibility() <xgr:>
+XgrGetWorkArea() <xgr:>
+XgrGrabPoint() <xgr:>
+XgrGrabPointGrid() <xgr:>
+XgrGrabPointScaled() <xgr:>
+XgrGridTypeNameToNumber() <xgr:>
+XgrGridTypeNumberToName() <xgr:>
+XgrHideWindow() <xgr:>
+XgrIconNameToNumber() <xgr:>
+XgrIconNumberToName() <xgr:>
+XgrJamMessage() <xgr:>
+XgrLoadFile() <xgr:>
+XgrLoadImage() <xgr:>
+XgrMallocInfo() <xgr:>
+XgrMaximizeWindow() <xgr:>
+XgrMessageNames() <xgr:>
+XgrMessageNameToNumber() <xgr:>
+XgrMessageNumberToName() <xgr:>
+XgrMessagesPending() <xgr:>
+XgrMinimizeWindow() <xgr:>
+XgrMonitor() <xgr:>
+XgrMoveDelta() <xgr:>
+XgrMoveDeltaGrid() <xgr:>
+XgrMoveDeltaScaled() <xgr:>
+XgrMoveTo() <xgr:>
+XgrMoveToGrid() <xgr:>
+XgrMoveToScaled() <xgr:>
+XgrPeekMessage() <xgr:>
+XgrPlaceWindow() <xgr:>
+XgrProcessMessages() <xgr:>
+XgrRedrawWindow() <xgr:>
+XgrRefreshGrid() <xgr:>
+XgrRegisterCursor() <xgr:>
+XgrRegisterGridType() <xgr:>
+XgrRegisterIcon() <xgr:>
+XgrRegisterIconColor() <xgr:>
+XgrRegisterMessage() <xgr:>
+XgrRestoreWindow() <xgr:>
+XgrSaveImage() <xgr:>
+XgrSendMessage() <xgr:>
+XgrSendStringMessage() <xgr:>
+XgrSetBackgroundColor() <xgr:>
+XgrSetBackgroundRGB() <xgr:>
+XgrSetCEO() <xgr:>
+XgrSetClipboard() <xgr:>
+XgrSetColors() <xgr:>
+XgrSetCursor() <xgr:>
+XgrSetCursorOverride() <xgr:>
+XgrSetDebug() <xgr:>
+XgrSetDefaultColors() <xgr:>
+XgrSetDrawingColor() <xgr:>
+XgrSetDrawingRGB() <xgr:>
+XgrSetDrawpoint() <xgr:>
+XgrSetDrawpointGrid() <xgr:>
+XgrSetDrawpointScaled() <xgr:>
+XgrSetGridBorder() <xgr:>
+XgrSetGridBorderOffset() <xgr:>
+XgrSetGridBox() <xgr:>
+XgrSetGridBoxGrid() <xgr:>
+XgrSetGridBoxScaled() <xgr:>
+XgrSetGridBoxScaledAt() <xgr:>
+XgrSetGridBuffer() <xgr:>
+XgrSetGridCharacterMapArray() <xgr:>
+XgrSetGridClip() <xgr:>
+XgrSetGridColors() <xgr:>
+XgrSetGridCursor() <xgr:>
+XgrSetGridDrawingMode() <xgr:>
+XgrSetGridFont() <xgr:>
+XgrSetGridFunction() <xgr:>
+XgrSetGridParent() <xgr:>
+XgrSetGridPositionAndSize() <xgr:>
+XgrSetGridState() <xgr:>
+XgrSetGridTimer() <xgr:>
+XgrSetGridType() <xgr:>
+XgrSetImage() <xgr:>
+XgrSetImagePNM() <xgr:>
+XgrSetModalWindow() <xgr:>
+XgrSetSelectedWindow() <xgr:>
+XgrSetTextSelectionGrid() <xgr:>
+XgrSetWindowFunction() <xgr:>
+XgrSetWindowIcon() <xgr:>
+XgrSetWindowMaxMinSize() <xgr:>
+XgrSetWindowPositionAndSize() <xgr:>
+XgrSetWindowState() <xgr:>
+XgrSetWindowTitle() <xgr:>
+XgrSetWindowVisibility() <xgr:>
+XgrShowWindow() <xgr:>
+XgrSystemWindowToWindow() <xgr:>
+XgrUnsetTextSelectionGrid() <xgr:>
+XgrVersion$() <xgr:>
+XgrWindowToSystemWindow() <xgr:>
+XgrXcwCreateFontSet() <xgr:>
+XgrXcwFreeFontSet() <xgr:>
+XgrXcwGetFontsOfFontSet() <xgr:>
+XgrXcwGetOneFontName() <xgr:>
+XgrXcwGetUfont() <xgr:>
+XgrXcwInvalidGrid() <xgr:>
+XgrXcwLocalToBufferCoords() <xgr:>
+XgrXcwSetDrawingColor() <xgr:>
+XgrXcwSetLocale$() <xgr:>
+XgrXcwUtf8ToWc() <xgr:>
+XgrXcwWinGridDrawable() <xgr:>
+XgrXmbTextExtents() <xgr:>
+XgrXwcTextExtents() <xgr:>
+Xio() <xst:>
+XLONG <lang:>
+XLONG() <lang:>
+XLONGAT() <lang:>
+XMAKE() <lang:>
+XOR <lang:>
+Xst() <xst:>
+XstAbend() <xst:>
+XstAlert() <xst:>
+XstBackArrayToBinArray() <xst:>
+XstBackStringToBinString$() <xst:>
+XstBinArrayToBackArray() <xst:>
+XstBinRead() <xst:>
+XstBinStringToBackString$() <xst:>
+XstBinStringToBackStringNL$() <xst:>
+XstBinStringToBackStringThese$() <xst:>
+XstBinWrite() <xst:>
+XstCauseException() <xst:>
+XstChangeDirectory() <xst:>
+XstClearConsole() <xst:>
+XstCloseLibrary() <xst:>
+XstClosePref() <xst:>
+XstCompareArray() <xst:>
+XstCompareStrings() <xst:>
+XstCopyArray() <xst:>
+XstCopyDirectory() <xst:>
+XstCopyFile() <xst:>
+XstCopyMemory() <xst:>
+XstCreateConsole() <xst:>
+XstDateAndTimeToFileTime() <xst:>
+XstDecomposePathname() <xst:>
+XstDeleteFile() <xst:>
+XstDeleteLines() <xst:>
+XstDeletePrefKey() <xst:>
+XstDeletePrefSection() <xst:>
+XstDiscardPref() <xst:>
+XstDisplayConsole() <xst:>
+XstErrorNameToNumber() <xst:>
+XstErrorNumberToName() <xst:>
+XstExceptionNumberToName() <xst:>
+XstExceptionToSystemException() <xst:>
+XstFileSelect() <xst:>
+XstFileSelectGetInfo() <xst:>
+XstFileSelectOpen() <xst:>
+XstFileSelectSetInfo() <xst:>
+XstFileTimeToDateAndTime() <xst:>
+XstFileTimeToLocalDateAndTime() <xst:>
+XstFileToSystemFile() <xst:>
+XstFindArray() <xst:>
+XstFindFile() <xst:>
+XstFindFiles() <xst:>
+XstFindMemoryMatch() <misc:>
+XstGetApplicationEnvironment() <xst:>
+XstGetCommandLine() <xst:>
+XstGetCommandLineArguments() <xst:>
+XstGetConsoleFont() <xst:>
+XstGetConsoleGrid() <xst:>
+XstGetConsolePositionAndSize() <xst:>
+XstGetConsoleStyleAndColors() <xst:>
+XstGetCPUName() <xst:>
+XstGetCurrentDirectory() <xst:>
+XstGetDateAndTime() <xst:>
+XstGetDrives() <xst:>
+XstGetEndian() <xst:>
+XstGetEndianName() <xst:>
+XstGetEnvironmentVariable() <xst:>
+XstGetEnvironmentVariables() <xst:>
+XstGetException() <xst:>
+XstGetExceptionFunction() <xst:>
+XstGetExecutionPathArray() <xst:>
+XstGetFileAttributes() <xst:>
+XstGetFiles() <xst:>
+XstGetFilesAndAttributes() <xst:>
+XstGetHomePath$() <xst:>
+XstGetImplementation() <xst:>
+XstGetLibraryAddress() <xst:>
+XstGetLocalDateAndTime() <xst:>
+XstGetMemoryMap() <xst:>
+XstGetNewline() <xst:>
+XstGetOSName() <xst:>
+XstGetOSVersion() <xst:>
+XstGetOSVersionName() <xst:>
+XstGetPathComponents() <xst:>
+XstGetPrefFile() <xst:>
+XstGetPrefSection() <xst:>
+XstGetPrefSTRING() <xst:>
+XstGetPrefXLONG() <xst:>
+XstGetPrintTab() <xst:>
+XstGetProgramFileName$() <xst:>
+XstGetProgramName() <xst:>
+XstGetSystemError() <xst:>
+XstGetSystemTime() <xst:>
+XstGetTaskInfo() <xst:>
+XstGuessFilename() <xst:>
+XstHideConsole() <xst:>
+XstInKey$() <xst:>
+XstIsDataDimension() <xst:>
+XstKillTask() <xst:>
+XstKillTimer() <xst:>
+XstLoadArray() <xst:>
+XstLoadString() <xst:>
+XstLoadStringArray() <xst:>
+XstLockFileSection() <xst:>
+XstLog() <xst:>
+XstLTRIM() <xst:>
+XstMakeDirectory() <xst:>
+XstMatchWild() <xst:>
+XstMergeStrings$() <xst:>
+XstMultiStringToStringArray() <xst:>
+XstNextCField$() <xst:>
+XstNextCLine$() <xst:>
+XstNextField$() <xst:>
+XstNextItem$() <xst:>
+XstNextLine$() <xst:>
+XstOpenLibrary() <xst:>
+XstOpenPref() <xst:>
+XstParse$() <xst:>
+XstParseStringToStringArray() <xst:>
+XstParseWhitespace$() <xst:>
+XstParseWhitespaceToArray() <xst:>
+XstPathString$() <xst:>
+XstPathToAbsolutePath() <xst:>
+XstQuickSort() <xst:>
+XstRandom() <xst:>
+XstRandomCreateSeed() <xst:>
+XstRandomRange() <xst:>
+XstRandomSeed() <xst:>
+XstRandomUniform() <xst:>
+XstReadString() <xst:>
+XstRenameFile() <xst:>
+XstReplaceArray() <xst:>
+XstReplaceLines() <xst:>
+XstRTRIM() <xst:>
+XstSaveArray() <xst:>
+XstSavePref() <xst:>
+XstSaveString() <xst:>
+XstSaveStringArray() <xst:>
+XstSaveStringArrayCRLF() <xst:>
+XstSetCommandLineArguments() <xst:>
+XstSetConsoleFont() <xst:>
+XstSetConsoleStyleAndColors() <xst:>
+XstSetCurrentDirectory() <xst:>
+XstSetDateAndTime() <xst:>
+XstSetEnvironmentVariable() <xst:>
+XstSetException() <xst:>
+XstSetExceptionFunction() <xst:>
+XstSetNewline() <xst:>
+XstSetPrefSection() <xst:>
+XstSetPrefSTRING() <xst:>
+XstSetPrefXLONG() <xst:>
+XstSetPrintTab() <xst:>
+XstSetProgramName() <xst:>
+XstSetSystemError() <xst:>
+XstShowConsole() <xst:>
+XstSleep() <xst:>
+XstStartTask() <xst:>
+XstStartTimer() <xst:>
+XstStringArraySectionToString() <xst:>
+XstStringArraySectionToStringArray() <xst:>
+XstStringArrayToString() <xst:>
+XstStringArrayToStringCRLF() <xst:>
+XstStringToNumber() <misc:>
+XstStringToStringArray() <xst:>
+XstSymbolicPathToPath$() <xst:>
+XstSystemErrorNumberToName() <xst:>
+XstSystemErrorToError() <xst:>
+XstSystemExceptionNumberToName() <xst:>
+XstSystemExceptionToException() <xst:>
+XstTally() <xst:>
+XstTRIM() <xst:>
+XstUnlockFileSection() <xst:>
+XstVersion$() <xst:>
+XstWaitKey$() <xst:>
+XstWindowSizePercent() <xst:>
+XstWriteString() <xst:>
+Xui() <xui:>
+XuiAlignNameToNumber() <xui:>
+XuiAlignNumberToName() <xui:>
+XuiArea() <xui:>
+XuiBase() <xui:>
+XuiCallback() <xui:>
+XuiCanNameToNumber() <xui:>
+XuiCanNumberToName() <xui:>
+XuiCanNumberToString() <xui:>
+XuiCanStringToNumber() <xui:>
+XuiCheckBox() <xui:>
+XuiCloseWindow() <xui:>
+XuiColor() <xui:>
+XuiColors() <xui:>
+XuiConsole() <xui:>
+XuiCoordinate() <xui:>
+XuiCreateGrid() <xui:>
+XuiCreateValueArray() <xui:>
+XuiCreateWindow() <xui:>
+XuiDestroy() <xui:>
+XuiDestroyWindow() <xui:>
+XuiDialog() <xui:>
+XuiDialog2B() <xui:>
+XuiDialog3B() <xui:>
+XuiDialog4B() <xui:>
+XuiDisable() <xui:>
+XuiDisplayed() <xui:>
+XuiDisplayWindow() <xui:>
+XuiDriveBox() <xui:>
+XuiDropBox() <xui:>
+XuiDropButton() <xui:>
+XuiEditCopy() <xui:>
+XuiEditCut() <xui:>
+XuiEditPaste() <xui:>
+XuiEnable() <xui:>
+XuiFile() <xui:>
+XuiFont() <xui:>
+XuiGetAlign() <xui:>
+XuiGetBorder() <xui:>
+XuiGetBorderOffset() <xui:>
+XuiGetCallback() <xui:>
+XuiGetCan() <xui:>
+XuiGetCharacterMapArray() <xui:>
+XuiGetCharacterMapEntry() <xui:>
+XuiGetClipGrid() <xui:>
+XuiGetColor() <xui:>
+XuiGetColorExtra() <xui:>
+XuiGetCursor() <xui:>
+XuiGetDefaultColors() <xui:>
+XuiGetDefaultCursor() <xui:>
+XuiGetDefaultMessageFuncArray() <xui:>
+XuiGetDisplay() <xui:>
+XuiGetEnclosedGrids() <xui:>
+XuiGetEnclosingGrid() <xui:>
+XuiGetFocusColor() <xui:>
+XuiGetFocusColorExtra() <xui:>
+XuiGetFont() <xui:>
+XuiGetFontMetrics() <xui:>
+XuiGetFontNumber() <xui:>
+XuiGetGridFunction() <xui:>
+XuiGetGridFunctionName() <xui:>
+XuiGetGridName() <xui:>
+XuiGetGridNumber() <xui:>
+XuiGetGridProperties() <xui:>
+XuiGetGridProperty() <xui:>
+XuiGetGridRegion() <xui:>
+XuiGetGridType() <xui:>
+XuiGetGridTypeGrids() <xui:>
+XuiGetGridTypeMessageFuncArray() <xui:>
+XuiGetGridTypeMessageSubArray() <xui:>
+XuiGetGridTypeName() <xui:>
+XuiGetGridTypeProperty() <xui:>
+XuiGetGridTypeValue() <xui:>
+XuiGetGridValue() <xui:>
+XuiGetGroup() <xui:>
+XuiGetHelp() <xui:>
+XuiGetHelpFile() <xui:>
+XuiGetHelpString() <xui:>
+XuiGetHelpStrings() <xui:>
+XuiGetHelpWindowGrid() <xui:>
+XuiGetHintString() <xui:>
+XuiGetImage() <xui:>
+XuiGetImageCoords() <xui:>
+XuiGetIndent() <xui:>
+XuiGetInfo() <xui:>
+XuiGetJustify() <xui:>
+XuiGetKeyboardFocus() <xui:>
+XuiGetKeyboardFocusGrid() <xui:>
+XuiGetKidArray() <xui:>
+XuiGetKidGridNumber() <xui:>
+XuiGetKidNumber() <xui:>
+XuiGetKids() <xui:>
+XuiGetMaxMinSize() <xui:>
+XuiGetMenuEntryArray() <xui:>
+XuiGetMessageFunc() <xui:>
+XuiGetMessageFuncArray() <xui:>
+XuiGetMessageSub() <xui:>
+XuiGetMessageSubArray() <xui:>
+XuiGetModalInfo() <xui:>
+XuiGetModalWindow() <xui:>
+XuiGetNextCallback() <xui:>
+XuiGetParent() <xui:>
+XuiGetPropertyDatabase() <xui:>
+XuiGetRedrawFlags() <xui:>
+XuiGetReply() <xui:>
+XuiGetResponse() <xui:>
+XuiGetSize() <xui:>
+XuiGetSmallestSize() <xui:>
+XuiGetState() <xui:>
+XuiGetStyle() <xui:>
+XuiGetTabArray() <xui:>
+XuiGetTabWidth() <xui:>
+XuiGetTextArray() <xui:>
+XuiGetTextArrayBounds() <xui:>
+XuiGetTextArrayLine() <xui:>
+XuiGetTextArrayLines() <xui:>
+XuiGetTextArraySize() <xui:>
+XuiGetTextFilename() <xui:>
+XuiGetTextFlag() <xui:>
+XuiGetTextSpacing() <xui:>
+XuiGetTextString() <xui:>
+XuiGetTextStrings() <xui:>
+XuiGetTexture() <xui:>
+XuiGetTimer() <xui:>
+XuiGetValue() <xui:>
+XuiGetValueArray() <xui:>
+XuiGetValues() <xui:>
+XuiGetWindow() <xui:>
+XuiGetWindowFunction() <xui:>
+XuiGetWindowGrid() <xui:>
+XuiGetWindowIcon() <xui:>
+XuiGetWindowSize() <xui:>
+XuiGetWindowTitle() <xui:>
+XuiGotKeyboardFocus() <xui:>
+XuiGrabArray() <xui:>
+XuiGrabTextArray() <xui:>
+XuiGrabTextString() <xui:>
+XuiGrabValueArray() <xui:>
+XuiGridContainsGridCoord() <xui:>
+XuiGridFuncNameToAddr() <xui:>
+XuiGridKid() <xui:>
+XuiGridTypeToGridFunc() <xui:>
+XuiGrip() <xui:>
+XuiHelpDisable() <xui:>
+XuiHelpEnable() <xui:>
+XuiHidden() <xui:>
+XuiHideWindow() <xui:>
+XuiImage() <xui:>
+XuiInitialize() <xui:>
+XuiJustifyNameToNumber() <xui:>
+XuiJustifyNumberToName() <xui:>
+XuiKeyboardFocusBackward() <xui:>
+XuiKeyboardFocusForward() <xui:>
+XuiLabel() <xui:>
+XuiList() <xui:>
+XuiListBox() <xui:>
+XuiListButton() <xui:>
+XuiListDialog2B() <xui:>
+XuiLostKeyboardFocus() <xui:>
+XuiMaximized() <xui:>
+XuiMaximizeWindow() <xui:>
+XuiMenu() <xui:>
+XuiMenuBar() <xui:>
+XuiMenuTextArea1B() <xui:>
+XuiMessage() <xui:>
+XuiMessage1B() <xui:>
+XuiMessage2B() <xui:>
+XuiMessage3B() <xui:>
+XuiMessage4B() <xui:>
+XuiMessageRetry() <xui:>
+XuiMinimized() <xui:>
+XuiMinimizeWindow() <xui:>
+XuiMonitorContext() <xui:>
+XuiMonitorHelp() <xui:>
+XuiMonitorKeyboard() <xui:>
+XuiMonitorMouse() <xui:>
+XuiMouseDownSetKeyboardFocus() <xui:>
+XuiMouseEnter() <xui:>
+XuiPassOn() <xui:>
+XuiPlaceWindow() <xui:>
+XuiPokeArray() <xui:>
+XuiPokeTextArray() <xui:>
+XuiPokeTextString() <xui:>
+XuiPokeValueArray() <xui:>
+XuiPositionGrid() <xui:>
+XuiPressButton() <xui:>
+XuiProcessMessage() <xui:>
+XuiProgress() <xui:>
+XuiPropertyValueNameToNumber() <xui:>
+XuiPullDown() <xui:>
+XuiPushButton() <xui:>
+XuiQueueCallbacks() <xui:>
+XuiRadioBox() <xui:>
+XuiRadioButton() <xui:>
+XuiRange() <xui:>
+XuiRedraw() <xui:>
+XuiRedrawGrid() <xui:>
+XuiRedrawText() <xui:>
+XuiRedrawWindow() <xui:>
+XuiRegisterGridType() <xui:>
+XuiReportMessage() <xui:>
+XuiResize() <xui:>
+XuiResizeNot() <xui:>
+XuiResizeWindow() <xui:>
+XuiResizeWindowToGrid() <xui:>
+XuiRestoreWindow() <xui:>
+XuiReturnZeros() <xui:>
+XuiScrollBarH() <xui:>
+XuiScrollBarV() <xui:>
+XuiSelectWindow() <xui:>
+XuiSendMessage() <xui:>
+XuiSendStringMessage() <xui:>
+XuiSendToKid() <xui:>
+XuiSendToKids() <xui:>
+XuiSetAlign() <xui:>
+XuiSetBorder() <xui:>
+XuiSetBorderOffset() <xui:>
+XuiSetCallback() <xui:>
+XuiSetCan() <xui:>
+XuiSetCharacterMapArray() <xui:>
+XuiSetCharacterMapEntry() <xui:>
+XuiSetClipGrid() <xui:>
+XuiSetColor() <xui:>
+XuiSetColorAll() <xui:>
+XuiSetColorExtra() <xui:>
+XuiSetColorExtraAll() <xui:>
+XuiSetCursor() <xui:>
+XuiSetDefaultColors() <xui:>
+XuiSetDefaultCursor() <xui:>
+XuiSetFocusColor() <xui:>
+XuiSetFocusColorExtra() <xui:>
+XuiSetFont() <xui:>
+XuiSetFontNumber() <xui:>
+XuiSetGridFunction() <xui:>
+XuiSetGridFunctionName() <xui:>
+XuiSetGridName() <xui:>
+XuiSetGridProperties() <xui:>
+XuiSetGridProperty() <xui:>
+XuiSetGridType() <xui:>
+XuiSetGridTypeName() <xui:>
+XuiSetGridTypeProperty() <xui:>
+XuiSetGridTypeValue() <xui:>
+XuiSetGridValue() <xui:>
+XuiSetGroup() <xui:>
+XuiSetHelp() <xui:>
+XuiSetHelpFile() <xui:>
+XuiSetHelpString() <xui:>
+XuiSetHelpStrings() <xui:>
+XuiSetHintString() <xui:>
+XuiSetImage() <xui:>
+XuiSetImageCoords() <xui:>
+XuiSetIndent() <xui:>
+XuiSetInfo() <xui:>
+XuiSetJustify() <xui:>
+XuiSetKeyboardFocus() <xui:>
+XuiSetKeyboardFocusGrid() <xui:>
+XuiSetKidArray() <xui:>
+XuiSetMaxMinSize() <xui:>
+XuiSetMenuEntryArray() <xui:>
+XuiSetMessageFunc() <xui:>
+XuiSetMessageFuncArray() <xui:>
+XuiSetMessageSub() <xui:>
+XuiSetMessageSubArray() <xui:>
+XuiSetModalWindow() <xui:>
+XuiSetParent() <xui:>
+XuiSetPropertyDatabase() <xui:>
+XuiSetRedrawFlags() <xui:>
+XuiSetSize() <xui:>
+XuiSetState() <xui:>
+XuiSetStyle() <xui:>
+XuiSetTabArray() <xui:>
+XuiSetTabWidth() <xui:>
+XuiSetTextArray() <xui:>
+XuiSetTextArrayLine() <xui:>
+XuiSetTextArrayLines() <xui:>
+XuiSetTextFilename() <xui:>
+XuiSetTextFlag() <xui:>
+XuiSetTextSpacing() <xui:>
+XuiSetTextString() <xui:>
+XuiSetTextStrings() <xui:>
+XuiSetTexture() <xui:>
+XuiSetTimer() <xui:>
+XuiSetValue() <xui:>
+XuiSetValueArray() <xui:>
+XuiSetValues() <xui:>
+XuiSetWindowFunction() <xui:>
+XuiSetWindowIcon() <xui:>
+XuiSetWindowTitle() <xui:>
+XuiShowWindow() <xui:>
+XuiSolidColor() <xui:>
+XuiStartTimer() <xui:>
+XuiSystemMessage() <xui:>
+XuiText() <xui:>
+XuiTextArea() <xui:>
+XuiTextArea2B() <xui:>
+XuiTextArea3B() <xui:>
+XuiTextArea4B() <xui:>
+XuiTextLine() <xui:>
+XuiTextModifyNot() <xui:>
+XuiTextureNameToNumber() <xui:>
+XuiTextureNumberToName() <xui:>
+XuiToggleButton() <xui:>
+XuiVersion$() <xui:>
+XuiWindow() <xui:>
+Version 6.4.5

@@ -1,0 +1,247 @@
+'
+'
+' #######################
+' #####  Simple ()  #####
+' #######################
+'
+' "Anatomy of Grid Functions" in the GuiDesigner Programmer Guide
+' describes the operation and modification of grid functions in detail.
+'
+' WindowFromFunction and/or WindowToFunction may not work, or may not generate the desired results if you:
+'   * Modify the kid constant definition improperly.
+'   * Modify the code in the Create subroutine improperly.
+'   * Imbed blank or comment lines in the Create subroutine.
+'   * Remove the GOSUB Resize line in the Create subroutine (comment out is okay).
+'   * Imbed special purpose code in the Create subroutine before the GOSUB Resize line.
+'   * Delete any of the four lines that assign values to designX, designY, designWidth, designHeight.
+'
+FUNCTION  Simple (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+  STATIC  designX,  designY,  designWidth,  designHeight
+  STATIC  SUBADDR  sub[]
+  STATIC  upperMessage
+  STATIC  Simple
+'
+  $Simple       =   0  ' kid   0 grid type = Simple
+  $Menu         =   1  ' kid   1 grid type = XuiMenu
+  $Region       =   2  ' kid   2 grid type = XuiLabel
+  $RegionList   =   3  ' kid   3 grid type = XuiListBox
+  $State        =   4  ' kid   4 grid type = XuiLabel
+  $StateList    =   5  ' kid   5 grid type = XuiListBox
+  $Country      =   6  ' kid   6 grid type = XuiLabel
+  $CountryList  =   7  ' kid   7 grid type = XuiListBox
+  $Comments     =   8  ' kid   8 grid type = XuiLabel
+  $TextArea     =   9  ' kid   9 grid type = XuiTextArea
+  $UpperKid     =   9  ' kid maximum
+'
+'
+  IFZ sub[] THEN GOSUB Initialize
+' XuiReportMessage (grid, message, v0, v1, v2, v3, r0, r1)
+  IF XuiProcessMessage (grid, message, @v0, @v1, @v2, @v3, @r0, @r1, Simple) THEN RETURN
+  IF (message <= upperMessage) THEN GOSUB @sub[message]
+  RETURN
+'
+'
+' *****  Callback  *****  message = Callback : r1 = original message
+'
+SUB Callback
+  message = r1
+  callback = message
+  IF (message <= upperMessage) THEN GOSUB @sub[message]
+END SUB
+'
+'
+' *****  Create  *****  v0123 = xywh : r0 = window : r1 = parent
+'
+SUB Create
+  IF (v0 <= 0) THEN v0 = 0
+  IF (v1 <= 0) THEN v1 = 0
+  IF (v2 <= 0) THEN v2 = designWidth
+  IF (v3 <= 0) THEN v3 = designHeight
+  XuiCreateGrid (@grid, Simple, @v0, @v1, @v2, @v3, r0, r1, &Simple())
+  XuiSendMessage ( grid, #SetGridName, 0, 0, 0, 0, 0, @"Simple")
+  XuiMenu        (@g, #Create, 4, 4, 316, 24, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Simple(), -1, -1, $Menu, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Menu")
+  XuiSendMessage ( g, #SetColor, $$LightRed, $$Black, $$Black, $$BrightGrey, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"_File  _Edit  _Help  ")
+  DIM text$[11]
+  text$[ 0] = "_File"
+  text$[ 1] = " _Load"
+  text$[ 2] = " _Save"
+  text$[ 3] = " _Quit"
+  text$[ 4] = "_Edit"
+  text$[ 5] = " _Cut"
+  text$[ 6] = " _Grab"
+  text$[ 7] = " _Paste"
+  text$[ 8] = "_Help"
+  text$[ 9] = " _Index"
+  text$[10] = " _Summary"
+  text$[11] = " _Contents"
+  XuiSendMessage ( g, #SetTextArray, 0, 0, 0, 0, 0, @text$[])
+  XuiLabel       (@g, #Create, 4, 28, 144, 32, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Region")
+  XuiSendMessage ( g, #SetColor, $$DarkGreen, $$Black, $$Black, $$BrightGrey, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Region:")
+  XuiListBox     (@g, #Create, 148, 28, 172, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Simple(), -1, -1, $RegionList, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"RegionList")
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Foreign")
+  DIM text$[6]
+  text$[0] = "_Eastern USA"
+  text$[1] = "_Midwest USA"
+  text$[2] = "_Rockies USA"
+  text$[3] = "_Western USA"
+  text$[4] = "_Alaska  USA"
+  text$[5] = "_Hawaii  USA"
+  text$[6] = "_Foreign"
+  XuiSendMessage ( g, #SetTextArray, 0, 0, 0, 0, 0, @text$[])
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"TextLine")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderRaise1, 0, 1, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 1, @"Foreign")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 2, @"PressButton")
+  XuiLabel       (@g, #Create, 4, 60, 144, 32, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"State")
+  XuiSendMessage ( g, #SetColor, $$DarkGreen, $$Black, $$Black, $$BrightGrey, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"State/Province:")
+  XuiListBox     (@g, #Create, 148, 60, 172, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Simple(), -1, -1, $StateList, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"StateList")
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Arkansas")
+  DIM text$[7]
+  text$[0] = "Alabama"
+  text$[1] = "Alaska"
+  text$[2] = "Arkansas"
+  text$[3] = "Connecticut"
+  text$[4] = "Delaware"
+  text$[5] = "etc..."
+  text$[6] = "Virginia"
+  text$[7] = "Washington"
+  XuiSendMessage ( g, #SetTextArray, 0, 0, 0, 0, 0, @text$[])
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"TextLine")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderRaise1, 0, 1, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 1, @"Arkansas")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 2, @"PressButton")
+  XuiLabel       (@g, #Create, 4, 92, 144, 32, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Country")
+  XuiSendMessage ( g, #SetColor, $$DarkGreen, $$Black, $$Black, $$BrightGrey, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Country:")
+  XuiListBox     (@g, #Create, 148, 92, 172, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Simple(), -1, -1, $CountryList, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"CountryList")
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Chili")
+  DIM text$[8]
+  text$[0] = "Albania"
+  text$[1] = "Arkaroola"
+  text$[2] = "Chili"
+  text$[3] = "England"
+  text$[4] = "Finland"
+  text$[5] = "Germany"
+  text$[6] = "Japan"
+  text$[7] = "Switzerland"
+  text$[8] = "USSA"
+  XuiSendMessage ( g, #SetTextArray, 0, 0, 0, 0, 0, @text$[])
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"TextLine")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderRaise1, 0, 1, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 1, @"Chili")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 2, @"PressButton")
+  XuiLabel       (@g, #Create, 4, 124, 316, 28, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Comments")
+  XuiSendMessage ( g, #SetColor, $$DarkSteel, $$Black, $$Black, $$BrightGrey, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Comments  Comments  Comments")
+  XuiTextArea    (@g, #Create, 4, 152, 316, 100, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &Simple(), -1, -1, $TextArea, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"TextArea")
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"The USSA, once called the USA, was\nonce a relatively free country.  But\nthen the government taught a couple\ngenerations of kids that their wacko\nabstractions had meaning.  Then it\nwas easy to enslave the country.\n")
+  DIM text$[5]
+  text$[0] = "The USSA, once called the USA, was"
+  text$[1] = "once a relatively free country.  But"
+  text$[2] = "then the government taught a couple"
+  text$[3] = "generations of kids that their wacko"
+  text$[4] = "abstractions had meaning.  Then it"
+  text$[5] = "was easy to enslave the country."
+  XuiSendMessage ( g, #SetTextArray, 0, 0, 0, 0, 0, @text$[])
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"Area")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 2, @"ScrollH")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 3, @"ScrollV")
+  GOSUB Resize
+END SUB
+'
+'
+' *****  CreateWindow  *****  v0123 = xywh : r0 = windowType : r1 = &WindowFunc()
+'
+SUB CreateWindow
+  IF (v0 =  0) THEN v0 = designX
+  IF (v1 =  0) THEN v1 = designY
+  IF (v2 <= 0) THEN v2 = designWidth
+  IF (v3 <= 0) THEN v3 = designHeight
+  XuiWindow (@window, #WindowCreate, v0, v1, v2, v3, r0, r1)
+  v0 = 0 : v1 = 0 : r0 = window : r1 = 0
+  GOSUB Create
+  XuiWindow (window, #WindowRegister, grid, -1, v2, v3, @r0, @"Simple")
+END SUB
+'
+'
+' *****  GetSmallestSize  *****  See "Anatomy of Grid Functions"
+'
+SUB GetSmallestSize
+END SUB
+'
+'
+' *****  Resize  *****  See "Anatomy of Grid Functions"
+'
+SUB Resize
+END SUB
+'
+'
+' *****  Selection  *****  See "Anatomy of Grid Functions"
+'
+SUB Selection
+END SUB
+'
+'
+' *****  Initialize  *****  ' see "Anatomy of Grid Functions"
+'
+SUB Initialize
+  XuiGetDefaultMessageFuncArray (@func[])
+  XgrMessageNameToNumber (@"LastMessage", @upperMessage)
+'
+  func[#Callback]           = &XuiCallback ()               ' disable to handle Callback messages internally
+' func[#GetSmallestSize]    = 0                             ' enable to add internal GetSmallestSize routine
+' func[#Resize]             = 0                             ' enable to add internal Resize routine
+'
+  DIM sub[upperMessage]
+' sub[#Callback]            = SUBADDRESS (Callback)         ' enable to handle Callback messages internally
+  sub[#Create]              = SUBADDRESS (Create)           ' must be internal routine
+  sub[#CreateWindow]        = SUBADDRESS (CreateWindow)     ' must be internal routine
+' sub[#GetSmallestSize]     = SUBADDRESS (GetSmallestSize)  ' enable to add internal GetSmallestSize routine
+' sub[#Resize]              = SUBADDRESS (Resize)           ' enable to add internal Resize routine
+  sub[#Selection]           = SUBADDRESS (Selection)        ' routes Selection callbacks to subroutine
+'
+  IF sub[0] THEN PRINT "Simple(): Initialize: Error::: (Undefined Message)
+  IF func[0] THEN PRINT "Simple(): Initialize: Error::: (Undefined Message)
+  XuiRegisterGridType (@Simple, "Simple", &Simple(), @func[], @sub[])
+'
+' Don't remove the following 4 lines, or WindowFromFunction/WindowToFunction will not work
+'
+  designX = 156
+  designY = 32
+  designWidth = 324
+  designHeight = 256
+'
+  gridType = Simple
+  XuiSetGridTypeValue (gridType, @"x",                designX)
+  XuiSetGridTypeValue (gridType, @"y",                designY)
+  XuiSetGridTypeValue (gridType, @"width",            designWidth)
+  XuiSetGridTypeValue (gridType, @"height",           designHeight)
+  XuiSetGridTypeValue (gridType, @"maxWidth",         designWidth)
+  XuiSetGridTypeValue (gridType, @"maxHeight",        designHeight)
+  XuiSetGridTypeValue (gridType, @"minWidth",         designWidth)
+  XuiSetGridTypeValue (gridType, @"minHeight",        designHeight)
+  XuiSetGridTypeValue (gridType, @"border",           $$BorderFrame)
+  XuiSetGridTypeValue (gridType, @"can",              $$Focus OR $$Respond OR $$Callback OR $$InputTextString OR $$TextSelection)
+  XuiSetGridTypeValue (gridType, @"focusKid",         $RegionList)
+  XuiSetGridTypeValue (gridType, @"inputTextArray",   $TextArea)
+  XuiSetGridTypeValue (gridType, @"inputTextString",  $RegionList)
+  IFZ message THEN RETURN
+END SUB
+END FUNCTION

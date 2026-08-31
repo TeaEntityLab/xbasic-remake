@@ -1,0 +1,628 @@
+'
+' **********************************************
+' *****  Standard Library Composite Types  *****
+' **********************************************
+'
+'TYPE FILEINFO
+'	XLONG        .attributes
+'	XLONG        .createTimeLow
+'	XLONG        .createTimeHigh
+'	XLONG        .accessTimeLow
+'	XLONG        .accessTimeHigh
+'	XLONG        .modifyTimeLow
+'	XLONG        .modifyTimeHigh
+'	XLONG        .sizeHigh
+'	XLONG        .sizeLow
+'	XLONG        .res0
+'	XLONG        .res1
+'	STRING*260   .name
+'	STRING*14    .alternateName
+'END TYPE
+'
+TYPE FILEINFO
+	XLONG        .attributes
+	GIANT        .createTime
+	GIANT        .accessTime
+	GIANT        .modifyTime
+	GIANT        .size
+'	XLONG        .res0
+'	XLONG        .res1
+	STRING*260   .name
+	STRING*14    .alternateName
+END TYPE
+'
+TYPE MEMORYMAP
+	XLONG        .code0
+	XLONG        .code
+	XLONG        .codex
+	XLONG        .codez
+	XLONG        .data0
+	XLONG        .data
+	XLONG        .datax
+	XLONG        .dataz
+	XLONG        .bss0
+	XLONG        .bss
+	XLONG        .bssx
+	XLONG        .bssz
+	XLONG        .dyno0
+	XLONG        .dyno
+	XLONG        .dynox
+	XLONG        .dynoz
+	XLONG        .ucode0
+	XLONG        .ucode
+	XLONG        .ucodex
+	XLONG        .ucodez
+	XLONG        .stack0
+	XLONG        .stack
+	XLONG        .stackx
+	XLONG        .stackz
+END TYPE
+'
+TYPE SAVELOADARRAYHDR
+	STRING*4	.magic
+	ULONG			.typeFlags
+END TYPE
+'
+'
+'  ****************************************
+'  *****  Standard Library Functions  *****
+'  ****************************************
+'
+'  system functions
+'
+EXTERNAL FUNCTION  Xst                            ()
+EXTERNAL FUNCTION  XstVersion$                    ()
+EXTERNAL FUNCTION  XstCauseException              (exception)
+EXTERNAL FUNCTION  XstCloseLibrary                (handle)
+EXTERNAL FUNCTION  XstDateAndTimeToFileTime       (year, month, day, weekDay, hour, minute, second, nanos, @filetime$$)
+EXTERNAL FUNCTION  XstErrorNameToNumber           (error$, @errNumber)
+EXTERNAL FUNCTION  XstErrorNumberToName           (error, @error$)
+EXTERNAL FUNCTION  XstExceptionNumberToName       (exception, @exception$)
+EXTERNAL FUNCTION  XstExceptionToSystemException  (exception, @sysException)
+EXTERNAL FUNCTION  XstFileTimeToDateAndTime       (filetime$$, @year, @month, @day, @weekDay, @hour, @minute, @second, @nanos)
+EXTERNAL FUNCTION  XstFileTimeToLocalDateAndTime  (filetime$$, @year, @month, @day, @weekDay, @hour, @minute, @second, @nanos)
+EXTERNAL FUNCTION  XstFileToSystemFile            (fileNumber, @systemFileNumber)
+EXTERNAL FUNCTION  XstGetApplicationEnvironment   (@standalone, @reserved)
+EXTERNAL FUNCTION  XstGetCommandLine              (@commandline$)
+EXTERNAL FUNCTION  XstGetCommandLineArguments     (@argc, @argv$[])
+EXTERNAL FUNCTION  XstGetConsoleGrid              (@grid)
+EXTERNAL FUNCTION  XstGetCPUName                  (@cpu$)
+EXTERNAL FUNCTION  XstGetDateAndTime              (@year, @month, @day, @weekDay, @hour, @minute, @second, @nanos)
+EXTERNAL FUNCTION  XstGetLocalDateAndTime         (@year, @month, @day, @weekDay, @hour, @minute, @second, @nanos)
+EXTERNAL FUNCTION  XstGetEndian                   (@endian$$)
+EXTERNAL FUNCTION  XstGetEndianName               (@endian$)
+EXTERNAL FUNCTION  XstGetEnvironmentVariable      (@name$, @value$)
+EXTERNAL FUNCTION  XstGetEnvironmentVariables     (@count, @envp$[])
+EXTERNAL FUNCTION  XstGetException                (@exception)
+EXTERNAL FUNCTION  XstGetExceptionFunction        (@function)
+EXTERNAL FUNCTION  XstGetImplementation           (@name$)
+EXTERNAL FUNCTION  XstGetLibraryAddress           (handle, funcname$)
+EXTERNAL FUNCTION  XstGetMemoryMap                (MEMORYMAP @memorymap)
+EXTERNAL FUNCTION  XstGetNewline                  (@save, @paste)
+EXTERNAL FUNCTION  XstGetOSName                   (@name$)
+EXTERNAL FUNCTION  XstGetOSVersion                (@major, @minor)
+EXTERNAL FUNCTION  XstGetOSVersionName            (@name$)
+EXTERNAL FUNCTION  XstGetPrintTab                 (@pixels)
+EXTERNAL FUNCTION  XstGetProgramName              (@program$)
+EXTERNAL FUNCTION  XstGetSystemError              (@sysError)
+EXTERNAL FUNCTION  XstGetSystemTime               (@msec)
+EXTERNAL FUNCTION  XstGetTaskInfo                 (taskNum, @count, @msec, @func, @timer, @skips)
+EXTERNAL FUNCTION  XstKillTask                    (taskNum)
+EXTERNAL FUNCTION  XstKillTimer                   (timer)
+EXTERNAL FUNCTION  XstLog                         (text$)
+EXTERNAL FUNCTION  XstOpenLibrary                 (name$)
+EXTERNAL FUNCTION  XstSetCommandLineArguments     (argc, @argv$[])
+EXTERNAL FUNCTION  XstSetDateAndTime              (year, month, day, weekDay, hour, minute, second, nanos)
+EXTERNAL FUNCTION  XstSetEnvironmentVariable      (@name$, @value$)
+EXTERNAL FUNCTION  XstSetException                (exception)
+EXTERNAL FUNCTION  XstSetExceptionFunction        (function)
+EXTERNAL FUNCTION  XstSetNewline                  (save, paste)
+EXTERNAL FUNCTION  XstSetPrintTab                 (pixels)
+EXTERNAL FUNCTION  XstSetProgramName              (@program$)
+EXTERNAL FUNCTION  XstSetSystemError              (sysError)
+EXTERNAL FUNCTION  XstSleep                       (milliSec)
+EXTERNAL FUNCTION  XstStartTask                   (taskNum, count, msec, func)
+EXTERNAL FUNCTION  XstStartTimer                  (timer, count, msec, func)
+'
+EXTERNAL FUNCTION  XstSystemErrorToError          (sysError, @error)
+EXTERNAL FUNCTION  XstSystemErrorNumberToName     (sysError, @sysError$)
+EXTERNAL FUNCTION  XstSystemExceptionNumberToName (sysException, @sysException$)
+EXTERNAL FUNCTION  XstSystemExceptionToException  (sysException, @exception)
+'
+' console functions
+'
+EXTERNAL FUNCTION  XstClearConsole                ()
+EXTERNAL FUNCTION  XstCreateConsole               (xDisp, yDisp, width, height)
+EXTERNAL FUNCTION  XstDisplayConsole              ()
+EXTERNAL FUNCTION  XstGetConsoleFont              (size, weight, italic, angle, font$)
+EXTERNAL FUNCTION  XstGetConsolePositionAndSize   (xDisp, yDisp, width, height)
+EXTERNAL FUNCTION  XstGetConsoleStyleAndColors    (style, textBack, textDraw, scrollBack, scrollDraw, scrollLo, scrollHi)
+EXTERNAL FUNCTION  XstHideConsole                 ()
+EXTERNAL FUNCTION  XstInKey$                      ()
+EXTERNAL FUNCTION  XstSetConsoleFont              (size, weight, italic, angle, font$)
+EXTERNAL FUNCTION  XstSetConsoleStyleAndColors    (style, textBack, textDraw, scrollBack, scrollDraw, scrollLo, scrollHi)
+EXTERNAL FUNCTION  XstShowConsole                 ()
+EXTERNAL FUNCTION  XstWaitKey$                    ()
+'
+'  file functions
+'
+EXTERNAL FUNCTION  XstBinRead                     (fileNumber, bufferAddr, maxBytes)
+EXTERNAL FUNCTION  XstBinWrite                    (fileNumber, bufferAddr, numBytes)
+EXTERNAL FUNCTION  XstChangeDirectory             (directory$)
+EXTERNAL FUNCTION  XstCopyDirectory               (source$, dest$)
+EXTERNAL FUNCTION  XstCopyFile                    (source$, dest$)
+EXTERNAL FUNCTION  XstDecomposePathname           (pathname$, path$, parent$, fileName$, file$, extent$)
+EXTERNAL FUNCTION  XstDeleteFile                  (file$)
+EXTERNAL FUNCTION  XstFindFile                    (file$, @path$[], @path$, @attr)
+EXTERNAL FUNCTION  XstFindFiles                   (basepath$, filter$, recurse, @file$[])
+EXTERNAL FUNCTION  XstFileSelect                  (windowTitle$, @fileName$)
+EXTERNAL FUNCTION  XstFileSelectGetInfo           (@path$, @filter$, @xDisp, @yDisp, @width, @height)
+EXTERNAL FUNCTION  XstFileSelectOpen              (mode, @fileName$, @fileNumber)
+EXTERNAL FUNCTION  XstFileSelectSetInfo           (path$, filter$, xDisp, yDisp, width, height)
+EXTERNAL FUNCTION  XstGetCurrentDirectory         (@directory$)
+EXTERNAL FUNCTION  XstGetDrives                   (@count, @drive$[], @driveType[], @driveType$[])
+EXTERNAL FUNCTION  XstGetExecutionPathArray       (@path$[])
+EXTERNAL FUNCTION  XstGetFileAttributes           (file$, @attributes)
+EXTERNAL FUNCTION  XstGetFiles                    (filter$, @file$[])
+EXTERNAL FUNCTION  XstGetFilesAndAttributes       (filter$, attributeFilter, @file$[], FILEINFO @attrInfo[])
+EXTERNAL FUNCTION  XstGetPathComponents           (file$, @path$, @drive$, @dir$, @fileName$, @attributes)
+EXTERNAL FUNCTION  XstGuessFilename               (old$, @new$, @guess$, @attributes)
+EXTERNAL FUNCTION  XstLoadString                  (file$, @text$)
+EXTERNAL FUNCTION  XstLoadStringArray             (file$, @text$[])
+EXTERNAL FUNCTION  XstLockFileSection             (fileNumber, mode, offset$$, length$$)
+EXTERNAL FUNCTION  XstMakeDirectory               (directory$)
+EXTERNAL FUNCTION  XstPathString$                 (path$)
+EXTERNAL FUNCTION  XstPathToAbsolutePath          (ipath$, @opath$)
+EXTERNAL FUNCTION  XstReadString                  (ifile, @string$)
+EXTERNAL FUNCTION  XstRenameFile                  (old$, new$)
+EXTERNAL FUNCTION  XstSaveString                  (file$, text$)
+EXTERNAL FUNCTION  XstSaveStringArray             (file$, text$[])
+EXTERNAL FUNCTION  XstSaveStringArrayCRLF         (file$, text$[])
+EXTERNAL FUNCTION  XstSetCurrentDirectory         (directory$)
+EXTERNAL FUNCTION  XstSymbolicPathToPath$         (symbolicPath$)
+EXTERNAL FUNCTION  XstUnlockFileSection           (fileNumber, mode, offset$$, length$$)
+EXTERNAL FUNCTION  XstWindowSizePercent           (@xPercent, @yPercent, @wPercent, @hPercent, windowType)
+EXTERNAL FUNCTION  XstWriteString                 (ofile, @string$)
+'
+' preference file functions
+'
+EXTERNAL FUNCTION  XstOpenPref                    (file$)
+EXTERNAL FUNCTION  XstGetPrefFile                 (pfile, @file$)
+EXTERNAL FUNCTION  XstSavePref                    (pfile)
+EXTERNAL FUNCTION  XstDiscardPref                 (pfile)
+EXTERNAL FUNCTION  XstClosePref                   (pfile)
+EXTERNAL FUNCTION  XstDeletePrefKey               (pfile, key$)
+EXTERNAL FUNCTION  XstDeletePrefSection           (pfile, section$)
+EXTERNAL FUNCTION  XstSetPrefSection              (pfile, section$)
+EXTERNAL FUNCTION  XstGetPrefSection              (pfile, @section$)
+EXTERNAL FUNCTION  XstSetPrefSTRING							 (pfile, key$, value$)
+EXTERNAL FUNCTION  XstSetPrefXLONG								 (pfile, key$, value)
+EXTERNAL FUNCTION  XstGetPrefSTRING               (pfile, key$, default$, @value$)
+EXTERNAL FUNCTION  XstGetPrefXLONG                (pfile, key$, default, @value)
+'
+' Saving and loading arrays
+'
+EXTERNAL FUNCTION  XstLoadArray                   (file$, ANY[])
+EXTERNAL FUNCTION  XstSaveArray                   (file$, ANY[])
+'
+' random number functions
+'
+EXTERNAL FUNCTION  ULONG  XstRandom               ()
+EXTERNAL FUNCTION  ULONG  XstRandomCreateSeed     ()
+EXTERNAL FUNCTION         XstRandomRange          (n1, n2)
+EXTERNAL FUNCTION         XstRandomSeed           (ULONG seed)
+EXTERNAL FUNCTION  DOUBLE XstRandomUniform        ()
+'
+'  string and string array functions
+'
+EXTERNAL FUNCTION  XstBackArrayToBinArray         (backArray$[], @binArray$[])
+EXTERNAL FUNCTION  XstBackStringToBinString$      (backString$)
+EXTERNAL FUNCTION  XstBinArrayToBackArray         (binArray$[], @backArray$[])
+EXTERNAL FUNCTION  XstBinStringToBackString$      (binString$)
+EXTERNAL FUNCTION  XstBinStringToBackStringNL$    (binString$)
+EXTERNAL FUNCTION  XstBinStringToBackStringThese$ (binString$, these[])
+EXTERNAL FUNCTION  XstCompareArray                (ANY[], ANY[], @result)
+EXTERNAL FUNCTION  XstCopyArray                   (ANY[], ANY[])
+EXTERNAL FUNCTION  XstCopyMemory                  (sourceAddr, destAddr, bytes)
+EXTERNAL FUNCTION  XstDeleteLines                 (array$[], start, count)
+EXTERNAL FUNCTION  XstFindArray                   (mode, text$[], find$, line, pos, match)
+EXTERNAL FUNCTION  XstIsDataDimension             (ANY[])
+EXTERNAL FUNCTION  XstMergeStrings$               (string$, add$, start, replace)
+EXTERNAL FUNCTION  XstMultiStringToStringArray    (s$, @s$[])
+EXTERNAL FUNCTION  XstNextCField$                 (sourceAddr, @index, @done)
+EXTERNAL FUNCTION  XstNextCLine$                  (sourceAddr, @index, @done)
+EXTERNAL FUNCTION  XstNextField$                  (source$, @index, @done)
+EXTERNAL FUNCTION  XstNextItem$                   (source$, @index, @term, @done)
+EXTERNAL FUNCTION  XstNextLine$                   (source$, @index, @done)
+EXTERNAL FUNCTION  XstReplaceArray                (mode, text$[], find$, replace$, line, pos, match)
+EXTERNAL FUNCTION  XstReplaceLines                (d$[], s$[], firstD, countD, firstS, countS)
+EXTERNAL FUNCTION  XstStringArraySectionToString  (text$[], @copy$, x1, y1, x2, y2, term)
+EXTERNAL FUNCTION  XstStringArraySectionToStringArray (text$[], @copy$[], x1, y1, x2, y2)
+EXTERNAL FUNCTION  XstStringArrayToString         (s$[], @s$)
+EXTERNAL FUNCTION  XstStringArrayToStringCRLF     (s$[], @s$)
+EXTERNAL FUNCTION  XstStringToStringArray         (s$, @s$[])
+EXTERNAL FUNCTION  XstLTRIM                       (@string$, array[])
+EXTERNAL FUNCTION  XstRTRIM                       (@string$, array[])
+EXTERNAL FUNCTION  XstTRIM                        (@string$, array[])
+EXTERNAL FUNCTION  XstParse$                      (source$, delimiter$, n)
+EXTERNAL FUNCTION  XstParseStringToStringArray    (source$, delimiter$, @s$[])
+EXTERNAL FUNCTION  XstParseWhitespace$            (string$, wordNumber)
+EXTERNAL FUNCTION  XstParseWhitespaceToArray      (string$, @word$[])
+EXTERNAL FUNCTION  XstTally                       (source$, find$)
+'
+EXTERNAL FUNCTION  XstFindMemoryMatch            (addrMemoryStart, addrMemoryPast, addrMatchString, minMatchLength, maxMatchLength)
+EXTERNAL FUNCTION  XstStringToNumber             (s$, startOff, @afterOff, @rtype, @value$$)
+'
+'  sorting functions
+'
+EXTERNAL FUNCTION  XstCompareStrings              (addrString1, op, addrString2, flags)
+EXTERNAL FUNCTION  XstMatchWild                   (searchMe$, searchFor$, start, matchCase)
+EXTERNAL FUNCTION  XstQuickSort                   (ANY x[], n[], low, high, flags)
+'
+EXTERNAL FUNCTION	XstAbend											 (errorMessage$)
+EXTERNAL FUNCTION  XstAlert                       (message$)
+EXTERNAL FUNCTION  XstGetProgramFileName$         ()
+EXTERNAL FUNCTION  XstGetHomePath$                ()
+'
+EXTERNAL  FUNCTION  Xio                ()
+'
+'
+'
+' ****************************************
+' *****  Standard Library Constants  *****
+' ****************************************
+'
+' Line Separator argument in XstStringArraySectionToString()
+'
+	$$NOTERM              =  0        ' no line terminator
+	$$LF                  =  1        ' \n
+	$$NL                  =  1        ' \n
+	$$CRLF                =  2        ' \r\n
+'
+' for XstGetNewline() and XstSetNewline()
+'
+	$$NewlineLF           =  1
+	$$NewlineNL           =  1
+	$$NewlineCRLF         =  2
+	$$NewlineDefault      =  1
+	$$Newline$            = "\n"
+'
+' path slash characters (different for DOS/Windows vs UNIX)
+'
+' $$PathSlash$          = "\\"          ' Windows
+' $$PathSlash           = '\\'          ' Windows
+	$$PathSlash$          = "/"           ' UNIX
+	$$PathSlash           = '/'           ' UNIX
+'
+' Drive types returned by XstGetDrives (@count, @drive$[], @driveType[], @driveType$[])
+'
+	$$DriveTypeUnknown    =  0            ' "Unknown"
+	$$DriveTypeDamaged    =  1            ' "Damaged"
+	$$DriveTypeRemovable  =  2            ' "Removable"
+	$$DriveTypeFixed      =  3            ' "Fixed"
+	$$DriveTypeRemote     =  4            ' "Remote"
+	$$DriveTypeCDROM      =  5            ' "CDROM"
+	$$DriveTypeRamDisk    =  6            ' "RamDisk"
+'
+'  File Attributes returned by XstGetFileAttributes (file$, @attributes)
+'
+	$$FileNonexistent      = 0x0000
+	$$FileNotFound         = 0x0000
+	$$FileReadOnly         = 0x0001
+	$$FileHidden           = 0x0002
+	$$FileSystem           = 0x0004
+	$$FileDirectory        = 0x0010
+	$$FileArchive          = 0x0020        ' Only used in Microsoft
+	$$FileLink             = 0x0040
+	$$FileNormal           = 0x0080        ' no other bits should be set
+	$$FileTemporary        = 0x0100
+	$$FileAtomicWrite      = 0x0200
+	$$FileExecutable       = 0x1000
+	$$FileNormalOrReadOnly = 0x0081        ' $$FileNormal OR $$FileReadOnly
+'
+' mode in XstFindArray()
+'
+	$$FindForward         = 0x00
+	$$FindReverse         = 0x01
+	$$FindDirection       = 0x01
+	$$FindCaseSensitive   = 0x00
+	$$FindCaseInsensitive = 0x02
+	$$FindCaseSensitivity = 0x02
+	$$FindWordSensitive   = 0x04     ' match whole word
+	$$FindWordInsensitive = 0x00     ' match any part of word
+	$$FindWordSensitivity = 0x04
+'
+' ****************************
+' *****  Sort Constants  *****  OR these flags together
+' ****************************
+'
+	$$SortIncreasing      = 0x00      ' "a to z"
+	$$SortDecreasing      = 0x01      ' "z to a"
+	$$SortCaseSensitive   = 0x00      ' "A" < "a"
+	$$SortCaseInsensitive = 0x02      ' "A" = "a"
+	$$SortAlphabetic      = 0x00      ' "a3b" > "a11c"
+	$$SortAlphaNumeric    = 0x04      ' "a3b" < "a11c"
+'
+' for XstCompareStrings()
+'
+	$$EQ                  = 0x02
+	$$NE                  = 0x03
+	$$LT                  = 0x04
+	$$LE                  = 0x05
+	$$GE                  = 0x06
+	$$GT                  = 0x07
+'
+'
+' ********************************
+' *****  File I/O Constants  *****  (see OPEN() intrinsic)
+' ********************************
+'
+	$$RD                  = 0x0000    '
+	$$WR                  = 0x0001    '
+	$$RW                  = 0x0002    '
+	$$WRNEW               = 0x0003    '
+	$$RWNEW               = 0x0004    '
+	$$NOSHARE             = 0x0000    ' share file for none
+	$$RDSHARE             = 0x0010    ' share file for read
+	$$WRSHARE             = 0x0020    ' share file for write
+	$$RWSHARE             = 0x0030    ' share file for read & write
+	$$NONBLOCK            = 0x0800    ' open file in non-blocking mode (FIFO TTY)
+	$$ALL                 = -1        ' CLOSE ($$ALL)
+'
+'
+' ********************************
+' *****  Language Constants  *****  I/O, Kinds, DataTypes, Scope, etc...
+' ********************************
+'
+	$$ZERO                =  0
+	$$ONE                 =  1
+	$$ENDIAN              =  0
+	$$STDIN               =  0
+	$$STDOUT              =  1
+	$$STDERR              =  2
+	$$VOID                =  1
+	$$SBYTE               =  2
+	$$UBYTE               =  3
+	$$SSHORT              =  4
+	$$USHORT              =  5
+	$$SLONG               =  6
+	$$ULONG               =  7
+	$$XLONG               =  8
+	$$GOADDR              =  9
+	$$SUBADDR             = 10
+	$$FUNCADDR            = 11
+	$$GIANT               = 12
+	$$SINGLE              = 13
+	$$DOUBLE              = 14
+	$$ARRAY               = 16
+	$$ANY                 = 16
+	$$ETC                 = 17
+	$$VARARG              = 18
+	$$STRING              = 19
+	$$COMPOSITE           = 31
+	$$SCOMPLEX            = 32
+	$$DCOMPLEX            = 33
+	$$AUTO                =  0
+	$$AUTOX               =  1
+	$$STATIC              =  2
+	$$SHARED              =  3
+	$$EXTERNAL            =  4
+	$$ARGUMENT            =  7
+'
+'
+' ************************************
+' *****  SaveLoadArry Constants  *****
+' ************************************
+'
+	$$SaveLoadArrayData		= 1
+	$$SaveLoadArrayNode		= 2
+	$$SaveLoadArraySkip		= 3
+	$$SaveLoadArrayEOF		= 4
+'
+'
+' **************************************
+' *****  XstCompareArry Constants  *****
+' **************************************
+'
+	$$CompareArrayEqual				= 0
+	$$CompareArrayNotEqual  	= -1
+	$$CompareArrayNotSameSize	= -2
+	$$CompareArrayNotSameType	= -3
+	$$CompareArrayNotSameNode	=	-4
+'
+'
+' **********************************
+' *****  Native Error Numbers  *****
+' **********************************
+'
+' "Native Error Numbers" are USHORT values composed of two parts:
+'    1. ErrorObject in upper byte - object associated with error
+'    2. ErrorNature in lower byte - nature of action or error
+'
+	$$ErrorObjectNone                =  0    ' or unknown
+	$$ErrorObjectData                =  1
+	$$ErrorObjectDisk                =  2
+	$$ErrorObjectFile                =  3
+	$$ErrorObjectFont                =  4
+	$$ErrorObjectGrid                =  5
+	$$ErrorObjectIcon                =  6
+	$$ErrorObjectName                =  7
+	$$ErrorObjectNode                =  8
+	$$ErrorObjectPipe                =  9
+	$$ErrorObjectUser                = 10
+	$$ErrorObjectArray               = 11
+	$$ErrorObjectImage               = 12
+	$$ErrorObjectMedia               = 13
+	$$ErrorObjectQueue               = 14
+	$$ErrorObjectStack               = 15
+	$$ErrorObjectTimer               = 16
+	$$ErrorObjectBuffer              = 17
+	$$ErrorObjectCursor              = 18
+	$$ErrorObjectDevice              = 19
+	$$ErrorObjectDriver              = 20
+	$$ErrorObjectMemory              = 21
+	$$ErrorObjectSocket              = 22
+	$$ErrorObjectString              = 23
+	$$ErrorObjectSystem              = 24
+	$$ErrorObjectThread              = 25
+	$$ErrorObjectWindow              = 26
+	$$ErrorObjectCommand             = 27
+	$$ErrorObjectDisplay             = 28
+	$$ErrorObjectLibrary             = 29
+	$$ErrorObjectMessage             = 30
+	$$ErrorObjectNetwork             = 31
+	$$ErrorObjectPrinter             = 32
+	$$ErrorObjectProcess             = 33
+	$$ErrorObjectProgram             = 34
+	$$ErrorObjectArgument            = 35
+	$$ErrorObjectComputer            = 36
+	$$ErrorObjectFunction            = 37
+	$$ErrorObjectIdentity            = 38
+	$$ErrorObjectPassword            = 39
+	$$ErrorObjectClipboard           = 40
+	$$ErrorObjectDirectory           = 41
+	$$ErrorObjectSemaphore           = 42
+	$$ErrorObjectStatement           = 43
+	$$ErrorObjectSystemRoutine       = 44
+	$$ErrorObjectSystemFunction      = 45
+	$$ErrorObjectSystemResource      = 46
+	$$ErrorObjectOperatingSystem     = 47
+	$$ErrorObjectIntegerLogicUnit    = 48
+	$$ErrorObjectFloatingPointUnit   = 49
+	$$ErrorObjectSymbolicLink        = 50
+'
+	$$ErrorNatureNone                =  0
+	$$ErrorNatureBusy                =  1
+	$$ErrorNatureFull                =  2
+	$$ErrorNatureError               =  3
+	$$ErrorNatureEmpty               =  4
+	$$ErrorNatureReset               =  5
+	$$ErrorNatureExists              =  6
+	$$ErrorNatureFailed              =  7
+	$$ErrorNatureHalted              =  8
+	$$ErrorNatureExpired             =  9
+	$$ErrorNatureInvalid             = 10
+	$$ErrorNatureMissing             = 11
+	$$ErrorNatureTimeout             = 12
+	$$ErrorNatureTooMany             = 13
+	$$ErrorNatureUnknown             = 14
+	$$ErrorNatureBreakKey            = 15
+	$$ErrorNatureDeadlock            = 16
+	$$ErrorNatureDisabled            = 17
+	$$ErrorNatureNotEmpty            = 18
+	$$ErrorNatureObsolete            = 19
+	$$ErrorNatureOverflow            = 20
+	$$ErrorNatureTooLarge            = 21
+	$$ErrorNatureTooSmall            = 22
+	$$ErrorNatureAbandoned           = 23
+	$$ErrorNatureAvailable           = 24
+	$$ErrorNatureDuplicate           = 25
+	$$ErrorNatureExhausted           = 26
+	$$ErrorNaturePrivilege           = 27
+	$$ErrorNatureUndefined           = 28
+	$$ErrorNatureUnderflow           = 29
+	$$ErrorNatureAllocation          = 30
+	$$ErrorNatureBreakpoint          = 31
+	$$ErrorNatureContention          = 32
+	$$ErrorNaturePermission          = 33
+	$$ErrorNatureTerminated          = 34
+	$$ErrorNatureUndeclared          = 35
+	$$ErrorNatureUnexpected          = 36
+	$$ErrorNatureWouldBlock          = 37
+	$$ErrorNatureInterrupted         = 38
+	$$ErrorNatureMalfunction         = 39
+	$$ErrorNatureNonexistent         = 40
+	$$ErrorNatureUnavailable         = 41
+	$$ErrorNatureUnspecified         = 42
+	$$ErrorNatureDisconnected        = 43
+	$$ErrorNatureDivideByZero        = 44
+	$$ErrorNatureIncompatible        = 45
+	$$ErrorNatureNotConnected        = 46
+	$$ErrorNatureLimitExceeded       = 47
+	$$ErrorNatureNotInitialized      = 48
+	$$ErrorNatureHigherDimension     = 49
+	$$ErrorNatureLowestDimension     = 50
+	$$ErrorNatureCannotInitialize    = 51
+	$$ErrorNatureInitializeFailed    = 52
+	$$ErrorNatureAlreadyInitialized  = 53
+	$$ErrorNatureInvalidAccess       = 54
+	$$ErrorNatureInvalidAddress      = 55
+	$$ErrorNatureInvalidAlignment    = 56
+	$$ErrorNatureInvalidArgument     = 57
+	$$ErrorNatureInvalidCheck        = 58
+	$$ErrorNatureInvalidCoordinates  = 59
+	$$ErrorNatureInvalidCommand      = 60
+	$$ErrorNatureInvalidData         = 61
+	$$ErrorNatureInvalidDimension    = 62
+	$$ErrorNatureInvalidEntry        = 63
+	$$ErrorNatureInvalidFormat       = 64
+	$$ErrorNatureInvalidKind         = 65
+	$$ErrorNatureInvalidIdentity     = 66
+	$$ErrorNatureInvalidInstruction  = 67
+	$$ErrorNatureInvalidLocation     = 68
+	$$ErrorNatureInvalidMessage      = 69
+	$$ErrorNatureInvalidName         = 70
+	$$ErrorNatureInvalidNode         = 71
+	$$ErrorNatureInvalidNumber       = 72
+	$$ErrorNatureInvalidOperand      = 73
+	$$ErrorNatureInvalidOperation    = 74
+	$$ErrorNatureInvalidReply        = 75
+	$$ErrorNatureInvalidRequest      = 76
+	$$ErrorNatureInvalidResult       = 77
+	$$ErrorNatureInvalidSelection    = 78
+	$$ErrorNatureInvalidSignature    = 79
+	$$ErrorNatureInvalidSize         = 80
+	$$ErrorNatureInvalidType         = 81
+	$$ErrorNatureInvalidValue        = 82
+	$$ErrorNatureInvalidVersion      = 83
+	$$ErrorNatureInvalidDistribution = 84
+'
+' ****************************************
+' *****  Native Exception Constants  *****
+' ****************************************
+'
+	$$ExceptionNone                 =  0
+	$$ExceptionSegmentViolation     =  1
+	$$ExceptionOutOfBounds          =  2
+	$$ExceptionBreakpoint           =  3
+	$$ExceptionBreakKey             =  4
+	$$ExceptionAlignment            =  5
+	$$ExceptionDenormal             =  6
+	$$ExceptionDivideByZero         =  7
+	$$ExceptionInvalidOperation     =  8
+	$$ExceptionOverflow             =  9
+	$$ExceptionStackCheck           = 10
+	$$ExceptionUnderflow            = 11
+	$$ExceptionInvalidInstruction   = 12
+	$$ExceptionPrivilege            = 13
+	$$ExceptionStackOverflow        = 14
+	$$ExceptionReserved             = 15
+	$$ExceptionTimer                = 16
+	$$ExceptionUnknown              = 17
+	$$ExceptionUpper                = 31
+'
+	$$ExceptionTerminate            =  0    ' native
+	$$ExceptionContinue             = -1    ' native
+'
+' to log or print debug information OR these bits into ##DEBUG
+'
+	$$DebugNone                     = 0x00000000
+	$$DebugToConsole                = 0x00000001
+	$$DebugToWindow                 = 0x00000002
+	$$DebugToFile                   = 0x00000004
+	$$DebugTimer                    = 0x00000008
+	$$DebugSignal                   = 0x00000010
+	$$DebugXstSleep                 = 0x00000020
+	$$DebugDispatchEvents           = 0x00000040
+	$$DebugXgrProcessMessages       = 0x00000080
+'
+' timer command argument to XxxXstTimer()
+'
+	$$TimerStart                    = 1
+	$$TimerExpire                   = 2
+	$$TimerKill                     = 3
+'
+' XstStartTask() maximum task number
+'
+	$$maxTask = 15
+'

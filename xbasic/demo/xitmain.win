@@ -1,0 +1,349 @@
+'
+'
+' ########################
+' #####  XitMain ()  #####
+' ########################
+'
+' "Anatomy of Grid Functions" in the GuiDesigner Programmer Guide
+' describes the operation and modification of grid functions in detail.
+'
+' WindowFromFunction and/or WindowToFunction may not work, or may not generate the desired results if you:
+'   * Modify the kid constant definition improperly.
+'   * Modify the code in the Create subroutine improperly.
+'   * Imbed blank or comment lines in the Create subroutine.
+'   * Remove the GOSUB Resize line in the Create subroutine (comment out is okay).
+'   * Imbed special purpose code in the Create subroutine before the GOSUB Resize line.
+'   * Delete any of the four lines that assign values to designX, designY, designWidth, designHeight.
+'
+FUNCTION  XitMain (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+  STATIC  designX,  designY,  designWidth,  designHeight
+  STATIC  SUBADDR  sub[]
+  STATIC  upperMessage
+  STATIC  XitMain
+'
+  $XitMain              =   0  ' kid   0 grid type = XitMain
+  $MenuBar              =   1  ' kid   1 grid type = XuiMenu
+  $FileLabel            =   2  ' kid   2 grid type = XuiLabel
+  $TextUpper            =   3  ' kid   3 grid type = XuiTextArea
+  $FunctionLabel        =   4  ' kid   4 grid type = XuiLabel
+  $StatusLabel          =   5  ' kid   5 grid type = XuiLabel
+  $ErrorLabel           =   6  ' kid   6 grid type = XuiLabel
+  $HotStart             =   7  ' kid   7 grid type = XuiPushButton
+  $HotContinue          =   8  ' kid   8 grid type = XuiPushButton
+  $HotPause             =   9  ' kid   9 grid type = XuiPushButton
+  $HotKill              =  10  ' kid  10 grid type = XuiPushButton
+  $HotToCursor          =  11  ' kid  11 grid type = XuiPushButton
+  $HotStepLocal         =  12  ' kid  12 grid type = XuiPushButton
+  $HotStepGlobal        =  13  ' kid  13 grid type = XuiPushButton
+  $HotVariables         =  14  ' kid  14 grid type = XuiPushButton
+  $HotFrames            =  15  ' kid  15 grid type = XuiPushButton
+  $HotAssembly          =  16  ' kid  16 grid type = XuiPushButton
+  $HotFind              =  17  ' kid  17 grid type = XuiPushButton
+  $HotReplace           =  18  ' kid  18 grid type = XuiPushButton
+  $HotToggleBreakpoint  =  19  ' kid  19 grid type = XuiPushButton
+  $HotClearBreakpoints  =  20  ' kid  20 grid type = XuiPushButton
+  $HotGui               =  21  ' kid  21 grid type = XuiPushButton
+  $HotAbort             =  22  ' kid  22 grid type = XuiPushButton
+  $TextLower            =  23  ' kid  23 grid type = XuiTextArea
+  $UpperKid             =  23  ' kid maximum
+'
+'
+  IFZ sub[] THEN GOSUB Initialize
+' XuiReportMessage (grid, message, v0, v1, v2, v3, r0, r1)
+  IF XuiProcessMessage (grid, message, @v0, @v1, @v2, @v3, @r0, @r1, XitMain) THEN RETURN
+  IF (message <= upperMessage) THEN GOSUB @sub[message]
+  RETURN
+'
+'
+' *****  Callback  *****  message = Callback : r1 = original message
+'
+SUB Callback
+  message = r1
+  callback = message
+  IF (message <= upperMessage) THEN GOSUB @sub[message]
+END SUB
+'
+'
+' *****  Create  *****  v0123 = xywh : r0 = window : r1 = parent
+'
+SUB Create
+  IF (v0 <= 0) THEN v0 = 0
+  IF (v1 <= 0) THEN v1 = 0
+  IF (v2 <= 0) THEN v2 = designWidth
+  IF (v3 <= 0) THEN v3 = designHeight
+  XuiCreateGrid (@grid, XitMain, @v0, @v1, @v2, @v3, r0, r1, &XitMain())
+  XuiSendMessage ( grid, #SetGridName, 0, 0, 0, 0, 0, @"XitMain")
+  XuiSendMessage ( grid, #SetBorder, $$BorderNone, $$BorderNone, $$BorderFrame, 0, 0, 0)
+  XuiMenu        (@g, #Create, 0, 0, 468, 24, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $MenuBar, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"MenuBar")
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"_File  _Edit  _View  _Option  _Run  _Debug  _Status  _Help  ")
+  DIM text$[61]
+  text$[ 0] = "_File  "
+  text$[ 1] = " _New"
+  text$[ 2] = " _TextLoad"
+  text$[ 3] = " _Load"
+  text$[ 4] = " _Save"
+  text$[ 5] = " _Mode"
+  text$[ 6] = " _Rename"
+  text$[ 7] = " _Quit"
+  text$[ 8] = "_Edit  "
+  text$[ 9] = " _Cut"
+  text$[10] = " _Grab"
+  text$[11] = " _Paste"
+  text$[12] = " _Delete"
+  text$[13] = " _Buffer"
+  text$[14] = " _Insert"
+  text$[15] = " _Erase"
+  text$[16] = " _Find"
+  text$[17] = " _Read"
+  text$[18] = " _Write"
+  text$[19] = " _Abandon"
+  text$[20] = "_View  "
+  text$[21] = " _Function"
+  text$[22] = " _PriorFunction"
+  text$[23] = " _NewFunction"
+  text$[24] = " _DeleteFunction"
+  text$[25] = " _RenameFunction"
+  text$[26] = " _CloneFunction"
+  text$[27] = " _LoadFunction"
+  text$[28] = " _SaveFunction"
+  text$[29] = " _Merge PROLOG"
+  text$[30] = "_Option  "
+  text$[31] = " _Compile"
+  text$[32] = " _TabWidth (pixels)"
+  text$[33] = "_Run  "
+  text$[34] = " _Start"
+  text$[35] = " _Continue"
+  text$[36] = " _Jump"
+  text$[37] = " _Pause"
+  text$[38] = " _Kill"
+  text$[39] = " _Recompile"
+  text$[40] = " _Assembly"
+  text$[41] = " _Library"
+  text$[42] = "_Debug  "
+  text$[43] = " _ToggleBreakpoint"
+  text$[44] = " _ClearAllBreakpoints"
+  text$[45] = " _EraseLocalBreakpoints"
+  text$[46] = " _Memory"
+  text$[47] = " _Assembly"
+  text$[48] = " _Registers"
+  text$[49] = "_Status  "
+  text$[50] = " _CompilationErrors"
+  text$[51] = " _RuntimeErrors"
+  text$[52] = "_Help  "
+  text$[53] = " _Message"
+  text$[54] = " _Language"
+  text$[55] = " _Operator"
+  text$[56] = " _DotCommand"
+  text$[57] = " MathLibrary"
+  text$[58] = " StandardLibrary"
+  text$[59] = " GraphicsLibrary"
+  text$[60] = " GuiDesignerLibrary"
+  text$[61] = " ComplexNumberLibrary"
+  XuiSendMessage ( g, #SetTextArray, 0, 0, 0, 0, 0, @text$[])
+  XuiLabel       (@g, #Create, 468, 0, 132, 24, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"FileLabel")
+  XuiSendMessage ( g, #SetAlign, $$AlignMiddleLeft, $$JustifyCenter, -1, -1, 0, 0)
+  XuiTextArea    (@g, #Create, 0, 24, 468, 72, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $TextUpper, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"TextUpper")
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"!!! Click right button on any grid for InstantHelp !!!\n.c\n")
+  DIM text$[0]
+  text$[0] = "!!!!!  This is awindow.x - not the PDE  !!!!!"
+  XuiSendMessage ( g, #SetTextArray, 0, 0, 0, 0, 0, @text$[])
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"Area")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 2, @"ScrollH")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 3, @"ScrollV")
+  XuiLabel       (@g, #Create, 468, 24, 132, 24, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"FunctionLabel")
+  XuiSendMessage ( g, #SetAlign, $$AlignMiddleLeft, $$JustifyCenter, -1, -1, 0, 0)
+  XuiLabel       (@g, #Create, 468, 48, 132, 24, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"StatusLabel")
+  XuiSendMessage ( g, #SetAlign, $$AlignMiddleLeft, $$JustifyCenter, -1, -1, 0, 0)
+  XuiLabel       (@g, #Create, 468, 72, 132, 24, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"ErrorLabel")
+  XuiSendMessage ( g, #SetAlign, $$AlignMiddleLeft, $$JustifyCenter, -1, -1, 0, 0)
+  XuiPushButton  (@g, #Create, 0, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotStart, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotStart")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xstart.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 32, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotContinue, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotContinue")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xcontin.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 64, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotPause, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotPause")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xpause.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 96, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotKill, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotKill")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xkill.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 132, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotToCursor, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotToCursor")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xtocurs.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 164, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotStepLocal, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotStepLocal")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xsteploc.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 196, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotStepGlobal, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotStepGlobal")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xstepglo.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 232, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotVariables, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotVariables")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xvar.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 264, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotFrames, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotFrames")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xframe.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 296, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotAssembly, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotAssembly")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xasm.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 332, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotFind, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotFind")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xfind.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 364, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotReplace, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotReplace")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xreplace.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 400, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotToggleBreakpoint, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotToggleBreakpoint")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xtogbpt.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 432, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotClearBreakpoints, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotClearBreakpoints")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xclrbpts.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 468, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotGui, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotGui")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xtoolkit.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiPushButton  (@g, #Create, 568, 96, 32, 32, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $HotAbort, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"HotAbort")
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise1, $$BorderRaise1, $$BorderNone, 0, 0, 0)
+  XuiSendMessage ( g, #SetImage, 0, 0, 0, 0, 0, @"\\xb\\xxx\\xabort.bmp")
+  XuiSendMessage ( g, #SetImageCoords, 0, 0, 32, 32, 0, 0)
+  XuiTextArea    (@g, #Create, 0, 128, 600, 72, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &XitMain(), -1, -1, $TextLower, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"TextLower")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 1, @"Area")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 2, @"ScrollH")
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 3, @"ScrollV")
+  GOSUB Resize
+END SUB
+'
+'
+' *****  CreateWindow  *****  v0123 = xywh : r0 = windowType : r1 = &WindowFunc()
+'
+SUB CreateWindow
+  IF (v0 =  0) THEN v0 = designX
+  IF (v1 =  0) THEN v1 = designY
+  IF (v2 <= 0) THEN v2 = designWidth
+  IF (v3 <= 0) THEN v3 = designHeight
+  XuiWindow (@window, #WindowCreate, v0, v1, v2, v3, r0, r1)
+  v0 = 0 : v1 = 0 : r0 = window : r1 = 0
+  GOSUB Create
+  XuiWindow (window, #WindowRegister, grid, -1, v2, v3, @r0, @"XitMain")
+END SUB
+'
+'
+' *****  GetSmallestSize  *****  See "Anatomy of Grid Functions"
+'
+SUB GetSmallestSize
+END SUB
+'
+'
+' *****  Resize  *****  See "Anatomy of Grid Functions"
+'
+SUB Resize
+END SUB
+'
+'
+' *****  Selection  *****  See "Anatomy of Grid Functions"
+'
+SUB Selection
+END SUB
+'
+'
+' *****  Initialize  *****  ' see "Anatomy of Grid Functions"
+'
+SUB Initialize
+  XuiGetDefaultMessageFuncArray (@func[])
+  XgrMessageNameToNumber (@"LastMessage", @upperMessage)
+'
+  func[#Callback]           = &XuiCallback ()               ' disable to handle Callback messages internally
+' func[#GetSmallestSize]    = 0                             ' enable to add internal GetSmallestSize routine
+' func[#Resize]             = 0                             ' enable to add internal Resize routine
+'
+  DIM sub[upperMessage]
+' sub[#Callback]            = SUBADDRESS (Callback)         ' enable to handle Callback messages internally
+  sub[#Create]              = SUBADDRESS (Create)           ' must be internal routine
+  sub[#CreateWindow]        = SUBADDRESS (CreateWindow)     ' must be internal routine
+' sub[#GetSmallestSize]     = SUBADDRESS (GetSmallestSize)  ' enable to add internal GetSmallestSize routine
+' sub[#Resize]              = SUBADDRESS (Resize)           ' enable to add internal Resize routine
+  sub[#Selection]           = SUBADDRESS (Selection)        ' routes Selection callbacks to subroutine
+'
+  IF sub[0] THEN PRINT "XitMain(): Initialize: Error::: (Undefined Message)
+  IF func[0] THEN PRINT "XitMain(): Initialize: Error::: (Undefined Message)
+  XuiRegisterGridType (@XitMain, "XitMain", &XitMain(), @func[], @sub[])
+'
+' Don't remove the following 4 lines, or WindowFromFunction/WindowToFunction will not work
+'
+  designX = 420
+  designY = 564
+  designWidth = 600
+  designHeight = 200
+'
+  gridType = XitMain
+  XuiSetGridTypeValue (gridType, @"x",                designX)
+  XuiSetGridTypeValue (gridType, @"y",                designY)
+  XuiSetGridTypeValue (gridType, @"width",            designWidth)
+  XuiSetGridTypeValue (gridType, @"height",           designHeight)
+  XuiSetGridTypeValue (gridType, @"maxWidth",         designWidth)
+  XuiSetGridTypeValue (gridType, @"maxHeight",        designHeight)
+  XuiSetGridTypeValue (gridType, @"minWidth",         designWidth)
+  XuiSetGridTypeValue (gridType, @"minHeight",        designHeight)
+  XuiSetGridTypeValue (gridType, @"border",           $$BorderFrame)
+  XuiSetGridTypeValue (gridType, @"can",              $$Focus OR $$Respond OR $$Callback OR $$InputTextString)
+  XuiSetGridTypeValue (gridType, @"focusKid",         $TextUpper)
+  XuiSetGridTypeValue (gridType, @"inputTextArray",   $TextUpper)
+  IFZ message THEN RETURN
+END SUB
+END FUNCTION

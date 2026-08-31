@@ -1,0 +1,1803 @@
+'
+'
+' #######################  
+' #####  winmm.dec  #####  Windows MultiMedia 
+' #######################  Windows XBasic declarations for Windows "winmm"
+'
+' subject to LGPL license - see COPYING_LIB
+'
+'
+' for Windows XBasic
+'
+'
+' VERSION  "0.0002"  ' 2002/09/09
+'
+'
+' ###########################
+' #####  declare types  #####
+' ###########################
+'
+
+TYPE smpte
+  UBYTE  .hour
+  UBYTE  .min
+  UBYTE  .sec
+  UBYTE  .frame
+  UBYTE  .fps
+  UBYTE  .dummy
+  UBYTE  .pad[2]
+END TYPE
+
+TYPE midi
+  ULONG  .songptrpos
+END TYPE
+
+TYPE MMTIME
+  ULONG  .wTYPE
+  ULONG  .u
+END TYPE
+
+TYPE MIDIEVENT
+  ULONG     .dwDeltaTime   ' Ticks since last event  
+  ULONG     .dwStreamID   ' Reserved; must be zero  
+  ULONG     .dwEvent   ' Event type and parameters  
+  ULONG     .dwParms[1]   ' Parameters if this is a long event  
+END TYPE
+
+TYPE MIDISTRMBUFFVER
+  ULONG        .dwVersion   ' Stream buffer format version  
+  ULONG        .dwMid   ' Manufacturer ID as defined in MMREG  
+  ULONG        .dwOEMVersion   ' Manufacturer version for custom ext  
+END TYPE
+
+TYPE MIDIPROPTIMEDIV
+  ULONG  .cbStruct
+  ULONG  .dwTimeDiv
+END TYPE
+
+TYPE MIDIPROPTEMPO
+  ULONG  .cbStruct
+  ULONG  .dwTempo
+END TYPE
+
+TYPE MIXERCAPS
+  USHORT       .wMid             ' manufacturer id  
+  USHORT       .wPid             ' product id  
+  ULONG        .vDriverVersion   ' version of the driver  
+  STRING * 32  .szPname          ' product name  
+  ULONG        .fdwSupport       ' misc  
+  ULONG        .cDestinations    ' count of destinations  
+END TYPE
+
+TYPE TARGET                   ' for use in MIXERLINE and others [embedded structure]   
+  ULONG        .dwType        ' MIXERLINE_TARGETTYPE_xxxx  
+  ULONG        .dwDeviceID    ' target device ID of device type  
+  USHORT       .wMid          ' of target device  
+  USHORT       .wPid   
+  ULONG        .vDriverVersion     
+  STRING * 32  .szPname
+END TYPE
+
+TYPE MIXERLINE
+  ULONG        .cbStruct          ' size of MIXERLINE structure  
+  ULONG        .dwDestination     ' zero based destination index  
+  ULONG        .dwSource          ' zero based source index [if source]  
+  ULONG        .dwLineID          ' unique line id for mixer device  
+  ULONG        .fdwLine           ' state/information about line  
+  ULONG        .dwUser            ' driver specific information  
+  ULONG        .dwComponentType   ' component type line connects to  
+  ULONG        .cChannels         ' number of channels line supports  
+  ULONG        .cConnections      ' number of connections [possible]  
+  ULONG        .cControls         ' number of controls at this line  
+  STRING * 16  .szShortName
+  STRING * 64  .szName
+  TARGET       .lpTarget
+END TYPE
+
+TYPE MIXERCONTROL
+  ULONG        .cbStruct         ' size in UBYTE of MIXERCONTROL  
+  ULONG        .dwControlID      ' unique control id for mixer device  
+  ULONG        .dwControlType    ' MIXERCONTROL_CONTROLTYPE_xxx  
+  ULONG        .fdwControl       ' MIXERCONTROL_CONTROLF_xxx  
+  ULONG        .cMultipleItems   ' if MIXERCONTROL_CONTROLF_MULTIPLE set  
+  STRING * 16  .szShortName
+  STRING * 64  .szName
+  DOUBLE       .Bounds
+  ULONG        .Metrics
+END TYPE
+
+TYPE MIXERLINECONTROLS
+  ULONG    .cbStruct    ' size in UBYTE of MIXERLINECONTROLS  
+  ULONG    .dwLineID    ' line id [from MIXERLINE  
+  ULONG    .dwControl   ' MIXER_GETLINECONTROLSF_ONEBYTYPE  
+  ULONG    .cControls   ' count of controls pmxctrl points to  
+  ULONG    .cbmxctrl    ' size in UBYTE of one_ MIXERCONTROLpamxctrl  
+END TYPE
+
+TYPE MIXERCONTROLDETAILS
+  ULONG    .cbStruct      ' size in UBYTE of MIXERCONTROLDETAILS  
+  ULONG    .dwControlID   ' control id to get/set details on  
+  ULONG    .cChannels     ' number of channels in paDetails array  
+  ULONG    .item          ' hwndOwner or cMultipleItems  
+  ULONG    .cbDetails     ' size of one_ details_XX structpaDetails  
+END TYPE
+
+TYPE MIXERCONTROLDETAILS_LISTTEXT
+  ULONG        .dwParam1
+  ULONG        .dwParam2
+  STRING * 64  .szName
+END TYPE
+
+TYPE MIXERCONTROLDETAILS_BOOLEAN
+  ULONG  .fValue
+END TYPE
+
+TYPE MIXERCONTROLDETAILS_SIGNED
+  ULONG  .lValue
+END TYPE
+
+TYPE MIXERCONTROLDETAILS_UNSIGNED
+  ULONG  .dwValue
+END TYPE
+
+TYPE JOYINFOEX
+  ULONG         .dwSize           ' size of structure  
+  ULONG         .dwFlags          ' flags to indicate what to return  
+  ULONG         .dwXpos           ' x position  
+  ULONG         .dwYpos           ' y position  
+  ULONG         .dwZpos           ' z position  
+  ULONG         .dwRpos           ' rudder/4th axis position  
+  ULONG         .dwUpos           ' 5th axis position  
+  ULONG         .dwVpos           ' 6th axis position  
+  ULONG         .dwButtons        ' button states  
+  ULONG         .dwButtonNumber   ' current button number pressed  
+  ULONG         .dwPOV            ' point of view state  
+  ULONG         .dwReserved1      ' reserved for communication between winmm driver  
+  ULONG         .dwReserved2      ' reserved for future expansion  
+END TYPE
+
+TYPE DRVCONFIGINFO
+  ULONG  .dwDCISize
+  ULONG  .lpszDCISectionName
+  ULONG  .lpszDCIAliasName
+  ULONG  .dnDevNode
+END TYPE
+
+TYPE WAVEHDR
+  ULONG  .lpData
+  ULONG  .dwBufferLength
+  ULONG  .dwBytesRecorded
+  ULONG  .dwUser
+  ULONG  .dwFlags
+  ULONG  .dwLoops
+  ULONG  .lpNext
+  ULONG  .Reserved
+END TYPE
+
+TYPE WAVEOUTCAPS
+  USHORT       .wMid
+  USHORT       .wPid
+  ULONG        .vDriverVersion
+  STRING * 32  .szPname
+  ULONG        .dwFormats
+  USHORT       .wChannels
+  ULONG        .dwSupport
+END TYPE
+
+TYPE WAVEINCAPS
+  USHORT       .wMid
+  USHORT       .wPid
+  ULONG        .vDriverVersion
+  STRING * 32  .szPname
+  ULONG        .dwFormats
+  USHORT       .wChannels
+END TYPE
+
+TYPE WAVEFORMAT
+  USHORT  .wFormatTag
+  USHORT  .nChannels
+  ULONG   .nSamplesPerSec
+  ULONG   .nAvgBytesPerSec
+  USHORT  .nBlockAlign
+END TYPE
+
+TYPE PCMWAVEFORMAT
+  WAVEFORMAT  .wf
+  USHORT      .wBitsPerSample
+END TYPE
+
+TYPE MIDIOUTCAPS
+  USHORT       .wMid
+  USHORT       .wPid
+  ULONG        .vDriverVersion
+  STRING * 32  .szPname
+  USHORT       .wTechnology
+  USHORT       .wVoices
+  USHORT       .wNotes
+  USHORT       .wChannelMask
+  ULONG        .dwSupport
+END TYPE
+
+TYPE MIDIINCAPS
+  USHORT       .wMid
+  USHORT       .wPid
+  ULONG        .vDriverVersion
+  STRING * 32  .szPname
+END TYPE
+
+TYPE MIDIHDR
+  ULONG  .lpData
+  ULONG  .dwBufferLength
+  ULONG  .dwBytesRecorded
+  ULONG  .dwUser
+  ULONG  .dwFlags
+  ULONG  .lpNext
+  ULONG  .Reserved
+END TYPE
+
+TYPE AUXCAPS
+  USHORT       .wMid
+  USHORT       .wPid
+  ULONG        .vDriverVersion
+  STRING * 32  .szPname
+  USHORT       .wTechnology
+  ULONG        .dwSupport
+END TYPE
+
+TYPE TIMECAPS
+  ULONG  .wPeriodMin
+  ULONG  .wPeriodMax
+END TYPE
+
+TYPE JOYCAPS
+  USHORT       .wMid
+  USHORT       .wPid
+  STRING * 32  .szPname
+  USHORT       .wXmin
+  USHORT       .wXmax
+  USHORT       .wYmin
+  USHORT       .wYmax
+  USHORT       .wZmin
+  USHORT       .wZmax
+  USHORT       .wNumButtons
+  USHORT       .wPeriodMin
+  USHORT       .wPeriodMax
+END TYPE
+
+TYPE JOYINFO
+  USHORT  .wXpos
+  USHORT  .wYpos
+  USHORT  .wZpos
+  USHORT  .wButtons
+END TYPE
+
+TYPE MMIOINFO
+  ULONG  .dwFlags
+  ULONG  .fccIOProc
+  ULONG  .pIOProc
+  ULONG  .wErrorRet
+  ULONG  .htask
+  ULONG  .cchBuffer
+  ULONG  .pchBuffer
+  ULONG  .pchNext
+  ULONG  .pchEndRead
+  ULONG  .pchEndWrite
+  ULONG  .lBufOffset
+  ULONG  .lDiskOffset
+  ULONG  .adwInfo[4]
+  ULONG  .dwReserved1
+  ULONG  .dwReserved2
+  ULONG  .hmmio
+END TYPE
+
+TYPE MMCKINFO
+  ULONG  .ckid
+  ULONG  .ckSize
+  ULONG  .fccType
+  ULONG  .dwDataOffset
+  ULONG  .dwFlags
+END TYPE
+
+TYPE MCI_GENERIC_PARMS
+  ULONG  .dwCallback
+END TYPE
+
+TYPE MCI_OPEN_PARMS
+  ULONG  .dwCallback
+  ULONG  .wDeviceID
+  ULONG  .lpstrDeviceType
+  ULONG  .lpstrElementName
+  ULONG  .lpstrAlias
+END TYPE
+
+TYPE MCI_PLAY_PARMS
+  ULONG  .dwCallback
+  ULONG  .dwFrom
+  ULONG  .dwTo
+END TYPE
+
+TYPE MCI_SEEK_PARMS
+  ULONG  .dwCallback
+  ULONG  .dwTo
+END TYPE
+
+TYPE MCI_STATUS_PARMS
+  ULONG   .dwCallback
+  ULONG   .dwReturn
+  ULONG   .dwItem
+  USHORT  .dwTrack
+END TYPE
+
+TYPE MCI_INFO_PARMS
+  ULONG  .dwCallback
+  ULONG  .lpstrReturn
+  ULONG  .dwRetSize
+END TYPE
+
+TYPE MCI_GETDEVCAPS_PARMS
+  ULONG  .dwCallback
+  ULONG  .dwReturn
+  ULONG  .dwIten
+END TYPE
+
+TYPE MCI_SYSINFO_PARMS
+  ULONG  .dwCallback
+  ULONG  .lpstrReturn
+  ULONG  .dwRetSize
+  ULONG  .dwNumber
+  ULONG  .wDeviceType
+END TYPE
+
+TYPE MCI_SET_PARMS
+  ULONG  .dwCallback
+  ULONG  .dwTimeFormat
+  ULONG  .dwAudio
+END TYPE
+
+TYPE MCI_BREAK_PARMS
+  ULONG  .dwCallback
+  ULONG  .nVirtKey
+  ULONG  .hwndBreak
+END TYPE
+
+TYPE MCI_SOUND_PARMS
+  ULONG  .dwCallback
+  ULONG  .lpstrSoundName
+END TYPE
+
+TYPE MCI_SAVE_PARMS
+  ULONG  .dwCallback
+  ULONG  .lpFileName
+END TYPE
+
+TYPE MCI_LOAD_PARMS
+  ULONG  .dwCallback
+  ULONG  .lpFileName
+END TYPE
+
+TYPE MCI_RECORD_PARMS
+  ULONG  .dwCallback
+  ULONG  .dwFrom
+  ULONG  .dwTo
+END TYPE
+
+TYPE MCI_VD_PLAY_PARMS
+  ULONG  .dwCallback
+  ULONG  .dwFrom
+  ULONG  .dwTo
+  ULONG  .dwSpeed
+END TYPE
+
+TYPE MCI_VD_STEP_PARMS
+  ULONG  .dwCallback
+  ULONG  .dwFrames
+END TYPE
+
+TYPE MCI_VD_ESCAPE_PARMS
+  ULONG  .dwCallback
+  ULONG  .lpstrCommand
+END TYPE
+
+TYPE MCI_WAVE_OPEN_PARMS
+  ULONG  .dwCallback
+  ULONG  .wDeviceID
+  ULONG  .lpstrDeviceType
+  ULONG  .lpstrElementName
+  ULONG  .lpstrAlias
+  ULONG  .dwBufferSeconds
+END TYPE
+
+TYPE MCI_WAVE_DELETE_PARMS
+  ULONG  .dwCallback
+  ULONG  .dwFrom
+  ULONG  .dwTo
+END TYPE
+
+TYPE MCI_WAVE_SET_PARMS
+  ULONG   .dwCallback
+  ULONG   .dwTimeFormat
+  ULONG   .dwAudio
+  ULONG   .wInput
+  ULONG   .wOutput
+  USHORT  .wFormatTag
+  USHORT  .wReserved2
+  USHORT  .nChannels
+  USHORT  .wReserved3
+  ULONG   .nSamplesPerSec
+  ULONG   .nAvgBytesPerSec
+  USHORT  .nBlockAlign
+  USHORT  .wReserved4
+  USHORT  .wBitsPerSample
+  USHORT  .wReserved5
+END TYPE
+
+TYPE MCI_SEQ_SET_PARMS
+  ULONG  .dwCallback
+  ULONG  .dwTimeFormat
+  ULONG  .dwAudio
+  ULONG  .dwTempo
+  ULONG  .dwPort
+  ULONG  .dwSlave
+  ULONG  .dwMaster
+  ULONG  .dwOffset
+END TYPE
+
+TYPE MCI_ANIM_OPEN_PARMS
+  ULONG  .dwCallback
+  ULONG  .wDeviceID
+  ULONG  .lpstrDeviceType
+  ULONG  .lpstrElementName
+  ULONG  .lpstrAlias
+  ULONG  .dwStyle
+  ULONG  .hWndParent
+END TYPE
+
+TYPE MCI_ANIM_PLAY_PARMS
+  ULONG  .dwCallback
+  ULONG  .dwFrom
+  ULONG  .dwTo
+  ULONG  .dwSpeed
+END TYPE
+
+TYPE MCI_ANIM_STEP_PARMS
+  ULONG  .dwCallback
+  ULONG  .dwFrames
+END TYPE
+
+TYPE MCI_ANIM_WINDOW_PARMS
+  ULONG  .dwCallback
+  ULONG  .hwnd
+  ULONG  .nCmdShow
+  ULONG  .lpstrText
+END TYPE
+
+TYPE RECT_MM
+	ULONG .Left
+	ULONG .Top
+	ULONG .Right
+	ULONG .Bottom
+END TYPE
+
+TYPE MCI_ANIM_RECT_PARMS
+  ULONG    .dwCallback
+  RECT_MM  .rc
+END TYPE
+
+TYPE MCI_ANIM_UPDATE_PARMS
+  ULONG     .dwCallback
+  RECT_MM   .rc
+  ULONG     .hdc
+END TYPE
+
+TYPE MCI_OVLY_OPEN_PARMS
+  ULONG  .dwCallback
+  ULONG  .wDeviceID
+  ULONG  .lpstrDeviceType
+  ULONG  .lpstrElementName
+  ULONG  .lpstrAlias
+  ULONG  .dwStyle
+  ULONG  .hWndParent
+END TYPE
+
+TYPE MCI_OVLY_WINDOW_PARMS
+  ULONG  .dwCallback
+  ULONG  .hwnd
+  ULONG  .nCmdShow
+  ULONG  .lpstrText
+END TYPE
+
+TYPE MCI_OVLY_RECT_PARMS
+  ULONG    .dwCallback
+  RECT_MM  .rc
+END TYPE
+
+TYPE MCI_OVLY_SAVE_PARMS
+  ULONG    .dwCallback
+  ULONG    .lpFileName
+  RECT_MM  .rc
+END TYPE
+
+TYPE MCI_OVLY_LOAD_PARMS
+  ULONG    .dwCallback
+  ULONG    .lpFileName
+  RECT_MM  .rc
+END TYPE
+
+'
+' ###############################
+' #####  declare functions  #####
+' ###############################
+'
+
+EXTERNAL FUNCTION CloseDriver (hDriver, lParam1, lParam2)
+EXTERNAL FUNCTION DefDriverProc (dwDriverIdentifier, hdrvr, uMsg, lParam1, lParam2)
+EXTERNAL FUNCTION DrvGetModuleHandle (hDriver)
+EXTERNAL FUNCTION GetDriverModuleHandle (hDriver)
+EXTERNAL FUNCTION OpenDriver (szDriverName, szSectionName, lParam2)
+EXTERNAL FUNCTION OutputDebugStr (lpszOutputString)
+EXTERNAL FUNCTION PlaySoundA (lpszName, hModule, dwFlags)
+EXTERNAL FUNCTION SendDriverMessage (hDriver, message, lParam1, lParam2)
+EXTERNAL FUNCTION auxGetDevCapsA (uDeviceID, lpCaps, uSize)
+EXTERNAL FUNCTION auxGetNumDevs ()
+EXTERNAL FUNCTION auxGetVolume (uDeviceID, lpdwVolume)
+EXTERNAL FUNCTION auxOutMessage (uDeviceID, msg, dw1, dw2)
+EXTERNAL FUNCTION auxSetVolume (uDeviceID, dwVolume)
+EXTERNAL FUNCTION joyGetDevCapsA (id, lpCaps, uSize)
+EXTERNAL FUNCTION joyGetNumDev ()
+EXTERNAL FUNCTION joyGetPos (uJoyID, pji)
+EXTERNAL FUNCTION joyGetPosEx (uJoyID, pji)
+EXTERNAL FUNCTION joyGetThreshold (id, lpuThreshold)
+EXTERNAL FUNCTION joyReleaseCapture (id)
+EXTERNAL FUNCTION joySetCapture (hwnd, uID, uPeriod, bChanged)
+EXTERNAL FUNCTION joySetThreshold (id, uThreshold)
+EXTERNAL FUNCTION mciExecute (lpstrCommand)
+EXTERNAL FUNCTION mciGetCreatorTask (wDeviceID)
+EXTERNAL FUNCTION mciGetDeviceIDA (lpstrName)
+EXTERNAL FUNCTION mciGetDeviceIDFromElementIDA (dwElementID, lpstrTYPE)
+EXTERNAL FUNCTION mciGetErrorStringA (dwError, lpstrBuffer, uLength)
+EXTERNAL FUNCTION mciSendCommandA (wDeviceID, uMessage, dwParam1, dwParam2)
+EXTERNAL FUNCTION mciSendStringA (lpstrCommand, lpstrReturnString, uReturnLength, hwndCallback)
+EXTERNAL FUNCTION midiConnect (hmi, hmo, pReserved)
+EXTERNAL FUNCTION midiDisconnect (hmi, hmo, pReserved)
+EXTERNAL FUNCTION midiInAddBuffer (hMidiIn, lpMidiInHdr, uSize)
+EXTERNAL FUNCTION midiInClose (hMidiIn)
+EXTERNAL FUNCTION midiInGetDevCapsA (uDeviceID, lpCaps, uSize)
+EXTERNAL FUNCTION midiInGetErrorTextA (err, lpText, uSize)
+EXTERNAL FUNCTION midiInGetID (hMidiIn, lpuDeviceID)
+EXTERNAL FUNCTION midiInGetNumDevs ()
+EXTERNAL FUNCTION midiInMessage (hMidiIn, msg, dw1, dw2)
+EXTERNAL FUNCTION midiInOpen (lphMidiIn, uDeviceID, dwCallback, dwInstance, dwFlags)
+EXTERNAL FUNCTION midiInPrepareHeader (hMidiIn, lpMidiInHdr, uSize)
+EXTERNAL FUNCTION midiInReset (hMidiIn)
+EXTERNAL FUNCTION midiInStart (hMidiIn)
+EXTERNAL FUNCTION midiInStop (hMidiIn)
+EXTERNAL FUNCTION midiInUnprepareHeader (hMidiIn, lpMidiInHdr, uSize)
+EXTERNAL FUNCTION midiOutCacheDrumPatches (hMidiOut, uPatch, lpKeyArray, uFlags)
+EXTERNAL FUNCTION midiOutCachePatches (hMidiOut, uBank, lpPatchArray, uFlags)
+EXTERNAL FUNCTION midiOutClose (hMidiOut)
+EXTERNAL FUNCTION midiOutGetDevCapsA (uDeviceID, lpCaps, uSize)
+EXTERNAL FUNCTION midiOutGetErrorTextA (err, lpText, uSize)
+EXTERNAL FUNCTION midiOutGetID (hMidiOut, lpuDeviceID)
+EXTERNAL FUNCTION midiOutGetVolume (uDeviceID, lpdwVolume)
+EXTERNAL FUNCTION midiOutLongMsg (hMidiOut, lpMidiOutHdr, uSize)
+EXTERNAL FUNCTION midiOutMessage (hMidiOut, msg, dw1, dw2)
+EXTERNAL FUNCTION midiOutOpen (lphMidiOut, uDeviceID, dwCallback, dwInstance, dwFlags)
+EXTERNAL FUNCTION midiOutPrepareHeader (hMidiOut, lpMidiOutHdr, uSize)
+EXTERNAL FUNCTION midiOutReset (hMidiOut)
+EXTERNAL FUNCTION midiOutSetVolume (uDeviceID, dwVolume)
+EXTERNAL FUNCTION midiOutShortMsg (hMidiOut, dwMsg)
+EXTERNAL FUNCTION midiOutUnprepareHeader (hMidiOut, lpMidiOutHdr, uSize)
+EXTERNAL FUNCTION midiStreamClose (hms)
+EXTERNAL FUNCTION midiStreamOpen (phms, puDeviceID, cMidi, dwCallback, dwInstance, fdwOpen)
+EXTERNAL FUNCTION midiStreamOut (hms, pmh, cbmh)
+EXTERNAL FUNCTION midiStreamPause (hms)
+EXTERNAL FUNCTION midiStreamPosition (hms, lpmmt, cbmmt)
+EXTERNAL FUNCTION midiStreamProperty (hms, lppropdata, dwProperty)
+EXTERNAL FUNCTION midiStreamRestart (hms)
+EXTERNAL FUNCTION midiStreamStop (hms)
+EXTERNAL FUNCTION mixerClose (hmx)
+EXTERNAL FUNCTION mixerGetControlDetailsA (hmxobj, pmxcdDETAILS, fdwDetails)
+EXTERNAL FUNCTION mixerGetDevCapsA (uMxId, pmxcaps, cbmxcaps)
+EXTERNAL FUNCTION mixerGetID (hmxobj, pumxID, fdwId)
+EXTERNAL FUNCTION mixerGetLineControlsA (hmxobj, pmxlcCONTROLS, fdwControls)
+EXTERNAL FUNCTION mixerGetLineInfoA (hmxobj, pmxl, fdwInfo)
+EXTERNAL FUNCTION mixerGetNumDevs ()
+EXTERNAL FUNCTION mixerMessage (hmx, uMsg, dwParam1, dwParam2)
+EXTERNAL FUNCTION mixerOpen (phmx, uMxId, dwCallback, dwInstance, fdwOpen)
+EXTERNAL FUNCTION mixerSetControlDetails (hmxobj, pmxcdDETAILS, fdwDetails)
+EXTERNAL FUNCTION mmioAdvance (hmmio, lpmmioinfo, uFlags)
+EXTERNAL FUNCTION mmioAscend (hmmio, lpck, uFlags)
+EXTERNAL FUNCTION mmioClose (hmmio, uFlags)
+EXTERNAL FUNCTION mmioCreateChunk (hmmio, lpck, uFlags)
+EXTERNAL FUNCTION mmioDescend (hmmio, lpck, lpckParentAsMMCKINFO, uFlags)
+EXTERNAL FUNCTION mmioFlush (hmmio, uFlags)
+EXTERNAL FUNCTION mmioGetInfo (hmmio, lpmmioinfo, uFlags)
+EXTERNAL FUNCTION mmioOpenA (szFileName, lpmmioinfo, dwOpenFlags)
+EXTERNAL FUNCTION mmioRead (hmmio, pch, cch)
+EXTERNAL FUNCTION mmioRenameA (szFileName, SzNewFileName, lpmmioinfo, dwRenameFlags)
+EXTERNAL FUNCTION mmioSeek (hmmio, lOffset, iOrigin)
+EXTERNAL FUNCTION mmioSendMessage (hmmio, uMsg, lParam1, lParam2)
+EXTERNAL FUNCTION mmioSetBuffer (hmmio, pchBuffer, cchBuffer, uFlags)
+EXTERNAL FUNCTION mmioSetInfo (hmmio, lpmmioinfo, uFlags)
+EXTERNAL FUNCTION mmioStringToFOURCCA (sz, uFlags)
+EXTERNAL FUNCTION mmioWrite (hmmio, pch, cch)
+EXTERNAL FUNCTION mmsystemGetVersion ()
+EXTERNAL FUNCTION sndPlaySoundA (addrSoundFile, option)
+EXTERNAL FUNCTION timeBeginPeriod (uPeriod)
+EXTERNAL FUNCTION timeEndPeriod (uPeriod)
+EXTERNAL FUNCTION timeGetDevCaps (lpTimeCaps, uSize)
+EXTERNAL FUNCTION timeGetSystemTime (lpTime, uSize)
+EXTERNAL FUNCTION timeGetTime ()
+EXTERNAL FUNCTION timeKillEvent (uID)
+EXTERNAL FUNCTION timeSetEvent (uDelay, uResolution, lpFunction, dwUser, uFlags)
+EXTERNAL FUNCTION waveInAddBuffer (hWaveIn, lpWaveInHdr, uSize)
+EXTERNAL FUNCTION waveInClose (hWaveIn)
+EXTERNAL FUNCTION waveInGetDevCapsA (uDeviceID, lpCaps, uSize)
+EXTERNAL FUNCTION waveInGetErrorTextA (err, lpText, uSize)
+EXTERNAL FUNCTION waveInGetID (hWaveIn, lpuDeviceID)
+EXTERNAL FUNCTION waveInGetNumDevs ()
+EXTERNAL FUNCTION waveInGetPosition (hWaveIn, lpInfo, uSize)
+EXTERNAL FUNCTION waveInMessage (hWaveIn, msg, dw1, dw2)
+EXTERNAL FUNCTION waveInOpen (lphWaveIn, uDeviceID, lpFormat, dwCallback, dwInstance, dwFlags)
+EXTERNAL FUNCTION waveInPrepareHeader (hWaveIn, lpWaveInHdr, uSize)
+EXTERNAL FUNCTION waveInReset (hWaveIn)
+EXTERNAL FUNCTION waveInStart (hWaveIn)
+EXTERNAL FUNCTION waveInStop (hWaveIn)
+EXTERNAL FUNCTION waveInUnprepareHeader (hWaveIn, lpWaveInHdr, uSize)
+EXTERNAL FUNCTION waveOutBreakLoop (hWaveOut)
+EXTERNAL FUNCTION waveOutClose (hWaveOut)
+EXTERNAL FUNCTION waveOutGetDevCapsA (uDeviceID, lpCaps, uSize)
+EXTERNAL FUNCTION waveOutGetErrorTextA (err, lpText, uSize)
+EXTERNAL FUNCTION waveOutGetID (hWaveOut, lpuDeviceID)
+EXTERNAL FUNCTION waveOutGetNumDevs ()
+EXTERNAL FUNCTION waveOutGetPitch (hWaveOut, lpdwPitch)
+EXTERNAL FUNCTION waveOutGetPlaybackRate (hWaveOut, lpdwRate)
+EXTERNAL FUNCTION waveOutGetPosition (hWaveOut, lpInfo, uSize)
+EXTERNAL FUNCTION waveOutGetVolume (uDeviceID, lpdwVolume)
+EXTERNAL FUNCTION waveOutMessage (hWaveOut, msg, dw1, dw2)
+EXTERNAL FUNCTION waveOutOpen (lphWaveOut, uDeviceID, lpFormat, dwCallback, dwInstance, dwFlags)
+EXTERNAL FUNCTION waveOutPause (hWaveOut)
+EXTERNAL FUNCTION waveOutPrepareHeader (hWaveOut, lpWaveOutHdr, uSize)
+EXTERNAL FUNCTION waveOutReset (hWaveOut)
+EXTERNAL FUNCTION waveOutRestart (hWaveOut)
+EXTERNAL FUNCTION waveOutSetPitch (hWaveOut, dwPitch)
+EXTERNAL FUNCTION waveOutSetPlaybackRate (hWaveOut, dwRate)
+EXTERNAL FUNCTION waveOutSetVolume (uDeviceID, dwVolume)
+EXTERNAL FUNCTION waveOutUnprepareHeader (hWaveOut, lpWaveOutHdr, uSize)
+EXTERNAL FUNCTION waveOutWrite (hWaveOut, lpWaveOutHdr, uSize)
+EXTERNAL FUNCTION Winmm ()
+
+'
+' ##########################################
+' #####  declare and define constants  #####
+' ##########################################
+'
+' general constants
+$$MAXPNAMELEN = 32      ' max product name length (includingNULL)
+$$MAXERRORLENGTH = 128  ' max error text length (includingfinalNULL)
+
+' values for wType field in MMTIME struct
+$$TIME_MS = 0x1        ' time in Milliseconds
+$$TIME_SAMPLES = 0x2   ' number of wave samples
+$$TIME_BYTES = 0x4     ' current byte offset
+$$TIME_SMPTE = 0x8     ' SMPTE time
+$$TIME_MIDI = 0x10     ' MIDI time
+
+' Multimedia Window Messages
+$$MM_JOY1MOVE = 0x3A0        ' joystick
+$$MM_JOY2MOVE = 0x3A1
+$$MM_JOY1ZMOVE = 0x3A2
+$$MM_JOY2ZMOVE = 0x3A3
+$$MM_JOY1BUTTONDOWN = 0x3B5
+$$MM_JOY2BUTTONDOWN = 0x3B6
+$$MM_JOY1BUTTONUP = 0x3B7
+$$MM_JOY2BUTTONUP = 0x3B8
+
+$$MM_MCINOTIFY = 0x3B9 ' MCI
+$$MM_MCISYSTEM_STRING = 0x3CA
+
+$$MM_WOM_OPEN = 0x3BB ' waveform output
+$$MM_WOM_CLOSE = 0x3BC
+$$MM_WOM_DONE = 0x3BD
+
+$$MM_WIM_OPEN = 0x3BE ' waveform input
+$$MM_WIM_CLOSE = 0x3BF
+$$MM_WIM_DATA = 0x3C0
+
+$$MM_MIM_OPEN = 0x3C1 ' MIDI input
+$$MM_MIM_CLOSE = 0x3C2
+$$MM_MIM_DATA = 0x3C3
+$$MM_MIM_LONGDATA = 0x3C4
+$$MM_MIM_ERROR = 0x3C5
+$$MM_MIM_LONGERROR = 0x3C6
+
+$$MM_MOM_OPEN = 0x3C7 ' MIDI output
+$$MM_MOM_CLOSE = 0x3C8
+$$MM_MOM_DONE = 0x3C9
+
+' String resource number bases (internal use)
+
+$$MMSYSERR_BASE = 0
+$$WAVERR_BASE = 32
+$$MIDIERR_BASE = 64
+$$TIMERR_BASE = 96  ' was 128,  changed to match Win 31 Sonic
+$$JOYERR_BASE = 160
+$$MCIERR_BASE = 256
+
+$$MCI_STRING_OFFSET = 512 ' if this number is changed you MUST
+' alter the MCI_DEVTYPE_... list below
+$$MCI_VD_OFFSET = 1024
+$$MCI_CD_OFFSET = 1088
+$$MCI_WAVE_OFFSET = 1152
+$$MCI_SEQ_OFFSET = 1216
+
+' General error return values
+$$MMSYSERR_NOERROR = 0 							'no error
+$$MMSYSERR_ERROR = 1			'($$MMSYSERR_BASE+1)    'unspecifiederror
+$$MMSYSERR_BADDEVICEID = 2		'($$MMSYSERR_BASE+2) 	'deviceIDoutofrange
+$$MMSYSERR_NOTENABLED = 3		'($$MMSYSERR_BASE+3)  	'driverfailedenable
+$$MMSYSERR_ALLOCATED = 4		'($$MMSYSERR_BASE+4)   	'devicealreadyallocated
+$$MMSYSERR_INVALHANDLE = 5		'($$MMSYSERR_BASE+5) 	'devicehandleisinvalid
+$$MMSYSERR_NODRIVER = 6			'($$MMSYSERR_BASE+6)    'nodevicedriverpresent
+$$MMSYSERR_NOMEM = 7			'($$MMSYSERR_BASE+7)    'memoryallocationerror
+$$MMSYSERR_NOTSUPPORTED = 8		'($$MMSYSERR_BASE+8)	'functionisn'tsupported
+$$MMSYSERR_BADERRNUM = 9		'($$MMSYSERR_BASE+9)   	'errorvalueoutofrange
+$$MMSYSERR_INVALFLAG = 10		'($$MMSYSERR_BASE+10)  	'invalidflagpassed
+$$MMSYSERR_INVALPARAM = 11		'($$MMSYSERR_BASE+11) 	'invalidparameterpassed
+$$MMSYSERR_HANDLEBUSY = 12		'($$MMSYSERR_BASE+12) 	'handlebeingused
+' simultaneously on another
+' thread (egcallback)
+$$MMSYSERR_INVALIDALIAS =  13		'($$MMSYSERR_BASE+13) 	' Specified alias not found in WIN.INI
+$$MMSYSERR_LASTERROR =  13		'($$MMSYSERR_BASE+13)   ' lasterrorinrange
+
+$$MM_MOM_POSITIONCB = 0x3CA                    ' Callback for MEVT_POSITIONCB
+$$MM_MCISIGNAL = 0x3CB
+$$MM_MIM_MOREDATA = 0x3CC                      ' MIM_DONE w/ pending events
+$$MIDICAPS_STREAM = 0x8                        ' driver supports midiStreamOut directly
+
+$$MEVT_F_SHORT = 0x0
+$$MEVT_F_LONG = 0x80000000
+$$MEVT_F_CALLBACK = 0x40000000
+$$MIDISTRM_ERROR = -2
+'
+' Structures and defines for midiStreamProperty
+'
+$$MIDIPROP_SET = 0x80000000
+$$MIDIPROP_GET = 0x40000000
+
+' These are intentionally both non-zero so the app cannot accidentally
+' leave the operation off and happen to appear to work due to default
+' action.
+
+$$MIDIPROP_TIMEDIV = 0x1
+$$MIDIPROP_TEMPO = 0x2
+
+$$MIXER_SHORT_NAME_CHARS = 16
+$$MIXER_LONG_NAME_CHARS = 64
+'
+'  MMRESULT error return values specific to the mixer API
+'
+'
+$$MIXERR_BASE = 1024
+$$MIXERR_INVALLINE = 1024	'($$MIXERR_BASE+0)
+$$MIXERR_INVALCONTROL = 1025	'($$MIXERR_BASE+1)
+$$MIXERR_INVALVALUE = 1026	'($$MIXERR_BASE+2)
+$$MIXERR_LASTERROR = 1026	'($$MIXERR_BASE+2)
+
+$$MIXER_OBJECTF_HANDLE   = 0x80000000
+$$MIXER_OBJECTF_MIXER    = 0x0
+$$MIXER_OBJECTF_HMIXER   = 0x80000000		'($$MIXER_OBJECTF_HANDLE OR $$MIXER_OBJECTF_MIXER)
+$$MIXER_OBJECTF_WAVEOUT  = 0x10000000
+$$MIXER_OBJECTF_HWAVEOUT = 0x90000000		'($$MIXER_OBJECTF_HANDLE OR $$MIXER_OBJECTF_WAVEOUT)
+$$MIXER_OBJECTF_WAVEIN   = 0x20000000
+$$MIXER_OBJECTF_HWAVEIN  = 0xA0000000		'($$MIXER_OBJECTF_HANDLE OR $$MIXER_OBJECTF_WAVEIN)
+$$MIXER_OBJECTF_MIDIOUT  = 0x30000000
+$$MIXER_OBJECTF_HMIDIOUT = 0xB0000000		'($$MIXER_OBJECTF_HANDLE OR $$MIXER_OBJECTF_MIDIOUT)
+$$MIXER_OBJECTF_MIDIIN   = 0x40000000
+$$MIXER_OBJECTF_HMIDIIN  = 0xC0000000		'($$MIXER_OBJECTF_HANDLE OR $$MIXER_OBJECTF_MIDIIN)
+$$MIXER_OBJECTF_AUX      = 0x50000000
+
+'  MIXERLINE.fdwLine
+
+$$MIXERLINE_LINEF_ACTIVE = 0x1
+$$MIXERLINE_LINEF_DISCONNECTED = 0x8000
+$$MIXERLINE_LINEF_SOURCE = 0x80000000
+
+'  MIXERLINE.dwComponentTYPE
+
+'  component types for destinations and sources
+
+$$MIXERLINE_COMPONENTTYPE_DST_FIRST = 0x0
+$$MIXERLINE_COMPONENTTYPE_DST_UNDEFINED = 0	'($$MIXERLINE_COMPONENTTYPE_DST_FIRST+0)
+$$MIXERLINE_COMPONENTTYPE_DST_DIGITAL = 1		'($$MIXERLINE_COMPONENTTYPE_DST_FIRST+1)
+$$MIXERLINE_COMPONENTTYPE_DST_LINE = 2		'($$MIXERLINE_COMPONENTTYPE_DST_FIRST+2)
+$$MIXERLINE_COMPONENTTYPE_DST_MONITOR = 3		'($$MIXERLINE_COMPONENTTYPE_DST_FIRST+3)
+$$MIXERLINE_COMPONENTTYPE_DST_SPEAKERS = 4	'($$MIXERLINE_COMPONENTTYPE_DST_FIRST+4)
+$$MIXERLINE_COMPONENTTYPE_DST_HEADPHONES = 5	'($$MIXERLINE_COMPONENTTYPE_DST_FIRST+5)
+$$MIXERLINE_COMPONENTTYPE_DST_TELEPHONE = 6	'($$MIXERLINE_COMPONENTTYPE_DST_FIRST+6)
+$$MIXERLINE_COMPONENTTYPE_DST_WAVEIN = 7		'($$MIXERLINE_COMPONENTTYPE_DST_FIRST+7)
+$$MIXERLINE_COMPONENTTYPE_DST_VOICEIN = 8		'($$MIXERLINE_COMPONENTTYPE_DST_FIRST+8)
+$$MIXERLINE_COMPONENTTYPE_DST_LAST = 8		'($$MIXERLINE_COMPONENTTYPE_DST_FIRST+8)
+
+$$MIXERLINE_COMPONENTTYPE_SRC_FIRST = 0x1000
+$$MIXERLINE_COMPONENTTYPE_SRC_UNDEFINED = 0x1000	'($$MIXERLINE_COMPONENTTYPE_SRC_FIRST+0)
+$$MIXERLINE_COMPONENTTYPE_SRC_DIGITAL = 0x1001		'($$MIXERLINE_COMPONENTTYPE_SRC_FIRST+1)
+$$MIXERLINE_COMPONENTTYPE_SRC_LINE = 0x1002		'($$MIXERLINE_COMPONENTTYPE_SRC_FIRST+2)
+$$MIXERLINE_COMPONENTTYPE_SRC_MICROPHONE = 0x1003	'($$MIXERLINE_COMPONENTTYPE_SRC_FIRST+3)
+$$MIXERLINE_COMPONENTTYPE_SRC_SYNTHESIZER = 0x1004	'($$MIXERLINE_COMPONENTTYPE_SRC_FIRST+4)
+$$MIXERLINE_COMPONENTTYPE_SRC_COMPACTDISC = 0x1005	'($$MIXERLINE_COMPONENTTYPE_SRC_FIRST+5)
+$$MIXERLINE_COMPONENTTYPE_SRC_TELEPHONE = 0x1006	'($$MIXERLINE_COMPONENTTYPE_SRC_FIRST+6)
+$$MIXERLINE_COMPONENTTYPE_SRC_PCSPEAKER = 0x1007	'($$MIXERLINE_COMPONENTTYPE_SRC_FIRST+7)
+$$MIXERLINE_COMPONENTTYPE_SRC_WAVEOUT = 0x1008		'($$MIXERLINE_COMPONENTTYPE_SRC_FIRST+8)
+$$MIXERLINE_COMPONENTTYPE_SRC_AUXILIARY = 0x1009	'($$MIXERLINE_COMPONENTTYPE_SRC_FIRST+9)
+$$MIXERLINE_COMPONENTTYPE_SRC_ANALOG = 0x100A		'($$MIXERLINE_COMPONENTTYPE_SRC_FIRST+10)
+$$MIXERLINE_COMPONENTTYPE_SRC_LAST = 0x100A		'($$MIXERLINE_COMPONENTTYPE_SRC_FIRST+10)
+'
+'  MIXERLINE.Target.dwTYPE
+'
+'
+$$MIXERLINE_TARGETTYPE_UNDEFINED = 0
+$$MIXERLINE_TARGETTYPE_WAVEOUT = 1
+$$MIXERLINE_TARGETTYPE_WAVEIN = 2
+$$MIXERLINE_TARGETTYPE_MIDIOUT = 3
+$$MIXERLINE_TARGETTYPE_MIDIIN = 4
+$$MIXERLINE_TARGETTYPE_AUX = 5
+
+$$MIXER_GETLINEINFOF_DESTINATION = 0x0
+$$MIXER_GETLINEINFOF_SOURCE = 0x1
+$$MIXER_GETLINEINFOF_LINEID = 0x2
+$$MIXER_GETLINEINFOF_COMPONENTTYPE = 0x3
+$$MIXER_GETLINEINFOF_TARGETTYPE = 0x4
+$$MIXER_GETLINEINFOF_QUERYMASK = 0xF
+
+'  MIXERCONTROL.fdwControl
+
+$$MIXERCONTROL_CONTROLF_UNIFORM = 0x1
+$$MIXERCONTROL_CONTROLF_MULTIPLE = 0x2
+$$MIXERCONTROL_CONTROLF_DISABLED = 0x80000000
+
+'  MIXERCONTROL_CONTROLTYPE_xxx building block defines
+
+$$MIXERCONTROL_CT_CLASS_MASK = 0xF0000000
+$$MIXERCONTROL_CT_CLASS_CUSTOM = 0x0
+$$MIXERCONTROL_CT_CLASS_METER = 0x10000000
+$$MIXERCONTROL_CT_CLASS_SWITCH = 0x20000000
+$$MIXERCONTROL_CT_CLASS_NUMBER = 0x30000000
+$$MIXERCONTROL_CT_CLASS_SLIDER = 0x40000000
+$$MIXERCONTROL_CT_CLASS_FADER = 0x50000000
+$$MIXERCONTROL_CT_CLASS_TIME = 0x60000000
+$$MIXERCONTROL_CT_CLASS_LIST    = 0x70000000
+$$MIXERCONTROL_CT_SUBCLASS_MASK = 0xF000000
+$$MIXERCONTROL_CT_SC_SWITCH_BOOLEAN = 0x0
+$$MIXERCONTROL_CT_SC_SWITCH_BUTTON = 0x1000000
+$$MIXERCONTROL_CT_SC_METER_POLLED = 0x0
+$$MIXERCONTROL_CT_SC_TIME_MICROSECS = 0x0
+$$MIXERCONTROL_CT_SC_TIME_MILLISECS = 0x1000000
+$$MIXERCONTROL_CT_SC_LIST_SINGLE = 0x0
+$$MIXERCONTROL_CT_SC_LIST_MULTIPLE = 0x1000000
+$$MIXERCONTROL_CT_UNITS_MASK = 0xFF0000
+$$MIXERCONTROL_CT_UNITS_CUSTOM = 0x0
+$$MIXERCONTROL_CT_UNITS_BOOLEAN = 0x10000
+$$MIXERCONTROL_CT_UNITS_SIGNED = 0x20000
+$$MIXERCONTROL_CT_UNITS_UNSIGNED = 0x30000
+$$MIXERCONTROL_CT_UNITS_DECIBELS = 0x40000 ' in 10ths
+$$MIXERCONTROL_CT_UNITS_PERCENT = 0x50000 ' in 10ths
+'
+'  Commonly used control types for specifying MIXERCONTROL.dwControlTYPE
+'
+$$MIXERCONTROL_CONTROLTYPE_CUSTOM = 0x0				
+$$MIXERCONTROL_CONTROLTYPE_BOOLEANMETER = 0x10010000		
+$$MIXERCONTROL_CONTROLTYPE_SIGNEDMETER = 0x10020000
+$$MIXERCONTROL_CONTROLTYPE_PEAKMETER = 0x10020001
+$$MIXERCONTROL_CONTROLTYPE_UNSIGNEDMETER = 0x10030000
+$$MIXERCONTROL_CONTROLTYPE_BOOLEAN = 0x20010000
+$$MIXERCONTROL_CONTROLTYPE_ONOFF = 0x20010001
+$$MIXERCONTROL_CONTROLTYPE_MUTE = 0x20010002
+$$MIXERCONTROL_CONTROLTYPE_MONO = 0x20010003
+$$MIXERCONTROL_CONTROLTYPE_LOUDNESS = 0x20010004
+$$MIXERCONTROL_CONTROLTYPE_STEREOENH = 0x20010005
+$$MIXERCONTROL_CONTROLTYPE_BUTTON = 0x21010000 
+$$MIXERCONTROL_CONTROLTYPE_DECIBELS = 0x30040000
+$$MIXERCONTROL_CONTROLTYPE_SIGNED = 0x30020000
+$$MIXERCONTROL_CONTROLTYPE_UNSIGNED = 0x30030000
+$$MIXERCONTROL_CONTROLTYPE_PERCENT = 0x30050000
+$$MIXERCONTROL_CONTROLTYPE_SLIDER = 0x40020000
+$$MIXERCONTROL_CONTROLTYPE_PAN = 0x40020001
+$$MIXERCONTROL_CONTROLTYPE_QSOUNDPAN = 0x40020002
+$$MIXERCONTROL_CONTROLTYPE_FADER = 0x50030000
+$$MIXERCONTROL_CONTROLTYPE_VOLUME = 0x50030001
+$$MIXERCONTROL_CONTROLTYPE_BASS = 0x50030002
+$$MIXERCONTROL_CONTROLTYPE_TREBLE = 0x50030003
+$$MIXERCONTROL_CONTROLTYPE_EQUALIZER = 0x50030004
+$$MIXERCONTROL_CONTROLTYPE_SINGLESELECT = 0x70010000
+$$MIXERCONTROL_CONTROLTYPE_MUX = 0x70010001
+$$MIXERCONTROL_CONTROLTYPE_MULTIPLESELECT = 0x71010000
+$$MIXERCONTROL_CONTROLTYPE_MIXER = 0x71010001
+$$MIXERCONTROL_CONTROLTYPE_MICROTIME = 0x60030000
+$$MIXERCONTROL_CONTROLTYPE_MILLITIME = 0x61030000
+'
+$$MIXER_GETLINECONTROLSF_ALL = 0x0
+$$MIXER_GETLINECONTROLSF_ONEBYID = 0x1
+$$MIXER_GETLINECONTROLSF_ONEBYTYPE = 0x2
+$$MIXER_GETLINECONTROLSF_QUERYMASK = 0xF
+
+$$MIXER_GETCONTROLDETAILSF_VALUE = 0x0
+$$MIXER_GETCONTROLDETAILSF_LISTTEXT = 0x1
+$$MIXER_GETCONTROLDETAILSF_QUERYMASK = 0xF
+
+$$MIXER_SETCONTROLDETAILSF_VALUE = 0x0
+$$MIXER_SETCONTROLDETAILSF_CUSTOM = 0x1
+$$MIXER_SETCONTROLDETAILSF_QUERYMASK = 0xF
+
+' constants used with JOYINFOEX
+$$JOY_BUTTON5 = 0x10
+$$JOY_BUTTON6 = 0x20
+$$JOY_BUTTON7 = 0x40
+$$JOY_BUTTON8 = 0x80
+$$JOY_BUTTON9 = 0x100
+$$JOY_BUTTON10 = 0x200
+$$JOY_BUTTON11 = 0x400
+$$JOY_BUTTON12 = 0x800
+$$JOY_BUTTON13 = 0x1000
+$$JOY_BUTTON14 = 0x2000
+$$JOY_BUTTON15 = 0x4000
+$$JOY_BUTTON16 = 0x8000
+$$JOY_BUTTON17 = 0x10000
+$$JOY_BUTTON18 = 0x20000
+$$JOY_BUTTON19 = 0x40000
+$$JOY_BUTTON20 = 0x80000
+$$JOY_BUTTON21 = 0x100000
+$$JOY_BUTTON22 = 0x200000
+$$JOY_BUTTON23 = 0x400000
+$$JOY_BUTTON24 = 0x800000
+$$JOY_BUTTON25 = 0x1000000
+$$JOY_BUTTON26 = 0x2000000
+$$JOY_BUTTON27 = 0x4000000
+$$JOY_BUTTON28 = 0x8000000
+$$JOY_BUTTON29 = 0x10000000
+$$JOY_BUTTON30 = 0x20000000
+$$JOY_BUTTON31 = 0x40000000
+$$JOY_BUTTON32 = 0x80000000
+
+' constants used with JOYINFOEX structure
+$$JOY_POVCENTERED = -1
+$$JOY_POVFORWARD = 0
+$$JOY_POVRIGHT = 9000
+$$JOY_POVBACKWARD = 18000
+$$JOY_POVLEFT = 27000
+$$JOY_RETURNX = 0x1
+$$JOY_RETURNY = 0x2
+$$JOY_RETURNZ = 0x4
+$$JOY_RETURNR = 0x8
+$$JOY_RETURNU = 0x10               ' axis 5
+$$JOY_RETURNV = 0x20               ' axis 6
+$$JOY_RETURNPOV = 0x40
+$$JOY_RETURNBUTTONS = 0x80
+$$JOY_RETURNRAWDATA = 0x100
+$$JOY_RETURNPOVCTS = 0x200
+$$JOY_RETURNCENTERED = 0x400
+$$JOY_USEDEADZONE = 0x800
+$$JOY_RETURNALL = 0xFF				'($$JOY_RETURNX OR $$JOY_RETURNY OR $$JOY_RETURNZ OR $$JOY_RETURNR OR $$JOY_RETURNU OR $$JOY_RETURNV OR $$JOY_RETURNPOV OR $$JOY_RETURNBUTTONS)
+$$JOY_CAL_READALWAYS = 0x10000
+$$JOY_CAL_READXYONLY = 0x20000
+$$JOY_CAL_READ3 = 0x40000
+$$JOY_CAL_READ4 = 0x80000
+$$JOY_CAL_READXONLY = 0x100000
+$$JOY_CAL_READYONLY = 0x200000
+$$JOY_CAL_READ5 = 0x400000
+$$JOY_CAL_READ6 = 0x800000
+$$JOY_CAL_READZONLY = 0x1000000
+$$JOY_CAL_READRONLY = 0x2000000
+$$JOY_CAL_READUONLY = 0x4000000
+$$JOY_CAL_READVONLY = 0x8000000
+
+$$WAVE_FORMAT_QUERY = 0x1
+$$SND_PURGE = 0x40        ' purge non-static events for task
+$$SND_APPLICATION = 0x80     ' look for application specific association
+$$WAVE_MAPPED = 0x4
+$$WAVE_FORMAT_DIRECT = 0x8
+$$WAVE_FORMAT_DIRECT_QUERY = 0x9			'($$WAVE_FORMAT_QUERY OR $$WAVE_FORMAT_DIRECT)
+$$MIM_MOREDATA = 0x3CC 
+$$MOM_POSITIONCB = 0x3CA
+
+' flags for dwFlags parm of midiInOpen()
+$$MIDI_IO_STATUS = 0x20
+
+' Driver messages
+$$DRV_LOAD = 0x1
+$$DRV_ENABLE = 0x2
+$$DRV_OPEN = 0x3
+$$DRV_CLOSE = 0x4
+$$DRV_DISABLE = 0x5
+$$DRV_FREE = 0x6
+$$DRV_CONFIGURE = 0x7
+$$DRV_QUERYCONFIGURE = 0x8
+$$DRV_INSTALL = 0x9
+$$DRV_REMOVE = 0xA
+$$DRV_EXITSESSION = 0xB
+$$DRV_POWER = 0xF
+$$DRV_RESERVED = 0x800
+$$DRV_USER = 0x4000
+
+' Supported return values for DRV_CONFIGURE message
+$$DRVCNF_CANCEL = 0x0
+$$DRVCNF_OK = 0x1
+$$DRVCNF_RESTART = 0x2
+
+' return values from DriverProc()function
+$$DRV_CANCEL = 0
+$$DRV_OK = 1
+$$DRV_RESTART = 2
+
+$$DRV_MCI_FIRST = 0x800
+$$DRV_MCI_LAST = 0x17FF			'$$DRV_RESERVED + 0xFFF
+
+' Driver callback support
+
+' flags used with waveOutOpen(), waveInOpen
+' midiOutOpen()tospecifythetypeofthedwCallbackparameter.
+$$CALLBACK_TYPEMASK = 0x70000   ' callback type mask
+$$CALLBACK_NULL = 0x0    ' no callback
+$$CALLBACK_WINDOW = 0x10000   ' dwCallback is a HWND
+$$CALLBACK_TASK = 0x20000   ' dwCallback is a HTASK
+$$CALLBACK_FUNCTION = 0x30000   ' dwCallback is a FARPROC
+
+' manufacturer IDs
+$$MM_MICROSOFT = 1 ' Microsoft Corp.
+
+' product IDs
+$$MM_MIDI_MAPPER = 1 ' MIDI Mapper
+$$MM_WAVE_MAPPER = 2 ' Wave Mapper
+
+$$MM_SNDBLST_MIDIOUT = 3 ' Sound Blaster MIDI output port
+$$MM_SNDBLST_MIDIIN = 4 ' Sound Blaster MIDI input port
+$$MM_SNDBLST_SYNTH = 5 ' Sound Blaster internal synthesizer
+$$MM_SNDBLST_WAVEOUT = 6 ' Sound Blaster waveform output
+$$MM_SNDBLST_WAVEIN = 7 ' Sound Blaster waveform input
+
+$$MM_ADLIB = 9 ' Ad Lib-compatible synthesizer
+
+$$MM_MPU401_MIDIOUT = 10 ' MPU401-compatible MIDI output port
+$$MM_MPU401_MIDIIN = 11 ' MPU401-compatible MIDI input port
+
+$$MM_PC_JOYSTICK = 12 ' Joystick adapter
+
+' flag values for uFlags parameter
+$$SND_SYNC = 0x0     ' play synchronously (default)
+$$SND_ASYNC = 0x1     ' play asynchronously
+
+$$SND_NODEFAULT = 0x2     ' silence not default,  if sound not found
+
+$$SND_MEMORY = 0x4     ' lpszSoundName points to a memory file
+$$SND_ALIAS = 0x10000   ' name is a WIN.INI [sounds] entry
+$$SND_FILENAME = 0x20000   ' name is a file name
+$$SND_RESOURCE = 0x40004   ' name is a resource name or atom
+$$SND_ALIAS_ID = 0x110000  ' name is a WIN.INI [sounds] entry identifier
+
+$$SND_ALIAS_START = 0 ' must be > 4096 to keep strings in same section of resource file
+
+$$SND_LOOP = 0x8     ' loop the sound until next sndPlaySound
+$$SND_NOSTOP = 0x10    ' don't stop any currently playing sound
+$$SND_VALID = 0x1F    ' valid flags     / ;Internal /
+
+$$SND_NOWAIT = 0x2000   ' don't wait if the driver is busy
+
+$$SND_VALIDFLAGS = 0x17201F  ' Set of valid flag bits. Anything outside
+' this range will raise an error
+$$SND_RESERVED = 0xFF000000 ' In particular these flags are reserved
+
+$$SND_TYPE_MASK = 0x170007
+
+
+' waveform audio error return values
+$$WAVERR_BADFORMAT = 32			'($$WAVERR_BASE+0)'unsupportedwaveformat
+$$WAVERR_STILLPLAYING = 33		'($$WAVERR_BASE+1)'stillsomethingplaying
+$$WAVERR_UNPREPARED = 34		'($$WAVERR_BASE+2)'headernotprepared
+$$WAVERR_SYNC = 35			'($$WAVERR_BASE+3)'deviceissynchronous
+$$WAVERR_LASTERROR = 35			'($$WAVERR_BASE+3)'lasterrorinrange
+
+' wave callback messages
+$$WOM_OPEN = 0x3BB
+$$WOM_CLOSE = 0x3BC
+$$WOM_DONE = 0x3BD
+$$WIM_OPEN = 0x3BE
+$$WIM_CLOSE = 0x3BF
+$$WIM_DATA = 0x3C0
+
+' device ID for wave device mapper
+$$WAVE_MAPPER = -1
+
+' flags for dwFlags parameter in waveOutOpen()andwaveInOpen
+
+$$WAVE_ALLOWSYNC = 0x2
+$$WAVE_VALID = 0x3     ' ;Internal
+
+' flags for dwFlags field of WAVEHDR
+$$WHDR_DONE = 0x1     ' done bit
+$$WHDR_PREPARED = 0x2     ' set if this header has been prepared
+$$WHDR_BEGINLOOP = 0x4     ' loop start block
+$$WHDR_ENDLOOP = 0x8     ' loop end block
+$$WHDR_INQUEUE = 0x10    ' reserved for driver
+$$WHDR_VALID = 0x1F    ' valid flags   / ;Internal /
+
+' flags for dwSupport field of WAVEOUTCAPS
+$$WAVECAPS_PITCH = 0x1     ' supports pitch control
+$$WAVECAPS_PLAYBACKRATE = 0x2     ' supports playback rate control
+$$WAVECAPS_VOLUME = 0x4     ' supports volume control
+$$WAVECAPS_LRVOLUME = 0x8     ' separate left-right volume control
+$$WAVECAPS_SYNC = 0x10
+
+' defines for dwFormat field of WAVEINCAPS and WAVEOUTCAPS
+$$WAVE_INVALIDFORMAT = 0x0       ' invalid format
+$$WAVE_FORMAT_1M08 = 0x1       ' 11.025 kHz,  Mono,   8-bit
+$$WAVE_FORMAT_1S08 = 0x2       ' 11.025 kHz,  Stereo,  8-bit
+$$WAVE_FORMAT_1M16 = 0x4       ' 11.025 kHz,  Mono,   16-bit
+$$WAVE_FORMAT_1S16 = 0x8       ' 11.025 kHz,  Stereo,  16-bit
+$$WAVE_FORMAT_2M08 = 0x10       ' 22.05 kHz,  Mono,   8-bit
+$$WAVE_FORMAT_2S08 = 0x20       ' 22.05 kHz,  Stereo,  8-bit
+$$WAVE_FORMAT_2M16 = 0x40       ' 22.05 kHz,  Mono,   16-bit
+$$WAVE_FORMAT_2S16 = 0x80       ' 22.05 kHz,  Stereo,  16-bit
+$$WAVE_FORMAT_4M08 = 0x100      ' 44.1  kHz,  Mono,   8-bit
+$$WAVE_FORMAT_4S08 = 0x200      ' 44.1  kHz,  Stereo,  8-bit
+$$WAVE_FORMAT_4M16 = 0x400      ' 44.1  kHz,  Mono,   16-bit
+$$WAVE_FORMAT_4S16 = 0x800      ' 44.1  kHz,  Stereo,  16-bit
+
+' flags for wFormatTag field of WAVEFORMAT
+$$WAVE_FORMAT_PCM = 1 ' Needed in resource files so outside #ifndef RC_INVOKED
+
+' MIDI error return values
+$$MIDIERR_UNPREPARED = 64			'($$MIDIERR_BASE+0)'headernotprepared
+$$MIDIERR_STILLPLAYING = 65			'($$MIDIERR_BASE+1)'stillsomethingplaying
+$$MIDIERR_NOMAP = 66				'($$MIDIERR_BASE+2)'nocurrentmap
+$$MIDIERR_NOTREADY = 67				'($$MIDIERR_BASE+3)'hardwareisstillbusy
+$$MIDIERR_NODEVICE = 68				'($$MIDIERR_BASE+4)'portnolongerconnected
+$$MIDIERR_INVALIDSETUP = 69			'($$MIDIERR_BASE+5)'invalidsetup
+$$MIDIERR_LASTERROR = 69			'($$MIDIERR_BASE+5)'lasterrorinrange
+
+' MIDI callback messages
+$$MIM_OPEN = 0x3C1
+$$MIM_CLOSE = 0x3C2
+$$MIM_DATA = 0x3C3
+$$MIM_LONGDATA = 0x3C4
+$$MIM_ERROR = 0x3C5
+$$MIM_LONGERROR = 0x3C6
+$$MOM_OPEN = 0x3C7
+$$MOM_CLOSE = 0x3C8
+$$MOM_DONE = 0x3C9
+
+' device ID for MIDI mapper
+$$MIDIMAPPER = -1				'CannotbecasttoDW OR DasRCcomplains
+$$MIDI_MAPPER = -1
+
+' flags for wFlags parm of midiOutCachePatches(), midiOutCacheDrumPatches
+$$MIDI_CACHE_ALL = 1
+$$MIDI_CACHE_BESTFIT = 2
+$$MIDI_CACHE_QUERY = 3
+$$MIDI_UNCACHE = 4
+$$MIDI_CACHE_VALID = 10			'($$MIDI_CACHE_ALL OR $$MIDI_CACHE_BESTFIT OR $$MIDI_CACHE_QUERY OR $$MIDI_UNCACHE)';Internal
+
+' flags for wTechnology field of MIDIOUTCAPS structure
+$$MOD_MIDIPORT = 1 ' output port
+$$MOD_SYNTH = 2 ' generic internal synth
+$$MOD_SQSYNTH = 3 ' square wave internal synth
+$$MOD_FMSYNTH = 4 ' FM internal synth
+$$MOD_MAPPER = 5 ' MIDI mapper
+
+' flags for dwSupport field of MIDIOUTCAPS
+$$MIDICAPS_VOLUME = 0x1     ' supports volume control
+$$MIDICAPS_LRVOLUME = 0x2     ' separate left-right volume control
+$$MIDICAPS_CACHE = 0x4
+
+' flags for dwFlags field of MIDIHDR structure
+$$MHDR_DONE = 0x1     ' done bit
+$$MHDR_PREPARED = 0x2     ' set if header prepared
+$$MHDR_INQUEUE = 0x4     ' reserved for driver
+$$MHDR_VALID = 0x7     ' valid flags / ;Internal /
+
+' flags for wTechnology field in AUXCAPS structure
+$$AUXCAPS_CDAUDIO = 1 ' audio from internal CD-ROM drive
+$$AUXCAPS_AUXIN = 2 ' audio from auxiliary input jacks
+
+' flags for dwSupport field in AUXCAPS structure
+$$AUXCAPS_VOLUME = 0x1     ' supports volume control
+$$AUXCAPS_LRVOLUME = 0x2     ' separate left-right volume control
+
+' timer error return values
+$$TIMERR_NOERROR = 0			'(0)'noerror
+$$TIMERR_NOCANDO = 97			'($$TIMERR_BASE+1)'requestnotcompleted
+$$TIMERR_STRUCT = 129			'($$TIMERR_BASE+33)'timestructsize
+
+' flags for wFlags parameter of timeSetEvent()function
+$$TIME_ONESHOT = 0 ' program timer for single event
+$$TIME_PERIODIC = 1 ' program for continuous periodic event
+
+' joystick error return values
+$$JOYERR_NOERROR = 0		'(0)'noerror
+$$JOYERR_PARMS = 165		'($$JOYERR_BASE+5)'badparameters
+$$JOYERR_NOCANDO = 166		'($$JOYERR_BASE+6)'requestnotcompleted
+$$JOYERR_UNPLUGGED = 167	'($$JOYERR_BASE+7)'joystickisunplugged
+
+' constants used with JOYINFO structure and MM_JOY messages
+$$JOY_BUTTON1 = 0x1
+$$JOY_BUTTON2 = 0x2
+$$JOY_BUTTON3 = 0x4
+$$JOY_BUTTON4 = 0x8
+$$JOY_BUTTON1CHG = 0x100
+$$JOY_BUTTON2CHG = 0x200
+$$JOY_BUTTON3CHG = 0x400
+$$JOY_BUTTON4CHG = 0x800
+
+' joystick ID constants
+$$JOYSTICKID1 = 0
+$$JOYSTICKID2 = 1
+
+' MMIO error return values
+$$MMIOERR_BASE = 256
+$$MMIOERR_FILENOTFOUND = 257			'($$MMIOERR_BASE+1)'filenotfound
+$$MMIOERR_OUTOFMEMORY = 258			'($$MMIOERR_BASE+2)'outofmemory
+$$MMIOERR_CANNOTOPEN = 259			'($$MMIOERR_BASE+3)'cannotopen
+$$MMIOERR_CANNOTCLOSE = 260			'($$MMIOERR_BASE+4)'cannotclose
+$$MMIOERR_CANNOTREAD = 261			'($$MMIOERR_BASE+5)'cannotread
+$$MMIOERR_CANNOTWRITE = 262			'($$MMIOERR_BASE+6)'cannotwrite
+$$MMIOERR_CANNOTSEEK = 263			'($$MMIOERR_BASE+7)'cannotseek
+$$MMIOERR_CANNOTEXPAND = 264			'($$MMIOERR_BASE+8)'cannotexpandfile
+$$MMIOERR_CHUNKNOTFOUND = 265			'($$MMIOERR_BASE+9)'chunknotfound
+$$MMIOERR_UNBUFFERED = 266			'($$MMIOERR_BASE+10)'fileisunbuffered
+
+' MMIO constants
+$$CFSEPCHAR = "+" '  ' compound file name separator char.
+$$MMIO_RWMODE = 0x3     ' mask to get bits used for opening
+
+' file for reading/writing/both
+$$MMIO_SHAREMODE = 0x70    ' file sharing mode number
+
+' constants for dwFlags field of MMIOINFO
+$$MMIO_CREATE = 0x1000   ' create new file (ortruncatefile)
+$$MMIO_PARSE = 0x100    ' parse new file returning path
+$$MMIO_DELETE = 0x200    ' create new file (ortruncatefile)
+$$MMIO_EXIST = 0x4000   ' checks for existence of file
+$$MMIO_ALLOCBUF = 0x10000   ' mmioOpen()shouldallocateabuffer
+$$MMIO_GETTEMP = 0x20000   ' mmioOpen()shouldretrievetempname
+
+$$MMIO_DIRTY = 0x10000000 ' I/O buffer is dirty
+' MMIO_DIRTY is also used in the <dwFlags> field of MMCKINFO structure
+
+$$MMIO_OPEN_VALID = 0x3FFFF   ' valid flags for mmioOpen / ;Internal /
+
+' read/write mode numbers (bitfieldMMIO_RWMODE)
+$$MMIO_READ = 0x0     ' open file for reading only
+$$MMIO_WRITE = 0x1     ' open file for writing only
+$$MMIO_READWRITE = 0x2     ' open file for reading and writing
+
+' share mode numbers (bitfieldMMIO_SHAREMODE)
+$$MMIO_COMPAT = 0x0     ' compatibility mode
+$$MMIO_EXCLUSIVE = 0x10    ' exclusive-access mode
+$$MMIO_DENYWRITE = 0x20    ' deny writing to other processes
+$$MMIO_DENYREAD = 0x30    ' deny reading to other processes
+$$MMIO_DENYNONE = 0x40    ' deny nothing to other processes
+
+' flags for other functions
+$$MMIO_FHOPEN = 0x10  ' mmioClose():keepfilehandleopen
+$$MMIO_EMPTYBUF = 0x10  ' mmioFlush():emptytheI/Obuffer
+$$MMIO_TOUPPER = 0x10  ' mmioStringToFOURCC():cvt.tou-case
+$$MMIO_INSTALLPROC = 0x10000   ' mmioInstallIOProc():installMMIOProc
+$$MMIO_PUBLICPROC = 0x10000000 ' mmioInstallIOProc: install Globally
+$$MMIO_UNICODEPROC = 0x1000000  ' mmioInstallIOProc():UnicodeMMIOProc
+$$MMIO_REMOVEPROC = 0x20000   ' mmioInstallIOProc():removeMMIOProc
+$$MMIO_FINDPROC = 0x40000   ' mmioInstallIOProc():findanMMIOProc
+$$MMIO_FINDCHUNK = 0x10  ' mmioDescend():findachunkbyID
+$$MMIO_FINDRIFF = 0x20  ' mmioDescend():findaLISTchunk
+$$MMIO_FINDLIST = 0x40  ' mmioDescend():findaRIFFchunk
+$$MMIO_CREATERIFF = 0x20  ' mmioCreateChunk():makeaLISTchunk
+$$MMIO_CREATELIST = 0x40  ' mmioCreateChunk():makeaRIFFchunk
+
+$$MMIO_VALIDPROC = 0x11070000 ' valid for mmioInstallIOProc / ;Internal /
+
+' message numbers for MMIOPROC I/O procedure functions
+$$MMIOM_READ = 0 ' read (mustequalMMIO_READ!)
+$$MMIOM_WRITE = 1 ' write (mustequalMMIO_WRITE!)
+$$MMIOM_SEEK = 2 ' seek to a new position in file
+$$MMIOM_OPEN = 3 ' open file
+$$MMIOM_CLOSE = 4 ' close file
+$$MMIOM_WRITEFLUSH = 5 ' write and flush
+$$MMIOM_RENAME = 6 ' rename specified file
+$$MMIOM_USER = 0x8000 ' beginning of user-defined messages
+
+' flags for mmioSeek()
+$$SEEK_SET = 0 ' seek to an absolute position
+$$SEEK_CUR = 1 ' seek relative to current position
+$$SEEK_END = 2 ' seek relative to end of file
+
+' other constants
+$$MMIO_DEFAULTBUFFER = 8192 ' default buffer size
+
+'  MCI error return values
+$$MCIERR_INVALID_DEVICE_ID = 257			'($$MCIERR_BASE+1)
+$$MCIERR_UNRECOGNIZED_KEYWORD = 259			'($$MCIERR_BASE+3)
+$$MCIERR_UNRECOGNIZED_COMMAND = 261			'($$MCIERR_BASE+5)
+$$MCIERR_HARDWARE = 262					'($$MCIERR_BASE+6)
+$$MCIERR_INVALID_DEVICE_NAME = 263			'($$MCIERR_BASE+7)
+$$MCIERR_OUT_OF_MEMORY = 264				'($$MCIERR_BASE+8)
+$$MCIERR_DEVICE_OPEN = 265				'($$MCIERR_BASE+9)
+$$MCIERR_CANNOT_LOAD_DRIVER = 266			'($$MCIERR_BASE+10)
+$$MCIERR_MISSING_COMMAND_STRING = 267		'($$MCIERR_BASE+11)
+$$MCIERR_PARAM_OVERFLOW = 268				'($$MCIERR_BASE+12)
+$$MCIERR_MISSING_STRING_ARGUMENT = 269		'($$MCIERR_BASE+13)
+$$MCIERR_BAD_INTEGER = 270				'($$MCIERR_BASE+14)
+$$MCIERR_PARSER_INTERNAL = 271			'($$MCIERR_BASE+15)
+$$MCIERR_DRIVER_INTERNAL = 272			'($$MCIERR_BASE+16)
+$$MCIERR_MISSING_PARAMETER = 273			'($$MCIERR_BASE+17)
+$$MCIERR_UNSUPPORTED_FUNCTION = 274			'($$MCIERR_BASE+18)
+$$MCIERR_FILE_NOT_FOUND = 275				'($$MCIERR_BASE+19)
+$$MCIERR_DEVICE_NOT_READY = 276			'($$MCIERR_BASE+20)
+$$MCIERR_INTERNAL = 277					'($$MCIERR_BASE+21)
+$$MCIERR_DRIVER = 278					'($$MCIERR_BASE+22)
+$$MCIERR_CANNOT_USE_ALL = 279				'($$MCIERR_BASE+23)
+$$MCIERR_MULTIPLE = 280					'($$MCIERR_BASE+24)
+$$MCIERR_EXTENSION_NOT_FOUND = 281			'($$MCIERR_BASE+25)
+$$MCIERR_OUTOFRANGE = 282				'($$MCIERR_BASE+26)
+$$MCIERR_FLAGS_NOT_COMPATIBLE = 284			'($$MCIERR_BASE+28)
+$$MCIERR_FILE_NOT_SAVED = 286				'($$MCIERR_BASE+30)
+$$MCIERR_DEVICE_TYPE_REQUIRED = 287			'($$MCIERR_BASE+31)
+$$MCIERR_DEVICE_LOCKED = 288				'($$MCIERR_BASE+32)
+$$MCIERR_DUPLICATE_ALIAS = 289			'($$MCIERR_BASE+33)
+$$MCIERR_BAD_CONSTANT = 290				'($$MCIERR_BASE+34)
+$$MCIERR_MUST_USE_SHAREABLE = 291			'($$MCIERR_BASE+35)
+$$MCIERR_MISSING_DEVICE_NAME = 292			'($$MCIERR_BASE+36)
+$$MCIERR_BAD_TIME_FORMAT = 293			'($$MCIERR_BASE+37)
+$$MCIERR_NO_CLOSING_QUOTE = 294			'($$MCIERR_BASE+38)
+$$MCIERR_DUPLICATE_FLAGS = 295			'($$MCIERR_BASE+39)
+$$MCIERR_INVALID_FILE = 296				'($$MCIERR_BASE+40)
+$$MCIERR_NULL_PARAMETER_BLOCK = 297			'($$MCIERR_BASE+41)
+$$MCIERR_UNNAMED_RESOURCE = 298			'($$MCIERR_BASE+42)
+$$MCIERR_NEW_REQUIRES_ALIAS = 299			'($$MCIERR_BASE+43)
+$$MCIERR_NOTIFY_ON_AUTO_OPEN = 300			'($$MCIERR_BASE+44)
+$$MCIERR_NO_ELEMENT_ALLOWED = 301			'($$MCIERR_BASE+45)
+$$MCIERR_NONAPPLICABLE_FUNCTION = 302		'($$MCIERR_BASE+46)
+$$MCIERR_ILLEGAL_FOR_AUTO_OPEN = 303		'($$MCIERR_BASE+47)
+$$MCIERR_FILENAME_REQUIRED = 304			'($$MCIERR_BASE+48)
+$$MCIERR_EXTRA_CHARACTERS = 305			'($$MCIERR_BASE+49)
+$$MCIERR_DEVICE_NOT_INSTALLED = 306			'($$MCIERR_BASE+50)
+$$MCIERR_GET_CD = 307					'($$MCIERR_BASE+51)
+$$MCIERR_SET_CD = 308					'($$MCIERR_BASE+52)
+$$MCIERR_SET_DRIVE = 309				'($$MCIERR_BASE+53)
+$$MCIERR_DEVICE_LENGTH = 310				'($$MCIERR_BASE+54)
+$$MCIERR_DEVICE_ORD_LENGTH = 311			'($$MCIERR_BASE+55)
+$$MCIERR_NO_INTEGER = 312				'($$MCIERR_BASE+56)
+
+$$MCIERR_WAVE_OUTPUTSINUSE = 320			'($$MCIERR_BASE+64)
+$$MCIERR_WAVE_SETOUTPUTINUSE = 321			'($$MCIERR_BASE+65)
+$$MCIERR_WAVE_INPUTSINUSE = 322			'($$MCIERR_BASE+66)
+$$MCIERR_WAVE_SETINPUTINUSE = 323			'($$MCIERR_BASE+67)
+$$MCIERR_WAVE_OUTPUTUNSPECIFIED = 324		'($$MCIERR_BASE+68)
+$$MCIERR_WAVE_INPUTUNSPECIFIED = 325		'($$MCIERR_BASE+69)
+$$MCIERR_WAVE_OUTPUTSUNSUITABLE = 326		'($$MCIERR_BASE+70)
+$$MCIERR_WAVE_SETOUTPUTUNSUITABLE = 327		'($$MCIERR_BASE+71)
+$$MCIERR_WAVE_INPUTSUNSUITABLE = 328		'($$MCIERR_BASE+72)
+$$MCIERR_WAVE_SETINPUTUNSUITABLE = 329		'($$MCIERR_BASE+73)
+
+$$MCIERR_SEQ_DIV_INCOMPATIBLE = 336			'($$MCIERR_BASE+80)
+$$MCIERR_SEQ_PORT_INUSE = 337				'($$MCIERR_BASE+81)
+$$MCIERR_SEQ_PORT_NONEXISTENT = 338			'($$MCIERR_BASE+82)
+$$MCIERR_SEQ_PORT_MAPNODEVICE = 339			'($$MCIERR_BASE+83)
+$$MCIERR_SEQ_PORT_MISCERROR = 340			'($$MCIERR_BASE+84)
+$$MCIERR_SEQ_TIMER = 341				'($$MCIERR_BASE+85)
+$$MCIERR_SEQ_PORTUNSPECIFIED = 342			'($$MCIERR_BASE+86)
+$$MCIERR_SEQ_NOMIDIPRESENT = 343			'($$MCIERR_BASE+87)
+
+$$MCIERR_NO_WINDOW = 346				'($$MCIERR_BASE+90)
+$$MCIERR_CREATEWINDOW = 347				'($$MCIERR_BASE+91)
+$$MCIERR_FILE_READ = 348				'($$MCIERR_BASE+92)
+$$MCIERR_FILE_WRITE = 349				'($$MCIERR_BASE+93)
+
+' All custom device driver errors must be >= this value
+$$MCIERR_CUSTOM_DRIVER_BASE = 512			'($$MCIERR_BASE+256)
+
+' Message numbers must be in the range between MCI_FIRST and MCI_LAST
+
+$$MCI_FIRST = 0x800
+' Messages 0x801 and 0x802 are reserved
+$$MCI_OPEN = 0x803
+$$MCI_CLOSE = 0x804
+$$MCI_ESCAPE = 0x805
+$$MCI_PLAY = 0x806
+$$MCI_SEEK = 0x807
+$$MCI_STOP = 0x808
+$$MCI_PAUSE = 0x809
+$$MCI_INFO = 0x80A
+$$MCI_GETDEVCAPS = 0x80B
+$$MCI_SPIN = 0x80C
+$$MCI_SET = 0x80D
+$$MCI_STEP = 0x80E
+$$MCI_RECORD = 0x80F
+$$MCI_SYSINFO = 0x810
+$$MCI_BREAK = 0x811
+$$MCI_SOUND = 0x812
+$$MCI_SAVE = 0x813
+$$MCI_STATUS = 0x814
+
+$$MCI_CUE = 0x830
+
+$$MCI_REALIZE = 0x840
+$$MCI_WINDOW = 0x841
+$$MCI_PUT = 0x842
+$$MCI_WHERE = 0x843
+$$MCI_FREEZE = 0x844
+$$MCI_UNFREEZE = 0x845
+
+$$MCI_LOAD = 0x850
+$$MCI_CUT = 0x851
+$$MCI_COPY = 0x852
+$$MCI_PASTE = 0x853
+$$MCI_UPDATE = 0x854
+$$MCI_RESUME = 0x855
+$$MCI_DELETE = 0x856
+
+$$MCI_LAST = 0xFFF
+
+' the next 0x400 message ID's are reserved for custom drivers
+' all custom MCI command messages must be >= than this value
+$$MCI_USER_MESSAGES = 0xC00			'(0x400+$$MCI_FIRST)
+$$MCI_ALL_DEVICE_ID = - 1 ' Matches all MCI devices
+
+' constants for predefined MCI device types
+$$MCI_DEVTYPE_VCR = 513
+$$MCI_DEVTYPE_VIDEODISC = 514
+$$MCI_DEVTYPE_OVERLAY = 515
+$$MCI_DEVTYPE_CD_AUDIO = 516
+$$MCI_DEVTYPE_DAT = 517
+$$MCI_DEVTYPE_SCANNER = 518
+$$MCI_DEVTYPE_ANIMATION = 519
+$$MCI_DEVTYPE_DIGITAL_VIDEO = 520
+$$MCI_DEVTYPE_OTHER = 521
+$$MCI_DEVTYPE_WAVEFORM_AUDIO = 522
+$$MCI_DEVTYPE_SEQUENCER = 523
+
+$$MCI_DEVTYPE_FIRST = 513
+$$MCI_DEVTYPE_LAST = 523
+
+$$MCI_DEVTYPE_FIRST_USER = 0x1000
+
+' return values for 'status mode' command
+$$MCI_MODE_NOT_READY = 524			'($$MCI_STRING_OFFSET+12)
+$$MCI_MODE_STOP = 525				'($$MCI_STRING_OFFSET+13)
+$$MCI_MODE_PLAY = 526				'($$MCI_STRING_OFFSET+14)
+$$MCI_MODE_RECORD = 527				'($$MCI_STRING_OFFSET+15)
+$$MCI_MODE_SEEK = 528				'($$MCI_STRING_OFFSET+16)
+$$MCI_MODE_PAUSE = 529				'($$MCI_STRING_OFFSET+17)
+$$MCI_MODE_OPEN = 530				'($$MCI_STRING_OFFSET+18)
+
+' constants used in 'set time format' and 'status time format' commands
+$$MCI_FORMAT_MILLISECONDS = 0
+$$MCI_FORMAT_HMS = 1
+$$MCI_FORMAT_MSF = 2
+$$MCI_FORMAT_FRAMES = 3
+$$MCI_FORMAT_SMPTE_24 = 4
+$$MCI_FORMAT_SMPTE_25 = 5
+$$MCI_FORMAT_SMPTE_30 = 6
+$$MCI_FORMAT_SMPTE_30DROP = 7
+$$MCI_FORMAT_BYTES = 8
+$$MCI_FORMAT_SAMPLES = 9
+$$MCI_FORMAT_TMSF = 10
+
+' Flags for wParam of the MM_MCINOTIFY message
+$$MCI_NOTIFY_SUCCESSFUL = 0x1
+$$MCI_NOTIFY_SUPERSEDED = 0x2
+$$MCI_NOTIFY_ABORTED = 0x4
+$$MCI_NOTIFY_FAILURE = 0x8
+
+' common flags for dwFlags parameter of MCI command messages
+$$MCI_NOTIFY = 0x1
+$$MCI_WAIT = 0x2
+$$MCI_FROM = 0x4
+$$MCI_TO = 0x8
+$$MCI_TRACK = 0x10
+
+' flags for dwFlags parameter of MCI_OPEN command message
+$$MCI_OPEN_SHAREABLE = 0x100
+$$MCI_OPEN_ELEMENT = 0x200
+$$MCI_OPEN_ALIAS = 0x400
+$$MCI_OPEN_ELEMENT_ID = 0x800
+$$MCI_OPEN_TYPE_ID = 0x1000
+$$MCI_OPEN_TYPE = 0x2000
+
+' flags for dwFlags parameter of MCI_SEEK command message
+$$MCI_SEEK_TO_START = 0x100
+$$MCI_SEEK_TO_END = 0x200
+
+' flags for dwFlags parameter of MCI_STATUS command message
+$$MCI_STATUS_ITEM = 0x100
+$$MCI_STATUS_START = 0x200
+
+' flags for dwItem field of the MCI_STATUS_PARMS parameter block
+$$MCI_STATUS_LENGTH = 0x1
+$$MCI_STATUS_POSITION = 0x2
+$$MCI_STATUS_NUMBER_OF_TRACKS = 0x3
+$$MCI_STATUS_MODE = 0x4
+$$MCI_STATUS_MEDIA_PRESENT = 0x5
+$$MCI_STATUS_TIME_FORMAT = 0x6
+$$MCI_STATUS_READY = 0x7
+$$MCI_STATUS_CURRENT_TRACK = 0x8
+
+' flags for dwFlags parameter of MCI_INFO command message
+$$MCI_INFO_PRODUCT = 0x100
+$$MCI_INFO_FILE = 0x200
+
+' flags for dwFlags parameter of MCI_GETDEVCAPS command message
+$$MCI_GETDEVCAPS_ITEM = 0x100
+
+' flags for dwItem field of the MCI_GETDEVCAPS_PARMS parameter block
+$$MCI_GETDEVCAPS_CAN_RECORD = 0x1
+$$MCI_GETDEVCAPS_HAS_AUDIO = 0x2
+$$MCI_GETDEVCAPS_HAS_VIDEO = 0x3
+$$MCI_GETDEVCAPS_DEVICE_TYPE = 0x4
+$$MCI_GETDEVCAPS_USES_FILES = 0x5
+$$MCI_GETDEVCAPS_COMPOUND_DEVICE = 0x6
+$$MCI_GETDEVCAPS_CAN_EJECT = 0x7
+$$MCI_GETDEVCAPS_CAN_PLAY = 0x8
+$$MCI_GETDEVCAPS_CAN_SAVE = 0x9
+
+' flags for dwFlags parameter of MCI_SYSINFO command message
+$$MCI_SYSINFO_QUANTITY = 0x100
+$$MCI_SYSINFO_OPEN = 0x200
+$$MCI_SYSINFO_NAME = 0x400
+$$MCI_SYSINFO_INSTALLNAME = 0x800
+
+' flags for dwFlags parameter of MCI_SET command message
+$$MCI_SET_DOOR_OPEN = 0x100
+$$MCI_SET_DOOR_CLOSED = 0x200
+$$MCI_SET_TIME_FORMAT = 0x400
+$$MCI_SET_AUDIO = 0x800
+$$MCI_SET_VIDEO = 0x1000
+$$MCI_SET_ON = 0x2000
+$$MCI_SET_OFF = 0x4000
+
+' flags for dwAudio field of MCI_SET_PARMS or MCI_SEQ_SET_PARMS
+$$MCI_SET_AUDIO_ALL = 0x4001
+$$MCI_SET_AUDIO_LEFT = 0x4002
+$$MCI_SET_AUDIO_RIGHT = 0x4003
+
+' flags for dwFlags parameter of MCI_BREAK command message
+$$MCI_BREAK_KEY = 0x100
+$$MCI_BREAK_HWND = 0x200
+$$MCI_BREAK_OFF = 0x400
+
+' flags for dwFlags parameter of MCI_RECORD command message
+$$MCI_RECORD_INSERT = 0x100
+$$MCI_RECORD_OVERWRITE = 0x200
+
+' flags for dwFlags parameter of MCI_SOUND command message
+$$MCI_SOUND_NAME = 0x100
+
+' flags for dwFlags parameter of MCI_SAVE command message
+$$MCI_SAVE_FILE = 0x100
+
+' flags for dwFlags parameter of MCI_LOAD command message
+$$MCI_LOAD_FILE = 0x100
+
+$$MCI_VD_MODE_PARK = 1025		'($$MCI_VD_OFFSET+1)
+
+' return ID's for videodisc MCI_GETDEVCAPS command
+
+' flag for dwReturn field of MCI_STATUS_PARMS
+' MCI_STATUS command,  (dwItem==MCI_VD_STATUS_MEDIA_TYPE)
+$$MCI_VD_MEDIA_CLV = 1026		'($$MCI_VD_OFFSET+2)
+$$MCI_VD_MEDIA_CAV = 1027		'($$MCI_VD_OFFSET+3)
+$$MCI_VD_MEDIA_OTHER = 1028		'($$MCI_VD_OFFSET+4)
+
+$$MCI_VD_FORMAT_TRACK = 0x4001
+
+' flags for dwFlags parameter of MCI_PLAY command message
+$$MCI_VD_PLAY_REVERSE = 0x10000
+$$MCI_VD_PLAY_FAST = 0x20000
+$$MCI_VD_PLAY_SPEED = 0x40000
+$$MCI_VD_PLAY_SCAN = 0x80000
+$$MCI_VD_PLAY_SLOW = 0x100000
+
+' flag for dwFlags parameter of MCI_SEEK command message
+$$MCI_VD_SEEK_REVERSE = 0x10000
+
+' flags for dwItem field of MCI_STATUS_PARMS parameter block
+$$MCI_VD_STATUS_SPEED = 0x4002
+$$MCI_VD_STATUS_FORWARD = 0x4003
+$$MCI_VD_STATUS_MEDIA_TYPE = 0x4004
+$$MCI_VD_STATUS_SIDE = 0x4005
+$$MCI_VD_STATUS_DISC_SIZE = 0x4006
+
+' flags for dwFlags parameter of MCI_GETDEVCAPS command message
+$$MCI_VD_GETDEVCAPS_CLV = 0x10000
+$$MCI_VD_GETDEVCAPS_CAV = 0x20000
+
+$$MCI_VD_SPIN_UP = 0x10000
+$$MCI_VD_SPIN_DOWN = 0x20000
+
+' flags for dwItem field of MCI_GETDEVCAPS_PARMS parameter block
+$$MCI_VD_GETDEVCAPS_CAN_REVERSE = 0x4002
+$$MCI_VD_GETDEVCAPS_FAST_RATE = 0x4003
+$$MCI_VD_GETDEVCAPS_SLOW_RATE = 0x4004
+$$MCI_VD_GETDEVCAPS_NORMAL_RATE = 0x4005
+
+' flags for the dwFlags parameter of MCI_STEP command message
+$$MCI_VD_STEP_FRAMES = 0x10000
+$$MCI_VD_STEP_REVERSE = 0x20000
+
+' flag for the MCI_ESCAPE command message
+$$MCI_VD_ESCAPE_STRING = 0x100
+
+$$MCI_WAVE_PCM = 1152			'($$MCI_WAVE_OFFSET+0)
+$$MCI_WAVE_MAPPER = 1153		'($$MCI_WAVE_OFFSET+1)
+
+' flags for the dwFlags parameter of MCI_OPEN command message
+$$MCI_WAVE_OPEN_BUFFER = 0x10000
+
+' flags for the dwFlags parameter of MCI_SET command message
+$$MCI_WAVE_SET_FORMATTAG = 0x10000
+$$MCI_WAVE_SET_CHANNELS = 0x20000
+$$MCI_WAVE_SET_SAMPLESPERSEC = 0x40000
+$$MCI_WAVE_SET_AVGBYTESPERSEC = 0x80000
+$$MCI_WAVE_SET_BLOCKALIGN = 0x100000
+$$MCI_WAVE_SET_BITSPERSAMPLE = 0x200000
+
+' flags for the dwFlags parameter of MCI_STATUS,  MCI_SET command messages
+$$MCI_WAVE_INPUT = 0x400000
+$$MCI_WAVE_OUTPUT = 0x800000
+
+' flags for the dwItem field of MCI_STATUS_PARMS parameter block
+$$MCI_WAVE_STATUS_FORMATTAG = 0x4001
+$$MCI_WAVE_STATUS_CHANNELS = 0x4002
+$$MCI_WAVE_STATUS_SAMPLESPERSEC = 0x4003
+$$MCI_WAVE_STATUS_AVGBYTESPERSEC = 0x4004
+$$MCI_WAVE_STATUS_BLOCKALIGN = 0x4005
+$$MCI_WAVE_STATUS_BITSPERSAMPLE = 0x4006
+$$MCI_WAVE_STATUS_LEVEL = 0x4007
+
+' flags for the dwFlags parameter of MCI_SET command message
+$$MCI_WAVE_SET_ANYINPUT = 0x4000000
+$$MCI_WAVE_SET_ANYOUTPUT = 0x8000000
+
+' flags for the dwFlags parameter of MCI_GETDEVCAPS command message
+$$MCI_WAVE_GETDEVCAPS_INPUTS = 0x4001
+$$MCI_WAVE_GETDEVCAPS_OUTPUTS = 0x4002
+
+' flags for the dwReturn field of MCI_STATUS_PARMS parameter block
+' MCI_STATUS command,  (dwItem==MCI_SEQ_STATUS_DIVTYPE)
+$$MCI_SEQ_DIV_PPQN = 1216		'(0+$$MCI_SEQ_OFFSET)
+$$MCI_SEQ_DIV_SMPTE_24 = 1217		'(1+$$MCI_SEQ_OFFSET)
+$$MCI_SEQ_DIV_SMPTE_25 = 1218		'(2+$$MCI_SEQ_OFFSET)
+$$MCI_SEQ_DIV_SMPTE_30DROP = 1219	'(3+$$MCI_SEQ_OFFSET)
+$$MCI_SEQ_DIV_SMPTE_30 = 1220		'(4+$$MCI_SEQ_OFFSET)
+
+' flags for the dwMaster field of MCI_SEQ_SET_PARMS parameter block
+' MCI_SET command,  (dwFlags==MCI_SEQ_SET_MASTER)
+$$MCI_SEQ_FORMAT_SONGPTR = 0x4001
+$$MCI_SEQ_FILE = 0x4002
+$$MCI_SEQ_MIDI = 0x4003
+$$MCI_SEQ_SMPTE = 0x4004
+$$MCI_SEQ_NONE = 65533
+
+$$MCI_SEQ_MAPPER = 65535
+
+' flags for the dwItem field of MCI_STATUS_PARMS parameter block
+$$MCI_SEQ_STATUS_TEMPO = 0x4002
+$$MCI_SEQ_STATUS_PORT = 0x4003
+$$MCI_SEQ_STATUS_SLAVE = 0x4007
+$$MCI_SEQ_STATUS_MASTER = 0x4008
+$$MCI_SEQ_STATUS_OFFSET = 0x4009
+$$MCI_SEQ_STATUS_DIVTYPE = 0x400A
+
+' flags for the dwFlags parameter of MCI_SET command message
+$$MCI_SEQ_SET_TEMPO = 0x10000
+$$MCI_SEQ_SET_PORT = 0x20000
+$$MCI_SEQ_SET_SLAVE = 0x40000
+$$MCI_SEQ_SET_MASTER = 0x80000
+$$MCI_SEQ_SET_OFFSET = 0x1000000
+
+' flags for dwFlags parameter of MCI_OPEN command message
+$$MCI_ANIM_OPEN_WS = 0x10000
+$$MCI_ANIM_OPEN_PARENT = 0x20000
+$$MCI_ANIM_OPEN_NOSTATIC = 0x40000
+
+' flags for dwFlags parameter of MCI_PLAY command message
+$$MCI_ANIM_PLAY_SPEED = 0x10000
+$$MCI_ANIM_PLAY_REVERSE = 0x20000
+$$MCI_ANIM_PLAY_FAST = 0x40000
+$$MCI_ANIM_PLAY_SLOW = 0x80000
+$$MCI_ANIM_PLAY_SCAN = 0x100000
+
+' flags for dwFlags parameter of MCI_STEP command message
+$$MCI_ANIM_STEP_REVERSE = 0x10000
+$$MCI_ANIM_STEP_FRAMES = 0x20000
+
+' flags for dwItem field of MCI_STATUS_PARMS parameter block
+$$MCI_ANIM_STATUS_SPEED = 0x4001
+$$MCI_ANIM_STATUS_FORWARD = 0x4002
+$$MCI_ANIM_STATUS_HWND = 0x4003
+$$MCI_ANIM_STATUS_HPAL = 0x4004
+$$MCI_ANIM_STATUS_STRETCH = 0x4005
+
+' flags for the dwFlags parameter of MCI_INFO command message
+$$MCI_ANIM_INFO_TEXT = 0x10000
+
+' flags for dwItem field of MCI_GETDEVCAPS_PARMS parameter block
+$$MCI_ANIM_GETDEVCAPS_CAN_REVERSE = 0x4001
+$$MCI_ANIM_GETDEVCAPS_FAST_RATE = 0x4002
+$$MCI_ANIM_GETDEVCAPS_SLOW_RATE = 0x4003
+$$MCI_ANIM_GETDEVCAPS_NORMAL_RATE = 0x4004
+$$MCI_ANIM_GETDEVCAPS_PALETTES = 0x4006
+$$MCI_ANIM_GETDEVCAPS_CAN_STRETCH = 0x4007
+$$MCI_ANIM_GETDEVCAPS_MAX_WINDOWS = 0x4008
+
+' flags for the MCI_REALIZE command message
+$$MCI_ANIM_REALIZE_NORM = 0x10000
+$$MCI_ANIM_REALIZE_BKGD = 0x20000
+
+' flags for dwFlags parameter of MCI_WINDOW command message
+$$MCI_ANIM_WINDOW_HWND = 0x10000
+$$MCI_ANIM_WINDOW_STATE = 0x40000
+$$MCI_ANIM_WINDOW_TEXT = 0x80000
+$$MCI_ANIM_WINDOW_ENABLE_STRETCH = 0x100000
+$$MCI_ANIM_WINDOW_DISABLE_STRETCH = 0x200000
+
+' flags for hWnd field of MCI_ANIM_WINDOW_PARMS parameter block
+' MCI_WINDOW command message,  (dwFlags==MCI_ANIM_WINDOW_HWND)
+$$MCI_ANIM_WINDOW_DEFAULT = 0x0
+
+' flags for dwFlags parameter of MCI_PUT command message
+$$MCI_ANIM_RECT = 0x10000
+$$MCI_ANIM_PUT_SOURCE = 0x20000   ' also MCI_WHERE
+$$MCI_ANIM_PUT_DESTINATION = 0x40000   ' also MCI_WHERE
+
+' flags for dwFlags parameter of MCI_WHERE command message
+$$MCI_ANIM_WHERE_SOURCE = 0x20000
+$$MCI_ANIM_WHERE_DESTINATION = 0x40000
+
+' flags for dwFlags parameter of MCI_UPDATE command message
+$$MCI_ANIM_UPDATE_HDC = 0x20000
+
+' flags for dwFlags parameter of MCI_OPEN command message
+$$MCI_OVLY_OPEN_WS = 0x10000
+$$MCI_OVLY_OPEN_PARENT = 0x20000
+
+' flags for dwFlags parameter of MCI_STATUS command message
+$$MCI_OVLY_STATUS_HWND = 0x4001
+$$MCI_OVLY_STATUS_STRETCH = 0x4002
+
+' flags for dwFlags parameter of MCI_INFO command message
+$$MCI_OVLY_INFO_TEXT = 0x10000
+
+' flags for dwItem field of MCI_GETDEVCAPS_PARMS parameter block
+$$MCI_OVLY_GETDEVCAPS_CAN_STRETCH = 0x4001
+$$MCI_OVLY_GETDEVCAPS_CAN_FREEZE = 0x4002
+$$MCI_OVLY_GETDEVCAPS_MAX_WINDOWS = 0x4003
+
+' flags for dwFlags parameter of MCI_WINDOW command message
+$$MCI_OVLY_WINDOW_HWND = 0x10000
+$$MCI_OVLY_WINDOW_STATE = 0x40000
+$$MCI_OVLY_WINDOW_TEXT = 0x80000
+$$MCI_OVLY_WINDOW_ENABLE_STRETCH = 0x100000
+$$MCI_OVLY_WINDOW_DISABLE_STRETCH = 0x200000
+
+' flags for hWnd parameter of MCI_OVLY_WINDOW_PARMS parameter block
+$$MCI_OVLY_WINDOW_DEFAULT = 0x0
+
+' flags for dwFlags parameter of MCI_PUT command message
+$$MCI_OVLY_RECT = 0x10000
+$$MCI_OVLY_PUT_SOURCE = 0x20000
+$$MCI_OVLY_PUT_DESTINATION = 0x40000
+$$MCI_OVLY_PUT_FRAME = 0x80000
+$$MCI_OVLY_PUT_VIDEO = 0x100000
+
+' flags for dwFlags parameter of MCI_WHERE command message
+$$MCI_OVLY_WHERE_SOURCE = 0x20000
+$$MCI_OVLY_WHERE_DESTINATION = 0x40000
+$$MCI_OVLY_WHERE_FRAME = 0x80000
+$$MCI_OVLY_WHERE_VIDEO = 0x100000
+
+' device ID for aux device mapper
+$$AUX_MAPPER = -1
+
+
+
+
+
+

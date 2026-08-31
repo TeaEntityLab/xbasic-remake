@@ -1,0 +1,298 @@
+'
+'
+' ############################
+' #####  SolidColors ()  #####
+' ############################
+'
+FUNCTION  SolidColors (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+  STATIC  designX,  designY,  designWidth,  designHeight
+  STATIC  SUBADDR  sub[]
+  STATIC  upperMessage
+  STATIC  SolidColors
+'
+  $SolidColors   =   0  ' kid   0 grid type = SolidColors
+  $Black         =   1  ' kid   1 grid type = XuiLabel
+  $Blue          =   2  ' kid   2 grid type = XuiLabel
+  $LightBlue     =   3  ' kid   3 grid type = XuiLabel
+  $Green         =   4  ' kid   4 grid type = XuiLabel
+  $Cyan          =   5  ' kid   5 grid type = XuiLabel
+  $LightGreen    =   6  ' kid   6 grid type = XuiLabel
+  $LightCyan     =   7  ' kid   7 grid type = XuiLabel
+  $Red           =   8  ' kid   8 grid type = XuiLabel
+  $Magenta       =   9  ' kid   9 grid type = XuiLabel
+  $Brown         =  10  ' kid  10 grid type = XuiLabel
+  $Grey          =  11  ' kid  11 grid type = XuiLabel
+  $BrightGrey    =  12  ' kid  12 grid type = XuiLabel
+  $LightRed      =  13  ' kid  13 grid type = XuiLabel
+  $LightMagenta  =  14  ' kid  14 grid type = XuiLabel
+  $Yellow        =  15  ' kid  15 grid type = XuiLabel
+  $White         =  16  ' kid  16 grid type = XuiLabel
+  $Line1         =  17  ' kid  17 grid type = XuiLabel
+  $Line2         =  18  ' kid  18 grid type = XuiLabel
+  $Line3         =  19  ' kid  19 grid type = XuiLabel
+  $Line4         =  20  ' kid  20 grid type = XuiLabel
+  $Line5         =  21  ' kid  21 grid type = XuiLabel
+  $Line6         =  22  ' kid  22 grid type = XuiLabel
+  $Line7         =  23  ' kid  23 grid type = XuiLabel
+  $Line8         =  24  ' kid  24 grid type = XuiLabel
+  $Quit          =  25  ' kid  25 grid type = XuiPushButton
+  $UpperKid      =  25  ' kid maximum
+'
+'
+  IFZ sub[] THEN GOSUB Initialize
+' XuiReportMessage (grid, message, v0, v1, v2, v3, r0, r1)
+  IF XuiProcessMessage (grid, message, @v0, @v1, @v2, @v3, @r0, @r1, SolidColors) THEN RETURN
+  IF (message <= upperMessage) THEN GOSUB @sub[message]
+  RETURN
+'
+'
+' *****  Callback  *****  message = Callback : r1 = original message
+'
+SUB Callback
+  message = r1
+  callback = message
+  IF (message <= upperMessage) THEN GOSUB @sub[message]
+END SUB
+'
+'
+' *****  Create  *****  v0123 = xywh : r0 = window : r1 = parent
+'
+SUB Create
+  IF (v0 <= 0) THEN v0 = 0
+  IF (v1 <= 0) THEN v1 = 0
+  IF (v2 <= 0) THEN v2 = designWidth
+  IF (v3 <= 0) THEN v3 = designHeight
+  XuiCreateGrid  (@grid, SolidColors, @v0, @v1, @v2, @v3, r0, r1, &SolidColors())
+  XuiSendMessage ( grid, #SetGridName, 0, 0, 0, 0, 0, @"SolidColors")
+  XuiSendMessage ( grid, #SetAlign, $$AlignMiddleCenter, 0, -1, -1, 0, 0)
+  XuiLabel       (@g, #Create, 4, 4, 144, 68, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Black")
+  XuiSendMessage ( g, #SetColor, $$Black, $$White, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$Black\n\n(drawing)\n(lowlight)\n(lowtext)")
+  XuiLabel       (@g, #Create, 148, 4, 144, 68, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Blue")
+  XuiSendMessage ( g, #SetColor, $$Blue, $$White, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$Blue\n$$MediumBlue")
+  XuiLabel       (@g, #Create, 292, 4, 144, 68, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LightBlue")
+  XuiSendMessage ( g, #SetColor, $$LightBlue, $$White, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$LightBlue")
+  XuiLabel       (@g, #Create, 436, 4, 144, 68, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Green")
+  XuiSendMessage ( g, #SetColor, $$Green, $$White, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$Green\n$$MediumGreen")
+  XuiLabel       (@g, #Create, 4, 72, 144, 68, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Cyan")
+  XuiSendMessage ( g, #SetColor, $$Cyan, $$White, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$Cyan\n$$MediumCyan\n\n(dull)")
+  XuiLabel       (@g, #Create, 148, 72, 144, 68, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LightGreen")
+  XuiSendMessage ( g, #SetColor, $$LightGreen, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$LightGreen")
+  XuiLabel       (@g, #Create, 292, 72, 144, 68, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LightCyan")
+  XuiSendMessage ( g, #SetColor, $$LightCyan, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$LightCyan")
+  XuiLabel       (@g, #Create, 436, 72, 144, 68, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Red")
+  XuiSendMessage ( g, #SetColor, $$Red, $$White, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$Red\n$$MediumRed")
+  XuiLabel       (@g, #Create, 4, 140, 144, 68, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Magenta")
+  XuiSendMessage ( g, #SetColor, $$Magenta, $$White, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$Magenta\n$$MediumMagenta")
+  XuiLabel       (@g, #Create, 148, 140, 144, 68, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Brown")
+  XuiSendMessage ( g, #SetColor, $$Brown, $$White, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$Brown\n$$MediumBrown")
+  XuiLabel       (@g, #Create, 292, 140, 144, 68, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Grey")
+  XuiSendMessage ( g, #SetColor, $$Grey, $$White, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$Grey\n$$MediumGrey")
+  XuiLabel       (@g, #Create, 436, 140, 144, 68, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"BrightGrey")
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$BrightGrey\n\n(background)")
+  XuiLabel       (@g, #Create, 4, 208, 144, 64, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LightRed")
+  XuiSendMessage ( g, #SetColor, $$LightRed, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$LightRed")
+  XuiLabel       (@g, #Create, 148, 208, 144, 64, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"LightMagenta")
+  XuiSendMessage ( g, #SetColor, $$LightMagenta, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$LightMagenta")
+  XuiLabel       (@g, #Create, 292, 208, 144, 64, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Yellow")
+  XuiSendMessage ( g, #SetColor, 120, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$Yellow\n\n(accent)")
+  XuiLabel       (@g, #Create, 436, 208, 144, 64, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"White")
+  XuiSendMessage ( g, #SetColor, $$White, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"$$White\n\n(highlight)\n(hightext)")
+  XuiLabel       (@g, #Create, 4, 272, 576, 16, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Line1")
+  XuiSendMessage ( g, #SetColor, $$Black, $$Black, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"The colors above are almost always \"solid\" colors on most systems")
+  XuiLabel       (@g, #Create, 4, 288, 576, 16, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Line2")
+  XuiSendMessage ( g, #SetColor, $$Black, $$LightGreen, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Default colors (shown in parentheses) are usually solid colors")
+  XuiLabel       (@g, #Create, 4, 304, 576, 16, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Line3")
+  XuiSendMessage ( g, #SetColor, $$Black, $$LightCyan, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"IMPORT \"xgr\" defines these color name constants for programs")
+  XuiLabel       (@g, #Create, 4, 320, 576, 16, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Line4")
+  XuiSendMessage ( g, #SetColor, $$Black, $$LightRed, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Video card/monitor combinations display colors differently")
+  XuiLabel       (@g, #Create, 4, 336, 576, 16, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Line5")
+  XuiSendMessage ( g, #SetColor, $$Black, 120, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Most distributed programs should contain only these colors")
+  XuiLabel       (@g, #Create, 4, 352, 576, 16, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Line6")
+  XuiSendMessage ( g, #SetColor, $$Black, $$White, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Most distributed programs should alter few if any colors")
+  XuiLabel       (@g, #Create, 4, 368, 576, 16, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Line7")
+  XuiSendMessage ( g, #SetColor, $$Black, $$LightGreen, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"Text grid background colors should always be solid")
+  XuiLabel       (@g, #Create, 4, 384, 576, 16, r0, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Line8")
+  XuiSendMessage ( g, #SetColor, $$Black, $$LightCyan, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderNone, $$BorderNone, $$BorderNone, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureFlat, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"3D effect colors should rarely be altered")
+  XuiPushButton  (@g, #Create, 4, 400, 576, 48, r0, grid)
+  XuiSendMessage ( g, #SetCallback, grid, &SolidColors(), -1, -1, $Quit, grid)
+  XuiSendMessage ( g, #SetGridName, 0, 0, 0, 0, 0, @"Quit")
+  XuiSendMessage ( g, #SetColor, 76, $$LightCyan, $$Black, $$White, 0, 0)
+  XuiSendMessage ( g, #SetColorExtra, $$Grey, $$Yellow, $$Black, $$LightCyan, 0, 0)
+  XuiSendMessage ( g, #SetBorder, $$BorderRaise4, $$BorderRaise4, $$BorderLower2, -1, 0, 0)
+  XuiSendMessage ( g, #SetTexture, $$TextureRaise1, 0, 0, 0, 0, 0)
+  XuiSendMessage ( g, #SetTextString, 0, 0, 0, 0, 0, @"some non-solid colors like this are okay backgrounds\n***  PRESS THIS BUTTON TO QUIT  ***")
+  GOSUB Resize
+END SUB
+'
+'
+' *****  CreateWindow  *****  v0123 = xywh : r0 = windowType : r1$ = display$
+'
+SUB CreateWindow
+  IF (v0  = 0) THEN v0 = designX
+  IF (v1  = 0) THEN v1 = designY
+  IF (v2 <= 0) THEN v2 = designWidth
+  IF (v3 <= 0) THEN v3 = designHeight
+  XuiWindow (@window, #WindowCreate, v0, v1, v2, v3, r0, @r1$)
+  v0 = 0 : v1 = 0 : r0 = window : ATTACH r1$ TO display$
+  GOSUB Create
+	r1 = 0 : ATTACH display$ TO r1$
+  XuiWindow (window, #WindowRegister, grid, -1, v2, v3, @r0, @"SolidColors")
+END SUB
+'
+'
+' *****  GetSmallestSize  *****  See "Anatomy of Grid Functions"
+'
+SUB GetSmallestSize
+END SUB
+'
+'
+' *****  Resize  *****  See "Anatomy of Grid Functions"
+'
+SUB Resize
+END SUB
+'
+'
+' *****  Selection  *****  See "Anatomy of Grid Functions"
+'
+SUB Selection
+END SUB
+'
+'
+' *****  Initialize  *****  ' see "Anatomy of Grid Functions"
+'
+SUB Initialize
+  XuiGetDefaultMessageFuncArray (@func[])
+  XgrMessageNameToNumber (@"LastMessage", @upperMessage)
+'
+  func[#Callback]           = &XuiCallback ()               ' disable to handle Callback messages internally
+' func[#GetSmallestSize]    = 0                             ' enable to add internal GetSmallestSize routine
+' func[#Resize]             = 0                             ' enable to add internal Resize routine
+'
+  DIM sub[upperMessage]
+' sub[#Callback]            = SUBADDRESS (Callback)         ' enable to handle Callback messages internally
+  sub[#Create]              = SUBADDRESS (Create)           ' must be internal routine
+  sub[#CreateWindow]        = SUBADDRESS (CreateWindow)     ' must be internal routine
+' sub[#GetSmallestSize]     = SUBADDRESS (GetSmallestSize)  ' enable to add internal GetSmallestSize routine
+' sub[#Resize]              = SUBADDRESS (Resize)           ' enable to add internal Resize routine
+  sub[#Selection]           = SUBADDRESS (Selection)        ' routes Selection callbacks to subroutine
+'
+  IF sub[0] THEN PRINT "SolidColors(): Initialize: Error::: (Undefined Message)"
+  IF func[0] THEN PRINT "SolidColors(): Initialize: Error::: (Undefined Message)"
+  XuiRegisterGridType (@SolidColors, "SolidColors", &SolidColors(), @func[], @sub[])
+'
+' Don't remove the following 4 lines, or WindowFromFunction/WindowToFunction will not work
+'
+  designX = 436
+  designY = 23
+  designWidth = 584
+  designHeight = 452
+'
+  gridType = SolidColors
+  XuiSetGridTypeValue (gridType, @"x",                designX)
+  XuiSetGridTypeValue (gridType, @"y",                designY)
+  XuiSetGridTypeValue (gridType, @"width",            designWidth)
+  XuiSetGridTypeValue (gridType, @"height",           designHeight)
+  XuiSetGridTypeValue (gridType, @"maxWidth",         designWidth)
+  XuiSetGridTypeValue (gridType, @"maxHeight",        designHeight)
+  XuiSetGridTypeValue (gridType, @"minWidth",         designWidth)
+  XuiSetGridTypeValue (gridType, @"minHeight",        designHeight)
+  XuiSetGridTypeValue (gridType, @"border",           $$BorderFrame)
+  XuiSetGridTypeValue (gridType, @"can",              $$Focus OR $$Respond OR $$Callback)
+  XuiSetGridTypeValue (gridType, @"focusKid",         $Quit)
+  IFZ message THEN RETURN
+END SUB
+END FUNCTION

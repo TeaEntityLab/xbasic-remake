@@ -1,0 +1,204 @@
+'
+'
+' ##########################  Max Reason
+' #####  README.Linux  #####  Copyright 1988-2000
+' ##########################  Linux XBasic introduction
+'
+' http://www.xbasic.org
+' http://groups.yahoo.com/group/xbasic
+' MaxReason@MaxReason.com
+'
+'
+' #####  introduction  #####
+'
+' XBasic is a integrated software development environment
+' including an advanced compiler, edit/run/debug environment,
+' and interactive GuiDesigner.  Windows XBasic and Linux XBasic
+' are compatible implementations - even applications containing
+' extensive graphics and GUI functionality will run unmodified
+' on both operating systems without any source-code changes.
+'
+' XBasic is "open-source freeware".  The XBasic compiler and
+' edit/run/debug environment are subject to the GPL license
+' reproduced in file COPYING included in this distribution.
+' The general purpose XBasic function libraries are subject
+' to the LGPL license reproduced in file COPYING_LIB included
+' in this distribution.  All sample programs included with
+' this distribution are public-domain unless otherwise
+' specified in the sample program itself.
+'
+' Which license that applies each file is specified near
+' the top of the file.
+'
+'
+' #####  install XBasic  #####
+'
+' XBasic is a 64-bit program and requires 64-bit libraries and
+' development packages that will assemble and link 64-bit programs.
+'
+' Check for the following software packages,
+' On 64-bit Linux distributions:
+' make
+' gcc
+' libX11-dev
+'
+' On 64-bit Linux distributions:
+'
+' Applications > Utilities > Terminal
+' su
+' (password)
+'
+'
+' make
+' gcc-multilib
+' libX11-dev
+'
+'
+' You must follow the installation instructions exactly,
+' or XBasic will not work properly, if at all.
+'
+' - Installing from xbasic-$(VERSION)-linux64-src-yymmdd.tar.gz
+'   (note: replace $(VERSION) with the correct version number
+'   and yymmdd with the correct numbers for the year month day)
+'
+'   1. You can use the file manager to extract the files or
+'      start an xterm window, then enter the following:
+'      tar -xvf xbasic-$(VERSION)-linux64-src-yymmdd.tar.gz
+'
+'   2. The following must be done in an xterm window.
+'      Go to the directory that the files were extrated to'
+'      (xbasic-$(VERSION)) and then enter:
+'      make
+'      sudo make install
+'
+'
+' All files are installed in the /usr/xb64-$(VERSION) directory
+' and subdirectories of /usr/xb-$(VERSION) except a symbolic link
+' to the XBasic executable which is installed
+' /usr/bin/xb64 -> /usr/xb64-$(VERSION)/bin/xb64
+'
+' Using a seperate directory per project is
+' strongly encouraged.
+'
+'
+' #####  run XBasic  #####
+'
+' To run XBasic, simply enter "xb64" on an xterm command line.
+' Better yet, put a link to /usr/bin/xb on your desktop.
+' Thereafter start XBasic by double-clicking the icon.
+'
+' The first time you run XBasic, select "help+new" and
+' "help+notes" in the main window menu-bar and read them.
+'
+'
+' #####  documentation  #####
+'
+' The old XBasic documentation was in Microsoft Word format.
+' The new XBasic documentation is in HTML format, and will
+' henceforth be enhanced and improved by XBasic programmers.
+' See http://www.maxreason.com/software/xbasic/xbasic.html
+' for links to the HTML documentation that you can view
+' online and/or download into your computer.
+'
+' XBasic has an extensive library of functions
+' that can be quickly found by using the:
+'    main menu > Help > Help Index
+'    main menu > Help > Help Index Find
+'
+'
+' #####  build XBasic  #####
+'
+'
+' "make" builds a new XBasic executable.  By default, "make"
+' finds instructions in the file called "makefile", and is
+' equivalent to "make -f makefile".  A more secure way to
+'
+' The files necessary to rebuild XBasic include (at least):
+'
+'  xcm.x       ' complex number function library
+'  xcol.x      ' XBasic compiler
+'  xdis.x      ' 32-bit i486+ disassembler
+'  xgr.x       ' graphics function library
+'  xin.x       ' sockets/network/internet library
+'  xit.x       ' integrated development environment
+'  xma.x       ' mathematics function library
+'  xrun.x      ' standalone executable support
+'  xst.x       ' standard function library
+'  xui.x       ' GuiDesigner function library
+'
+'  appstart.s  ' standalone executable support
+'  xlib.s      ' core/startup assembly library
+'  xstart.s    ' standalone executable support
+'              ' many files in xxx subdirectory
+'
+'
+' You can run, modify, debug "xma.x", "xcm.x", "xui.x"
+' and possibly "xin.x" in the development environment.
+' You can do the same with "xcol.x" if you do what is
+' specified near the top of that source-file, but be
+' careful not to forget changing those /xxx/ fields
+' or you will have endless and unexplainable troubles!
+'
+' You need to understand what ##WHOMASK and ##LOCKOUT
+' are for before you start adding or modifying XBasic.
+' Hint: ##WHOMASK self-implements a crude "two-thread"
+' scheme that distinguishes memory allocated for the
+' development environment from programs running in it.
+' And ##LOCKOUT prevents signal being processed inside
+' signals where that might cause problems.
+'
+'
+' #####  build executables  #####
+'
+' To build a standalone executables from applications
+' you already debugged in the development environment,
+' do the following (assume your program is "prog.x").
+'
+' 1.  Start an xterm window, then enter:
+'     cd <source directory>
+'     xb prog.x
+'     make prog.mak
+' 2.  To execute your application, enter:
+'     ./prog
+'
+' An Alternate method to build and run executables
+' is to run the following commands from the main menu:
+'    main menu > Run > Assembler
+'    main menu > Run > Make Standalone
+'    main menu > Run > Execute Standalone
+'
+'
+'
+'
+' ##############################
+' #####  Compiling XBasic  #####
+' ##############################
+'
+' To be able to compile XBasic itself you need the following things
+' - A working XBasic compiler (note: XBasic is largely written in XBasic
+'   itself)
+'
+' To compile XBasic64:
+' - unpack the sources into a separate directory (from the XBasic binary
+'   directory)
+' - Goto that directory
+' - make
+' To install XBasic64 you must be root user.
+' - su
+' - sudo make install
+' To run XBasic64 from a terminal type: "xb64"
+'
+' #####  status  #####
+'
+' This is the first release of XBasic in open-source.
+' The documentation included to support development
+' of the source-code is minimal at present.  Join the
+' XBasic mail-list forum for receive and provide help.
+' Browse to http://groups.yahoo.com/group/xbasic .
+'
+'
+' #####  always  #####
+'
+' I hope you enjoy XBasic.
+'
+'

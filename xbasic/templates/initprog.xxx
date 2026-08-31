@@ -1,0 +1,16 @@
+INTERNAL FUNCTION  InitProgram   ()
+'
+'
+' ############################
+' #####  InitProgram ()  #####
+' ############################
+'
+' Add code to this function to initialize anything your program needs
+' to initialize before CreateWindows() creates your programs windows.
+' For initialization after CreateWindows(), add code to InitWindows().
+'
+' Do not delete this function, leave it empty if not needed.
+'
+FUNCTION  InitProgram ()
+
+END FUNCTION

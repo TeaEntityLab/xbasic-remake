@@ -118,7 +118,7 @@ fn cgen_matches_interpreter_on_curated_demos() {
 
     let mut failures = Vec::new();
     for (stem, feature) in DEMOS {
-        let src_path = root.join(format!("xbasic-6.4.5/demo/{stem}.x"));
+        let src_path = root.join(format!("xbasic/demo/{stem}.x"));
         let source = fs::read_to_string(&src_path)
             .unwrap_or_else(|e| panic!("read {}: {e}", src_path.display()));
         let interp = interp_output_allow_quit(&source);
@@ -769,7 +769,7 @@ END FUNCTION
 #[test]
 fn cgen_composite_member_array_read_compiles_kernel32() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let src = fs::read_to_string(root.join("xbasic-6.4.5/src/linux/kernel32.x"))
+    let src = fs::read_to_string(root.join("xbasic/lib/kernel32.x"))
         .expect("read kernel32.x");
     let prog = FrontendUnit::parse(&src)
         .expect("parse kernel32")

@@ -1,0 +1,16 @@
+DECLARE FUNCTION  Entry ()
+'
+'
+' ######################
+' #####  Entry ()  #####
+' ######################
+'
+' Programs contain:
+'   1. A PROLOG with type/function/constant declarations.
+'   2. This Entry() function where execution begins.
+'   3. Zero or more additional functions.
+'
+FUNCTION  Entry ()
+
+
+END FUNCTION

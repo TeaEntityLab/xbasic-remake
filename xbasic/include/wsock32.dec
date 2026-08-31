@@ -1,0 +1,429 @@
+'
+' ####################
+' #####  PROLOG  #####
+' ####################
+'
+PROGRAM	"wsock32"
+VERSION	"0.0000"
+'
+TYPE CSTRING      = XLONG
+TYPE IN_ADDR      = XLONG
+'
+TYPE WSADATA
+	USHORT     .wVersion
+	USHORT     .wHighVersion
+	STRING*257 .szDescription
+	STRING*129 .szSystemStatus
+	USHORT     .iMaxSockets
+	USHORT     .iMaxUdpDg
+	XLONG      .lpVendorInfo
+END TYPE
+'
+TYPE FD_SET
+	XLONG      .fd_count			' how many are set
+	XLONG      .fd_array[63]	' up to 64 sockets
+END TYPE
+'
+TYPE TIMEVAL
+	XLONG      .tv_sec
+	XLONG      .tv_usec
+END TYPE
+'
+TYPE SOCKADDR
+	USHORT     .sa_family
+	UBYTE      .sa_data[13]
+END TYPE
+'
+TYPE SOCKPROTO
+	USHORT     .sp_family			' address family
+	USHORT     .sp_protocol		' protocol
+END TYPE
+'
+TYPE SOCKADDR_IN
+	SSHORT     .sin_family
+	USHORT     .sin_port
+	IN_ADDR    .sin_addr
+	UBYTE      .sin_zero[7]
+END TYPE
+'
+TYPE IP_MREQ
+	IN_ADDR    .imr_multiaddr
+	IN_ADDR    .imr_interface
+END TYPE
+'
+TYPE LINGER
+	USHORT     .l_onoff				' XLONG in linux ???
+	USHORT     .l_linger			' XLONG in linux ???
+END TYPE
+'
+TYPE HOSTENT
+	XLONG      .h_name        ' char  *h_name
+	XLONG      .h_aliases     ' char  **h_aliases
+	SSHORT     .h_addrtype    ' host address type		' XLONG in linux ???
+	SSHORT     .h_length      ' length of address		' XLONG in linux ???
+	XLONG      .h_addr_list   ' addr of list of addresses from name server
+END TYPE
+'
+TYPE NETENT
+	XLONG      .n_name        ' char  *n_name
+	XLONG      .n_aliases     ' char  **n_aliases
+	SSHORT     .n_addrtype    ' net address type		' XLONG in linux ???
+	XLONG      .n_net         ' network
+END TYPE
+'
+TYPE PROTOENT
+	XLONG      .p_name        ' char  *p_name
+	XLONG      .p_aliases     ' char  **p_aliases
+	SSHORT     .p_proto       ' protocol number			' XLONG in linux ???
+END TYPE
+'
+TYPE RPENT
+	XLONG      .r_name        ' char  *r_name
+	XLONG      .r_aliases     ' char  **r_aliases
+	SSHORT      .r_number     ' rpc program number	' XLONG in linux ???
+END TYPE
+'
+TYPE SERVENT
+	XLONG      .s_name        ' char  *s_name
+	XLONG      .s_aliases     ' char  **s_aliases
+	SSHORT     .s_port        ' port number					' XLONG in linux ???
+	XLONG      .s_proto       ' protocol number
+END TYPE
+'
+' win32 "sockets" funtions - does not include WSA functions
+'
+EXTERNAL SFUNCTION  accept           (socket, addrSOCKADDR, addrLength)
+EXTERNAL SFUNCTION  bind             (socket, addrSOCKADDR, length)
+EXTERNAL SFUNCTION  closesocket      (socket)
+EXTERNAL SFUNCTION  connect          (socket, addrSOCKADDR, length)
+EXTERNAL SFUNCTION  getpeername      (socket, addrSOCKADDR, addrLength)
+EXTERNAL SFUNCTION  getsockname      (socket, addrSOCKADDR, addrLength)
+EXTERNAL SFUNCTION  getsockopt       (socket, level, optname, addrSTRING, addrLength)
+EXTERNAL SFUNCTION  htonl            (hostlong)
+EXTERNAL SFUNCTION  htons            (hostshort)
+EXTERNAL SFUNCTION  inet_addr        (addrSTRING)
+EXTERNAL SFUNCTION  inet_ntoa        (in_addr)
+EXTERNAL SFUNCTION  ioctlsocket      (socket, command, addrArg)
+EXTERNAL SFUNCTION  listen           (socket, backlog)
+EXTERNAL SFUNCTION  ntohl            (netlong)
+EXTERNAL SFUNCTION  ntohs            (netshort)
+EXTERNAL SFUNCTION  recv             (socket, addrBuffer, length, flags)
+EXTERNAL SFUNCTION  recvfrom         (socket, addrBuffer, length, flags, addrSOCKADDR, addrLength)
+EXTERNAL SFUNCTION  select           (numfd, addrFD_SET, addrFD_SET, addrFD_SET, addrTIMEVAL)
+EXTERNAL SFUNCTION  send             (socket, addrMessage, length, flags)
+EXTERNAL SFUNCTION  sendto           (socket, addrMessage, length, flags, addrSOCKADDR, tolength)
+EXTERNAL SFUNCTION  setsockopt       (socket, level, optname, addrOptval, optlen)
+EXTERNAL SFUNCTION  shutdown         (socket, how)
+EXTERNAL SFUNCTION  socket           (domain, type, protocol)
+'
+' "database" funtions
+'
+EXTERNAL SFUNCTION  HOSTENT   gethostbyaddr    (addrSTRING, length, type)
+EXTERNAL SFUNCTION  HOSTENT   gethostbyname    (addrSTRING)
+EXTERNAL SFUNCTION            gethostname      (addrSTRING, length)
+EXTERNAL SFUNCTION  SERVENT   getservbyname    (addrSTRING, addrSTRING)
+EXTERNAL SFUNCTION  SERVENT   getservbyport    (port, addrSTRING)
+EXTERNAL SFUNCTION  PROTOENT  getprotobyname   (addrSTRING)
+EXTERNAL SFUNCTION  PROTOENT  getprotobynumber (proto)
+'
+' win32 sockets - required functions
+'
+EXTERNAL SFUNCTION  WSAStartup       (version, addrWSADATA)
+EXTERNAL SFUNCTION  WSACleanup       ()
+EXTERNAL SFUNCTION  WSAGetLastError  ()
+'
+' *****  winsock constants Win32 from winsock.h  *****
+'
+' these constants are often different from the unix/linux values
+'
+' for ioctlsocket()
+'
+	$$IOC_PARM_MASK      = 0x0000007F
+	$$IOC_VOID           = 0x20000000
+	$$IOC_OUT            = 0x40000000
+	$$IOC_INOUT          = 0x60000000
+'
+' for ioctlsocket() - figured out from above with "formula" in winsock.h
+'
+	$$FIONREAD           = 0x4004667F
+	$$FIONBIO            = 0x8004667E
+	$$FIOASYNC           = 0x8004667D
+'
+' protocols
+'
+	$$IPPROTO_IP         =    0
+	$$IPPROTO_ICMP       =    1
+	$$IPPROTO_GGP        =    2
+	$$IPPROTO_TCP        =    6
+	$$IPPROTO_PUP        =   12
+	$$IPPROTO_UDP        =   17
+	$$IPPROTO_IDP        =   22
+	$$IPPROTO_ND         =   77
+	$$IPPROTO_RAW        =  255
+	$$IPPROTO_MAX        =  256
+'
+' port / sockets for network standard functions
+'
+	$$IPPORT_ECHO        =    7
+	$$IPPORT_DISCARD     =    9
+	$$IPPORT_SYSTAT      =   11
+	$$IPPORT_DAYTIME     =   13
+	$$IPPORT_NETSTAT     =   15
+	$$IPPORT_FTP         =   21
+	$$IPPORT_TELNET      =   23
+	$$IPPORT_SMTP        =   25
+	$$IPPORT_TIMESERVER  =   37
+	$$IPPORT_NAMESERVER  =   42
+	$$IPPORT_WHOIS       =   43
+	$$IPPORT_MTP         =   57
+'
+' sockets for host specific functions
+'
+	$$IPPORT_TFTP        =   69
+	$$IPPORT_RJE         =   77
+	$$IPPORT_FINGER      =   79
+	$$IPPORT_TTYLINK     =   87
+	$$IPPORT_SUPDUP      =   95
+'
+' UNIX TCP sockets
+'
+	$$IPPORT_EXECSERVER  =  512
+	$$IPPORT_LOGINSERVER =  513
+	$$IPPORT_CMDSERVER   =  514
+	$$IPPORT_EFSSERVER   =  520
+'
+' UNIX UDP sockets
+'
+	$$IPPORT_BIFFUDP     =  512
+	$$IPPORT_WHOSERVER   =  513
+	$$IPPORT_ROUTESERVER =  520
+	$$IPPORT_ROUTEEXTRA  =  521
+	$$IPPORT_RESERVED    = 1024
+'
+' link numbers
+'
+	$$IMPLINK_IP         =  155
+	$$IMPLINK_LOWEXPER   =  156
+	$$IMPLINK_HIGHEXPER  =  158
+'
+' internet address integers
+'
+' CLASS A = 0x00000000 to 0x7F000000
+'
+	$$IN_CLASSA_NET      = 0xFF000000
+	$$IN_CLASSA_NSHIFT   = 24
+	$$IN_CLASSA_HOST     = 0x00FFFFFF
+	$$IN_CLASSA_MAX      = 128
+'
+' CLASS B = 0x80000000 to 0xBF000000
+'
+	$$IN_CLASSB_NET      = 0xFFFF0000
+	$$IN_CLASSB_NSHIFT   = 16
+	$$IN_CLASSB_HOST     = 0x0000FFFF
+	$$IN_CLASSB_MAX      = 65536
+'
+' CLASS C = 0xC0000000 to 0x0DFFFFFF
+'
+	$$IN_CLASSC_NET      = 0xFFFFFF00
+	$$IN_CLASSC_NSHIFT   = 8
+	$$IN_CLASSC_HOST     = 0x000000FF
+'
+	$$INADDR_ANY         = 0x00000000
+	$$INADDR_LOOPBACK    = 0x7F000001
+	$$INADDR_BROADCAST   = 0xFFFFFFFF
+	$$INADDR_NONE        = 0xFFFFFFFF
+'
+' IP options - for getsockopt() and setsockopt() at the IP level
+'
+	$$IP_OPTIONS         = 1
+	$$IP_MULTICAST_IF    = 2
+	$$IP_MULTICAST_TTL   = 3
+	$$IP_MULTICAST_LOOP  = 4
+	$$IP_ADD_MEMBERSHIP  = 5
+	$$IP_DROP_MEMBERSHIP = 6
+'
+	$$IP_DEFAULT_MULTICAST_TTL  = 1
+	$$IP_DEFAULT_MULTICAST_LOOP = 1
+	$$IP_MAX_MEMBERSHIPS        = 20
+'
+' socket types
+'
+	$$SOCK_STREAM        = 1
+	$$SOCK_DGRAM         = 2
+	$$SOCK_RAW           = 3
+	$$SOCK_RDM           = 4
+	$$SOCK_SEQPACKET     = 5
+'
+' option flags per socket
+'
+	$$SO_DEBUG           = 0x0001
+	$$SO_ACCEPTCONN      = 0x0002
+	$$SO_REUSEADDR       = 0x0004
+	$$SO_KEEPALIVE       = 0x0008
+	$$SO_DONTROUTE       = 0x0010
+	$$SO_BROADCAST       = 0x0020
+	$$SO_USELOOPBACK     = 0x0040
+	$$SO_LINGER          = 0x0080
+	$$SO_OOBINLINE       = 0x0100
+'
+' additional options
+'
+	$$SO_SNDBUF          = 0x1001
+	$$SO_RCVBUF          = 0x1002
+	$$SO_SNDLOWAT        = 0x1003
+	$$SO_RCVLOWAT        = 0x1004
+	$$SO_SNDTIMEO        = 0x1005
+	$$SO_RCVTIMEO        = 0x1006
+	$$SO_ERROR           = 0x1007
+	$$SO_TYPE            = 0x1008
+'
+' options for connect and disconnect data and options - non-TCP transports
+'
+	$$SO_CONNDATE        = 0x7000
+	$$SO_CONNOPT         = 0x7001
+	$$SO_DISCDATA        = 0x7002
+	$$SO_DISCOPT         = 0x7003
+	$$SO_CONNDATALEN     = 0x7004
+	$$SO_CONNOPTLEN      = 0x7005
+	$$SO_DISCDATALEN     = 0x7006
+	$$SO_DISCOPTLEN      = 0x7007
+'
+' options for opening sockets for synchronous access
+'
+	$$SO_OPENTYPE             = 0x7008
+	$$SO_SYNCHRONOUS_ALERT    = 0x0010
+	$$SO_SYNCHRONOUS_NONALERT = 0x0020
+'
+' other WindowsNT specific options
+'
+	$$SO_MAXDG           = 0x7009
+	$$SO_MAXPATHDB       = 0x700A
+'
+' TCP options
+'
+	$$TCP_NODELAY        = 0x0001
+	$$TCP_BSDURGENT      = 0x7000
+'
+' address families
+'
+	$$AF_UNSPEC          =  0
+	$$AF_UNIX            =  1
+	$$AF_INET            =  2
+	$$AF_IMPLINK         =  3
+	$$AF_PUP             =  4
+	$$AF_CHAOS           =  5
+	$$AF_IPX             =  6
+	$$AF_NS              =  6
+	$$AF_ISO             =  7
+	$$AF_OSI             =  7
+	$$AF_ECMA            =  8
+	$$AF_DATAKIT         =  9
+	$$AF_CCITT           = 10
+	$$AF_SNA             = 11
+	$$AF_DECNET          = 12
+	$$AF_DLI             = 13
+	$$AF_LAT             = 14
+	$$AF_HYLINK          = 15
+	$$AF_APPLETALK       = 16
+	$$AF_NETBIOS         = 17
+	$$AF_MAX             = 18
+'
+' protocol families
+'
+	$$PF_UNSPEC          = $$AF_UNSPEC
+	$$PF_UNIX            = $$AF_UNIX
+	$$PF_INET            = $$AF_INET
+	$$PF_IMPLINK         = $$AF_IMPLINK
+	$$PF_PUP             = $$AF_PUP
+	$$PF_CHAOS           = $$AF_CHAOS
+	$$PF_IPX             = $$AF_IPX      '$$AP_IPX
+	$$PF_NS              = $$AF_NS       '$$AP_NS
+	$$PF_ISO             = $$AF_ISO      '$$AP_ISO
+	$$PF_OSI             = $$AF_OSI      '$$AP_OSI
+	$$PF_ECMA            = $$AF_ECMA     '$$AP_ECMA
+	$$PF_DATAKIT         = $$AF_DATAKIT  '$$AP_DATAKIT
+	$$PF_CCITT           = $$AF_CCITT
+	$$PF_SNA             = $$AF_SNA
+	$$PF_DECNET          = $$AF_DECNET
+	$$PF_DLI             = $$AF_DLI
+	$$PF_LAT             = $$AF_LAT
+	$$PF_HYLINK          = $$AF_HYLINK
+	$$PF_APPLETALK       = $$AF_APPLETALK
+	$$PF_NETBIOS         = $$AF_NETBIOS
+	$$PF_MAX             = $$AF_MAX
+'
+' getsocketoptions() : setsockoptions()
+'
+	$$SOL_SOCKET         = 0xFFFF
+'
+' max queue length that listen can specify
+'
+	$$SOMAXCONN          = 5
+'
+' flags for send() and recv()
+'
+	$$MSG_OOB            = 0x0001
+	$$MSG_PEEK           = 0x0002
+	$$MSG_DONTROUTE      = 0x0004
+	$$MSG_PARTIAL        = 0x8000
+'
+	$$MSG_MAXIOVLEN      = 16
+	$$MAXGETHOSTSTRUCT   = 1024
+'
+' Win32 sockets error numbers
+'
+	$$WSABASEERR             = 10000
+	$$WSAEINTR               = 10004
+	$$WSAEBADF               = 10009
+	$$WSAEACCES              = 10013
+	$$WSAEFAULT              = 10014
+	$$WSAEINVAL              = 10022
+	$$WSAEMFILE              = 10024
+	$$WSAEWOULDBLOCK         = 10035
+	$$WSAEINPROGRESS         = 10036
+	$$WSAEALREADY            = 10037  '*cw* 160807-+
+	$$WSAENOTSOCK            = 10038
+	$$WSAEDESTADDRREQ        = 10039
+	$$WSAEMSGSIZE            = 10040
+	$$WSAEPROTOTYPE          = 10041
+	$$WSAENOPROTOOPT         = 10042
+	$$WSAEPROTONOSUPPORT     = 10043
+	$$WSAESOCKTNOSUPPORT     = 10044
+	$$WSAEOPNOTSUPP          = 10045
+	$$WSAEPFNOSUPPORT        = 10046
+	$$WSAEAFNOSUPPORT        = 10047
+	$$WSAEADDRINUSE          = 10048
+	$$WSAEADDRNOTAVAIL       = 10049
+	$$WSAENETDOWN            = 10050
+	$$WSAENETUNREACH         = 10051
+	$$WSAENETRESET           = 10052
+	$$WSAECONNABORTED        = 10053
+	$$WSAECONNRESET          = 10054
+	$$WSAENOBUFS             = 10055
+	$$WSAEISCONN             = 10056
+	$$WSAENOTCONN            = 10057
+	$$WSAESHUTDOWN           = 10058
+	$$WSAETOOMANYREFS        = 10059
+	$$WSAETIMEDOUT           = 10060
+	$$WSAECONNREFUSED        = 10061
+	$$WSAELOOP               = 10062
+	$$WSAENAMETOOLONG        = 10063
+	$$WSAEHOSTDOWN           = 10064
+	$$WSAEHOSTUNREACH        = 10065
+	$$WSAENOTEMPTY           = 10066
+	$$WSAEPROCLIM            = 10067
+	$$WSAEUSERS              = 10068
+	$$WSAEDQUOT              = 10069
+	$$WSAESTALE              = 10070
+	$$WSAEREMOTE             = 10071
+	$$WSAESYSNOTREADY        = 10091
+	$$WSAEVERNOTSUPPORTED    = 10092
+	$$WSAENOTINITILISED      = 10093
+	$$WSAENOTINITILIZED      = 10093
+	$$WSAEDISCON             = 10101
+'
+	$$WSAHOST_NOT_FOUND      = 11001
+	$$WSATRY_AGAIN           = 11002
+	$$WSANO_RECOVERY         = 11003
+	$$WSANO_DATA             = 11004
+	$$WSANO_ADDRESS          = 11004

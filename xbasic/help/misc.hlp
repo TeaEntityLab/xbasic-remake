@@ -1,0 +1,870 @@
+:XstFindMemoryMatch()
+##################################
+#####  XstFindMemoryMatch()  #####
+##################################
+
+	addrMinMatch = XstFindMemoryMatch (@addrStart, addrPast, addrMatch, @minMatchLength, maxMatchLength)
+	
+	input
+	@addrStart      = address of memory to search - first byte
+	addrPast        = address of memory to search - last byte plus one
+	addrMatch       = address of string to search for - first byte
+	@minMatchLength = minimum number of bytes that must match
+	maxMatchLength  = maximum number of bytes that may match (length of match string)
+	
+	output
+	@addrStart      = address of memory to search - first byte that matched
+	addrPast        = unchanged
+	addrMatch       = unchanged
+	@minMatchLength = number of characters that matched
+	maxMatchLength  = unchanged
+	addrMinMatch    = zero if no-minimum match or address of first byte that matched
+	
+	
+	EXTERNAL FUNCTION  XstFindMemoryMatch (addrStart, addrPast, addrString, minMatchLength, maxMatchLength)
+	
+:XstStringToNumber()
+#################################
+#####  XstStringToNumber()  #####
+#################################
+
+	specType = XstStringToNumber (@value$, start, @after, @rtype, @value$$)
+	
+	Convert all or part of a string into a number of natural data type.
+	
+	  specType   = explicit type  ( or -1 for numeric format error )
+	  start      = starting offset in value$  ( not modified )
+	  after      = returned with offset after last numeric character
+	  rtype      = returned with "natural data type" of value
+	  value$$    = returned with value of number in rtype format
+	
+	XstStringToNumber() converts all or part of value$ into a numeric
+	value.  It returns the numeric value in value$$, its natural type
+	in rtype, and any explicit type in specType.  value$ can be
+	passed by reference for faster execution.
+	
+	XstStringToNumber() scans value$ from offset startOff, skips
+	leading whitespace and unprintable characters, then converts
+	subsequent characters into a number.
+	
+	If the first of the subsequent characters cannot begin a valid
+	number, XstStringToNumber() returns specType=-1, rtype=0, and
+	the offset of the bad character in afterOff.
+	
+	XstStringToNumber() collects characters until it encounters one
+	that is not a valid part of a number.  It returns the offset of
+	this character in afterOff, the natural type of the number in
+	rtype, and the value of the number in value$$.
+	
+	value$$ is a GIANT number, but the numeric value stored in
+	value$$ is not in GIANT format unless rtype=$$GIANT.
+	
+	rtype is always SLONG, XLONG, GIANT, SINGLE, or DOUBLE.
+	The final return value can be extracted from value$$ as follows:
+	
+	SELECT CASE rtype
+	  CASE $$SLONG  : value  = GLOW(value$$)
+	  CASE $$XLONG  : value  = value$$
+	  CASE $$SINGLE : value! = SMAKE(GLOW(value$$))
+	  CASE $$DOUBLE : value# = DMAKE(GHIGH(value$$), GLOW(value$$))
+	END SELECT
+	
+	If specType=-1, rtype!=0, an rtype was returned in value$$,
+	but the format is suspect.  Examples include:
+	
+	0s7F8033jk         ' 8 hex digits required after "0s"
+	0d3FED0000000 hi   ' 16 hex digits required after "0d"
+	12.34d+8243        ' larger than largest number representable
+	
+	If specType = SLONG, XLONG, GIANT, SINGLE, or DOUBLE, then
+	rtype=specType, and the type was specified in the number.
+	Examples of specified numeric types include:
+	
+	0b1010010010111       ' XLONG:  "0b" that fits in 32-bits
+	0b1010...010111       ' XLONG:  "0b" that won't fit in 32-bits
+	0o361032723           ' XLONG:  "0o" that fits in 32-bits
+	0o7373315631277       ' XLONG:  "0o" that won't fit in 32-bits
+	0x12345678            ' XLONG:  "0x" followed by 0-8 hex digits
+	0x123456789AB         ' GIANT:  "0x" followed by 9+ hex digits
+	0s3F800000            ' SINGLE: "0s" followed by 8 hex digits
+	0d3FE0000000000000    ' DOUBLE: "0d" followed by 16 hex digits
+	
+:Angles
+:Degrees
+:Radians
+#####################
+#####  Angles   #####
+#####  Degrees  #####
+#####  Radians  #####
+#####################
+Angles are always radians, for both arguments and return values.
+	
+	To convert degrees to radians, multiply by $$DEGTORAD.
+	To convert radians to degrees, multiply by $$RADTODEG.
+	
+		degrees# = 45
+		radians# = degrees# * $$DEGTORAD
+		tan#     =  TAN(radians#)         ' tan# = 1
+		rad#     = ATAN(tan#)
+		deg#     = rad# * $$RADTODEG      ' deg# = 45
+	
+	See: Math Function Library, Complex Number Function Library
+	
+:Math Function Library
+###################################
+#####  Math Function Library  #####
+###################################
+
+	IMPORT  "xma"
+	
+	Angles are always radians.
+	
+		radian# = 30 * $$DEGTORAD
+	
+		sin# = SIN(radian#)      'sine
+		cos# = COS(radian#)      'cosine
+		tan# = TAN(radian#)      'tangent
+		cot# = COT(radian#)      'cotangent
+		sec# = SEC(radian#)      'secant
+		csc# = CSC(radian#)      'cosecant
+	
+		radian# = ASIN(sin#)     'arc-sine
+		radian# = ACOS(cos#)     'arc-cosine
+		radian# = ATAN(tan#)     'arc-tangent
+		radian# = ACOT(cot#)     'arc-cotangent
+		radian# = ASEC(sec#)     'arc-secant
+		radian# = ACSC(csc#)     'arc-cosecant
+	
+		sinh# = SINH(radian#)    'hyperbolic sine
+		cosh# = COSH(radian#)    'hyperbolic cosine
+		tanh# = TANH(radian#)    'hyperbolic tangent
+		coth# = COTH(radian#)    'hyperbolic cotangent
+		sech# = SECH(radian#)    'hyperbolic secant
+		csch# = CSCH(radian#)    'hyperbolic cosecant
+	
+		radian# = ASINH(sinh#)   'hyperbolic arc-sine
+		radian# = ACOSH(cosh#)   'hyperbolic arc-cosine
+		radian# = ATANH(tanh#)   'hyperbolic arc-tangent
+		radian# = ACOTH(coth#)   'hyperbolic arc-cotangent
+		radian# = ASECH(sech#)   'hyperbolic arc-secant
+		radian# = ACSCH(csch#)   'hyperbolic arc-cosecant
+	
+		degrees# = radian# * $$RADTODEG
+	
+		log#    = LOG(number#)   'base e logarithm (natural log)
+		log10#  = LOG10(number#) 'base 10 logarithm
+		number# = EXP(log#)      'base e "anti-log"  (e to the x)
+		number# = EXP10(log10#)  'base 10 "anti-log"  (10 to the x)
+		sqrt#   = SQRT(number#)  'square root
+		number# = sqrt# * sqrt#
+		number# = POWER(2, 16)   'power  (x to the y) ' number# = 65536
+	
+	See: Radians, Complex Number Function Library
+	
+:Complex Number Function Library
+#############################################
+#####  Complex Number Function Library  #####
+#############################################
+
+	IMPORT  "xcm"
+	
+	Angles are always radians.
+	
+	Complex Number Library Functions
+	
+	SINGLE   = SCABS       (SCOMPLEX z)
+	SCOMPLEX = SCACOS      (SCOMPLEX z)
+	SINGLE   = SCARG       (SCOMPLEX z)
+	SCOMPLEX = SCASIN      (SCOMPLEX z)
+	SCOMPLEX = SCATAN      (SCOMPLEX z)
+	SCOMPLEX = SCCONJ      (SCOMPLEX z)
+	SCOMPLEX = SCCOS       (SCOMPLEX z)
+	SCOMPLEX = SCCOSH      (SCOMPLEX z)
+	SCOMPLEX = SCEXP       (SCOMPLEX z)
+	SCOMPLEX = SCLOG       (SCOMPLEX z)
+	SCOMPLEX = SCLOG10     (SCOMPLEX z)
+	SINGLE   = SCNORM      (SCOMPLEX z)
+	SCOMPLEX = SCPOLAR     (SINGLE magnitude, SINGLE angle)
+	SCOMPLEX = SCPOWERCC   (SCOMPLEX z, SCOMPLEX n)
+	SCOMPLEX = SCPOWERCR   (SCOMPLEX z, SINGLE n)
+	SCOMPLEX = SCPOWERRC   (SINGLE z, SCOMPLEX n)
+	SCOMPLEX = SCRMUL      (SCOMPLEX x, SINGLE y)
+	SCOMPLEX = SCSIN       (SCOMPLEX z)
+	SCOMPLEX = SCSINH      (SCOMPLEX z)
+	SCOMPLEX = SCSQRT      (SCOMPLEX z)
+	SCOMPLEX = SCTAN       (SCOMPLEX z)
+	SCOMPLEX = SCTANH      (SCOMPLEX z)
+	
+	DOUBLE   = DCABS       (DCOMPLEX z)
+	DCOMPLEX = DCACOS      (DCOMPLEX z)
+	DOUBLE   = DCARG       (DCOMPLEX z)
+	DCOMPLEX = DCASIN      (DCOMPLEX z)
+	DCOMPLEX = DCATAN      (DCOMPLEX z)
+	DCOMPLEX = DCCONJ      (DCOMPLEX z)
+	DCOMPLEX = DCCOS       (DCOMPLEX z)
+	DCOMPLEX = DCCOSH      (DCOMPLEX z)
+	DCOMPLEX = DCEXP       (DCOMPLEX z)
+	DCOMPLEX = DCLOG       (DCOMPLEX z)
+	DCOMPLEX = DCLOG10     (DCOMPLEX z)
+	DOUBLE   = DCNORM      (DCOMPLEX z)
+	DCOMPLEX = DCPOLAR     (DOUBLE magnitude, DOUBLE angle)
+	DCOMPLEX = DCPOWERCC   (DCOMPLEX z, DCOMPLEX n)
+	DCOMPLEX = DCPOWERCR   (DCOMPLEX z, DOUBLE n)
+	DCOMPLEX = DCPOWERRC   (DOUBLE z, DCOMPLEX n)
+	DCOMPLEX = DCRMUL      (DCOMPLEX x, DOUBLE y)
+	DCOMPLEX = DCSIN       (DCOMPLEX z)
+	DCOMPLEX = DCSINH      (DCOMPLEX z)
+	DCOMPLEX = DCSQRT      (DCOMPLEX z)
+	DCOMPLEX = DCTAN       (DCOMPLEX z)
+	DCOMPLEX = DCTANH      (DCOMPLEX z)
+	
+	See: Radians, Math Function Library
+	
+:SINGLE Image
+##########################
+#####  SINGLE Image  #####
+##########################
+
+	Single image literals begin with 0s and are followed by
+	8 hexadecimal digits. Single image literals are images
+	of 32-bit SINGLE data type in 4-bit chunks. Exactly 8
+	hex digits must follow the 0s prefix. Any fewer will
+	result in an erroneous value, while hex digits beyond 8
+	are not included in the single image value.
+	
+	0s40800000  4.00000
+	0s40400000  3.00000
+	0s40000000  2.00000
+	0s3F800000  1.00000
+	0s3F400000  0.75000
+	0s3F000000  0.50000
+	0s3E800000  0.25000
+	0s3E000000  0.12500
+	
+:DOUBLE Image
+##########################
+#####  DOUBLE Image  #####
+##########################
+
+	Double image literals begin with 0d and are followed by
+	16 hexadecimal digits. Double image literals are images
+	of 64-bit DOUBLE data type in 4-bit chunks. Exactly 16
+	hex digits must follow the 0d prefix. Any fewer will
+	result in an erroneous value, while hex digits beyond 16
+	are not included in the double image value.
+	
+	0d4010000000000000  4.00000
+	0d4008000000000000  3.00000
+	0d4000000000000000  2.00000
+	0d3FF0000000000000  1.00000
+	0d3FFE800000000000  0.75000
+	0d3FE0000000000000  0.50000
+	0d3FD0000000000000  0.25000
+	0d3FC0000000000000  0.12500
+	
+:Symbolic Links
+:Environment Variables
+###################################
+#####  Symbolic Links         #####
+#####  Environment Variables  #####
+###################################
+
+	All XBasic files are installed in the /usr/xb
+	directory and the subdirectories of /usr/xb
+	
+	There should be these symbolic links:
+	
+	/usr/lib/libxb.a -> /usr/xb/lib/libxb.a
+	/usr/bin/xb -> /usr/xb/bin/xb
+	
+	And these environment variables:
+	
+	XBDIR="/usr/xb"
+	LIB="/usr/X11R6/lib:/usr/xb/lib"
+	INCLUDE="/usr/xb/include"
+	INSTDIR="/usr/xb"
+	
+	XBASICBACKUPDIR see notes for "Load Backup" to set this environment variable
+	
+:Standalone Program
+:Assembler,                      main menu > Run
+:make Standalone,                main menu > Run
+:Execute Standalone,             main menu > Run
+#############################################################
+#####  Standalone Program                               #####
+#####  Assembler,                      main menu > Run  #####
+#####  make Standalone,                main menu > Run  #####
+#####  Execute Standalone,             main menu > Run  #####
+#############################################################
+
+	' Suppose you have a program called "hello.x"
+	' that you want to be a standalone executable.
+	
+	File > Open          'select "hello.x"
+	Run > Assembler
+	Run > make Standalone
+	Run > Execute Standalone
+	
+	Previous to Xbasic-6.3.13 "make Standalone" and "Execute Standalone"
+	were not available and the following procedure was needed:
+	
+	'	Start a terminal session
+	'	Go to the directory with the hello.x file
+	'	There should be a files "hello.s" and "hello.mak"
+	
+	make -f hello.mak
+	'	gcc -c -g -ggdb hello.s -o hello.o
+	' cc -g -Wall -ggdb hello.o  -rdynamic -L/usr/X11R6/lib -lxb -lX11 -ldl -o hello
+	
+	./hello
+	
+	Note:
+	By default, standalone programs do not have a console window,
+	and console output will be to the the terminal window.
+	To have a console requires XstDisplayConsole() at the start
+	of the program. And it would probably be a good idea to have
+	an INLINE$(prompt$) command just before the program exits,
+	so that you have a chance to read what is on the console,
+	then press the Enter key before it disappears.
+	
+	See: XstGetApplicationEnvironment()
+	
+:Keyboard shortcuts
+:Shortcut Keys
+:Function Keys (F1-F12)
+####################################
+#####  Keyboard shortcuts      #####
+#####  Shortcut Keys           #####
+#####  Function Keys (F1-F12)  #####
+####################################
+
+	Insert         - toggles between Insert and Overlay mode
+	Ctrl + Insert  - copy selected text into buffer
+	Shift + Insert - paste buffered in place of selected text or at cursor position
+	Ctrl + Shift + Insert - duplicates (copy and paste)
+	
+	Ctrl + X  - cut selected textinto buffer
+	Ctrl + C  - copy selected text into buffer
+	Ctrl + V  - paste buffered in place of selected text or at cursor position
+	
+	--------------------------------------------------------------------------
+	
+	The following cursor movement keys will extend the text selection
+	if the Shift key is held down at the same time:
+	
+	LeftArrow         - left one character
+	RightArrow        - right one character
+	DownArrow         - down one line
+	UpArrow           - up one line
+	
+	Ctrl + LeftArrow  - left to beginning of word
+	Ctrl + RightArrow - right to beginning of word
+	Ctrl + DownArrow  - bottom of page
+	Ctrl + UpArrow    - top of page
+	
+	Home              - start of line
+	End               - end   of line
+	Ctrl + Home       - start of text
+	Ctrl + End        - end   of text
+	
+	--------------------------------------------------------------------------
+	
+	F1 : start program execution from beginning
+	F2 : continue program execution after pause
+	F3 : pause program execution now
+	F4 : kill program execution : continue not possible
+	F5 : execute program with breakpoint a cursor line
+	F6 : execute single-step local - step over called functions
+	F7 : execute single-step global - step into called functions
+	F8 : display variables - view and change variables
+	F9 : display function call-stack
+	F10 : display assembly language for cursor line
+	F11 : find string in program or text-file
+	F12 : replace string in program or text-file
+	
+:stop compile on error,          main menu > Options > Misc
+########################################################################
+#####  stop compile on error,          main menu > Options > Misc  #####
+########################################################################
+
+	If this option is checked in Options -> Misc,
+	compiling of a program will stop at the completion
+	of the function in which the error or errors occurred.
+	Only the errors for that function will be displayed.
+	All the errors in that function must be cleared before
+	it will compile any further.
+	
+:Breakpoint Trace On,            main menu > Debug
+:Breakpoint Trace Off,           main menu > Debug
+###############################################################
+#####  Breakpoint Trace On,            main menu > Debug  #####
+#####  Breakpoint Trace Off,           main menu > Debug  #####
+###############################################################
+
+	If Breakpoint Trace is On, each time the program hits a breakpoint
+	the frame, line number and function name is printed on the console
+	along with the instruction at that location.
+	
+	If the variables window is being displayed, any variable that has
+	changed value since the previous breakpoint, is printed on the
+	console plus the (previous value) in parentheses.
+	The variable is also highlighted in the variables. If more than one
+	variable has changed value, only the first variable is highlighted.
+	
+:About,                          main menu > Help
+##############################################################
+#####  About,                          main menu > Help  #####
+##############################################################
+
+	Information about XBasic, the founder and documentation.
+	
+:Change Log,                     main menu > Help
+##############################################################
+#####  Change Log,                     main menu > Help  #####
+##############################################################
+
+	Displays the file changelog.hlp which has a list of fixes and modifications
+	to XBasic for each version of XBasic with the latest version first.
+	
+:Clear Errors,                   main menu > Status
+################################################################
+#####  Clear Errors,                   main menu > Status  #####
+################################################################
+
+	Removes the display of compiler errors.
+	
+:Complex Number Library (Xcm),   main menu > Help
+##############################################################
+#####  Complex Number Library (Xcm),   main menu > Help  #####
+##############################################################
+
+	Shows the Complex Number library xcm.dec file
+	containing all the complex mathematical function
+	declarations and constants
+	
+:Copy,                           main menu > Edit
+##############################################################
+#####  Copy,                           main menu > Edit  #####
+##############################################################
+
+	Copy selected text to the clipboard.
+	
+	Ctrl+C also does a Copy to clipboard.
+	
+:Copy Extra,                     main menu > Edit
+##############################################################
+#####  Copy Extra,                     main menu > Edit  #####
+##############################################################
+
+	Copy selected text to the extra (second) clipboard.
+	
+:CuT,                            main menu > Edit
+##############################################################
+#####  CuT,                            main menu > Edit  #####
+##############################################################
+
+	Delete selected text but put a copy in the clipboard.
+	
+	Ctrl+X also does a cut.
+	
+:Delete Extra,                   main menu > Edit
+##############################################################
+#####  Delete Extra,                   main menu > Edit  #####
+##############################################################
+
+	Delete selected text but put a copy in the extra (second) clipboard.
+	
+:Dot Command,                    main menu > Help
+##############################################################
+#####  Dot Command,                    main menu > Help  #####
+##############################################################
+
+	Displays the help window with all the commands
+	that can be used in the command line area.
+	
+:EditPopupWindow
+#############################
+#####  EditPopupWindow  #####
+#############################
+
+	The EditPopupWindow will be displayed when the right mouse button is pressed
+	when the mouse cursor is over an "XuiTextArea" or "XuiTextLine" type of grid.
+	The EditPopupWindow will be displayed so that the "copy" command is under the
+	mouse cursor. Normally, the window is hidden when a command is selected. But,
+	if the "Shift" key is help down, the window will remain dislayed so that you
+	may repeat a command several times without having to make it display again.
+	
+	To hide the EditPopupWindow without doing any of the commands,
+	right click anywhere within the window, or press the "Esc" key.
+	
+	An "XuiTextArea" type grid will display these commands:
+	
+	  Cut
+	  Copy
+	  Paste
+	  Copy Line
+	  Duplicate Line
+	  Cut Line
+	
+	An "XuiTextLine" type grid will display these choices:
+	
+	  Cut
+	  Copy
+	  Paste
+	  Copy Line
+	  Cut Line
+	
+	The "Console" and "instant help" windows will display these choices:
+	
+	  Copy
+	  Copy Line
+	
+:Erase,                          main menu > Edit
+##############################################################
+#####  Erase,                          main menu > Edit  #####
+##############################################################
+
+	Delete selected text, but does not put a cop in the clipboard.
+	
+	This can also be done be pressing the "Delete" key.
+	
+:Erase Local Breakpoints,        main menu > Debug
+###############################################################
+#####  Erase Local Breakpoints,        main menu > Debug  #####
+###############################################################
+
+	Clear the breakpoint in the current function being edited
+	
+:Erase Output,                   main menu > Run
+#############################################################
+#####  Erase Output,                   main menu > Run  #####
+#############################################################
+
+	Clears the console screen
+	
+	See: XstClearConsole()
+	
+:Exit,                           main menu > File
+##############################################################
+#####  Exit,                           main menu > File  #####
+##############################################################
+
+	Close all windows and quit XBasic.
+	
+	If a user program is running, a warning message window
+	will ask if it should stop program execution.
+	
+	If a user program has been modified and not save, a
+	warning message will ask if the program should be saved.
+	
+	When XBasic exits normally, the filename, function and cursor position
+	of the program being edited is saved in file .xbrc as well as the size
+	and position of numerous windows. If there is an exception on exit,
+	.xbrc is not written to ensure that it will not be curruped.
+	
+	
+:Graphics Library  (Xgr),        main menu > Help
+##############################################################
+#####  Graphics Library  (Xgr),        main menu > Help  #####
+##############################################################
+
+	Displays the contents of the file "xgr.dec" file
+	with all the graphics functions and constants.
+	
+	To use these functions in your program,
+	you need the following in the PROLOG:
+	
+	IMPORT "xgr"
+	
+:GuiDesigner Library (Xui),      main menu > Help
+##############################################################
+#####  GuiDesigner Library (Xui),      main menu > Help  #####
+##############################################################
+
+	Displays the contents of the file "xui.dec" file
+	with all the graphics user interface functions and constants.
+	
+	To use these functions in your program,
+	you need the following in the PROLOG:
+	
+	IMPORT "xui"
+	
+:Help Index,                     main menu > Help
+##############################################################
+#####  Help Index,                     main menu > Help  #####
+##############################################################
+
+	Displays the Help Index, a list of all the XBasic
+	functions, commands, messages etc. in alpabetical order.
+	
+	You can scroll down the list to the item of interest or
+	type the item in the text line, the list will move as being
+	typed to match.
+	
+	If there is selected text at the time the Help Index
+	window is displayed, it will go to the matching location.
+	
+	The help information for any item can be displayed by
+	double clicking on that item or, if the item of interest
+	is highlighted, pressing the enter.
+	
+:Help Index Find,                main menu > Help
+##############################################################
+#####  Help Index Find,                main menu > Help  #####
+##############################################################
+
+	Displays the Help Index, a list of all the XBasic
+	functions, commands, messages etc. in alpabetical order.
+	
+	Typing text in the text line will reduce the size of the list
+	to only items of the index that contain a matching string.
+	
+	The help information for any item can be displayed by
+	double clicking on that item or, if the item of interest
+	is highlighted, pressing the enter.
+	
+:Jump,                           main menu > Run
+#############################################################
+#####  Jump,                           main menu > Run  #####
+#############################################################
+
+	The program must be the paused status for this to work.
+	Make the active cursor line the line that has the instruction
+	you wish to execute next.
+	Then select Run > Jump
+	The ">" should appear at the beginning of that line.
+	Then, when you do a single-step or continue, execution
+	will begin at that point.
+	
+	Stop user program execution
+	
+:Language,                       main menu > Help
+##############################################################
+#####  Language,                       main menu > Help  #####
+##############################################################
+
+	An alphabetical list of XBasic intrinsic functions,
+	statemnts ane mathematical functions.
+	
+:Library,                        main menu > Run
+#############################################################
+#####  Library,                        main menu > Run  #####
+#############################################################
+
+	Compiles the user program as a library
+	
+:Load Function,                  main menu > View
+##############################################################
+#####  Load Function,                  main menu > View  #####
+##############################################################
+
+	Adds an XBasic function from a file that has
+	been written using the "View > Save Function"
+	
+:Mathematics Library  (Xma),     main menu > Help
+##############################################################
+#####  Mathematics Library  (Xma),     main menu > Help  #####
+##############################################################
+
+	Shows the mathematic library xma.dec file
+	containing all the mathematical function declarations
+	and constants
+	
+	To use these functions in your program,
+	you need the following in the PROLOG:
+	
+	IMPORT "xma"
+	
+:Merge Prolog,                   main menu > View
+##############################################################
+#####  Merge Prolog,                   main menu > View  #####
+##############################################################
+
+	Adds the contents of a .DEC file, TYPE declarations
+	FUNCTION prtotyes and CONSTANT declarations to the
+	PROLOG of a user program.
+	
+:Message,                        main menu > Help
+##############################################################
+#####  Message,                        main menu > Help  #####
+##############################################################
+
+	A quick reference alphabetical list of all XBasic GUI messages
+	
+:Network/Internet Library (Xin), main menu > Help
+##############################################################
+#####  Network/Internet Library (Xin), main menu > Help  #####
+##############################################################
+
+	Displays the contents of the file "xin.dec"
+	
+	xin.dec has the TYPE statements, FUNCTION declarations,
+	and constants used for Network/Internet connections.
+	
+	To use these functions in your program,
+	you need the following in the PROLOG:
+	
+	IMPORT "xin"
+	
+:Paste,                          main menu > Edit
+##############################################################
+#####  Paste,                          main menu > Edit  #####
+##############################################################
+
+	Insert the text from the clipboard into edit program text at the current cursor position.
+	
+	Ctrl+V also does a Paste.
+	
+:Paste Extra,                    main menu > Edit
+##############################################################
+#####  Paste Extra,                    main menu > Edit  #####
+##############################################################
+
+	Insert the text from the clipboard-2 into edit program text at the current cursor position.
+	
+:Read Me,                        main menu > Help
+##############################################################
+#####  Read Me,                        main menu > Help  #####
+##############################################################
+
+	Displays the README file for XBasic.
+	
+:Recompile,                      main menu > Run
+#############################################################
+#####  Recompile,                      main menu > Run  #####
+#############################################################
+
+	Compiles user program without running the program.
+	
+	See: stop compile on error
+	
+:Save Function,                  main menu > View
+##############################################################
+#####  Save Function,                  main menu > View  #####
+##############################################################
+
+	Saves an XBasic function to a file so that it may be
+	added to another XBasic program using "View > Load Function"
+	
+	The "ViewSaveFunction()" window will automatically suggest
+	the currently displayed function and a filename with the ".txt"
+	extension in the current working directory.
+	This can be changed before saving.
+	
+:Standard Library (Xst),         main menu > Help
+##############################################################
+#####  Standard Library (Xst),         main menu > Help  #####
+##############################################################
+
+	Displays the contents of the file "xst.dec"
+	
+	xin.dec has the TYPE statements, FUNCTION declarations,
+	and constants in the standard library.
+	
+	This library contains a large number of
+	string  and array handling functions.
+	
+	To use these functions in your program,
+	you need the following in the PROLOG:
+	
+	IMPORT "xst"
+	
+:Support,                        main menu > Help
+##############################################################
+#####  Support,                        main menu > Help  #####
+##############################################################
+
+	Displays some websites to get help with XBasic problems.
+	
+:Toggle Breakpoint,              main menu > Debug
+###############################################################
+#####  Toggle Breakpoint,              main menu > Debug  #####
+###############################################################
+
+	Sets a breakpoint at the cursor line, or
+	if a breakpoint is set, clears it.
+	
+	
+:Color of Text Cursor and Line,  main menu > Options
+#################################################################
+#####  Color of Text Cursor and Line,  main menu > Options  #####
+#################################################################
+
+	Displays the "text cursor color" window with two color pallettes.
+	
+	Use the change text-cursor color pallette to select
+	the color of the flashing text cursor.
+	
+	Use the change cursor-line color pallette to select
+	the highlight color of the cursor line
+	
+	Below the pallettes is a text line in the colors selected.
+	
+	
+:Misc,                           main menu > Options
+:auto indent,                    main menu > Options > Misc
+:auto upper case,                main menu > Options > Misc
+:check bounds,                   main menu > Options > Misc
+:console dark color,             main menu > Options > Misc
+:console large bars,             main menu > Options > Misc
+:console large font,             main menu > Options > Misc
+:make backup file,               main menu > Options > Misc
+:program large bars,             main menu > Options > Misc
+:program large font,             main menu > Options > Misc
+:program line numbers,           main menu > Options > Misc
+:reload last file,               main menu > Options > Misc
+:save before comp.,              main menu > Options > Misc
+:save before run,                main menu > Options > Misc
+:save with \r\n,                 main menu > Options > Misc
+:tab block indent,               main menu > Options > Misc
+########################################################################
+#####  Misc,                           main menu > Options         #####
+#####  auto indent,                    main menu > Options > Misc  #####
+#####  auto upper case,                main menu > Options > Misc  #####
+#####  check bounds,                   main menu > Options > Misc  #####
+#####  console dark color,             main menu > Options > Misc  #####
+#####  console large bars,             main menu > Options > Misc  #####
+#####  console large font,             main menu > Options > Misc  #####
+#####  make backup file,               main menu > Options > Misc  #####
+#####  program large bars,             main menu > Options > Misc  #####
+#####  program large font,             main menu > Options > Misc  #####
+#####  program line numbers,           main menu > Options > Misc  #####
+#####  reload last file,               main menu > Options > Misc  #####
+#####  save before comp.,              main menu > Options > Misc  #####
+#####  save before run,                main menu > Options > Misc  #####
+#####  save with \r\n,                 main menu > Options > Misc  #####
+#####  tab block indent,               main menu > Options > Misc  #####
+########################################################################
+
+	The following is a list of options from the
+	"Miscellaneoous Options" window.
+	They may be toggled on or off with mouse button.
+	
+	auto indent           - Enter key will add a new line with leading tabs
+	                        and spaces the same as the previous line.
+	auto upper case       - words that are entirley lower case and
+	                        match keywords will be made upper case.
+	check bounds          - checks that indexes to arrays are within limits
+	                        and data access is of matching type.
+	console dark color    - change the background color of the console to black.
+	                        See: XstSetConsoleStyleAndColors()
+	console large bars    - change the scrollbars on the console screen large.
+	                        See: XstSetConsoleStyleAndColors()
+	console large font    - change to a large character size on the console.
+	                        See: XstSetConsoleFont()
+	make backup file      - make a backup of the old version of a program
+	                        before saving the new version.
+	                        See: XBASICBACKUPDIR
+	program large bars    - change the scrollbars on the edit program text screen large.
+	program large font    - change to a large character size for the edit program text.
+	program line numbers  - show line numbers for edit program text.
+	reload last file      - when XBasic is started, load the file that was being edited
+	                        when XBasic last quit and go to the last edit location.
+	save before comp.     - save the user program before compiling it.
+	save before run       - save the user program before running the program.
+	save with \r\n        - when saving the user program, each text line is terminated with
+	                        a carriage-return character and a line-feed character.
+	stop compile on error - stop compiling a program at the end of a function if there is an error.
+	tab block indent      - insert a tab at the begining of every line of the selected text,
+	                        or remove a tab of every selected line for shift+tab
+	

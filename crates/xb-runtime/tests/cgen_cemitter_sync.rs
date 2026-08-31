@@ -304,7 +304,7 @@ fn cgen_x_compiles_all_demos_cc_clean() {
     let tmp = std::env::temp_dir().join("xb_sync_cgen_demo_cc");
     fs::create_dir_all(&tmp).expect("mkdir");
     let cgen_exe = build_native_cgen(&tmp);
-    let demo_dir = root().join("xbasic-6.4.5/demo");
+    let demo_dir = root().join("xbasic/demo");
 
     let mut stems: Vec<String> = Vec::new();
     for entry in fs::read_dir(&demo_dir).expect("read_dir demos") {
@@ -382,8 +382,8 @@ fn cgen_x_compiles_core_libs_floor_9_cc_clean() {
     let cgen_exe = build_native_cgen(&tmp);
     let libs: Vec<(String, PathBuf)> = {
         let mut v = Vec::new();
-        for dir in ["src/shared", "src/linux"] {
-            let d = root().join("xbasic-6.4.5").join(dir);
+        for dir in ["lib"] {
+            let d = root().join("xbasic").join(dir);
             for entry in fs::read_dir(&d).expect("read_dir core libs") {
                 let p = entry.expect("dir entry").path();
                 if p.extension().and_then(|e| e.to_str()) == Some("x") {
@@ -3731,8 +3731,8 @@ fn cemitter_compiles_gtk_and_helpsrc_clean() {
     fs::create_dir_all(&tmp).expect("mkdir");
     let r = root();
     let dirs = [
-        r.join("xbasic-6.4.5/demo/gtk"),
-        r.join("xbasic-6.4.5/src/helpsrc/help_program"),
+        r.join("xbasic/demo/gtk"),
+        r.join("xbasic/helpsrc/help_program"),
     ];
     let mut files: Vec<PathBuf> = Vec::new();
     for dir in &dirs {

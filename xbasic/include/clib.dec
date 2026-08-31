@@ -1,0 +1,1219 @@
+'
+'
+' ######################  Max Reason
+' #####  clib.dec  #####  Copyright 1988-2000                          64-bit *cw*
+' ######################  Linux XBasic operating system interfaces
+'                         ---  structures/functions/constants  ---
+'
+' subject to LGPL license - see COPYING_LIB
+'
+' MaxReason@MaxReason.com
+'
+' for Linux XBasic
+'
+'
+' ###################################################
+' #####  C type/function/constant declarations  #####
+' ###################################################
+'
+'
+' PROGRAM  "clib"
+' VERSION  "0.0029"
+'
+'
+' this file includes "sockets" definitions equivalent of "wsock32" in Windows
+'
+' *******************************
+' *****  type declarations  *****
+' *******************************
+'
+TYPE MALLINFO
+	ULONG   .arena
+	ULONG   .ordblks
+	ULONG   .smblks
+	ULONG   .hblks
+	ULONG   .hblkhd
+	ULONG   .usmblks
+	ULONG   .fsmblks
+	ULONG   .wordblks
+	ULONG   .fordblks
+	ULONG   .keepcost
+END TYPE
+'
+TYPE UFLOCK
+	SSHORT     .l_type
+	SSHORT     .l_whence
+	XLONG      .l_start       ' should be GIANT !!!
+	XLONG      .l_len         ' should be GIANT !!!
+	SSHORT     .l_pid         ' l_pid : l_sysid order may be backwards !!!
+	SSHORT     .l_sysid       ' l_pid : l_sysid order may be backwards !!!
+END TYPE
+'
+TYPE USIGACTION
+	XLONG      .sa_handler    ' signal handler function address
+	XLONG      .sa_mask       ' signal mask to apply
+	XLONG      .sa_flags      ' signal action (0)
+END TYPE
+'
+' old "stat" structure - SCO
+'
+TYPE OLDUSTAT
+	SSHORT     .st_dev
+	USHORT     .st_ino
+	USHORT     .st_mode
+	SSHORT     .st_nlink
+	USHORT     .st_uid
+	USHORT     .st_gid
+	SSHORT     .st_rdev
+	USHORT     .st_pad
+'	SLONG      .st_size  '*cw* 180709-
+	GIANT      .st_size  '*cw* 180709+
+	ULONG      .st_atime
+	ULONG      .st_mtime
+	ULONG      .st_ctime
+END TYPE
+'
+' new "stat" structure - Linux
+'
+TYPE NEWUSTAT
+	USHORT     .st_dev
+	USHORT     .st_pad1
+	ULONG      .st_ino
+	USHORT     .st_mode
+	USHORT     .st_nlink
+	USHORT     .st_uid
+	USHORT     .st_gid
+	USHORT     .st_rdev
+	USHORT     .st_pad
+	ULONG      .st_size
+	ULONG      .st_blksize
+	ULONG      .st_blocks
+	ULONG      .st_atime
+	ULONG      .st_unused1
+	ULONG      .st_mtime
+	ULONG      .st_unused2
+	ULONG      .st_ctime
+	ULONG      .st_unused3
+	ULONG      .st_unused4
+	ULONG      .st_unused5
+END TYPE
+'
+TYPE USTAT = OLDUSTAT      ' OLDUSTAT is SCO native : NEWUSTAT is Linux native
+'TYPE USTAT = NEWUSTAT      ' OLDUSTAT is SCO native : NEWUSTAT is Linux native   '*cw* 101003 ????????????
+'
+'TYPE UDIRENT            ' 32-bit   *cw* 191001-
+'	SLONG      .d_ino
+'	SLONG      .d_off
+'	USHORT     .d_reclen
+'	USHORT     .d_pad
+'	STRING*256 .d_name
+'END TYPE
+'
+TYPE UDIRENT             ' 64-bit   *cw* 191001+
+	XLONG      .d_ino
+	XLONG      .d_off
+	USHORT     .d_reclen
+	USHORT     .d_type
+	USHORT     .d_pad
+	USHORT     .d_pad1
+	STRING*256 .d_name
+END TYPE
+'
+TYPE UDIR
+	XLONG      .dd_fd
+	XLONG      .dd_loc
+	XLONG      .dd_size
+	XLONG      .dd_buf          ' address of UDIRENT "directory entry" variable
+END TYPE
+'
+TYPE UTM
+	SLONG      .tm_sec
+	SLONG      .tm_min
+	SLONG      .tm_hour
+	SLONG      .tm_mday
+	SLONG      .tm_mon
+	SLONG      .tm_year
+	SLONG      .tm_wday
+	SLONG      .tm_yday
+	SLONG      .tm_isdst
+	SLONG      .tm_tzadj
+	STRING*50  .tm_name
+END TYPE
+'
+TYPE UTIMEB
+	XLONG      .time					' seconds since 00:00:00 on Jan 1, 1970 GMT
+	USHORT     .millitm				' extra milliseconds accuracy
+	SSHORT     .timezone			' timezone - minutes from GMT
+	SSHORT     .dstflag				' daylight savings time flag
+END TYPE
+'
+TYPE UTIMEVAL
+	XLONG      .tv_sec
+	XLONG      .tv_usec
+END TYPE
+'
+TYPE UTIMEZONE
+	XLONG      .tz_minuteswest
+	XLONG      .tz_dsttime
+END TYPE
+'
+TYPE UITIMERVAL
+	UTIMEVAL   .it_interval
+	UTIMEVAL   .it_value
+END TYPE
+'
+' *****  sockets type declarations  *****
+'
+TYPE CSTRING      = XLONG
+TYPE IN_ADDR      = SLONG   'XLONG		' "in.h" in Linux *cw* 220425-+
+'
+' this is from Windows - no equivalent in UNIX
+'
+TYPE WSADATA
+	USHORT     .wVersion
+	USHORT     .wHighVersion
+	STRING*257 .szDescription
+	STRING*129 .szSystemStatus
+	USHORT     .iMaxSockets
+	USHORT     .iMaxUdpDg
+	XLONG      .lpVendorInfo
+END TYPE
+'
+' this definition is very different from Windows
+'
+TYPE FD_SET
+	ULONG      .fd_array[7]			' up to 256 file descriptors - one bit per descriptor # *cw* 220920-+
+END TYPE
+'
+' same as UTIMEVAL in clib.dec
+'
+TYPE TIMEVAL								' same as UTIMEVAL in clib.dec
+	XLONG      .tv_sec
+	XLONG      .tv_usec
+END TYPE
+'
+' needs to be the same length as SOCKADDR_IN apparently
+'
+TYPE SOCKADDR
+	USHORT     .sa_family
+	UBYTE      .sa_data[13]
+END TYPE
+'
+TYPE SOCKPROTO
+	USHORT     .sp_family			' address family
+	USHORT     .sp_protocol		' protocol
+END TYPE
+'
+' from "in.h" in Linux
+'
+TYPE SOCKADDR_IN
+	SSHORT     .sin_family
+	USHORT     .sin_port
+	IN_ADDR    .sin_addr
+	UBYTE      .sin_zero[7]
+END TYPE
+'
+' from "in.h" in Linux
+'
+TYPE IP_MREQ								' "in.h" in Linux
+	IN_ADDR    .imr_multiaddr
+	IN_ADDR    .imr_interface
+END TYPE
+'
+' note different element sizes in Linux vs Windows
+'
+TYPE LINGER
+	XLONG      .l_onoff				' USHORT in Windows
+	XLONG      .l_linger			' USHORT in Windows
+END TYPE
+'
+' note different component sizes in Linux vs Windows
+'
+TYPE HOSTENT
+	XLONG      .h_name        ' char  *h_name
+	XLONG      .h_aliases     ' char  **h_aliases
+	SLONG      .h_addrtype    ' host address type		' SSHORT in Windows
+	SLONG      .h_length      ' length of address		' SSHORT in Windows
+	XLONG      .h_addr_list   ' addr of list of addresses from name server
+END TYPE
+'
+' note different component sizes in Linux vs Windows
+'
+TYPE NETENT
+	XLONG      .n_name        ' char  *n_name
+	XLONG      .n_aliases     ' char  **n_aliases
+	SLONG      .n_addrtype    ' net address type		' SSHORT in Windows
+	ULONG      .n_net         ' network
+END TYPE
+'
+'
+'
+TYPE POLLFD
+	XLONG    .fd             ' file descriptor
+	USHORT   .events         ' requested events
+	USHORT   .revents        ' returned events
+END TYPE
+'
+' note different component sizes in Linux vs Windows
+'
+TYPE PROTOENT
+	XLONG      .p_name        ' char  *p_name
+	XLONG      .p_aliases     ' char  **p_aliases
+	SLONG      .p_proto       ' protocol number			' SSHORT in Windows
+END TYPE
+'
+' note different component sizes in Linux vs Windows
+'
+TYPE RPENT
+	XLONG      .r_name        ' char  *r_name
+	XLONG      .r_aliases     ' char  **r_aliases
+	SLONG      .r_number      ' rpc program number	' SSHORT in Windows
+END TYPE
+'
+' note different component sizes in Linux vs Windows
+'
+TYPE SERVENT
+	XLONG      .s_name        ' char  *s_name
+	XLONG      .s_aliases     ' char  **s_aliases
+	SLONG      .s_port        ' port number					' SSHORT in Windows
+	XLONG      .s_proto       ' protocol number
+END TYPE
+'
+'
+'
+' *****************************************************************
+' *****  system and C standard library function declarations  *****
+' *****************************************************************
+'
+EXTERNAL CFUNCTION  access         (addrFilename, mode)                  '*cw* 131206+
+EXTERNAL CFUNCTION  calloc         (bytes)
+EXTERNAL CFUNCTION  chdir          (addrDirectoryName)
+EXTERNAL CFUNCTION  close          (fildes)
+EXTERNAL CFUNCTION  closedir       (addrUDIR)
+EXTERNAL CFUNCTION  dirent         (addrUDIR)
+EXTERNAL CFUNCTION  execvp         (addrCommand, addrArgv[])
+EXTERNAL CFUNCTION  exit           (status)
+EXTERNAL CFUNCTION  fcntl          (fildes, command, addr)
+EXTERNAL CFUNCTION  free           (addr)
+EXTERNAL CFUNCTION  freeaddrinfo   (addr)
+EXTERNAL CFUNCTION  ftime          (addrUTIMEB)
+EXTERNAL CFUNCTION  getcwd         (buffer, size)
+EXTERNAL CFUNCTION  getdents       (fildes, addrBuffer, maxBytes)
+EXTERNAL CFUNCTION  getenv         (addrName)
+EXTERNAL CFUNCTION  getitimer      (which, addrUITIMERVAL)
+EXTERNAL CFUNCTION  getpid         ()
+EXTERNAL CFUNCTION UTM  gmtime     (addrTime)
+EXTERNAL CFUNCTION  gettimeofday   (addrUTIMEVAL, addrUTIMEZONE)
+EXTERNAL CFUNCTION  ioctl          (fildes, command, addrValue)
+EXTERNAL CFUNCTION  kill           (pid, signal)
+EXTERNAL CFUNCTION UTM  localtime  (addrTime)
+EXTERNAL CFUNCTION  lseek          (fildes, offset, whence)
+EXTERNAL CFUNCTION  lstat          (addrFilename, addrUSTAT)               '*cw* 131209+
+EXTERNAL CFUNCTION  mallinfo       (addrVoid)                              '*cw* 120102+
+EXTERNAL CFUNCTION  malloc         (bytes)
+EXTERNAL CFUNCTION  mkdir          (addrDirectoryName, permissions)
+EXTERNAL CFUNCTION  mktime         (addrUTM)
+EXTERNAL CFUNCTION  mmap           (addrstart, bytes, prot, mapflags, fd, offset)
+EXTERNAL CFUNCTION  munmap         (addrstart, bytes)                              '*cw* 180508+
+EXTERNAL CFUNCTION  mprotect       (addrstart, bytes, prot)                        '*cw* 180508+
+EXTERNAL CFUNCTION  msync          (addrstart, bytes, msflags)
+EXTERNAL CFUNCTION  open           (addrFilename, mode, permissions)
+EXTERNAL CFUNCTION  opendir        (addrDirectoryName)
+EXTERNAL CFUNCTION  pause          ()
+EXTERNAL CFUNCTION  poll           (addrPOLLFDptrs, nfds, timeout)
+EXTERNAL CFUNCTION  putenv         (addrNameEqualsValue)
+EXTERNAL CFUNCTION  raise          (signal)                          '*cw* 111029
+EXTERNAL CFUNCTION  read           (fildes, addrBuffer, maxBytes)
+EXTERNAL CFUNCTION  readlink       (addrpath, addrBuffer, maxBytes)  '*cw* 110514
+EXTERNAL CFUNCTION  realloc        (addr, bytes)
+EXTERNAL CFUNCTION  recalloc       (addr, bytes)
+EXTERNAL CFUNCTION  rename         (addrOldName, addrNewName)
+EXTERNAL CFUNCTION  rmdir          (addrDirectoryName)
+EXTERNAL CFUNCTION  select         (maxFdBit, addrReadFdBits, addrWriteFdBits, addrExceptionFdBits, addrUTIMEVAL)
+EXTERNAL CFUNCTION  setitimer      (which, addrUITIMERVAL, addrOldUITIMERVAL)
+EXTERNAL CFUNCTION  shmat          (shmid, addr, flags)
+EXTERNAL CFUNCTION  shmdt          (addr)
+EXTERNAL CFUNCTION  shmget         (key, size, flags)
+EXTERNAL CFUNCTION  sigpending     (addrSet)
+EXTERNAL CFUNCTION  sigprocmask    (command, addrSet, addrOldSet)
+EXTERNAL CFUNCTION  sigsuspend     (addrSet)
+EXTERNAL CFUNCTION  sleep          (seconds)
+EXTERNAL CFUNCTION  stat           (addrFilename, addrUSTAT)    '*cw* 131209+
+EXTERNAL CFUNCTION  stime          (unixtime)
+EXTERNAL CFUNCTION  clock_settime  (unixtime)                   '*cw* 220822+
+EXTERNAL CFUNCTION  system         (addrCommandString)
+EXTERNAL CFUNCTION  time           (addrTime)
+EXTERNAL CFUNCTION  umask          (umask)
+EXTERNAL CFUNCTION  unlink         (addrDirectoryName)
+EXTERNAL CFUNCTION  usleep         (usec)
+EXTERNAL CFUNCTION  write          (fildes, addrBuffer, writeBytes)
+'
+EXTERNAL CFUNCTION  xb_checkmem    ()
+EXTERNAL CFUNCTION	xb_geterrno		 ()
+EXTERNAL CFUNCTION  xb_gethomepath (addrPath, size)
+'EXTERNAL CFUNCTION  xb_gethomepath (buffer, size)                  '*cw* 140124- duplicated
+EXTERNAL CFUNCTION  xb_getpfn      (addrFile, size)
+'EXTERNAL CFUNCTION  xb_getpfn      (buffer, size)                  '*cw* 140124- duplicated
+EXTERNAL CFUNCTION  xb_lstat       (addrFile, addrUstat)
+'EXTERNAL CFUNCTION  xb_lstat       (addrFilename, addrUSTAT)       '*cw* 140124- duplicated
+EXTERNAL CFUNCTION  xb_readdir     (idir, addrDirent)
+'EXTERNAL CFUNCTION  xb_readdir     (addrUDIR,addrUDIRENT)          '*cw* 140124- duplicated
+EXTERNAL CFUNCTION	xb_seterrno		 (value)
+EXTERNAL CFUNCTION  xb_sigaction   (signal, addrAction, addrOldAction)
+EXTERNAL CFUNCTION  xb_stat        (addrFilename, addrUSTAT)           '*cw* 191001-
+'EXTERNAL CFUNCTION  SLONG xb_stat  (addrFilename, addrUSTAT)            '*cw* 191001+
+'
+' closesocket() is close() in UNIX - already in clib.dec
+' ioctlsocket() is ioctl() in UNIX - already in clib.dec
+' select() - already in clib.dec
+' UTIMEVAL - already in clib.dec
+'
+' UNIX sockets funtions - noticed differences from Windows are noted above
+'
+' *******************************************
+' *****  sockets function declarations  *****
+' *******************************************
+'
+EXTERNAL CFUNCTION  accept           (socket, addrSOCKADDR, addrLength)
+EXTERNAL CFUNCTION  bind             (socket, addrSOCKADDR, length)
+' EXTERNAL CFUNCTION  closesocket      (socket)
+EXTERNAL CFUNCTION  connect          (socket, addrSOCKADDR, length)
+EXTERNAL CFUNCTION  getpeername      (socket, addrSOCKADDR, addrLength)
+EXTERNAL CFUNCTION  getsockname      (socket, addrSOCKADDR, addrLength)
+EXTERNAL CFUNCTION  getsockopt       (socket, level, optname, addrValue, addrLength)
+EXTERNAL CFUNCTION  htonl            (hostlong)
+EXTERNAL CFUNCTION  htons            (hostshort)
+EXTERNAL CFUNCTION  inet_addr        (addrSTRING)
+EXTERNAL CFUNCTION  inet_ntoa        (in_addr)
+' EXTERNAL CFUNCTION  ioctlsocket      (socket, command, addrArg)
+EXTERNAL CFUNCTION  listen           (socket, backlog)
+EXTERNAL CFUNCTION  ntohl            (netlong)
+EXTERNAL CFUNCTION  ntohs            (netshort)
+EXTERNAL CFUNCTION  recv             (socket, addrBuffer, length, flags)
+EXTERNAL CFUNCTION  recvfrom         (socket, addrBuffer, length, flags, addrSOCKADDR, addrLength)
+' EXTERNAL CFUNCTION  select           (numfd, addrFD_SET, addrFD_SET, addrFD_SET, addrUTIMEVAL)
+EXTERNAL CFUNCTION  send             (socket, addrMessage, length, flags)
+EXTERNAL CFUNCTION  sendto           (socket, addrMessage, length, flags, addrSOCKADDR, tolength)
+EXTERNAL CFUNCTION  setsockopt       (socket, level, optname, addrValue, optlen)
+EXTERNAL CFUNCTION  shutdown         (socket, how)
+EXTERNAL CFUNCTION  socket           (domain, type, protocol)
+'
+' "database" funtions
+'
+EXTERNAL CFUNCTION            getaddrinfo      (addrStrNode, addrStrServic, addrAddrinfoHints, addrAddrinfoRes)
+EXTERNAL CFUNCTION  HOSTENT   gethostbyaddr    (addrSTRING, length, type)
+EXTERNAL CFUNCTION  HOSTENT   gethostbyname    (addrSTRING)
+EXTERNAL CFUNCTION            gethostname      (addrSTRING, length)
+EXTERNAL CFUNCTION            getdomainname    (addrSTRING, length)
+EXTERNAL CFUNCTION            getnameinfo      (sockaddr, socklen, addrhost, lenhost, addrserver, lenserver, flags)
+EXTERNAL CFUNCTION  SERVENT   getservbyname    (addrSTRING, addrSTRING)
+EXTERNAL CFUNCTION  SERVENT   getservbyport    (port, addrSTRING)
+EXTERNAL CFUNCTION  PROTOENT  getprotobyname   (addrSTRING)
+EXTERNAL CFUNCTION  PROTOENT  getprotobynumber (proto)
+EXTERNAL CFUNCTION            getifaddrs       (addrAddrs)
+EXTERNAL CFUNCTION            freeifaddrs      (addrAddrs)
+EXTERNAL CFUNCTION            inet_ntop        (af, addr_n, addr_p, max_len)
+EXTERNAL CFUNCTION            inet_pton        (af, addr_p, addr_n)
+'
+EXTERNAL CFUNCTION            if_nametoindex   (addrSTRING)
+EXTERNAL CFUNCTION            if_indextoname   (in_index, addrSTRING)
+'
+' UTF-8 Functions
+'
+EXTERNAL CFUNCTION  setlocale (category,  addrLocaleString)
+'
+' ***********************
+' *****  CONSTANTS  *****
+' ***********************
+'
+' interval timer
+'
+	$$ITIMER_REAL       =  0
+	$$ITIMER_VIRTUAL    =  1
+	$$ITIMER_PROF       =  2
+'
+' lseek() and fnctl()
+'
+	$$SEEK_SET          =  0
+	$$SEEK_CUR          =  1
+	$$SEEK_END          =  2
+'
+' fnctl()
+'
+	$$F_RDLCK           =  1
+	$$F_WRLCK           =  2
+	$$F_UNLCK           =  3
+'
+	$$F_GETLK           =  5
+	$$F_SETLK           =  6
+	$$F_SETLKW          =  7
+'
+' ***********************************************************
+' *****  Linux and SCO UNIX errno values are DIFFERENT  *****
+' ***********************************************************
+'
+' ****************************************
+' *****  Linux System Error Numbers  *****
+' ****************************************
+'
+	$$EPERM                = 1    ' Operation not permitted
+	$$ENOENT               = 2    ' No such file or directory
+	$$ESRCH                = 3    ' No such process
+	$$EINTR                = 4    ' Interrupted system call
+	$$EIO                  = 5    ' I/O error
+	$$ENXIO                = 6    ' No such device or address
+	$$E2BIG                = 7    ' Argument list too long
+	$$ENOEXEC              = 8    ' Exec format error
+	$$EBADF                = 9    ' Bad file number
+	$$ECHILD               = 10   ' No child processes
+	$$EAGAIN              =  11   ' Try again
+	$$ENOMEM               = 12   ' Out of memory
+	$$EACCES               = 13   ' Permission denied
+	$$EFAULT               = 14   ' Bad address
+	$$ENOTBLK              = 15   ' Block device required
+	$$EBUSY                = 16   ' Device or resource busy
+	$$EEXIST               = 17   ' File exists
+	$$EXDEV                = 18   ' Cross-device link
+	$$ENODEV               = 19   ' No such device
+	$$ENOTDIR              = 20   ' Not a directory
+	$$EISDIR               = 21   ' Is a directory
+	$$EINVAL               = 22   ' Invalid argument
+	$$ENFILE               = 23   ' File table overflow
+	$$EMFILE               = 24   ' Too many open files
+	$$ENOTTY               = 25   ' Not a typewriter
+	$$ETXTBSY              = 26   ' Text file busy
+	$$EFBIG                = 27   ' File too large
+	$$ENOSPC               = 28   ' No space left on device
+	$$ESPIPE               = 29   ' Illegal seek
+	$$EROFS                = 30   ' Read-only file system
+	$$EMLINK               = 31   ' Too many links
+	$$EPIPE                = 32   ' Broken pipe
+	$$EDOM                 = 33   ' Math argument out of domain of func
+	$$ERANGE               = 34   ' Math result not representable
+'
+' up to this point Linux and SCO agree
+'
+' beyond this point Linux and SCO are different
+'
+	$$EDEADLK              = 35   ' Resource deadlock would occur
+	$$ENAMETOOLONG         = 36   ' File name too long
+	$$ENOLCK               = 37   ' No record locks available
+	$$ENOSYS               = 38   ' Function not implemented
+	$$ENOTEMPTY            = 39   ' Directory not empty
+	$$ELOOP                = 40   ' Too many symbolic links encountered
+	$$EWOULDBLOCK          = 41   ' Operation would block (replaced by $$EAGAIN 11)
+	$$ENOMSG               = 42   ' No message of desired type
+	$$EIDRM                = 43   ' Identifier removed
+	$$ECHRNG               = 44   ' Channel number out of range
+	$$EL2NSYNC             = 45   ' Level 2 not synchronized
+	$$EL3HLT               = 46   ' Level 3 halted
+	$$EL3RST               = 47   ' Level 3 reset
+	$$ELNRNG               = 48   ' Link number out of range
+	$$EUNATCH              = 49   ' Protocol driver not attached
+	$$ENOCSI               = 50   ' No CSI structure available
+	$$EL2HLT               = 51   ' Level 2 halted
+	$$EBADE                = 52   ' Invalid exchange
+	$$EBADR                = 53   ' Invalid request descriptor
+	$$EXFULL               = 54   ' Exchange full
+	$$ENOANO               = 55   ' No anode
+	$$EBADRQC              = 56   ' Invalid request code
+	$$EBADSLT              = 57   ' Invalid slot
+	$$EDEADLOCK            = 58   ' Resource deadlock would occur (replaced by $$EDEADLK = 35)
+	$$EBFONT               = 59   ' Bad font file format
+'
+' for awhile Linx and SCO are the same again
+'
+	$$ENOSTR               = 60   ' Device not a stream
+	$$ENODATA              = 61   ' No data available
+	$$ETIME                = 62   ' Timer expired
+	$$ENOSR                = 63   ' Out of streams resources
+	$$ENONET               = 64   ' Machine is not on the network
+	$$ENOPKG               = 65   ' Package not installed
+	$$EREMOTE              = 66   ' Object is remote
+	$$ENOLINK              = 67   ' Link has been severed
+	$$EADV                 = 68   ' Advertise error
+	$$ESRMNT               = 69   ' Srmount error
+	$$ECOMM                = 70   ' Communication error on send
+	$$EPROTO               = 71   ' Protocol error
+'
+' Linux and SCO are different again
+'
+	$$EMULTIHOP            = 72   ' Multihop attempted
+	$$EDOTDOT              = 73   ' RFS specific error
+	$$EBADMSG              = 74   ' Not a data message
+	$$EOVERFLOW            = 75   ' Value too large for defined data type
+	$$ENOTUNIQ             = 76   ' Name not unique on network
+	$$EBADFD               = 77   ' File descriptor in bad state
+	$$EREMCHG              = 78   ' Remote address changed
+	$$ELIBACC              = 79   ' Can not access a needed shared library
+	$$ELIBBAD              = 80   ' Accessing a corrupted shared library
+	$$ELIBSCN              = 81   ' .lib section in a.out corrupted
+	$$ELIBMAX              = 82   ' Attempting to link in too many shared libraries
+	$$ELIBEXEC             = 83   ' Cannot exec a shared library directly
+	$$EILSEQ               = 84   ' Illegal byte sequence
+	$$ERESTART             = 85   ' Interrupted system call should be restarted
+	$$ESTRPIPE             = 86   ' Streams pipe error
+	$$EUSERS               = 87   ' Too many users
+	$$ENOTSOCK             = 88   ' Socket operation on non-socket
+	$$EDESTADDRREQ         = 89   ' Destination address required
+	$$EMSGSIZE             = 90   ' Message too long
+	$$EPROTOTYPE           = 91   ' Protocol wrong type for socket
+	$$ENOPROTOOPT          = 92   ' Protocol not available
+	$$EPROTONOSUPPORT      = 93   ' Protocol not supported
+	$$ESOCKTNOSUPPORT      = 94   ' Socket type not supported
+	$$EOPNOTSUPP           = 95   ' Operation not supported on transport endpoint
+	$$EPFNOSUPPORT         = 96   ' Protocol family not supported
+	$$EAFNOSUPPORT         = 97   ' Address family not supported by protocol
+	$$EADDRINUSE           = 98   ' Address already in use
+	$$EADDRNOTAVAIL        = 99   ' Cannot assign requested address
+	$$ENETDOWN             = 100  ' Network is down
+	$$ENETUNREACH          = 101  ' Network is unreachable
+	$$ENETRESET            = 102  ' Network dropped connection because of reset
+	$$ECONNABORTED         = 103  ' Software caused connection abort
+	$$ECONNRESET           = 104  ' Connection reset by peer
+	$$ENOBUFS              = 105  ' No buffer space available
+	$$EISCONN              = 106  ' Transport endpoint is already connected
+	$$ENOTCONN             = 107  ' Transport endpoint is not connected
+	$$ESHUTDOWN            = 108  ' Cannot send after transport endpoint shutdown
+	$$ETOOMANYREFS         = 109  ' Too many references: cannot splice
+	$$ETIMEDOUT            = 110  ' Connection timed out
+	$$ECONNREFUSED         = 111  ' Connection refused
+	$$EHOSTDOWN            = 112  ' Host is down
+	$$EHOSTUNREACH         = 113  ' No route to host
+	$$EALREADY             = 114  ' Operation already in progress
+	$$EINPROGRESS          = 115  ' Operation now in progress
+	$$ESTALE               = 116  ' Stale NFS file handle
+	$$EUCLEAN              = 117  ' Structure needs cleaning
+	$$ENOTNAM              = 118  ' Not a XENIX named type file
+	$$ENAVAIL              = 119  ' No XENIX semaphores available
+	$$EISNAM               = 120  ' Is a named type file
+	$$EREMOTEIO            = 121  ' Remote I/O error
+	$$EDQUOT               = 122  ' Quota exceeded
+	$$ENOMEDIUM            = 123  ' No medium found
+	$$EMEDIUMTYPE          = 124  ' Wrong medium type
+	$$ECANCELED            = 125  ' Operation Canceled
+	$$ENOKEY               = 126  ' Required key not available
+	$$EKEYEXPIRED          = 127  ' Key has expired
+	$$EKEYREVOKED          = 128  ' Key has been revoked
+	$$EKEYREJECTED         = 129  ' Key was rejected by service
+	$$EOWNERDEAD           = 130  ' Owner died
+	$$ENOTRECOVERABLE      = 131  ' State not recoverable
+	$$ERFKILL              = 132  ' Operation not possible due to RF-kill
+'
+' errno constants in SCO UNIX but not Linux - put here so xst.x compiles
+'
+	$$ELBIN              =  75
+	$$ETCPERR            =  90
+	$$EIORESID           = 500
+'
+	$$ERROR_LAST_OS_ERROR  = 511
+'
+'
+' *****  System Exceptions  *****  UNIX Signals
+'
+'	$$SIG_SETMASK        =  0            ' sigprocmask() command
+'	$$SIG_BLOCK          =  1            ' sigprocmask() command
+'	$$SIG_UNBLOCK        =  2            ' sigprocmask()
+'
+'	XxxXgrAlarmBloc() and XxxXgrAlarmUnblock()
+'
+	$$SIG_BLOCK          =  0            ' sigprocmask() how            *cw* 090326
+	$$SIG_UNBLOCK        =  1            ' sigprocmask() how            *cw* 090326
+	$$SIG_SETMASK        =  2            ' sigprocmask() how            *cw* 090326
+'
+' these WERE the correct Linux signal numbers at some point
+'
+' $$SIGNONE            =  0            ' none (undefined)
+' $$SIGHUP             =  1            ' hangup or death of controlling process
+' $$SIGINT             =  2            ' interrupt keystroke  (^backspace or ^delete)
+' $$SIGQUIT            =  3            ' quit keystroke (if defined and enabled)
+' $$SIGILL             =  4            ' invalid instruction
+' $$SIGTRAP            =  5            ' trap / breakpoint
+' $$SIGABRT            =  6            ' abort keystroke
+' $$SIGIOT             =  6            ' IOT instruction
+' $$SIGEMT             =  7            ' EMT instruction
+' $$SIGFPE             =  8            ' floating point trap
+' $$SIGKILL            =  9            ' kill this process
+' $$SIGBUS             = 10            ' bus error  (Misaligned or Protection Error)
+' $$SIGSEGV            = 11            ' segment violation
+' $$SIGSYS             = 12            ' SystemRoutine received bad argument
+' $$SIGPIPE            = 13            ' write on pipe with noone on other end
+' $$SIGALRM            = 14            ' alarm clock interrupt
+' $$SIGTERM            = 15            ' termination of process by software
+' $$SIGUSR1            = 16            ' user defined signal #1
+' $$SIGUSR2            = 17            ' user defined signal #2
+' $$SIGCLD             = 18            ' child process terminated or stopped
+' $$SIGPWR             = 19            ' power failure
+' $$SIGWINCH           = 20            ' window configuration change
+' $$SIGPHONE           = 21            ' handset line status change
+' $$SIGPOLL            = 22            ' pollable event occured
+' $$SIGSTOP            = 23            ' sendable stop signal not from tty
+' $$SIGSTP             = 24            ' stop signal from tty
+' $$SIGCONT            = 25            ' continue stopped process
+' $$SIGTTIN            = 26            ' to readers pgrp upon background tty read
+' $$SIGTTOU            = 27            ' same for output if tp->t_local&TOSTOP
+' $$SIGVTALRM          = 28            ' virtual timer alarm
+' $$SIGPROF            = 29            ' profile alarm
+' $$SIGMAX             = 31            ' highest signal number
+'
+' these ARE the signal numbers in RedHat 6.1 --- according to /usr/include/signal.h
+'
+	$$SIGNONE            =  0            ' none (undefined)
+	$$SIGHUP             =  1            ' hangup or death of controlling process
+	$$SIGINT             =  2            ' interrupt keystroke  (^backspace or ^delete)
+	$$SIGQUIT            =  3            ' quit keystroke (if defined and enabled)
+	$$SIGILL             =  4            ' invalid instruction
+	$$SIGTRAP            =  5            ' trap / breakpoint
+	$$SIGABRT            =  6            ' abort keystroke
+	$$SIGIOT             =  6            ' IOT instruction
+	$$SIGBUS             =  7            ' bus error  (Misaligned or Protection Error)
+	$$SIGFPE             =  8            ' floating point trap
+	$$SIGKILL            =  9            ' kill this process
+	$$SIGUSR1            = 10            ' user defined signal #1
+	$$SIGSEGV            = 11            ' segment violation
+	$$SIGUSR2            = 12            ' user defined signal #2
+	$$SIGPIPE            = 13            ' write on pipe with noone on other end
+	$$SIGALRM            = 14            ' alarm clock interrupt
+	$$SIGTERM            = 15            ' termination of process by software
+	$$SIGSTKFLT          = 16            ' new
+	$$SIGCHLD            = 17            ' new
+	$$SIGCONT            = 18            ' continue stopped process
+	$$SIGSTOP            = 19            ' sendable stop signal not from tty
+	$$SIGTSTP            = 20            ' stop signal from tty
+	$$SIGTTIN            = 21            ' to readers pgrp upon background tty read
+	$$SIGTTOU            = 22            ' same for output if tp->t_local&TOSTOP
+	$$SIGURG             = 23            ' new
+	$$SIGXCPU            = 24            ' new
+	$$SIGXFSZ            = 25            ' new
+	$$SIGVTALRM          = 26            ' virtual timer alarm
+	$$SIGPROF            = 27            ' profile alarm
+	$$SIGWINCH           = 28            ' window configuration change
+	$$SIGIO              = 29            ' new
+	$$SIGPOLL            = 29            ' pollable event occured
+	$$SIGPWR             = 30            ' power failure
+	$$SIGUNUSED          = 31            ' new
+	$$SIGMAX             = 31            ' highest signal number - ignore $$SIGRTMIN for now
+	$$SIGRTMIN           = 32            ' new - "not fixed --- not really there"
+'
+' no longer defined in signal.h
+'
+' $$SIGCLD             = 18            ' child process terminated or stopped
+' $$SIGPHONE           = 21            ' handset line status change
+' $$SIGSYS             = 12            ' SystemRoutine received bad argument
+' $$SIGEMT             =  7            ' EMT instruction
+' $$SIGSTP             = 24            ' stop signal from TTY
+'
+'
+	$$SIGMASK_NONE       = 0x00000000    ' none (undefined)
+	$$SIGMASK_HUP        = 0x00000001    ' hangup or death of controlling process
+	$$SIGMASK_INT        = 0x00000002    ' interrupt keystroke  (^backspace or ^delete)
+	$$SIGMASK_QUIT       = 0x00000004    ' quit keystroke (if defined and enabled)
+	$$SIGMASK_ILL        = 0x00000008    ' invalid instruction
+	$$SIGMASK_TRAP       = 0x00000010    ' trap / breakpoint
+	$$SIGMASK_ABRT       = 0x00000020    ' abort keystroke
+	$$SIGMASK_IOT        = 0x00000020    ' IOT instruction (IOT = ABRT)
+	$$SIGMASK_BUS        = 0x00000040    ' bus error  (Misaligned or Protection Error)
+	$$SIGMASK_FPE        = 0x00000080    ' floating point trap
+	$$SIGMASK_KILL       = 0x00000100    ' kill this process
+	$$SIGMASK_USR1       = 0x00000200    ' new
+	$$SIGMASK_SEGV       = 0x00000400    ' segment violation
+	$$SIGMASK_USR2       = 0x00000800    ' new
+	$$SIGMASK_PIPE       = 0x00001000    ' write on pipe with no one on other end
+	$$SIGMASK_ALRM       = 0x00002000    ' alarm clock interrupt
+	$$SIGMASK_TERM       = 0x00004000    ' termination of process by software
+	$$SIGMASK_STKFLT     = 0x00008000    ' new
+	$$SIGMASK_CHLD       = 0x00010000    ' child process terminated or stopped
+	$$SIGMASK_CONT       = 0x00020000    ' continue stopped process
+	$$SIGMASK_STOP       = 0x00040000    ' sendable stop signal not from tty
+	$$SIGMASK_TSTP       = 0x00080000    ' stop signal from tty
+	$$SIGMASK_TTIN       = 0x00100000    ' to readers pgrp upon background tty read
+	$$SIGMASK_TTOU       = 0x00200000    ' same for output if tp->t_local&TOSTOP
+	$$SIGMASK_URG        = 0x00400000    ' new
+	$$SIGMASK_XCPU       = 0x00800000    ' new
+	$$SIGMASK_XFSZ       = 0x01000000    ' new
+	$$SIGMASK_VTALRM     = 0x02000000    ' virtual timer alarm
+	$$SIGMASK_WINCH      = 0x04000000    ' window configuration change
+	$$SIGMASK_IO         = 0x08000000    ' new
+	$$SIGMASK_POLL       = 0x10000000    ' pollable event occured
+	$$SIGMASK_PWR        = 0x20000000    ' profile alarm
+	$$SIGMASK_UNUSED     = 0x40000000    ' new
+	$$SIGMASK_MAX        = 0x80000000    ' highest signal number
+	$$SIGMASK_RTMIN      = 0x80000000    ' new
+'
+'	Signal Action flags
+'
+	$$SA_NOCLDSTOP   = 0x00000001
+	$$SA_NOCLDWAIT   = 0x00000002
+	$$SA_SIGINFO     = 0x00000004
+	$$SA_ONSTACK     = 0x08000000
+	$$SA_RESTART     = 0x10000000
+	$$SA_NODEFER     = 0x40000000
+	$$SA_RESETHAND   = 0x80000000
+'
+	$$SA_NOMASK      = $$SA_NODEFER
+	$$SA_ONESHOT     = $$SA_RESETHAND
+'
+' Linux file mode constants  -  see stat()
+'
+	$$U_MODE_IXOTH       = 0x00000001    ' other executable
+	$$U_MODE_IWOTH       = 0x00000002    ' other writable
+	$$U_MODE_IROTH       = 0x00000004    ' other readable
+	$$U_MODE_IRWXO       = 0x00000007    ' other r + w + x
+	$$U_MODE_IXGRP       = 0x00000008    ' group executable
+	$$U_MODE_IWGRP       = 0x00000010    ' group writable
+	$$U_MODE_IRGRP       = 0x00000020    ' group readable
+	$$U_MODE_IRWXG       = 0x00000038    ' group r + w + x
+	$$U_MODE_IXUSR       = 0x00000040    ' user executable
+	$$U_MODE_IWUSR       = 0x00000080    ' user writable
+	$$U_MODE_IRUSR       = 0x00000100    ' user readable
+	$$U_MODE_IRWXU       = 0x000001C0    ' user r + w + x
+	$$U_MODE_ISVTX       = 0x00000200    ' sticky bit
+	$$U_MODE_ISGID       = 0x00000400    ' set GID bit
+	$$U_MODE_ISUID       = 0x00000800    ' set UID bit
+	$$U_MODE_IFIFO       = 0x00001000    ' fifo
+	$$U_MODE_IFCHR       = 0x00002000    ' character device
+	$$U_MODE_IFDIR       = 0x00004000    ' directory
+'	$$U_MODE_IFBLK       = 0x00008000    ' block device
+'	$$U_MODE_IFREG       = 0x00010000    ' regular file
+'	$$U_MODE_IFLNK       = 0x00012000    ' symbolic link
+'	$$U_MODE_IFSOCK      = 0x00014000    ' socket
+'	$$U_MODE_IFMT        = 0x00017000    ' bitmask for the file type bitfields
+
+	$$U_MODE_IFBLK       = 0x00006000    ' block device													'*cw* 090401
+	$$U_MODE_IFREG       = 0x00008000    ' regular file													'*cw* 090401
+	$$U_MODE_IFLNK       = 0x0000A000    ' symbolic link												'*cw* 090401
+	$$U_MODE_IFSOCK      = 0x0000C000    ' socket																'*cw* 090401
+	$$U_MODE_IFMT        = 0x0000F000    ' bitmask for the file type field      '*cw* 090401
+'
+' always supported
+'
+	$$U_MODE_EXECUTE     = $$U_MODE_IXUSR  ' user executable
+	$$U_MODE_WRITE       = $$U_MODE_IWUSR  ' user writable
+	$$U_MODE_READ        = $$U_MODE_IRUSR  ' user readable
+	$$U_MODE_CHAR        = $$U_MODE_IFCHR  ' terminal
+	$$U_MODE_DIR         = $$U_MODE_IFDIR  ' directory
+	$$U_MODE_BLOCK       = $$U_MODE_IFBLK  ' block (network)
+	$$U_MODE_NORMAL      = $$U_MODE_IFREG  ' normal file
+	$$U_MODE_LINK        = $$U_MODE_IFLNK  ' symbolic link                     '*cw* 100707
+	$$U_MODE_MASK        = $$U_MODE_IFMT   ' file type field mask              '*cw* 100707
+'
+'
+' #####  NOTE : two sets of the following constants because
+' #####  NOTE : their values in SCO vs Linux are different!
+'
+' #####  SCO file open constants - see fcntl()
+'
+	$$SCO_O_ACCMODE          = 0x0003
+	$$SCO_O_RDONLY           = 0x0000
+	$$SCO_O_WRONLY           = 0x0001
+	$$SCO_O_RDWR             = 0x0002
+	$$SCO_O_NDELAY           = 0x0004
+	$$SCO_O_APPEND           = 0x0008
+	$$SCO_O_SYNC             = 0x0010
+	$$SCO_O_NONBLOCK         = 0x0080
+	$$SCO_O_CREAT            = 0x0100
+	$$SCO_O_TRUNC            = 0x0200
+	$$SCO_O_EXCL             = 0x0400
+	$$SCO_O_NOCTTY           = 0x0800
+
+
+'	#define	F_DUPFD		0		/* duplicate file descriptor */
+'	#define	F_GETFD		1		/* get file descriptor flags */
+'	#define	F_SETFD		2		/* set file descriptor flags */
+'	#define	F_GETFL		3		/* get file status flags */
+'	#define	F_SETFL		4		/* set file status flags */
+'	#
+'	#define	F_GETOWN	5		/* get SIGIO/SIGURG proc/pgrp */
+'	#define F_SETOWN	6		/* set SIGIO/SIGURG proc/pgrp */
+'	#
+'	#define	F_GETLK		7		/* get record locking information */
+'	#define	F_SETLK		8		/* set record locking information */
+'	#define	F_SETLKW	9		/* F_SETLK; wait if blocked */
+'--------------
+'	#define	FREAD		0x0001
+'	#define	FWRITE		0x0002
+'	#endif
+'	#define	O_NONBLOCK	0x0004		/* no delay */
+'	#define	O_APPEND	0x0008		/* set append mode */
+'	#ifndef _POSIX_SOURCE
+'	#define	O_SHLOCK	0x0010		/* open with shared file lock */
+'	#define	O_EXLOCK	0x0020		/* open with exclusive file lock */
+'	#define	O_ASYNC		0x0040		/* signal pgrp when data ready */
+'	#define	O_FSYNC		0x0080		/* synchronous writes */
+'	#endif
+'	#define	O_CREAT		0x0200		/* create if nonexistant */
+'	#define	O_TRUNC		0x0400		/* truncate to zero length */
+'	#define	O_EXCL		0x0800		/* error if already exists */
+'	#ifdef KERNEL
+'	#define	FMARK		0x1000		/* mark during gc() */
+'	#define	FDEFER		0x2000		/* defer for next gc pass */
+'	#define	FHASLOCK	0x4000		/* descriptor holds advisory lock */
+'	#endif
+'--------------
+'
+' #####  Linux file open constants - see fcntl()
+'
+	$$LIN_O_ACCMODE          = 0x0003
+	$$LIN_O_RDONLY           = 0x0000
+	$$LIN_O_WRONLY           = 0x0001
+	$$LIN_O_RDWR             = 0x0002
+	$$LIN_O_CREAT            = 0x0040
+	$$LIN_O_EXCL             = 0x0080
+	$$LIN_O_NOCTTY           = 0x0100
+	$$LIN_O_TRUNC            = 0x0200
+	$$LIN_O_APPEND           = 0x0400
+	$$LIN_O_NONBLOCK         = 0x0800
+	$$LIN_O_NDELAY           = 0x0800
+	$$LIN_O_SYNC             = 0x1000
+'
+' #####  values for the second argument to access
+'
+	$$R_OK                   = 0x0004  ' test for read permission
+	$$W_OK                   = 0x0002  ' test for write permission
+	$$X_OK                   = 0x0001  ' test for execute permission
+	$$F_OK                   = 0x0000  ' test for existence
+'
+'
+' *******************************
+' *****  sockets constants  *****  often different from the Windows equivalents
+' *******************************
+'
+' most of these constants are from "/usr/include/linux/socket.h" and "/usr/include/linux/in.h"
+'
+' socket types
+'
+	$$SOCK_STREAM    =  1
+	$$SOCK_DGRAM     =  2
+	$$SOCK_RAW       =  3
+	$$SOCK_RDM       =  4
+	$$SOCK_SEQPACKET =  5
+	$$SOCK_PACKET    = 10
+'
+' address families
+'
+	$$AF_UNSPEC      =  0
+	$$AF_UNIX        =  1
+	$$AF_INET        =  2
+	$$AF_AX25        =  3
+	$$AF_IPX         =  4
+	$$AF_APPLETALK   =  5
+	$$AF_NETROM      =  6  ' Amateur Radio NET/ROM
+	$$AF_BRIDGE      =  7  ' Multiprotocol bridge
+	$$AF_ATMPVC      =  8  ' ATM PVCs
+	$$AF_X25         =  9  ' Reserved for X.25 project
+	$$AF_INET6       = 10  ' IP version 6
+	$$AF_ROSE        = 11  ' Amateur Radio X.25 PLP
+	$$AF_DECnet      = 12  ' Reserved for DECnet project
+	$$AF_NETBEUI     = 13  ' Reserved for 802.2LLC project
+	$$AF_SECURITY    = 14  ' Security callback pseudo AF
+	$$AF_KEY         = 15  ' PF_KEY key management API
+	$$AF_NETLINK     = 16
+	$$AF_ROUTE       = 16  ' $$AF_NETLINK Alias to emulate 4.4BSD
+	$$AF_PACKET      = 17  ' Packet family
+	$$AF_ASH         = 18  ' Ash
+	$$AF_ECONET      = 19  ' Acorn Econet
+	$$AF_ATMSVC      = 20  ' ATM SVCs
+	$$AF_RDS         = 21  ' RDS sockets
+	$$AF_SNA         = 22  ' Linux SNA Project (nutters!)
+	$$AF_IRDA        = 23  ' IRDA sockets
+	$$AF_PPPOX       = 24  ' PPPoX sockets
+	$$AF_WANPIPE     = 25  ' Wanpipe API Sockets
+	$$AF_LLC         = 26  ' Linux LLC
+	$$AF_IB          = 27  ' Native InfiniBand address
+	$$AF_CAN         = 29  ' Controller Area Network
+	$$AF_TIPC        = 30  ' TIPC sockets
+	$$AF_BLUETOOTH   = 31  ' Bluetooth sockets
+	$$AF_IUCV        = 32  ' IUCV sockets
+	$$AF_RXRPC       = 33  ' RxRPC sockets
+	$$AF_ISDN        = 34  ' mISDN sockets
+	$$AF_PHONET      = 35  ' Phonet sockets
+	$$AF_IEEE802154  = 36  ' IEEE802154 sockets
+	$$AF_CAIF        = 37  ' CAIF sockets
+	$$AF_ALG         = 38  ' Algorithm sockets
+	$$AF_NFC         = 39  ' NFC sockets
+	$$AF_VSOCK       = 40  ' vSockets
+	$$AF_MAX         = 41  ' For now..
+'
+' protocol families
+'
+	$$PF_UNSPEC          = $$AF_UNSPEC
+	$$PF_UNIX            = $$AF_UNIX
+	$$PF_INET            = $$AF_INET
+	$$PF_AX25            = $$AF_AX25
+	$$PF_IPX             = $$AF_IPX
+	$$PF_APPLETALK       = $$AF_APPLETALK
+	$$PF_MAX             = $$AF_MAX
+'
+' flags for send() and recv()
+'
+	$$MSG_OOB            = 0x0001
+	$$MSG_PEEK           = 0x0002
+	$$MSG_DONTROUTE      = 0x0004
+'
+' getsockoptions() : setsockoptions()
+'
+	$$SOL_IP             = 0x0000
+	$$SOL_SOCKET         = 0x0001
+	$$SOL_TCP            = 0x0006
+	$$SOL_UDP            = 0x0011
+	$$SOL_IPX            = 0x0100
+	$$SOL_AX25           = 0x0101
+	$$SOL_ATALK          = 0x0102
+'
+' getsockoptions() : setsockoptions() : option flags per socket
+'
+	$$SO_DEBUG           = 0x0001
+	$$SO_REUSEADDR       = 0x0002
+	$$SO_TYPE            = 0x0003
+	$$SO_ERROR           = 0x0004
+	$$SO_DONTROUTE       = 0x0005
+	$$SO_BROADCAST       = 0x0006
+	$$SO_SNDBUF          = 0x0007
+	$$SO_RCVBUF          = 0x0008
+	$$SO_KEEPALIVE       = 0x0009
+	$$SO_OOBINLINE       = 0x000A
+	$$SO_NO_CHECK        = 0x000B
+	$$SO_PRIORITY        = 0x000C
+	$$SO_LINGER          = 0x000D
+'
+' IP options - for getsockopt() and setsockopt() at the IP level
+'
+	$$IP_TOS             = 0x0001
+	$$IP_TTL             = 0x0002
+	$$IP_HRDINCL         = 0x0003
+	$$IP_OPTIONS         = 0x0004
+'
+	$$IP_MULTICAST_IF    = 0x0020
+	$$IP_MULTICAST_TTL   = 0x0021
+	$$IP_MULTICAST_LOOP  = 0x0022
+	$$IP_ADD_MEMBERSHIP  = 0x0023
+	$$IP_DROP_MEMBERSHIP = 0x0024
+'
+	$$IP_DEFAULT_MULTICAST_TTL  = 1
+	$$IP_DEFAULT_MULTICAST_LOOP = 1
+	$$IP_MAX_MEMBERSHIPS        = 20
+'
+	$$IPTOS_RELIABILITY  = 0x0004
+	$$IPTOS_THROUGHPUT   = 0x0008
+	$$IPTOS_LOWDELAY     = 0x0010
+'
+' IPX options
+'
+	$$IPX_TYPE           = 0x0001
+'
+' TCP options
+'
+	$$TCP_NODELAY        = 0x0001
+	$$TCP_MAXSEG         = 0x0002
+'
+' the various priorities
+'
+	$$SOPRI_INTERACTIVE  = 0x0000
+	$$SOPRI_NORMAL       = 0x0001
+	$$SOPRI_BACKGROUND   = 0x0002
+'
+' protocols - from "in.h" in Linux
+'
+	$$IPPROTO_IP         =    0
+	$$IPPROTO_ICMP       =    1
+	$$IPPROTO_IGMP       =    2
+	$$IPPROTO_IPIP       =    4
+	$$IPPROTO_TCP        =    6
+	$$IPPROTO_EGP        =    8
+	$$IPPROTO_PUP        =   12
+	$$IPPROTO_UDP        =   17
+	$$IPPROTO_IDP        =   22
+	$$IPPROTO_RAW        =  255
+'
+' internet address integers - "in.h" in Linux
+'
+' CLASS A = 0x00000000 to 0x7F000000
+'
+	$$IN_CLASSA_NET      = 0xFF000000
+	$$IN_CLASSA_NSHIFT   = 24
+	$$IN_CLASSA_HOST     = 0x00FFFFFF
+	$$IN_CLASSA_MAX      = 128
+'
+' CLASS B = 0x80000000 to 0xBF000000
+'
+	$$IN_CLASSB_NET      = 0xFFFF0000
+	$$IN_CLASSB_NSHIFT   = 16
+	$$IN_CLASSB_HOST     = 0x0000FFFF
+	$$IN_CLASSB_MAX      = 65536
+'
+' CLASS C = 0xC0000000 to 0x0DFFFFFF
+'
+	$$IN_CLASSC_NET      = 0xFFFFFF00
+	$$IN_CLASSC_NSHIFT   = 8
+	$$IN_CLASSC_HOST     = 0x000000FF
+'
+	$$INADDR_ANY         = 0x00000000
+	$$INADDR_LOOPBACK    = 0x7F000001
+	$$INADDR_BROADCAST   = 0xFFFFFFFF
+	$$INADDR_NONE        = 0xFFFFFFFF
+'
+	$$INADDR_UNSPEC_GROUP     = 0xE0000000		' 224.0.0.0
+	$$INADDR_ALLHOSTS_GROUP   = 0xE0000001		' 224.0.0.1
+	$$INADDR_MAX_LOCAL_GROUP  = 0xE00000FF		' 224.0.0.255
+'
+	$$IN_LOOPBACKNET     = 0x7F
+'
+' for ioctl()
+'
+	$$IOC_VOID           = 0x00000000
+	$$IOC_IN             = 0x40000000
+	$$IOC_OUT            = 0x80000000
+	$$IOC_INOUT          = 0xC0000000
+	$$IOCSIZE_MASK       = 0x3FFF0000
+	$$IOCSIZE_SHIFT      = 0x00000010					' shift 16-bits
+	$$IOCSIZE_MAX        = 0x0000FFFF					' is this right?
+	$$IOCCMD_MASK        = 0x0000FFFF					' command code
+	$$IOCCMD_SHIFT       = 0x00000000					' no shift
+	$$IOCPARM_MASK       = $$IOCCMD_MASK
+'	$$IOCPARM_SHIFT      = $$IOCMD_SHIFT
+	$$IOCPARM_SHIFT      = $$IOCCMD_SHIFT     '*cw* 101218
+'
+' poll() events constants
+'
+	$$POLLIN             = 0x0001
+	$$POLLPRI            = 0x0002
+	$$POLLOUT            = 0x0004
+	$$POLLERR            = 0x0008
+	$$POLLHUP            = 0x0010
+	$$POLLNVAL           = 0x0020
+'
+'
+' ******************************************************
+' *********  the rest is from windows version  *********
+' *****  remove when certain they are superfluous  *****
+' ******************************************************
+'
+' for ioctl() - called ioctlsocket() in Windows
+'
+'	$$IOC_PARM_MASK      = 0x0000007F
+'	$$IOC_VOID           = 0x20000000
+'	$$IOC_OUT            = 0x40000000
+'	$$IOC_IN             = 0x80000000
+'	$$IOC_INOUT          = 0xC0000000
+'
+' for ioctlsocket() - figured out from above with "formula" in winsock.h
+'
+'	$$FIONREAD           = 0x4004667F
+'	$$FIONBIO            = 0x8004667E
+'	$$FIOASYNC           = 0x8004667D
+'
+	$$FIONREAD           = 0x0000541B
+	$$FIONBIO            = 0x00005421
+	$$FIONCLEX           = 0x00005450
+'
+' port / sockets for network standard functions
+'
+	$$IPPORT_ECHO        =    7
+	$$IPPORT_DISCARD     =    9
+	$$IPPORT_SYSTAT      =   11
+	$$IPPORT_DAYTIME     =   13
+	$$IPPORT_NETSTAT     =   15
+	$$IPPORT_FTP         =   21
+	$$IPPORT_TELNET      =   23
+	$$IPPORT_SMTP        =   25
+	$$IPPORT_TIMESERVER  =   37
+	$$IPPORT_NAMESERVER  =   42
+	$$IPPORT_WHOIS       =   43
+	$$IPPORT_MTP         =   57
+'
+' sockets for host specific functions
+'
+	$$IPPORT_TFTP        =   69
+	$$IPPORT_RJE         =   77
+	$$IPPORT_FINGER      =   79
+	$$IPPORT_TTYLINK     =   87
+	$$IPPORT_SUPDUP      =   95
+'
+' UNIX TCP sockets
+'
+	$$IPPORT_EXECSERVER  =  512
+	$$IPPORT_LOGINSERVER =  513
+	$$IPPORT_CMDSERVER   =  514
+	$$IPPORT_EFSSERVER   =  520
+'
+' UNIX UDP sockets
+'
+	$$IPPORT_BIFFUDP     =  512
+	$$IPPORT_WHOSERVER   =  513
+	$$IPPORT_ROUTESERVER =  520
+	$$IPPORT_ROUTEEXTRA  =  521
+	$$IPPORT_RESERVED    = 1024
+'
+' link numbers
+'
+	$$IMPLINK_IP         =  155
+	$$IMPLINK_LOWEXPER   =  156
+	$$IMPLINK_HIGHEXPER  =  158
+'
+' All UNIX error numbers are in "errno.h" and "xst.dec"
+'
+' Windows sockets error numbers - can test for these error names or UNIX error names
+'
+	$$WSABASEERR             = 10000
+	$$WSAEINTR               = $$EINTR
+	$$WSAEBADF               = $$EBADF
+	$$WSAEACCES              = $$EACCES
+	$$WSAEFAULT              = $$EFAULT
+	$$WSAEINVAL              = $$EINVAL
+	$$WSAEMFILE              = $$EMFILE
+	$$WSAEWOULDBLOCK         = $$EWOULDBLOCK
+	$$WSAEINPROGRESS         = $$EINPROGRESS
+	$$WSAENOTSOCK            = $$ENOTSOCK
+	$$WSAEDESTADDRREQ        = $$EDESTADDRREQ
+	$$WSAEMSGSIZE            = $$EMSGSIZE
+	$$WSAEPROTOTYPE          = $$EPROTOTYPE
+	$$WSAENOPROTOOPT         = $$ENOPROTOOPT
+	$$WSAEPROTONOSUPPORT     = $$EPROTONOSUPPORT
+	$$WSAESOCKTNOSUPPORT     = $$ESOCKTNOSUPPORT
+	$$WSAEOPNOTSUPP          = $$EOPNOTSUPP
+	$$WSAEPFNOSUPPORT        = $$EPFNOSUPPORT
+	$$WSAEAFNOSUPPORT        = $$EAFNOSUPPORT
+	$$WSAEADDRINUSE          = $$EADDRINUSE
+	$$WSAEADDRNOTAVAIL       = $$EADDRNOTAVAIL
+	$$WSAENETDOWN            = $$ENETDOWN
+	$$WSAENETUNREACH         = $$ENETUNREACH
+	$$WSAENETRESET           = $$ENETRESET
+	$$WSAECONNABORTED        = $$ECONNABORTED
+	$$WSAECONNRESET          = $$ECONNRESET
+	$$WSAENOBUFS             = $$ENOBUFS
+	$$WSAEISCONN             = $$EISCONN
+	$$WSAENOTCONN            = $$ENOTCONN
+	$$WSAESHUTDOWN           = $$ESHUTDOWN
+	$$WSAETOOMANYREFS        = $$ETOOMANYREFS
+	$$WSAETIMEDOUT           = $$ETIMEDOUT
+	$$WSAECONNREFUSED        = $$ECONNREFUSED
+	$$WSAELOOP               = $$ELOOP
+	$$WSAENAMETOOLONG        = $$ENAMETOOLONG
+	$$WSAEHOSTDOWN           = $$EHOSTDOWN
+	$$WSAEHOSTUNREACH        = $$EHOSTUNREACH
+	$$WSAENOTEMPTY           = $$ENOTEMPTY
+	$$WSAEPROCLIM            = 10067
+	$$WSAEUSERS              = $$EUSERS
+	$$WSAEDQUOT              = $$EDQUOT
+	$$WSAESTALE              = $$ESTALE
+	$$WSAEREMOTE             = $$EREMOTE
+	$$WSAESYSNOTREADY        = 10091
+	$$WSAEVERNOTSUPPORTED    = 10092
+	$$WSAENOTINITILISED      = 10093
+	$$WSAENOTINITILIZED      = 10093
+	$$WSAEDISCON             = 10101
+'
+	$$WSAHOST_NOT_FOUND      = 11001
+	$$WSATRY_AGAIN           = 11002
+	$$WSANO_RECOVERY         = 11003
+	$$WSANO_DATA             = 11004
+	$$WSANO_ADDRESS          = 11004
+'
+' getnameinfo flags
+'
+	$$NI_NOFQDN       = 0x0001
+	$$NI_NUMERICHOST  = 0x0002
+	$$NI_NAMEREQD     = 0x0004
+	$$NI_NUMERICSERV  = 0x0008
+	$$NI_DGRAM        = 0x0010
+

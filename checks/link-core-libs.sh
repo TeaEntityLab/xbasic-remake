@@ -22,7 +22,7 @@ fi
 OUT=${1:-/tmp/xblib}
 rm -rf "$OUT"
 mkdir -p "$OUT"
-for lib in xbasic-6.4.5/src/shared/*.x xbasic-6.4.5/src/linux/*.x; do
+for lib in xbasic/lib/*.x xbasic/lib/*.x; do
     name=$(basename "$lib" .x)
     echo "emit  $name"
     XB_WEAK_SYMBOLS=1 "$XB_BIN" --emit-c "$lib" > "$OUT/$name.c"

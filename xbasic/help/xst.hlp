@@ -1,0 +1,2741 @@
+:Xio()
+####################
+#####  Xio ()  #####
+####################
+
+FUNCTION  Xio ()
+:Xst()
+####################
+#####  Xst ()  #####
+####################
+
+	Xst ()
+
+	The Xst function initializes the standard library.
+
+FUNCTION  Xst ()
+:XstAbend()
+#########################
+#####  XstAbend ()  #####
+#########################
+
+	XstAbend (errorMessage$)
+
+	Stop XBasic with an error message
+	Note: The runtime environment may not
+	yet be initialized, so don't rely on it.
+	errorMessage$	This message is printed.
+
+FUNCTION  XstAbend (errorMessage$)
+:XstAlert()
+#########################
+#####  XstAlert ()  #####
+#########################
+
+	XstAlert (message$)
+
+	Show a message
+	Note: The runtime environment may not yet
+	be initialized, so don't rely on it.
+	message$	This message is printed.
+
+FUNCTION  XstAlert (message$)
+:XstBackArrayToBinArray()
+#######################################
+#####  XstBackArrayToBinArray ()  #####
+#######################################
+
+	XstBackArrayToBinArray (@back$[], @bin$[])
+
+	Make a duplicate of back$[] in bin$[] with all backslash characters
+	converted into their binary equivalents.  For example,
+	every occurance of two character sequence "\t" in back$[]
+	into a single 0x09 "tab" character in bin$[].
+
+	See: XstBinArrayToBackArray()
+
+FUNCTION  XstBackArrayToBinArray (backArray$[], binArray$[])
+:XstBackStringToBinString$()
+##########################################
+#####  XstBackStringToBinString$ ()  #####
+##########################################
+
+	bin$ = XstBackStringToBinString$ (@back$)
+
+	Convert string with XBasic backslash characters into a string with
+	appropriate unprintable binary bytes (0x00 - 0x1F and 0x80 - 0xFF).
+
+	NOTE:  \" becomes 0x22
+	NOTE:  \\ becomes 0x5C
+	NOTE:  \a \b \t \n \v \f \r become 0x07 0x08 0x09 0x0A 0x0B 0x0C 0x0D
+	NOTE:  \0 - \9 become 0x00 - 0x09  (Decimal)
+	NOTE:  \A - \F become 0x0A - 0x0F  (Hex extension)  (note: upper case only)
+	NOTE:  \G - \V become 0x10 - 0x1F  (Vex extension)  (note: upper case only)
+	NOTE:  \Z becomes 0xFF
+	NOTE:  This function will process \xHH (hexidecimal) format.
+	NOTE:  This function will not process \oOOO (octal) format.
+
+FUNCTION  XstBackStringToBinString$ (rawString$)
+:XstBinArrayToBackArray()
+#######################################
+#####  XstBinArrayToBackArray ()  #####
+#######################################
+
+	XstBinArrayToBackArray (@bin$[], @back$[])
+
+	Make a duplicate of bin$[] in back$[] with all 0x00-0x1F and 0x80-0xFF
+	characters converted to backslash character equivalents.
+	For example, convert every one byte 0x09 "tab" character in bin$[]
+	to the two character backslash character sequence "\t" in back$[].
+
+	See: XstBackArrayToBinArray()
+
+FUNCTION  XstBinArrayToBackArray (binArray$[], backArray$[])
+:XstBinRead()
+###########################
+#####  XstBinRead ()  #####
+###########################
+
+	bytesRead = XstBinRead (fileNumber, address, maxBytes)
+
+	Read binary data from diskfile into memory.
+
+	 bytesRead    = number of bytes read into memory
+	 fileNumber   = file number returned by OPEN()
+	 address      = memory address to read file data into
+	 maxBytes     = maximum number of bytes to read
+
+	XstBinRead() reads up to maxBytes into memory at address from fileNumber,
+	starting at the current value of the file pointer.
+
+	If fewer than maxBytes exist between the current file pointer and the end
+	of file, all remaining bytes are read in.  The number of bytes read into
+	memory is returned in bytesRead unless an error occurs, in which case
+	bytesRead contains -1 and ##XERROR contains the runtime error number.
+
+	An error is returned if a disk access error occurs, fileNumber is not open
+	for reading, or the file pointer is at or beyond the end of file.
+	$$ErrorNatureWouldBlock errors are not considered errors by this function
+	and are ignored.
+
+	The READ statement is more efficient, safer, and usually more appropriate
+	than XstBinRead().  READ never reads too much data, thereby writing
+	outside the target variable.  XstBinRead() will attempt to read any
+	quantity of data into any address.  Therefore, it can write data outside
+	the appropriate area, which almost always leads to fatal memory faults
+	that crash the program and the development environment.
+
+	READ only works with variables, strings, and arrays that are part of the
+	language, however.  When C library functions supply an address to receive
+	data, XstBinRead() is an appropriate choice.
+
+FUNCTION  XstBinRead (fileNumber, bufferAddr, maxBytes)
+:XstBinStringToBackString$()
+##########################################
+#####  XstBinStringToBackString$ ()  #####
+##########################################
+
+	back$ = XstBinStringToBackString$ (bin$)
+
+	Convert string with unprintable bytes (0x00 - 0x1F and 0x80 - 0xFF)
+	into a string with all unprintable bytes converted into C compatible
+	backslash sequences that should be interpretable by C compilers and
+	a majority of assemblers that accept C style literal strings.
+
+	NOTE:  0x22 converted to \"
+	NOTE:  0x5C converted to \\
+	NOTE:  0x00 - 0x06 converted to \xHH form
+	NOTE:  0x07 - 0x0D converted to \a  \b  \t  \n  \v  \f  \r
+	NOTE:  0x0E - 0x1F converted to \xHH form
+	NOTE:  0x7F - 0xFF converted to \xHH form
+
+		NOTE:  newlines are also converted
+
+FUNCTION  XstBinStringToBackString$ (rawString$)
+:XstBinStringToBackStringNL$()
+############################################
+#####  XstBinStringToBackStringNL$ ()  #####
+############################################
+
+	backNL$ = XstBinStringToBackStringNL (@bin$)
+
+		Like XstBinStringToBackString$() except do not
+		convert newlines (don't convert 10 to \n).
+
+FUNCTION  XstBinStringToBackStringNL$ (rawString$)
+:XstBinStringToBackStringThese$()
+###############################################
+#####  XstBinStringToBackStringThese$ ()  #####
+###############################################
+
+	back$ = XstBinStringToBackStringThese$ (bin$, @these[])
+
+FUNCTION  XstBinStringToBackStringThese$ (rawString$, these[])
+:XstBinWrite()
+############################
+#####  XstBinWrite ()  #####
+############################
+
+	bytesWritten = XstBinWrite (fileNumber, address, writeBytes)
+
+	Write binary data to diskfile or device from memory.
+
+	 bytesWritten = -1 if an error occurred
+	 fileNumber   = file number returned by OPEN()
+	 address      = memory address to get data from
+	 writeBytes   = number of bytes to write to file
+
+	XstBinWrite() writes writeBytes from memory at address to fileNumber,
+	starting at the current value of the file pointer.
+
+	The number of bytes written is returned in error unless an error occurred,
+	in which case -1 is returned and ##ERROR contains the runtime error number.
+
+	If the number of bytes written is zero, or less than writeBytes, it may be
+	because the device has not finished processing the preceding command. Just
+	wait awhile and try again. This should only occur if the device has beened
+	opened with the $$NONBLOCK option. Checking the latest ERROR() should indicate
+	an error value of 9509 (hexx 0x2525) "Function WouldBlock".
+
+	An error is returned if a disk access error occurs,
+	or fileNumber is not open for writing.
+
+	The WRITE statement is more efficient and usually more appropriate than
+	XstBinWrite().  WRITE only works with variables, strings, and arrays
+	that are part of the language, however.  When C library functions supply
+	an address of data to be saved, XstBinWrite() is an appropriate choice.
+
+FUNCTION  XstBinWrite (fileNumber, bufferAddr, numBytes)
+:XstCauseException()
+##################################
+#####  XstCauseException ()  #####
+##################################
+
+	XstCauseException (exception)
+
+	Cause the specified exception.  exception is the native
+	exception number, not the system exception number.
+
+	See: XstGetException(), XstGetExceptionFunction()
+
+FUNCTION  XstCauseException (exception)
+:XstChangeDirectory()
+###################################
+#####  XstChangeDirectory ()  #####
+###################################
+
+	error = XstChangeDirectory (directory$)
+
+	Change the default or working directory to directory$.
+
+	newDirectory$: may be absolute /dir1/dir2/dir3
+	                   or relative dir1/dir2
+
+	return  : $$TRUE   error (##ERROR set)
+	          $$FALSE  no error
+
+	See: XstGetCurrentDirectory(), XstSetCurrentDirectory()
+
+FUNCTION  XstChangeDirectory (newDirectory$)
+:XstClearConsole()
+################################
+#####  XstClearConsole ()  #####
+################################
+
+	XstClearConsole ()
+
+	Erases all the text that is displayed on the console window.
+
+	The console can be cleared manually by clicking on "Run" from the main menu,
+	and selecting "Erase Output"
+
+	See: XstCreateConsole(), XstDisplayConsole(), XstHideConsole, XstShowConsole()
+
+FUNCTION  XstClearConsole ()
+:XstCloseLibrary()
+################################
+#####  XstCloseLibrary ()  #####
+################################
+
+	error = XstCloseLibrary (handle)
+
+	See:  XstOpenLibrary()
+
+FUNCTION  XstCloseLibrary (handle)
+:XstClosePref()
+#############################
+#####  XstClosePref ()  #####
+#############################
+
+	error = XstClosePref (@pfile)
+
+	If changes have been made to pfile,
+	it will be saved before it is closed.
+
+FUNCTION  XstClosePref (pfile)
+:XstCompareArray()
+################################
+#####  XstCompareArray ()  #####
+################################
+
+	result = 0
+	error = XstCompareArray (@array1[], @array2[], @result)
+
+	result should be set to zero, (0), before calling XstCompareArray().
+
+		If error = $$CompareArrayEqual, result = 0 indicating the arrays are equal.
+		If error = $$CompareArrayNotEqual, result will be the number of mismatches.
+
+		If error = $$CompareArrayNotSameSize, $$CompareArrayNotSameType, or
+		$$CompareArrayNotSameNode, result will be the number of mismatches
+	found be fore the error was encountered.
+
+FUNCTION  XstCompareArray (array1[], array2[], result)
+:XstCompareStrings()
+##################################
+#####  XstCompareStrings ()  #####
+##################################
+
+	result = XstCompareStrings (addrString1, op, addrString2, flags)
+
+	 addrString1 = address of first string to compare
+	 op          = test operator; $$ZERO, $$EQ, $$NE, $$LT, $$LE, $$GE, $$GT
+	 addrString2 = address of second string to compare
+	 flags       = type of comparison; $$SortCaseInsensitive, $$SortAlphaNumeric
+
+	 result = $$TRUE               if an error occurred, see ERROR()
+	 result = $$FALSE              if comparison failed
+	 result = $$EQ, $$LT or $$GT ; the actual successful result
+
+FUNCTION  XstCompareStrings (addrString1, op, addrString2, flags)
+:XstCopyArray()
+#############################
+#####  XstCopyArray ()  #####
+#############################
+
+	XstCopyArray (@array[], @copy[])
+
+	Return a copy of simple numeric type or string array[] in copy[].
+	XstCopyArray() cannot copy composite arrays, which includes SCOMPLEX
+	and DCOMPLEX arrays, as well as all user-defined and composite type
+	arrays.  Make sure copy[] is the same type as array[].
+
+FUNCTION  XstCopyArray (sss[], ddd[])
+:XstCopyDirectory()
+#################################
+#####  XstCopyDirectory ()  #####
+#################################
+
+	error = XstCopyDirectory (source$, dest$)
+
+	Copy all the files, sub-directories and files
+	in the sub-directories from the source$
+	directory to the dest$ directory.
+	The dest$ directory must exist, though the
+	sub-directories will be created as needed.
+	Existing files with the same name will be replaced.
+
+	See: XstCopyFile(), XstMakeDirectory()
+
+FUNCTION  XstCopyDirectory (source$, dest$)
+:XstCopyFile()
+############################
+#####  XstCopyFile ()  #####
+############################
+
+	error = XstCopyFile (sourceFile$, newFile$)
+
+	Create a new file called newFile$ and copy the contents
+	of the existing sourceFile$ into newFile$.
+
+	See: XstCopyDirectory(), XstMakeDirectory()
+
+FUNCTION  XstCopyFile (source$, dest$)
+:XstCopyMemory()
+##############################
+#####  XstCopyMemory ()  #####
+##############################
+
+	XstCopyMemory (saddress, daddress, copybytes)
+
+	Copy the number of bytes in copybytes,
+	from the source starting address saddress
+	to the destination starting address daddress.
+	The source and destination memory areas can overlap.
+
+FUNCTION  XstCopyMemory (saddress, daddress, copybytes)
+:XstCreateConsole()
+#################################
+#####  XstCreateConsole ()  #####
+#################################
+
+	XstCreateConsole (xDisp, yDisp, width, height)
+
+	Create the console window at a specific location
+	and size for a standalone program. If there is
+	an existing console, or running in the PDE where
+	there is always a cosole window, the console is
+	repositioned and resized. This is so you can see
+	what it will look like in a standalone program.
+
+	If both the width and height are zero it will
+	attempt to create a console that will display
+	25 lines of text with 80 characters per line.
+
+	The console window will not be be visible when
+	it is created. It needs to be made visible with
+	XstDisplayConsole() or XstShowConsole().
+
+	To change the style of the scroll bars and colors
+	of the console, use XstSetConsoleStyleAndColors()
+
+	Example code:
+
+	   xDisp = 90     ' almost to the far right of the workarea
+	   yDisp = 50     ' half way down the workarea
+	   width = 50     ' half the width of the workarea
+	   height = 75    ' 3/4 of the height of the workarea
+	   windowType = $$WindowTypeNormal
+	   style = 7      ' 7 is the maximum style number
+	   font$ = "9x15bold"
+	   '
+	   XstWindowSizePercent (@xDisp, @yDisp, @width, @height, windowType)
+	   XstCreateConsole (xDisp, yDisp, width, height)
+	   XstSetConsoleStyleAndColors (style, $$White, $$Blue, $$Yellow, $$Red, -1, -1)
+	   XstSetConsoleFont (size, weight, italic, angle, font$)
+	   XstShowConsole ()
+
+	   See the demo program "aconsole.x" for an actual example
+	   of customizing the console window.
+
+
+	See: XstClearConsole(), XstDisplayConsole(), XstGetConsoleFont(),
+	     XstGetConsoleGrid(), XstGetConsoleStyleAndColors,
+	     XstGetConsolePositionAndSize(), XstHideConsole(),
+	     XstSetConsoleFont(), XstSetConsoleStyleAndColors,
+	     XstShowConsole(), INLINE$(), PRINT
+
+FUNCTION  XstCreateConsole (xDisp, yDisp, width, height)
+:XstDateAndTimeToFileTime()
+#########################################
+#####  XstDateAndTimeToFileTime ()  #####
+#########################################
+
+	XstDateAndTimeToFileTime (year, month, day, weekDay, hour, minute, second, nanos, @filetime$$)
+
+	See: XstFileTimeToDateAndTime()
+
+FUNCTION  XstDateAndTimeToFileTime (year, month, day, weekDay, hour, minute, second, nanos, @filetime$$)
+:XstDecomposePathname()
+#####################################
+#####  XstDecomposePathname ()  #####
+#####################################
+
+	XstDecomposePathname (pathname$, @path$, @parent$, @fileName$, @file$, @extent$)
+
+	Get the components of a pathname$.  The path$, parent$, and fileName$,
+	file$ and extent$ of the specified pathname$ are returned.
+
+	See: XstGetPathComponents()
+
+FUNCTION  XstDecomposePathname (pathname$, path$, parent$, fileName$, file$, extent$)
+:XstDeleteFile()
+##############################
+#####  XstDeleteFile ()  #####
+##############################
+
+	error = XstDeleteFile (file$)
+
+	Delete the specified file$.
+
+FUNCTION  XstDeleteFile (file$)
+:XstDeleteLines()
+###############################
+#####  XstDeleteLines ()  #####
+###############################
+
+	error = XstDeleteLines (@text$[], first, count)
+
+	Delete count lines from string array text$[] starting at line first.
+
+	See: XstReplaceLines()
+
+FUNCTION  XstDeleteLines (array$[], start, count)
+:XstDeletePrefKey()
+#################################
+#####  XstDeletePrefKey ()  #####
+#################################
+
+	error = XstDeletePrefKey (pfile, key$)
+
+	Deletes a single key$ within the current selected section$
+
+FUNCTION  XstDeletePrefKey (pfile, key$)
+:XstDeletePrefSection()
+#####################################
+#####  XstDeletePrefSection ()  #####
+#####################################
+
+	error = XstDeletePrefSection (pfile, section$)
+
+	Deletes the pfile section$ and all the keys within that section$
+
+FUNCTION  XstDeletePrefSection (pfile, section$)
+:XstDiscardPref()
+###############################
+#####  XstDiscardPref ()  #####
+###############################
+
+	error = XstDiscardPref (pfile)
+
+	The entire Pref data array is deleted and closed without being saved.
+	The file$ used for XstOpenPref() is not overwritten.
+
+FUNCTION  XstDiscardPref (pfile)
+:XstDisplayConsole()
+##################################
+#####  XstDisplayConsole ()  #####
+##################################
+
+	error = XstDisplayConsole ()
+
+	Make the existing console window visible if it is hidden.
+	If there is no console window in a standalone program,
+	create one at the default size and location and make it visible.
+
+	See: XstCreateConsole(), XstGetConsoleGrid(), XstHideConsole(), XstShowConsole()
+
+FUNCTION  XstDisplayConsole ()
+:XstErrorNameToNumber()
+#####################################
+#####  XstErrorNameToNumber ()  #####
+#####################################
+
+	error = XstErrorNameToNumber (error$, @error)
+
+	Convert the one or two part error name in error$ into an error number.
+	See xst.dec for $$ErrorObject and $$ErrorNature constants.
+
+	See: ERROR()
+	     ERROR$()
+	     XstErrorNumberToName()
+	     XstSystemErrorNumberToName()
+	     XstSystemErrorToError()
+
+FUNCTION  XstErrorNameToNumber (err$, error)
+:XstErrorNumberToName()
+#####################################
+#####  XstErrorNumberToName ()  #####
+#####################################
+
+	XstErrorNumberToName (error, @error$)
+
+	Convert the one or two part error number into an error$ name.
+
+
+	See: ERROR()
+	     ERROR$()
+	     XstErrorNameToNumber()
+	     XstSystemErrorNumberToName()
+	     XstSystemErrorToError()
+
+FUNCTION  XstErrorNumberToName (error, error$)
+:XstExceptionNumberToName()
+#########################################
+#####  XstExceptionNumberToName ()  #####
+#########################################
+
+	error = XstExceptionNumberToName (exception, @exception$)
+
+	Convert a native exception number into a native exception$ name.
+
+	See: XstExceptionToSystemException()
+	     XstSystemExceptionNumberToName()
+	     XstSystemExceptionToException()
+	     XstSetException()
+	     XstSetExceptionFunction()
+
+FUNCTION  XstExceptionNumberToName (exception, exception$)
+:XstExceptionToSystemException()
+##############################################
+#####  XstExceptionToSystemException ()  #####
+##############################################
+
+	XstExceptionToSystemException (exception, @sysException)
+
+	Convert a native exception number to its system exception number
+
+
+	See: XstExceptionNumberToName()
+	     XstSystemExceptionNumberToName()
+	     XstSystemExceptionToException()
+	     XstSetException()
+	     XstSetExceptionFunction()
+
+FUNCTION  XstExceptionToSystemException (exception, sysException)
+:XstFileSelect()
+###########################
+#####  XstFileSelect  #####
+###########################
+
+	XstFileSelect (windowTitle$, @file$)
+
+	Display an XuiFile GUI window for selecting a file name.
+	The window position, directory, and highlighted file will
+	be the same as the last time it was displayed, or
+	in the position specified by XstFileSelectSetInfo()
+
+	The filter field will be that set with XstFileSelectSetInfo()
+
+	In : windowTitle$ = string to display at top of GUI window
+	Out: file$ = name of the file selected
+
+	See: XstFileSelectSetInfo(), XstFileSelectGetInfo,
+	     CLOSE(), OPEN(), EOF(), POF(), LOF(), SEEK()
+
+FUNCTION  XstFileSelect (windowTitle$, @fileName$)
+:XstFileSelectGetInfo()
+##################################
+#####  XstFileSelectGetInfo  #####
+##################################
+
+	XstFileSelectGetInfo (@path$, @filter$, @xDisp, @yDisp, @width, @height)
+
+	Returns information about the XuiFile GUI window the last time
+	it was displayed or set with XstFileSelectSetInfo() function.
+	This information is used by XstFileSelect() and XstFileSelectOpen()
+
+FUNCTION  XstFileSelectGetInfo (@path$, @filter$, @xDisp, @yDisp, @width, @height)
+:XstFileSelectOpen()
+##################################
+#####  XstFileSelectOpen ()  #####
+##################################
+
+	XstFileSelectOpen (mode, @file$, @fileNumber)
+
+	Display an XuiFile GUI window for selecting a file name
+	and then open the file in the specified mode.  The
+	window position, directory, and highlighted file will
+	be the same as the last time it was displayed, or
+	in the position specified by XstFileSelectSetInfo()
+
+	The filter field will be that set with XstFileSelectSetInfo()
+
+	 In: mode constants:
+	   $$RD, $$WR, $$RW, $$WRNEW, $$RWNEW, $$RDSHARE, $$WRSHARE, $$RWSHARE
+	 Out: file$ = name of the file selected
+	      fileNumber >= 3 if file$ successfully opened
+
+	See: XstFileSelectSetInfo(), XstFileSelectGetInfo,
+	     CLOSE(), OPEN(), EOF(), POF(), LOF(), SEEK()
+
+FUNCTION  XstFileSelectOpen (mode, @fileName$, @fileNumber)
+:XstFileSelectSetInfo()
+##################################
+#####  XstFileSelectSetInfo  #####
+##################################
+
+	XstFileSelectSetInfo (path$, filter$, xDisp, yDisp, width, height)
+
+	Set information for the XuiFile GUI window to be used by
+	the functions XuiFileSelect() and XuiFileSelectOpen()
+
+	  path$   is the absolute directory path to be displayed in
+	          the directory box and may include the file name.
+
+	  filter$ is a character string that is converted to a
+	          string array and set into the filter drop box
+	          e.g. filter$ = "*.x, *.win\n *.txt\n *"
+
+	  By default XBasic does not display hidden files, hidden directory
+	  or symbolic links. They can be displayed if the first chacter of
+	  the filter string is a "." period or dot.
+	  ".*"    will diplay all hidden files
+	  ".*, *" will display all hidden and normal files
+	  ".,"    will display all files including symbolic links
+
+	  xDisp, yDisp, width, height are be percentages of the workarea if
+	                              they all have a value of 100 or less.
+	                              See: XstWindowSizePercent()
+
+FUNCTION  XstFileSelectSetInfo (path$, filter$, xDisp, yDisp, width, height)
+:XstFileTimeToDateAndTime()
+#########################################
+#####  XstFileTimeToDateAndTime ()  #####
+#########################################
+
+	XstFileTimeToDateAndTime (filetime$$, @year, @month, @day, @weekDay, @hour, @minute, @second, @nanos)
+
+	See: XstDateAndTimeToFileTime()
+
+FUNCTION  XstFileTimeToDateAndTime (filetime$$, year, month, day, weekDay, hour, minute, second, nanos)
+:XstFileTimeToLocalDateAndTime()
+##############################################
+#####  XstFileTimeToLocalDateAndTime ()  #####
+##############################################
+
+	XstFileTimeToLocalDateAndTime (filetime$$, @year, @month, @day, @weekDay, @hour, @minute, @second, @nanos)
+
+	See: XstDateAndTimeToFileTime()
+
+FUNCTION  XstFileTimeToLocalDateAndTime (filetime$$, year, month, day, weekDay, hour, minute, second, nanos)
+:XstFileToSystemFile()
+####################################
+#####  XstFileToSystemFile ()  #####
+####################################
+
+	XstFileToSystemFile (fileNumber, @systemFilenumber)
+
+	Convert a native fileNumber returned by OPEN() into the systemFilenumber
+	- the file number or handle the operating system uses to refer to the file.
+	This makes it possible to call operating system functions directly to get
+	information about the file.
+
+FUNCTION  XstFileToSystemFile (fileNumber, systemFileNumber)
+:XstFindArray()
+#############################
+#####  XstFindArray ()  #####
+#############################
+
+	XstFindArray (mode, @text$[], @find$, @line, @pos, @match)
+
+	XstFindArray() looks for a find$ string within text array text$[] starting at
+	line, pos.  text$[0] is line 0 and the first character on each line is pos 0.
+
+	If mode is $$FindReverse then pos=-1 means search from last character of line.
+
+	If an XstFindArray() finds an occurance of find$ in text$[] given the
+	instructions in the mode argument, match is assigned a non-zero value
+	and line, pos are assigned the line and character position of the
+	first character of the string in text$[] that matched find$.
+
+	XstFindArray() does not alter text$[] or find$.
+
+	mode=0 tells XstFindArray() to do a forward, case-sensitive find.
+	To control the find, OR together mode constants from xst.dec :
+
+	 $$FindForward
+	 $$FindReverse
+	 $$FindDirection
+	 $$FindCaseSensitive
+	 $$FindCaseInsensitive
+	 $$FindCaseSensitivity
+	 $$FindWordSensitive
+	 $$FindWordInsensitive
+	 $$FindWordSensitivity
+
+FUNCTION  XstFindArray (mode, text$[], find$, line, pos, match)
+:XstFindFile()
+############################
+#####  XstFindFile ()  #####
+############################
+
+	XstFindFile (file$, @path$[], @path$, @attr)
+
+	XstFindFile() looks for the specified file$
+	in the subdirectories specified in path$[].
+
+	If file$ starts with a path slash, then it
+	is assumed to be an absolute path and none
+	of the path$[] subdirectories are checked.
+
+	IF file$ starts with a .. (parent directory)
+	or ./ (current directory), then the path is
+	assumed to be relative to the parent directory
+	or current directory.
+
+	Otherwise the path is determined from the
+	search path$[] array.
+
+	The purpose of this function is to find a
+	file that might be in more than one place.
+	This function searches for the file in the
+	subdirectories in the order specified in
+	path$[].
+
+	If the file is found, path$ is returned
+	with the complete path, including the
+	fileName, and attr contains the file
+	attributes.  Note that this function
+	does not find directories of the given
+	file$ name - it looks for regular files.
+
+FUNCTION  XstFindFile (file$, path$[], path$, attr)
+:XstFindFiles()
+#############################
+#####  XstFindFiles ()  #####
+#############################
+
+	XstFindFiles (basepath$, filter$, recurse, @file$[])
+
+	basepath$ = directory to begin search
+	filter$   = file name filter e.g. "myprog.x", "*.x", "a*.x", or "*.00?"
+	            a "*" skips over zero or more characters
+	            a "?" skips over one single character
+	recurse   = $$TRUE for search to include the sub directories
+	@file$[]  = matching file names are appended to @file$[]
+
+	When 'recurse = $$TRUE' the list of files returned
+	does not include files via symbolic links.
+
+	See: XstFindFile(), XstGetFiles()
+
+FUNCTION  XstFindFiles (basepath$, filter$, recurse, file$[])
+:XstGetApplicationEnvironment()
+#############################################
+#####  XstGetApplicationEnvironment ()  #####
+#############################################
+
+	XstGetApplicationEnvironment (@standalone, @reserved)
+
+	Return a standalone variable to tell whether the program
+	is currently running as a standalone executable as opposed
+	to in the program developement environment.
+
+FUNCTION  XstGetApplicationEnvironment (@standalone, @reserved)
+:XstGetCommandLine()
+##################################
+#####  XstGetCommandLine ()  #####
+##################################
+
+	XstGetCommandLine (@line$)
+
+	See: XstGetCommandLineArguments(), XstSetCommandLineArguments()
+
+FUNCTION  XstGetCommandLine (@line$)
+:XstGetCommandLineArguments()
+###########################################
+#####  XstGetCommandLineArguments ()  #####
+###########################################
+
+	XstGetCommandLineArguments (@argCount, @argv$[])
+
+	Return the number of command line arguments in argCount,
+	and the command line argument strings in argv$[].
+	argCount should never be 0 or less, since the name
+	of the program is the first argument, unless
+	XstSetCommandLineArguments() has changed them.
+
+	Call XstGetCommandLineArguments() with (argCount < 0)
+	to get the original argCount and argv$[] in the event
+	they have been changed by XstSetCommandLineArguments().
+
+	See: XstGetCommandLine(), XstSetCommandLineArguments()
+
+FUNCTION  XstGetCommandLineArguments (argc, argv$[])
+:XstGetConsoleFont()
+##################################
+#####  XstGetConsoleFont ()  #####
+##################################
+
+	XstGetConsoleFont (@size, @weight, @italic, @angle, @font$)
+
+	See: GetFont, XstCreateConsole(), XstDisplayConsole(),
+	     XstGetConsoleGrid(), XstSetConsoleFont(), XstShowConsole(),
+
+FUNCTION  XstGetConsoleFont (size, weight, italic, angle, font$)
+:XstGetConsoleGrid()
+##################################
+#####  XstGetConsoleGrid ()  #####
+##################################
+
+	XstGetConsoleGrid (@grid)
+
+	Return the grid number of the console grid. A grid value
+	of zero will be returned if there is no console window.
+	GuiPrograms usually do not input or display information
+	with the console window, so XBasic does not create a console
+	for a standalone program. To have a console in a standalone,
+	requires XstDisplayConsole() or use XstCreateConsole() to
+	create a console at a specific location and size followed by
+	XstDisplayConsole() to make it visible.
+
+	XstCreateConsole() help information lists commands
+	for setting the Console font, color and style.
+
+	See: XstClearConsole(), XstCreateConsole(), XstDisplayConsole(),
+	     XstHideConsole, XstShowConsole()
+
+FUNCTION  XstGetConsoleGrid (grid)
+:XstGetConsolePositionAndSize()
+#############################################
+#####  XstGetConsolePositionAndSize ()  #####
+#############################################
+
+	XstGetConsolePositionAndSize (@xDisp, @yDisp, @width, @height)
+
+	See: XstCreateConsole(), XstGetConsoleFont(), XstGetConsoleStyleAndColors()
+
+FUNCTION  XstGetConsolePositionAndSize (xDisp, yDisp, width, height)
+:XstGetConsoleStyleAndColors()
+############################################
+#####  XstGetConsoleStyleAndColors ()  #####
+############################################
+
+	XstGetConsoleStyleAndColors (@style, @textBack, @textDraw, @scrollBack, @scrollDraw, @scrollLo, @scrollHi)
+
+	Returns the current style of the console and current
+	colors of the horizontal scrollbar for the console.
+	It is assumed the vertical scrollbar is the same colors.
+
+	See: XstCreateConsole(), XstGetConsoleFont(),
+	     XstGetConsolePositionAndSize(),
+	     XstSetConsoleStyleAndColors()
+
+FUNCTION  XstGetConsoleStyleAndColors (style, textBack, textDraw, scrollBack, scrollDraw, scrollLo, scrollHi)
+:XstGetCPUName()
+##############################
+#####  XstGetCPUName ()  #####
+##############################
+
+	XstGetCPUName (@name$)
+
+	Return the generic name of the central processor unit in name$.
+
+FUNCTION  XstGetCPUName (name$)
+:XstGetCurrentDirectory()
+#######################################
+#####  XstGetCurrentDirectory ()  #####
+#######################################
+
+	error = XstGetCurrentDirectory (@directory$)
+
+	Get the current default aka working directory name in directory$.
+
+	See: XstChangeDirectory(), XstSetCurrentDirectory()
+
+FUNCTION  XstGetCurrentDirectory (current$)
+:XstGetDateAndTime()
+##################################
+#####  XstGetDateAndTime ()  #####
+##################################
+
+	XstGetDateAndTime (@year, @month, @day, @weekDay, @hour, @minute, @second, @nanos)
+
+	Get the UTC/GMT date and time. This date and time is equal in all
+	timezones.
+
+	@year			The year (0000 .. 9999)
+	@month		The month (1 .. 12)
+	@day			The day of the month (1 .. 31)
+	@weekDay	The day of the week (sunday=0 .. saturday=6)
+	@hour			The hour (00 .. 23)
+	@minute		The minute (00 .. 59)
+	@second		The second (00 .. 59)
+	@nanos		The nanoseconds (0 .. 999999999)
+
+	See: XstGetLocalDateAndTime(), XstSetDateAndTime()
+
+FUNCTION  XstGetDateAndTime (year, month, day, weekDay, hour, minute, second, nanos)
+:XstGetDrives()
+#############################
+#####  XstGetDrives ()  #####
+#############################
+
+	error = XstGetDrives (@count, @drive$[], @type[], @type$[])
+
+	Note that LINUX/UNIX systems present drives as directories,
+	so drives are invisible.
+
+FUNCTION  XstGetDrives (count, drive$[], driveType[], driveType$[])
+:XstGetEndian()
+#############################
+#####  XstGetEndian ()  #####
+#############################
+
+	XstGetEndian (@endian$$)
+
+	Return a 64-bit endian descriptor that contains the following 8 bytes:
+	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 in the lowest to
+	highest addresses of endian$$.  The value of endian$$ is therefore
+	0x0706050403020100 on little endian systems, and 0x0001020304050607
+	on pure big endian systems.
+
+	See: XstGetEndianName()
+
+FUNCTION  XstGetEndian (endian$$)
+:XstGetEndianName()
+#################################
+#####  XstGetEndianName ()  #####
+#################################
+
+	XstGetEndianName (@endian$)
+
+	Return "LittleEndian" or "BigEndian" in endian$.
+
+	See: XstGetEndian()
+
+FUNCTION  XstGetEndianName (name$)
+:XstGetEnvironmentVariable()
+##########################################
+#####  XstGetEnvironmentVariable ()  #####
+##########################################
+
+	XstGetEnvironmentVariable (name$, @value$)
+
+	Get the string value$ of the environment variable with called name$.
+	For example, XstGetEnvironmentVariable ("PATH", @path$).
+
+	See: XstGetEnvironmentVariables()
+	     XstGetExecutionPathArray()
+	     XstSetEnvironmentVariable()
+
+FUNCTION  XstGetEnvironmentVariable (name$, value$)
+:XstGetEnvironmentVariables()
+###########################################
+#####  XstGetEnvironmentVariables ()  #####
+###########################################
+
+	XstGetEnvironmentVariables (@count, @envp$[])
+
+	Return the number of environment variable strings in count, and the environment
+	variable strings in envp$[].  The strings contain both the name of the
+	environment variable and its value, separated by an "=", as in
+	PATH=/usr/local/bin:/usr/local/sbin:/sbin:/usr/sbin:/bin:/usr/bin:/usr/bin/X11
+
+	See: XstGetEnvironmentVariable()
+	     XstGetExecutionPathArray()
+	     XstSetEnvironmentVariable()
+
+FUNCTION  XstGetEnvironmentVariables (count, var$[])
+:XstGetException()
+################################
+#####  XstGetException ()  #####
+################################
+
+	XstGetException (@exception)
+
+	Return the native exception number of the most recent exception.
+
+	See: XstCauseException(), XstGetExceptionFunction(), XstSetException()
+
+FUNCTION  XstGetException (exception)
+:XstGetExceptionFunction()
+########################################
+#####  XstGetExceptionFunction ()  #####
+########################################
+
+	XstGetExceptionFunction (@functionAddress)
+
+	Get the address of the current exception function in functionAddress.
+	When an exception occurs in a standalone program, the exception
+	function established by XstSetExceptionFunction() is executed.
+
+	See: XstCauseException(), XstGetException(), XstSetExceptionFunction()
+
+FUNCTION  XstGetExceptionFunction (function)
+:XstGetExecutionPathArray()
+######################################
+#####  XstGetExecutionPathArray  #####
+######################################
+
+	XstGetExecutionPathArray (@path$[])
+
+	Reads the system environmental variable "PATH", "path", or "Path" string
+	and parses each component into an entry of the path$[] array.
+
+FUNCTION  XstGetExecutionPathArray (@path$[])
+:XstGetFileAttributes()
+#####################################
+#####  XstGetFileAttributes ()  #####
+#####################################
+
+	readable = XstGetFileAttributes (file$, @attributes)
+
+	Get the file attributes of the specified file$.
+	The standard library defines file attribute constants - see xst.dec.
+
+	readable will have the $$FileNormal and $$FileReadOnly attribute flags
+	indicating that the file can be opened in the reading only mode.
+	So code such as the following can be used:
+
+	IF XstGetFileAttributes (file$, 0) THEN
+	  ifile = OPEN(file$, $$RD)
+	END IF
+
+	See: XstGetFilesAndAttributes()
+
+FUNCTION  XstGetFileAttributes (file$, attributes)
+:XstGetFiles()
+############################
+#####  XstGetFiles ()  #####
+############################
+
+	maxLength = XstGetFiles (filter$, @file$[])
+
+	Get the array of file names in file$[] that corresponds
+	to the fileName filter$ string.  filter$ can contain drive,
+	path, and fileName with "*" and "?" wildcard characters.
+
+	See: XstFindFile(), XstFindFiles(), XstGetFilesAndAttributes()
+
+FUNCTION  XstGetFiles (ff$, file$[])
+:XstGetFilesAndAttributes()
+#########################################
+#####  XstGetFilesAndAttributes ()  #####
+#########################################
+
+	FILEINFO info[]
+	maxLen = XstGetFilesAndAttributes (filter$, attrfilter, @file$[], @info[])
+
+	Get an array of fileNames in file$[] and file information in info[]
+	for the files specified by the drive/path/fileName in filter$ and the
+	file attributes in attrfilter.  The info[] array is type FILEINFO,
+	as defined in "xst.dec".  The number of characters in the longest
+	fileName is returned in maxLen.
+
+	See: XstGetFileAndAttributes()
+
+FUNCTION  XstGetFilesAndAttributes (ff$, attributesFilter, file$[], FILEINFO attrInfo[])
+:XstGetHomePath$()
+################################
+#####  XstGetHomePath$ ()  #####
+################################
+
+	path$ = XstGetHomePath$ ()
+
+	Retrieve the full path of the
+	home-directory of the current user.
+
+FUNCTION  XstGetHomePath$ ()
+:XstGetImplementation()
+#####################################
+#####  XstGetImplementation ()  #####
+#####################################
+
+	XstGetImplementation (@name$)
+
+	The implementation is "unix elf linux"
+
+	See: XstGetOSName()
+
+FUNCTION  XstGetImplementation (name$)
+:XstGetLibraryAddress()
+#####################################
+#####  XstGetLibraryAddress ()  #####
+#####################################
+
+	address = XstGetLibraryAddress (handle, funcname$)
+
+	See: XstOpenLibrary()
+
+FUNCTION  XstGetLibraryAddress (handle, funcname$)
+:XstGetLocalDateAndTime()
+#######################################
+#####  XstGetLocalDateAndTime ()  #####
+#######################################
+
+	XstGetLocalDateAndTime (@year, @month, @day, @weekDay, @hour, @minute, @second, @nanos)
+
+	This retrieves the date and time in the local timezone.
+
+	@year			The year (0000 .. 9999)
+	@month		The month (1 .. 12)
+	@day			The day of the month (1 .. 31)
+	@weekDay	The day of the week (sunday=0 .. saturday=6)
+	@hour			The hour (00 .. 23)
+	@minute		The minute (00 .. 59)
+	@second		The second (00 .. 59)
+	@nanos		The nanoseconds (0 .. 999999999)
+
+	See: XstGetDateAndTime, XstSetDateAndTime()
+
+FUNCTION  XstGetLocalDateAndTime (year, month, day, weekDay, hour, minute, second, nanos)
+:XstGetMemoryMap()
+################################
+#####  XstGetMemoryMap ()  #####
+################################
+
+	MEMORYMAP memorymap
+	XstGetMemoryMap (@memorymap)
+
+FUNCTION  XstGetMemoryMap (MEMORYMAP memorymap)
+:XstGetNewline()
+##############################
+#####  XstGetNewline ()  #####
+##############################
+
+	XstGetNewline (@save, @paste)
+
+	Retrieve the newline character values
+
+	See: XstSetNewline()
+
+FUNCTION  XstGetNewline (save, paste)
+:XstGetOSName()
+#############################
+#####  XstGetOSName ()  #####
+#############################
+
+	XstGetOSName (@name$)
+
+	Return the operating system name in name$.  Examples include
+	"Windows", "WindowsNT", "UNIX", "OS2", "linux unix".
+
+	See: XstGetImplementation(), XstGetVersion()
+
+FUNCTION  XstGetOSName (name$)
+:XstGetOSVersion()
+################################
+#####  XstGetOSVersion ()  #####
+################################
+
+	XstGetOSVersion (@major, @minor)
+
+	Return the major and minor portions of the operating system version.
+	The major and minor part are the integer and fractional portions of
+	the complete version number, so version 3.10 of the Windows operating
+	system, major = 0x0003 and minor = 0x000A.
+
+	See: XstGetOSVersionName()
+
+FUNCTION  XstGetOSVersion (major, minor)
+:XstGetOSVersionName()
+####################################
+#####  XstGetOSVersionName ()  #####
+####################################
+
+	XstGetOSVersionName (@version$)
+
+	Return the operating system version number string "major.minor"
+
+	See: XstGetOSVersion()
+
+FUNCTION  XstGetOSVersionName (name$)
+:XstGetPathComponents()
+#####################################
+#####  XstGetPathComponents ()  #####
+#####################################
+
+	XstGetPathComponents (file$, @path$, @drive$, @dir$, @fileName$, @attributes)
+
+	Get the components of a file$.  The path$, dir$, and fileName$,
+	and attributes of the specified file are returned.
+	path$ = drive$ + dir$
+
+	Linux does not have a drive$, and is here only to have
+	the function be the same as XBasic for Microsoft Windows.
+
+	See: XstDecomposePathname()
+
+FUNCTION  XstGetPathComponents (file$, path$, drive$, dir$, fileName$, attributes)
+:XstGetPrefFile()
+###############################
+#####  XstGetPrefFile ()  #####
+###############################
+
+	error = XstGetPrefFile (pfile, @file$)
+
+	Returns the file$ name used when the pfile was opened with XstOpenPref()
+	file$ will be blank "" if pfile number is invalid.
+
+FUNCTION  XstGetPrefFile (pfile, @file$)
+:XstGetPrefSection()
+##################################
+#####  XstGetPrefSection ()  #####
+##################################
+
+	error = XstGetPrefSection (pfile, @section$)
+
+	Returns the section$ name of the current active section.
+	A blank or empty section$ name is valid.
+
+FUNCTION  XstGetPrefSection (pfile, @section$)
+:XstGetPrefSTRING()
+#################################
+#####  XstGetPrefString ()  #####
+#################################
+
+	error = XstGetPrefSTRING (pfile, key$, default$, @value$)
+
+	Returns the STRING value$ for the key$ name within the current section name of pfile.
+	If the key$ name does not exist, the STRING in default$ is copied to value$.
+
+FUNCTION  XstGetPrefSTRING (pfile, key$, default$, @value$)
+:XstGetPrefXLONG()
+################################
+#####  XstGetPrefXLONG ()  #####
+################################
+
+	error = XstGetPrefXLONG (pfile, key$, default, @value)
+
+	Returns the XLONG value for the key$ name within the current section name of pfile.
+	If the key$ name does not exist, the value in default is copied to value.
+
+FUNCTION  XstGetPrefXLONG (pfile, key$, default, @value)
+:XstGetPrintTab()
+###############################
+#####  XstGetPrintTab ()  #####
+###############################
+
+	XstGetPrintTab (@pixels)
+
+	Return the number of pixels between tab positions in the console.
+
+	See: XstSetPrintTab (pixels)
+
+FUNCTION  XstGetPrintTab (pixels)
+:XstGetProgramFileName$()
+#######################################
+#####  XstGetProgramFileName$ ()  #####
+#######################################
+
+	file$ = XstGetProgramFileName$ ()
+
+	Retrieve the full path and fileName of the executable
+	return the full path and fileName of the executable.
+
+	See: XstGetProgramName()
+
+FUNCTION  XstGetProgramFileName$ ()
+:XstGetProgramName()
+##################################
+#####  XstGetProgramName ()  #####
+##################################
+
+	XstGetProgramName (@prog$)
+
+	See: XstGetProgramFileName$(), PROGRAM$()
+
+FUNCTION  XstGetProgramName (@prog$)
+:XstGetSystemError()
+##################################
+#####  XstGetSystemError ()  #####
+##################################
+
+	XstGetSystemError (@sysError)
+
+	Return the most recent operating system sysError number.
+
+	See: XstSetSystemError()
+
+FUNCTION  XstGetSystemError (error)
+:XstGetSystemTime()
+##############################
+#####  XstGetSystemTime  #####
+##############################
+
+	XstGetSystemTime (@msec)
+
+	Return the value of the free running time in msec.
+
+FUNCTION  XstGetSystemTime (msec)
+:XstGetTaskInfo()
+###############################
+#####  XstGetTaskInfo ()  #####
+###############################
+
+	assigned = XstGetTaskInfo (taskNum, @count, @msec, @funcAddress, @timer, @skips)
+
+	assigned --- is returned $$TRUE if taskNum is assigned, $$FALSE if unassaigned.
+
+	skips --- is the number of times that the task was not run because, at the time
+	of a timer interrupt to run the task again, the task was still running or has
+	not started from the previous request.
+
+	See: XstStartTask(), XstKillTask()
+
+FUNCTION  XstGetTaskInfo (taskNum, @count, @msec, @func, @timer, @skips)
+:XstGuessFilename()
+#################################
+#####  XstGuessFilename ()  #####
+#################################
+
+	XstGuessFilename (@old$, @new$, @guess$, @attributes)
+
+	if new name contains drive and/or root path slash,
+	the new name is the full path or path\fileName, so
+	ignore the old name.
+
+	this function will return $$FileNormal if the file
+	does not exist, but the path is valid so that the
+	specified file could be created, as is often the
+	case for files to be saved (they don't yet exist).
+
+	if the return value of attributes is zero, the
+	file name is invalid for both read and write.
+
+FUNCTION  XstGuessFilename (old$, new$, guess$, attributes)
+:XstHideConsole()
+###############################
+#####  XstHideConsole ()  #####
+###############################
+
+	XstHideConsole ()
+
+	Make a visible console window hidden.
+
+	See: XstCreateConsole(), XstDisplayConsole(),
+	     XstGetConsoleGrid(), XstShowConsole()
+
+FUNCTION  XstHideConsole ()
+:XstInKey$()
+##########################
+#####  XstInKey$ ()  #####
+##########################
+
+	char$ = XstInKey$ ()
+
+	Return one string character from the console input buffer,
+	without echoing it to the screen.  An empty string value
+	will be returned immediately if the buffer is empty.
+
+
+	See: XstWaitKey$() if you want to wait for a character
+
+FUNCTION  XstInKey$ ()
+:XstIsDataDimension()
+################################
+#####  XstIsDataDimension  #####
+################################
+
+	isdata = XstIsDataDimension (@array[])
+
+FUNCTION  XstIsDataDimension (array[])
+:XstKillTask()
+############################
+#####  XstKillTask ()  #####
+############################
+
+	error = XstKillTask (taskNum)
+	error = XstKillTask ($$ALL)
+
+	error is returned TRUE if a specified task number
+	      was not assigned or failed to be stopped.
+
+	error is always returned FALSE if $$ALL is specified,
+	      whether any tasks were stopped or not.
+
+FUNCTION  XstKillTask (taskNum)
+:XstKillTimer()
+#############################
+#####  XstKillTimer ()  #####
+#############################
+
+	error = XstKillTimer (timer)
+
+	timer = timer ID returned by XstStartTimer()
+
+	error = $$FALSE success
+	error = $$TRUE  failure
+
+FUNCTION  XstKillTimer (timer)
+:XstLoadArray()
+#############################
+#####  XstLoadArray ()  #####
+#############################
+
+	error = XstLoadArray (file$, @array[])
+
+	Read a special XBasic file format into an XBasic array[]
+	The file has a header magic ID = "XBAR"
+	The array[] must have been written with XstSaveArray()
+
+	See: XstSaveArray()
+
+FUNCTION  XstLoadArray (file$, array[])
+:XstLoadString()
+##############################
+#####  XstLoadString ()  #####
+##############################
+
+	error = XstLoadString (@file$, @string$)
+
+	Load the contents of file$ into a string$.
+	The length of string$ is the same as the number of bytes in file$.
+	string$ can contain any combination of ascii and/or binary bytes.
+
+	See: XstSaveString()
+
+FUNCTION  XstLoadString (file$, text$)
+:XstLoadStringArray()
+###################################
+#####  XstLoadStringArray ()  #####
+###################################
+
+	error = XstLoadStringArray (file$, @string$[])
+
+	Load the contents of file$ into string array string$[].
+	The contents of file$ are broken into separate "lines" by any
+	of the following newline byte sequences - "\r\n", "\n\r", "\n".
+
+	The newline bytes are not put into string$[].
+	If the last characters in file$ are a newline byte sequence,
+	the last element of string$[] is an empty string aka "".
+
+	See: XstSaveStringArray(), XstSaveStringArrayCRLF()
+
+FUNCTION  XstLoadStringArray (file$, text$[])
+:XstLockFileSection()
+###################################
+#####  XstLockFileSection ()  #####
+###################################
+
+	error = XstLockFileSection (fileNumber, mode, offset$$, length$$)
+
+	Note: offset$$ and length$$ are 64-bit signed GIANT integers
+
+	See: XstUnlockFileSection()
+
+FUNCTION  XstLockFileSection (file, mode, offset$$, length$$)
+:XstLog()
+#######################
+#####  XstLog ()  #####
+#######################
+
+	XstLog (text$)
+
+	Writes the Process ID, date and time plus text$ to the file named "x.log"
+
+FUNCTION  XstLog (text$)
+:XstLTRIM()
+#########################
+#####  XstLTRIM ()  #####
+#########################
+
+	error = XstLTRIM (@string$, @array[])
+
+	Trim characters from the left end of a string as specified in the array[].
+
+	string$ - character string supplied untrimmed and returned trimmed
+	array[] - array indexed by the character number, with a zero value
+	          for each character that is to be trimmed.
+
+	See: LTRIM$(), demo program "atrim.x"
+
+FUNCTION  XstLTRIM (@string$, array[])
+:XstMakeDirectory()
+#################################
+#####  XstMakeDirectory ()  #####
+#################################
+
+	error = XstMakeDirectory (@directory$)
+
+	 When error returns TRUE, more information can be obtained with:
+	 IF error THEN
+	   errorNumber = ERROR(0)
+	   errorString$ = ERROR$(errorNumber)
+	   PRINT errorString$
+	 END IF
+
+FUNCTION  XstMakeDirectory (directory$)
+:XstMatchWild()
+#############################
+#####  XstMatchWild ()  #####
+#############################
+
+	matchPos = XstMatchWild (searchMe$, searchFor$, start, matchCase)
+
+	Search searchMe$ for a match of searchFor$
+
+	searchFor$ can have wildcard characters "*" and "?"
+	           "**" and "*?" are changed to "*"
+
+	matchCase = $$TRUE for a case sensitive search
+
+
+	matchPos  = position of the first chacter of a match
+	            or zero if no match was found.
+
+FUNCTION  XstMatchWild (searchMe$, searchFor$, start, matchCase)
+:XstMergeStrings$()
+#################################
+#####  XstMergeStrings$ ()  #####
+#################################
+
+	return$ = XstMergeStrings$ (string$, add$, start, replace)
+
+	string$ - the character string being merged with
+	add$    - the string being merged or added
+	start   - character position to insert add$
+	replace - the number of characters to be replaced or deleted
+
+FUNCTION  XstMergeStrings$ (string$, add$, start, replace)
+:XstMultiStringToStringArray()
+############################################
+#####  XstMultiStringToStringArray ()  #####
+############################################
+
+	XstMultiStringToStringArray (@string$, @array$[])
+
+	XstMultiStringToStringArray() converts a string$ into a string array$[] by
+	breaking the string into separate strings at each occurance of an \r character.
+	Note that the line separator character is not the \n aka newline character,
+	and that the lines in array$[] may therefore contain \n characters.
+	 \r characters are discarded.
+
+FUNCTION  XstMultiStringToStringArray (s$, s$[])
+:XstNextCField$()
+###############################
+#####  XstNextCField$ ()  #####
+###############################
+
+	string$ = XstNextCField$ (address, @index, @done)
+
+	Return the next text element from a C string.
+
+	 string$ = next text element from C string
+	 address = memory address of C string
+	 index   = character position in C string  ( 1st byte = 1 )
+	 done    = end of C string reached
+
+	XstNextCField$() returns the next text element in the string at address,
+	starting at character position index.  index is advanced to the separator
+	that terminates the text element.  Text elements are separated by bounding
+	characters, which are characters with a value <= 0x20 (space, tab, newline,
+	return, and all control characters) and characters with a value >= 0x7F
+	(all special characters).
+
+	All bounding characters are skipped.  Then valid text characters are
+	collected in string$ until a bounding character is found or the end of
+	the string is reached, which is the first null character in the string.
+
+	index and done are normally passed by reference because useful information
+	is returned in these variables.  index is returned with the position of the
+	character after the text element, and done is returned with a non-zero value
+	if index entered with a value greater than the length of the string at address.
+
+	If index and done are passed by reference, XstNextCField$() can be called
+	repeatedly to read successive text elements from the string at address.
+
+	If index <= 0 is passed to XstNextCField(), it is set to 1.
+
+FUNCTION  XstNextCField$ (sourceAddr, index, done)
+:XstNextCLine$()
+##############################
+#####  XstNextCLine$ ()  #####
+##############################
+
+	string$ = XstNextCLine$ (address, @index, @done)
+
+		XstNextCLine$() is for strings not having the XBasic header
+			(typically, C strings imbedded in structures, etc)
+									= BIG TROUBLE if index is beyond terminating NULL
+
+		sourceAddr	= text address to search (source is not altered)
+		index				= index at which to begin search (1 = first character)
+											(if index < 1, starts at 1)
+
+		return next line from sourceAddr
+			doesn't return terminating \n or \r\n or \0
+									"" if done
+		index		= index after terminating \n \r\n or \0
+
+		done		= TRUE if 1st character = NULL
+
+		NOTE:  index counts from 1, offset counts from 0
+
+FUNCTION  XstNextCLine$ (sourceAddr, index, done)
+:XstNextField$()
+##############################
+#####  XstNextField$ ()  #####
+##############################
+
+	string$ = XstNextField$ (@source$, @index, @done)
+
+	Return the next text element from a string.
+
+	 string$  = next text element from string
+	 source$  = string to extract text element from
+	 index    = character position in source$
+	 done     = end of string reached
+
+	XstNextField$() returns the next text element from source$, starting at
+	character position index.  index is advanced to the separator that terminates
+	the text element.  Text elements are separated by bounding characters, which
+	are characters with a value <= 0x20 (space, tab, newline, return, and all
+	control characters) and characters with a value >= 0x7F (all special characters).
+
+	All bounding characters are skipped.  Then valid text characters are collected in
+	string$ until a bounding character is found or the end of the string is reached.
+
+	index and done are normally passed by reference because useful information is
+	returned in these variables.  index is returned with the position of the
+	character after the text element, and done is returned with a non-zero value
+	if index entered with a value greater than the length of source$.
+
+	If index and done are passed by reference, XstNextField$() can be called
+	repeatedly to read successive text elements from source$.
+
+	If index <= 0 is passed to XstNextField(), it is set to 1.
+
+	source$ is not modified by XstNextField$(), so it can be passed by reference
+	for optimal speed.
+
+	See: XstParseWhitespace$()
+
+FUNCTION  XstNextField$ (source$, index, done)
+:XstNextItem$()
+#############################
+#####  XstNextItem$ ()  #####
+#############################
+
+	string$ = XstNextItem$(source$, @index, @term, @done)
+
+	The XstNextItem$ function returns the next text element
+	from a delimited string. XstNextItem$ can be used on a
+	comma delimited string. Spaces are not altered.
+
+	XstNextItem$ returns the next text element from source$,
+	starting at character position index. index is advanced
+	to the separator that terminates the text element.
+	Text elements are separated by bounding characters, which are a
+	value <= 0x1F ( tab, newline, return, and all control characters),
+	characters with a value >= 0x7F (all special characters),
+	plus the comma , newline, and tab characters.
+
+	All bounding characters are skipped. Then valid text characters
+	are collected in string$ until a bounding character is found or
+	the end of the string is reached.
+
+	"index" and "done" are normally passed by reference because useful
+	information is returned in these variables. index is returned
+	with the position of the character after the text element,
+	and done is returned with a non-zero value if index entered
+	with a value greater than the length of source$.
+
+	If "index" and "done" are passed by reference, XstNextItem$ can be
+	called repeatedly to read successive text elements from source$.
+
+	If (index <= 0) is passed to XstNextItem, it is set to 1 .
+
+	"source$" is not modified by XstNextItem$ , so it can be passed
+	by reference for optimal speed.
+
+
+	 source$ - A delimited string
+	 index   - The character position within source$
+	 term    - The terminating character (tab- \t, newline- \n, comma - ,)
+	           or 0 if end of line reached with no terminator
+	 done    - done is $$TRUE if the end of the string was reached
+
+	See: XstParseWhitespace$()
+
+FUNCTION  XstNextItem$ (source$, index, term, done)
+:XstNextLine$()
+#############################
+#####  XstNextLine$ ()  #####
+#############################
+
+	string$ = XstNextLine$ (@source$, @index, @done)
+
+	Return the next newline terminated string from a string.
+
+	 source$ = string to extract the next line from
+	 index   = character position in C string  ( 1st byte = 1 )
+	 done    = end of C string reached
+
+	XstNextLine$() returns the next string$ from source$ that starts at index and
+	ends with the next newline character or end of string, whichever comes first.
+
+	string$ is returned without a terminating character.  index and done are
+	normally passed by reference because useful information is returned in these
+	variables.  index is moved past the newline or end of string.  done is returned
+	with a non-zero value if index is greater than the length of source$.
+
+	If index and done are passed by reference, XstNextLine$() can be
+	called repeatedly to read successive lines from source$.
+
+	If index <= 0 is passed to XstNextLine$(), it is set to 1.
+
+	source$ is not modified by XstNextLine$(), so it can be
+	passed by reference for optimal speed.
+
+FUNCTION  XstNextLine$ (source$, index, done)
+:XstOpenLibrary()
+###############################
+#####  XstOpenLibrary ()  #####
+###############################
+
+	handle = XstOpenLibrary (name$)
+
+	This function will only open Dynamic Libraries.
+
+	See: XstCloseLibrary(), XstGetLibraryAddress()
+
+FUNCTION  XstOpenLibrary (name$)
+:XstOpenPref()
+############################
+#####  XstOpenPref ()  #####
+############################
+
+	pfile = XstOpenPref (file$)
+
+	XstOpenPref() creates a data array that is referenced by the
+	pfile number section$ names and key$ names.
+
+	If the file$ exists, it is copied into the data array.
+
+	The Pref data array can be read and modified and saved.
+
+	Here is a alphabetical list of the functions that process "Pref" files.
+
+		error = XstClosePref (pfile)
+		error = XstDeletePrefKey (pfile, key$)
+		error = XstDeletePrefSection (pfile, section$)
+		error = XstDiscardPref (pfile)
+		error = XstGetPrefFile (pfile, @file$)
+		error = XstGetPrefSection (pfile, @section$)
+		error = XstGetPrefSTRING (pfile, key$, default$, @value$)
+		error = XstGetPrefXLONG (pfile, key$, default, @value)
+		pfile = XstOpenPref (file$)
+		error = XstSavePref (pfile)
+		error = XstSetPrefSection (pfile, section$)
+		error = XstSetPrefSTRING (pfile, key$, value$)
+		error = XstSetPrefXLONG (pfile, key$, value)
+
+	See: demo file apref.x
+
+FUNCTION  XstOpenPref (file$)
+:XstParse$()
+##########################
+#####  XstParse$ ()  #####
+##########################
+
+	string$ = XstParse$ (source$, delimiter$, n)
+
+	PURPOSE	: Parse$ returns the nth string in source$
+	            separated with delimiter$.
+						If a string is not found, the function
+	            returns empty string "".
+						The default delimiter is a space character.
+						The delimiter character(s) are removed.
+	IN			: source$, delimiter$, n
+	OUT			: nth string in source$
+	USE			: nthString$ = XstParse$ (myString$, ",", 4)
+
+	See: XstParseStringToStringArray()
+	     XstParseWhitespace()
+
+FUNCTION  XstParse$ (source$, delimiter$, n)
+:XstParseStringToStringArray()
+############################################
+#####  XstParseStringToStringArray ()  #####
+############################################
+
+	error = XstParseStringToStringArray (@source$, @delimiter$, @s$[])
+
+	PURPOSE	: Parses a string and splits it into a string array
+							based on the specified delimiter. The default delimiter
+							is a space character. The delimiter string is not included
+							in s$[].
+	IN			: source$, delimiter$
+	OUT			: s$[]
+	RETURN	: 0 on success, -1 on failure
+
+	See: XstParseWhitespaceToArray()
+
+FUNCTION  XstParseStringToStringArray (source$, delimiter$, @s$[])
+:XstParseWhitespace$()
+####################################
+#####  XstParseWhitespace$ ()  #####
+####################################
+
+	word$ = XstParseWhitespace$ (string$, wordNumber)
+
+	All characters between pairs of double-quotes are kept in place
+	as part of the word, including the double-quotes.
+	Words start at the end of white-space, and end at the start of white-space,
+	outside of double-quotes.
+	Leading and trailing white-space is not part of the word.
+
+	The first wordNumber is 1. If set to 0 word 1 will be returned.
+
+	See: XstNextField$(), XstNextItem$()
+
+FUNCTION  XstParseWhitespace$ (string$, wordNumber)
+:XstParseWhitespaceToArray()
+##########################################
+#####  XstParseWhitespaceToArray ()  #####
+##########################################
+
+	uWord = XstParseWhitespaceToArray (string$, @word$[])
+
+	uWord is the upper bounds of word$[] array, UBOUND(word$[])
+
+	All characters between pairs of double-quotes are kept in place
+	as part of the word, including the double-quotes.
+	Words start at the end of white-space, and end at the start of white-space,
+	outside of double-quotes.
+	Leading and trailing white-space is not part of the word.
+
+FUNCTION  XstParseWhitespaceToArray (string$, word$[])
+:XstPathString$()
+###############################
+#####  XstPathString$ ()  #####
+###############################
+
+	path$ = XstPathString$ (path$)
+
+		file$ = XstPathString$ ("$HOME/.xb64rc")
+
+	Converts a path string with win32 style separators '\\' to Linux/UNIX
+	style '/' pathslash separators.  It also trims leading and trailing
+	spaces, quotation, '<', '>', and '|' characters from the path string.
+	And it converts environment path variables to it's equivalent string.
+
+FUNCTION  XstPathString$ (path$)
+:XstPathToAbsolutePath()
+######################################
+#####  XstPathToAbsolutePath ()  #####
+######################################
+
+	XstPathToAbsolutePath (ipath$, @opath$)
+
+FUNCTION  XstPathToAbsolutePath (ipath$, opath$)
+:XstQuickSort()
+#############################
+#####  XstQuickSort ()  #####
+#############################
+
+	DIM n[1]  ' must exist (not empty) to be filled by XstQuickSort()
+	error = XstQuickSort (@a[], @n[], low, high, mode)
+
+	Input:
+	  a[]   = 1D array of ANY simple type to be sorted
+	  n[]   = array for sort indices (optional)
+	            DIM n[] (empty) no indices returned
+	            DIM n[1] (non-empty) indices are returned
+	  low   = first index to sort (first line of a[] is 0)
+	  high  = last index to sort  (last line of a[] is UBOUND(a[])
+	  mode  = OR the appropriate mode constants together:
+	             $$SortIncreasing    vs $$SortDecreasing
+	             $$SortAlphabetic    vs $$SortAlphaNumeric
+	             $$SortCaseSensitive vs $$SortCaseInsensitive
+
+	Output:
+	  a[]   = sorted data
+	  n[]   = corresponding indices
+	                  (if requested--n[1] = new index of old a[])
+
+	Return:
+	  $$TRUE  = error (##ERROR set)
+	  $$FALSE = no error
+
+	n[] is optional.  If it exists, it is redimensioned to match
+	  a[] and filled with indices 0 TO UBOUND(a[]).
+	  This array then tracks the sort of a[].
+	  It is used as a secondary sort (increasing only) so that equal values of
+	  a[] end up sorted by original index.
+	If n[] is NULL, the indices are not tracked = a faster sort.
+
+	To generate indices: DIM n[1]  (just make it non-NULL)
+	                               (it returns with dimension of a[])
+	To skip indices:     DIM n[]
+
+FUNCTION  XstQuickSort (a[], n[], low, high, mode)
+:XstRandom()
+##########################
+#####  XstRandom ()  #####
+##########################
+
+	ULONG result
+	result = XstRandom ()
+
+	  The KISS generator, (Keep It Simple Stupid), is
+	  designed to combine the two multiply-with-carry
+	  generators in MWC with the 3-shift register SHR3 and
+	  the congruential generator CONG, using addition and
+	  exclusive-or. Period about 2^123.
+	  It is one of my favorite generators.
+	  George Marsaglia
+
+	See: XstRandomCreateSeed(), XstRandomRange(), XstRandomSeed(), XstRandomUniform()
+
+FUNCTION  ULONG XstRandom ()
+:XstRandomCreateSeed()
+####################################
+#####  XstRandomCreateSeed ()  #####
+####################################
+
+	ULONG seed
+	seed = XstRandomCreateSeed ()
+
+	  XstRandomCreateSeed () is used to generate a random ULONG integer seed.
+	  Created by Vic Drastik (source: xbrandom.x)
+
+	See: XstRandom(), XstRandomRange(), XstRandomSeed(), XstRandomUniform()
+
+FUNCTION  ULONG XstRandomCreateSeed ()
+:XstRandomRange()
+##############################
+#####  XstRandomRange () #####
+##############################
+
+	result = XstRandomRange (n1, n2)
+
+	  result is random XLONG number in range n1 to n2 inclusive.
+	  note: n2 - n1 must be LESS than 4,294,967,295
+
+	See: XstRandom(), XstRandomCreateSeed(), XstRandomSeed(), XstRandomUniform()
+
+FUNCTION  XstRandomRange (n1, n2)
+:XstRandomSeed()
+##############################
+#####  XstRandomSeed ()  #####
+##############################
+
+	ULONG seed
+	XstRandomSeed (ULONG seed)
+
+	  Provide seed(s) for XstRandom function.
+	  If seed is zero, then a seed is created using
+	  XstRandomCreateSeed and it's value is returned.
+
+	See: XstRandom(), XstRandomCreateSeed(), XstRandomRange(), XstRandomUniform()
+
+FUNCTION  XstRandomSeed (ULONG seed)
+:XstRandomUniform()
+#################################
+#####  XstRandomUniform ()  #####
+#################################
+
+	DOUBLE number
+	number = XstRandomUniform ()
+
+	  XstRandomUniform returns a uniform random number, 0 < rn < 1.
+
+	See: XstRandom(), XstRandomCreateSeed(), XstRandomRange(), XstRandomSeed()
+
+FUNCTION  DOUBLE XstRandomUniform ()
+:XstReadString()
+##############################
+#####  XstReadString ()  #####
+##############################
+
+	error = XstReadString (ifile, @string$)
+
+	The XstReadString function reads a string written
+	to a disk file by XstWriteString(). It first reads
+	the string length header into a ULONG variable and
+	sizes the string variable based on that length.
+	If the file length is equal to the length of the
+	variable plus the number of bytes of string data,
+	it reads string data into the string.
+
+	See: XstWriteString()
+
+FUNCTION  XstReadString (ifile, string$)
+:XstRenameFile()
+##############################
+#####  XstRenameFile ()  #####
+##############################
+
+	error = XstRenameFile (oldName$, newName$)
+
+	The XstRenameFile function will rename (move)
+	either a file or a directory (including all
+	its children) either in the same directory or
+	across directories. The one caveat is that the
+	XstRenameFile function will fail on directory moves
+	when the destination is on a different volume..
+
+FUNCTION  XstRenameFile (o$, n$)
+:XstReplaceArray()
+################################
+#####  XstReplaceArray ()  #####
+################################
+
+	XstReplaceArray (mode, @text$[], @find$, @replace$, @line, @pos, @match)
+
+	XstReplaceArray() looks for a find$ string within text array text$[] starting
+	at line, pos. text$[0] is line 0 and the first character on each line is pos 0.
+
+	If an XstReplaceArray() finds an occurance of find$ in text$[] given the
+	instructions in the mode argument, match is assigned a non-zero value and
+	line, pos are assigned the line and character position of the first character
+	of the string in text$[] that matched find$, and the matched string in text$[]
+	is replaced by replace$.
+
+	XstReplaceArray() does not alter text$[], find$, or replace$.
+
+	mode=0 tells XstReplaceArray() to find forward, case-sensitive.
+	To control the find, OR together mode constants from xst.dec :
+
+	 $$FindForward
+	 $$FindReverse
+	 $$FindDirection
+	 $$FindCaseSensitive
+	 $$FindCaseInsensitive
+	 $$FindCaseSensitivity
+	 $$FindWordSensitive
+	 $$FindWordInsensitive
+	 $$FindWordSensitivity
+
+FUNCTION  XstReplaceArray (mode, text$[], find$, replace$, line, pos, match)
+:XstReplaceLines()
+################################
+#####  XstReplaceLines ()  #####
+################################
+
+	error = XstReplaceLines (@d$[], @s$[], firstD, countD, firstS, countS)
+
+	Replaces countD lines in d$[] with countS lines of s$[].
+	The range of lines in d$[] to replace begins at firstD,
+	while the range of lines in s$[] to substitute start at firstS.
+	If countD or countS is -1, then all the lines from firstD or
+	firstS to the end of the array will be replaced.
+
+	If countD < 0, then the lines from firstD to end are replaced.
+	firstD > UBOUND(d$[]) then the lines are appended to d$[]
+
+	If firstD, countD, firstS and countS are passed by reference,
+	the actual values used, are returned to the calling function.
+
+	See: XstDeleteLines()
+
+FUNCTION  XstReplaceLines (d$[], s$[], firstD, countD, firstS, countS)
+:XstRTRIM()
+#########################
+#####  XstRTRIM ()  #####
+#########################
+
+	error = XstRTRIM (@string$, @array[])
+
+	Trim characters from the right end of a string as specified in the array[].
+
+	string$ - character string supplied untrimmed and returned trimmed
+	array[] - array indexed by the character number, with a zero value
+	          for each character that is to be trimmed.
+
+	See: RTRIM$(), demo program "atrim.x"
+
+FUNCTION  XstRTRIM (@string$, array[])
+:XstSaveArray()
+#############################
+#####  XstSaveArray ()  #####
+#############################
+
+	error = XstSaveArray (file$, @array[])
+
+	Save an XBasic array in a special XBasic file format.
+	The file has a header magic ID = "XBAR"
+	The array[] can be restored with XstLoadArray()
+
+	See: XstLoadArray()
+
+FUNCTION  XstSaveArray (file$, array[])
+:XstSavePref()
+############################
+#####  XstSavePref ()  #####
+############################
+
+	error = XstSavePref (pfile)
+
+	The current pref data is written to the file name used in XstOpenPref().
+	error is returned $$TRUE if there is a failure saving the file or if pfile is invalid.
+
+FUNCTION  XstSavePref (pfile)
+:XstSaveString()
+##############################
+#####  XstSaveString ()  #####
+##############################
+
+	error = XstSaveString (file$, text$)
+
+##ERROR is set if there is a failure
+
+	See: XstLoadString()
+
+FUNCTION  XstSaveString (file$, text$)
+:XstSaveStringArray()
+###################################
+#####  XstSaveStringArray ()  #####
+###################################
+
+	error = XstSaveStringArray (file$, @text$[])
+
+##ERROR is set if there is a failure
+
+	See: XstLoadStringArray(), XstSaveStringArrayCRLF()
+
+FUNCTION  XstSaveStringArray (file$, text$[])
+:XstSaveStringArrayCRLF()
+#######################################
+#####  XstSaveStringArrayCRLF ()  #####
+#######################################
+
+	error = XstSaveStringArrayCRLF (file$, @text$[])
+
+##ERROR is set if there is a failure
+
+	It appends CRLF ("\r\n")  to each line in
+	the string array before the file is saved.
+
+	See: XstLoadStringArray(), XstSaveStringArray()
+
+FUNCTION  XstSaveStringArrayCRLF (file$, text$[])
+:XstSetCommandLineArguments()
+###########################################
+#####  XstSetCommandLineArguments ()  #####
+###########################################
+
+	XstSetCommandLineArguments (argCount, @argv$[])
+
+	Set the number of command line arguments to argCount,
+	and the command line argument strings to argv$[].
+	argCount should never be less than 0.
+
+	See: XstGetCommandLine(), XstGetCommandLineArguments()
+
+FUNCTION  XstSetCommandLineArguments (argc, @argv$[])
+:XstSetConsoleFont()
+##################################
+#####  XstSetConsoleFont ()  #####
+##################################
+
+	XstSetConsoleFont (size, weight, italic, angle, font$)
+
+	Some Linux commands that can be helpful are:
+	     xlsfonts - lists available fonts
+	     xfontsel - interactive tool for selecting fonts
+	     xfd      - to display characters for a font
+
+	See: SetFont, XgrCreateFont(), XstCreateConsole(),
+	     XstDisplayConsole(), XstGetConsoleFont(),
+	     XstSetConsoleStyleAndColors(), XstShowConsole()
+
+FUNCTION  XstSetConsoleFont (size, weight, italic, angle, font$)
+:XstSetConsoleStyleAndColors()
+############################################
+#####  XstSetConsoleStyleAndColors ()  #####
+############################################
+
+	XstSetConsoleStyleAndColors (style, textBack, textDraw, scrollBack, scrollDraw, scrollLo, scrollHi)
+
+	Changes the current style of the console scrollbars,
+	the text backgound and text colors and colors of
+	the scrollbars for the console.
+
+	style - (0 to 7) set size and looks of the scrollbars
+	textBack - text area background color
+	textDraw - text character drawing color
+	scrollBack - scrollbars background color
+	scrollDraw - scrollbars arrows color
+	scrollLo   - scrollbars lo border color
+	scrollHi   - scrollbars hi border color
+
+	See: XstCreateConsole(), XstGetConsoleStyleAndColors,
+	     XstSetConsoleFont()
+
+FUNCTION  XstSetConsoleStyleAndColors (style, textBack, textDraw, scrollBack, scrollDraw, scrollLo, scrollHi)
+:XstSetCurrentDirectory()
+#######################################
+#####  XstSetCurrentDirectory ()  #####
+#######################################
+
+	error = XstSetCurrentDirectory (@directory$)
+
+	See: XstChangeDirectory(), XstGetCurrentDirectory()
+
+FUNCTION  XstSetCurrentDirectory (newDirectory$)
+:XstSetDateAndTime()
+##################################
+#####  XstSetDateAndTime ()  #####
+##################################
+
+	error = XstSetDateAndTime (year, month, day, weekDay, hour, min, sec, msec)
+
+	Set the current system date and time.  This function may fail if the
+	user running the task does not have supervisor or administrator priority.
+
+	See: XstGetDateAndTime(), XstGetLocalDateAndTime()
+
+FUNCTION  XstSetDateAndTime (year, month, day, weekDay, hour, minute, second, nanos)
+:XstSetEnvironmentVariable()
+##########################################
+#####  XstSetEnvironmentVariable ()  #####
+##########################################
+
+	XstSetEnvironmentVariable (@name$, @value$)
+
+	Set environment variable name$ to value$.  For example,
+	XstSetEnvironmentVariable (@"XBASIC", @"usr/xb").
+
+	See: XstGetEnvironmentVariable(), XstGetEnvironmentVariables()
+
+FUNCTION  XstSetEnvironmentVariable (name$, value$)
+:XstSetException()
+################################
+#####  XstSetException ()  #####
+################################
+
+	XstSetException (exception)
+
+
+	See: XstExceptionNumberToName()
+	     XstExceptionToSystemException()
+	     XstSystemExceptionNumberToName()
+	     XstSystemExceptionToException()
+	     XstSetExceptionFunction()
+
+FUNCTION  XstSetException (exception)
+:XstSetExceptionFunction()
+########################################
+#####  XstSetExceptionFunction ()  #####
+########################################
+
+	XstSetExceptionFunction (functionAddress)
+
+	Set the exception function to functionAddress.  When exceptions
+	occur in standalone programs, the exception function is executed.
+	The exception function must take zero arguments.
+
+
+	See: XstExceptionNumberToName()
+	     XstExceptionToSystemException()
+	     XstSystemExceptionNumberToName()
+	     XstSystemExceptionToException()
+	     XstSetException()
+
+FUNCTION  XstSetExceptionFunction (function)
+:XstSetNewline()
+##############################
+#####  XstSetNewline ()  #####
+##############################
+
+	XstSetNewline (save, paste)
+
+	Valid values for save and paste are:
+	 $$NewlineLF
+	 $$NewlineNL
+	 $$NewlineCRLF
+	 $$NewlineDefault
+
+	See: XstGetNewLine()
+
+FUNCTION  XstSetNewline (save, paste)
+:XstSetPrefSection()
+##################################
+#####  XstSetPrefSection ()  #####
+##################################
+
+	error = XstSetPrefSection (pfile, section$)
+
+	Sets the section$ name to be the current active section.
+	A blank or empty section$ name is valid.
+	The active pref section is used by:
+		    XstGetPrefSTRING ()
+		    XstGetPrefXLONG ()
+		    XstSetPrefSTRING ()
+		    XstSetPrefXLONG ()
+
+FUNCTION  XstSetPrefSection (pfile, section$)
+:XstSetPrefSTRING()
+#################################
+#####  XstSetPrefString ()  #####
+#################################
+
+	error = XstSetPrefSTRING (pfile, key$, value$)
+
+	Replaces the STRING value$ for the key$ name within the current section name of pfile.
+	If the key$ name does not exist, it is created and the new value$ is put in that key$.
+
+FUNCTION  XstSetPrefSTRING (pfile, key$, value$)
+:XstSetPrefXLONG()
+################################
+#####  XstSetPrefXLONG ()  #####
+################################
+
+	error = XstSetPrefXLONG (pfile, key$, value)
+
+	Replaces the XLONG value for the key$ name within the current section name of pfile.
+	If the key$ name does not exist, it is created and the new value is put in that key$.
+
+FUNCTION  XstSetPrefXLONG (pfile, key$, value)
+:XstSetPrintTab()
+###############################
+#####  XstSetPrintTab ()  #####
+###############################
+
+	XstSetPrintTab (pixels)
+
+	Set the number of pixels between tab positions in the console.
+
+	See: XstGetPrintTab (pixels)
+
+FUNCTION  XstSetPrintTab (pixels)
+:XstSetProgramName()
+##################################
+#####  XstSetProgramName ()  #####
+##################################
+
+	XstSetProgramName (prog$)
+
+	See: XstGetProgramName()
+
+FUNCTION  XstSetProgramName (@prog$)
+:XstSetSystemError()
+##################################
+#####  XstSetSystemError ()  #####
+##################################
+
+	XstSetSystemError (error)
+
+	Set the current operating system error number.
+
+	See: XstGetSystemError(), XstSystemErrorToError()
+
+FUNCTION  XstSetSystemError (sysError)
+:XstShowConsole()
+###############################
+#####  XstShowConsole ()  #####
+###############################
+
+	XstShowConsole ()
+
+	Make the existing console window visible if it is hidden.
+	If a console window does not exist, no action is taken.
+
+	See: XstCreateConsole(), XstDisplayConsole(),
+	     XstGetConsoleGrid(), XstHideConsole()
+
+FUNCTION  XstShowConsole ()
+:XstSleep()
+#########################
+#####  XstSleep ()  #####
+#########################
+
+	XstSleep (msec)
+
+	Suspend program execution for msec milliseconds.  While a
+	program sleeps, other programs get an opportunity to run.
+
+FUNCTION  XstSleep (ms)
+:XstStartTask()
+#############################
+#####  XstStartTask ()  #####
+#############################
+
+	error = XstStartTask (@taskNum, count, msec, &function())
+
+	XstStartTask will assign a standard XBasic function to be called
+	repeatedly for a specified number of times, or forever, at a
+	specified time interval.
+
+	error is return TRUE  and taskNum = 0, if a task failed to be assigned.
+	error is return FALSE and taskNum = 1 to 15, if a task is assigned successfully.
+
+	count is the number of times the task is to be repeated.
+	      Set count to -1 to repeat forever.
+
+	msec is the time in milliseconds that the task is to be repeated.
+
+	&function() is the address of the XBasic FUNCTION that will be
+	called with no arguments.  A function can only be assigned once.
+	Starting the same function address again will modify the count
+	and msec of the existing taskNum for that task address.
+
+	Task functions should run quickly and return to the caller after
+	a small time duration. They should not contain wait loops that
+	could cause the program to block. A task function should never call
+	XgrProcessMessages() because the amount of time to process messages
+	is unpredictable, and it will appear to the task manager that the
+	task is engaged all the time that it is processing messages.
+
+	---------------------------- NOTE -----------------------------------------------
+
+	XstStartTask() requires the user program to do XgrProcessMessages () for the
+	task to be processed. This will be in most XBasic GUI programs as follows:
+'
+	' convenience function message loop
+'
+	 DO
+	   XgrProcessMessages ($$ProcessOneOnly)
+	   DO WHILE XuiGetNextCallback (@grid, @message$, @v0, @v1, @v2, @v3, @kid, @r1$)
+	     GOSUB Callback
+	   LOOP
+	 LOOP UNTIL terminateProgram
+
+	---------------------------------------------------------------------------------
+
+	See: XgrProcessMessages(), XstKillTask(), XstGetTaskInfo()
+
+FUNCTION  XstStartTask (taskNum, count, msec, func)
+:XstStartTimer()
+##############################
+#####  XstStartTimer ()  #####
+##############################
+
+	XstStartTimer (@timer, count, msec, &function())
+
+	Create a timer, set its cycle count, set its msec countdown time,
+	set its four argument timeout function() address, and start the timer.
+
+	returns timer number in "timer"
+	timer numbers <= 0 are not valid
+
+	Each time the timer times out, XstStartTimer() calls:
+
+	@function (timer, @count, msec, time)
+
+	function() can kill the timer in the following ways:
+	   return -1
+	   set count = 0
+	   set count = -1
+
+	function() must accept four XLONG arguments, and can change
+	count to change the number of timeout cycles remaining.
+
+	IMPORTANT NOTE:
+	&function() should NOT do functions that cause dynamic memory allocation.
+	That means that function() should never do any STRING$ functions or alter
+	STRING$ type variables. Arrays should not be a string type and only be of
+	scope SHARED or EXTERNAL and be dimentioned (DIM or REDIM) in another
+	function before the XstStartTimer() function is called.
+	If a memory allocation is in progress at the instant a timer interrupt
+	occurs, and function() does a memory allocation on top of it, a memory
+	allocation error can result or memory be corrupted.
+
+	Consider using XstStartTask() which does not have these restrictions.
+
+	See: XgrSetGridTimer(), XstStartTask()
+
+FUNCTION  XstStartTimer (timer, count, msec, func)
+:XstStringArraySectionToString()
+##############################################
+#####  XstStringArraySectionToString ()  #####
+##############################################
+
+	XstStringArraySectionToString (@text$[], @copy$, x1, y1, x2, y2, term)
+
+	Copy a section of text from a source string array to a destination string.
+	 text$[] source string array
+	 copy$   returned string section
+	 x1      starting character position
+	 y1      starting line in array
+	 x2      ending  character position
+	 y2      ending line in array
+	 term    termination character for each line:
+	         0 = none, 1 = '\n', 2 = '\r'
+
+	The first position in a line is 1.   ??????????????
+	The first line of a text array is 0.
+	The last character of a line LEN(line).
+	The last line of a text$[] is UBOUND(text$[])
+	 terminating character is NOT added to the end of the last line.
+
+FUNCTION  XstStringArraySectionToString (text$[], copy$, x1, y1, x2, y2, n)
+:XstStringArraySectionToStringArray()
+###################################################
+#####  XstStringArraySectionToStringArray ()  #####
+###################################################
+
+	XstStringArraySectionToStringArray (@text$[], @copy$[], x1, y1, x2, y2)
+
+	Copy a section of text from a source string array to a destination string array.
+	 text$[] source string array
+	 copy$   returned string section
+	 x1      starting character position
+	 y1      starting line in array
+	 x2      ending  character position
+	 y2      ending line in array
+
+FUNCTION  XstStringArraySectionToStringArray (text$[], copy$[], x1, y1, x2, y2)
+:XstStringArrayToString()
+#######################################
+#####  XstStringArrayToString ()  #####
+#######################################
+
+	XstStringArrayToString (@text$[], @text$)
+
+	Copy a string array to a string.  Each line from the source string array
+	is appended with a '\n' before it is put into the destination string.
+
+FUNCTION  XstStringArrayToString (s$[], s$)
+:XstStringArrayToStringCRLF()
+###########################################
+#####  XstStringArrayToStringCRLF ()  #####
+###########################################
+
+	XstStringArrayToStringCRLF (@text$[], @text$)
+
+	Copy a string array to a string.  Each line from the source string array
+	is appended with a '\r\n' before it is put into the destination string.
+
+FUNCTION  XstStringArrayToStringCRLF (s$[], s$)
+:XstStringToStringArray()
+#######################################
+#####  XstStringToStringArray ()  #####
+#######################################
+
+	XstStringToStringArray (@text$, @text$[])
+
+FUNCTION  XstStringToStringArray (s$, s$[])
+:XstSymbolicPathToPath$()
+########################################
+#####  XstSymboloicPathToPath$ ()  #####
+########################################
+
+	path$ = XstSymbolicPathToPath$ (symbolicPath$)
+
+	Converts environmental variables and symbolic links to path.
+	Path parts "/../" are not interpreted by this function, but
+	when passed through to the Linux system may still give the
+	propper result, but not guaranteed.
+
+FUNCTION  XstSymbolicPathToPath$ (symbolicPath$)
+:XstSystemErrorNumberToName()
+###########################################
+#####  XstSystemErrorNumberToName ()  #####
+###########################################
+
+	XstSystemErrorNumberToName (sysError, @sysError$)
+
+	Convert a system error number into an error$ name string.
+
+
+	See: ERROR()
+	     ERROR$()
+	     XstErrorNameToNumber()
+	     XstErrorNumberToName()
+	     XstSystemErrorToError()
+
+FUNCTION  XstSystemErrorNumberToName (sysError, sysError$)
+:XstSystemErrorToError()
+######################################
+#####  XstSystemErrorToError ()  #####
+######################################
+
+	XstSystemErrorToError (sysError, @error)
+
+	Convert an operating system error number to a native error number.
+
+
+	See: ERROR()
+	     ERROR$()
+	     XstErrorNameToNumber()
+	     XstErrorNumberToName()
+	     XstSystemErrorNumberToName()
+
+FUNCTION  XstSystemErrorToError (sysError, error)
+:XstSystemExceptionNumberToName()
+###############################################
+#####  XstSystemExceptionNumberToName ()  #####
+###############################################
+
+	XstSystemExceptionNumberToName (sysException, @sysException$)
+
+	Convert an operating system exception number into a string name.
+
+
+	See: XstExceptionNumberToName()
+	     XstExceptionToSystemException()
+	     XstSystemExceptionToException()
+	     XstSetException()
+	     XstSetExceptionFunction()
+
+FUNCTION  XstSystemExceptionNumberToName (exception, exception$)
+:XstSystemExceptionToException()
+##############################################
+#####  XstSystemExceptionToException ()  #####
+##############################################
+
+	XstSystemExceptionToException (sysException, @exception)
+
+	Convert an operating system exception into a native exception.
+
+
+	See: XstExceptionNumberToName()
+	     XstExceptionToSystemException()
+	     XstSystemExceptionNumberToName()
+	     XstSetException()
+	     XstSetExceptionFunction()
+
+FUNCTION  XstSystemExceptionToException (signal, exception)
+:XstTally()
+#########################
+#####  XstTally ()  #####
+#########################
+
+	count = XstTally (source$, find$)
+
+	PURPOSE	: Tally () returns a count of all find$ in source$.
+	IN			: find$, source$. Default find$ is space character.
+	RETURN	: count on success, -1 on failure
+
+FUNCTION  XstTally (source$, find$)
+:XstTRIM()
+########################
+#####  XstTRIM ()  #####
+########################
+
+	error = XstTRIM (@string$, @array[])
+
+	Trim characters from the both ends of a string as specified in the array[].
+
+	string$ - character string supplied untrimmed and returned trimmed
+	array[] - array indexed by the character number, with a zero value
+	          for each character that is to be trimmed.
+
+	See: TRIM$(), demo program "atrim.x"
+
+FUNCTION  XstTRIM (@string$, array[])
+:XstUnlockFileSection()
+#####################################
+#####  XstUnlockFileSection ()  #####
+#####################################
+
+	error = XstUnlockFileSection (fileNumber, 0, offset$$, length$$)
+
+	Note: offset$$ and length$$ are 64-bit signed GIANT integers
+
+	See: XstLockFileSection()
+
+FUNCTION  XstUnlockFileSection (file, mode, offset$$, length$$)
+:XstVersion$()
+############################
+#####  XstVersion$ ()  #####
+############################
+
+	version$ = XstVersion$ ()
+
+	Return a string containing the standard function library version
+
+FUNCTION  XstVersion$ ()
+:XstWaitKey$()
+############################
+#####  XstWaitKey$ ()  #####
+############################
+
+	char$ = XstWaitKey$ ()
+
+	Return one string character from the console input buffer,
+	without echoing it to the screen.  If the buffer is empty,
+	wait until a character is available before returning.
+
+	See: XstInKey$() to return immediately if the buffer is empty.
+
+FUNCTION  XstWaitKey$ ()
+:XstWindowSizePercent()
+#####################################
+#####  XstWindowSizePercent ()  #####
+#####################################
+
+	XstWindowSizePercent (@xPercent, @yPercent, @wPercent, @hPercent, windowType)
+
+	Given displacement and size values as percentages (0 to 100) of the screen
+	workarea, this function will return the values in pixels.
+
+	If any percent input value is more than 100 or less than zero, return unchanged.
+	If all four percent input values are zero, calculate as if they were all 50%
+
+	The $$WindowTypeNoFrame bit is checked in the "windowType" field to see
+	if the border width and title height should be used in the calculation.
+
+FUNCTION  XstWindowSizePercent (@xPercent, @yPercent, @wPercent, @hPercent, windowType)
+:XstWriteString()
+###############################
+#####  XstWriteString ()  #####
+###############################
+
+	XstWriteString (ofile, string$)
+
+	The XstWriteString function writes a string to a disk file.
+	It first writes a ULONG header variable containing the
+	string length, then writes the string data. A string
+	written to a file can be read by using XstReadString().
+
+	See: XstReadString()
+
+FUNCTION  XstWriteString (ofile, @string$)

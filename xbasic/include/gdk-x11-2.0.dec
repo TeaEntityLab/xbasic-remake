@@ -1,0 +1,4071 @@
+''Version 0.0.7
+''Date: 31.07.2009
+''author: Liviu Armeanu
+''see http:\\homepages.ihug.co.nz\~armeanu for updates
+
+'#########################
+'########  gdkselection
+'#########################
+
+EXTERNAL CFUNCTION XLONG gdk_selection_owner_get (XLONG)
+
+EXTERNAL CFUNCTION SLONG gdk_selection_owner_set (XLONG,XLONG,ULONG,SLONG)
+
+EXTERNAL CFUNCTION SLONG gdk_selection_owner_set_for_display (XLONG,XLONG,XLONG,ULONG,SLONG)
+EXTERNAL CFUNCTION XLONG gdk_selection_owner_get_for_display (XLONG,XLONG)
+
+EXTERNAL CFUNCTION gdk_selection_convert   (XLONG,XLONG,XLONG,ULONG)
+EXTERNAL CFUNCTION SLONG gdk_selection_property_get (XLONG,XLONG,XLONG,XLONG)
+
+EXTERNAL CFUNCTION gdk_selection_send_notify (XLONG,XLONG,XLONG,XLONG,ULONG)
+
+EXTERNAL CFUNCTION gdk_selection_send_notify_for_display (XLONG,XLONG,XLONG,XLONG,XLONG,ULONG)
+
+'#########################
+'########  gdkcolor
+'#########################
+
+'/* The color type.
+' *   A color consists of red, green and blue values in the
+' *    range 0-65535 and a pixel value. The pixel value is highly
+' *    dependent on the depth and colormap which this color will
+' *    be used to draw into. Therefore, sharing colors between
+' *    colormaps is a bad idea.
+' */
+
+TYPE GDKCOLOR
+  ULONG .pixel
+  USHORT .red
+  USHORT .green
+  USHORT .blue
+END TYPE
+
+EXTERNAL CFUNCTION XLONG gdk_colormap_alloc_color (XLONG, XLONG, XLONG, XLONG)
+
+TYPE GDKCOLORMAP
+'  /*< private >*/
+  GOBJECT .parent_instance
+'  /*< public >*/
+  SLONG .size
+  XLONG .colors
+'  /*< private >*/
+  XLONG .visual
+  XLONG .windowing_data
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_colormap_get_type ()
+EXTERNAL CFUNCTION XLONG gdk_colormap_new	  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_colormap_ref	  (XLONG)
+EXTERNAL CFUNCTION gdk_colormap_unref	  (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_colormap_get_system	        ()
+EXTERNAL CFUNCTION XLONG gdk_colormap_get_screen (XLONG)
+EXTERNAL CFUNCTION SLONG gdk_colormap_get_system_size  ()
+'/* Used by gdk_colors_store () */
+EXTERNAL CFUNCTION gdk_colormap_change (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_colormap_alloc_colors   (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_colormap_free_colors (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_colormap_query_color (XLONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_colormap_get_visual (XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_color_copy  (XLONG)
+EXTERNAL CFUNCTION gdk_color_free  (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_color_parse (XLONG,XLONG)
+EXTERNAL CFUNCTION ULONG gdk_color_hash  (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_color_equal (XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG gdk_color_to_string (XLONG)
+EXTERNAL CFUNCTION ULONG gdk_color_get_type ()
+'/* The following functions are deprecated */
+EXTERNAL CFUNCTION gdk_colors_store	 (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_color_white	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_color_black	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_color_alloc	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_color_change	 (XLONG,	XLONG)
+'/* Used by gdk_rgb_try_colormap () */
+EXTERNAL CFUNCTION XLONG gdk_colors_alloc	 (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_colors_free	 (XLONG,	XLONG,	XLONG,	ULONG)
+
+'#########################
+'########  gdktypes
+'#########################
+
+$$GDK_LSB_FIRST = 0
+$$GDK_MSB_FIRST = 1
+'} GdkByteOrder;
+
+$$GDK_SHIFT_MASK    = 1
+$$GDK_LOCK_MASK	    = 2
+$$GDK_CONTROL_MASK  = 4
+$$GDK_MOD1_MASK	    = 8
+$$GDK_MOD2_MASK	    = 16
+$$GDK_MOD3_MASK	    = 32
+$$GDK_MOD4_MASK	    = 64
+$$GDK_MOD5_MASK	    = 128
+$$GDK_BUTTON1_MASK  = 256
+$$GDK_BUTTON2_MASK  = 512
+$$GDK_BUTTON3_MASK  = 1024
+$$GDK_BUTTON4_MASK  = 2048
+$$GDK_BUTTON5_MASK  = 4096
+
+'The next few modifiers are used by XKB, so we skip to the end.
+'Bits 15 - 25 are currently unused. Bit 29 is used internally.
+
+$$GDK_SUPER_MASK    = 67108864
+$$GDK_HYPER_MASK    = 134217728
+$$GDK_META_MASK     = 2684435456
+
+$$GDK_RELEASE_MASK  = 1073741824
+
+$$GDK_MODIFIER_MASK = 0x5c001fff
+
+$$GDK_INPUT_READ       = 1
+$$GDK_INPUT_WRITE      = 2
+$$GDK_INPUT_EXCEPTION  = 4
+'} GdkInputCondition;
+
+$$GDK_OK	  = 0
+$$GDK_ERROR	  = -1
+$$GDK_ERROR_PARAM = -2
+$$GDK_ERROR_FILE  = -3
+$$GDK_ERROR_MEM	  = -4
+'} GdkStatus;
+
+'/* We define specific numeric values for these constants,
+' * since old application code may depend on them matching the X values
+' * We don't actually depend on the matchup ourselves.
+' */
+$$GDK_GRAB_SUCCESS         = 0
+$$GDK_GRAB_ALREADY_GRABBED = 1
+$$GDK_GRAB_INVALID_TIME    = 2
+$$GDK_GRAB_NOT_VIEWABLE    = 3
+$$GDK_GRAB_FROZEN          = 4
+'} GdkGrabStatus;
+
+TYPE GDKPOINT
+  XLONG .x
+  XLONG .y
+END TYPE
+
+TYPE GDKSEGMENT
+  XLONG .x1
+  XLONG .y1
+  XLONG .x2
+  XLONG .y2
+END TYPE
+
+TYPE GDKRECTANGLE
+  XLONG .x
+  XLONG .y
+  XLONG .width
+  XLONG .height
+END TYPE
+
+TYPE GDKSPAN
+  XLONG .x
+  XLONG .y
+  XLONG .width
+END TYPE
+
+'#########################
+'########  gdkevents
+'#########################
+
+$$GDK_FILTER_CONTINUE = 0	  '/* Event not handled, continue processesing */
+$$GDK_FILTER_TRANSLATE = 1	  '/* Native event translated into a GDK event and stored in the "event" structure that was passed in */
+$$GDK_FILTER_REMOVE = 2	  '/* Terminate processing, removing event */
+'} GdkFilterReturn;
+
+TYPE GDKEVENT
+	UNION
+		XLONG	.type
+		XLONG	.any
+		XLONG	.expose
+		XLONG	.no_expose
+		XLONG	.visibility
+		XLONG	.motion
+		XLONG	.button
+		XLONG .scroll
+		XLONG	.key
+		XLONG	.crossing
+		XLONG	.focus_change
+		XLONG	.configure
+		XLONG	.property
+		XLONG	.selection
+		XLONG .owner_change
+		XLONG	.proximity
+		XLONG	.client
+		XLONG .dnd
+		XLONG .window_state
+		XLONG .setting
+		XLONG .grab_broken
+	END UNION
+END TYPE
+
+'/* Event types.
+' *   Nothing: No event occurred.
+' *   Delete: A window delete event was sent by the window manager.
+' *	     The specified window should be deleted.
+' *   Destroy: A window has been destroyed.
+' *   Expose: Part of a window has been uncovered.
+' *   NoExpose: Same as expose, but no expose event was generated.
+' *   VisibilityNotify: A window has become fully/partially/not obscured.
+' *   MotionNotify: The mouse has moved.
+' *   ButtonPress: A mouse button was pressed.
+' *   ButtonRelease: A mouse button was release.
+' *   KeyPress: A key was pressed.
+' *   KeyRelease: A key was released.
+' *   EnterNotify: A window was entered.
+' *   LeaveNotify: A window was exited.
+' *   FocusChange: The focus window has changed. (The focus window gets
+' *		  keyboard events).
+' *   Resize: A window has been resized.
+' *   Map: A window has been mapped. (It is now visible on the screen).
+' *   Unmap: A window has been unmapped. (It is no longer visible on
+' *	    the screen).
+' *   Scroll: A mouse wheel was scrolled either up or down.
+
+$$GDK_NOTHING		= -1
+$$GDK_DELETE		= 0
+$$GDK_DESTROY		= 1
+$$GDK_EXPOSE		= 2
+$$GDK_MOTION_NOTIFY	= 3
+$$GDK_BUTTON_PRESS	= 4
+$$GDK_2BUTTON_PRESS	= 5
+$$GDK_3BUTTON_PRESS	= 6
+$$GDK_BUTTON_RELEASE	= 7
+$$GDK_KEY_PRESS		= 8
+$$GDK_KEY_RELEASE	= 9
+$$GDK_ENTER_NOTIFY	= 10
+$$GDK_LEAVE_NOTIFY	= 11
+$$GDK_FOCUS_CHANGE	= 12
+$$GDK_CONFIGURE		= 13
+$$GDK_MAP		= 14
+$$GDK_UNMAP		= 15
+$$GDK_PROPERTY_NOTIFY	= 16
+$$GDK_SELECTION_CLEAR	= 17
+$$GDK_SELECTION_REQUEST = 18
+$$GDK_SELECTION_NOTIFY	= 19
+$$GDK_PROXIMITY_IN	= 20
+$$GDK_PROXIMITY_OUT	= 21
+$$GDK_DRAG_ENTER        = 22
+$$GDK_DRAG_LEAVE        = 23
+$$GDK_DRAG_MOTION       = 24
+$$GDK_DRAG_STATUS       = 25
+$$GDK_DROP_START        = 26
+$$GDK_DROP_FINISHED     = 27
+$$GDK_CLIENT_EVENT	= 28
+$$GDK_VISIBILITY_NOTIFY = 29
+$$GDK_NO_EXPOSE		= 30
+$$GDK_SCROLL            = 31
+$$GDK_WINDOW_STATE      = 32
+$$GDK_SETTING           = 33
+$$GDK_OWNER_CHANGE      = 34
+$$GDK_GRAB_BROKEN       = 35
+
+
+'Event masks. (Used to select what types of events a window will receive).
+
+$$GDK_EXPOSURE_MASK		= 2
+$$GDK_POINTER_MOTION_MASK	= 4
+$$GDK_POINTER_MOTION_HINT_MASK	= 8
+$$GDK_BUTTON_MOTION_MASK	= 16
+$$GDK_BUTTON1_MOTION_MASK	= 32
+$$GDK_BUTTON2_MOTION_MASK	= 64
+$$GDK_BUTTON3_MOTION_MASK	= 128
+$$GDK_BUTTON_PRESS_MASK		= 256
+$$GDK_BUTTON_RELEASE_MASK	= 512
+$$GDK_KEY_PRESS_MASK		= 1024
+$$GDK_KEY_RELEASE_MASK		= 2048
+$$GDK_ENTER_NOTIFY_MASK		= 4096
+$$GDK_LEAVE_NOTIFY_MASK		= 8192
+$$GDK_FOCUS_CHANGE_MASK		= 16384
+$$GDK_STRUCTURE_MASK		= 32768
+$$GDK_PROPERTY_CHANGE_MASK	= 65536
+$$GDK_VISIBILITY_NOTIFY_MASK	= 131072
+$$GDK_PROXIMITY_IN_MASK		= 262144
+$$GDK_PROXIMITY_OUT_MASK	= 524288
+$$GDK_SUBSTRUCTURE_MASK		= 1048576
+$$GDK_SCROLL_MASK         = 2097152
+$$GDK_ALL_EVENTS_MASK		= 0x3FFFFE
+
+$$GDK_VISIBILITY_UNOBSCURED = 0
+$$GDK_VISIBILITY_PARTIAL = 1
+$$GDK_VISIBILITY_FULLY_OBSCURED = 2
+
+$$GDK_SCROLL_UP = 0
+$$GDK_SCROLL_DOWN = 1
+$$GDK_SCROLL_LEFT = 2
+$$GDK_SCROLL_RIGHT = 3
+'} GdkScrollDirection;
+
+'/* Types of enter/leave notifications.
+' *   Ancestor:
+' *   Virtual:
+' *   Inferior:
+' *   Nonlinear:
+' *   NonlinearVirtual:
+' *   Unknown: An unknown type of enter/leave event occurred.
+' */
+'typedef enum
+'{
+$$GDK_NOTIFY_ANCESTOR		= 0
+$$GDK_NOTIFY_VIRTUAL		= 1
+$$GDK_NOTIFY_INFERIOR		= 2
+$$GDK_NOTIFY_NONLINEAR		= 3
+$$GDK_NOTIFY_NONLINEAR_VIRTUAL	= 4
+$$GDK_NOTIFY_UNKNOWN		= 5
+'} GdkNotifyType;
+
+'/* Enter/leave event modes.
+' *   NotifyNormal
+' *   NotifyGrab
+' *   NotifyUngrab
+' */
+$$GDK_CROSSING_NORMAL = 0
+$$GDK_CROSSING_GRAB = 1
+$$GDK_CROSSING_UNGRAB = 2
+'} GdkCrossingMode;
+
+$$GDK_PROPERTY_NEW_VALUE = 0
+$$GDK_PROPERTY_DELETE = 1
+'} GdkPropertyState;
+
+$$GDK_WINDOW_STATE_WITHDRAWN  = 1
+$$GDK_WINDOW_STATE_ICONIFIED  = 2
+$$GDK_WINDOW_STATE_MAXIMIZED  = 4
+$$GDK_WINDOW_STATE_STICKY     = 16
+$$GDK_WINDOW_STATE_FULLSCREEN = 32
+$$GDK_WINDOW_STATE_ABOVE      = 64
+$$GDK_WINDOW_STATE_BELOW      = 128
+'} GdkWindowState;
+
+$$GDK_SETTING_ACTION_NEW = 0
+$$GDK_SETTING_ACTION_CHANGED = 1
+$$GDK_SETTING_ACTION_DELETED = 2
+'} GdkSettingAction;
+
+$$GDK_OWNER_CHANGE_NEW_OWNER = 0
+$$GDK_OWNER_CHANGE_DESTROY = 1
+$$GDK_OWNER_CHANGE_CLOSE = 2
+'} GdkOwnerChange;
+
+TYPE GDKEVENTANY
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+END TYPE
+
+TYPE GDKEVENTEXPOSE
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  GDKRECTANGLE .area
+  XLONG .region
+  SLONG .count '* If non-zero, how many more events follow.
+END TYPE
+
+TYPE GDKEVENTNOEXPOSE
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+END TYPE
+
+PACKED GDKEVENTVISIBILITY
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  XLONG .state
+END PACKED
+
+PACKED GDKEVENTMOTION
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  ULONG .time
+  DOUBLE .x
+  DOUBLE .y
+  XLONG .axes
+  ULONG .state
+  SSHORT .is_hint
+  XLONG .device
+  DOUBLE .x_root
+	DOUBLE .y_root
+END PACKED
+
+TYPE GDKEVENTBUTTON
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  ULONG .time
+  DOUBLE .x
+  DOUBLE .y
+  XLONG .axes
+  ULONG .state
+  ULONG .button
+  XLONG .device
+  DOUBLE .x_root
+	DOUBLE .y_root
+END TYPE
+
+TYPE GDKEVENTSCROLL
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  ULONG .time
+  DOUBLE .x
+  DOUBLE .y
+  ULONG .state
+  XLONG .direction
+  XLONG .device
+  DOUBLE .x_root
+	DOUBLE .y_root
+END TYPE
+
+PACKED GDKEVENTKEY
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  ULONG .time
+  ULONG .state
+  ULONG .keyval
+  XLONG .length
+  UBYTE .string
+  USHORT .hardware_keycode
+  UBYTE .group
+  ULONG .is_modifier
+END PACKED
+
+TYPE GDKEVENTCROSSING
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  XLONG .subwindow
+  ULONG .time
+  DOUBLE .x
+  DOUBLE .y
+  DOUBLE .x_root
+  DOUBLE .y_root
+  XLONG .mode
+  XLONG .detail
+  XLONG .focus
+  ULONG .state
+END TYPE
+
+TYPE GDKEVENTFOCUS
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  SSHORT .in
+END TYPE
+
+TYPE GDKEVENTCONFIGURE
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  XLONG .x
+	XLONG .y
+  XLONG .width
+  XLONG .height
+END TYPE
+
+TYPE GDKEVENTPROPERTY
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  XLONG .atom
+  ULONG .time
+  ULONG .state
+END TYPE
+
+TYPE GDKEVENTSELECTION
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  XLONG .selection
+  XLONG .target
+  XLONG .property
+  ULONG .time
+  XLONG .equestor
+END TYPE
+
+TYPE GDKEVENTOWNERCHANGE
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  XLONG .owner
+  XLONG .reason
+  XLONG .selection
+  ULONG .time
+  ULONG .selection_time
+END TYPE
+
+'/* This event type will be used pretty rarely. It only is important
+'   for XInput aware programs that are drawing their own cursor */
+
+TYPE GDKEVENTPROXIMITY
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  ULONG .time
+  XLONG .device
+END TYPE
+
+TYPE GDKEVENTCLIENT
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  XLONG .message_type
+  USHORT .data_format
+  UNION
+    SBYTE .b[20]
+    SSHORT .s[10]
+    XLONG .l[5]
+  END UNION
+END TYPE
+
+TYPE GDKEVENTSETTING
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  XLONG .action
+  XLONG .name
+END TYPE
+
+TYPE GDKEVENTWINDOWSTATE
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  XLONG .changed_mask
+  XLONG .new_window_state
+END TYPE
+
+TYPE GDKEVENTGRABBROKEN
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  XLONG .keyboard
+  XLONG .implicit
+  XLONG .grab_window
+END TYPE
+
+'/* Event types for DND */
+
+TYPE GDKEVENTDND
+  XLONG .type
+  XLONG .window
+  SBYTE .send_event
+  XLONG .context
+  ULONG .time
+  SSHORT .x_root
+	SSHORT .y_root
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_event_get_type            ()
+EXTERNAL CFUNCTION XLONG gdk_events_pending	 	()
+EXTERNAL CFUNCTION XLONG gdk_event_get			()
+EXTERNAL CFUNCTION XLONG gdk_event_peek    ()
+EXTERNAL CFUNCTION XLONG gdk_event_get_graphics_expose (XLONG)
+EXTERNAL CFUNCTION gdk_event_put	 		(XLONG)
+EXTERNAL CFUNCTION XLONG gdk_event_new  (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_event_copy 	(XLONG)
+EXTERNAL CFUNCTION gdk_event_free (XLONG)
+EXTERNAL CFUNCTION ULONG gdk_event_get_time    (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_event_get_state   (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG gdk_event_get_coords		(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_event_get_root_coords	(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_event_get_axis            (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_event_request_motions     (XLONG)
+EXTERNAL CFUNCTION gdk_event_handler_set 	(XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_event_set_screen (XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG gdk_event_get_screen (XLONG)
+EXTERNAL CFUNCTION gdk_set_show_events		(XLONG)
+EXTERNAL CFUNCTION XLONG gdk_get_show_events		()
+EXTERNAL CFUNCTION gdk_add_client_message_filter (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_setting_get (XLONG,	XLONG)
+
+'#########################
+'########  gdkdrawable
+'#########################
+
+TYPE GDKDRAWABLE
+  GOBJECT .parent_instance
+END TYPE
+
+TYPE GDKTRAPEZOID
+  DOUBLE .y1
+	DOUBLE .x11
+	DOUBLE .x21
+	DOUBLE .y2
+	DOUBLE .x12
+	DOUBLE .x22
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_drawable_get_type     ()
+'/* Manipulation of drawables
+EXTERNAL CFUNCTION gdk_drawable_set_data     (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_drawable_get_data     (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_drawable_get_size     (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_drawable_set_colormap (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_drawable_get_colormap (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_drawable_get_visual   (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_drawable_get_depth    (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_drawable_get_screen   (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_drawable_get_display  (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_drawable_ref          (XLONG)
+EXTERNAL CFUNCTION gdk_drawable_unref        (XLONG)
+
+EXTERNAL CFUNCTION gdk_draw_rectangle (XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_draw_point (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_draw_line (XLONG, XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_draw_lines (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_draw_polygon (XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_draw_arc (XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG , XLONG)
+EXTERNAL CFUNCTION gdk_draw_string (XLONG, XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_draw_segments (XLONG, XLONG, XLONG, XLONG)
+
+'/* Used by gdk_pixmap_draw_text (), gdk_window_draw_text() */
+EXTERNAL CFUNCTION gdk_draw_text      (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,XLONG,	XLONG)
+'/* Used by gdk_pixmap_draw_text_wc (), gdk_window_draw_text_wc () */
+EXTERNAL CFUNCTION gdk_draw_text_wc   (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_draw_drawable  (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_draw_image     (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_draw_points    (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_draw_pixbuf    (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_draw_glyphs      (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_draw_layout_line (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_draw_layout      (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_draw_layout_line_with_colors (XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_draw_layout_with_colors      (XLONG, XLONG, XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_draw_glyphs_transformed (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_draw_trapezoids         (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_drawable_get_image      (XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG gdk_drawable_copy_to_image (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_drawable_get_clip_region    (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_drawable_get_visible_region (XLONG)
+
+'#########################
+'########  gdkpixmap
+'#########################
+
+TYPE GDKPIXMAP = GDKDRAWABLE
+
+TYPE GDKPIXMAPOBJECT
+  GDKDRAWABLE .parent_instance
+  XLONG .impl  '/* window-system-specific delegate object */
+  SLONG .depth
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_pixmap_get_type ()
+'/* Pixmaps
+EXTERNAL CFUNCTION XLONG gdk_pixmap_new		(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_bitmap_create_from_data	(XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixmap_create_from_data	(XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixmap_colormap_create_from_xpm_d (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixmap_create_from_xpm (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixmap_colormap_create_from_xpm (XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixmap_create_from_xpm_d (XLONG, XLONG, XLONG, XLONG)
+
+'/* Functions to create/lookup pixmaps from their native equivalents
+EXTERNAL CFUNCTION XLONG gdk_pixmap_foreign_new (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixmap_lookup      (XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixmap_foreign_new_for_display (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixmap_lookup_for_display      (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pixmap_foreign_new_for_screen  (XLONG,	XLONG,	XLONG, XLONG, XLONG)
+
+'#########################
+'########  gdkwindow
+'#########################
+
+TYPE GDKWINDOW = GDKDRAWABLE
+
+'/* Classes of windows.
+' *   InputOutput: Almost every window should be of this type. Such windows
+' *		  receive events and are also displayed on screen.
+' *   InputOnly: Used only in special circumstances when events need to be
+' *		stolen from another window or windows. Input only windows
+' *		have no visible output, so they are handy for placing over
+' *		top of a group of windows in order to grab the events (or
+' *		filter the events) from those windows.
+$$GDK_INPUT_OUTPUT = 0
+$$GDK_INPUT_ONLY = 1
+
+'/* Types of windows.
+' *   Root: There is only 1 root window and it is initialized
+' *	   at startup. Creating a window of type GDK_WINDOW_ROOT
+' *	   is an error.
+' *   Toplevel: Windows which interact with the window manager.
+' *   Child: Windows which are children of some other type of window.
+' *	    (Any other type of window). Most windows are child windows.
+' *   Dialog: A special kind of toplevel window which interacts with
+' *	     the window manager slightly differently than a regular
+' *	     toplevel window. Dialog windows should be used for any
+' *	     transient window.
+' *   Foreign: A window that actually belongs to another application
+$$GDK_WINDOW_ROOT = 0
+$$GDK_WINDOW_TOPLEVEL = 1
+$$GDK_WINDOW_CHILD = 2
+$$GDK_WINDOW_DIALOG = 3
+$$GDK_WINDOW_TEMP = 4
+$$GDK_WINDOW_FOREIGN = 5
+
+'/* Window attribute mask values.
+' * $$GDK_WA_TITLE: The "title" field is valid.
+' * $$GDK_WA_X: The "x" field is valid.
+' * $$GDK_WA_Y: The "y" field is valid.
+' * $$GDK_WA_CURSOR: The "cursor" field is valid.
+' * $$GDK_WA_COLORMAP: The "colormap" field is valid.
+' * $$GDK_WA_VISUAL: The "visual" field is valid.
+$$GDK_WA_TITLE	  = 2
+$$GDK_WA_X	  = 4
+$$GDK_WA_Y	  = 8
+$$GDK_WA_CURSOR	  = 16
+$$GDK_WA_COLORMAP = 32
+$$GDK_WA_VISUAL	  = 64
+$$GDK_WA_WMCLASS  = 128
+$$GDK_WA_NOREDIR  = 512
+
+'/* Size restriction enumeration.
+$$GDK_HINT_POS	       = 1
+$$GDK_HINT_MIN_SIZE    = 2
+$$GDK_HINT_MAX_SIZE    = 4
+$$GDK_HINT_BASE_SIZE   = 8
+$$GDK_HINT_ASPECT      = 16
+$$GDK_HINT_RESIZE_INC  = 32
+$$GDK_HINT_WIN_GRAVITY = 64
+$$GDK_HINT_USER_POS    = 128
+$$GDK_HINT_USER_SIZE   = 256
+
+'/* Window type hints.
+' * These are hints for the window manager that indicate
+' * what type of function the window has. The window manager
+' * can use this when determining decoration and behaviour
+' * of the window. The hint must be set before mapping the
+' * window.
+' *
+' *   Normal: Normal toplevel window
+' *   Dialog: Dialog window
+' *   Menu: Window used to implement a menu.
+' *   Toolbar: Window used to implement toolbars.
+$$GDK_WINDOW_TYPE_HINT_NORMAL = 0
+$$GDK_WINDOW_TYPE_HINT_DIALOG = 1
+$$GDK_WINDOW_TYPE_HINT_MENU = 2		'/* Torn off menu */
+$$GDK_WINDOW_TYPE_HINT_TOOLBAR = 3
+$$GDK_WINDOW_TYPE_HINT_SPLASHSCREEN = 4
+$$GDK_WINDOW_TYPE_HINT_UTILITY = 5
+$$GDK_WINDOW_TYPE_HINT_DOCK = 6
+$$GDK_WINDOW_TYPE_HINT_DESKTOP = 7
+$$GDK_WINDOW_TYPE_HINT_DROPDOWN_MENU = 8	'/* A drop down menu (from a menubar) */
+$$GDK_WINDOW_TYPE_HINT_POPUP_MENU = 9	'/* A popup menu (from right-click) */
+$$GDK_WINDOW_TYPE_HINT_TOOLTIP = 10
+$$GDK_WINDOW_TYPE_HINT_NOTIFICATION = 11
+$$GDK_WINDOW_TYPE_HINT_COMBO = 12
+$$GDK_WINDOW_TYPE_HINT_DND = 13
+'/* The next two enumeration values current match the
+' * Motif constants. If this is changed, the implementation
+' * of gdk_window_set_decorations/gdk_window_set_functions
+' * will need to change as well.
+$$GDK_DECOR_ALL		= 1
+$$GDK_DECOR_BORDER	= 2
+$$GDK_DECOR_RESIZEH	= 4
+$$GDK_DECOR_TITLE	= 8
+$$GDK_DECOR_MENU	= 16
+$$GDK_DECOR_MINIMIZE	= 32
+$$GDK_DECOR_MAXIMIZE	= 64
+
+$$GDK_FUNC_ALL		= 1
+$$GDK_FUNC_RESIZE	= 2
+$$GDK_FUNC_MOVE		= 4
+$$GDK_FUNC_MINIMIZE	= 8
+$$GDK_FUNC_MAXIMIZE	= 16
+$$GDK_FUNC_CLOSE	= 32
+
+'/* Currently, these are the same values numerically as in the
+' * X protocol. If you change that, gdkwindow-x11.c/gdk_window_set_geometry_hints()
+' * will need fixing.
+$$GDK_GRAVITY_NORTH_WEST = 1
+$$GDK_GRAVITY_NORTH = 2
+$$GDK_GRAVITY_NORTH_EAST = 3
+$$GDK_GRAVITY_WEST = 4
+$$GDK_GRAVITY_CENTER = 5
+$$GDK_GRAVITY_EAST = 6
+$$GDK_GRAVITY_SOUTH_WEST = 7
+$$GDK_GRAVITY_SOUTH = 8
+$$GDK_GRAVITY_SOUTH_EAST = 9
+$$GDK_GRAVITY_STATIC = 10
+
+$$GDK_WINDOW_EDGE_NORTH_WEST = 0
+$$GDK_WINDOW_EDGE_NORTH = 1
+$$GDK_WINDOW_EDGE_NORTH_EAST = 2
+$$GDK_WINDOW_EDGE_WEST = 3
+$$GDK_WINDOW_EDGE_EAST = 4
+$$GDK_WINDOW_EDGE_SOUTH_WEST = 5
+$$GDK_WINDOW_EDGE_SOUTH = 6
+$$GDK_WINDOW_EDGE_SOUTH_EAST =7
+
+TYPE GDKWINDOWATTR
+  UBYTE .title
+  XLONG .event_mask
+  XLONG .x
+	XLONG .y
+  XLONG .width
+  XLONG .height
+  XLONG .wclass
+  XLONG .visual
+  XLONG .colormap
+  XLONG .window_type
+  XLONG .cursor
+  UBYTE .wmclass_name
+  UBYTE .wmclass_class
+  XLONG .override_redirect
+END TYPE
+
+TYPE GDKGEOMETRY
+  XLONG .min_width
+  XLONG .min_height
+  XLONG .max_width
+  XLONG .max_height
+  XLONG .base_width
+  XLONG .base_height
+  XLONG .width_inc
+  XLONG .height_inc
+  DOUBLE .min_aspect
+  DOUBLE .max_aspect
+  XLONG .win_gravity
+END TYPE
+
+TYPE GDKWINDOWOBJECT
+  GDKDRAWABLE .parent_instance
+  XLONG .impl '/* window-system-specific delegate object */
+  XLONG .parent
+  XLONG .user_data
+  XLONG .x
+  XLONG .y
+  XLONG .extension_events
+  XLONG .filters
+  XLONG .children
+  XLONG .bg_color
+  XLONG .bg_pixmap
+  XLONG .paint_stack
+  XLONG .update_area
+  ULONG .update_freeze_count
+  UBYTE .window_type
+  UBYTE .depth
+  UBYTE .resize_count
+  XLONG .state
+	ULONG .flags
+'  ULONG .guffaw_gravity
+'  ULONG .input_only
+'  ULONG .modal_hint
+'  ULONG .destroyed
+'  ULONG .accept_focus
+'  ULONG .focus_on_map
+'  ULONG .shaped
+
+  XLONG .event_mask
+  ULONG .update_and_descendants_freeze_count
+  XLONG .redirect
+
+END TYPE
+
+'/* Windows
+
+EXTERNAL CFUNCTION ULONG gdk_window_object_get_type       ()
+EXTERNAL CFUNCTION XLONG gdk_window_new                   (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_destroy               (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_window_type       (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_at_pointer            (XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_show                  (XLONG)
+EXTERNAL CFUNCTION gdk_window_hide                  (XLONG)
+EXTERNAL CFUNCTION gdk_window_withdraw              (XLONG)
+EXTERNAL CFUNCTION gdk_window_show_unraised         (XLONG)
+EXTERNAL CFUNCTION gdk_window_move                  (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_resize                (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_move_resize           (XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_reparent              (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_clear                 (XLONG)
+EXTERNAL CFUNCTION gdk_window_clear_area            (XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_clear_area_e          (XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_raise                 (XLONG)
+EXTERNAL CFUNCTION gdk_window_lower                 (XLONG)
+EXTERNAL CFUNCTION gdk_window_focus                 (XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_set_user_data         (XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_set_override_redirect (XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_set_accept_focus      (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_set_focus_on_map      (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_add_filter            (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_remove_filter         (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_scroll                (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_move_region           (XLONG,	XLONG,	XLONG,	XLONG)
+' * This allows for making shaped (partially transparent) windows
+' * - cool feature, needed for Drag and Drag for example.
+' *  The shape_mask can be the mask
+' *  from gdk_pixmap_create_from_xpm.   Stefan Wille
+EXTERNAL CFUNCTION gdk_window_shape_combine_mask  (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_shape_combine_region (XLONG,  XLONG,  XLONG, XLONG)
+' * This routine allows you to quickly take the shapes of all the child windows
+' * of a window and use their shapes as the shape mask for this window - useful
+' * for container windows that dont want to look like a big box
+' *
+' * - Raster
+EXTERNAL CFUNCTION gdk_window_set_child_shapes (XLONG)
+EXTERNAL CFUNCTION gdk_window_set_composited   (XLONG,SLONG)
+' * This routine allows you to merge (ie ADD) child shapes to your
+' * own window's shape keeping its current shape and ADDING the child
+' * shapes to it.
+' *
+' * - Raster
+EXTERNAL CFUNCTION gdk_window_merge_child_shapes (XLONG)
+EXTERNAL CFUNCTION gdk_window_input_shape_combine_mask   (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_input_shape_combine_region (XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_set_child_input_shapes     (XLONG)
+EXTERNAL CFUNCTION gdk_window_merge_child_input_shapes   (XLONG)
+' * Check if a window has been shown, and whether all its
+' * parents up to a toplevel have been shown, respectively.
+' * Note that a window that is_viewable below is not necessarily
+' * viewable in the X sense.
+EXTERNAL CFUNCTION XLONG gdk_window_is_visible     (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_is_viewable    (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_state (XLONG)
+'/* Set static bit gravity on the parent, and static
+' * window gravity on all children.
+EXTERNAL CFUNCTION XLONG gdk_window_set_static_gravities (XLONG,	XLONG)
+'/* Functions to create/lookup windows from their native equivalents */
+EXTERNAL CFUNCTION XLONG gdk_window_foreign_new (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_lookup      (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_foreign_new_for_display (XLONG,		XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_lookup_for_display (XLONG,	XLONG)
+'/* GdkWindow */
+EXTERNAL CFUNCTION gdk_window_set_hints	 (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_set_type_hint (XLONG,        XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_type_hint (XLONG)
+EXTERNAL CFUNCTION gdk_window_set_modal_hint   (XLONG,       XLONG)
+EXTERNAL CFUNCTION gdk_window_set_skip_taskbar_hint (XLONG,   XLONG)
+EXTERNAL CFUNCTION gdk_window_set_skip_pager_hint   (XLONG,   XLONG)
+EXTERNAL CFUNCTION gdk_window_set_urgency_hint      (XLONG,				       XLONG)
+EXTERNAL CFUNCTION gdk_window_set_geometry_hints (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_set_sm_client_id         (XLONG)
+EXTERNAL CFUNCTION gdk_window_begin_paint_rect   (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_begin_paint_region (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_end_paint          (XLONG)
+EXTERNAL CFUNCTION gdk_window_set_title	   (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_set_role          (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_set_transient_for (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_set_background	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_set_back_pixmap (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_set_cursor	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_get_user_data	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_get_geometry	 (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_get_position	 (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_origin	 (XLONG,	XLONG,	XLONG)
+'/* Used by gtk_handle_box_button_changed () */
+EXTERNAL CFUNCTION XLONG gdk_window_get_deskrelative_origin (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_get_root_origin (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_get_frame_extents (XLONG,        XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_pointer	 (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_parent      (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_toplevel    (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_children	 (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_peek_children   (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_events	 (XLONG)
+EXTERNAL CFUNCTION gdk_window_set_events	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_set_icon_list   (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_set_icon	 (XLONG, 	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_set_icon_name	 (XLONG, 	XLONG)
+EXTERNAL CFUNCTION gdk_window_set_group	 (XLONG, 	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_group	 (XLONG)
+EXTERNAL CFUNCTION gdk_window_set_decorations (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_decorations (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_set_functions	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_toplevels   ()
+EXTERNAL CFUNCTION gdk_window_beep            (XLONG)
+EXTERNAL CFUNCTION gdk_window_iconify         (XLONG)
+EXTERNAL CFUNCTION gdk_window_deiconify       (XLONG)
+EXTERNAL CFUNCTION gdk_window_stick           (XLONG)
+EXTERNAL CFUNCTION gdk_window_unstick         (XLONG)
+EXTERNAL CFUNCTION gdk_window_maximize        (XLONG)
+EXTERNAL CFUNCTION gdk_window_unmaximize      (XLONG)
+EXTERNAL CFUNCTION gdk_window_fullscreen      (XLONG)
+EXTERNAL CFUNCTION gdk_window_unfullscreen    (XLONG)
+EXTERNAL CFUNCTION gdk_window_set_keep_above  (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_window_set_keep_below  (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_window_register_dnd    (XLONG)
+EXTERNAL CFUNCTION gdk_window_begin_resize_drag (XLONG, XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_begin_move_drag   (XLONG, XLONG, XLONG, XLONG, XLONG)
+'/* Interface for dirty-region queueing */
+EXTERNAL CFUNCTION gdk_window_invalidate_rect           (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_invalidate_region         (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_window_invalidate_maybe_recurse  (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_window_get_update_area     (XLONG)
+EXTERNAL CFUNCTION gdk_window_freeze_updates      (XLONG)
+EXTERNAL CFUNCTION gdk_window_thaw_updates        (XLONG)
+EXTERNAL CFUNCTION gdk_window_process_all_updates ()
+EXTERNAL CFUNCTION gdk_window_process_updates     (XLONG,	XLONG)
+'/* Enable/disable flicker, so you can tell if your code is inefficient. */
+EXTERNAL CFUNCTION gdk_window_set_debug_updates   (XLONG)
+EXTERNAL CFUNCTION gdk_window_constrain_size      (XLONG, ULONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_window_get_internal_paint_info (XLONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_window_enable_synchronized_configure (XLONG)
+EXTERNAL CFUNCTION gdk_window_configure_finished            (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_set_pointer_hooks (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_get_default_root_window ()
+EXTERNAL CFUNCTION gdk_window_redirect_to_drawable (XLONG,XLONG,SLONG, SLONG,SLONG, SLONG,SLONG, SLONG)
+EXTERNAL CFUNCTION gdk_window_remove_redirection   (XLONG)
+
+'#########################
+'########  gdkgc
+'#########################
+
+$$GDK_CAP_NOT_LAST = 0
+$$GDK_CAP_BUTT = 1
+$$GDK_CAP_ROUND = 2
+$$GDK_CAP_PROJECTING = 3
+'
+$$GDK_SOLID = 0
+$$GDK_TILED = 1
+$$GDK_STIPPLED = 2
+$$GDK_OPAQUE_STIPPLED = 3
+
+' GdkFill;
+'/* GC function types.
+' *   Copy: Overwrites destination pixels with the source pixels.
+' *   Invert: Inverts the destination pixels.
+' *   Xor: Xor's the destination pixels with the source pixels.
+' *   Clear: set pixels to 0
+' *   And: source AND destination
+' *   And Reverse: source AND (NOT destination)
+' *   And Invert: (NOT source) AND destination
+' *   Noop: destination
+' *   Or: source OR destination
+' *   Nor: (NOT source) AND (NOT destination)
+' *   Equiv: (NOT source) XOR destination
+' *   Xor Reverse: source OR (NOT destination)
+' *   Copy Inverted: NOT source
+' *   Xor Inverted: (NOT source) OR destination
+' *   Nand: (NOT source) OR (NOT destination)
+' *   Set: set pixels to 1
+$$GDK_COPY = 0
+$$GDK_INVERT = 1
+$$GDK_XOR = 2
+$$GDK_CLEAR = 3
+$$GDK_AND = 4
+$$GDK_AND_REVERSE = 5
+$$GDK_AND_INVERT = 6
+$$GDK_NOOP = 7
+$$GDK_OR = 8
+$$GDK_EQUIV = 9
+$$GDK_OR_REVERSE = 10
+$$GDK_COPY_INVERT = 11
+$$GDK_OR_INVERT = 12
+$$GDK_NAND = 13
+$$GDK_NOR = 14
+$$GDK_SET = 15
+' GdkFunction;
+
+$$GDK_JOIN_MITER = 0
+$$GDK_JOIN_ROUND = 1
+$$GDK_JOIN_BEVEL = 2
+
+$$GDK_LINE_SOLID = 0
+$$GDK_LINE_ON_OFF_DASH = 1
+$$GDK_LINE_DOUBLE_DASH = 2
+
+$$GDK_CLIP_BY_CHILDREN	= 0
+$$GDK_INCLUDE_INFERIORS = 1
+' GdkSubwindowMode;
+
+$$GDK_GC_FOREGROUND    = 1
+$$GDK_GC_BACKGROUND    = 2
+$$GDK_GC_FONT	       = 4
+$$GDK_GC_FUNCTION      = 8
+$$GDK_GC_FILL	       = 16
+$$GDK_GC_TILE	       = 32
+$$GDK_GC_STIPPLE       = 64
+$$GDK_GC_CLIP_MASK     = 128
+$$GDK_GC_SUBWINDOW     = 256
+$$GDK_GC_TS_X_ORIGIN   = 512
+$$GDK_GC_TS_Y_ORIGIN   = 1024
+$$GDK_GC_CLIP_X_ORIGIN = 2048
+$$GDK_GC_CLIP_Y_ORIGIN = 4096
+$$GDK_GC_EXPOSURES     = 8192
+$$GDK_GC_LINE_WIDTH    = 16384
+$$GDK_GC_LINE_STYLE    = 32768
+$$GDK_GC_CAP_STYLE     = 65536
+$$GDK_GC_JOIN_STYLE    = 131072
+' GdkGCValuesMask;
+
+TYPE GDKGCVALUES
+  GDKCOLOR .foreground
+  GDKCOLOR .background
+  XLONG	   .font
+  XLONG .function
+  XLONG	    .fill
+  XLONG	   .tile
+  XLONG	   .stipple
+  XLONG	   .clip_mask
+  XLONG  .subwindow_mode
+  XLONG		    .ts_x_origin
+  XLONG		    .ts_y_origin
+  XLONG		    .clip_x_origin
+  XLONG		    .clip_y_origin
+  XLONG		    .graphics_exposures
+  XLONG		    .line_width
+  XLONG 	    .line_style
+  XLONG	    .cap_style
+  XLONG	    .join_style
+END TYPE
+
+TYPE GDKGC
+  GOBJECT .parent_instance
+  XLONG	   .clip_x_origin
+  XLONG	   .clip_y_origin
+  XLONG	   .ts_x_origin
+  XLONG	   .ts_y_origin
+  XLONG	   .colormap
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_gc_get_type            ()
+EXTERNAL CFUNCTION XLONG gdk_gc_new (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_gc_new_with_values	  (XLONG,	XLONG,	XLONG)
+
+EXTERNAL CFUNCTION gdk_gc_set_foreground (XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_line_attributes (XLONG, XLONG, XLONG, XLONG, XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_gc_ref		  (XLONG)
+EXTERNAL CFUNCTION gdk_gc_unref		  (XLONG)
+EXTERNAL CFUNCTION gdk_gc_get_values	  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_values          (XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_background	  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_font		  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_function	  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_fill		  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_tile		  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_stipple	  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_ts_origin	  (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_clip_origin	  (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_clip_mask	  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_clip_rectangle  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_clip_region	  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_subwindow	  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_exposures	  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_dashes   (XLONG,	XLONG,	SBYTE @dash_list[],	XLONG)
+EXTERNAL CFUNCTION gdk_gc_offset              (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_copy		  (XLONG,	XLONG)
+
+EXTERNAL CFUNCTION gdk_gc_set_colormap     (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_gc_get_colormap     (XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_rgb_fg_color (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_gc_set_rgb_bg_color (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_gc_get_screen	     (XLONG)
+
+'#########################
+'########  gdkfont
+'#########################
+
+EXTERNAL CFUNCTION XLONG gdk_font_load (XLONG)
+'
+'/* Types of font.
+' *   GDK_FONT_FONT: the font is an XFontStruct.
+' *   GDK_FONT_FONTSET: the font is an XFontSet used for I18N.
+
+$$GDK_FONT_FONT = 0
+$$GDK_FONT_FONTSET = 1
+' GdkFontType;
+
+TYPE GDKFONT
+  XLONG	    .type
+  XLONG	    .ascent
+  XLONG	    .descent
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_font_get_type  ()
+
+EXTERNAL CFUNCTION XLONG gdk_font_ref	    (XLONG)
+EXTERNAL CFUNCTION gdk_font_unref	    (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_font_id	    (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_font_equal	    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_font_load_for_display             (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_fontset_load_for_display          (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_font_from_description_for_display (XLONG,	XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_fontset_load          (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_font_from_description (XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_string_width   (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_text_width	    (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_text_width_wc  (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_char_width	    (XLONG,	 SBYTE)
+EXTERNAL CFUNCTION XLONG gdk_char_width_wc  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_string_measure (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_text_measure   (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_char_measure   (XLONG,  SBYTE)
+EXTERNAL CFUNCTION XLONG gdk_string_height  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_text_height    (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_char_height    (XLONG,	 SBYTE)
+
+EXTERNAL CFUNCTION gdk_text_extents   (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_text_extents_wc (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_string_extents (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_font_get_display (XLONG)
+
+'#########################
+'########  gdkcursor
+'#########################
+
+$$GDK_X_CURSOR 		  = 0
+$$GDK_ARROW 		  = 2
+$$GDK_BASED_ARROW_DOWN    = 4
+$$GDK_BASED_ARROW_UP 	  = 6
+$$GDK_BOAT 		  = 8
+$$GDK_BOGOSITY 		  = 10
+$$GDK_BOTTOM_LEFT_CORNER  = 12
+$$GDK_BOTTOM_RIGHT_CORNER = 14
+$$GDK_BOTTOM_SIDE 	  = 16
+$$GDK_BOTTOM_TEE 	  = 18
+$$GDK_BOX_SPIRAL 	  = 20
+$$GDK_CENTER_PTR 	  = 22
+$$GDK_CIRCLE 		  = 24
+$$GDK_CLOCK	 	  = 26
+$$GDK_COFFEE_MUG 	  = 28
+$$GDK_CROSS 		  = 30
+$$GDK_CROSS_REVERSE 	  = 32
+$$GDK_CROSSHAIR 	  = 34
+$$GDK_DIAMOND_CROSS 	  = 36
+$$GDK_DOT 		  = 38
+$$GDK_DOTBOX 		  = 40
+$$GDK_DOUBLE_ARROW 	  = 42
+$$GDK_DRAFT_LARGE 	  = 44
+$$GDK_DRAFT_SMALL 	  = 46
+$$GDK_DRAPED_BOX 	  = 48
+$$GDK_EXCHANGE 		  = 50
+$$GDK_FLEUR 		  = 52
+$$GDK_GOBBLER 		  = 54
+$$GDK_GUMBY 		  = 56
+$$GDK_HAND1 		  = 58
+$$GDK_HAND2 		  = 60
+$$GDK_HEART 		  = 62
+$$GDK_ICON 		  = 64
+$$GDK_IRON_CROSS 	  = 66
+$$GDK_LEFT_PTR 		  = 68
+$$GDK_LEFT_SIDE 	  = 70
+$$GDK_LEFT_TEE 		  = 72
+$$GDK_LEFTBUTTON 	  = 74
+$$GDK_LL_ANGLE 		  = 76
+$$GDK_LR_ANGLE 	 	  = 78
+$$GDK_MAN 		  = 80
+$$GDK_MIDDLEBUTTON 	  = 82
+$$GDK_MOUSE 		  = 84
+$$GDK_PENCIL 		  = 86
+$$GDK_PIRATE 		  = 88
+$$GDK_PLUS 		  = 90
+$$GDK_QUESTION_ARROW 	  = 92
+$$GDK_RIGHT_PTR 	  = 94
+$$GDK_RIGHT_SIDE 	  = 96
+$$GDK_RIGHT_TEE 	  = 98
+$$GDK_RIGHTBUTTON 	  = 100
+$$GDK_RTL_LOGO 		  = 102
+$$GDK_SAILBOAT 		  = 104
+$$GDK_SB_DOWN_ARROW 	  = 106
+$$GDK_SB_H_DOUBLE_ARROW   = 108
+$$GDK_SB_LEFT_ARROW 	  = 110
+$$GDK_SB_RIGHT_ARROW 	  = 112
+$$GDK_SB_UP_ARROW 	  = 114
+$$GDK_SB_V_DOUBLE_ARROW   = 116
+$$GDK_SHUTTLE 		  = 118
+$$GDK_SIZING 		  = 120
+$$GDK_SPIDER		  = 122
+$$GDK_SPRAYCAN 		  = 124
+$$GDK_STAR 		  = 126
+$$GDK_TARGET 		  = 128
+$$GDK_TCROSS 		  = 130
+$$GDK_TOP_LEFT_ARROW 	  = 132
+$$GDK_TOP_LEFT_CORNER 	  = 134
+$$GDK_TOP_RIGHT_CORNER 	  = 136
+$$GDK_TOP_SIDE 		  = 138
+$$GDK_TOP_TEE 		  = 140
+$$GDK_TREK 		  = 142
+$$GDK_UL_ANGLE 		  = 144
+$$GDK_UMBRELLA 		  = 146
+$$GDK_UR_ANGLE 		  = 148
+$$GDK_WATCH 		  = 150
+$$GDK_XTERM 		  = 152
+$$GDK_LAST_CURSOR = -1
+$$GDK_CURSOR_IS_PIXMAP 	= -1
+
+TYPE GDKCURSOR
+  XLONG .type
+'  /*< private >*/
+  ULONG .ref_count
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_cursor_get_type           ()
+EXTERNAL CFUNCTION XLONG gdk_cursor_new (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_cursor_new_for_display	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_cursor_new_from_pixmap	 (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_cursor_new_from_pixbuf	 (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_cursor_get_display	 (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_cursor_ref               (XLONG)
+EXTERNAL CFUNCTION gdk_cursor_unref             (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_cursor_new_from_name	 (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_cursor_get_image         (XLONG)
+
+'#########################
+'########  gdkkeysyms
+'#########################
+
+$$GDK_VoidSymbol = 0xffffff
+$$GDK_BackSpace = 0xff08
+$$GDK_Tab = 0xff09
+$$GDK_Linefeed = 0xff0a
+$$GDK_Clear = 0xff0b
+$$GDK_Return = 0xff0d
+$$GDK_Pause = 0xff13
+$$GDK_Scroll_Lock = 0xff14
+$$GDK_Sys_Req = 0xff15
+$$GDK_Escape = 0xff1b
+$$GDK_Delete = 0xffff
+$$GDK_Multi_key = 0xff20
+$$GDK_Codeinput = 0xff37
+$$GDK_SingleCandidate = 0xff3c
+$$GDK_MultipleCandidate = 0xff3d
+$$GDK_PreviousCandidate = 0xff3e
+$$GDK_Kanji = 0xff21
+$$GDK_Muhenkan = 0xff22
+$$GDK_Henkan_Mode = 0xff23
+$$GDK_Henkan = 0xff23
+$$GDK_Romaji = 0xff24
+$$GDK_Hiragana = 0xff25
+$$GDK_Katakana = 0xff26
+$$GDK_Hiragana_Katakana = 0xff27
+$$GDK_Zenkaku = 0xff28
+$$GDK_Hankaku = 0xff29
+$$GDK_Zenkaku_Hankaku = 0xff2a
+$$GDK_Touroku = 0xff2b
+$$GDK_Massyo = 0xff2c
+$$GDK_Kana_Lock = 0xff2d
+$$GDK_Kana_Shift = 0xff2e
+$$GDK_Eisu_Shift = 0xff2f
+$$GDK_Eisu_toggle = 0xff30
+$$GDK_Kanji_Bangou = 0xff37
+$$GDK_Zen_Koho = 0xff3d
+$$GDK_Mae_Koho = 0xff3e
+$$GDK_Home = 0xff50
+$$GDK_Left = 0xff51
+$$GDK_Up = 0xff52
+$$GDK_Right = 0xff53
+$$GDK_Down = 0xff54
+$$GDK_Prior = 0xff55
+$$GDK_Page_Up = 0xff55
+$$GDK_Next = 0xff56
+$$GDK_Page_Down = 0xff56
+$$GDK_End = 0xff57
+$$GDK_Begin = 0xff58
+$$GDK_Select = 0xff60
+$$GDK_Print = 0xff61
+$$GDK_Execute = 0xff62
+$$GDK_Insert = 0xff63
+$$GDK_Undo = 0xff65
+$$GDK_Redo = 0xff66
+$$GDK_Menu = 0xff67
+$$GDK_Find = 0xff68
+$$GDK_Cancel = 0xff69
+$$GDK_Help = 0xff6a
+$$GDK_Break = 0xff6b
+$$GDK_Mode_switch = 0xff7e
+$$GDK_script_switch = 0xff7e
+$$GDK_Num_Lock = 0xff7f
+$$GDK_KP_Space = 0xff80
+$$GDK_KP_Tab = 0xff89
+$$GDK_KP_Enter = 0xff8d
+$$GDK_KP_F1 = 0xff91
+$$GDK_KP_F2 = 0xff92
+$$GDK_KP_F3 = 0xff93
+$$GDK_KP_F4 = 0xff94
+$$GDK_KP_Home = 0xff95
+$$GDK_KP_Left = 0xff96
+$$GDK_KP_Up = 0xff97
+$$GDK_KP_Right = 0xff98
+$$GDK_KP_Down = 0xff99
+$$GDK_KP_Prior = 0xff9a
+$$GDK_KP_Page_Up = 0xff9a
+$$GDK_KP_Next = 0xff9b
+$$GDK_KP_Page_Down = 0xff9b
+$$GDK_KP_End = 0xff9c
+$$GDK_KP_Begin = 0xff9d
+$$GDK_KP_Insert = 0xff9e
+$$GDK_KP_Delete = 0xff9f
+$$GDK_KP_Equal = 0xffbd
+$$GDK_KP_Multiply = 0xffaa
+$$GDK_KP_Add = 0xffab
+$$GDK_KP_Separator = 0xffac
+$$GDK_KP_Subtract = 0xffad
+$$GDK_KP_Decimal = 0xffae
+$$GDK_KP_Divide = 0xffaf
+$$GDK_KP_0 = 0xffb0
+$$GDK_KP_1 = 0xffb1
+$$GDK_KP_2 = 0xffb2
+$$GDK_KP_3 = 0xffb3
+$$GDK_KP_4 = 0xffb4
+$$GDK_KP_5 = 0xffb5
+$$GDK_KP_6 = 0xffb6
+$$GDK_KP_7 = 0xffb7
+$$GDK_KP_8 = 0xffb8
+$$GDK_KP_9 = 0xffb9
+$$GDK_F1 = 0xffbe
+$$GDK_F2 = 0xffbf
+$$GDK_F3 = 0xffc0
+$$GDK_F4 = 0xffc1
+$$GDK_F5 = 0xffc2
+$$GDK_F6 = 0xffc3
+$$GDK_F7 = 0xffc4
+$$GDK_F8 = 0xffc5
+$$GDK_F9 = 0xffc6
+$$GDK_F10 = 0xffc7
+$$GDK_F11 = 0xffc8
+$$GDK_L1 = 0xffc8
+$$GDK_F12 = 0xffc9
+$$GDK_L2 = 0xffc9
+$$GDK_F13 = 0xffca
+$$GDK_L3 = 0xffca
+$$GDK_F14 = 0xffcb
+$$GDK_L4 = 0xffcb
+$$GDK_F15 = 0xffcc
+$$GDK_L5 = 0xffcc
+$$GDK_F16 = 0xffcd
+$$GDK_L6 = 0xffcd
+$$GDK_F17 = 0xffce
+$$GDK_L7 = 0xffce
+$$GDK_F18 = 0xffcf
+$$GDK_L8 = 0xffcf
+$$GDK_F19 = 0xffd0
+$$GDK_L9 = 0xffd0
+$$GDK_F20 = 0xffd1
+$$GDK_L10 = 0xffd1
+$$GDK_F21 = 0xffd2
+$$GDK_R1 = 0xffd2
+$$GDK_F22 = 0xffd3
+$$GDK_R2 = 0xffd3
+$$GDK_F23 = 0xffd4
+$$GDK_R3 = 0xffd4
+$$GDK_F24 = 0xffd5
+$$GDK_R4 = 0xffd5
+$$GDK_F25 = 0xffd6
+$$GDK_R5 = 0xffd6
+$$GDK_F26 = 0xffd7
+$$GDK_R6 = 0xffd7
+$$GDK_F27 = 0xffd8
+$$GDK_R7 = 0xffd8
+$$GDK_F28 = 0xffd9
+$$GDK_R8 = 0xffd9
+$$GDK_F29 = 0xffda
+$$GDK_R9 = 0xffda
+$$GDK_F30 = 0xffdb
+$$GDK_R10 = 0xffdb
+$$GDK_F31 = 0xffdc
+$$GDK_R11 = 0xffdc
+$$GDK_F32 = 0xffdd
+$$GDK_R12 = 0xffdd
+$$GDK_F33 = 0xffde
+$$GDK_R13 = 0xffde
+$$GDK_F34 = 0xffdf
+$$GDK_R14 = 0xffdf
+$$GDK_F35 = 0xffe0
+$$GDK_R15 = 0xffe0
+$$GDK_Shift_L = 0xffe1
+$$GDK_Shift_R = 0xffe2
+$$GDK_Control_L = 0xffe3
+$$GDK_Control_R = 0xffe4
+$$GDK_Caps_Lock = 0xffe5
+$$GDK_Shift_Lock = 0xffe6
+$$GDK_Meta_L = 0xffe7
+$$GDK_Meta_R = 0xffe8
+$$GDK_Alt_L = 0xffe9
+$$GDK_Alt_R = 0xffea
+$$GDK_Super_L = 0xffeb
+$$GDK_Super_R = 0xffec
+$$GDK_Hyper_L = 0xffed
+$$GDK_Hyper_R = 0xffee
+$$GDK_ISO_Lock = 0xfe01
+$$GDK_ISO_Level2_Latch = 0xfe02
+$$GDK_ISO_Level3_Shift = 0xfe03
+$$GDK_ISO_Level3_Latch = 0xfe04
+$$GDK_ISO_Level3_Lock = 0xfe05
+$$GDK_ISO_Group_Shift = 0xff7e
+$$GDK_ISO_Group_Latch = 0xfe06
+$$GDK_ISO_Group_Lock = 0xfe07
+$$GDK_ISO_Next_Group = 0xfe08
+$$GDK_ISO_Next_Group_Lock = 0xfe09
+$$GDK_ISO_Prev_Group = 0xfe0a
+$$GDK_ISO_Prev_Group_Lock = 0xfe0b
+$$GDK_ISO_First_Group = 0xfe0c
+$$GDK_ISO_First_Group_Lock = 0xfe0d
+$$GDK_ISO_Last_Group = 0xfe0e
+$$GDK_ISO_Last_Group_Lock = 0xfe0f
+$$GDK_ISO_Left_Tab = 0xfe20
+$$GDK_ISO_Move_Line_Up = 0xfe21
+$$GDK_ISO_Move_Line_Down = 0xfe22
+$$GDK_ISO_Partial_Line_Up = 0xfe23
+$$GDK_ISO_Partial_Line_Down = 0xfe24
+$$GDK_ISO_Partial_Space_Left = 0xfe25
+$$GDK_ISO_Partial_Space_Right = 0xfe26
+$$GDK_ISO_Set_Margin_Left = 0xfe27
+$$GDK_ISO_Set_Margin_Right = 0xfe28
+$$GDK_ISO_Release_Margin_Left = 0xfe29
+$$GDK_ISO_Release_Margin_Right = 0xfe2a
+$$GDK_ISO_Release_Both_Margins = 0xfe2b
+$$GDK_ISO_Fast_Cursor_Left = 0xfe2c
+$$GDK_ISO_Fast_Cursor_Right = 0xfe2d
+$$GDK_ISO_Fast_Cursor_Up = 0xfe2e
+$$GDK_ISO_Fast_Cursor_Down = 0xfe2f
+$$GDK_ISO_Continuous_Underline = 0xfe30
+$$GDK_ISO_Discontinuous_Underline = 0xfe31
+$$GDK_ISO_Emphasize = 0xfe32
+$$GDK_ISO_Center_Object = 0xfe33
+$$GDK_ISO_Enter = 0xfe34
+$$GDK_dead_grave = 0xfe50
+$$GDK_dead_acute = 0xfe51
+$$GDK_dead_circumflex = 0xfe52
+$$GDK_dead_tilde = 0xfe53
+$$GDK_dead_macron = 0xfe54
+$$GDK_dead_breve = 0xfe55
+$$GDK_dead_abovedot = 0xfe56
+$$GDK_dead_diaeresis = 0xfe57
+$$GDK_dead_abovering = 0xfe58
+$$GDK_dead_doubleacute = 0xfe59
+$$GDK_dead_caron = 0xfe5a
+$$GDK_dead_cedilla = 0xfe5b
+$$GDK_dead_ogonek = 0xfe5c
+$$GDK_dead_iota = 0xfe5d
+$$GDK_dead_voiced_sound = 0xfe5e
+$$GDK_dead_semivoiced_sound = 0xfe5f
+$$GDK_dead_belowdot = 0xfe60
+$$GDK_dead_hook = 0xfe61
+$$GDK_dead_horn = 0xfe62
+$$GDK_First_Virtual_Screen = 0xfed0
+$$GDK_Prev_Virtual_Screen = 0xfed1
+$$GDK_Next_Virtual_Screen = 0xfed2
+$$GDK_Last_Virtual_Screen = 0xfed4
+$$GDK_Terminate_Server = 0xfed5
+$$GDK_AccessX_Enable = 0xfe70
+$$GDK_AccessX_Feedback_Enable = 0xfe71
+$$GDK_RepeatKeys_Enable = 0xfe72
+$$GDK_SlowKeys_Enable = 0xfe73
+$$GDK_BounceKeys_Enable = 0xfe74
+$$GDK_StickyKeys_Enable = 0xfe75
+$$GDK_MouseKeys_Enable = 0xfe76
+$$GDK_MouseKeys_Accel_Enable = 0xfe77
+$$GDK_Overlay1_Enable = 0xfe78
+$$GDK_Overlay2_Enable = 0xfe79
+$$GDK_AudibleBell_Enable = 0xfe7a
+$$GDK_Pointer_Left = 0xfee0
+$$GDK_Pointer_Right = 0xfee1
+$$GDK_Pointer_Up = 0xfee2
+$$GDK_Pointer_Down = 0xfee3
+$$GDK_Pointer_UpLeft = 0xfee4
+$$GDK_Pointer_UpRight = 0xfee5
+$$GDK_Pointer_DownLeft = 0xfee6
+$$GDK_Pointer_DownRight = 0xfee7
+$$GDK_Pointer_Button_Dflt = 0xfee8
+$$GDK_Pointer_Button1 = 0xfee9
+$$GDK_Pointer_Button2 = 0xfeea
+$$GDK_Pointer_Button3 = 0xfeeb
+$$GDK_Pointer_Button4 = 0xfeec
+$$GDK_Pointer_Button5 = 0xfeed
+$$GDK_Pointer_DblClick_Dflt = 0xfeee
+$$GDK_Pointer_DblClick1 = 0xfeef
+$$GDK_Pointer_DblClick2 = 0xfef0
+$$GDK_Pointer_DblClick3 = 0xfef1
+$$GDK_Pointer_DblClick4 = 0xfef2
+$$GDK_Pointer_DblClick5 = 0xfef3
+$$GDK_Pointer_Drag_Dflt = 0xfef4
+$$GDK_Pointer_Drag1 = 0xfef5
+$$GDK_Pointer_Drag2 = 0xfef6
+$$GDK_Pointer_Drag3 = 0xfef7
+$$GDK_Pointer_Drag4 = 0xfef8
+$$GDK_Pointer_Drag5 = 0xfefd
+$$GDK_Pointer_EnableKeys = 0xfef9
+$$GDK_Pointer_Accelerate = 0xfefa
+$$GDK_Pointer_DfltBtnNext = 0xfefb
+$$GDK_Pointer_DfltBtnPrev = 0xfefc
+$$GDK_3270_Duplicate = 0xfd01
+$$GDK_3270_FieldMark = 0xfd02
+$$GDK_3270_Right2 = 0xfd03
+$$GDK_3270_Left2 = 0xfd04
+$$GDK_3270_BackTab = 0xfd05
+$$GDK_3270_EraseEOF = 0xfd06
+$$GDK_3270_EraseInput = 0xfd07
+$$GDK_3270_Reset = 0xfd08
+$$GDK_3270_Quit = 0xfd09
+$$GDK_3270_PA1 = 0xfd0a
+$$GDK_3270_PA2 = 0xfd0b
+$$GDK_3270_PA3 = 0xfd0c
+$$GDK_3270_Test = 0xfd0d
+$$GDK_3270_Attn = 0xfd0e
+$$GDK_3270_CursorBlink = 0xfd0f
+$$GDK_3270_AltCursor = 0xfd10
+$$GDK_3270_KeyClick = 0xfd11
+$$GDK_3270_Jump = 0xfd12
+$$GDK_3270_Ident = 0xfd13
+$$GDK_3270_Rule = 0xfd14
+$$GDK_3270_Copy = 0xfd15
+$$GDK_3270_Play = 0xfd16
+$$GDK_3270_Setup = 0xfd17
+$$GDK_3270_Record = 0xfd18
+$$GDK_3270_ChangeScreen = 0xfd19
+$$GDK_3270_DeleteWord = 0xfd1a
+$$GDK_3270_ExSelect = 0xfd1b
+$$GDK_3270_CursorSelect = 0xfd1c
+$$GDK_3270_PrintScreen = 0xfd1d
+$$GDK_3270_Enter = 0xfd1e
+$$GDK_space = 0x020
+$$GDK_exclam = 0x021
+$$GDK_quotedbl = 0x022
+$$GDK_numbersign = 0x023
+$$GDK_dollar = 0x024
+$$GDK_percent = 0x025
+$$GDK_ampersand = 0x026
+$$GDK_apostrophe = 0x027
+$$GDK_quoteright = 0x027
+$$GDK_parenleft = 0x028
+$$GDK_parenright = 0x029
+$$GDK_asterisk = 0x02a
+$$GDK_plus = 0x02b
+$$GDK_comma = 0x02c
+$$GDK_minus = 0x02d
+$$GDK_period = 0x02e
+$$GDK_slash = 0x02f
+$$GDK_0 = 0x030
+$$GDK_1 = 0x031
+$$GDK_2 = 0x032
+$$GDK_3 = 0x033
+$$GDK_4 = 0x034
+$$GDK_5 = 0x035
+$$GDK_6 = 0x036
+$$GDK_7 = 0x037
+$$GDK_8 = 0x038
+$$GDK_9 = 0x039
+$$GDK_colon = 0x03a
+$$GDK_semicolon = 0x03b
+$$GDK_less = 0x03c
+$$GDK_equal = 0x03d
+$$GDK_greater = 0x03e
+$$GDK_question = 0x03f
+$$GDK_at = 0x040
+$$GDK_A = 0x041
+$$GDK_B = 0x042
+$$GDK_C = 0x043
+$$GDK_D = 0x044
+$$GDK_E = 0x045
+$$GDK_F = 0x046
+$$GDK_G = 0x047
+$$GDK_H = 0x048
+$$GDK_I = 0x049
+$$GDK_J = 0x04a
+$$GDK_K = 0x04b
+$$GDK_L = 0x04c
+$$GDK_M = 0x04d
+$$GDK_N = 0x04e
+$$GDK_O = 0x04f
+$$GDK_P = 0x050
+$$GDK_Q = 0x051
+$$GDK_R = 0x052
+$$GDK_S = 0x053
+$$GDK_T = 0x054
+$$GDK_U = 0x055
+$$GDK_V = 0x056
+$$GDK_W = 0x057
+$$GDK_X = 0x058
+$$GDK_Y = 0x059
+$$GDK_Z = 0x05a
+$$GDK_bracketleft = 0x05b
+$$GDK_backslash = 0x05c
+$$GDK_bracketright = 0x05d
+$$GDK_asciicircum = 0x05e
+$$GDK_underscore = 0x05f
+$$GDK_grave = 0x060
+$$GDK_quoteleft = 0x060
+$$GDK_a = 0x061
+$$GDK_b = 0x062
+$$GDK_c = 0x063
+$$GDK_d = 0x064
+$$GDK_e = 0x065
+$$GDK_f = 0x066
+$$GDK_g = 0x067
+$$GDK_h = 0x068
+$$GDK_i = 0x069
+$$GDK_j = 0x06a
+$$GDK_k = 0x06b
+$$GDK_l = 0x06c
+$$GDK_m = 0x06d
+$$GDK_n = 0x06e
+$$GDK_o = 0x06f
+$$GDK_p = 0x070
+$$GDK_q = 0x071
+$$GDK_r = 0x072
+$$GDK_s = 0x073
+$$GDK_t = 0x074
+$$GDK_u = 0x075
+$$GDK_v = 0x076
+$$GDK_w = 0x077
+$$GDK_x = 0x078
+$$GDK_y = 0x079
+$$GDK_z = 0x07a
+$$GDK_braceleft = 0x07b
+$$GDK_bar = 0x07c
+$$GDK_braceright = 0x07d
+$$GDK_asciitilde = 0x07e
+$$GDK_nobreakspace = 0x0a0
+$$GDK_exclamdown = 0x0a1
+$$GDK_cent = 0x0a2
+$$GDK_sterling = 0x0a3
+$$GDK_currency = 0x0a4
+$$GDK_yen = 0x0a5
+$$GDK_brokenbar = 0x0a6
+$$GDK_section = 0x0a7
+$$GDK_diaeresis = 0x0a8
+$$GDK_copyright = 0x0a9
+$$GDK_ordfeminine = 0x0aa
+$$GDK_guillemotleft = 0x0ab
+$$GDK_notsign = 0x0ac
+$$GDK_hyphen = 0x0ad
+$$GDK_registered = 0x0ae
+$$GDK_macron = 0x0af
+$$GDK_degree = 0x0b0
+$$GDK_plusminus = 0x0b1
+$$GDK_twosuperior = 0x0b2
+$$GDK_threesuperior = 0x0b3
+$$GDK_acute = 0x0b4
+$$GDK_mu = 0x0b5
+$$GDK_paragraph = 0x0b6
+$$GDK_periodcentered = 0x0b7
+$$GDK_cedilla = 0x0b8
+$$GDK_onesuperior = 0x0b9
+$$GDK_masculine = 0x0ba
+$$GDK_guillemotright = 0x0bb
+$$GDK_onequarter = 0x0bc
+$$GDK_onehalf = 0x0bd
+$$GDK_threequarters = 0x0be
+$$GDK_questiondown = 0x0bf
+$$GDK_Agrave = 0x0c0
+$$GDK_Aacute = 0x0c1
+$$GDK_Acircumflex = 0x0c2
+$$GDK_Atilde = 0x0c3
+$$GDK_Adiaeresis = 0x0c4
+$$GDK_Aring = 0x0c5
+$$GDK_AE = 0x0c6
+$$GDK_Ccedilla = 0x0c7
+$$GDK_Egrave = 0x0c8
+$$GDK_Eacute = 0x0c9
+$$GDK_Ecircumflex = 0x0ca
+$$GDK_Ediaeresis = 0x0cb
+$$GDK_Igrave = 0x0cc
+$$GDK_Iacute = 0x0cd
+$$GDK_Icircumflex = 0x0ce
+$$GDK_Idiaeresis = 0x0cf
+$$GDK_ETH = 0x0d0
+$$GDK_Eth = 0x0d0
+$$GDK_Ntilde = 0x0d1
+$$GDK_Ograve = 0x0d2
+$$GDK_Oacute = 0x0d3
+$$GDK_Ocircumflex = 0x0d4
+$$GDK_Otilde = 0x0d5
+$$GDK_Odiaeresis = 0x0d6
+$$GDK_multiply = 0x0d7
+$$GDK_Oslash = 0x0d8
+$$GDK_Ooblique = 0x0d8
+$$GDK_Ugrave = 0x0d9
+$$GDK_Uacute = 0x0da
+$$GDK_Ucircumflex = 0x0db
+$$GDK_Udiaeresis = 0x0dc
+$$GDK_Yacute = 0x0dd
+$$GDK_THORN = 0x0de
+$$GDK_Thorn = 0x0de
+$$GDK_ssharp = 0x0df
+$$GDK_agrave = 0x0e0
+$$GDK_aacute = 0x0e1
+$$GDK_acircumflex = 0x0e2
+$$GDK_atilde = 0x0e3
+$$GDK_adiaeresis = 0x0e4
+$$GDK_aring = 0x0e5
+$$GDK_ae = 0x0e6
+$$GDK_ccedilla = 0x0e7
+$$GDK_egrave = 0x0e8
+$$GDK_eacute = 0x0e9
+$$GDK_ecircumflex = 0x0ea
+$$GDK_ediaeresis = 0x0eb
+$$GDK_igrave = 0x0ec
+$$GDK_iacute = 0x0ed
+$$GDK_icircumflex = 0x0ee
+$$GDK_idiaeresis = 0x0ef
+$$GDK_eth = 0x0f0
+$$GDK_ntilde = 0x0f1
+$$GDK_ograve = 0x0f2
+$$GDK_oacute = 0x0f3
+$$GDK_ocircumflex = 0x0f4
+$$GDK_otilde = 0x0f5
+$$GDK_odiaeresis = 0x0f6
+$$GDK_division = 0x0f7
+$$GDK_oslash = 0x0f8
+$$GDK_ooblique = 0x0f8
+$$GDK_ugrave = 0x0f9
+$$GDK_uacute = 0x0fa
+$$GDK_ucircumflex = 0x0fb
+$$GDK_udiaeresis = 0x0fc
+$$GDK_yacute = 0x0fd
+$$GDK_thorn = 0x0fe
+$$GDK_ydiaeresis = 0x0ff
+$$GDK_Aogonek = 0x1a1
+$$GDK_breve = 0x1a2
+$$GDK_Lstroke = 0x1a3
+$$GDK_Lcaron = 0x1a5
+$$GDK_Sacute = 0x1a6
+$$GDK_Scaron = 0x1a9
+$$GDK_Scedilla = 0x1aa
+$$GDK_Tcaron = 0x1ab
+$$GDK_Zacute = 0x1ac
+$$GDK_Zcaron = 0x1ae
+$$GDK_Zabovedot = 0x1af
+$$GDK_aogonek = 0x1b1
+$$GDK_ogonek = 0x1b2
+$$GDK_lstroke = 0x1b3
+$$GDK_lcaron = 0x1b5
+$$GDK_sacute = 0x1b6
+$$GDK_caron = 0x1b7
+$$GDK_scaron = 0x1b9
+$$GDK_scedilla = 0x1ba
+$$GDK_tcaron = 0x1bb
+$$GDK_zacute = 0x1bc
+$$GDK_doubleacute = 0x1bd
+$$GDK_zcaron = 0x1be
+$$GDK_zabovedot = 0x1bf
+$$GDK_Racute = 0x1c0
+$$GDK_Abreve = 0x1c3
+$$GDK_Lacute = 0x1c5
+$$GDK_Cacute = 0x1c6
+$$GDK_Ccaron = 0x1c8
+$$GDK_Eogonek = 0x1ca
+$$GDK_Ecaron = 0x1cc
+$$GDK_Dcaron = 0x1cf
+$$GDK_Dstroke = 0x1d0
+$$GDK_Nacute = 0x1d1
+$$GDK_Ncaron = 0x1d2
+$$GDK_Odoubleacute = 0x1d5
+$$GDK_Rcaron = 0x1d8
+$$GDK_Uring = 0x1d9
+$$GDK_Udoubleacute = 0x1db
+$$GDK_Tcedilla = 0x1de
+$$GDK_racute = 0x1e0
+$$GDK_abreve = 0x1e3
+$$GDK_lacute = 0x1e5
+$$GDK_cacute = 0x1e6
+$$GDK_ccaron = 0x1e8
+$$GDK_eogonek = 0x1ea
+$$GDK_ecaron = 0x1ec
+$$GDK_dcaron = 0x1ef
+$$GDK_dstroke = 0x1f0
+$$GDK_nacute = 0x1f1
+$$GDK_ncaron = 0x1f2
+$$GDK_odoubleacute = 0x1f5
+$$GDK_udoubleacute = 0x1fb
+$$GDK_rcaron = 0x1f8
+$$GDK_uring = 0x1f9
+$$GDK_tcedilla = 0x1fe
+$$GDK_abovedot = 0x1ff
+$$GDK_Hstroke = 0x2a1
+$$GDK_Hcircumflex = 0x2a6
+$$GDK_Iabovedot = 0x2a9
+$$GDK_Gbreve = 0x2ab
+$$GDK_Jcircumflex = 0x2ac
+$$GDK_hstroke = 0x2b1
+$$GDK_hcircumflex = 0x2b6
+$$GDK_idotless = 0x2b9
+$$GDK_gbreve = 0x2bb
+$$GDK_jcircumflex = 0x2bc
+$$GDK_Cabovedot = 0x2c5
+$$GDK_Ccircumflex = 0x2c6
+$$GDK_Gabovedot = 0x2d5
+$$GDK_Gcircumflex = 0x2d8
+$$GDK_Ubreve = 0x2dd
+$$GDK_Scircumflex = 0x2de
+$$GDK_cabovedot = 0x2e5
+$$GDK_ccircumflex = 0x2e6
+$$GDK_gabovedot = 0x2f5
+$$GDK_gcircumflex = 0x2f8
+$$GDK_ubreve = 0x2fd
+$$GDK_scircumflex = 0x2fe
+$$GDK_kra = 0x3a2
+$$GDK_kappa = 0x3a2
+$$GDK_Rcedilla = 0x3a3
+$$GDK_Itilde = 0x3a5
+$$GDK_Lcedilla = 0x3a6
+$$GDK_Emacron = 0x3aa
+$$GDK_Gcedilla = 0x3ab
+$$GDK_Tslash = 0x3ac
+$$GDK_rcedilla = 0x3b3
+$$GDK_itilde = 0x3b5
+$$GDK_lcedilla = 0x3b6
+$$GDK_emacron = 0x3ba
+$$GDK_gcedilla = 0x3bb
+$$GDK_tslash = 0x3bc
+$$GDK_ENG = 0x3bd
+$$GDK_eng = 0x3bf
+$$GDK_Amacron = 0x3c0
+$$GDK_Iogonek = 0x3c7
+$$GDK_Eabovedot = 0x3cc
+$$GDK_Imacron = 0x3cf
+$$GDK_Ncedilla = 0x3d1
+$$GDK_Omacron = 0x3d2
+$$GDK_Kcedilla = 0x3d3
+$$GDK_Uogonek = 0x3d9
+$$GDK_Utilde = 0x3dd
+$$GDK_Umacron = 0x3de
+$$GDK_amacron = 0x3e0
+$$GDK_iogonek = 0x3e7
+$$GDK_eabovedot = 0x3ec
+$$GDK_imacron = 0x3ef
+$$GDK_ncedilla = 0x3f1
+$$GDK_omacron = 0x3f2
+$$GDK_kcedilla = 0x3f3
+$$GDK_uogonek = 0x3f9
+$$GDK_utilde = 0x3fd
+$$GDK_umacron = 0x3fe
+$$GDK_Babovedot = 0x1001e02
+$$GDK_babovedot = 0x1001e03
+$$GDK_Dabovedot = 0x1001e0a
+$$GDK_Wgrave = 0x1001e80
+$$GDK_Wacute = 0x1001e82
+$$GDK_dabovedot = 0x1001e0b
+$$GDK_Ygrave = 0x1001ef2
+$$GDK_Fabovedot = 0x1001e1e
+$$GDK_fabovedot = 0x1001e1f
+$$GDK_Mabovedot = 0x1001e40
+$$GDK_mabovedot = 0x1001e41
+$$GDK_Pabovedot = 0x1001e56
+$$GDK_wgrave = 0x1001e81
+$$GDK_pabovedot = 0x1001e57
+$$GDK_wacute = 0x1001e83
+$$GDK_Sabovedot = 0x1001e60
+$$GDK_ygrave = 0x1001ef3
+$$GDK_Wdiaeresis = 0x1001e84
+$$GDK_wdiaeresis = 0x1001e85
+$$GDK_sabovedot = 0x1001e61
+$$GDK_Wcircumflex = 0x1000174
+$$GDK_Tabovedot = 0x1001e6a
+$$GDK_Ycircumflex = 0x1000176
+$$GDK_wcircumflex = 0x1000175
+$$GDK_tabovedot = 0x1001e6b
+$$GDK_ycircumflex = 0x1000177
+$$GDK_OE = 0x13bc
+$$GDK_oe = 0x13bd
+$$GDK_Ydiaeresis = 0x13be
+$$GDK_overline = 0x47e
+$$GDK_kana_fullstop = 0x4a1
+$$GDK_kana_openingbracket = 0x4a2
+$$GDK_kana_closingbracket = 0x4a3
+$$GDK_kana_comma = 0x4a4
+$$GDK_kana_conjunctive = 0x4a5
+$$GDK_kana_middledot = 0x4a5
+$$GDK_kana_WO = 0x4a6
+$$GDK_kana_a = 0x4a7
+$$GDK_kana_i = 0x4a8
+$$GDK_kana_u = 0x4a9
+$$GDK_kana_e = 0x4aa
+$$GDK_kana_o = 0x4ab
+$$GDK_kana_ya = 0x4ac
+$$GDK_kana_yu = 0x4ad
+$$GDK_kana_yo = 0x4ae
+$$GDK_kana_tsu = 0x4af
+$$GDK_kana_tu = 0x4af
+$$GDK_prolongedsound = 0x4b0
+$$GDK_kana_A = 0x4b1
+$$GDK_kana_I = 0x4b2
+$$GDK_kana_U = 0x4b3
+$$GDK_kana_E = 0x4b4
+$$GDK_kana_O = 0x4b5
+$$GDK_kana_KA = 0x4b6
+$$GDK_kana_KI = 0x4b7
+$$GDK_kana_KU = 0x4b8
+$$GDK_kana_KE = 0x4b9
+$$GDK_kana_KO = 0x4ba
+$$GDK_kana_SA = 0x4bb
+$$GDK_kana_SHI = 0x4bc
+$$GDK_kana_SU = 0x4bd
+$$GDK_kana_SE = 0x4be
+$$GDK_kana_SO = 0x4bf
+$$GDK_kana_TA = 0x4c0
+$$GDK_kana_CHI = 0x4c1
+$$GDK_kana_TI = 0x4c1
+$$GDK_kana_TSU = 0x4c2
+$$GDK_kana_TU = 0x4c2
+$$GDK_kana_TE = 0x4c3
+$$GDK_kana_TO = 0x4c4
+$$GDK_kana_NA = 0x4c5
+$$GDK_kana_NI = 0x4c6
+$$GDK_kana_NU = 0x4c7
+$$GDK_kana_NE = 0x4c8
+$$GDK_kana_NO = 0x4c9
+$$GDK_kana_HA = 0x4ca
+$$GDK_kana_HI = 0x4cb
+$$GDK_kana_FU = 0x4cc
+$$GDK_kana_HU = 0x4cc
+$$GDK_kana_HE = 0x4cd
+$$GDK_kana_HO = 0x4ce
+$$GDK_kana_MA = 0x4cf
+$$GDK_kana_MI = 0x4d0
+$$GDK_kana_MU = 0x4d1
+$$GDK_kana_ME = 0x4d2
+$$GDK_kana_MO = 0x4d3
+$$GDK_kana_YA = 0x4d4
+$$GDK_kana_YU = 0x4d5
+$$GDK_kana_YO = 0x4d6
+$$GDK_kana_RA = 0x4d7
+$$GDK_kana_RI = 0x4d8
+$$GDK_kana_RU = 0x4d9
+$$GDK_kana_RE = 0x4da
+$$GDK_kana_RO = 0x4db
+$$GDK_kana_WA = 0x4dc
+$$GDK_kana_N = 0x4dd
+$$GDK_voicedsound = 0x4de
+$$GDK_semivoicedsound = 0x4df
+$$GDK_kana_switch = 0xff7e
+$$GDK_Farsi_0 = 0x10006f0
+$$GDK_Farsi_1 = 0x10006f1
+$$GDK_Farsi_2 = 0x10006f2
+$$GDK_Farsi_3 = 0x10006f3
+$$GDK_Farsi_4 = 0x10006f4
+$$GDK_Farsi_5 = 0x10006f5
+$$GDK_Farsi_6 = 0x10006f6
+$$GDK_Farsi_7 = 0x10006f7
+$$GDK_Farsi_8 = 0x10006f8
+$$GDK_Farsi_9 = 0x10006f9
+$$GDK_Arabic_percent = 0x100066a
+$$GDK_Arabic_superscript_alef = 0x1000670
+$$GDK_Arabic_tteh = 0x1000679
+$$GDK_Arabic_peh = 0x100067e
+$$GDK_Arabic_tcheh = 0x1000686
+$$GDK_Arabic_ddal = 0x1000688
+$$GDK_Arabic_rreh = 0x1000691
+$$GDK_Arabic_comma = 0x5ac
+$$GDK_Arabic_fullstop = 0x10006d4
+$$GDK_Arabic_0 = 0x1000660
+$$GDK_Arabic_1 = 0x1000661
+$$GDK_Arabic_2 = 0x1000662
+$$GDK_Arabic_3 = 0x1000663
+$$GDK_Arabic_4 = 0x1000664
+$$GDK_Arabic_5 = 0x1000665
+$$GDK_Arabic_6 = 0x1000666
+$$GDK_Arabic_7 = 0x1000667
+$$GDK_Arabic_8 = 0x1000668
+$$GDK_Arabic_9 = 0x1000669
+$$GDK_Arabic_semicolon = 0x5bb
+$$GDK_Arabic_question_mark = 0x5bf
+$$GDK_Arabic_hamza = 0x5c1
+$$GDK_Arabic_maddaonalef = 0x5c2
+$$GDK_Arabic_hamzaonalef = 0x5c3
+$$GDK_Arabic_hamzaonwaw = 0x5c4
+$$GDK_Arabic_hamzaunderalef = 0x5c5
+$$GDK_Arabic_hamzaonyeh = 0x5c6
+$$GDK_Arabic_alef = 0x5c7
+$$GDK_Arabic_beh = 0x5c8
+$$GDK_Arabic_tehmarbuta = 0x5c9
+$$GDK_Arabic_teh = 0x5ca
+$$GDK_Arabic_theh = 0x5cb
+$$GDK_Arabic_jeem = 0x5cc
+$$GDK_Arabic_hah = 0x5cd
+$$GDK_Arabic_khah = 0x5ce
+$$GDK_Arabic_dal = 0x5cf
+$$GDK_Arabic_thal = 0x5d0
+$$GDK_Arabic_ra = 0x5d1
+$$GDK_Arabic_zain = 0x5d2
+$$GDK_Arabic_seen = 0x5d3
+$$GDK_Arabic_sheen = 0x5d4
+$$GDK_Arabic_sad = 0x5d5
+$$GDK_Arabic_dad = 0x5d6
+$$GDK_Arabic_tah = 0x5d7
+$$GDK_Arabic_zah = 0x5d8
+$$GDK_Arabic_ain = 0x5d9
+$$GDK_Arabic_ghain = 0x5da
+$$GDK_Arabic_tatweel = 0x5e0
+$$GDK_Arabic_feh = 0x5e1
+$$GDK_Arabic_qaf = 0x5e2
+$$GDK_Arabic_kaf = 0x5e3
+$$GDK_Arabic_lam = 0x5e4
+$$GDK_Arabic_meem = 0x5e5
+$$GDK_Arabic_noon = 0x5e6
+$$GDK_Arabic_ha = 0x5e7
+$$GDK_Arabic_heh = 0x5e7
+$$GDK_Arabic_waw = 0x5e8
+$$GDK_Arabic_alefmaksura = 0x5e9
+$$GDK_Arabic_yeh = 0x5ea
+$$GDK_Arabic_fathatan = 0x5eb
+$$GDK_Arabic_dammatan = 0x5ec
+$$GDK_Arabic_kasratan = 0x5ed
+$$GDK_Arabic_fatha = 0x5ee
+$$GDK_Arabic_damma = 0x5ef
+$$GDK_Arabic_kasra = 0x5f0
+$$GDK_Arabic_shadda = 0x5f1
+$$GDK_Arabic_sukun = 0x5f2
+$$GDK_Arabic_madda_above = 0x1000653
+$$GDK_Arabic_hamza_above = 0x1000654
+$$GDK_Arabic_hamza_below = 0x1000655
+$$GDK_Arabic_jeh = 0x1000698
+$$GDK_Arabic_veh = 0x10006a4
+$$GDK_Arabic_keheh = 0x10006a9
+$$GDK_Arabic_gaf = 0x10006af
+$$GDK_Arabic_noon_ghunna = 0x10006ba
+$$GDK_Arabic_heh_doachashmee = 0x10006be
+$$GDK_Farsi_yeh = 0x10006cc
+$$GDK_Arabic_farsi_yeh = 0x10006cc
+$$GDK_Arabic_yeh_baree = 0x10006d2
+$$GDK_Arabic_heh_goal = 0x10006c1
+$$GDK_Arabic_switch = 0xff7e
+$$GDK_Cyrillic_GHE_bar = 0x1000492
+$$GDK_Cyrillic_ghe_bar = 0x1000493
+$$GDK_Cyrillic_ZHE_descender = 0x1000496
+$$GDK_Cyrillic_zhe_descender = 0x1000497
+$$GDK_Cyrillic_KA_descender = 0x100049a
+$$GDK_Cyrillic_ka_descender = 0x100049b
+$$GDK_Cyrillic_KA_vertstroke = 0x100049c
+$$GDK_Cyrillic_ka_vertstroke = 0x100049d
+$$GDK_Cyrillic_EN_descender = 0x10004a2
+$$GDK_Cyrillic_en_descender = 0x10004a3
+$$GDK_Cyrillic_U_straight = 0x10004ae
+$$GDK_Cyrillic_u_straight = 0x10004af
+$$GDK_Cyrillic_U_straight_bar = 0x10004b0
+$$GDK_Cyrillic_u_straight_bar = 0x10004b1
+$$GDK_Cyrillic_HA_descender = 0x10004b2
+$$GDK_Cyrillic_ha_descender = 0x10004b3
+$$GDK_Cyrillic_CHE_descender = 0x10004b6
+$$GDK_Cyrillic_che_descender = 0x10004b7
+$$GDK_Cyrillic_CHE_vertstroke = 0x10004b8
+$$GDK_Cyrillic_che_vertstroke = 0x10004b9
+$$GDK_Cyrillic_SHHA = 0x10004ba
+$$GDK_Cyrillic_shha = 0x10004bb
+$$GDK_Cyrillic_SCHWA = 0x10004d8
+$$GDK_Cyrillic_schwa = 0x10004d9
+$$GDK_Cyrillic_I_macron = 0x10004e2
+$$GDK_Cyrillic_i_macron = 0x10004e3
+$$GDK_Cyrillic_O_bar = 0x10004e8
+$$GDK_Cyrillic_o_bar = 0x10004e9
+$$GDK_Cyrillic_U_macron = 0x10004ee
+$$GDK_Cyrillic_u_macron = 0x10004ef
+$$GDK_Serbian_dje = 0x6a1
+$$GDK_Macedonia_gje = 0x6a2
+$$GDK_Cyrillic_io = 0x6a3
+$$GDK_Ukrainian_ie = 0x6a4
+$$GDK_Ukranian_je = 0x6a4
+$$GDK_Macedonia_dse = 0x6a5
+$$GDK_Ukrainian_i = 0x6a6
+$$GDK_Ukranian_i = 0x6a6
+$$GDK_Ukrainian_yi = 0x6a7
+$$GDK_Ukranian_yi = 0x6a7
+$$GDK_Cyrillic_je = 0x6a8
+$$GDK_Serbian_je = 0x6a8
+$$GDK_Cyrillic_lje = 0x6a9
+$$GDK_Serbian_lje = 0x6a9
+$$GDK_Cyrillic_nje = 0x6aa
+$$GDK_Serbian_nje = 0x6aa
+$$GDK_Serbian_tshe = 0x6ab
+$$GDK_Macedonia_kje = 0x6ac
+$$GDK_Ukrainian_ghe_with_upturn = 0x6ad
+$$GDK_Byelorussian_shortu = 0x6ae
+$$GDK_Cyrillic_dzhe = 0x6af
+$$GDK_Serbian_dze = 0x6af
+$$GDK_numerosign = 0x6b0
+$$GDK_Serbian_DJE = 0x6b1
+$$GDK_Macedonia_GJE = 0x6b2
+$$GDK_Cyrillic_IO = 0x6b3
+$$GDK_Ukrainian_IE = 0x6b4
+$$GDK_Ukranian_JE = 0x6b4
+$$GDK_Macedonia_DSE = 0x6b5
+$$GDK_Ukrainian_I = 0x6b6
+$$GDK_Ukranian_I = 0x6b6
+$$GDK_Ukrainian_YI = 0x6b7
+$$GDK_Ukranian_YI = 0x6b7
+$$GDK_Cyrillic_JE = 0x6b8
+$$GDK_Serbian_JE = 0x6b8
+$$GDK_Cyrillic_LJE = 0x6b9
+$$GDK_Serbian_LJE = 0x6b9
+$$GDK_Cyrillic_NJE = 0x6ba
+$$GDK_Serbian_NJE = 0x6ba
+$$GDK_Serbian_TSHE = 0x6bb
+$$GDK_Macedonia_KJE = 0x6bc
+$$GDK_Ukrainian_GHE_WITH_UPTURN = 0x6bd
+$$GDK_Byelorussian_SHORTU = 0x6be
+$$GDK_Cyrillic_DZHE = 0x6bf
+$$GDK_Serbian_DZE = 0x6bf
+$$GDK_Cyrillic_yu = 0x6c0
+$$GDK_Cyrillic_a = 0x6c1
+$$GDK_Cyrillic_be = 0x6c2
+$$GDK_Cyrillic_tse = 0x6c3
+$$GDK_Cyrillic_de = 0x6c4
+$$GDK_Cyrillic_ie = 0x6c5
+$$GDK_Cyrillic_ef = 0x6c6
+$$GDK_Cyrillic_ghe = 0x6c7
+$$GDK_Cyrillic_ha = 0x6c8
+$$GDK_Cyrillic_i = 0x6c9
+$$GDK_Cyrillic_shorti = 0x6ca
+$$GDK_Cyrillic_ka = 0x6cb
+$$GDK_Cyrillic_el = 0x6cc
+$$GDK_Cyrillic_em = 0x6cd
+$$GDK_Cyrillic_en = 0x6ce
+$$GDK_Cyrillic_o = 0x6cf
+$$GDK_Cyrillic_pe = 0x6d0
+$$GDK_Cyrillic_ya = 0x6d1
+$$GDK_Cyrillic_er = 0x6d2
+$$GDK_Cyrillic_es = 0x6d3
+$$GDK_Cyrillic_te = 0x6d4
+$$GDK_Cyrillic_u = 0x6d5
+$$GDK_Cyrillic_zhe = 0x6d6
+$$GDK_Cyrillic_ve = 0x6d7
+$$GDK_Cyrillic_softsign = 0x6d8
+$$GDK_Cyrillic_yeru = 0x6d9
+$$GDK_Cyrillic_ze = 0x6da
+$$GDK_Cyrillic_sha = 0x6db
+$$GDK_Cyrillic_e = 0x6dc
+$$GDK_Cyrillic_shcha = 0x6dd
+$$GDK_Cyrillic_che = 0x6de
+$$GDK_Cyrillic_hardsign = 0x6df
+$$GDK_Cyrillic_YU = 0x6e0
+$$GDK_Cyrillic_A = 0x6e1
+$$GDK_Cyrillic_BE = 0x6e2
+$$GDK_Cyrillic_TSE = 0x6e3
+$$GDK_Cyrillic_DE = 0x6e4
+$$GDK_Cyrillic_IE = 0x6e5
+$$GDK_Cyrillic_EF = 0x6e6
+$$GDK_Cyrillic_GHE = 0x6e7
+$$GDK_Cyrillic_HA = 0x6e8
+$$GDK_Cyrillic_I = 0x6e9
+$$GDK_Cyrillic_SHORTI = 0x6ea
+$$GDK_Cyrillic_KA = 0x6eb
+$$GDK_Cyrillic_EL = 0x6ec
+$$GDK_Cyrillic_EM = 0x6ed
+$$GDK_Cyrillic_EN = 0x6ee
+$$GDK_Cyrillic_O = 0x6ef
+$$GDK_Cyrillic_PE = 0x6f0
+$$GDK_Cyrillic_YA = 0x6f1
+$$GDK_Cyrillic_ER = 0x6f2
+$$GDK_Cyrillic_ES = 0x6f3
+$$GDK_Cyrillic_TE = 0x6f4
+$$GDK_Cyrillic_U = 0x6f5
+$$GDK_Cyrillic_ZHE = 0x6f6
+$$GDK_Cyrillic_VE = 0x6f7
+$$GDK_Cyrillic_SOFTSIGN = 0x6f8
+$$GDK_Cyrillic_YERU = 0x6f9
+$$GDK_Cyrillic_ZE = 0x6fa
+$$GDK_Cyrillic_SHA = 0x6fb
+$$GDK_Cyrillic_E = 0x6fc
+$$GDK_Cyrillic_SHCHA = 0x6fd
+$$GDK_Cyrillic_CHE = 0x6fe
+$$GDK_Cyrillic_HARDSIGN = 0x6ff
+$$GDK_Greek_ALPHAaccent = 0x7a1
+$$GDK_Greek_EPSILONaccent = 0x7a2
+$$GDK_Greek_ETAaccent = 0x7a3
+$$GDK_Greek_IOTAaccent = 0x7a4
+$$GDK_Greek_IOTAdieresis = 0x7a5
+$$GDK_Greek_IOTAdiaeresis = 0x7a5
+$$GDK_Greek_OMICRONaccent = 0x7a7
+$$GDK_Greek_UPSILONaccent = 0x7a8
+$$GDK_Greek_UPSILONdieresis = 0x7a9
+$$GDK_Greek_OMEGAaccent = 0x7ab
+$$GDK_Greek_accentdieresis = 0x7ae
+$$GDK_Greek_horizbar = 0x7af
+$$GDK_Greek_alphaaccent = 0x7b1
+$$GDK_Greek_epsilonaccent = 0x7b2
+$$GDK_Greek_etaaccent = 0x7b3
+$$GDK_Greek_iotaaccent = 0x7b4
+$$GDK_Greek_iotadieresis = 0x7b5
+$$GDK_Greek_iotaaccentdieresis = 0x7b6
+$$GDK_Greek_omicronaccent = 0x7b7
+$$GDK_Greek_upsilonaccent = 0x7b8
+$$GDK_Greek_upsilondieresis = 0x7b9
+$$GDK_Greek_upsilonaccentdieresis = 0x7ba
+$$GDK_Greek_omegaaccent = 0x7bb
+$$GDK_Greek_ALPHA = 0x7c1
+$$GDK_Greek_BETA = 0x7c2
+$$GDK_Greek_GAMMA = 0x7c3
+$$GDK_Greek_DELTA = 0x7c4
+$$GDK_Greek_EPSILON = 0x7c5
+$$GDK_Greek_ZETA = 0x7c6
+$$GDK_Greek_ETA = 0x7c7
+$$GDK_Greek_THETA = 0x7c8
+$$GDK_Greek_IOTA = 0x7c9
+$$GDK_Greek_KAPPA = 0x7ca
+$$GDK_Greek_LAMDA = 0x7cb
+$$GDK_Greek_LAMBDA = 0x7cb
+$$GDK_Greek_MU = 0x7cc
+$$GDK_Greek_NU = 0x7cd
+$$GDK_Greek_XI = 0x7ce
+$$GDK_Greek_OMICRON = 0x7cf
+$$GDK_Greek_PI = 0x7d0
+$$GDK_Greek_RHO = 0x7d1
+$$GDK_Greek_SIGMA = 0x7d2
+$$GDK_Greek_TAU = 0x7d4
+$$GDK_Greek_UPSILON = 0x7d5
+$$GDK_Greek_PHI = 0x7d6
+$$GDK_Greek_CHI = 0x7d7
+$$GDK_Greek_PSI = 0x7d8
+$$GDK_Greek_OMEGA = 0x7d9
+$$GDK_Greek_alpha = 0x7e1
+$$GDK_Greek_beta = 0x7e2
+$$GDK_Greek_gamma = 0x7e3
+$$GDK_Greek_delta = 0x7e4
+$$GDK_Greek_epsilon = 0x7e5
+$$GDK_Greek_zeta = 0x7e6
+$$GDK_Greek_eta = 0x7e7
+$$GDK_Greek_theta = 0x7e8
+$$GDK_Greek_iota = 0x7e9
+$$GDK_Greek_kappa = 0x7ea
+$$GDK_Greek_lamda = 0x7eb
+$$GDK_Greek_lambda = 0x7eb
+$$GDK_Greek_mu = 0x7ec
+$$GDK_Greek_nu = 0x7ed
+$$GDK_Greek_xi = 0x7ee
+$$GDK_Greek_omicron = 0x7ef
+$$GDK_Greek_pi = 0x7f0
+$$GDK_Greek_rho = 0x7f1
+$$GDK_Greek_sigma = 0x7f2
+$$GDK_Greek_finalsmallsigma = 0x7f3
+$$GDK_Greek_tau = 0x7f4
+$$GDK_Greek_upsilon = 0x7f5
+$$GDK_Greek_phi = 0x7f6
+$$GDK_Greek_chi = 0x7f7
+$$GDK_Greek_psi = 0x7f8
+$$GDK_Greek_omega = 0x7f9
+$$GDK_Greek_switch = 0xff7e
+$$GDK_leftradical = 0x8a1
+$$GDK_topleftradical = 0x8a2
+$$GDK_horizconnector = 0x8a3
+$$GDK_topintegral = 0x8a4
+$$GDK_botintegral = 0x8a5
+$$GDK_vertconnector = 0x8a6
+$$GDK_topleftsqbracket = 0x8a7
+$$GDK_botleftsqbracket = 0x8a8
+$$GDK_toprightsqbracket = 0x8a9
+$$GDK_botrightsqbracket = 0x8aa
+$$GDK_topleftparens = 0x8ab
+$$GDK_botleftparens = 0x8ac
+$$GDK_toprightparens = 0x8ad
+$$GDK_botrightparens = 0x8ae
+$$GDK_leftmiddlecurlybrace = 0x8af
+$$GDK_rightmiddlecurlybrace = 0x8b0
+$$GDK_topleftsummation = 0x8b1
+$$GDK_botleftsummation = 0x8b2
+$$GDK_topvertsummationconnector = 0x8b3
+$$GDK_botvertsummationconnector = 0x8b4
+$$GDK_toprightsummation = 0x8b5
+$$GDK_botrightsummation = 0x8b6
+$$GDK_rightmiddlesummation = 0x8b7
+$$GDK_lessthanequal = 0x8bc
+$$GDK_notequal = 0x8bd
+$$GDK_greaterthanequal = 0x8be
+$$GDK_integral = 0x8bf
+$$GDK_therefore = 0x8c0
+$$GDK_variation = 0x8c1
+$$GDK_infinity = 0x8c2
+$$GDK_nabla = 0x8c5
+$$GDK_approximate = 0x8c8
+$$GDK_similarequal = 0x8c9
+$$GDK_ifonlyif = 0x8cd
+$$GDK_implies = 0x8ce
+$$GDK_identical = 0x8cf
+$$GDK_radical = 0x8d6
+$$GDK_includedin = 0x8da
+$$GDK_includes = 0x8db
+$$GDK_intersection = 0x8dc
+$$GDK_union = 0x8dd
+$$GDK_logicaland = 0x8de
+$$GDK_logicalor = 0x8df
+$$GDK_partialderivative = 0x8ef
+$$GDK_function = 0x8f6
+$$GDK_leftarrow = 0x8fb
+$$GDK_uparrow = 0x8fc
+$$GDK_rightarrow = 0x8fd
+$$GDK_downarrow = 0x8fe
+$$GDK_blank = 0x9df
+$$GDK_soliddiamond = 0x9e0
+$$GDK_checkerboard = 0x9e1
+$$GDK_ht = 0x9e2
+$$GDK_ff = 0x9e3
+$$GDK_cr = 0x9e4
+$$GDK_lf = 0x9e5
+$$GDK_nl = 0x9e8
+$$GDK_vt = 0x9e9
+$$GDK_lowrightcorner = 0x9ea
+$$GDK_uprightcorner = 0x9eb
+$$GDK_upleftcorner = 0x9ec
+$$GDK_lowleftcorner = 0x9ed
+$$GDK_crossinglines = 0x9ee
+$$GDK_horizlinescan1 = 0x9ef
+$$GDK_horizlinescan3 = 0x9f0
+$$GDK_horizlinescan5 = 0x9f1
+$$GDK_horizlinescan7 = 0x9f2
+$$GDK_horizlinescan9 = 0x9f3
+$$GDK_leftt = 0x9f4
+$$GDK_rightt = 0x9f5
+$$GDK_bott = 0x9f6
+$$GDK_topt = 0x9f7
+$$GDK_vertbar = 0x9f8
+$$GDK_emspace = 0xaa1
+$$GDK_enspace = 0xaa2
+$$GDK_em3space = 0xaa3
+$$GDK_em4space = 0xaa4
+$$GDK_digitspace = 0xaa5
+$$GDK_punctspace = 0xaa6
+$$GDK_thinspace = 0xaa7
+$$GDK_hairspace = 0xaa8
+$$GDK_emdash = 0xaa9
+$$GDK_endash = 0xaaa
+$$GDK_signifblank = 0xaac
+$$GDK_ellipsis = 0xaae
+$$GDK_doubbaselinedot = 0xaaf
+$$GDK_onethird = 0xab0
+$$GDK_twothirds = 0xab1
+$$GDK_onefifth = 0xab2
+$$GDK_twofifths = 0xab3
+$$GDK_threefifths = 0xab4
+$$GDK_fourfifths = 0xab5
+$$GDK_onesixth = 0xab6
+$$GDK_fivesixths = 0xab7
+$$GDK_careof = 0xab8
+$$GDK_figdash = 0xabb
+$$GDK_leftanglebracket = 0xabc
+$$GDK_decimalpoint = 0xabd
+$$GDK_rightanglebracket = 0xabe
+$$GDK_marker = 0xabf
+$$GDK_oneeighth = 0xac3
+$$GDK_threeeighths = 0xac4
+$$GDK_fiveeighths = 0xac5
+$$GDK_seveneighths = 0xac6
+$$GDK_trademark = 0xac9
+$$GDK_signaturemark = 0xaca
+$$GDK_trademarkincircle = 0xacb
+$$GDK_leftopentriangle = 0xacc
+$$GDK_rightopentriangle = 0xacd
+$$GDK_emopencircle = 0xace
+$$GDK_emopenrectangle = 0xacf
+$$GDK_leftsinglequotemark = 0xad0
+$$GDK_rightsinglequotemark = 0xad1
+$$GDK_leftdoublequotemark = 0xad2
+$$GDK_rightdoublequotemark = 0xad3
+$$GDK_prescription = 0xad4
+$$GDK_minutes = 0xad6
+$$GDK_seconds = 0xad7
+$$GDK_latincross = 0xad9
+$$GDK_hexagram = 0xada
+$$GDK_filledrectbullet = 0xadb
+$$GDK_filledlefttribullet = 0xadc
+$$GDK_filledrighttribullet = 0xadd
+$$GDK_emfilledcircle = 0xade
+$$GDK_emfilledrect = 0xadf
+$$GDK_enopencircbullet = 0xae0
+$$GDK_enopensquarebullet = 0xae1
+$$GDK_openrectbullet = 0xae2
+$$GDK_opentribulletup = 0xae3
+$$GDK_opentribulletdown = 0xae4
+$$GDK_openstar = 0xae5
+$$GDK_enfilledcircbullet = 0xae6
+$$GDK_enfilledsqbullet = 0xae7
+$$GDK_filledtribulletup = 0xae8
+$$GDK_filledtribulletdown = 0xae9
+$$GDK_leftpointer = 0xaea
+$$GDK_rightpointer = 0xaeb
+$$GDK_club = 0xaec
+$$GDK_diamond = 0xaed
+$$GDK_heart = 0xaee
+$$GDK_maltesecross = 0xaf0
+$$GDK_dagger = 0xaf1
+$$GDK_doubledagger = 0xaf2
+$$GDK_checkmark = 0xaf3
+$$GDK_ballotcross = 0xaf4
+$$GDK_musicalsharp = 0xaf5
+$$GDK_musicalflat = 0xaf6
+$$GDK_malesymbol = 0xaf7
+$$GDK_femalesymbol = 0xaf8
+$$GDK_telephone = 0xaf9
+$$GDK_telephonerecorder = 0xafa
+$$GDK_phonographcopyright = 0xafb
+$$GDK_caret = 0xafc
+$$GDK_singlelowquotemark = 0xafd
+$$GDK_doublelowquotemark = 0xafe
+$$GDK_cursor = 0xaff
+$$GDK_leftcaret = 0xba3
+$$GDK_rightcaret = 0xba6
+$$GDK_downcaret = 0xba8
+$$GDK_upcaret = 0xba9
+$$GDK_overbar = 0xbc0
+$$GDK_downtack = 0xbc2
+$$GDK_upshoe = 0xbc3
+$$GDK_downstile = 0xbc4
+$$GDK_underbar = 0xbc6
+$$GDK_jot = 0xbca
+$$GDK_quad = 0xbcc
+$$GDK_uptack = 0xbce
+$$GDK_circle = 0xbcf
+$$GDK_upstile = 0xbd3
+$$GDK_downshoe = 0xbd6
+$$GDK_rightshoe = 0xbd8
+$$GDK_leftshoe = 0xbda
+$$GDK_lefttack = 0xbdc
+$$GDK_righttack = 0xbfc
+$$GDK_hebrew_doublelowline = 0xcdf
+$$GDK_hebrew_aleph = 0xce0
+$$GDK_hebrew_bet = 0xce1
+$$GDK_hebrew_beth = 0xce1
+$$GDK_hebrew_gimel = 0xce2
+$$GDK_hebrew_gimmel = 0xce2
+$$GDK_hebrew_dalet = 0xce3
+$$GDK_hebrew_daleth = 0xce3
+$$GDK_hebrew_he = 0xce4
+$$GDK_hebrew_waw = 0xce5
+$$GDK_hebrew_zain = 0xce6
+$$GDK_hebrew_zayin = 0xce6
+$$GDK_hebrew_chet = 0xce7
+$$GDK_hebrew_het = 0xce7
+$$GDK_hebrew_tet = 0xce8
+$$GDK_hebrew_teth = 0xce8
+$$GDK_hebrew_yod = 0xce9
+$$GDK_hebrew_finalkaph = 0xcea
+$$GDK_hebrew_kaph = 0xceb
+$$GDK_hebrew_lamed = 0xcec
+$$GDK_hebrew_finalmem = 0xced
+$$GDK_hebrew_mem = 0xcee
+$$GDK_hebrew_finalnun = 0xcef
+$$GDK_hebrew_nun = 0xcf0
+$$GDK_hebrew_samech = 0xcf1
+$$GDK_hebrew_samekh = 0xcf1
+$$GDK_hebrew_ayin = 0xcf2
+$$GDK_hebrew_finalpe = 0xcf3
+$$GDK_hebrew_pe = 0xcf4
+$$GDK_hebrew_finalzade = 0xcf5
+$$GDK_hebrew_finalzadi = 0xcf5
+$$GDK_hebrew_zade = 0xcf6
+$$GDK_hebrew_zadi = 0xcf6
+$$GDK_hebrew_qoph = 0xcf7
+$$GDK_hebrew_kuf = 0xcf7
+$$GDK_hebrew_resh = 0xcf8
+$$GDK_hebrew_shin = 0xcf9
+$$GDK_hebrew_taw = 0xcfa
+$$GDK_hebrew_taf = 0xcfa
+$$GDK_Hebrew_switch = 0xff7e
+$$GDK_Thai_kokai = 0xda1
+$$GDK_Thai_khokhai = 0xda2
+$$GDK_Thai_khokhuat = 0xda3
+$$GDK_Thai_khokhwai = 0xda4
+$$GDK_Thai_khokhon = 0xda5
+$$GDK_Thai_khorakhang = 0xda6
+$$GDK_Thai_ngongu = 0xda7
+$$GDK_Thai_chochan = 0xda8
+$$GDK_Thai_choching = 0xda9
+$$GDK_Thai_chochang = 0xdaa
+$$GDK_Thai_soso = 0xdab
+$$GDK_Thai_chochoe = 0xdac
+$$GDK_Thai_yoying = 0xdad
+$$GDK_Thai_dochada = 0xdae
+$$GDK_Thai_topatak = 0xdaf
+$$GDK_Thai_thothan = 0xdb0
+$$GDK_Thai_thonangmontho = 0xdb1
+$$GDK_Thai_thophuthao = 0xdb2
+$$GDK_Thai_nonen = 0xdb3
+$$GDK_Thai_dodek = 0xdb4
+$$GDK_Thai_totao = 0xdb5
+$$GDK_Thai_thothung = 0xdb6
+$$GDK_Thai_thothahan = 0xdb7
+$$GDK_Thai_thothong = 0xdb8
+$$GDK_Thai_nonu = 0xdb9
+$$GDK_Thai_bobaimai = 0xdba
+$$GDK_Thai_popla = 0xdbb
+$$GDK_Thai_phophung = 0xdbc
+$$GDK_Thai_fofa = 0xdbd
+$$GDK_Thai_phophan = 0xdbe
+$$GDK_Thai_fofan = 0xdbf
+$$GDK_Thai_phosamphao = 0xdc0
+$$GDK_Thai_moma = 0xdc1
+$$GDK_Thai_yoyak = 0xdc2
+$$GDK_Thai_rorua = 0xdc3
+$$GDK_Thai_ru = 0xdc4
+$$GDK_Thai_loling = 0xdc5
+$$GDK_Thai_lu = 0xdc6
+$$GDK_Thai_wowaen = 0xdc7
+$$GDK_Thai_sosala = 0xdc8
+$$GDK_Thai_sorusi = 0xdc9
+$$GDK_Thai_sosua = 0xdca
+$$GDK_Thai_hohip = 0xdcb
+$$GDK_Thai_lochula = 0xdcc
+$$GDK_Thai_oang = 0xdcd
+$$GDK_Thai_honokhuk = 0xdce
+$$GDK_Thai_paiyannoi = 0xdcf
+$$GDK_Thai_saraa = 0xdd0
+$$GDK_Thai_maihanakat = 0xdd1
+$$GDK_Thai_saraaa = 0xdd2
+$$GDK_Thai_saraam = 0xdd3
+$$GDK_Thai_sarai = 0xdd4
+$$GDK_Thai_saraii = 0xdd5
+$$GDK_Thai_saraue = 0xdd6
+$$GDK_Thai_sarauee = 0xdd7
+$$GDK_Thai_sarau = 0xdd8
+$$GDK_Thai_sarauu = 0xdd9
+$$GDK_Thai_phinthu = 0xdda
+$$GDK_Thai_maihanakat_maitho = 0xdde
+$$GDK_Thai_baht = 0xddf
+$$GDK_Thai_sarae = 0xde0
+$$GDK_Thai_saraae = 0xde1
+$$GDK_Thai_sarao = 0xde2
+$$GDK_Thai_saraaimaimuan = 0xde3
+$$GDK_Thai_saraaimaimalai = 0xde4
+$$GDK_Thai_lakkhangyao = 0xde5
+$$GDK_Thai_maiyamok = 0xde6
+$$GDK_Thai_maitaikhu = 0xde7
+$$GDK_Thai_maiek = 0xde8
+$$GDK_Thai_maitho = 0xde9
+$$GDK_Thai_maitri = 0xdea
+$$GDK_Thai_maichattawa = 0xdeb
+$$GDK_Thai_thanthakhat = 0xdec
+$$GDK_Thai_nikhahit = 0xded
+$$GDK_Thai_leksun = 0xdf0
+$$GDK_Thai_leknung = 0xdf1
+$$GDK_Thai_leksong = 0xdf2
+$$GDK_Thai_leksam = 0xdf3
+$$GDK_Thai_leksi = 0xdf4
+$$GDK_Thai_lekha = 0xdf5
+$$GDK_Thai_lekhok = 0xdf6
+$$GDK_Thai_lekchet = 0xdf7
+$$GDK_Thai_lekpaet = 0xdf8
+$$GDK_Thai_lekkao = 0xdf9
+$$GDK_Hangul = 0xff31
+$$GDK_Hangul_Start = 0xff32
+$$GDK_Hangul_End = 0xff33
+$$GDK_Hangul_Hanja = 0xff34
+$$GDK_Hangul_Jamo = 0xff35
+$$GDK_Hangul_Romaja = 0xff36
+$$GDK_Hangul_Codeinput = 0xff37
+$$GDK_Hangul_Jeonja = 0xff38
+$$GDK_Hangul_Banja = 0xff39
+$$GDK_Hangul_PreHanja = 0xff3a
+$$GDK_Hangul_PostHanja = 0xff3b
+$$GDK_Hangul_SingleCandidate = 0xff3c
+$$GDK_Hangul_MultipleCandidate = 0xff3d
+$$GDK_Hangul_PreviousCandidate = 0xff3e
+$$GDK_Hangul_Special = 0xff3f
+$$GDK_Hangul_switch = 0xff7e
+$$GDK_Hangul_Kiyeog = 0xea1
+$$GDK_Hangul_SsangKiyeog = 0xea2
+$$GDK_Hangul_KiyeogSios = 0xea3
+$$GDK_Hangul_Nieun = 0xea4
+$$GDK_Hangul_NieunJieuj = 0xea5
+$$GDK_Hangul_NieunHieuh = 0xea6
+$$GDK_Hangul_Dikeud = 0xea7
+$$GDK_Hangul_SsangDikeud = 0xea8
+$$GDK_Hangul_Rieul = 0xea9
+$$GDK_Hangul_RieulKiyeog = 0xeaa
+$$GDK_Hangul_RieulMieum = 0xeab
+$$GDK_Hangul_RieulPieub = 0xeac
+$$GDK_Hangul_RieulSios = 0xead
+$$GDK_Hangul_RieulTieut = 0xeae
+$$GDK_Hangul_RieulPhieuf = 0xeaf
+$$GDK_Hangul_RieulHieuh = 0xeb0
+$$GDK_Hangul_Mieum = 0xeb1
+$$GDK_Hangul_Pieub = 0xeb2
+$$GDK_Hangul_SsangPieub = 0xeb3
+$$GDK_Hangul_PieubSios = 0xeb4
+$$GDK_Hangul_Sios = 0xeb5
+$$GDK_Hangul_SsangSios = 0xeb6
+$$GDK_Hangul_Ieung = 0xeb7
+$$GDK_Hangul_Jieuj = 0xeb8
+$$GDK_Hangul_SsangJieuj = 0xeb9
+$$GDK_Hangul_Cieuc = 0xeba
+$$GDK_Hangul_Khieuq = 0xebb
+$$GDK_Hangul_Tieut = 0xebc
+$$GDK_Hangul_Phieuf = 0xebd
+$$GDK_Hangul_Hieuh = 0xebe
+$$GDK_Hangul_A = 0xebf
+$$GDK_Hangul_AE = 0xec0
+$$GDK_Hangul_YA = 0xec1
+$$GDK_Hangul_YAE = 0xec2
+$$GDK_Hangul_EO = 0xec3
+$$GDK_Hangul_E = 0xec4
+$$GDK_Hangul_YEO = 0xec5
+$$GDK_Hangul_YE = 0xec6
+$$GDK_Hangul_O = 0xec7
+$$GDK_Hangul_WA = 0xec8
+$$GDK_Hangul_WAE = 0xec9
+$$GDK_Hangul_OE = 0xeca
+$$GDK_Hangul_YO = 0xecb
+$$GDK_Hangul_U = 0xecc
+$$GDK_Hangul_WEO = 0xecd
+$$GDK_Hangul_WE = 0xece
+$$GDK_Hangul_WI = 0xecf
+$$GDK_Hangul_YU = 0xed0
+$$GDK_Hangul_EU = 0xed1
+$$GDK_Hangul_YI = 0xed2
+$$GDK_Hangul_I = 0xed3
+$$GDK_Hangul_J_Kiyeog = 0xed4
+$$GDK_Hangul_J_SsangKiyeog = 0xed5
+$$GDK_Hangul_J_KiyeogSios = 0xed6
+$$GDK_Hangul_J_Nieun = 0xed7
+$$GDK_Hangul_J_NieunJieuj = 0xed8
+$$GDK_Hangul_J_NieunHieuh = 0xed9
+$$GDK_Hangul_J_Dikeud = 0xeda
+$$GDK_Hangul_J_Rieul = 0xedb
+$$GDK_Hangul_J_RieulKiyeog = 0xedc
+$$GDK_Hangul_J_RieulMieum = 0xedd
+$$GDK_Hangul_J_RieulPieub = 0xede
+$$GDK_Hangul_J_RieulSios = 0xedf
+$$GDK_Hangul_J_RieulTieut = 0xee0
+$$GDK_Hangul_J_RieulPhieuf = 0xee1
+$$GDK_Hangul_J_RieulHieuh = 0xee2
+$$GDK_Hangul_J_Mieum = 0xee3
+$$GDK_Hangul_J_Pieub = 0xee4
+$$GDK_Hangul_J_PieubSios = 0xee5
+$$GDK_Hangul_J_Sios = 0xee6
+$$GDK_Hangul_J_SsangSios = 0xee7
+$$GDK_Hangul_J_Ieung = 0xee8
+$$GDK_Hangul_J_Jieuj = 0xee9
+$$GDK_Hangul_J_Cieuc = 0xeea
+$$GDK_Hangul_J_Khieuq = 0xeeb
+$$GDK_Hangul_J_Tieut = 0xeec
+$$GDK_Hangul_J_Phieuf = 0xeed
+$$GDK_Hangul_J_Hieuh = 0xeee
+$$GDK_Hangul_RieulYeorinHieuh = 0xeef
+$$GDK_Hangul_SunkyeongeumMieum = 0xef0
+$$GDK_Hangul_SunkyeongeumPieub = 0xef1
+$$GDK_Hangul_PanSios = 0xef2
+$$GDK_Hangul_KkogjiDalrinIeung = 0xef3
+$$GDK_Hangul_SunkyeongeumPhieuf = 0xef4
+$$GDK_Hangul_YeorinHieuh = 0xef5
+$$GDK_Hangul_AraeA = 0xef6
+$$GDK_Hangul_AraeAE = 0xef7
+$$GDK_Hangul_J_PanSios = 0xef8
+$$GDK_Hangul_J_KkogjiDalrinIeung = 0xef9
+$$GDK_Hangul_J_YeorinHieuh = 0xefa
+$$GDK_Korean_Won = 0xeff
+$$GDK_Armenian_ligature_ew = 0x1000587
+$$GDK_Armenian_full_stop = 0x1000589
+$$GDK_Armenian_verjaket = 0x1000589
+$$GDK_Armenian_separation_mark = 0x100055d
+$$GDK_Armenian_but = 0x100055d
+$$GDK_Armenian_hyphen = 0x100058a
+$$GDK_Armenian_yentamna = 0x100058a
+$$GDK_Armenian_exclam = 0x100055c
+$$GDK_Armenian_amanak = 0x100055c
+$$GDK_Armenian_accent = 0x100055b
+$$GDK_Armenian_shesht = 0x100055b
+$$GDK_Armenian_question = 0x100055e
+$$GDK_Armenian_paruyk = 0x100055e
+$$GDK_Armenian_AYB = 0x1000531
+$$GDK_Armenian_ayb = 0x1000561
+$$GDK_Armenian_BEN = 0x1000532
+$$GDK_Armenian_ben = 0x1000562
+$$GDK_Armenian_GIM = 0x1000533
+$$GDK_Armenian_gim = 0x1000563
+$$GDK_Armenian_DA = 0x1000534
+$$GDK_Armenian_da = 0x1000564
+$$GDK_Armenian_YECH = 0x1000535
+$$GDK_Armenian_yech = 0x1000565
+$$GDK_Armenian_ZA = 0x1000536
+$$GDK_Armenian_za = 0x1000566
+$$GDK_Armenian_E = 0x1000537
+$$GDK_Armenian_e = 0x1000567
+$$GDK_Armenian_AT = 0x1000538
+$$GDK_Armenian_at = 0x1000568
+$$GDK_Armenian_TO = 0x1000539
+$$GDK_Armenian_to = 0x1000569
+$$GDK_Armenian_ZHE = 0x100053a
+$$GDK_Armenian_zhe = 0x100056a
+$$GDK_Armenian_INI = 0x100053b
+$$GDK_Armenian_ini = 0x100056b
+$$GDK_Armenian_LYUN = 0x100053c
+$$GDK_Armenian_lyun = 0x100056c
+$$GDK_Armenian_KHE = 0x100053d
+$$GDK_Armenian_khe = 0x100056d
+$$GDK_Armenian_TSA = 0x100053e
+$$GDK_Armenian_tsa = 0x100056e
+$$GDK_Armenian_KEN = 0x100053f
+$$GDK_Armenian_ken = 0x100056f
+$$GDK_Armenian_HO = 0x1000540
+$$GDK_Armenian_ho = 0x1000570
+$$GDK_Armenian_DZA = 0x1000541
+$$GDK_Armenian_dza = 0x1000571
+$$GDK_Armenian_GHAT = 0x1000542
+$$GDK_Armenian_ghat = 0x1000572
+$$GDK_Armenian_TCHE = 0x1000543
+$$GDK_Armenian_tche = 0x1000573
+$$GDK_Armenian_MEN = 0x1000544
+$$GDK_Armenian_men = 0x1000574
+$$GDK_Armenian_HI = 0x1000545
+$$GDK_Armenian_hi = 0x1000575
+$$GDK_Armenian_NU = 0x1000546
+$$GDK_Armenian_nu = 0x1000576
+$$GDK_Armenian_SHA = 0x1000547
+$$GDK_Armenian_sha = 0x1000577
+$$GDK_Armenian_VO = 0x1000548
+$$GDK_Armenian_vo = 0x1000578
+$$GDK_Armenian_CHA = 0x1000549
+$$GDK_Armenian_cha = 0x1000579
+$$GDK_Armenian_PE = 0x100054a
+$$GDK_Armenian_pe = 0x100057a
+$$GDK_Armenian_JE = 0x100054b
+$$GDK_Armenian_je = 0x100057b
+$$GDK_Armenian_RA = 0x100054c
+$$GDK_Armenian_ra = 0x100057c
+$$GDK_Armenian_SE = 0x100054d
+$$GDK_Armenian_se = 0x100057d
+$$GDK_Armenian_VEV = 0x100054e
+$$GDK_Armenian_vev = 0x100057e
+$$GDK_Armenian_TYUN = 0x100054f
+$$GDK_Armenian_tyun = 0x100057f
+$$GDK_Armenian_RE = 0x1000550
+$$GDK_Armenian_re = 0x1000580
+$$GDK_Armenian_TSO = 0x1000551
+$$GDK_Armenian_tso = 0x1000581
+$$GDK_Armenian_VYUN = 0x1000552
+$$GDK_Armenian_vyun = 0x1000582
+$$GDK_Armenian_PYUR = 0x1000553
+$$GDK_Armenian_pyur = 0x1000583
+$$GDK_Armenian_KE = 0x1000554
+$$GDK_Armenian_ke = 0x1000584
+$$GDK_Armenian_O = 0x1000555
+$$GDK_Armenian_o = 0x1000585
+$$GDK_Armenian_FE = 0x1000556
+$$GDK_Armenian_fe = 0x1000586
+$$GDK_Armenian_apostrophe = 0x100055a
+$$GDK_Georgian_an = 0x10010d0
+$$GDK_Georgian_ban = 0x10010d1
+$$GDK_Georgian_gan = 0x10010d2
+$$GDK_Georgian_don = 0x10010d3
+$$GDK_Georgian_en = 0x10010d4
+$$GDK_Georgian_vin = 0x10010d5
+$$GDK_Georgian_zen = 0x10010d6
+$$GDK_Georgian_tan = 0x10010d7
+$$GDK_Georgian_in = 0x10010d8
+$$GDK_Georgian_kan = 0x10010d9
+$$GDK_Georgian_las = 0x10010da
+$$GDK_Georgian_man = 0x10010db
+$$GDK_Georgian_nar = 0x10010dc
+$$GDK_Georgian_on = 0x10010dd
+$$GDK_Georgian_par = 0x10010de
+$$GDK_Georgian_zhar = 0x10010df
+$$GDK_Georgian_rae = 0x10010e0
+$$GDK_Georgian_san = 0x10010e1
+$$GDK_Georgian_tar = 0x10010e2
+$$GDK_Georgian_un = 0x10010e3
+$$GDK_Georgian_phar = 0x10010e4
+$$GDK_Georgian_khar = 0x10010e5
+$$GDK_Georgian_ghan = 0x10010e6
+$$GDK_Georgian_qar = 0x10010e7
+$$GDK_Georgian_shin = 0x10010e8
+$$GDK_Georgian_chin = 0x10010e9
+$$GDK_Georgian_can = 0x10010ea
+$$GDK_Georgian_jil = 0x10010eb
+$$GDK_Georgian_cil = 0x10010ec
+$$GDK_Georgian_char = 0x10010ed
+$$GDK_Georgian_xan = 0x10010ee
+$$GDK_Georgian_jhan = 0x10010ef
+$$GDK_Georgian_hae = 0x10010f0
+$$GDK_Georgian_he = 0x10010f1
+$$GDK_Georgian_hie = 0x10010f2
+$$GDK_Georgian_we = 0x10010f3
+$$GDK_Georgian_har = 0x10010f4
+$$GDK_Georgian_hoe = 0x10010f5
+$$GDK_Georgian_fi = 0x10010f6
+$$GDK_Xabovedot = 0x1001e8a
+$$GDK_Ibreve = 0x100012c
+$$GDK_Zstroke = 0x10001b5
+$$GDK_Gcaron = 0x10001e6
+$$GDK_Ocaron = 0x10001d1
+$$GDK_Obarred = 0x100019f
+$$GDK_xabovedot = 0x1001e8b
+$$GDK_ibreve = 0x100012d
+$$GDK_zstroke = 0x10001b6
+$$GDK_gcaron = 0x10001e7
+$$GDK_ocaron = 0x10001d2
+$$GDK_obarred = 0x1000275
+$$GDK_SCHWA = 0x100018f
+$$GDK_schwa = 0x1000259
+$$GDK_Lbelowdot = 0x1001e36
+$$GDK_lbelowdot = 0x1001e37
+$$GDK_Abelowdot = 0x1001ea0
+$$GDK_abelowdot = 0x1001ea1
+$$GDK_Ahook = 0x1001ea2
+$$GDK_ahook = 0x1001ea3
+$$GDK_Acircumflexacute = 0x1001ea4
+$$GDK_acircumflexacute = 0x1001ea5
+$$GDK_Acircumflexgrave = 0x1001ea6
+$$GDK_acircumflexgrave = 0x1001ea7
+$$GDK_Acircumflexhook = 0x1001ea8
+$$GDK_acircumflexhook = 0x1001ea9
+$$GDK_Acircumflextilde = 0x1001eaa
+$$GDK_acircumflextilde = 0x1001eab
+$$GDK_Acircumflexbelowdot = 0x1001eac
+$$GDK_acircumflexbelowdot = 0x1001ead
+$$GDK_Abreveacute = 0x1001eae
+$$GDK_abreveacute = 0x1001eaf
+$$GDK_Abrevegrave = 0x1001eb0
+$$GDK_abrevegrave = 0x1001eb1
+$$GDK_Abrevehook = 0x1001eb2
+$$GDK_abrevehook = 0x1001eb3
+$$GDK_Abrevetilde = 0x1001eb4
+$$GDK_abrevetilde = 0x1001eb5
+$$GDK_Abrevebelowdot = 0x1001eb6
+$$GDK_abrevebelowdot = 0x1001eb7
+$$GDK_Ebelowdot = 0x1001eb8
+$$GDK_ebelowdot = 0x1001eb9
+$$GDK_Ehook = 0x1001eba
+$$GDK_ehook = 0x1001ebb
+$$GDK_Etilde = 0x1001ebc
+$$GDK_etilde = 0x1001ebd
+$$GDK_Ecircumflexacute = 0x1001ebe
+$$GDK_ecircumflexacute = 0x1001ebf
+$$GDK_Ecircumflexgrave = 0x1001ec0
+$$GDK_ecircumflexgrave = 0x1001ec1
+$$GDK_Ecircumflexhook = 0x1001ec2
+$$GDK_ecircumflexhook = 0x1001ec3
+$$GDK_Ecircumflextilde = 0x1001ec4
+$$GDK_ecircumflextilde = 0x1001ec5
+$$GDK_Ecircumflexbelowdot = 0x1001ec6
+$$GDK_ecircumflexbelowdot = 0x1001ec7
+$$GDK_Ihook = 0x1001ec8
+$$GDK_ihook = 0x1001ec9
+$$GDK_Ibelowdot = 0x1001eca
+$$GDK_ibelowdot = 0x1001ecb
+$$GDK_Obelowdot = 0x1001ecc
+$$GDK_obelowdot = 0x1001ecd
+$$GDK_Ohook = 0x1001ece
+$$GDK_ohook = 0x1001ecf
+$$GDK_Ocircumflexacute = 0x1001ed0
+$$GDK_ocircumflexacute = 0x1001ed1
+$$GDK_Ocircumflexgrave = 0x1001ed2
+$$GDK_ocircumflexgrave = 0x1001ed3
+$$GDK_Ocircumflexhook = 0x1001ed4
+$$GDK_ocircumflexhook = 0x1001ed5
+$$GDK_Ocircumflextilde = 0x1001ed6
+$$GDK_ocircumflextilde = 0x1001ed7
+$$GDK_Ocircumflexbelowdot = 0x1001ed8
+$$GDK_ocircumflexbelowdot = 0x1001ed9
+$$GDK_Ohornacute = 0x1001eda
+$$GDK_ohornacute = 0x1001edb
+$$GDK_Ohorngrave = 0x1001edc
+$$GDK_ohorngrave = 0x1001edd
+$$GDK_Ohornhook = 0x1001ede
+$$GDK_ohornhook = 0x1001edf
+$$GDK_Ohorntilde = 0x1001ee0
+$$GDK_ohorntilde = 0x1001ee1
+$$GDK_Ohornbelowdot = 0x1001ee2
+$$GDK_ohornbelowdot = 0x1001ee3
+$$GDK_Ubelowdot = 0x1001ee4
+$$GDK_ubelowdot = 0x1001ee5
+$$GDK_Uhook = 0x1001ee6
+$$GDK_uhook = 0x1001ee7
+$$GDK_Uhornacute = 0x1001ee8
+$$GDK_uhornacute = 0x1001ee9
+$$GDK_Uhorngrave = 0x1001eea
+$$GDK_uhorngrave = 0x1001eeb
+$$GDK_Uhornhook = 0x1001eec
+$$GDK_uhornhook = 0x1001eed
+$$GDK_Uhorntilde = 0x1001eee
+$$GDK_uhorntilde = 0x1001eef
+$$GDK_Uhornbelowdot = 0x1001ef0
+$$GDK_uhornbelowdot = 0x1001ef1
+$$GDK_Ybelowdot = 0x1001ef4
+$$GDK_ybelowdot = 0x1001ef5
+$$GDK_Yhook = 0x1001ef6
+$$GDK_yhook = 0x1001ef7
+$$GDK_Ytilde = 0x1001ef8
+$$GDK_ytilde = 0x1001ef9
+$$GDK_Ohorn = 0x10001a0
+$$GDK_ohorn = 0x10001a1
+$$GDK_Uhorn = 0x10001af
+$$GDK_uhorn = 0x10001b0
+$$GDK_EcuSign = 0x10020a0
+$$GDK_ColonSign = 0x10020a1
+$$GDK_CruzeiroSign = 0x10020a2
+$$GDK_FFrancSign = 0x10020a3
+$$GDK_LiraSign = 0x10020a4
+$$GDK_MillSign = 0x10020a5
+$$GDK_NairaSign = 0x10020a6
+$$GDK_PesetaSign = 0x10020a7
+$$GDK_RupeeSign = 0x10020a8
+$$GDK_WonSign = 0x10020a9
+$$GDK_NewSheqelSign = 0x10020aa
+$$GDK_DongSign = 0x10020ab
+$$GDK_EuroSign = 0x20ac
+$$GDK_zerosuperior = 0x1002070
+$$GDK_foursuperior = 0x1002074
+$$GDK_fivesuperior = 0x1002075
+$$GDK_sixsuperior = 0x1002076
+$$GDK_sevensuperior = 0x1002077
+$$GDK_eightsuperior = 0x1002078
+$$GDK_ninesuperior = 0x1002079
+$$GDK_zerosubscript = 0x1002080
+$$GDK_onesubscript = 0x1002081
+$$GDK_twosubscript = 0x1002082
+$$GDK_threesubscript = 0x1002083
+$$GDK_foursubscript = 0x1002084
+$$GDK_fivesubscript = 0x1002085
+$$GDK_sixsubscript = 0x1002086
+$$GDK_sevensubscript = 0x1002087
+$$GDK_eightsubscript = 0x1002088
+$$GDK_ninesubscript = 0x1002089
+$$GDK_partdifferential = 0x1002202
+$$GDK_emptyset = 0x1002205
+$$GDK_elementof = 0x1002208
+$$GDK_notelementof = 0x1002209
+$$GDK_containsas = 0x100220b
+$$GDK_squareroot = 0x100221a
+$$GDK_cuberoot = 0x100221b
+$$GDK_fourthroot = 0x100221c
+$$GDK_dintegral = 0x100222c
+$$GDK_tintegral = 0x100222d
+$$GDK_because = 0x1002235
+$$GDK_approxeq = 0x1002248
+$$GDK_notapproxeq = 0x1002247
+$$GDK_notidentical = 0x1002262
+$$GDK_stricteq = 0x1002263
+
+$$GDK_braille_dot_1 = 0xfff1
+$$GDK_braille_dot_2 = 0xfff2
+$$GDK_braille_dot_3 = 0xfff3
+$$GDK_braille_dot_4 = 0xfff4
+$$GDK_braille_dot_5 = 0xfff5
+$$GDK_braille_dot_6 = 0xfff6
+$$GDK_braille_dot_7 = 0xfff7
+$$GDK_braille_dot_8 = 0xfff8
+$$GDK_braille_dot_9 = 0xfff9
+$$GDK_braille_dot_10 = 0xfffa
+$$GDK_braille_blank = 0x2800
+$$GDK_braille_dots_1 = 0x2801
+$$GDK_braille_dots_2 = 0x2802
+$$GDK_braille_dots_12 = 0x2803
+$$GDK_braille_dots_3 = 0x2804
+$$GDK_braille_dots_13 = 0x2805
+$$GDK_braille_dots_23 = 0x2806
+$$GDK_braille_dots_123 = 0x2807
+$$GDK_braille_dots_4 = 0x2808
+$$GDK_braille_dots_14 = 0x2809
+$$GDK_braille_dots_24 = 0x280a
+$$GDK_braille_dots_124 = 0x280b
+$$GDK_braille_dots_34 = 0x280c
+$$GDK_braille_dots_134 = 0x280d
+$$GDK_braille_dots_234 = 0x280e
+$$GDK_braille_dots_1234 = 0x280f
+$$GDK_braille_dots_5 = 0x2810
+$$GDK_braille_dots_15 = 0x2811
+$$GDK_braille_dots_25 = 0x2812
+$$GDK_braille_dots_125 = 0x2813
+$$GDK_braille_dots_35 = 0x2814
+$$GDK_braille_dots_135 = 0x2815
+$$GDK_braille_dots_235 = 0x2816
+$$GDK_braille_dots_1235 = 0x2817
+$$GDK_braille_dots_45 = 0x2818
+$$GDK_braille_dots_145 = 0x2819
+$$GDK_braille_dots_245 = 0x281a
+$$GDK_braille_dots_1245 = 0x281b
+$$GDK_braille_dots_345 = 0x281c
+$$GDK_braille_dots_1345 = 0x281d
+$$GDK_braille_dots_2345 = 0x281e
+$$GDK_braille_dots_12345 = 0x281f
+$$GDK_braille_dots_6 = 0x2820
+$$GDK_braille_dots_16 = 0x2821
+$$GDK_braille_dots_26 = 0x2822
+$$GDK_braille_dots_126 = 0x2823
+$$GDK_braille_dots_36 = 0x2824
+$$GDK_braille_dots_136 = 0x2825
+$$GDK_braille_dots_236 = 0x2826
+$$GDK_braille_dots_1236 = 0x2827
+$$GDK_braille_dots_46 = 0x2828
+$$GDK_braille_dots_146 = 0x2829
+$$GDK_braille_dots_246 = 0x282a
+$$GDK_braille_dots_1246 = 0x282b
+$$GDK_braille_dots_346 = 0x282c
+$$GDK_braille_dots_1346 = 0x282d
+$$GDK_braille_dots_2346 = 0x282e
+$$GDK_braille_dots_12346 = 0x282f
+$$GDK_braille_dots_56 = 0x2830
+$$GDK_braille_dots_156 = 0x2831
+$$GDK_braille_dots_256 = 0x2832
+$$GDK_braille_dots_1256 = 0x2833
+$$GDK_braille_dots_356 = 0x2834
+$$GDK_braille_dots_1356 = 0x2835
+$$GDK_braille_dots_2356 = 0x2836
+$$GDK_braille_dots_12356 = 0x2837
+$$GDK_braille_dots_456 = 0x2838
+$$GDK_braille_dots_1456 = 0x2839
+$$GDK_braille_dots_2456 = 0x283a
+$$GDK_braille_dots_12456 = 0x283b
+$$GDK_braille_dots_3456 = 0x283c
+$$GDK_braille_dots_13456 = 0x283d
+$$GDK_braille_dots_23456 = 0x283e
+$$GDK_braille_dots_123456 = 0x283f
+$$GDK_braille_dots_7 = 0x2840
+$$GDK_braille_dots_17 = 0x2841
+$$GDK_braille_dots_27 = 0x2842
+$$GDK_braille_dots_127 = 0x2843
+$$GDK_braille_dots_37 = 0x2844
+$$GDK_braille_dots_137 = 0x2845
+$$GDK_braille_dots_237 = 0x2846
+$$GDK_braille_dots_1237 = 0x2847
+$$GDK_braille_dots_47 = 0x2848
+$$GDK_braille_dots_147 = 0x2849
+$$GDK_braille_dots_247 = 0x284a
+$$GDK_braille_dots_1247 = 0x284b
+$$GDK_braille_dots_347 = 0x284c
+$$GDK_braille_dots_1347 = 0x284d
+$$GDK_braille_dots_2347 = 0x284e
+$$GDK_braille_dots_12347 = 0x284f
+$$GDK_braille_dots_57 = 0x2850
+$$GDK_braille_dots_157 = 0x2851
+$$GDK_braille_dots_257 = 0x2852
+$$GDK_braille_dots_1257 = 0x2853
+$$GDK_braille_dots_357 = 0x2854
+$$GDK_braille_dots_1357 = 0x2855
+$$GDK_braille_dots_2357 = 0x2856
+$$GDK_braille_dots_12357 = 0x2857
+$$GDK_braille_dots_457 = 0x2858
+$$GDK_braille_dots_1457 = 0x2859
+$$GDK_braille_dots_2457 = 0x285a
+$$GDK_braille_dots_12457 = 0x285b
+$$GDK_braille_dots_3457 = 0x285c
+$$GDK_braille_dots_13457 = 0x285d
+$$GDK_braille_dots_23457 = 0x285e
+$$GDK_braille_dots_123457 = 0x285f
+$$GDK_braille_dots_67 = 0x2860
+$$GDK_braille_dots_167 = 0x2861
+$$GDK_braille_dots_267 = 0x2862
+$$GDK_braille_dots_1267 = 0x2863
+$$GDK_braille_dots_367 = 0x2864
+$$GDK_braille_dots_1367 = 0x2865
+$$GDK_braille_dots_2367 = 0x2866
+$$GDK_braille_dots_12367 = 0x2867
+$$GDK_braille_dots_467 = 0x2868
+$$GDK_braille_dots_1467 = 0x2869
+$$GDK_braille_dots_2467 = 0x286a
+$$GDK_braille_dots_12467 = 0x286b
+$$GDK_braille_dots_3467 = 0x286c
+$$GDK_braille_dots_13467 = 0x286d
+$$GDK_braille_dots_23467 = 0x286e
+$$GDK_braille_dots_123467 = 0x286f
+$$GDK_braille_dots_567 = 0x2870
+$$GDK_braille_dots_1567 = 0x2871
+$$GDK_braille_dots_2567 = 0x2872
+$$GDK_braille_dots_12567 = 0x2873
+$$GDK_braille_dots_3567 = 0x2874
+$$GDK_braille_dots_13567 = 0x2875
+$$GDK_braille_dots_23567 = 0x2876
+$$GDK_braille_dots_123567 = 0x2877
+$$GDK_braille_dots_4567 = 0x2878
+$$GDK_braille_dots_14567 = 0x2879
+$$GDK_braille_dots_24567 = 0x287a
+$$GDK_braille_dots_124567 = 0x287b
+$$GDK_braille_dots_34567 = 0x287c
+$$GDK_braille_dots_134567 = 0x287d
+$$GDK_braille_dots_234567 = 0x287e
+$$GDK_braille_dots_1234567 = 0x287f
+$$GDK_braille_dots_8 = 0x2880
+$$GDK_braille_dots_18 = 0x2881
+$$GDK_braille_dots_28 = 0x2882
+$$GDK_braille_dots_128 = 0x2883
+$$GDK_braille_dots_38 = 0x2884
+$$GDK_braille_dots_138 = 0x2885
+$$GDK_braille_dots_238 = 0x2886
+$$GDK_braille_dots_1238 = 0x2887
+$$GDK_braille_dots_48 = 0x2888
+$$GDK_braille_dots_148 = 0x2889
+$$GDK_braille_dots_248 = 0x288a
+$$GDK_braille_dots_1248 = 0x288b
+$$GDK_braille_dots_348 = 0x288c
+$$GDK_braille_dots_1348 = 0x288d
+$$GDK_braille_dots_2348 = 0x288e
+$$GDK_braille_dots_12348 = 0x288f
+$$GDK_braille_dots_58 = 0x2890
+$$GDK_braille_dots_158 = 0x2891
+$$GDK_braille_dots_258 = 0x2892
+$$GDK_braille_dots_1258 = 0x2893
+$$GDK_braille_dots_358 = 0x2894
+$$GDK_braille_dots_1358 = 0x2895
+$$GDK_braille_dots_2358 = 0x2896
+$$GDK_braille_dots_12358 = 0x2897
+$$GDK_braille_dots_458 = 0x2898
+$$GDK_braille_dots_1458 = 0x2899
+$$GDK_braille_dots_2458 = 0x289a
+$$GDK_braille_dots_12458 = 0x289b
+$$GDK_braille_dots_3458 = 0x289c
+$$GDK_braille_dots_13458 = 0x289d
+$$GDK_braille_dots_23458 = 0x289e
+$$GDK_braille_dots_123458 = 0x289f
+$$GDK_braille_dots_68 = 0x28a0
+$$GDK_braille_dots_168 = 0x28a1
+$$GDK_braille_dots_268 = 0x28a2
+$$GDK_braille_dots_1268 = 0x28a3
+$$GDK_braille_dots_368 = 0x28a4
+$$GDK_braille_dots_1368 = 0x28a5
+$$GDK_braille_dots_2368 = 0x28a6
+$$GDK_braille_dots_12368 = 0x28a7
+$$GDK_braille_dots_468 = 0x28a8
+$$GDK_braille_dots_1468 = 0x28a9
+$$GDK_braille_dots_2468 = 0x28aa
+$$GDK_braille_dots_12468 = 0x28ab
+$$GDK_braille_dots_3468 = 0x28ac
+$$GDK_braille_dots_13468 = 0x28ad
+$$GDK_braille_dots_23468 = 0x28ae
+$$GDK_braille_dots_123468 = 0x28af
+$$GDK_braille_dots_568 = 0x28b0
+$$GDK_braille_dots_1568 = 0x28b1
+$$GDK_braille_dots_2568 = 0x28b2
+$$GDK_braille_dots_12568 = 0x28b3
+$$GDK_braille_dots_3568 = 0x28b4
+$$GDK_braille_dots_13568 = 0x28b5
+$$GDK_braille_dots_23568 = 0x28b6
+$$GDK_braille_dots_123568 = 0x28b7
+$$GDK_braille_dots_4568 = 0x28b8
+$$GDK_braille_dots_14568 = 0x28b9
+$$GDK_braille_dots_24568 = 0x28ba
+$$GDK_braille_dots_124568 = 0x28bb
+$$GDK_braille_dots_34568 = 0x28bc
+$$GDK_braille_dots_134568 = 0x28bd
+$$GDK_braille_dots_234568 = 0x28be
+$$GDK_braille_dots_1234568 = 0x28bf
+$$GDK_braille_dots_78 = 0x28c0
+$$GDK_braille_dots_178 = 0x28c1
+$$GDK_braille_dots_278 = 0x28c2
+$$GDK_braille_dots_1278 = 0x28c3
+$$GDK_braille_dots_378 = 0x28c4
+$$GDK_braille_dots_1378 = 0x28c5
+$$GDK_braille_dots_2378 = 0x28c6
+$$GDK_braille_dots_12378 = 0x28c7
+$$GDK_braille_dots_478 = 0x28c8
+$$GDK_braille_dots_1478 = 0x28c9
+$$GDK_braille_dots_2478 = 0x28ca
+$$GDK_braille_dots_12478 = 0x28cb
+$$GDK_braille_dots_3478 = 0x28cc
+$$GDK_braille_dots_13478 = 0x28cd
+$$GDK_braille_dots_23478 = 0x28ce
+$$GDK_braille_dots_123478 = 0x28cf
+$$GDK_braille_dots_578 = 0x28d0
+$$GDK_braille_dots_1578 = 0x28d1
+$$GDK_braille_dots_2578 = 0x28d2
+$$GDK_braille_dots_12578 = 0x28d3
+$$GDK_braille_dots_3578 = 0x28d4
+$$GDK_braille_dots_13578 = 0x28d5
+$$GDK_braille_dots_23578 = 0x28d6
+$$GDK_braille_dots_123578 = 0x28d7
+$$GDK_braille_dots_4578 = 0x28d8
+$$GDK_braille_dots_14578 = 0x28d9
+$$GDK_braille_dots_24578 = 0x28da
+$$GDK_braille_dots_124578 = 0x28db
+$$GDK_braille_dots_34578 = 0x28dc
+$$GDK_braille_dots_134578 = 0x28dd
+$$GDK_braille_dots_234578 = 0x28de
+$$GDK_braille_dots_1234578 = 0x28df
+$$GDK_braille_dots_678 = 0x28e0
+$$GDK_braille_dots_1678 = 0x28e1
+$$GDK_braille_dots_2678 = 0x28e2
+$$GDK_braille_dots_12678 = 0x28e3
+$$GDK_braille_dots_3678 = 0x28e4
+$$GDK_braille_dots_13678 = 0x28e5
+$$GDK_braille_dots_23678 = 0x28e6
+$$GDK_braille_dots_123678 = 0x28e7
+$$GDK_braille_dots_4678 = 0x28e8
+$$GDK_braille_dots_14678 = 0x28e9
+$$GDK_braille_dots_24678 = 0x28ea
+$$GDK_braille_dots_124678 = 0x28eb
+$$GDK_braille_dots_34678 = 0x28ec
+$$GDK_braille_dots_134678 = 0x28ed
+$$GDK_braille_dots_234678 = 0x28ee
+$$GDK_braille_dots_1234678 = 0x28ef
+$$GDK_braille_dots_5678 = 0x28f0
+$$GDK_braille_dots_15678 = 0x28f1
+$$GDK_braille_dots_25678 = 0x28f2
+$$GDK_braille_dots_125678 = 0x28f3
+$$GDK_braille_dots_35678 = 0x28f4
+$$GDK_braille_dots_135678 = 0x28f5
+$$GDK_braille_dots_235678 = 0x28f6
+$$GDK_braille_dots_1235678 = 0x28f7
+$$GDK_braille_dots_45678 = 0x28f8
+$$GDK_braille_dots_145678 = 0x28f9
+$$GDK_braille_dots_245678 = 0x28fa
+$$GDK_braille_dots_1245678 = 0x28fb
+$$GDK_braille_dots_345678 = 0x28fc
+$$GDK_braille_dots_1345678 = 0x28fd
+$$GDK_braille_dots_2345678 = 0x28fe
+$$GDK_braille_dots_12345678 = 0x28ff
+
+'#########################
+'########  gdkscreen
+'#########################
+
+TYPE GDKSCREEN
+  GOBJECT .parent_instance
+  ULONG .closed ': 1
+  XLONG .normal_gcs[32]
+  XLONG .exposure_gcs[32]
+  XLONG .font_options
+  DOUBLE .resolution		'/* pixels/points scale factor for fonts */
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_screen_get_type              ()
+EXTERNAL CFUNCTION XLONG gdk_screen_get_default_colormap  (XLONG)
+EXTERNAL CFUNCTION gdk_screen_set_default_colormap  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_system_colormap   (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_system_visual     (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_rgb_colormap      (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_rgb_visual        (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_rgba_colormap     (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_rgba_visual       (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_is_composited	      (XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_screen_get_root_window       (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_display           (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_number            (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_width             (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_height            (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_width_mm          (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_height_mm         (XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_screen_list_visuals          (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_toplevel_windows  (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_make_display_name     (XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_screen_get_n_monitors        (XLONG)
+EXTERNAL CFUNCTION gdk_screen_get_monitor_geometry  (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_monitor_at_point  (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_monitor_at_window (XLONG,	XLONG)
+EXTERNAL CFUNCTION SLONG gdk_screen_get_monitor_width_mm  (XLONG,SLONG)
+EXTERNAL CFUNCTION SLONG gdk_screen_get_monitor_height_mm (XLONG,SLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_monitor_plug_name (XLONG,SLONG)
+EXTERNAL CFUNCTION gdk_screen_broadcast_client_message  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_default ()
+EXTERNAL CFUNCTION XLONG gdk_screen_get_setting (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_screen_set_font_options (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_font_options (XLONG)
+EXTERNAL CFUNCTION gdk_screen_set_resolution (XLONG,	DOUBLE)
+EXTERNAL CFUNCTION DOUBLE gdk_screen_get_resolution (XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_screen_get_active_window (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_screen_get_window_stack  (XLONG)
+
+'#########################
+'########  gdkvisual
+'#########################
+
+$$GDK_VISUAL_STATIC_GRAY = 0
+$$GDK_VISUAL_GRAYSCALE = 1
+$$GDK_VISUAL_STATIC_COLOR = 2
+$$GDK_VISUAL_PSEUDO_COLOR = 3
+$$GDK_VISUAL_TRUE_COLOR = 4
+$$GDK_VISUAL_DIRECT_COLOR = 5
+' GdkVisualType;
+
+'/* The visual type.
+' *   "type" is the type of visual this is (PseudoColor, TrueColor, etc).
+' *   "depth" is the bit depth of this visual.
+' *   "colormap_size" is the size of a colormap for this visual.
+' *   "bits_per_rgb" is the number of significant bits per red, green and blue.
+' *  The red, green and blue masks, shifts and precisions refer
+' *   to value needed to calculate pixel values in TrueColor and DirectColor
+' *   visuals. The "mask" is the significant bits within the pixel. The
+' *   "shift" is the number of bits left we must shift a primary for it
+' *   to be in position (according to the "mask"). "prec" refers to how
+' *   much precision the pixel value contains for a particular primary.
+
+TYPE GDKVISUAL
+  GOBJECT .parent_instance
+  XLONG .type
+  XLONG .depth
+  XLONG .byte_order
+  XLONG .colormap_size
+  XLONG .bits_per_rgb
+
+  ULONG .red_mask
+  XLONG .red_shift
+  XLONG .red_prec
+
+  ULONG .green_mask
+  XLONG .green_shift
+  XLONG .green_prec
+
+  ULONG .blue_mask
+  XLONG .blue_shift
+  XLONG .blue_prec
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_visual_get_type            ()
+EXTERNAL CFUNCTION SLONG gdk_visual_get_best_depth	     ()
+EXTERNAL CFUNCTION XLONG gdk_visual_get_best_type	     ()
+EXTERNAL CFUNCTION XLONG gdk_visual_get_system	     ()
+EXTERNAL CFUNCTION XLONG gdk_visual_get_best	     ()
+EXTERNAL CFUNCTION XLONG gdk_visual_get_best_with_depth (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_visual_get_best_with_type  (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_visual_get_best_with_both  (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_query_depths	    (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_query_visual_types (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_list_visuals ()
+EXTERNAL CFUNCTION XLONG gdk_visual_get_screen (XLONG)
+
+'#########################
+'########  gdk
+'#########################
+
+'/* Initialization, exit and events
+EXTERNAL CFUNCTION gdk_parse_args	   	(XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_init		   	(XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG gdk_init_check   	        (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_add_option_entries_libgtk_only (XLONG)
+EXTERNAL CFUNCTION gdk_pre_parse_libgtk_only          ()
+EXTERNAL CFUNCTION gdk_exit		   	(XLONG)
+EXTERNAL CFUNCTION XLONG gdk_set_locale	   	()
+EXTERNAL CFUNCTION XLONG gdk_get_program_class ()
+EXTERNAL CFUNCTION gdk_set_program_class (XLONG)
+'/* Push and pop error handlers for X errors
+EXTERNAL CFUNCTION gdk_error_trap_push           ()
+EXTERNAL CFUNCTION XLONG gdk_error_trap_pop            ()
+EXTERNAL CFUNCTION gdk_set_use_xshm		(XLONG)
+EXTERNAL CFUNCTION XLONG gdk_get_use_xshm		()
+EXTERNAL CFUNCTION XLONG gdk_get_display		()
+EXTERNAL CFUNCTION XLONG gdk_get_display_arg_name	()
+'/* Used by gtk_input_add_full () */
+EXTERNAL CFUNCTION XLONG gdk_input_add_full	  (XLONG,XLONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG gdk_input_add	  (XLONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_input_remove	  (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pointer_grab       (XLONG,XLONG,XLONG,XLONG,XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG gdk_keyboard_grab      (XLONG,XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG gdk_pointer_grab_info_libgtk_only (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION XLONG gdk_keyboard_grab_info_libgtk_only (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_pointer_ungrab     (ULONG)
+EXTERNAL CFUNCTION gdk_keyboard_ungrab    (ULONG)
+EXTERNAL CFUNCTION XLONG gdk_pointer_is_grabbed ()
+
+EXTERNAL CFUNCTION XLONG gdk_screen_width  ()
+EXTERNAL CFUNCTION XLONG gdk_screen_height ()
+
+EXTERNAL CFUNCTION XLONG gdk_screen_width_mm  ()
+EXTERNAL CFUNCTION XLONG gdk_screen_height_mm ()
+
+EXTERNAL CFUNCTION gdk_beep ()
+EXTERNAL CFUNCTION gdk_flush ()
+EXTERNAL CFUNCTION gdk_set_double_click_time             (ULONG)
+'/* Rectangle utilities
+EXTERNAL CFUNCTION XLONG gdk_rectangle_intersect (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_rectangle_union     (XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION ULONG gdk_rectangle_get_type ()
+'/* Conversion functions between wide char and multibyte strings.
+EXTERNAL CFUNCTION XLONG gdk_wcstombs          (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_mbstowcs          (XLONG,XLONG,XLONG)
+'/* Miscellaneous */
+EXTERNAL CFUNCTION XLONG gdk_event_send_client_message      (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_event_send_clientmessage_toall (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_event_send_client_message_for_display (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_notify_startup_complete ()
+EXTERNAL CFUNCTION gdk_notify_startup_complete_with_id (XLONG)
+'/* Threading
+EXTERNAL CFUNCTION gdk_threads_enter                ()
+EXTERNAL CFUNCTION gdk_threads_leave                ()
+EXTERNAL CFUNCTION gdk_threads_init                 ()
+EXTERNAL CFUNCTION gdk_threads_set_lock_functions   (XLONG,		XLONG)
+
+EXTERNAL CFUNCTION ULONG gdk_threads_add_idle_full            (SLONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION ULONG gdk_threads_add_idle                 (XLONG,XLONG)
+EXTERNAL CFUNCTION ULONG gdk_threads_add_timeout_full         (SLONG,ULONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION ULONG gdk_threads_add_timeout              (ULONG,XLONG,XLONG)
+EXTERNAL CFUNCTION ULONG gdk_threads_add_timeout_seconds_full (SLONG,ULONG,XLONG,XLONG,XLONG)
+EXTERNAL CFUNCTION ULONG gdk_threads_add_timeout_seconds      (ULONG,XLONG,XLONG)
+
+'#########################
+'########  gdkdisplay
+'#########################
+
+TYPE GDKDISPLAY
+  GOBJECT .parent_instance
+'  /*< private >*/
+  XLONG .queued_events
+  XLONG .queued_tail
+'  /* Information for determining if the latest button click
+'   * is part of a double-click or triple-click
+  ULONG .button_click_time[2]	'/* The last 2 button click times. */
+  XLONG .button_window[2]  '/* The last 2 windows to receive button presses. */
+  XLONG .button_number[2]        '/* The last 2 buttons to be pressed. */
+  ULONG .double_click_time	'/* Maximum time between clicks in msecs */
+  XLONG .core_pointer	'/* Core pointer device */
+  XLONG .pointer_hooks '/* Current hooks for querying pointer */
+  ULONG .closed ': 1;		/* Whether this display has been closed */
+  ULONG .double_click_distance	'/* Maximum distance between clicks in pixels */
+  SLONG .button_x[2]             '/* The last 2 button click positions. */
+  SLONG .button_y[2]
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_display_get_type ()
+EXTERNAL CFUNCTION XLONG gdk_display_open                (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_get_name (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_get_n_screens      (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_get_screen         (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_get_default_screen (XLONG)
+EXTERNAL CFUNCTION gdk_display_pointer_ungrab     (XLONG,	ULONG)
+EXTERNAL CFUNCTION gdk_display_keyboard_ungrab    (XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG gdk_display_pointer_is_grabbed (XLONG)
+EXTERNAL CFUNCTION gdk_display_beep               (XLONG)
+EXTERNAL CFUNCTION gdk_display_sync               (XLONG)
+EXTERNAL CFUNCTION gdk_display_flush              (XLONG)
+EXTERNAL CFUNCTION gdk_display_close		   (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_list_devices       (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_get_event  (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_peek_event (XLONG)
+EXTERNAL CFUNCTION gdk_display_put_event  (XLONG,				  XLONG)
+EXTERNAL CFUNCTION gdk_display_add_client_message_filter (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_display_set_double_click_time     (XLONG,	ULONG)
+EXTERNAL CFUNCTION gdk_display_set_double_click_distance (XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG gdk_display_get_default (void)
+EXTERNAL CFUNCTION XLONG gdk_display_get_core_pointer (XLONG)
+EXTERNAL CFUNCTION gdk_display_get_pointer           (XLONG,		XLONG,		XLONG,		XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_get_window_at_pointer (XLONG,		XLONG,		XLONG)
+EXTERNAL CFUNCTION gdk_display_warp_pointer          (XLONG,		XLONG,		XLONG,		XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_display_set_pointer_hooks (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_open_default_libgtk_only ()
+EXTERNAL CFUNCTION XLONG gdk_display_supports_cursor_alpha     (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_supports_cursor_color     (XLONG)
+EXTERNAL CFUNCTION ULONG gdk_display_get_default_cursor_size   (XLONG)
+EXTERNAL CFUNCTION gdk_display_get_maximal_cursor_size   (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_get_default_group       (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_supports_selection_notification (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_request_selection_notification  (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_supports_clipboard_persistence (XLONG)
+EXTERNAL CFUNCTION gdk_display_store_clipboard                (XLONG,	XLONG,	ULONG,	XLONG,	XLONG)
+
+EXTERNAL CFUNCTION SLONG gdk_display_supports_shapes           (XLONG)
+EXTERNAL CFUNCTION SLONG gdk_display_supports_input_shapes     (XLONG)
+EXTERNAL CFUNCTION SLONG gdk_display_supports_composite        (XLONG)
+
+'#########################
+'########  gdkdisplaymanager
+'#########################
+
+EXTERNAL CFUNCTION ULONG gdk_display_manager_get_type ()
+EXTERNAL CFUNCTION XLONG gdk_display_manager_get    ()
+EXTERNAL CFUNCTION XLONG gdk_display_manager_get_default_display (XLONG)
+EXTERNAL CFUNCTION gdk_display_manager_set_default_display (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_display_manager_list_displays       (XLONG)
+
+'#########################
+'########  gdkdnd
+'#########################
+
+$$GDK_ACTION_DEFAULT = 1
+$$GDK_ACTION_COPY    = 2
+$$GDK_ACTION_MOVE    = 4
+$$GDK_ACTION_LINK    = 8
+$$GDK_ACTION_PRIVATE = 16
+$$GDK_ACTION_ASK     = 32
+' GdkDragAction;
+
+$$GDK_DRAG_PROTO_MOTIF = 0
+$$GDK_DRAG_PROTO_XDND = 1
+$$GDK_DRAG_PROTO_ROOTWIN	= 2  '/* A root window with nobody claiming drags */
+$$GDK_DRAG_PROTO_NONE	= 3	  '/* Not a valid drag window */
+$$GDK_DRAG_PROTO_WIN32_DROPFILES = 4 '/* The simple WM_DROPFILES dnd */
+$$GDK_DRAG_PROTO_OLE2	= 5	  '/* The complex OLE2 dnd (not implemented) */
+$$GDK_DRAG_PROTO_LOCAL  = 6          '/* Intra-app */
+' GdkDragProtocol;
+
+'/* Object that holds information about a drag in progress.
+' * this is used on both source and destination sides.
+
+TYPE GDKDRAGCONTEXT
+  GOBJECT .parent_instance
+'  /*< public >*/
+  XLONG .protocol
+  XLONG .is_source
+  XLONG .source_window
+  XLONG .dest_window
+  XLONG .targets
+  XLONG .actions
+  XLONG .suggested_action
+  XLONG .action
+  ULONG .start_time
+'  /*< private >*/
+  XLONG .windowing_data
+END TYPE
+
+'/* Drag and Drop */
+EXTERNAL CFUNCTION ULONG gdk_drag_context_get_type   ()
+EXTERNAL CFUNCTION XLONG gdk_drag_context_new        ()
+EXTERNAL CFUNCTION gdk_drag_context_ref        (XLONG)
+EXTERNAL CFUNCTION gdk_drag_context_unref      (XLONG)
+'/* Destination side */
+EXTERNAL CFUNCTION gdk_drag_status        (XLONG,	XLONG,	ULONG)
+EXTERNAL CFUNCTION gdk_drop_reply         (XLONG,	XLONG,	ULONG)
+EXTERNAL CFUNCTION gdk_drop_finish        (XLONG,	XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG gdk_drag_get_selection (XLONG)
+'/* Source side */
+EXTERNAL CFUNCTION XLONG gdk_drag_begin      (XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG gdk_drag_get_protocol_for_display (XLONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION gdk_drag_find_window_for_screen   (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+
+EXTERNAL CFUNCTION ULONG gdk_drag_get_protocol (ULONG,	XLONG)
+EXTERNAL CFUNCTION gdk_drag_find_window  (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_drag_motion      (XLONG,	XLONG,	XLONG,	XLONG, 	XLONG,	XLONG,	XLONG,	ULONG)
+EXTERNAL CFUNCTION gdk_drag_drop        (XLONG,	ULONG)
+EXTERNAL CFUNCTION gdk_drag_abort       (XLONG,	ULONG)
+EXTERNAL CFUNCTION XLONG gdk_drag_drop_succeeded (XLONG)
+
+'#########################
+'########  gdkimage
+'#########################
+
+'/* Types of images.
+' *   Normal: Normal X image type. These are slow as they involve passing
+' *	     the entire image through the X connection each time a draw
+' *	     request is required. On Win32, a bitmap.
+' *   Shared: Shared memory X image type. These are fast as the X server
+' *	     and the program actually use the same piece of memory. They
+' *	     should be used with care though as there is the possibility
+' *	     for both the X server and the program to be reading/writing
+' *	     the image simultaneously and producing undesired results.
+' *	     On Win32, also a bitmap.
+$$GDK_IMAGE_NORMAL = 0
+$$GDK_IMAGE_SHARED = 1
+$$GDK_IMAGE_FASTEST = 2
+' GdkImageType;
+
+TYPE GDKIMAGE
+  GOBJECT .parent_instance
+'  /*< public >*/
+  XLONG .type '/* read only. */
+  XLONG .visual	    '/* read only. visual used to create the image */
+  XLONG .byte_order '/* read only. */
+  XLONG .width '/* read only. */
+  XLONG .height '/* read only. */
+  USHORT .depth '/* read only. */
+  USHORT .bpp	        '/* read only. bytes per pixel */
+  USHORT .bpl	        '/* read only. bytes per line */
+  USHORT .bits_per_pixel '/* read only. bits per pixel */
+  XLONG .mem
+  XLONG .colormap '/* read only. */
+'  /*< private >*/
+  XLONG .windowing_data '/* read only. */
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_image_get_type   ()
+EXTERNAL CFUNCTION XLONG gdk_image_new       (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_image_get       (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_image_ref       (XLONG)
+EXTERNAL CFUNCTION gdk_image_unref     (XLONG)
+EXTERNAL CFUNCTION gdk_image_put_pixel (XLONG,	XLONG,	XLONG,	ULONG)
+EXTERNAL CFUNCTION ULONG gdk_image_get_pixel (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_image_set_colormap (XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG gdk_image_get_colormap (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_image_new_bitmap (XLONG,	XLONG,	XLONG,	XLONG)
+
+'#########################
+'########  gdkinput
+'#########################
+
+$$GDK_EXTENSION_EVENTS_NONE = 0
+$$GDK_EXTENSION_EVENTS_ALL = 1
+$$GDK_EXTENSION_EVENTS_CURSOR = 2
+' GdkExtensionMode;
+
+$$GDK_SOURCE_MOUSE = 0
+$$GDK_SOURCE_PEN = 1
+$$GDK_SOURCE_ERASER = 2
+$$GDK_SOURCE_CURSOR = 3
+' GdkInputSource;
+
+$$GDK_MODE_DISABLED = 0
+$$GDK_MODE_SCREEN = 1
+$$GDK_MODE_WINDOW = 2
+' GdkInputMode;
+
+$$GDK_AXIS_IGNORE = 0
+$$GDK_AXIS_X = 1
+$$GDK_AXIS_Y = 2
+$$GDK_AXIS_PRESSURE = 3
+$$GDK_AXIS_XTILT = 4
+$$GDK_AXIS_YTILT = 5
+$$GDK_AXIS_WHEEL = 6
+$$GDK_AXIS_LAST = 7
+' GdkAxisUse;
+
+TYPE GDKDEVICEKEY
+  ULONG .keyval
+  XLONG .modifiers
+END TYPE
+
+TYPE GDKDEVICEAXIS
+  XLONG .use
+  DOUBLE    .min
+  DOUBLE    .max
+END TYPE
+
+TYPE GDKDEVICE
+  GOBJECT .parent_instance
+'  /* All fields are read-only */
+  XLONG .name
+  XLONG .source
+  XLONG .mode
+  XLONG .has_cursor	     '/* TRUE if the X pointer follows device motion */
+  XLONG .num_axes
+  XLONG .axes
+  XLONG .num_keys
+  XLONG .keys
+END TYPE
+
+'/* We don't allocate each coordinate this big, but we use it to
+' * be ANSI compliant and avoid accessing past the defined limits.
+
+TYPE GDKTIMECOORD
+  ULONG .time
+  DOUBLE .axes[5]
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_device_get_type  ()
+'/* Returns a list of GdkDevice * */
+EXTERNAL CFUNCTION XLONG gdk_devices_list   ()
+'/* Functions to configure a device */
+EXTERNAL CFUNCTION gdk_device_set_source    (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_device_set_mode      (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_device_set_key       (XLONG,	ULONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION gdk_device_set_axis_use (XLONG,	ULONG,	XLONG)
+EXTERNAL CFUNCTION gdk_device_get_state    (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_device_get_history  (XLONG,	XLONG,	ULONG,	ULONG,XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_device_free_history (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_device_get_axis     (XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_input_set_extension_events (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_device_get_core_pointer ()
+
+'#########################
+'########  gdkkeys
+'#########################
+
+'/* GdkKeymapKey is a hardware key that can be mapped to a keyval */
+TYPE GDKKEYMAPKEY
+  ULONG .keycode
+  XLONG .group
+  XLONG .level
+END TYPE
+
+'/* A GdkKeymap defines the translation from keyboard state
+' * (including a hardware key, a modifier mask, and active keyboard group)
+' * to a keyval. This translation has two phases. The first phase is
+' * to determine the effective keyboard group and level for the keyboard
+' * state; the second phase is to look up the keycode/group/level triplet
+' * in the keymap and see what keyval it corresponds to.
+
+TYPE GDKKEYMAP
+  GOBJECT     .parent_instance
+  XLONG .display
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_keymap_get_type ()
+EXTERNAL CFUNCTION XLONG gdk_keymap_get_default     ()
+EXTERNAL CFUNCTION XLONG gdk_keymap_get_for_display (XLONG)
+EXTERNAL CFUNCTION ULONG gdk_keymap_lookup_key               (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_keymap_translate_keyboard_state (XLONG,	ULONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_keymap_get_entries_for_keyval   (XLONG,	ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_keymap_get_entries_for_keycode  (XLONG,	ULONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_keymap_get_direction            (XLONG)
+'/* Key values
+EXTERNAL CFUNCTION XLONG gdk_keyval_name         (ULONG)
+EXTERNAL CFUNCTION ULONG gdk_keyval_from_name    (XLONG)
+EXTERNAL CFUNCTION gdk_keyval_convert_case (ULONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION ULONG gdk_keyval_to_upper     (ULONG)
+EXTERNAL CFUNCTION ULONG gdk_keyval_to_lower     (ULONG)
+EXTERNAL CFUNCTION XLONG gdk_keyval_is_upper     (ULONG)
+EXTERNAL CFUNCTION XLONG gdk_keyval_is_lower     (ULONG)
+
+EXTERNAL CFUNCTION ULONG gdk_keyval_to_unicode   (ULONG)
+EXTERNAL CFUNCTION ULONG gdk_unicode_to_keyval   (ULONG)
+
+'#########################
+'########  gdkpango
+'#########################
+
+' * GdkPangoRenderer:
+' *
+' * #GdkPangoRenderer is a subclass of #PangoRenderer used for rendering
+' * Pango objects into GDK drawables. The default renderer for a particular
+' * screen is obtained with gdk_pango_renderer_get_default() Pango
+' * functions like pango_renderer_draw_layout() and
+' * pango_renderer_draw_layout_line() are then used to draw objects with
+' * the renderer.
+' *
+' * In most simple cases, applications can just use gdk_draw_layout(), and
+' * don't need to directly use #GdkPangoRenderer at all. Using the
+' * #GdkPangoRenderer directly is most useful when working with a
+' * transformation such as a rotation, because the Pango drawing functions
+' * take user space coordinates (coordinates before the transformation)
+' * instead of device coordinates.
+' *
+' * In certain cases it can be useful to subclass #GdkPangoRenderer. Examples
+' * of reasons to do this are to add handling of custom attributes by
+' * overriding 'prepare_run' or to do custom drawing of embedded objects
+' * by overriding 'draw_shape'.
+' *
+' * Since: 2.6
+TYPE GDKPANGORENDERER
+'  /*< private >*/
+  XLONG .parent_instance
+  XLONG .priv
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_pango_renderer_get_type ()
+
+EXTERNAL CFUNCTION XLONG gdk_pango_renderer_new         (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pango_renderer_get_default (XLONG)
+
+EXTERNAL CFUNCTION gdk_pango_renderer_set_drawable       (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_pango_renderer_set_gc             (XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_pango_renderer_set_stipple        (XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_pango_renderer_set_override_color (XLONG,	XLONG,	XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pango_context_get_for_screen (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pango_context_get            ()
+EXTERNAL CFUNCTION gdk_pango_context_set_colormap   (XLONG, XLONG)
+'/* Get a clip region to draw only part of a layout or
+' * line. index_ranges contains alternating range starts/stops. The
+' * region is the region which contains the given ranges, i.e. if you
+' * draw with the region as clip, only the given ranges are drawn.
+EXTERNAL CFUNCTION XLONG gdk_pango_layout_line_get_clip_region (XLONG, XLONG, XLONG, XLONG, XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pango_layout_get_clip_region      (XLONG, XLONG, XLONG, XLONG, XLONG)
+'/* Attributes use to render insensitive text in GTK+. */
+
+TYPE GDKPANGOATTRSTIPPLE
+  XLONG .attr
+  XLONG .stipple
+END TYPE
+
+TYPE GDKPANGOATTREMBOSSED
+  XLONG .attr
+  XLONG .embossed
+END TYPE
+
+TYPE GDKPANGOATTREMBOSSCOLOR
+  XLONG .attr
+  XLONG .color
+END TYPE
+
+EXTERNAL CFUNCTION XLONG gdk_pango_attr_stipple_new  (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pango_attr_embossed_new (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_pango_attr_emboss_color_new (XLONG)
+
+'#########################
+'########  gdkproperty
+'#########################
+
+$$GDK_PROP_MODE_REPLACE = 0
+$$GDK_PROP_MODE_PREPEND = 1
+$$GDK_PROP_MODE_APPEND = 2
+' GdkPropMode;
+
+EXTERNAL CFUNCTION XLONG gdk_atom_intern (XLONG,			 XLONG)
+EXTERNAL CFUNCTION XLONG gdk_atom_intern_static_string (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_atom_name   (XLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_property_get    (XLONG,	XLONG,	XLONG,	ULONG,	ULONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_property_change (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION gdk_property_delete (XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_text_property_to_text_list (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_text_property_to_utf8_list (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_utf8_to_compound_text (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_string_to_compound_text    (XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_text_property_to_text_list_for_display (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_text_property_to_utf8_list_for_display (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_utf8_to_string_target   (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_string_to_compound_text_for_display (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+EXTERNAL CFUNCTION XLONG gdk_utf8_to_compound_text_for_display   (XLONG,	XLONG,	XLONG,	XLONG,	XLONG,	XLONG)
+
+EXTERNAL CFUNCTION gdk_free_text_list             (XLONG)
+EXTERNAL CFUNCTION gdk_free_compound_text         (XLONG)
+
+'#########################
+'########  gdkrgb
+'#########################
+
+TYPE GDKRGBCMAP
+  ULONG .colors[256]
+  SLONG .n_colors
+'  /*< private >*/
+  XLONG .info_list
+END TYPE
+
+EXTERNAL CFUNCTION gdk_rgb_init ()
+
+EXTERNAL CFUNCTION ULONG gdk_rgb_xpixel_from_rgb   (ULONG)
+EXTERNAL CFUNCTION gdk_rgb_gc_set_foreground (XLONG,ULONG)
+EXTERNAL CFUNCTION gdk_rgb_gc_set_background (XLONG,ULONG)
+EXTERNAL CFUNCTION gdk_rgb_find_color        (XLONG,XLONG)
+
+$$GDK_RGB_DITHER_NONE = 0
+$$GDK_RGB_DITHER_NORMAL = 1
+$$GDK_RGB_DITHER_MAX = 2
+'} GdkRgbDither;
+
+EXTERNAL CFUNCTION gdk_draw_rgb_image              (XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,XLONG,XLONG,SLONG)
+EXTERNAL CFUNCTION gdk_draw_rgb_image_dithalign    (XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,XLONG,XLONG,SLONG,SLONG,SLONG)
+EXTERNAL CFUNCTION gdk_draw_rgb_32_image           (XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,XLONG,XLONG,SLONG)
+EXTERNAL CFUNCTION gdk_draw_rgb_32_image_dithalign (XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,XLONG,XLONG,SLONG,SLONG,SLONG)
+EXTERNAL CFUNCTION gdk_draw_gray_image             (XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,XLONG,XLONG,SLONG)
+EXTERNAL CFUNCTION gdk_draw_indexed_image          (XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,XLONG,XLONG,SLONG,XLONG)
+EXTERNAL CFUNCTION XLONG gdk_rgb_cmap_new                (XLONG,SLONG)
+EXTERNAL CFUNCTION gdk_rgb_cmap_free               (XLONG)
+
+EXTERNAL CFUNCTION gdk_rgb_set_verbose (SLONG)
+
+'/* experimental colormap stuff */
+EXTERNAL CFUNCTION gdk_rgb_set_install    (SLONG)
+EXTERNAL CFUNCTION gdk_rgb_set_min_colors (SLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_rgb_get_colormap ()
+EXTERNAL CFUNCTION XLONG gdk_rgb_get_visual   ()
+EXTERNAL CFUNCTION SLONG gdk_rgb_ditherable   ()
+EXTERNAL CFUNCTION SLONG gdk_rgb_colormap_ditherable (XLONG)
+
+'#########################
+'########  gdkprivate
+'#########################
+
+EXTERNAL CFUNCTION gdk_window_destroy_notify	     (XLONG)
+
+EXTERNAL CFUNCTION gdk_synthesize_window_state (XLONG,XLONG,XLONG)
+
+'#########################
+'########  gdkregion
+'#########################
+
+'/* GC fill rule for polygons
+' *  EvenOddRule
+' *  WindingRule
+' */
+
+$$GDK_EVEN_ODD_RULE = 0
+$$GDK_WINDING_RULE = 1
+'} GdkFillRule;
+
+'/* Types of overlapping between a rectangle and a region
+' * GDK_OVERLAP_RECTANGLE_IN: rectangle is in region
+' * GDK_OVERLAP_RECTANGLE_OUT: rectangle in not in region
+' * GDK_OVERLAP_RECTANGLE_PART: rectangle in partially in region
+' */
+
+$$GDK_OVERLAP_RECTANGLE_IN = 0
+$$GDK_OVERLAP_RECTANGLE_OUT = 1
+$$GDK_OVERLAP_RECTANGLE_PART = 2
+'} GdkOverlapType;
+
+EXTERNAL CFUNCTION XLONG gdk_region_new             ()
+EXTERNAL CFUNCTION XLONG gdk_region_polygon         (XLONG,SLONG,XLONG)
+EXTERNAL CFUNCTION XLONG gdk_region_copy            (XLONG)
+EXTERNAL CFUNCTION XLONG gdk_region_rectangle       (XLONG)
+EXTERNAL CFUNCTION gdk_region_destroy         (XLONG)
+
+EXTERNAL CFUNCTION gdk_region_get_clipbox     (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_region_get_rectangles  (XLONG,XLONG,
+XLONG)
+
+EXTERNAL CFUNCTION SLONG gdk_region_empty           (XLONG)
+EXTERNAL CFUNCTION SLONG gdk_region_equal           (XLONG,     XLONG)
+EXTERNAL CFUNCTION SLONG gdk_region_point_in        (XLONG,SLONG,SLONG)
+EXTERNAL CFUNCTION XLONG gdk_region_rect_in         (XLONG,      XLONG)
+
+EXTERNAL CFUNCTION gdk_region_offset          (XLONG,SLONG,SLONG)
+EXTERNAL CFUNCTION gdk_region_shrink          (XLONG,SLONG,SLONG)
+EXTERNAL CFUNCTION gdk_region_union_with_rect (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_region_intersect       (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_region_union           (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_region_subtract        (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_region_xor             (XLONG,XLONG)
+
+EXTERNAL CFUNCTION gdk_region_spans_intersect_foreach (XLONG,XLONG,SLONG,SLONG,XLONG,XLONG)
+
+'#########################
+'########  gdkspawn
+'#########################
+
+EXTERNAL CFUNCTION SLONG gdk_spawn_on_screen              (XLONG,XLONG,XLONG,XLONG,XLONG,XLONG,XLONG,XLONG,XLONG)
+
+EXTERNAL CFUNCTION SLONG gdk_spawn_on_screen_with_pipes   (XLONG,XLONG,XLONG,XLONG,XLONG,XLONG,XLONG,XLONG,XLONG,XLONG,XLONG,XLONG)
+
+EXTERNAL CFUNCTION SLONG gdk_spawn_command_line_on_screen (XLONG,XLONG,XLONG)
+
+'#########################
+'########  gdktestutils
+'#########################
+
+'/* --- Gdk Test Utility API --- */
+EXTERNAL CFUNCTION gdk_test_render_sync            (XLONG)
+EXTERNAL CFUNCTION SLONG gdk_test_simulate_key           (XLONG,SLONG,SLONG,ULONG,XLONG,XLONG)
+EXTERNAL CFUNCTION SLONG gdk_test_simulate_button        (XLONG,SLONG,SLONG,ULONG, XLONG,XLONG)
+
+'#########################
+'########  gdkapplaunchcontext
+'#########################
+
+TYPE GDKAPPLAUNCHCONTEXT
+  GAPPLAUNCHCONTEXT .parent_instance
+  XLONG .priv
+END TYPE
+
+EXTERNAL CFUNCTION ULONG gdk_app_launch_context_get_type      ()
+
+EXTERNAL CFUNCTION XLONG gdk_app_launch_context_new           ()
+EXTERNAL CFUNCTION gdk_app_launch_context_set_display   (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_app_launch_context_set_screen    (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_app_launch_context_set_desktop   (XLONG,SLONG)
+EXTERNAL CFUNCTION gdk_app_launch_context_set_timestamp (XLONG,ULONG)
+EXTERNAL CFUNCTION gdk_app_launch_context_set_icon      (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_app_launch_context_set_icon_name (XLONG,XLONG)
+
+'#########################
+'########  gdkcairo
+'#########################
+
+EXTERNAL CFUNCTION XLONG gdk_cairo_create            (XLONG)
+
+EXTERNAL CFUNCTION gdk_cairo_set_source_color  (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_cairo_set_source_pixbuf (XLONG,XLONG,DOUBLE,DOUBLE)
+EXTERNAL CFUNCTION gdk_cairo_set_source_pixmap (XLONG,XLONG,DOUBLE,DOUBLE)
+
+EXTERNAL CFUNCTION gdk_cairo_rectangle         (XLONG,XLONG)
+EXTERNAL CFUNCTION gdk_cairo_region            (XLONG,XLONG)
+
+'#########################
+'########  gdkwin32
+'#########################
+
+'/* Return the Gdk* for a particular HANDLE */
+EXTERNAL CFUNCTION SLONG gdk_win32_handle_table_lookup (XLONG)
+
+'/* Translate from drawable to Windows handle */
+EXTERNAL CFUNCTION XLONG gdk_win32_drawable_get_handle (XLONG)
+
+'/* Return a device context to draw in a drawable, given a GDK GC,
+' * and a mask indicating which GC values might be used (for efficiency,
+' * no need to muck around with text-related stuff if we aren't going
+' * to output text, for instance).
+' */
+EXTERNAL CFUNCTION XLONG gdk_win32_hdc_get      (XLONG,XLONG,XLONG)
+
+'/* Each HDC returned from gdk_win32_hdc_get must be released with
+' * this function
+' */
+EXTERNAL CFUNCTION gdk_win32_hdc_release  (XLONG,XLONG,XLONG)
+
+EXTERNAL CFUNCTION gdk_win32_selection_add_targets (XLONG,XLONG,SLONG,XLONG)
+
+'#########################
+'########  gdkpixbuf
+'#########################
+
+'/* Rendering to a drawable */
+
+EXTERNAL CFUNCTION gdk_pixbuf_render_threshold_alpha   (XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,SLONG,SLONG,SLONG)
+
+EXTERNAL CFUNCTION gdk_pixbuf_render_to_drawable       (XLONG,XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,SLONG,SLONG,XLONG,SLONG,SLONG)
+EXTERNAL CFUNCTION gdk_pixbuf_render_to_drawable_alpha (XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,SLONG,SLONG,XLONG,SLONG,XLONG,SLONG,SLONG)
+
+EXTERNAL CFUNCTION gdk_pixbuf_render_pixmap_and_mask_for_colormap (XLONG,XLONG,XLONG,XLONG,SLONG)
+EXTERNAL CFUNCTION gdk_pixbuf_render_pixmap_and_mask              (XLONG,XLONG,XLONG,SLONG)
+
+'/* Fetching a region from a drawable */
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_get_from_drawable (XLONG,XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,SLONG,SLONG)
+
+EXTERNAL CFUNCTION XLONG gdk_pixbuf_get_from_image    (XLONG,XLONG,XLONG,SLONG,SLONG,SLONG,SLONG,SLONG,SLONG)

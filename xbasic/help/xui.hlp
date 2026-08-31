@@ -1,0 +1,3087 @@
+:Xui()
+
+####################  Initialization / entry function
+#####  Xui ()  #####
+####################  NOTE:  No PRINT statements before CreateWindows()
+
+FUNCTION  Xui ()
+:XuiAlignNameToNumber()
+#####################################
+#####  XuiAlignNameToNumber ()  #####
+#####################################
+
+	error = XuiAlignNameToNumber (align$, @align)
+
+FUNCTION  XuiAlignNameToNumber (align$, align)
+:XuiAlignNumberToName()
+#####################################
+#####  XuiAlignNumberToName ()  #####
+#####################################
+
+	XuiAlignNumberToName (align, @align$)
+
+FUNCTION  XuiAlignNumberToName (align, align$)
+:XuiArea()
+########################
+#####  XuiArea ()  #####
+########################
+
+	XuiArea (@grid, #Create, x, y, width, height, window, parent)
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiArea (grid, message, v0, v1, v2, v3, r0, (r1, r1$))
+:XuiBase()
+########################
+#####  XuiBase ()  #####
+########################
+
+	XuiBase (@grid, #Create, x, y, width, height, window, parent)
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiBase (grid, message, v0, v1, v2, v3, r0, (r1, r1$))
+:XuiCallback()
+############################
+#####  XuiCallback ()  #####
+############################
+
+	See: SetCallback, XuiGetCallback(), XuiGetNextCallback(), XuiQueueCallbacks(), XuiSetCallback()
+
+FUNCTION  XuiCallback (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiCanNameToNumber()
+###################################
+#####  XuiCanNameToNumber ()  #####
+###################################
+
+	error = XuiCanNameToNumber (can$, @can)
+
+FUNCTION  XuiCanNameToNumber (can$, can)
+:XuiCanNumberToName()
+###################################
+#####  XuiCanNumberToName ()  #####
+###################################
+
+	XuiCanNumberToName (can, @can$)
+
+FUNCTION  XuiCanNumberToName (can, can$)
+:XuiCanNumberToString()
+#####################################
+#####  XuiCanNumberToString ()  #####
+#####################################
+
+	XuiCanNumberToString (can, @can$)
+
+FUNCTION  XuiCanNumberToString (can, can$)
+:XuiCanStringToNumber()
+#####################################
+#####  XuiCanStringToNumber ()  #####
+#####################################
+
+	XuiCanStringToNumber (can$, @can)
+
+FUNCTION  XuiCanStringToNumber (can$, can)
+:XuiCheckBox()
+############################
+#####  XuiCheckBox ()  #####
+############################
+
+	XuiCheckBox (@grid, #Create, x, y, width, height, window, parent)
+
+		$Style0 = 0		' x style checkbox, yellow background
+		$Style1 = 1		' check style checkbox, yellow background
+	$Style2 = 2		' x style checkbox, white background, recessed border
+	$Style3 = 3		' check style checkbox, white background, recessed border
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiCheckBox (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiCloseWindow()
+###############################
+#####  XuiCloseWindow ()  #####
+###############################
+
+	XuiCloseWindow (grid, #CloseWindow, 0, 0, 0, 0, 0, 0)
+
+	See: CloseWindow
+
+FUNCTION  XuiCloseWindow (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiColor()
+#########################
+#####  XuiColor ()  #####
+#########################
+
+	XuiColor (@grid, #CreateWindow, x, y, w, h, windowType, "")
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiColor (grid, message, v0, v1, v2, v3, r0, (r1, r1$))
+:XuiColors()
+##########################
+#####  XuiColors ()  #####
+##########################
+
+	XuiColors (@grid, #CreateWindow, x, y, w, h, windowType, "")
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiColors (grid, message, v0, v1, v2, v3, r0, (r1, r1$))
+:XuiConsole()
+###########################
+#####  XuiConsole ()  #####
+###########################
+
+	Only use XstCreateConsole() and/or XstDisplayConsole() to create a console window
+	in a stand-alone program.
+
+		See: XstClearConsole(), XstCreateConsole(), XstDisplayConsole(),
+	     XstHideConsole(), XstShowConsole()
+
+FUNCTION  XuiConsole (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiCoordinate()
+##############################
+#####  XuiCoordinate ()  #####
+##############################
+
+FUNCTION  XuiCoordinate (grid, message, v0, v1, v2, v3, r0, (r1, r1[], r1$, r1$[]))
+:XuiCreateGrid()
+##############################
+#####  XuiCreateGrid ()  #####
+##############################
+
+	XuiCreateGrid (@grid, gridType, x, y, w, h, window, parent, func)
+
+	NOTE: Negative grid types to XgrCreateGrid() and XuiCreateGrid()
+					create grids in the disabled state.  They can be enabled
+					later with XgrSetGridState (grid, $$TRUE) or #Enable.
+
+	See: Create
+
+FUNCTION  XuiCreateGrid (grid, gt, x, y, width, height, window, parent, func)
+:XuiCreateValueArray()
+####################################
+#####  XuiCreateValueArray ()  #####
+####################################
+
+	XuiCreateValueArray (grid, #CreateValueArray, uBound, 0, 0, 0, kid, 0)
+
+FUNCTION  XuiCreateValueArray (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiCreateWindow()
+################################
+#####  XuiCreateWindow ()  #####
+################################
+
+	XuiCreateWindow (@grid, gridType$, xDisp, yDisp, width, height, winTypeParent, "")
+
+	See: CreateWindow
+
+FUNCTION  XuiCreateWindow (grid, gridType$, xDisp, yDisp, width, height, winType, display$)
+:XuiDestroy()
+###########################
+#####  XuiDestroy ()  #####
+###########################
+
+	XuiDestroy (grid, #Destroy, 0, 0, 0, 0, kid, 0)
+
+	See: Destroy
+
+FUNCTION  XuiDestroy (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiDestroyWindow()
+#################################
+#####  XuiDestroyWindow ()  #####
+#################################
+
+	XuiDestroyWindow (grid, #DestroyWindow, 0, 0, 0, 0, kid, 0)
+
+	See: DestroyWindow
+
+FUNCTION  XuiDestroyWindow (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiDialog()
+##########################
+#####  XuiDialog ()  #####
+##########################
+
+	XuiDialog (message$, default$, @kid, @reply$)
+
+	message$ - display this string on Label grid of XuiDialog2B
+	default$ - display this input string in TextLine of XuiDialog2B
+	kid - kid number of the XuiDialog2B that received the user response
+	reply$ - content of the TextLine when XuiDialog2B got user response
+
+	See: XuiGetReply(), XuiMessage(), XuiMessageRetry(), XuiGetResponse()
+
+FUNCTION  XuiDialog (prompt$, default$, reply, reply$)
+:XuiDialog2B()
+############################
+#####  XuiDialog2B ()  #####  Label, TextLine, and 2 PushButtons
+############################
+
+	XuiDialog2B (@grid, #CreateWindow, x, y, w, h, windowType, "")
+
+	See: XuiDialog(), XuiGetReply(), XuiGetResponse()
+
+FUNCTION  XuiDialog2B (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiDialog3B()
+############################
+#####  XuiDialog3B ()  #####  Label, TextLine, 3 PushButtons
+############################
+
+	See: XuiDialog(), XuiGetReply(), XuiGetResponse()
+
+FUNCTION  XuiDialog3B (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiDialog4B()
+############################
+#####  XuiDialog4B ()  #####  Label, TextLine, 4 PushButtons
+############################
+
+	See: XuiDialog(), XuiGetReply(), XuiGetResponse()
+
+FUNCTION  XuiDialog4B (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiDisable()
+###########################
+#####  XuiDisable ()  #####
+###########################
+
+	XuiDisable (grid, #Disable, 0, 0, 0, 0, kid, 0)
+
+	See: Disable
+
+FUNCTION  XuiDisable (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiDisplayed()
+#############################
+#####  XuiDisplayed ()  #####
+#############################
+
+	XuiDisplayed (grid, #Displayed, 0, 0, 0, 0, kid, 0)
+
+	See: Displayed
+
+FUNCTION  XuiDisplayed (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiDisplayWindow()
+#################################
+#####  XuiDisplayWindow ()  #####
+#################################
+
+	XuiDisplayWindow (grid, #DisplayWindow, 0, 0, 0, 0, kid, 0)
+
+	See: DisplayWindow
+
+FUNCTION  XuiDisplayWindow (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiDriveBox()
+############################
+#####  XuiDriveBox ()  #####
+############################
+
+	XuiDriveBox (@grid, #CreateWindow, x, y, w, h, windowType, "")
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiDriveBox (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiDropBox()
+###########################
+#####  XuiDropBox ()  #####
+###########################
+
+	XuiDropBox (@grid, #Create, x, y, width, height, window, parent)
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiDropBox (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiDropButton()
+##############################
+#####  XuiDropButton ()  #####
+##############################
+
+	XuiDropBox (@grid, #Create, x, y, width, height, window, parent)
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiDropButton (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiEditCopy()
+############################
+#####  XuiEditCopy ()  #####
+############################
+
+	XuiEditCopy (bufferNumber)
+
+	Copies the selected text into the
+	clipboard text buffer
+
+	The same as Ctrl+C or Ctrl+Insert
+
+FUNCTION  XuiEditCopy (bufferNumber)
+:XuiEditCut()
+###########################
+#####  XuiEditCut ()  #####
+###########################
+
+	XuiEditCut (bufferNumber)
+
+	Copies the selected text into the
+	clipboard text buffer, and
+	deletes the selected text.
+
+	The same as Ctrl-X
+
+FUNCTION  XuiEditCut (bufferNumber)
+:XuiEditPaste()
+#############################
+#####  XuiEditPaste ()  #####
+#############################
+
+	XuiEditPaste (pasteGrid, bufferNumber)
+
+	Copies text from the clipboard text buffer,
+	and puts it into the pasteGrid text at
+	the curent cursor position.
+
+	If the pasteGrid has selected text,
+	it is replaced with buffer text.
+
+	If no pasteGrid is specified, the text is
+	pasted into the grid with keyboard focus.
+
+	Ctrl+V or
+	Shift+ Insert
+	       will paste the default buffer text
+	       into the grid with keyboard focus.
+
+FUNCTION  XuiEditPaste (pasteGrid, bufferNumber)
+:XuiEnable()
+##########################
+#####  XuiEnable ()  #####
+##########################
+
+	XuiEnable (grid, #Enable, 0, 0, 0, 0, kid, 0)
+
+	See: Enable
+
+FUNCTION  XuiEnable (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiFile()
+########################
+#####  XuiFile ()  #####
+########################
+
+	XuiFile (@fileWindow, #CreateWindow, x, y, w, h, windowType, "")
+
+	XuiGetResponse (@"XuiFile", @"", "", "", @v0, @v1, @kid, @filename$)
+	IF (v0 = -1) THEN filename$ = ""
+
+	See: CreateWindow, XstFileSelect(), XstFileSelectOpen(), XstFileSelectSetInfo()
+
+FUNCTION  XuiFile (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiFont()
+########################
+#####  XuiFont ()  #####
+########################
+
+	 XuiFont (@grid, #CreateWindow, x, y, w, h, windowType, 0)
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiFont (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiGetAlign()
+############################
+#####  XuiGetAlign ()  #####
+############################
+
+	XuiGetAlign (grid, #GetAlign, @align, @justify, @indentLeft, @indentTop, kid, @borderWidth)
+
+	See: GetAlign
+
+FUNCTION  XuiGetAlign (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetBorder()
+#############################
+#####  XuiGetBorder ()  #####
+#############################
+
+	XuiGetBorder (grid, #GetBorder, @border, @borderUp, @borderDown, @borderExit, kid, @width)
+
+	See: GetBorder
+
+FUNCTION  XuiGetBorder (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetBorderOffset()
+###################################
+#####  XuiGetBorderOffset ()  #####
+###################################
+
+	XuiGetBorderOffset (grid, #GetBorderOffset, @offsetLeft, @offsetTop, @offsetRight, @offsetBottom, kid, @borderWidth)
+
+	See: GetBorderOffset, SetBorderOffset
+
+FUNCTION  XuiGetBorderOffset (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetCallback()
+###############################
+#####  XuiGetCallback ()  #####
+###############################
+
+	XuiGetCallback (grid, #GetCallback, @callGrid, @callFunc, @v2, @v3, @r0, @r1)
+
+	See: SetCallback, XuiCallback(), XuiGetNextCallback(), XuiQueueCallbacks(), XuiSetCallback()
+
+FUNCTION  XuiGetCallback (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiGetCan()
+##########################
+#####  XuiGetCan ()  #####
+##########################
+
+	XuiGetCan (grid, #GetCan, @can, @focusKid, @inputTextArray, @inputTextString, kid, @redrawFlags)
+
+	See: GetCan, SetCan
+
+FUNCTION  XuiGetCan (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetCharacterMapArray()
+########################################
+#####  XuiGetCharacterMapArray ()  #####
+########################################
+
+	XuiGetCharacterMapArray (grid, #GetCharacterMapArray, 0, 0, 0, 0, kid, @characterMapArray[])
+
+	See: GetCharacterMapArray
+
+FUNCTION  XuiGetCharacterMapArray (grid, message, v0, v1, v2, v3, kid, (r1, r1[]))
+:XuiGetCharacterMapEntry()
+########################################
+#####  XuiGetCharacterMapEntry ()  #####
+########################################
+
+	XuiGetCharacterMapEntry (grid, #GetCharacterMapEntry, character, @character, 0, 0, kid, 0)
+
+	See: GetCharacterMapEntry, SetCharacterMapEntry
+
+FUNCTION  XuiGetCharacterMapEntry (grid, message, v0, v1, v2, v3, kid, (r1, r1[]))
+:XuiGetClipGrid()
+###############################
+#####  XuiGetClipGrid ()  #####
+###############################
+
+	XuiGetClipGrid (grid, #GetClipGrid, @clip, 0, 0, 0, kid, 0)
+
+	See: GetClipGrid, SetClipGrid
+
+FUNCTION  XuiGetClipGrid (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetColor()
+############################
+#####  XuiGetColor ()  #####
+############################
+
+	XuiGetColor (grid, #GetColor, @backgroundColor, @drawingColor, @lowlightColor, @highlightColor, kid, 0)
+
+	See: GetColor
+
+FUNCTION  XuiGetColor (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetColorExtra()
+#################################
+#####  XuiGetColorExtra ()  #####
+#################################
+
+	XuiGetColorExtra (grid, #GetColorExtra, @dullColor, @accentColor, @lowtextColor, @hightextColor, kid, 0)
+
+	See: GetColorExtra
+
+FUNCTION  XuiGetColorExtra (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetCursor()
+#############################
+#####  XuiGetCursor ()  #####
+#############################
+
+	XuiGetCursor (grid, #GetCursor, @cursor, 0, 0, 0, kid, 0)
+
+	See: GetCursor
+
+FUNCTION  XuiGetCursor (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetDefaultColors()
+####################################
+#####  XuiGetDefaultColors ()  #####
+####################################
+
+	XuiGetDefaultColors (@back, @draw, @low, @high, @dull, @acc, @lowtext, @hightext)
+
+	See: XuiSetDefaultColors()
+
+FUNCTION  XuiGetDefaultColors (back, draw, low, high, dull, acc, lowtext, hightext)
+:XuiGetDefaultCursor()
+####################################
+#####  XuiGetDefaultCursor ()  #####
+####################################
+
+	XuiGetDefaultCursor (@cursor)
+
+	See: XuiSetDefaultCursor()
+
+FUNCTION  XuiGetDefaultCursor (cursor)
+:XuiGetDefaultMessageFuncArray()
+##############################################
+#####  XuiGetDefaultMessageFuncArray ()  #####
+##############################################
+
+	XuiGetDefaultMessageFuncArray (@func[])
+
+FUNCTION  XuiGetDefaultMessageFuncArray (func[])
+:XuiGetDisplay()
+##############################
+#####  XuiGetDisplay ()  #####
+##############################
+
+	XuiGetDisplay (grid, #GetDisplay, 0, 0, 0, 0, kid, @display$)
+
+	See: GetDisplay
+
+FUNCTION  XuiGetDisplay (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGetEnclosedGrids()
+####################################
+#####  XuiGetEnclosedGrids ()  #####
+####################################
+
+	XuiGetEnclosedGrids (grid, #GetEnclosedGrids, 0, 0, 0, 0, kid, @enclosedGrids[])
+
+	See: GetEnclosedGrids, GetEnclosingGrid
+
+FUNCTION  XuiGetEnclosedGrids (grid, message, v0, v1, v2, v3, kid, (r1, r1[]))
+:XuiGetEnclosingGrid()
+####################################
+#####  XuiGetEnclosingGrid ()  #####
+####################################
+
+	XuiGetEnclosingGrid (grid, #GetEnclosingGrid, @enclosingGrid, 0, 0, 0, kid, 0)
+
+	See: GetEnclosedGrids, GetEnclosingGrid
+
+FUNCTION  XuiGetEnclosingGrid (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetFocusColor()
+#################################
+#####  XuiGetFocusColor ()  #####
+#################################
+
+	XuiGetFocusColor (grid, #GetFocusColor, @focusBack, @focusDraw, @focusLow, @focusHigh, kid, 0)
+
+	See: GetFocusColor
+
+FUNCTION  XuiGetFocusColor (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetFocusColorExtra()
+######################################
+#####  XuiGetFocusColorExtra ()  #####
+######################################
+
+	XuiGetFocusColorExtra (grid, #GetFocusColorExtra, @focusDull, @focusAccent, @focusLoText, @focusHiText, kid, r1)
+
+	See: GetFocusColorExtra
+
+FUNCTION  XuiGetFocusColorExtra (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetFont()
+###########################
+#####  XuiGetFont ()  #####
+###########################
+
+	XuiGetFont (grid, #GetFont, @size, @weight, @italic, @angle, kid, @font$)
+
+	See: GetFont
+
+FUNCTION  XuiGetFont (grid, message, v0, v1, v2, v3, kid, (r1, r1$))
+:XuiGetFontMetrics()
+##################################
+#####  XuiGetFontMetrics ()  #####
+##################################
+
+	XuiGetFontMetrics (grid, #GetFontMetrics, @maxCharWidth, @maxCharHeight, @ascent, @decent, kid, @gap)
+
+	See: GetFontMetrics, XgrGetFontMetrics()
+
+FUNCTION  XuiGetFontMetrics (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetFontNumber()
+#################################
+#####  XuiGetFontNumber ()  #####
+#################################
+
+	XuiGetFontNumber (grid, #GetFontNumber, @font, 0, 0, 0, kid, 0)
+
+	See: GetFontNumber
+
+FUNCTION  XuiGetFontNumber (grid, message, v0, v1, v2, v3, kid, (r1, r1$))
+:XuiGetGridFunction()
+###################################
+#####  XuiGetGridFunction ()  #####
+###################################
+
+	XuiGetGridFunction (grid, #GetGridFunction, @func, 0, 0, 0, kid, 0)
+
+	See: GetGridFunction, XgrGetGridFunction()
+
+FUNCTION  XuiGetGridFunction (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetGridFunctionName()
+#######################################
+#####  XuiGetGridFunctionName ()  #####
+#######################################
+
+	XuiGetGridFunctionName (grid, #GetGridFunctionName, @func, 0, 0, 0, kid, @func$)
+
+	See: GetGridFunctionName
+
+FUNCTION  XuiGetGridFunctionName (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGetGridName()
+###############################
+#####  XuiGetGridName ()  #####
+###############################
+
+	XuiGetGridName (grid, #GetGridName, @gridNumber, 0, 0, 0, kid, @gridName$)
+
+	See: GetGridName
+
+FUNCTION  XuiGetGridName (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGetGridNumber()
+#################################
+#####  XuiGetGridNumber ()  #####
+#################################
+
+	XuiGetGridNumber (grid, #GetGridNumber, @gridNumber, @kid1, @kid2, @kid3, kid, @parent)
+
+	See: GetGridNumber
+
+FUNCTION  XuiGetGridNumber (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetGridProperties()
+#####################################
+#####  XuiGetGridProperties ()  #####
+#####################################
+
+	XuiGetGridProperties (grid, #GetGridProperties, 0, 0, 0, 0, kid, @properties$[])
+
+	See: GetGridProperties
+
+FUNCTION  XuiGetGridProperties (grid, message, v0, v1, v2, v3, kid, r1$[])
+:XuiGetGridProperty()
+###################################
+#####  XuiGetGridProperty ()  #####
+###################################
+
+	XuiGetGridProperty (grid, kid, property$, @v)
+
+	See: GetGridProperties
+
+FUNCTION  XuiGetGridProperty (grid, kid, property$, (v, v[], v$, v$[]))
+:XuiGetGridRegion()
+#################################
+#####  XuiGetGridRegion ()  #####
+#################################
+
+	XuiGetGridRegion (grid, x, y, @region, @cursor, @default)
+
+FUNCTION  XuiGetGridRegion (grid, x, y, region, cursor, default)
+:XuiGetGridType()
+###############################
+#####  XuiGetGridType ()  #####
+###############################
+
+	XuiGetGridType (grid, #GetGridType, @gridType, 0, 0, 0, kid, 0)
+
+	See: GetGridType
+
+FUNCTION  XuiGetGridType (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetGridTypeGrids()
+####################################
+#####  XuiGetGridTypeGrids ()  #####
+####################################
+
+	error = XuiGetGridTypeGrids (gridType, @g[])
+
+	Returns a list of grids g[] that are of the given gridType
+
+FUNCTION  XuiGetGridTypeGrids (gridType, @g[])
+:XuiGetGridTypeMessageFuncArray()
+###############################################
+#####  XuiGetGridTypeMessageFuncArray ()  #####
+###############################################
+
+	XuiGetGridTypeMessageFuncArray (gridType, @func[])
+
+FUNCTION  XuiGetGridTypeMessageFuncArray (gridType, func[])
+:XuiGetGridTypeMessageSubArray()
+##############################################
+#####  XuiGetGridTypeMessageSubArray ()  #####
+##############################################
+
+	XuiGetGridTypeMessageSubArray (gridType, @sub[])
+
+FUNCTION  XuiGetGridTypeMessageSubArray (gridType, SUBADDR sub[])
+:XuiGetGridTypeName()
+###################################
+#####  XuiGetGridTypeName ()  #####
+###################################
+
+	XuiGetGridTypeName (grid, #GetGridTypeName, @gridType, 0, 0, 0, kid, gridType$)
+
+	See: GetGridTypeName
+
+FUNCTION  XuiGetGridTypeName (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGetGridTypeProperty()
+#######################################
+#####  XuiGetGridTypeProperty ()  #####
+#######################################
+
+	XuiGetGridTypeProperty (gridType, property$, @value)
+
+	Get the value of a property name within a grid type number
+
+	This function does the same thing as XuiGetGridTypeValue()
+
+FUNCTION  XuiGetGridTypeProperty (gridType, property$, value)
+:XuiGetGridTypeValue()
+####################################
+#####  XuiGetGridTypeValue ()  #####
+####################################
+
+	XuiGetGridTypeValue (gridType, property$, @value)
+
+	Get the value of a property name within a grid type number
+
+	This function does the same thing as XuiGetGridTypeProperty()
+
+FUNCTION  XuiGetGridTypeValue (gridType, property$, value)
+:XuiGetGridValue()
+################################
+#####  XuiGetGridValue ()  #####
+################################
+
+	XuiGetGridValue (grid, property$, @value)
+
+	This function is the same as XuiGetGridProperty() except
+	that it does not take a kid number.
+
+FUNCTION  XuiGetGridValue (grid, property$, value)
+:XuiGetGroup()
+############################
+#####  XuiGetGroup ()  #####
+############################
+
+	XuiGetGroup (grid, #GetGroup, @group, 0, 0, 0, kid, 0)
+
+	See: GetGroup, SetGroup
+
+FUNCTION  XuiGetGroup (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetHelp()
+###########################
+#####  XuiGetHelp ()  #####
+###########################
+
+	XuiGetHelp (grid, #GetHelp, x, y, state, time, @kid, @help$)
+
+	See: GetHelp
+
+FUNCTION  XuiGetHelp (grid, message, v0, v1, v2, v3, r0, r1$)
+:XuiGetHelpFile()
+###############################
+#####  XuiGetHelpFile ()  #####
+###############################
+
+	XuiGetHelpFile (grid, #GetHelpFile, 0, 0, 0, 0, kid, @helpfile$)
+
+	See: GetHelpFile
+
+FUNCTION  XuiGetHelpFile (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGetHelpString()
+#################################
+#####  XuiGetHelpString ()  #####
+#################################
+
+	XuiGetHelpString (grid, #GetHelpString, 0, 0, 0, 0, kid, @help$)
+
+	See: GetHelpString
+
+FUNCTION  XuiGetHelpString (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGetHelpStrings()
+##################################
+#####  XuiGetHelpStrings ()  #####
+##################################
+
+	XuiGetHelpStrings (grid, #GetHelpStrings, 0, 0, 0, 0, kid, @help$[])
+
+	See: GetHelpStrings
+
+FUNCTION  XuiGetHelpStrings (grid, message, v0, v1, v2, v3, kid, r1$[])
+:XuiGetHelpWindowGrid()
+#####################################
+#####  XuiGetHelpWindowGrid ()  #####
+#####################################
+
+	XuiGetHelpWindowGrid (@window, @grid)
+
+FUNCTION  XuiGetHelpWindowGrid (window, grid)
+:XuiGetHintString()
+#################################
+#####  XuiGetHintString ()  #####
+#################################
+
+	XuiSendMessage (grid, #GetHintString, 0, 0, 0, 0, kid, @hintString$)
+
+	See: GetHintString, SetHintString
+
+FUNCTION  XuiGetHintString (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGetImage()
+############################
+#####  XuiGetImage ()  #####
+############################
+
+	XuiGetImage (grid, #GetImage, @image, @align, @indentX, @indentY, kid, 0)
+
+	See: GetImage, SetImage
+
+FUNCTION  XuiGetImage (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGetImageCoords()
+##################################
+#####  XuiGetImageCoords ()  #####
+##################################
+
+	XuiGetImageCoords (grid, #GetImageCoords, @offsetX, @offsetY, @width, @height, kid, 0)
+
+	See: GetImageCoords
+
+FUNCTION  XuiGetImageCoords (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetIndent()
+#############################
+#####  XuiGetIndent ()  #####
+#############################
+
+	XuiGetIndent (grid, #GetIndent, @indentLeft, @indentTop, @indentRight, @indentBottom, kid, @bw)
+
+	See: GetIndent
+
+FUNCTION  XuiGetIndent (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetInfo()
+###########################
+#####  XuiGetInfo ()  #####
+###########################
+
+	XuiGetInfo (grid, #GetInfo, 0, 0, 0, 0, kid, @gridInfo)
+
+	gridInfo must be of TYPE GRID
+
+FUNCTION  XuiGetInfo (grid, message, v0, v1, v2, v3, kid, GRID r1)
+:XuiGetJustify()
+##############################
+#####  XuiGetJustify ()  #####
+##############################
+
+	XuiGetJustify (grid, #GetJustify, @justify, @align, @inL, @inT, kid, @bw)
+
+	See: GetJustify
+
+FUNCTION  XuiGetJustify (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetKeyboardFocus()
+####################################
+#####  XuiGetKeyboardFocus ()  #####
+####################################
+
+	XuiGetKeyboardFocus (grid, #GetKeyboardFocus, @focusGrid, 0, 0, 0, kid, 0)
+
+	See: GetKeyboardFocus
+
+FUNCTION  XuiGetKeyboardFocus (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetKeyboardFocusGrid()
+########################################
+#####  XuiGetKeyboardFocusGrid ()  #####
+########################################
+
+	XuiGetKeyboardFocusGrid (grid, #GetKeyboardFocusGrid, @focusGrid, 0, 0, 0, kid, 0)
+
+	See: GetKeyboardFocusGrid
+
+FUNCTION  XuiGetKeyboardFocusGrid (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetKidArray()
+###############################
+#####  XuiGetKidArray ()  #####
+###############################
+
+	XuiGetKidArray (grid, #GetKidArray, @g, @parent, 0, lastkid, kid, @kid[])
+
+	See: GetKidArray
+
+FUNCTION  XuiGetKidArray (grid, message, v0, v1, v2, v3, kid, r1[])
+:XuiGetKidGridNumber()
+####################################
+#####  XuiGetKidGridNumber ()  #####
+####################################
+
+	kidGrid = XuiGetKidGridNumber (grid, kid)
+
+	Returns the grid number of the kid of the grid,
+	or zero if that kid does not exist.
+
+FUNCTION  XuiGetKidGridNumber (grid, kid)
+:XuiGetKidNumber()
+################################
+#####  XuiGetKidNumber ()  #####
+################################
+
+	XuiGetKidNumber (grid, #GetKidNumber, @kidNumber, @parent, 0, 0, kid, 0)
+
+	See: GetKidNumber
+
+FUNCTION  XuiGetKidNumber (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetKids()
+###########################
+#####  XuiGetKids ()  #####
+###########################
+
+	XuiGetKids (grid, #GetKids, @g, @k1, @k2, @k3, kid, @k4)
+
+	g is the grid number of the requested kid
+
+	See: GetKids
+
+FUNCTION  XuiGetKids (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetMaxMinSize()
+#################################  IMPORTANT NOTE:  The order of v0,v1,v2,v3
+#####  XuiGetMaxMinSize ()  #####  is chosen so XuiGetMaxMinSize() can stand in for
+#################################  #GetSmallestSize...  Don't change 'em !!!
+
+	XuiGetMaxMinSize (grid, #GetMaxMinSize, @maxWidth, @maxHeight, @minWidth, @minHeight, kid, 0)
+
+	See: GetMaxMinSize
+
+FUNCTION  XuiGetMaxMinSize (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetMenuEntryArray()
+#####################################
+#####  XuiGetMenuEntryArray ()  #####
+#####################################
+
+	XuiGetMenuEntryArray (grid, #GetMenuEntryArray, 0, 0, 0, 0, kid, @memuEntry[])
+
+	This is only used by XuiMenu()
+
+FUNCTION  XuiGetMenuEntryArray (grid, message, v0, v1, v2, v3, kid, (r1, MENUENTRY r1[]))
+:XuiGetMessageFunc()
+##################################
+#####  XuiGetMessageFunc ()  #####
+##################################
+
+	XuiGetMessageFunc (grid, #GetMessageFunc, message, @func, 0, 0, 0, 0)
+
+	if message function is XuiPassOn() then get message function from kid #1
+
+	See: GetMessageFunc
+
+FUNCTION  XuiGetMessageFunc (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiGetMessageFuncArray()
+#######################################
+#####  XuiGetMessageFuncArray ()  #####
+#######################################
+
+	XuiGetMessageFuncArray (grid, #GetMessageFuncArray, 0, 0, 0, 0, 0, @func[])
+
+	See: GetMessageFuncArray, XuiGetDefaultMessageFuncArray()
+
+FUNCTION  XuiGetMessageFuncArray (grid, message, v0, v1, v2, v3, r0, r1[])
+:XuiGetMessageSub()
+#################################
+#####  XuiGetMessageSub ()  #####
+#################################
+
+	XuiGetMessageSub (grid, #GetMessageSub, message, @sub, 0, 0, 0, 0)
+
+	if no message sub or message function is XuiPassOn() then get message sub from kid #1
+
+	See: GetMessageSub
+
+FUNCTION  XuiGetMessageSub (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiGetMessageSubArray()
+######################################
+#####  XuiGetMessageSubArray ()  #####
+######################################
+
+	XuiGetMessageSubArray (grid, #GetMessageSubArray, 0, 0, 0, 0, 0, @sub[])
+
+	See: GetMessageSubArray
+
+FUNCTION  XuiGetMessageSubArray (grid, message, v0, v1, v2, v3, r0, r1[])
+:XuiGetModalInfo()
+################################
+#####  XuiGetModalInfo ()  #####  grid must be a windowGrid
+################################
+
+	XuiGetModalInfo (grid, #GetModalInfo, @v0, @v1, @v2, @v3, @r0, @r1)
+
+	Display modal window and accept response,
+	arguments returned by response callback
+
+FUNCTION  XuiGetModalInfo (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiGetModalWindow()
+##################################
+#####  XuiGetModalWindow ()  #####  grid must be a windowGrid
+##################################
+
+	XuiGetModalWindow (grid, #GetModalWindow, @modalWindow, @modalGrid, 0, 0, 0, 0)
+
+	See: GetModalWindow
+
+FUNCTION  XuiGetModalWindow (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiGetNextCallback()
+###################################
+#####  XuiGetNextCallback ()  #####
+###################################
+
+	XuiGetNextCallback (@grid, @message$, @v0, @v1, @v2, @v3, @winkid, @gridName$)
+	win = winkid >> 16
+	kid = winkid AND 0xFFFF
+
+	This function is used in the "convenience function message loop"
+	in most standard GUI programs to remove messages from the callback
+	message queue. Messages are put in the queue by XuiQueueCallbacks()
+	when it is specified in the SetCallback message such as follows:
+
+	XuiSendMessage (grid, #SetCallback, callGrid, &XuiQueueCallbacks(), v2, v3, win, r1)
+
+	Values supplied in v2 and v3 are returned in XuiGetNextCallback()
+	unless they are set to -1 in which case the values from the callback
+	are passed through.
+	The win, if set in r0, is shifted left 16 bits and OR'd with the kid from
+	the Callback to be the winkid in the XuiGetNextCallback(). Demo program
+	"aeasy.x" demonstrates how this is used.
+
+	See: SetCallback, XuiCallback(), XuiGetCallback(), XuiQueueCallbacks(), XuiSetCallback()
+
+FUNCTION  XuiGetNextCallback (grid, message$, v0, v1, v2, v3, r0, r1$)
+:XuiGetParent()
+#############################
+#####  XuiGetParent ()  #####
+#############################
+
+	XuiGetParent (grid, #GetParent, @parent, @kidGrid, @kid1, @kid2, kid, @kid3)
+
+	See: GetParent
+
+FUNCTION  XuiGetParent (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetPropertyDatabase()
+#######################################
+#####  XuiGetPropertyDatabase ()  #####
+#######################################
+
+	XuiGetPropertyDatabase (@text$[])
+
+	See: XuiSetPropertyDatabase()
+
+FUNCTION  XuiGetPropertyDatabase (text$[])
+:XuiGetRedrawFlags()
+##################################
+#####  XuiGetRedrawFlags ()  #####
+##################################
+
+	XuiGetRedrawFlags (grid, #GetRedrawFlags, @redrawFlags, 0, 0, 0, kid, 0)
+
+	See: GetRedrawFlags
+
+FUNCTION  XuiGetRedrawFlags (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetReply()
+############################
+#####  XuiGetReply ()  #####
+############################
+
+	XuiGetReply (grid, title$, message$, grids$, @v0, @v1, @kid, @reply$)
+
+	grid - grid number of an existing grid
+	title$ - display this string on the window title bar
+	message$ - display this string on the first kid that is a Label grid
+	grids$ - display these strings on the grids following the Label grid
+	v0, v1 - copies of the v0, v1 arguments returned by the gridTypes$ grid
+	kid - kid number in gridTypes$ that receive user response
+	reply$ - contents of textString or textArray as defined in gridTypes$
+
+	See: XuiDialog(), XuiGetResponse(), XuiMessage(), XuiMessageRetry()
+
+FUNCTION  XuiGetReply (grid, title$, prompt$, grids$, v0, v1, reply, reply$)
+:XuiGetResponse()
+###############################
+#####  XuiGetResponse ()  #####
+###############################
+
+	XuiGetResponse (gridTypeName$, title$, message$, grids$, @v0, @v1, @kid, @reply$)
+
+	gridTypeName$ - grid type name (like "XuiDialog3B")
+	title$ - display this string on the window title bar
+	message$ - display this string on the first kid that is a Label grid
+	grids$ - display these strings on the kid grids following the Label grid
+	v0, v1 - copies of the v0, v1 arguments returned by the gridTypeName$ grid
+	kid - kid number of the gridTypeName$ that received the user response
+	reply$ - contents of the textString$ or textArray$ as defined in gridTypeName$
+
+	See: XuiDialog(), XuiGetReply(), XuiMessage(), XuiMessageRetry()
+
+FUNCTION  XuiGetResponse (gridType$, title$, prompt$, grids$, v0, v1, reply, reply$)
+:XuiGetSize()
+###########################
+#####  XuiGetSize ()  #####
+###########################
+
+	XuiGetSize (grid, #GetSize, @x, @y, @width, @height, kid, 0)
+
+	See: GetSize
+
+FUNCTION  XuiGetSize (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetSmallestSize()
+###################################
+#####  XuiGetSmallestSize ()  #####
+###################################
+
+	XuiGetSmallestSize (grid, #GetSmallestSize, 0, 0, @width, @height, kid, minWH)
+
+	See: GetSmallestSize
+
+FUNCTION  XuiGetSmallestSize (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetState()
+############################
+#####  XuiGetState ()  #####
+############################
+
+	XuiGetState (grid, #GetState, @state, @keyboard, @mouse, @redraw, kid, @xgrState)
+
+	See: GetState
+
+FUNCTION  XuiGetState (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetStyle()
+############################
+#####  XuiGetStyle ()  #####
+############################
+
+	XuiGetStyle (grid, #GetStyle, @style, @styleMax, 0, 0, kid, 0)
+
+	See: GetStyle
+
+FUNCTION  XuiGetStyle (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetTabArray()
+###############################
+#####  XuiGetTabArray ()  #####
+###############################
+
+	XuiGetTabArray (grid, #GetTabArray, 0, 0, 0, 0, kid, @tabArray[])
+
+	(tabArray not implemented yet)
+
+	See: GetTabWidth
+
+FUNCTION  XuiGetTabArray (grid, message, v0, v1, v2, v3, kid, (r1, r1[]))
+:XuiGetTabWidth()
+###############################
+#####  XuiGetTabWidth ()  #####
+###############################
+
+	XuiGetTabWidth (grid, #GetTabWidth, @tabWidth, 0, 0, 0, kid, @uboundTabArray)
+
+	See: GetTabWidth
+
+FUNCTION  XuiGetTabWidth (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetTextArray()
+################################
+#####  XuiGetTextArray ()  #####
+################################
+
+	XuiGetTextArray (grid, #GetTextArray, 0, 0, 0, 0, kid, @textArray$[])
+
+	See: GetTextArray
+
+FUNCTION  XuiGetTextArray (grid, message, v0, v1, v2, v3, kid, r1$[])
+:XuiGetTextArrayBounds()
+######################################
+#####  XuiGetTextArrayBounds ()  #####
+######################################
+
+	XuiGetTextArrayBounds (grid, #GetTextArrayBounds, 0, 0, @lastPos, @lastLine, kid, 0)
+
+FUNCTION  XuiGetTextArrayBounds (grid, message, v0, v1, v2, v3, kid, r1$[])
+:XuiGetTextArrayLine()
+####################################
+#####  XuiGetTextArrayLine ()  #####
+####################################
+
+	XuiGetTextArrayLine (grid, #GetTextArrayLine, line, @lineRead, 0, @upper, kid, @text$)
+
+	See: GetTextArrayLine
+
+FUNCTION  XuiGetTextArrayLine (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGetTextArrayLines()
+#####################################
+#####  XuiGetTextArrayLines ()  #####
+#####################################
+
+	XuiGetTextArrayLines (grid, #GetTextArrayLines, first, count, 0, @upper, kid, @text$[])
+
+	See: GetTextArrayLines
+
+FUNCTION  XuiGetTextArrayLines (grid, message, v0, v1, v2, v3, kid, (r1, r1$[]))
+:XuiGetTextArraySize()
+####################################
+#####  XuiGetTextArraySize ()  #####
+####################################
+
+	XuiGetTextArraySize (@text$[], font, @w, @h, @width, @height, extraX, extraY)
+
+	See: XgrGetTextImageSize()
+
+FUNCTION  XuiGetTextArraySize (text$[], font, w, h, width, height, extraX, extraY)
+:XuiGetTextFilename()
+###################################
+#####  XuiGetTextFilename ()  #####
+###################################
+
+	XuiGetTextFilename (grid, #GetTextFilename, 0, 0, 0, 0, kid, @filename$)
+
+	See: GetTextFilename
+
+FUNCTION  XuiGetTextFilename (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGetTextFlag()
+##############################
+#####  XuiGetTextFlag()  #####
+##############################
+
+	XuiGetTextFlag (grid, #GetTextFlag, flagConstant, @flag, 0, 0, kid, 0)
+
+	See: GetTextFlag
+
+FUNCTION  XuiGetTextFlag (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetTextSpacing()
+##################################
+#####  XuiGetTextSpacing ()  #####
+##################################
+
+	XuiGetTextSpacing (grid, #GetTextSpacing, @xgap, @ygap, 0, 0, kid, 0)
+
+	See: GetTextSpacing
+
+	NOTE: Text spacing not implemented
+
+FUNCTION  XuiGetTextSpacing (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetTextString()
+#################################
+#####  XuiGetTextString ()  #####
+#################################
+
+	XuiGetTextString (grid, #GetTextString, 0, 0, 0, 0, kid, @text$)
+
+	See: GetTextString
+
+FUNCTION  XuiGetTextString (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGetTextStrings()
+##################################
+#####  XuiGetTextStrings ()  #####
+##################################
+
+	XuiGetTextStrings (grid, #GetTextStrings, 0, 0, 0, @uboundKids, kid, @textStrings$[])
+
+	Get the text strings from a grid and its kids.
+
+	See: GetTextStrings
+
+FUNCTION  XuiGetTextStrings (grid, message, v0, v1, v2, v3, kid, r1$[])
+:XuiGetTexture()
+##############################
+#####  XuiGetTexture ()  #####
+##############################
+
+	XuiGetTexture (grid, #GetTexture, @texture, 0, 0, 0, kid, 0)
+
+	See: GetTexture
+
+FUNCTION  XuiGetTexture (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetTimer()
+############################
+#####  XuiGetTimer ()  #####
+############################
+
+	XuiGetTimer (grid, #GetTimer, @time, 0, 0, 0, kid, 0)
+
+	See: GetTimer
+
+FUNCTION  XuiGetTimer (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetValue()
+############################
+#####  XuiGetValue ()  #####
+############################
+
+	XuiGetValue (grid, #GetValue, @v0, @v1, @v2, @v3, kid, index)
+
+	Fetches four consecutive values from a grid value array.
+
+	grid,kid = target grid for the value array
+	index    = index to the first of 4 values to get
+	v0       = value at index
+	v1       = value at index + 1
+	v2       = value at index + 2
+	v3       = value at index + 3
+
+	See: GetValue, GetValues
+
+FUNCTION  XuiGetValue (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetValueArray()
+#################################
+#####  XuiGetValueArray ()  #####
+#################################
+
+	XuiGetValueArray (grid, #GetValueArray, 0, 0, 0, @uboundValues, kid, @values[])
+
+	See: GetValueArray
+
+FUNCTION  XuiGetValueArray (grid, message, v0, v1, v2, v3, kid, r1[])
+:XuiGetValues()
+#############################
+#####  XuiGetValues ()  #####
+#############################
+
+	XuiGetValue (grid, #GetValue, @v0, @v1, @v2, @v3, kid, index)
+
+	See: GetValues, GetValue
+
+FUNCTION  XuiGetValues (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetWindow()
+#############################
+#####  XuiGetWindow ()  #####
+#############################
+
+	XuiGetWindow (grid, #GetWindow, @window, @windowType, @winFunc, @winGrid, kid, @keyboardFocusGrid)
+
+	windowType: bits 31-16 = window type, bits 15-0 = parent
+
+	See: GetWindow
+
+FUNCTION  XuiGetWindow (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetWindowFunction()
+#####################################
+#####  XuiGetWindowFunction ()  #####
+#####################################
+
+	XuiGetWindowFunction (grid, #GetWindowFunction, @winFunc, 0, 0, 0, kid, 0)
+
+	See: GetWindowFunction
+
+FUNCTION  XuiGetWindowFunction (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetWindowGrid()
+#################################
+#####  XuiGetWindowGrid ()  #####
+#################################
+
+	XuiGetWindowGrid (grid, #GetWindowGrid, @winGrid, 0, 0, 0, kid, 0)
+
+	See: GetWindowGrid
+
+FUNCTION  XuiGetWindowGrid (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGetWindowIcon()
+#################################
+#####  XuiGetWindowIcon ()  #####
+#################################
+
+	XuiGetWindowIcon (grid, #GetWindowIcon, @icon, 0, 0, 0, kid, @iconName$)
+
+	See: GetWindowIcon
+
+FUNCTION  XuiGetWindowIcon (grid, message, v0, v1, v2, v3, kid, (r1, r1$))
+:XuiGetWindowSize()
+#################################
+#####  XuiGetWindowSize ()  #####
+#################################
+
+	XuiGetWindowSize (grid, #GetWindowSize, @x, @y, @width, @height, kid, 0)
+
+	See: GetWindowSize
+
+FUNCTION  XuiGetWindowSize (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGetWindowTitle()
+##################################
+#####  XuiGetWindowTitle ()  #####
+##################################
+
+	XuiGetWindowTitle (grid, #GetWindowTitle, 0, 0, 0, 0, kid, @title$)
+
+	See: GetWindowTitle
+
+FUNCTION  XuiGetWindowTitle (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGotKeyboardFocus()
+#################################
+#####  XuiGotKeyboardFocus  #####
+#################################
+
+	XuiGotKeyboardFocus (grid, #GotKeyboardFocus, 0, 0, 0, 0, kid, 0)
+
+	See: GotKeyboardFocus
+
+FUNCTION  XuiGotKeyboardFocus (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiGrabArray()
+#############################
+#####  XuiGrabArray ()  #####
+#############################
+
+	XuiGrabArray (grid, #GrabArray, 0, 0, 0, @uboundArray, kid, @array[])
+
+	The grid is left with an empty array
+
+	See: GrabArray
+
+FUNCTION  XuiGrabArray (grid, message, v0, v1, v2, v3, kid, r1[])
+:XuiGrabTextArray()
+#################################
+#####  XuiGrabTextArray ()  #####
+#################################
+
+	XuiGrabTextArray (grid, #GrabTextArray, 0, 0, 0, @uboundTextArray, kid, @textArray$[])
+
+	The grid is left with an empty text array
+
+	See: GrabTextArray
+
+FUNCTION  XuiGrabTextArray (grid, message, v0, v1, v2, v3, kid, r1$[])
+:XuiGrabTextString()
+##################################
+#####  XuiGrabTextString ()  #####
+##################################
+
+	XuiGrabTextString (grid, #GrabTextString, 0, 0, 0, @uboundString, kid, @string$)
+
+	The grid is left with an empty text string
+
+	See: GrabTextString
+
+FUNCTION  XuiGrabTextString (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiGrabValueArray()
+##################################
+#####  XuiGrabValueArray ()  #####
+##################################
+
+	XuiGrabValueArray (grid, #GrabValueArray, 0, 0, 0, @uboundValues, kid, @values[])
+
+	The grid is left with an empty values array
+
+	See: GrabValueArray
+
+FUNCTION  XuiGrabValueArray (grid, message, v0, v1, v2, v3, kid, r1[])
+:XuiGridContainsGridCoord()
+#########################################
+#####  XuiGridContainsGridCoord ()  #####
+#########################################
+
+	return = XuiGridContainsGridCoord (grid, messageGrid, x, y, @xx, @yy)
+
+	return = $$TRUE  if grid coordinates are     within the grid
+	return = $$FALSE if grid coordinates are NOT within the grid
+
+FUNCTION  XuiGridContainsGridCoord (grid, messageGrid, x, y, xx, yy)
+:XuiGridFuncNameToAddr()
+######################################
+#####  XuiGridFuncNameToAddr ()  #####
+######################################
+
+	XuiGridFuncNameToAddr (name$, @address)
+
+FUNCTION  XuiGridFuncNameToAddr (name$, address)
+:XuiGridKid()
+###########################
+#####  XuiGridKid ()  #####
+###########################
+
+	return = XuiGridKid (grid, other)
+
+	return = $$TRUE if other is a kid of grid
+
+FUNCTION  XuiGridKid (grid, other)
+:XuiGridTypeToGridFunc()
+######################################
+#####  XuiGridTypeToGridFunc ()  #####
+######################################
+
+	XuiGridTypeToGridFunc (gridType, @gridFunc)
+
+FUNCTION  XuiGridTypeToGridFunc (gridType, gridFunc)
+:XuiGrip()
+########################
+#####  XuiGrip ()  #####
+########################
+
+		XuiGrip is for GuiDesigner only (not a public grid)
+
+FUNCTION  XuiGrip (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiHelpDisable()
+###############################
+#####  XuiHelpDisable ()  #####
+###############################
+
+	XuiHelpDisable ()
+
+FUNCTION  XuiHelpDisable ()
+:XuiHelpEnable()
+##############################
+#####  XuiHelpEnable ()  #####
+##############################
+
+	XuiHelpEnable ()
+
+FUNCTION  XuiHelpEnable ()
+:XuiHidden()
+##########################
+#####  XuiHidden ()  #####
+##########################
+
+	XuiSendMessage (grid, #Hidden, displayState, 0, 0, 0, 0, 0)
+
+	See: Hidden
+
+FUNCTION  XuiHidden (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiHideWindow()
+##############################
+#####  XuiHideWindow ()  #####
+##############################
+
+	XuiHideWindow (grid, #HideWindow, 0, 0, 0, 0, kid, 0)
+
+	See: HideWindow
+
+FUNCTION  XuiHideWindow (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiImage()
+#########################
+#####  XuiImage ()  #####
+#########################
+
+	XuiImage (@image, #Create, x, y, width, height, window, parent)
+
+	XuiImage is a grid type for displaying images
+
+	See: GetImage, SetImage
+
+FUNCTION  XuiImage (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiInitialize()
+##############################
+#####  XuiInitialize ()  #####
+##############################
+
+FUNCTION  XuiInitialize (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiJustifyNameToNumber()
+#######################################
+#####  XuiJustifyNameToNumber ()  #####
+#######################################
+
+	XuiJustifyNameToNumber (justify$, @justify)
+
+	See: XuiJustifyNumberToName()
+
+FUNCTION  XuiJustifyNameToNumber (justify$, justify)
+:XuiJustifyNumberToName()
+#######################################
+#####  XuiJustifyNumberToName ()  #####
+#######################################
+
+	XuiJustifyNumberToName (justify, @justify$)
+
+	See: XuiJustifyNameToNumber()
+
+FUNCTION  XuiJustifyNumberToName (justify, justify$)
+:XuiKeyboardFocusBackward()
+#########################################
+#####  XuiKeyboardFocusBackward ()  #####
+#########################################
+
+	XuiSendMessage (focusGrid, #KeyboardFocusBackward, 0, 0, 0, 0, 0, 0)
+
+FUNCTION  XuiKeyboardFocusBackward (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiKeyboardFocusForward()
+########################################
+#####  XuiKeyboardFocusForward ()  #####
+########################################
+
+	XuiSendMessage (focusGrid, #KeyboardFocusForward, 0, 0, 0, 0, 0, 0)
+
+FUNCTION  XuiKeyboardFocusForward (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiLabel()
+#########################
+#####  XuiLabel ()  #####
+#########################
+
+	XuiLabel (@grid, #Create, x, y, width, height, window, parent)
+
+	If XuiLabel is a window; not a child grid within another window,
+	it is automatically enlarged, if necessary, for text to fit when
+	a #SetTextLine message is used.
+	It is not resized for a #SetTextArray message.
+
+FUNCTION  XuiLabel (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiList()
+########################
+#####  XuiList ()  #####
+########################
+
+	XuiList (@grid, #Create, x, y, width, height, window, parent)
+
+	styles 0 to 7  - size and look of the scrollbars
+	                 See XuiScrollBarH or XuiScrollBarV
+
+	style 0x10     - ORed with above styles to get "Notify" callback
+	                 message when single-click on list item
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiList (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiListBox()
+###########################
+#####  XuiListBox ()  #####
+###########################
+
+	XuiListBox (@grid, #Create, x, y, width, height, window, parent)
+
+		Style = 0 - list goes up/down, text line editable
+		Style = 1 - list always down, text line editable
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiListBox (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiListButton()
+##############################
+#####  XuiListButton ()  #####
+##############################
+
+	XuiListButton (@grid, #Create, x, y, width, height, window, parent)
+
+	$Style0		= 0			' list toggles up/down, text line editable
+	$Style1		= 1			' list always down, text line editable
+
+	See: Create, CreateWindow, SetStyle
+
+FUNCTION  XuiListButton (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiListDialog2B()
+################################
+#####  XuiListDialog2B ()  #####  Label, List, TextLine, and 2 PushButtons
+################################
+
+		XuiListDialog2B (@grid, #CreateWindow, x, y, w, h, windowType, "")
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiListDialog2B (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiLostKeyboardFocus()
+##################################
+#####  XuiLostKeyboardFocus  #####
+##################################
+
+	XuiLostKeyboardFocus (grid, #LostKeyboardFocus, 0, 0, 0, 0, kid, 0)
+
+	See: LostKeyboardFocus
+
+FUNCTION  XuiLostKeyboardFocus (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiMaximized()
+#############################
+#####  XuiMaximized ()  #####
+#############################
+
+	XuiMaximized (grid, #Maximized, state, 0, 0, 0, 0, 0)
+
+	See: Maximized
+
+FUNCTION  XuiMaximized (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiMaximizeWindow()
+##################################
+#####  XuiMaximizeWindow ()  #####
+##################################
+
+	XuiMaximizeWindow (grid, #MaximizeWindow, 0, 0, 0, 0, kid, 0)
+
+	See: MaximizeWindow
+
+FUNCTION  XuiMaximizeWindow (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiMenu()
+########################
+#####  XuiMenu ()  #####
+########################
+
+	XuiMenu (@grid, #Create, x, y, width, height, window, parent)
+
+	styles  -  none
+
+	See: Create, CreatWindow
+
+FUNCTION  XuiMenu (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1$[]))
+:XuiMenuBar()
+###########################
+#####  XuiMenuBar ()  #####
+###########################
+
+	XuiMenu (@grid, #Create, x, y, width, height, window, parent)
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiMenuBar (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1$[]))
+:XuiMenuTextArea1B()
+##################################
+#####  XuiMenuTextArea1B ()  #####
+##################################
+
+	XuiMenuTextArea1B (@window, #CreateWindow, x, y, w, h, windowType, "")
+
+	See: Create, CreateWindow
+
+FUNCTION  XuiMenuTextArea1B (grid, message, v0, v1, v2, v3, r0, (r1, r1$))
+:XuiMessage()
+###########################
+#####  XuiMessage ()  #####
+###########################
+
+	message$ = "[Window Title]\n main message"
+	XuiMessage (message$)
+
+	By default the message text is aligned to the center of the message window.
+	The text can be aligned left by following the "[" with a "<" in the title:
+	message$ = "[<Window Title]\n main message"
+
+	See: XuiDialog(), XuiGetReply(), XuiMessageRetry(), XuiGetResponse()
+
+FUNCTION  XuiMessage (prompt$)
+:XuiMessage1B()
+#############################
+#####  XuiMessage1B ()  #####  Label and PushButton
+#############################
+
+	XuiMessage1B (@window, #CreateWindow, x, y, w, h, windowType, "")
+
+	See: XuiDialog(), XuiGetReply(), XuiMessage(), XuiMessageRetry(), XuiGetResponse()
+
+FUNCTION  XuiMessage1B (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiMessage2B()
+#############################
+#####  XuiMessage2B ()  #####  Label and 2 PushButtons
+#############################
+
+	XuiMessage2B (@window, #CreateWindow, x, y, w, h, windowType, "")
+
+	See: XuiDialog(), XuiGetReply(), XuiMessage(), XuiMessageRetry(), XuiGetResponse()
+
+FUNCTION  XuiMessage2B (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiMessage3B()
+#############################
+#####  XuiMessage3B ()  #####  Label and 3 PushButtons
+#############################
+
+	XuiMessage3B (@window, #CreateWindow, x, y, w, h, windowType, "")
+
+	See: XuiDialog(), XuiGetReply(), XuiMessage(), XuiMessageRetry(), XuiGetResponse()
+
+FUNCTION  XuiMessage3B (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiMessage4B()
+#############################
+#####  XuiMessage4B ()  #####  Label and 4 PushButtons
+#############################
+
+	XuiMessage4B (@window, #CreateWindow, x, y, w, h, windowType, "")
+
+	See: XuiDialog(), XuiGetReply(), XuiMessage(), XuiMessageRetry(), XuiGetResponse()
+
+FUNCTION  XuiMessage4B (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiMessageRetry()
+################################
+#####  XuiMessageRetry ()  #####
+################################
+
+	message$ = "[Window Title]\n main message"
+	retry = XuiMessageRetry (message$, @reply$)
+
+	message$ is the character string to be displayed
+
+	retry is returned $$TRUE if the "Retry" is pushed
+	                 $$FALSE if the "Cancel" is pushed
+
+	@retry$ will have the string name of the button pressed
+
+	See: XuiGetReply(), XuiDialog(), XuiMessage(), XuiGetResponse()
+
+FUNCTION  XuiMessageRetry (prompt$, @reply$)
+:XuiMinimized()
+#############################
+#####  XuiMinimized ()  #####
+#############################
+
+	XuiMinimized (grid, #Minimized, state, 0, 0, 0, 0, 0)
+
+	See: Minimized
+
+FUNCTION  XuiMinimized (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiMinimizeWindow()
+##################################
+#####  XuiMinimizeWindow ()  #####
+##################################
+
+	XuiMinimizeWindow (grid, #MinimizeWindow, 0, 0, 0, 0, kid, 0)
+
+	See: MinimizeWindow
+
+FUNCTION  XuiMinimizeWindow (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiMonitorContext()
+##################################
+#####  XuiMonitorContext ()  #####
+##################################
+
+	XuiMonitorContext (grid, #MonitorContext, callGrid, callFunc, 0, 0, kid,  installDelete)
+
+	installDelete = TRUE/FALSE means install/delete
+
+	See: MonitorContext
+
+FUNCTION  XuiMonitorContext (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiMonitorHelp()
+###############################
+#####  XuiMonitorHelp ()  #####
+###############################
+
+	XuiMonitorHelp (grid, #MonitorHelp, callGrid, callFunc, 0, 0, kid, installDelete)
+
+	installDelete = TRUE/FALSE means install/delete
+
+	See: MonitorHelp
+
+FUNCTION  XuiMonitorHelp (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiMonitorKeyboard()
+###################################
+#####  XuiMonitorKeyboard ()  #####
+###################################
+
+	XuiMonitorKeyboard (grid, #MonitorKeyboard, callGrid, callFunc, 0, 0, kid, installDelete)
+
+	installDelete = TRUE/FALSE means install/delete
+
+	See: MonitorKeyboard
+
+FUNCTION  XuiMonitorKeyboard (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiMonitorMouse()
+################################
+#####  XuiMonitorMouse ()  #####
+################################
+
+	XuiMonitorMouse (grid, #MonitorMouse, callGrid, callFunc, 0, 0, kid, installDelete)
+
+	installDelete = TRUE/FALSE means install/delete
+
+	See: MonitorMouse
+
+FUNCTION  XuiMonitorMouse (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiMouseDownSetKeyboardFocus()
+#############################################
+#####  XuiMouseDownSetKeyboardFocus ()  #####
+#############################################
+
+	XuiMouseDownSetKeyboardFocus (grid, #MouseDown, v0, v1, v2, v3, kid, r1)
+
+	Sets the Keyboard Focus to the grid if it does not already have Keyboard Focus.
+
+FUNCTION  XuiMouseDownSetKeyboardFocus (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiMouseEnter()
+##############################
+#####  XuiMouseEnter ()  #####
+##############################
+
+	XuiMouseEnter (grid, #MouseEnter, x, y, state, time, kid, 0)
+
+	See: MouseEnter
+
+FUNCTION  XuiMouseEnter (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiPassOn()
+##########################
+#####  XuiPassOn ()  #####
+##########################
+
+	XuiPassOn (grid, message, @v0, @v1, @v2, @v3, @r0, @r1)
+
+	See: GetMessageFunc, GetMessageSub
+
+FUNCTION  XuiPassOn (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiPlaceWindow()
+###############################
+#####  XuiPlaceWindow ()  #####
+###############################
+
+	XuiPlaceWindow (window, windowType, @xDisp, @yDisp, @width, @height)
+
+	XuiPlaceWindow adjusts the position and size of a window
+	to fit within the screen work area making allowance for
+	the border width and title height.
+
+	If the given window type is of type $$WindowTypeNoFrame,
+	it is allowed to fill the entire screen work area.
+
+FUNCTION  XuiPlaceWindow (window, windowType, xDisp, yDisp, width, height)
+:XuiPokeArray()
+#############################
+#####  XuiPokeArray ()  #####
+#############################
+
+	XuiPokeArray (grid, #PokeArray, 0, 0, 0, 0, kid, @array[])
+
+	array[] returns empty
+
+	See: PokeArray
+
+FUNCTION  XuiPokeArray (grid, message, v0, v1, v2, v3, kid, r1[])
+:XuiPokeTextArray()
+#################################
+#####  XuiPokeTextArray ()  #####
+#################################
+
+	XuiPokeTextArray (grid, #PokeTextArray, 0, 0, 0, 0, kid, @text$[])
+
+	Text array returns empty
+
+	See: PokeTextArray
+
+FUNCTION  XuiPokeTextArray (grid, message, v0, v1, v2, v3, kid, r1$[])
+:XuiPokeTextString()
+##################################
+#####  XuiPokeTextString ()  #####
+##################################
+
+	XuiPokeTextString (grid, #PokeTextString, 0, 0, 0, 0, kid, @text$)
+
+	Text string is returned empty if passed by reference: "@text$"
+
+	See: PokeTextString
+
+FUNCTION  XuiPokeTextString (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiPokeValueArray()
+##################################
+#####  XuiPokeValueArray ()  #####
+##################################
+
+	XuiPokeValueArray (grid, #PokeValueArray, 0, 0, 0, 0, kid, @values[])
+
+	values array is returned empty
+
+	See: PokeValueArray
+
+FUNCTION  XuiPokeValueArray (grid, message, v0, v1, v2, v3, kid, r1[])
+:XuiPositionGrid()
+################################
+#####  XuiPositionGrid ()  #####
+################################
+
+	XuiPositionGrid (grid, x, y, width, height)
+
+FUNCTION  XuiPositionGrid (grid, x, y, width, height)
+:XuiPressButton()
+###############################
+#####  XuiPressButton ()  #####
+###############################
+
+	XuiPressButton (@grid, #Create, x, y, width, height, window, parent)
+
+	XuiPressButton will generate a #Selection message when
+	the button is pushed (mouseDown) and,
+	if held down for 4 time intervals,
+	will be repeated at the interval in the #SetTimer message
+
+		XuiSendMessage ( grid, #SetTimer, msec, 0, 0, 0, 0, 0)
+
+		XuiSendMessage ( grid, #SetStyle, style, 0, 0, 0, 0, 0)
+
+	style can be:
+	$$TriangleUp
+	$$TriangleRight
+	$$TriangleDown
+	$$TriangleLeft
+
+	Used by XuiRange(), XuiDropBox(), XuiListButton(), XuiScrollBarH()
+
+	See: XuiPushButton(), XuiToggleButton(), XuiRadioButton(), Create, CreateWindow
+
+FUNCTION  XuiPressButton (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiProcessMessage()
+##################################
+#####  XuiProcessMessage ()  #####
+##################################
+
+		return = XuiProcessMessage (grid, message, v0, v1, v2, v3, kid, r1, gridType)
+
+		return = kid number if able to call a valid kid grid function
+	return = $$XuiError if invalid argument detected
+
+		Does not process "Create" or "CreateWindow" message
+
+
+FUNCTION  XuiProcessMessage (grid, message, v0, v1, v2, v3, kid, r1, gridType)
+:XuiProgress()
+############################
+#####  XuiProgress ()  #####
+############################
+
+	XuiProgress (@grid, #Create, x, y, width, height, window, parent)
+
+	Style1 display percent text
+	Style2 displayProgress bars
+
+	XuiSendMessage (grid, #SetValues, position, fullScale, 0, 0, 0, 0)
+
+FUNCTION  XuiProgress (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiPropertyValueNameToNumber()
+#############################################
+#####  XuiPropertyValueNameToNumber ()  #####
+#############################################
+
+	return = XuiPropertyValueNameToNumber (property$, value$, @value)
+
+
+FUNCTION  XuiPropertyValueNameToNumber (property$, value$, value)
+:XuiPullDown()
+############################
+#####  XuiPullDown ()  #####
+############################
+
+	XuiPullDown (@grid, #Create, x, y, width, height, window, parent)
+
+		$StyleHotKey	= 1  -  first underline character is hotkey indicator
+
+	See: Create, CreatWindow
+
+FUNCTION  XuiPullDown (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiPushButton()
+##############################
+#####  XuiPushButton ()  #####
+##############################
+
+	XuiPushButton (@grid, #Create, x, y, width, height, window, parent)
+
+	XuiPushButton will generate a #Selection callback message when the
+	button is pushed, or released, or on both depending on the style:
+	 (See: SetCallback message)
+
+	style = 0 #Selection on MouseUp,               $$BorderRaise2 on exit
+	style = 1 #Selection on MouseDown,             $$BorderRaise2 on exit
+	style = 2 #Selection on MouseUp,               $$BorderFlat   on exit
+	style = 3 #Selection on MouseDown,             $$BorderFlat   on exit
+	style = 4 #Selection on MouseDown and MouseUp, $$BorderRaise2 on exit
+	style = 5 #Selection on MouseDown and MouseUp, $$BorderFlat   on exit
+
+	The border type can be overridden with a #SetBorder message:
+	  XuiSendMessage (grid, #SetBorder, borderExit, borderUp, borderDown, 0, kid, 0)
+
+	When the #Selection message is generated:
+	   v0 = 1 on mouseDown, and = 0 on mouseUp
+	   v1 = grid number of the push button grid
+
+	The state of the button can be checked with:
+	  XuiSendMessage (grid, #GetValue, @value, 0, 0, 0, kid, 0)
+	    grid,kid = target push button to be checked
+	    @value returned = 1 if operated (down), = 0 if released (up)
+
+	See: Create, CreateWindow, XuiPressButton(), XuiToggleButton(), XuiRadioButton()
+
+FUNCTION  XuiPushButton (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiQueueCallbacks()
+##################################
+#####  XuiQueueCallbacks ()  #####
+##################################
+
+		XuiQueueCallbacks() is alled by XuiCallback() to add callback messages
+	to the callback queue when a program has set the address XuiQueueCallbacks()
+	with the SetCallback message.
+	The "convenience function message loop," in many programs, acquire the
+	messages from the queue with the XuiGetNextCallback() function.
+
+	See: SetCallback, XuiCallback(), XuiGetCallback(), XuiGetNextCallback(), XuiSetCallback()
+
+FUNCTION  XuiQueueCallbacks (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiRadioBox()
+############################
+#####  XuiRadioBox ()  #####
+############################
+
+	XuiRadioBox (@grid, #Create, x, y, w, h, window, parent)
+
+	See: XuiRadioButton(), XuiRadioBox(), GetGroup, SetGroup
+
+FUNCTION  XuiRadioBox (grid, message, v0, v1, v2, v3, r0, (r1, r1$))
+:XuiRadioButton()
+###############################
+#####  XuiRadioButton ()  #####
+###############################
+
+	XuiRadioButton (@grid, #Create, x, y, w, h, window, parent)
+
+	See: XuiRadioBox(), GetGroup, SetGroup
+
+FUNCTION  XuiRadioButton (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[]))
+:XuiRange()
+#########################
+#####  XuiRange ()  #####
+#########################
+
+FUNCTION  XuiRange (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiRedraw()
+##########################  IF v2 = 0 (width) or v3 = 0 (height) then
+#####  XuiRedraw ()  #####  unconditionally perform the redraw, as when
+##########################  the whole window needs to be redrawn.
+
+	XuiRedraw (grid, #Redraw, x, y, width, height, kid, 0)
+
+FUNCTION  XuiRedraw (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiRedrawGrid()
+##############################
+#####  XuiRedrawGrid ()  #####
+##############################
+
+	XuiRedrawGrid (grid, message, x, y, width, height, kid, 0)
+
+FUNCTION  XuiRedrawGrid (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiRedrawText()
+##############################
+#####  XuiRedrawText ()  #####
+##############################
+
+	XuiRedrawText (grid, #RedrawText, x, y, width, height, kid, 0)
+
+	See: RedrawText
+
+FUNCTION  XuiRedrawText (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiRedrawWindow()
+################################
+#####  XuiRedrawWindow ()  #####
+################################
+
+	XuiRedrawWindow (grid, #RedrawWindow, x, y, width, height, kid, 0)
+
+FUNCTION  XuiRedrawWindow (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiRegisterGridType()
+####################################
+#####  XuiRegisterGridType ()  #####
+####################################
+
+FUNCTION  XuiRegisterGridType (gridType, gridType$, gridFunc, func[], SUBADDR sub[])
+:XuiReportMessage()
+#################################
+#####  XuiReportMessage ()  #####
+#################################
+
+FUNCTION  XuiReportMessage (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiResize()
+##########################
+#####  XuiResize ()  #####
+##########################
+
+	XuiResize (grid, #Resize, x, y, width, height, kid, 0)
+
+	Target grid is repositioned and resized
+
+FUNCTION  XuiResize (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiResizeNot()
+#############################
+#####  XuiResizeNot ()  #####
+#############################
+
+	XuiResizeNot (grid, #ResizeNot, x, y, width, height, kid, 0)
+
+	Target grid is repositioned, but width and height are ignored
+
+FUNCTION  XuiResizeNot (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiResizeWindow()
+################################
+#####  XuiResizeWindow ()  #####
+################################
+
+	XuiResizeWindow (grid, #ResizeWindow, x, y, width, height, kid, 0)
+
+FUNCTION  XuiResizeWindow (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiResizeWindowToGrid()
+######################################
+#####  XuiResizeWindowToGrid ()  #####
+######################################
+
+	XuiResizeWindowToGrid (grid, #ResizeWindowToGrid, 0, 0, 0, 0, kid, 0)
+
+FUNCTION  XuiResizeWindowToGrid (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiRestoreWindow()
+#################################
+#####  XuiRestoreWindow ()  #####
+#################################
+
+	XuiRestoreWindow (grid, #RestoreWindow, 0, 0, 0, 0, kid, 0)
+
+	See: RestoreWindow
+
+FUNCTION  XuiRestoreWindow (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiReturnZeros()
+###############################
+#####  XuiReturnZeros ()  #####
+###############################
+
+FUNCTION  XuiReturnZeros (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiScrollBarH()
+##############################
+#####  XuiScrollBarH ()  #####
+##############################
+
+	XuiScrollBarH (@grid, #Create, x, y, width, height, window, parent)
+
+	Style = 0		- size 12 pixels, normal scroll bar,        flat buttons
+	Style = 1		- size 12 pixels, normal scroll bar,        flat arrowbuttons
+	Style = 2		- size 16 pixels, recessed scroll bar,      arrow buttons
+	Style = 3		- size 16 pixels, windows-style scroll bar, arrow buttons
+	Style = 4   - size 20 pixels, same as style 2
+	Style = 5   - size 20 pixels, same as style 3
+	Style = 6   - size 24 pixels, same as style 4
+	Style = 7   - size 24 pixels, same as style 5
+
+FUNCTION  XuiScrollBarH (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiScrollBarV()
+##############################
+#####  XuiScrollBarV ()  #####
+##############################
+
+	XuiScrollBarV (@grid, #Create, x, y, width, height, window, parent)
+
+	Style = 0		- size 12 pixels, normal scroll bar,        flat buttons
+	Style = 1		- size 12 pixels, normal scroll bar,        flat arrowbuttons
+	Style = 2		- size 16 pixels, recessed scroll bar,      arrow buttons
+	Style = 3		- size 16 pixels, windows-style scroll bar, arrow buttons
+	Style = 4   - size 20 pixels, same as style 2
+	Style = 5   - size 20 pixels, same as style 3
+	Style = 6   - size 24 pixels, same as style 4
+	Style = 7   - size 24 pixels, same as style 5
+
+FUNCTION  XuiScrollBarV (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiSelectWindow()
+################################
+#####  XuiSelectWindow ()  #####
+################################
+
+	XuiSelectWindow (grid, message, 0, 0, 0, 0, kid, 0)
+
+FUNCTION  XuiSelectWindow (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSendMessage()
+###############################
+#####  XuiSendMessage ()  #####
+###############################
+
+	XuiSendMessage (grid, message, v0, v1, v2, v3, kid, r1)
+
+	See: XuiSendStringMessage(), XgrRegisterMessage(), XgrMessageNameToNumber()
+
+FUNCTION  XuiSendMessage (grid, message, v0, v1, v2, v3, kid, (r1, r1$))
+:XuiSendStringMessage()
+#####################################
+#####  XuiSendStringMessage ()  #####
+#####################################
+
+	XuiSendStringMessage (grid, message$, v0, v1, v2, v3, r0, r1)
+
+	See: XuiSendMessage()
+
+FUNCTION  XuiSendStringMessage (grid, message$, v0, v1, v2, v3, r0, r1)
+:XuiSendToKid()
+#############################
+#####  XuiSendToKid ()  #####
+#############################
+
+	XuiSendToKid (grid, message, v0, v1, v2, v3, @kid, r1)
+
+FUNCTION  XuiSendToKid (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSendToKids()
+##############################
+#####  XuiSendToKids ()  #####
+##############################
+
+	XuiSendToKids (grid, message, v0, v1, v2, v3, kid, r1)
+
+	The message is sent to all the kids of the target grid/kid
+
+FUNCTION  XuiSendToKids (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetAlign()
+############################
+#####  XuiSetAlign ()  #####
+############################
+
+	See: SetAlign
+
+FUNCTION  XuiSetAlign (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetBorder()
+#############################
+#####  XuiSetBorder ()  #####
+#############################
+
+	XuiSetBorder (grid, #SetBorder, border, borderUp, borderDown, borderExit, kid, 0)
+
+	See: "Help > Graphics Library (Xgr)" for *****  grid border styles  *****
+
+FUNCTION  XuiSetBorder (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetBorderOffset()
+###################################
+#####  XuiSetBorderOffset ()  #####
+###################################
+
+	XuiSetBorderOffset (grid, #SetBorderOffset, offsetLeft, offsetTop, offsetRight, offsetBottom, kid, 0)
+
+	See: SetBorderOffset
+
+FUNCTION  XuiSetBorderOffset (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetCallback()
+###############################
+#####  XuiSetCallback ()  #####
+###############################
+
+	XuiSetCallback (grid, #SetCallback, callGrid, callFunc, v2, v3, r0, r1)
+
+	See: SetCallback, XuiCallback(), XuiGetCallback(), XuiGetNextCallback(), XuiQueueCallbacks()
+
+FUNCTION  XuiSetCallback (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiSetCan()
+##########################
+#####  XuiSetCan ()  #####
+##########################
+
+FUNCTION  XuiSetCan (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetCharacterMapArray()
+########################################
+#####  XuiSetCharacterMapArray ()  #####
+########################################
+
+	XuiSetCharacterMapArray (grid, #SetCharacterMapArray, 0, 0, 0, 0, kid, @characterMapArray[])
+
+	See: GetCharacterMapArray, SetCharacterMapArray
+
+FUNCTION  XuiSetCharacterMapArray (grid, message, v0, v1, v2, v3, kid, (r1, r1[]))
+:XuiSetCharacterMapEntry()
+########################################
+#####  XuiSetCharacterMapEntry ()  #####
+########################################
+
+	See: SetCharacterMapEntry
+
+FUNCTION  XuiSetCharacterMapEntry (grid, message, v0, v1, v2, v3, kid, (r1, r1[]))
+:XuiSetClipGrid()
+###############################
+#####  XuiSetClipGrid ()  #####
+###############################
+
+	XuiSetClipGrid (grid, #SetClipGrid, clip, 0, 0, 0, kid, 0)
+
+	See: GetClipGrid, SetClipGrid
+
+FUNCTION  XuiSetClipGrid (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetColor()
+############################
+#####  XuiSetColor ()  #####
+############################
+
+FUNCTION  XuiSetColor (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetColorAll()
+###############################
+#####  XuiSetColorAll ()  #####
+###############################
+
+FUNCTION  XuiSetColorAll (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetColorExtra()
+#################################
+#####  XuiSetColorExtra ()  #####
+#################################
+
+FUNCTION  XuiSetColorExtra (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetColorExtraAll()
+####################################
+#####  XuiSetColorExtraAll ()  #####
+####################################
+
+FUNCTION  XuiSetColorExtraAll (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetCursor()
+#############################
+#####  XuiSetCursor ()  #####
+#############################
+
+	This function sets the cursor that is to be displayed when the
+	mouse is inside the specified grid.
+
+		XuiSendMessage ( g, #SetCursor, #cursorInsert, 0, 0, 0, 0, 0)
+
+FUNCTION  XuiSetCursor (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetDefaultColors()
+####################################
+#####  XuiSetDefaultColors ()  #####
+####################################
+
+	XuiSetDefaultColors (back, draw, low, high, dull, acc, lowtext, hightext)
+
+	See: XuiGetDefaultColors()
+
+FUNCTION  XuiSetDefaultColors (back, draw, low, high, dull, acc, lowtext, hightext)
+:XuiSetDefaultCursor()
+####################################
+#####  XuiSetDefaultCursor ()  #####
+####################################
+
+	XuiSetDefaultCursor (cursor)
+
+	See: XuiGetDefaultCursor()
+
+FUNCTION  XuiSetDefaultCursor (cursor)
+:XuiSetFocusColor()
+#################################
+#####  XuiSetFocusColor ()  #####
+#################################
+
+	XuiSetFocusColor (grid, #SetFocusColor, focusBack, focusDraw, focusLow, focusHigh, kid, 0)
+
+	See: SetFocusColor
+
+FUNCTION  XuiSetFocusColor (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetFocusColorExtra()
+######################################
+#####  XuiSetFocusColorExtra ()  #####
+######################################
+
+	XuiSetFocusColorExtra (grid, #SetFocusColorExtra, focusDull, focusAccent, focusLoText, focusHiText, kid, r1)
+
+	See: SetFocusColorExtra
+
+FUNCTION  XuiSetFocusColorExtra (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetFont()
+###########################
+#####  XuiSetFont ()  #####
+###########################
+
+FUNCTION  XuiSetFont (grid, message, v0, v1, v2, v3, kid, (r1, r1$))
+:XuiSetFontNumber()
+#################################
+#####  XuiSetFontNumber ()  #####
+#################################
+
+FUNCTION  XuiSetFontNumber (grid, message, v0, v1, v2, v3, kid, (r1, r1$))
+:XuiSetGridFunction()
+###################################
+#####  XuiSetGridFunction ()  #####
+###################################
+
+	error = XuiSetGridFunction (grid, #SetGridFunction, &gridFunc(), 0, 0, 0, kid, 0)
+
+	Replaces the grid function address that was set by XuiCreateGrid()
+	when a window and its grids were created.
+
+	CAUTION: Remember to put the "&" at the beginning and the "()"
+	at the end of the function name, so that it is the address of a
+	function and no the content or address of a variable.
+
+	XuiSetGridFunction() calls XgrSetGridFunction() so that the
+	Graphics program has identical grid function address.
+
+	See: SetGridFunction, XgrSetGridFunction()
+
+FUNCTION  XuiSetGridFunction (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetGridFunctionName()
+#######################################
+#####  XuiSetGridFunctionName ()  #####
+#######################################
+
+	XuiSetGridFunctionName (grid, #SetGridFunctionName, 0, 0, 0, 0, kid, name$)
+
+	See: SetGridFunctionName
+
+FUNCTION  XuiSetGridFunctionName (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiSetGridName()
+###############################
+#####  XuiSetGridName ()  #####
+###############################
+
+	XuiSetGridName (grid, #SetGridName, prependFlag, 0, 0, 0, kid, gridName$)
+
+	grid,kid       target grid
+	prependFlag    if set to $$PreKidKid and the gridName$ ends with the "_" character
+	               kids of the target grid-kid have their grid name modified by
+	               adding gridName$ to the front of its existing name.
+
+FUNCTION  XuiSetGridName (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiSetGridProperties()
+#####################################
+#####  XuiSetGridProperties ()  #####
+#####################################
+
+	XuiSetGridProperties (grid, #SetGridProperties, 0, 0, 0, 0, 0, 0)
+
+FUNCTION  XuiSetGridProperties (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetGridProperty()
+###################################
+#####  XuiSetGridProperty ()  #####
+###################################
+
+FUNCTION  XuiSetGridProperty (grid, kid, property$, (v, v[], v$, v$[]))
+:XuiSetGridType()
+###############################
+#####  XuiSetGridType ()  #####
+###############################
+
+FUNCTION  XuiSetGridType (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetGridTypeName()
+###################################
+#####  XuiSetGridTypeName ()  #####
+###################################
+
+FUNCTION  XuiSetGridTypeName (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiSetGridTypeProperty()
+#######################################
+#####  XuiSetGridTypeProperty ()  #####
+#######################################
+
+FUNCTION  XuiSetGridTypeProperty (gridType, property$, value)
+:XuiSetGridTypeValue()
+####################################
+#####  XuiSetGridTypeValue ()  #####
+####################################
+
+FUNCTION  XuiSetGridTypeValue (gridType, property$, value)
+:XuiSetGridValue()
+################################
+#####  XuiSetGridValue ()  #####
+################################
+
+FUNCTION  XuiSetGridValue (grid, property$, value)
+:XuiSetGroup()
+############################
+#####  XuiSetGroup ()  #####
+############################
+
+FUNCTION  XuiSetGroup (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetHelp()
+###########################
+#####  XuiSetHelp ()  #####
+###########################
+
+FUNCTION  XuiSetHelp (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiSetHelpFile()
+###############################
+#####  XuiSetHelpFile ()  #####
+###############################
+
+FUNCTION  XuiSetHelpFile (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiSetHelpString()
+#################################
+#####  XuiSetHelpString ()  #####
+#################################
+
+FUNCTION  XuiSetHelpString (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiSetHelpStrings()
+##################################
+#####  XuiSetHelpStrings ()  #####
+##################################
+
+FUNCTION  XuiSetHelpStrings (grid, message, v0, v1, v2, v3, kid, r1$[])
+:XuiSetHintString()
+#################################
+#####  XuiSetHintString ()  #####
+#################################
+
+	XuiSendMessage (grid, #SetHintString, 0, 0, 0, 0, kid, hintString$)
+
+	See: GetHintString, SetHintString
+
+FUNCTION  XuiSetHintString (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiSetImage()
+############################
+#####  XuiSetImage ()  #####
+############################
+
+	XuiSetImage (grid, #SetImage, image, align, inX, inY, kid, image$)
+
+	See: SetImage
+
+FUNCTION  XuiSetImage (grid, message, v0, v1, v2, v3, kid, (r1, r1$))
+:XuiSetImageCoords()
+##################################
+#####  XuiSetImageCoords ()  #####
+##################################
+
+	XuiSetImageCoords (grid, #SetImageCoords, offsetX, offsetY, width, height, kid, 0)
+
+	See: XuiSetImageCoords
+
+FUNCTION  XuiSetImageCoords (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetIndent()
+#############################
+#####  XuiSetIndent ()  #####
+#############################
+
+	XuiSetIndent (grid, #SetIndent, indentLeft, indentTop, indentRight, indentBottom, kid, 0)
+
+	Set the kid to -1 to set alignment of all kids of the grid
+
+	See: SetIndent
+
+FUNCTION  XuiSetIndent (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetInfo()
+###########################
+#####  XuiSetInfo ()  #####
+###########################
+
+FUNCTION  XuiSetInfo (grid, message, v0, v1, v2, v3, kid, GRID r1)
+:XuiSetJustify()
+##############################
+#####  XuiSetJustify ()  #####
+##############################
+
+	XuiSetJustify (grid, #SetJustify, justify, 0, 0, 0, kid, 0)
+
+	Set justify to -1 to leave the current value unchanged (totally useless)
+	Set the kid to -1 to set alignment of all kids of the grid
+
+	See: Help > GuiDesigner Library (Xui) for $$Justify... constants
+
+	See also: XuiSetAlign
+
+FUNCTION  XuiSetJustify (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetKeyboardFocus()
+####################################
+#####  XuiSetKeyboardFocus ()  #####
+####################################
+
+	XuiSetKeyboardFocus (grid, #SetKeyboardFocus, focusGrid, 0, 0, 0, kid, 0)
+
+	Set the keyboard focus to focusGrid.
+	If focusGrid is zero, set it to grid,kid
+
+FUNCTION  XuiSetKeyboardFocus (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetKeyboardFocusGrid()
+########################################
+#####  XuiSetKeyboardFocusGrid ()  #####
+########################################
+
+	XuiSetKeyboardFocusGrid (grid, #SetKeyboardFocusGrid, focusGrid, 0, 0, 0, kid, 0)
+
+	Set the keyboard focus grid for a window to focusGrid.
+	If focusGrid is zero, set it to grid,kid
+
+FUNCTION  XuiSetKeyboardFocusGrid (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetKidArray()
+###############################
+#####  XuiSetKidArray ()  #####
+###############################
+
+FUNCTION  XuiSetKidArray (grid, message, v0, v1, v2, v3, kid, r1[])
+:XuiSetMaxMinSize()
+#################################
+#####  XuiSetMaxMinSize ()  #####
+#################################
+
+	XuiSetMaxMinSize (grid, #SetMaxMinSize, maxW, maxH, minW, minH, kid, 0)
+
+	See: SetMaxMinSize
+
+FUNCTION  XuiSetMaxMinSize (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetMenuEntryArray()
+#####################################
+#####  XuiSetMenuEntryArray ()  #####
+#####################################
+
+	XuiSetMenuEntryArray (grid, #SetMenuEntryArray, 0, 0, 0, 0, 0, @menu[])
+
+	Used only by XuiMenu()
+
+FUNCTION  XuiSetMenuEntryArray (grid, message, v0, v1, v2, v3, kid, (r1, MENUENTRY r1[]))
+:XuiSetMessageFunc()
+##################################
+#####  XuiSetMessageFunc ()  #####
+##################################
+
+	XuiSetMessageFunc (grid, #SetMessageFunc, msg, func, 0, 0, kid, 0)
+
+	See: SetMessageFunc
+
+FUNCTION  XuiSetMessageFunc (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetMessageFuncArray()
+#######################################
+#####  XuiSetMessageFuncArray ()  #####
+#######################################
+
+	XuiSetMessageFuncArray (grid, #SetMessageFuncArray, 0, 0, 0, 0, kid, @func[])
+
+	See: SetMessageFuncArray
+
+FUNCTION  XuiSetMessageFuncArray (grid, message, v0, v1, v2, v3, kid, r1[])
+:XuiSetMessageSub()
+#################################
+#####  XuiSetMessageSub ()  #####
+#################################
+
+	Unimplemented
+
+FUNCTION  XuiSetMessageSub (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetMessageSubArray()
+######################################
+#####  XuiSetMessageSubArray ()  #####
+######################################
+
+	Unimplemented
+
+FUNCTION  XuiSetMessageSubArray (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetModalWindow()
+##################################
+#####  XuiSetModalWindow ()  #####
+##################################
+
+	XuiSetModalWindow (grid, #SetModalWindow, window, v1grid, 0, 0, 0, 0)
+
+	See: SetModalWindow
+
+FUNCTION  XuiSetModalWindow (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiSetParent()
+#############################
+#####  XuiSetParent ()  #####
+#############################
+
+	XuiSetParent() : Unimplemented because it probably shouldn't be possible to change parent.
+
+FUNCTION  XuiSetParent (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetPropertyDatabase()
+#######################################
+#####  XuiSetPropertyDatabase ()  #####
+#######################################
+
+	XuiSetPropertyDatabase (@data$[])
+
+	See: XuiGetPropertyDatabase()
+
+FUNCTION  XuiSetPropertyDatabase (data$[])
+:XuiSetRedrawFlags()
+##################################
+#####  XuiSetRedrawFlags ()  #####
+##################################
+
+	XuiSetRedrawFlags (grid, #SetRedrawFlags, @redrawFlags, 0, 0, 0, kid, 0)
+
+	See: SetRedrawFlags
+
+FUNCTION  XuiSetRedrawFlags (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetSize()
+###########################
+#####  XuiSetSize ()  #####
+###########################
+
+	XuiSetSize (grid, #SetSize, x, y, width, height, kid, 0)
+
+	See: SetSize
+
+FUNCTION  XuiSetSize (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetState()
+############################
+#####  XuiSetState ()  #####
+############################
+
+	XuiSetState (grid, #SetState, state, keyboard, mouse, redraw, kid, 0)
+
+	See: SetState
+
+FUNCTION  XuiSetState (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetStyle()
+############################
+#####  XuiSetStyle ()  #####
+############################
+
+	XuiSetStyle (grid, #SetStyle, style, styleMax, 0, 0, kid, 0)
+
+	See: SetStyle
+
+FUNCTION  XuiSetStyle (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetTabArray()
+###############################
+#####  XuiSetTabArray ()  #####
+###############################
+
+	XuiSetTabWidth (grid, #GetTabWidth, 0, 0, 0, 0, kid, @tabArray[])
+
+	(tabArray not implemented yet)
+
+FUNCTION  XuiSetTabArray (grid, message, v0, v1, v2, v3, kid, (r1, r1[]))
+:XuiSetTabWidth()
+###############################
+#####  XuiSetTabWidth ()  #####
+###############################
+
+	XuiSetTabWidth (grid, #GetTabWidth, tabWidth, 0, 0, 0, kid, @tabArray[])
+
+	See: SetTabWidth
+
+FUNCTION  XuiSetTabWidth (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetTextArray()
+################################
+#####  XuiSetTextArray ()  #####
+################################
+
+	XuiSetTextArray (grid, #SetTextArray, 0, 0, 0, 0, kid, @text$[])
+
+	See: SetTextArray
+
+FUNCTION  XuiSetTextArray (grid, message, v0, v1, v2, v3, kid, r1$[])
+:XuiSetTextArrayLine()
+####################################
+#####  XuiSetTextArrayLine ()  #####
+####################################
+
+	XuiSetTextArrayLine (grid, #SetTextArrayLine, line, @error, v2, @upper, kid, r1$)
+
+	See: SetTextArrayLine
+
+FUNCTION  XuiSetTextArrayLine (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiSetTextArrayLines()
+#####################################
+#####  XuiSetTextArrayLines ()  #####
+#####################################
+
+	XuiSetTextArrayLines (grid, #SetTextArrayLines, firstDest, @count, firstSrc, @upper, kid, @text$[])
+
+	See: SetTextArrayLines
+
+FUNCTION  XuiSetTextArrayLines (grid, message, v0, v1, v2, v3, kid, (r1$, r1$[]))
+:XuiSetTextFilename()
+###################################
+#####  XuiSetTextFilename ()  #####
+###################################
+
+	XuiSetTextFilename (grid, #SetTextFilename, 0, 0, 0, 0, kid, filename$)
+
+	See: SetTextFilename
+
+FUNCTION  XuiSetTextFilename (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiSetTextFlag()
+##############################
+#####  XuiSetTextFlag()  #####
+##############################
+
+	XuiSetTextFlag (grid, #SetTextFlag, flagConstant, setReset, 0, 0, kid, 0)
+
+	See: SetTextFlag
+
+FUNCTION  XuiSetTextFlag (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetTextSpacing()
+##################################
+#####  XuiSetTextSpacing ()  #####
+##################################
+
+	XuiSetTextSpacing (grid, #GetTextSpacing, @xgap, @ygap, 0, 0, kid, 0)
+
+	See: SetTextSpacing
+
+	NOTE: Text spacing not implemented
+
+FUNCTION  XuiSetTextSpacing (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetTextString()
+#################################
+#####  XuiSetTextString ()  #####
+#################################
+
+	XuiSetTextString (grid, #SetTextString, 0, 0, 0, 0, kid, @text$)
+
+	See: SetTextString
+
+FUNCTION  XuiSetTextString (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiSetTextStrings()
+##################################
+#####  XuiSetTextStrings ()  #####
+##################################
+
+	XuiGetTextStrings (grid, #GetTextStrings, 0, 0, 0, 0, kid, @textStrings$[])
+
+	See: SetTextStrings
+
+FUNCTION  XuiSetTextStrings (grid, message, v0, v1, v2, v3, kid, r1$[])
+:XuiSetTexture()
+##############################
+#####  XuiSetTexture ()  #####
+##############################
+
+	XuiSetTexture (grid, #SetTexture, texture, 0, 0, 0, kid, 0)
+
+	See: SetTexture
+
+FUNCTION  XuiSetTexture (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetTimer()
+############################
+#####  XuiSetTimer ()  #####
+############################
+
+	XuiSetTimer (grid, #SetTimer, @time, 0, 0, 0, kid, 0)
+
+	See: SetTimer
+
+FUNCTION  XuiSetTimer (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetValue()
+############################
+#####  XuiSetValue ()  #####  r1 = offset of value to set
+############################
+
+	XuiSetValue (grid, #SetValue, value, 0, 0, 0, kid, index)
+
+	index - the index to value[index]
+	value - value to assign to value[index]
+
+	See: SetValue
+
+FUNCTION  XuiSetValue (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetValueArray()
+#################################
+#####  XuiSetValueArray ()  #####
+#################################
+
+	XuiSetValueArray (grid, #SetValueArray, 0, 0, 0, 0, kid, @value[])
+
+	See: SetValueArray
+
+FUNCTION  XuiSetValueArray (grid, message, v0, v1, v2, v3, kid, r1[])
+:XuiSetValues()
+#############################
+#####  XuiSetValues ()  #####  r1 = offset of 1st value to set
+#############################
+
+	XuiSendMessage (grid, #SetValues, v0, v1, v2, v3, kid, startIndex)
+
+	See: SetValues
+
+FUNCTION  XuiSetValues (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSetWindowFunction()
+#####################################
+#####  XuiSetWindowFunction ()  #####
+#####################################
+
+	XuiSetWindowFunction (grid, #SetWindowFunction, winFunc, 0, 0, 0, kid, 0)
+
+	See: SetWindowFunction
+
+FUNCTION  XuiSetWindowFunction (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiSetWindowIcon()
+#################################
+#####  XuiSetWindowIcon ()  #####
+#################################
+
+	XuiSetWindowIcon (grid, #SetWindowIcon, icon, 0, 0, 0, kid, @icon$)
+
+	See: SetWindowIcon
+
+FUNCTION  XuiSetWindowIcon (grid, message, v0, v1, v2, v3, kid, (r1, r1$))
+:XuiSetWindowTitle()
+##################################
+#####  XuiSetWindowTitle ()  #####
+##################################
+
+	XuiSetWindowTitle (grid, #SetWindowTitle, 0, 0, 0, 0, kid, @title$)
+
+	See: SetWindowTitle
+
+FUNCTION  XuiSetWindowTitle (grid, message, v0, v1, v2, v3, kid, r1$)
+:XuiShowWindow()
+##############################
+#####  XuiShowWindow ()  #####
+##############################
+
+	XuiShowWindow (grid, #ShowWindow, 0, 0, 0, 0, kid, 0)
+
+	See: ShowWindow
+
+FUNCTION  XuiShowWindow (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSolidColor()
+##############################
+#####  XuiSolidColor ()  #####
+##############################
+
+FUNCTION  XuiSolidColor (grid, message, v0, v1, v2, v3, r0, (r1, r1$))
+:XuiStartTimer()
+##############################
+#####  XuiStartTimer ()  #####
+##############################
+
+	XuiStartTimer (grid, #StartTimer, time, 0, 0, 0, kid, 0)
+
+	See: StartTimer
+
+FUNCTION  XuiStartTimer (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiSystemMessage()
+#################################
+#####  XuiSystemMessage ()  #####
+#################################
+
+FUNCTION  XuiSystemMessage (grid, message, v0, v1, v2, v3, kid, r1)
+:XuiText()
+########################
+#####  XuiText ()  #####
+########################
+
+FUNCTION  XuiText (grid, message, v0, v1, v2, v3, r0, (r1, r1$))
+:XuiTextArea()
+############################
+#####  XuiTextArea ()  #####
+############################
+
+	See demo program ttextarea.x for an example on how to
+	set style, text flags and colors in XuiTextArea.
+
+	See: SetStyle, SetTextFlag
+
+FUNCTION  XuiTextArea (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiTextArea2B()
+##############################
+#####  XuiTextArea2B ()  #####  TextArea plus 2 PushButtons
+##############################
+
+	XuiTextArea2B (@grid, #Create, x, y, w, h, window, parent)
+
+FUNCTION  XuiTextArea2B (grid, message, v0, v1, v2, v3, r0, (r1, r1$))
+:XuiTextArea3B()
+##############################
+#####  XuiTextArea3B ()  #####  TextArea plus 3 PushButtons
+##############################
+
+FUNCTION  XuiTextArea3B (grid, message, v0, v1, v2, v3, r0, (r1, r1$))
+:XuiTextArea4B()
+##############################
+#####  XuiTextArea4B ()  #####  TextArea plus 4 PushButtons
+##############################
+
+FUNCTION  XuiTextArea4B (grid, message, v0, v1, v2, v3, r0, (r1, r1$))
+:XuiTextLine()
+############################
+#####  XuiTextLine ()  #####
+############################
+
+FUNCTION  XuiTextLine (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$[]))
+:XuiTextModifyNot()
+#################################
+#####  XuiTextModifyNot ()  #####  Expects TextEvent message
+#################################
+
+FUNCTION  XuiTextModifyNot (grid, message, v0, v1, v2, v3, r0, r1)
+:XuiTextureNameToNumber()
+#######################################
+#####  XuiTextureNameToNumber ()  #####
+#######################################
+
+	error = XuiTextureNameToNumber (texture$, @texture)
+
+	See: XuiTextureNumberToName
+
+FUNCTION  XuiTextureNameToNumber (texture$, texture)
+:XuiTextureNumberToName()
+#######################################
+#####  XuiTextureNumberToName ()  #####
+#######################################
+
+	XuiTextureNumberToName (texture, @texture$)
+
+	See: XuiTextureNameToNumber
+
+FUNCTION  XuiTextureNumberToName (texture, texture$)
+:XuiToggleButton()
+################################
+#####  XuiToggleButton ()  #####
+################################
+
+	XuiToggleButton (@grid, #Create, x, y, width, height, window, parent)
+
+	See: Create, CreatWindow
+
+FUNCTION  XuiToggleButton (grid, message, v0, v1, v2, v3, r0, (r1, r1$, r1[], r1$))
+:XuiVersion$()
+############################
+#####  XuiVersion$ ()  #####
+############################
+
+	version$ = XuiVersion$ ()
+
+	XuiVersion$() returns the current GuiDesigner version$.
+
+FUNCTION  XuiVersion$ ()
+:XuiWindow()
+##########################
+#####  XuiWindow ()  #####
+##########################
+
+	XuiWindow() is the main window function assigned to GUI windows when
+	they are created and is therefore the first function to process window
+	messages and then sends the corresponding grid messages to the grids.
+
+FUNCTION  XuiWindow (wingrid, message, v0, v1, v2, v3, r0, (r1, r1$))

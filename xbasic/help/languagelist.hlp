@@ -1,0 +1,264 @@
+'
+' ######################  Max Reason
+' #####  language  #####  copyright 1988-2000
+' ######################  XBasic language reference helpfile
+'
+' for Windows XBasic
+' for Linux XBasic
+'
+'
+' keyword         catagory     description
+' =================================================================================
+' ABS()           intrinsic    Absolute Value
+' ACOS()          xma          arc-cosine
+' ACOSH()         xma          arc-hyperbolic-cosine
+' ATAN()          xma          arc-tangent
+' ATANH()         xma          arc-hyperbolic-tangent
+' ACSC()          xma          arc-cosecant
+' ACSCH()         xma          arc-hyperbolic-cosecant
+' ALL             auxiliary    In SELECT CASE, execute all matching cases
+' AND             operator     Bitwise AND (integer only)
+' ASC()           intrinsic    Numeric value of ASCII character in string
+' ASEC()          xma          arc-secant
+' ASECH()         xma          arc-hyperbolic-secant
+' ASIN()          xma          arc-sine
+' ASINH()         xma          arc-hyperbolic-sine
+' ATAN()          xma          arc-tangent
+' ATANH()         xma          arc-hyperbolic-tangent
+' ATTACH          statement    Attach one array/subarray to another
+' AUTO            statement    Declare variable to be AUTO scope
+' AUTOS           auxiliary    CLEAR AUTOS initializes AUTO and AUTOX variables
+' AUTOX           statement    Declare variable to be AUTOX scope
+'
+' BIN$()          intrinsic    Binary format string of integer  (010010111...)
+' BINB$()         intrinsic    Binary format string of integer  (0b010010111...)
+' BITFIELD()      intrinsic    Define bitfield constant or variable
+'
+' CASE            statement    In SELECT CASE; test cases, execute block on match
+' CFUNCTION       statement    Declare/Define C function or C callable function
+' CHR$()          intrinsic    Convert ASCII numeric value to 1 byte string
+' CJUST$()        intrinsic    Center justify string in field of spaces
+' CLEAR           statement    CLEAR AUTOS initializes AUTO and AUTOX variables
+' CLOSE()         intrinsic    Close disk, console, or communications file
+' CLR()           intrinsic    Clear bit field in integer
+' COS()           xma          cosine
+' COSH()          xma          hyperbolic-cosine
+' COT()           xma          cotangent
+' COTH()          xma          hyperbolic-cotangent
+' CSC()           xma          cosecant
+' CSCH()          xma          hyperbolic-cosecant
+' CSIZE()         intrinsic    Count number of bytes before 1st zero byte
+' CSIZE$()        intrinsic    Clip string off at 1st null character
+' CSTRING$()      intrinsic    Convert C string into native string
+'
+' DCOMPLEX        statement    Declare variables to be type DCOMPLEX
+' DEC             statement    Decrement numeric variable
+' DECLARE         statement    Declare function prototype
+' DHIGH()         intrinsic    Extract high 32-bits from DOUBLE
+' DIM             statement    Dimension an array and zero contents
+' DLOW()          intrinsic    Extract low 32-bits from DOUBLE
+' DMAKE()         intrinsic    Make DOUBLE from two 32-bit integers
+' DO              statement    Initiate a DO...LOOP loop block
+' DOUBLE          statement    Declare variables to be type DOUBLE
+' DOUBLE()        intrinsic    Convert numeric or string to type DOUBLE
+' DOUBLEAT()      intrinsic    Write DOUBLE value into specified memory address
+' DOUBLEAT()      intrinsic    Read DOUBLE value from specified memory address
+'
+' ELSE            statement    Optional in IF...THEN...ELSE...ENDIF blocks
+' END             statement    END program, function, or block structure
+' ENDIF           statement    End of IF...THEN...ELSE...ENDIF block
+' EOF()           intrinsic    Is file pointer beyond end of file
+' ERROR()         intrinsic    Return ##XERROR - optionally set a new value
+' ERROR$()        intrinsic    Convert error number into an error string
+' EXIT            statement    EXIT function or block structure
+' EXP()           xma          exponential - e to the x power
+' EXP10()         xma          exponential - 10 to the x power
+' EXTERNAL        statement    Declare variables to be EXTERNAL scope
+' EXTS()          intrinsic    Extract signed bit field
+' EXTU()          intrinsic    Extract unsigned bit field
+'
+' FALSE           auxiliary    Optional in SELECT CASE statements
+' FIX()           intrinsic    Integerize with round towards zero
+' FOR             statement    Initiate a FOR...NEXT loop block
+' FORMAT$()       intrinsic    Create formatted string
+' FUNCADDR        statement    Declare variable to be FUNCADDR type
+' FUNCADDR()      intrinsic    Convert to type FUNCADDR
+' FUNCADDRESS()   intrinsic    Get address of function
+' FUNCTION        statement    Declare/Define a function
+'
+' GHIGH()         intrinsic    Extract high 32-bits from GIANT
+' GIANT           statement    Declare variable to be type GIANT
+' GIANT()         intrinsic    Convert to type GIANT
+' GIANTAT()       intrinsic    Write GIANT value into specified memory address
+' GIANTAT()       intrinsic    Read GIANT value from specified memory address
+' GLOW()          intrinsic    Extract low 32-bits from GIANT
+' GMAKE()         intrinsic    Create GIANT from two 32-bit integers
+' GOADDR          statement    Declare variable to be type GOADDR
+' GOADDR()        intrinsic    Convert to type GOADDR
+' GOADDRESS()     intrinsic    Get address of GOTO label
+' GOSUB           statement    Call a local subroutine
+' GOTO            statement    Jump to a local label
+'
+' HEX$()          intrinsic    Create hexadecimal string form of integer
+' HEXX$()         intrinsic    HEX$ with "0x" prefix
+' HIGH0()         intrinsic    Find bit number of most significant 0 bit
+' HIGH1()         intrinsic    Find bit number of most significant 1 bit
+'
+' IF              statement    IF TRUE test in IF...ENDIF block
+' IFF             statement    IF FALSE test in IF...ENDIF block
+' IFT             statement    IF TRUE test in IF...ENDIF block
+' IFZ             statement    IF ZERO test in IF...ENDIF block
+' IMPORT          statement    Read and process a .DEC declaration file
+' INC             statement    Increment a variable
+' INCHR()         intrinsic    Find first search-set character in string
+' INCHRI()        intrinsic    Case insensitive INCHR()
+' INFILE$()       intrinsic    Input string from file
+' INLINE$()       intrinsic    Input string from main console
+' INSTR()         intrinsic    Find first substring in string
+' INSTRI()        intrinsic    Case insensitive INSTR()
+' INT()           intrinsic    Integer part of number
+' INTERNAL        statement    Declare function to have INTERNAL scope
+' ISDATA()        intrinsic    Test if lowest or data dimension of an array
+' ISNODE()        intrinsic    Test if higher dimension node of an array
+'
+' LCASE$()        intrinsic    Convert constants of string to lower case
+' LCLIP$()        intrinsic    Clip n bytes from left end of string
+' LEFT$()         intrinsic    Leftmost n characters of string
+' LEN()           intrinsic    # of elements in string
+' LIBRARY         statement    Compile this file as a function library
+' LIBRARY()       intrinsic    Is program compiled as a function library
+' LJUST$()        intrinsic    Left justify string in field of spaces
+' LOF()           intrinsic    Length of file in bytes
+' LOG()           xma          logarithm - base e
+' LOG10()         xma          logarithm - base 10
+' LOOP            statement    End DO...LOOP block
+' LTRIM$()        intrinsic    Trim spaces and tabs from left of string
+'
+' MAKE()          intrinsic    Make a bit-field
+' MAX()           intrinsic    Return maximum of two arguments  (larger)
+' MID$()          intrinsic    Extract arbitrary part of string
+' MID$()=         intrinsic    Replace arbitrary part of string
+' MIN()           intrinsic    Return minimum of two arguments  (smaller)
+' MOD             operator     Arithmetic MODULUS operator
+'
+' NEXT            statement    End FOR...NEXT loop
+' NOT             operator     Bitwise NOT operator (invert all bits)
+' NULL$()         intrinsic    Create string of n null characters
+'
+' OCT$()          intrinsic    Octal string from integer (1234567012...)
+' OCTO$()         intrinsic    Octal string from integer (0o1234567012...)
+' OPEN()          intrinsic    Open a disk, console, or communications file
+' OR              operator     Bitwise OR operator
+'
+' POF()           intrinsic    Position of file pointer
+' POWER()         xma          Raise x to y power - same as x ** y
+' PRINT           statement    Print to console, disk, or communications file
+' PROGRAM         auxiliary    END PROGRAM is optional after last function
+' PROGRAM         statement    Give the program a name
+' PROGRAM$()      intrinsic    Get the program name given by PROGRAM statement
+'
+' QUIT()          intrinsic    Quit executing the program (terminate program)
+'
+' RCLIP$()        intrinsic    Clip n bytes from right end of string
+' READ            statement    Read from file into variables
+' REDIM           statement    Redimension an array, preserve contents
+' RETURN          statement    Return from function  (not from GOSUB)
+' RIGHT$()        intrinsic    Extract rightmost n characters of string
+' RINCHR()        intrinsic    Same as INCHR except reverse search direction
+' RINCHRI()       intrinsic    Same as RINCHR() except case insensitive
+' RINSTR()        intrinsic    Same as INSTR() except reverse search direction
+' RINSTRI()       intrinsic    Same as RINSTR() except case insensitive
+' RJUST$()        intrinsic    Right justify string in field of spaces
+' ROTATEL()       intrinsic    Rotate word left n bits
+' ROTATER()       intrinsic    Rotate word right n bits
+' RTRIM$()        intrinsic    Trim spaces and tabs from right end of string
+'
+' SBYTE           statement    Declare variables to be type SBYTE
+' SBYTE()         intrinsic    Convert to type SBYTE
+' SBYTEAT()       intrinsic    Write SBYTE value into specified memory address
+' SBYTEAT()       intrinsic    Read SBYTE value from specified memory address
+' SCOMPLEX        statement    Declare variables to be type SCOMPLEX
+' SEC()           xma          secant
+' SECH()          xma          hyperbolic-secant
+' SEEK()          intrinsic    Set file pointer position
+' SELECT          statement    Select from one of n alternatives
+' SET()           intrinsic    Set specified range of bits = 1s
+' SFUNCTION()     intrinsic    Declare or define a "system" function
+' SGN()           intrinsic    Sign of number (-1, 0, +1)
+' SHARED          statement    Declare variables to have SHARED scope
+' SHELL()         intrinsic    Execute a command line string
+' SIGN()          intrinsic    Sign of number (-1, +1)
+' SIGNED$()       intrinsic    Convert to type STRING  (leading "-" or "+")
+' SIN()           xma          sine
+' SINH()          xma          hyperbolic-sine
+' SINGLE          statement    Declare variables to be type SINGLE
+' SINGLE()        intrinsic    Convert to type SINGLE
+' SINGLEAT()      intrinsic    Write SINGLE value into specified memory address
+' SINGLEAT()      intrinsic    Read SINGLE value from specified memory address
+' SIZE()          intrinsic    Size of string or array in bytes
+' SLONG           statement    Declare variables to be type SLONG
+' SLONG()         intrinsic    Convert to type SLONG
+' SLONGAT()       intrinsic    Write SLONG value into specified memory address
+' SLONGAT()       intrinsic    Read SLONG value from specified memory address
+' SMAKE()         intrinsic    Make a type SINGLE from a 32-bit integer value
+' SPACE$()        intrinsic    Create a string of n space characters
+' SQRT()          xma          square-root
+' SSHORT          statement    Declare variables to be type SSHORT
+' SSHORT()        intrinsic    Convert to type SSHORT
+' SSHORTAT()      intrinsic    Write SSHORT value into specified memory address
+' SSHORTAT()      intrinsic    Read SSHORT value from specified memory address
+' STATIC          statement    Declare variables to be STATIC scope
+' STEP            auxiliary    Used in FOR.TO.STEP...NEXT blocks
+' STOP            statement    Stop program execution here
+' STR$()          intrinsic    Convert to type STRING (leading "-" or " ")
+' STRING          statement    Declare variables to be type STRING
+' STRING()        intrinsic    Convert to type STRING (leading "-" or "")
+' STRING$()       intrinsic    Convert to type STRING (leading "-" or "")
+' STUFF$()        intrinsic    Stuff one string into another
+' SUB             statement    Begin a subroutine
+' SUBADDR         statement    Declare variables to be type SUBADDR
+' SUBADDR()       intrinsic    Convert to type SUBADDR
+' SUBADDRESS()    intrinsic    Get address of subroutine
+' SWAP            statement    Swap the values of the same type
+'
+' TAB()           intrinsic    Append spaces to PRINT string to get to column n
+' TAN()           xma          tangent
+' TANH()          xma          hyperbolic-tangent
+' THEN            auxiliary    Used in IF...THEN...ELSE...ENDIF blocks
+' TO              auxiliary    Used in FOR...NEXT blocks and ATTACH statements
+' TRIM$()         intrinsic    Remove spaces and tabs from left & right of string
+' TRUE            statement    Optional in SELECT CASE statements
+' TYPE            statement    Declare/Define user-defined composite data type
+' TYPE()          intrinsic    Return type number of variable, array, component
+'
+' UBOUND()        intrinsic    Upper bound of any dimension of an array
+' UBYTE           statement    Declare variables to be type UBYTE
+' UBYTE()         intrinsic    Convert variable to type UBYTE
+' UBYTEAT()       intrinsic    Write UBYTE value into specified memory address
+' UBYTEAT()       intrinsic    Read UBYTE value from specified memory address
+' UCASE$()        intrinsic    Convert contents of string to upper case
+' ULONG           statement    Declare variables to be type ULONG
+' ULONG()         intrinsic    Convert variable to type ULONG
+' ULONGAT()       intrinsic    Write ULONG value into specified memory address
+' ULONGAT()       intrinsic    Read ULONG value from specified memory address
+' UNION           statement    Declare/Define user-defined composite data type
+' UNTIL           auxiliary    Used in DO and LOOP statements
+' USHORT          statement    Declare variables to be type USHORT
+' USHORT()        intrinsic    Convert variable to type USHORT
+' USHORTAT()      intrinsic    Write USHORT value into specified memory address
+' USHORTAT()      intrinsic    Read USHORT value from specified memory address
+'
+' VERSION         statement    Give a version number to the program
+' VERSION$()      intrinsic    Get the version number string from VERSION statement
+' VOID            statement    Declare that a function returns no value
+'
+' WHILE           auxiliary    Used in DO and LOOP statements
+' WRITE           statement    Write variables to a file
+'
+' XLONG           statement    Declare variables to be type XLONG
+' XLONG()         intrinsic    Convert variable to type XLONG
+' XLONGAT()       intrinsic    Write XLONG value into memory at specified address
+' XLONGAT()       intrinsic    Read XLONG value from memory at specified address
+' XMAKE()         intrinsic    Retype to XLONG from any type (MSW if GIANT/DOUBLE)
+' XOR             operator     Bitwise exclusive-OR operator
+'
