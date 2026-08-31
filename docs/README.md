@@ -64,6 +64,7 @@ Living roadmaps of open work (current truth; updated as work lands):
 | [18 — By-ref Array ABI](18-byref-array-abi.md) | Landed descriptor ABI for primitive/flat arrays and shared composite `ARY_VAR_DATA` member arrays (compile-only); general composite `TYPE` array by-ref and runtime behavior remain open |
 | [19 — CGEN Facet Manifest](19-cgen-facet-manifest.md) | Partial frontend-emitted facet implementation; scope-qualified consumption and full heuristic replacement remain open |
 | [20 — Port-Completion Roadmap](20-port-completion-roadmap.md) | Forward milestone plan to the end state: every legacy source workable (incl. GUI + PDE), full-scope self-hosting bootstrap, distribution — six gated milestones M1–M6 sequencing the docs/17 open rows |
+| [21 — Session Record 2026-08-31](21-session-2026-08-31-licensing-port-record.md) | Knowledge capture: tracked `xbasic/` port mechanics, path repoint map, license scan results, MIT relicense facts, composite-injection bug, local-only state, CI truth — resume-from-compaction reference |
 
 ## The big picture
 
