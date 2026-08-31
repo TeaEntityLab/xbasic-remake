@@ -63,6 +63,7 @@ Living roadmaps of open work (current truth; updated as work lands):
 | [17 — Open-Work Roadmap](17-open-work-roadmap.md) | Umbrella "everything not done yet": open rows, panel adoption ledger, demo/GUI status, historical session logs |
 | [18 — By-ref Array ABI](18-byref-array-abi.md) | Landed descriptor ABI for primitive/flat arrays and shared composite `ARY_VAR_DATA` member arrays (compile-only); general composite `TYPE` array by-ref and runtime behavior remain open |
 | [19 — CGEN Facet Manifest](19-cgen-facet-manifest.md) | Partial frontend-emitted facet implementation; scope-qualified consumption and full heuristic replacement remain open |
+| [20 — Port-Completion Roadmap](20-port-completion-roadmap.md) | Forward milestone plan to the end state: every legacy source workable (incl. GUI + PDE), full-scope self-hosting bootstrap, distribution — six gated milestones M1–M6 sequencing the docs/17 open rows |
 
 ## The big picture
 

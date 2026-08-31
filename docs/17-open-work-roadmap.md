@@ -1549,3 +1549,4 @@ failures.**
 - Two-C-generator drift and byte-identity: **16-cgen-cemitter-sync-roadmap.md**.
 - Backend rationale / crate survey: **12-rust-llvm-rewrite-survey.md**.
 - Stage status and decisions: **13-bootstrap-scaffold.md**, **14-self-hosting-progress.md**.
+- Forward milestone sequencing of the open rows (M1–M6 to "everything legacy + full bootstrap"): **20-port-completion-roadmap.md**.
