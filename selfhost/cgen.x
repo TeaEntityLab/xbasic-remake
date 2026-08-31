@@ -1229,7 +1229,7 @@ WHILE fwdPos <= LEN(src$)
         ELSE
           fwdSType$ = fwdSAfter$
         END IF
-        IF ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":" + fwdSName$ + ":") > 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, fwdSName$, "*") = "1")) THEN
+        IF is_shared_array$(fwdSName$, "*") = "1" THEN
           IF INSTR(##sharedArrDecls$, ":" + fwdSName$ + ":") = 0 THEN
             ##sharedArrDecls$ = ##sharedArrDecls$ + ":" + fwdSName$ + ":"
             IF INSTR(##sharedDual$, ":" + fwdSName$ + ":") > 0 THEN
@@ -1453,7 +1453,7 @@ IF LEN(##facetTab$) > 0 THEN
         IF _fdSp > 0 THEN
           _fdTy$ = LEFT$(_fdRest$, _fdSp - 1)
         END IF
-        IF (_fdTy$ = "integer" OR _fdTy$ = "float") AND INSTR(##dynNames$, ":" + _fdNm$ + ":") = 0 AND INSTR(_fdNm$, ".") = 0 AND facet_has_entry$(##facetTab$, _fdNm$, "*") = 0 AND INSTR(##allStrArr$, ":" + _fdNm$ + ":") = 0 AND INSTR(##xstArrays$, ":" + _fdNm$ + ":") = 0 AND (INSTR(src$, "dim " + _fdNm$ + ":" + _fdTy$ + "[") > 0 OR INSTR(src$, "dim shared " + _fdNm$ + ":" + _fdTy$ + "[") > 0) THEN
+        IF (_fdTy$ = "integer" OR _fdTy$ = "float") AND INSTR(##dynNames$, ":" + _fdNm$ + ":") = 0 AND INSTR(_fdNm$, ".") = 0 AND is_shared_array$(_fdNm$, "*") = "0" AND INSTR(##allStrArr$, ":" + _fdNm$ + ":") = 0 AND INSTR(##xstArrays$, ":" + _fdNm$ + ":") = 0 AND (INSTR(src$, "dim " + _fdNm$ + ":" + _fdTy$ + "[") > 0 OR INSTR(src$, "dim shared " + _fdNm$ + ":" + _fdTy$ + "[") > 0) THEN
           ##dynNames$ = ##dynNames$ + ":" + _fdNm$ + ":" + _fdTy$ + ":"
         END IF
       END IF
@@ -5029,7 +5029,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
         ' Dual-use and string-facet variables still need hoisting.
         ' Note: #SharedName refs (##sharedDecls$) are NOT skipped because
         ' the same name can be used as a regular local in other functions.
-        IF INSTR(##keywordShared$, ":" + nm$ + ":") > 0 AND ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":" + nm$ + ":") = 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, nm$, ##curHoistFn$) = "0")) AND INSTR(##sharedStrDual$, ":" + nm$ + ":") = 0 AND INSTR(##sharedDual$, ":" + nm$ + ":") = 0 AND _strFacet = 0 AND NOT (ty$ = "string" AND RIGHT$(nm$, 1) <> "$") THEN
+        IF INSTR(##keywordShared$, ":" + nm$ + ":") > 0 AND is_shared_array$(nm$, ##curHoistFn$) = "0" AND INSTR(##sharedStrDual$, ":" + nm$ + ":") = 0 AND INSTR(##sharedDual$, ":" + nm$ + ":") = 0 AND _strFacet = 0 AND NOT (ty$ = "string" AND RIGHT$(nm$, 1) <> "$") THEN
           ' Shared scalar — don't hoist, it's a file-scope global
         ELSE
         IF (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR (_ptMatch = 0 AND c_var_name$(nm$, ty$) <> c_var_name$(nm$, _ptType$)) OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) AND ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":" + nm$ + ":") = 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, nm$, ##curHoistFn$) = "0") OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0)) OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1 OR (INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0)) OR (INSTR(##sharedStrDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0)) THEN
@@ -6683,6 +6683,13 @@ FUNCTION facet_has_entry$(tab$, name$, scope$)
     END IF
   WEND
   facet_has_entry$ = "0"
+END FUNCTION
+FUNCTION is_shared_array$(name$, scope$)
+  IF LEN(##facetTab$) = 0 THEN
+    IF INSTR(##sharedArrays$, ":" + name$ + ":") > 0 THEN is_shared_array$ = "1" ELSE is_shared_array$ = "0"
+  ELSE
+    is_shared_array$ = facet_has_entry$(##facetTab$, name$, scope$)
+  END IF
 END FUNCTION
 ' Look up a name's type from the facet table in a given scope.
 ' Returns "integer" if not found (matching dyn_type$ default).
