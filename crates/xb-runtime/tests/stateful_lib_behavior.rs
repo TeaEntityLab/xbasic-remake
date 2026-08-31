@@ -685,7 +685,7 @@ int main(void) {
     { char* name=(char*)0; xb_user_XstSystemExceptionNumberToName(11, &name); check_s("SysExcName(11)", name, "$$SIGSEGV"); }
     /* XstExceptionToSystemException and XstSystemExceptionToException already
        tested above (SELECT CASE, no SHARED array needed). */
-    printf("\n%d checks, %d failures\n", 156, fails);
+    printf("\n%d checks, %d failures\n", 157, fails);
     return fails;
 }
 "#).unwrap();
