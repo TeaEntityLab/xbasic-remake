@@ -6586,6 +6586,12 @@ FUNCTION facets_in_scope$(tab$, sc$, field$)
                 END IF
               END IF
             END IF
+          ELSEIF field$ = "shared" THEN
+            IF INSTR(rest$, " shared") > 0 THEN
+              IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
+                result$ = result$ + ":" + nm$ + ":"
+              END IF
+            END IF
           END IF
         END IF
       END IF
@@ -6688,7 +6694,7 @@ FUNCTION is_shared_arr$(name$, scope$)
   IF LEN(##facetTab$) = 0 THEN
     IF INSTR(##sharedArrays$, ":" + name$ + ":") > 0 THEN is_shared_arr$ = "1" ELSE is_shared_arr$ = "0"
   ELSE
-    is_shared_arr$ = facet_has_entry$(##facetTab$, name$, scope$)
+    IF INSTR(facets_in_scope$(##facetTab$, scope$, "shared"), ":" + name$ + ":") > 0 THEN is_shared_arr$ = "1" ELSE is_shared_arr$ = "0"
   END IF
 END FUNCTION
 FUNCTION is_all_str_arr$(name$, scope$)
