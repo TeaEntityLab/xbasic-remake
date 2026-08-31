@@ -967,7 +967,7 @@ WHILE sub2 <= LEN(src$)
       END IF
       ' SHARED string arrays are heap globals, not fixed `_arr` VLAs.
       ' `envp$[]` must not enter strUbDual or UBOUND emits sizeof(xb_str_envp_s_arr).
-      IF ity$ = "string" AND sizedDim = 1 AND INSTR(##allStrArr$, ":" + inm$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + inm$ + ":") = 0 THEN
+      IF ity$ = "string" AND sizedDim = 1 AND INSTR(##allStrArr$, ":" + inm$ + ":") > 0 AND is_shared_arr$(inm$, "*") = "0" THEN
         IF INSTR(##strUbDual$, ":" + inm$ + ":") = 0 THEN
           ##strUbDual$ = ##strUbDual$ + ":" + inm$ + ":"
         END IF
@@ -1319,7 +1319,7 @@ WHILE dsPos <= LEN(src$)
       ELSE
         dsRefType$ = MID$(dsRest$, dsColon + 1, dsSp - dsColon - 1)
       END IF
-      IF INSTR(##sharedDecls$, ":" + dsRefName$ + ":") = 0 AND ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":" + dsRefName$ + ":") = 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, dsRefName$, "*") = "0")) THEN
+      IF INSTR(##sharedDecls$, ":" + dsRefName$ + ":") = 0 AND ((LEN(##facetTab$) = 0 AND is_shared_arr$(dsRefName$, "*") = "0") OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, dsRefName$, "*") = "0")) THEN
         ##sharedDecls$ = ##sharedDecls$ + ":" + dsRefName$ + ":"
         ##keywordShared$ = ##keywordShared$ + ":" + dsRefName$ + ":"
         IF dsRefType$ = "string" THEN
@@ -1355,7 +1355,7 @@ WHILE ssdPos <= LEN(src$)
       IF RIGHT$(ssdTy$, 1) = ")" THEN
         ssdTy$ = LEFT$(ssdTy$, LEN(ssdTy$) - 1)
       END IF
-      IF ssdTy$ = "string" AND INSTR(##sharedDecls$, ":" + ssdNm$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + ssdNm$ + ":") = 0 THEN
+      IF ssdTy$ = "string" AND INSTR(##sharedDecls$, ":" + ssdNm$ + ":") > 0 AND is_shared_arr$(ssdNm$, "*") = "0" THEN
         IF INSTR(##sharedStrDual$, ":" + ssdNm$ + ":") = 0 THEN
           ##sharedStrDual$ = ##sharedStrDual$ + ":" + ssdNm$ + ":"
         END IF
@@ -1805,7 +1805,7 @@ WHILE pos <= LEN(src$)
               _adName$ = dim_name$(stmt$)
               _adSig$ = CHR$(10) + stmt$ + CHR$(10)
               _adNative = 1
-              IF INSTR(##dynNames$, ":" + _adName$ + ":") > 0 OR INSTR(##dynStr$, ":" + _adName$ + ":") > 0 OR INSTR(##strDual$, ":" + _adName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + _adName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + _adName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + _adName$ + ":") > 0 THEN
+              IF INSTR(##dynNames$, ":" + _adName$ + ":") > 0 OR INSTR(##dynStr$, ":" + _adName$ + ":") > 0 OR INSTR(##strDual$, ":" + _adName$ + ":") > 0 OR is_shared_arr$(_adName$, "*") = "1" OR INSTR(##allStrArr$, ":" + _adName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + _adName$ + ":") > 0 THEN
                 _adNative = 0
               END IF
               IF _adNative = 1 THEN
@@ -2087,7 +2087,7 @@ END FUNCTION
 ' String variables without $ suffix fall through to c_var_name$ (local
 ' string facet), matching Rust CEmitter which hoists a local char*.
 FUNCTION c_ref_name$(n$, t$)
-  IF INSTR(##keywordShared$, ":" + n$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + n$ + ":") = 0 AND INSTR(##sharedStrDual$, ":" + n$ + ":") = 0 AND NOT (t$ = "string" AND RIGHT$(n$, 1) <> "$") THEN
+  IF INSTR(##keywordShared$, ":" + n$ + ":") > 0 AND is_shared_arr$(n$, "*") = "0" AND INSTR(##sharedStrDual$, ":" + n$ + ":") = 0 AND NOT (t$ = "string" AND RIGHT$(n$, 1) <> "$") THEN
     c_ref_name$ = "xb_shared_" + sanitize_ident$(n$)
   ELSE
     c_ref_name$ = c_var_name$(n$, t$)
@@ -2906,7 +2906,7 @@ FUNCTION emit_expr$(e$)
     ' declaration was integer (e.g., dim shared envp:integer used as
     ' symbol(envp:string)). Use c_var_name$ to emit xb_str_X, matching
     ' Rust CEmitter which declares a local char* in this case.
-    IF INSTR(##sharedDecls$, ":" + varName$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##sharedStrDual$, ":" + varName$ + ":") = 0 AND NOT (varType$ = "string" AND RIGHT$(varName$, 1) <> "$") THEN
+    IF INSTR(##sharedDecls$, ":" + varName$ + ":") > 0 AND is_shared_arr$(varName$, "*") = "0" AND INSTR(##sharedStrDual$, ":" + varName$ + ":") = 0 AND NOT (varType$ = "string" AND RIGHT$(varName$, 1) <> "$") THEN
       emit_expr$ = "xb_shared_" + sanitize_ident$(varName$)
       RETURN emit_expr$
     END IF
@@ -2942,7 +2942,7 @@ FUNCTION emit_expr$(e$)
         _ifzType$ = MID$(_ifzInner$, _ifzColon + 1, LEN(_ifzInner$) - _ifzColon)
         ' Only apply pointer comparison to SHARED STRING arrays, not shared
         ' integer arrays (kids:integer > 9 would incorrectly emit xb_str_kids).
-        IF _ifzType$ = "string" AND INSTR(##sharedArrays$, ":" + _ifzName$ + ":") > 0 THEN
+        IF _ifzType$ = "string" AND is_shared_arr$(_ifzName$, "*") = "1" THEN
           emit_expr$ = "-(" + c_var_name$(_ifzName$, "string") + " " + c_cmp_op$(op$) + " " + emit_expr$(right$) + ")"
           RETURN emit_expr$
         END IF
@@ -3672,7 +3672,7 @@ FUNCTION emit_expr$(e$)
       ELSE
         varType$ = "integer"
       END IF
-      IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
+      IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND is_shared_arr$(varName$, "*") = "0" THEN
         emit_expr$ = c_default$(varType$)
         RETURN emit_expr$
       END IF
@@ -3683,13 +3683,13 @@ FUNCTION emit_expr$(e$)
       _ndShape$ = shape_of$(varName$)
       _ndRank = top_part_count(_ndShape$)
       _ndIdxRank = top_part_count(t$)
-      IF _ndRank >= 3 AND INSTR(t$, ",") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+      IF _ndRank >= 3 AND INSTR(t$, ",") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_shared_arr$(varName$, "*") = "1" OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
         IF _ndRank = _ndIdxRank THEN
           emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_flat_nd$(t$, _ndShape$) + "]"
         ELSE
           emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
         END IF
-      ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+      ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_shared_arr$(varName$, "*") = "1" OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
         emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_flat2d$(t$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "]"
       ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
@@ -3717,7 +3717,7 @@ FUNCTION emit_expr$(e$)
     END IF
     IF INSTR(##sharedDual$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$) + "_arr"
-    ELSEIF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
+    ELSEIF is_shared_arr$(varName$, "*") = "1" THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF is_xfn_dyn$(varName$) = "1" THEN
       IF varType$ = "string" THEN
@@ -3967,7 +3967,7 @@ FUNCTION is_array_var_in_scope$(nm$)
     ' genuinely arrays. The ##funcHasArr$ gate in the caller ensures this
     ' check only runs for callees with array params, preventing false
     ' positives for shared arrays used as local scalars (e.g. xui grid).
-    IF INSTR(##sharedArrays$, ":" + nm$ + ":") > 0 THEN _arr = 1
+    IF is_shared_arr$(nm$, "*") = "1" THEN _arr = 1
     IF INSTR(##allStrArr$, ":" + nm$ + ":") > 0 THEN _arr = 1
     IF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 THEN _arr = 1
     IF INSTR(##byrefDual$, ":" + nm$ + ":") > 0 THEN _arr = 1
@@ -5004,7 +5004,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
           END IF
         END IF
         IF ty$ = "string" AND RIGHT$(nm$, 1) <> "$" AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
-          IF INSTR(##sharedArrays$, ":" + nm$ + ":") > 0 THEN
+          IF is_shared_arr$(nm$, "*") = "1" THEN
             _strFacet = 1
           ELSEIF INSTR(used$, CHR$(10) + nm$ + "|integer") > 0 OR INSTR(used$, CHR$(10) + nm$ + "|float") > 0 THEN
             _strFacet = 1
@@ -5032,7 +5032,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
         IF INSTR(##keywordShared$, ":" + nm$ + ":") > 0 AND is_shared_arr$(nm$, ##curHoistFn$) = "0" AND INSTR(##sharedStrDual$, ":" + nm$ + ":") = 0 AND INSTR(##sharedDual$, ":" + nm$ + ":") = 0 AND _strFacet = 0 AND NOT (ty$ = "string" AND RIGHT$(nm$, 1) <> "$") THEN
           ' Shared scalar — don't hoist, it's a file-scope global
         ELSE
-        IF (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR (_ptMatch = 0 AND c_var_name$(nm$, ty$) <> c_var_name$(nm$, _ptType$)) OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) AND ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":" + nm$ + ":") = 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, nm$, ##curHoistFn$) = "0") OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0)) OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1 OR (INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0)) OR (INSTR(##sharedStrDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0)) THEN
+        IF (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR (_ptMatch = 0 AND c_var_name$(nm$, ty$) <> c_var_name$(nm$, _ptType$)) OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) AND ((LEN(##facetTab$) = 0 AND is_shared_arr$(nm$, "*") = "0") OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, nm$, ##curHoistFn$) = "0") OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0)) OR _strFacet = 1) AND (INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 OR INSTR(##fwdScalars$, ":" + nm$ + ":") > 0 OR _strFacet = 1 OR _typeMismatch = 1 OR (INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0) OR (INSTR(##sharedDual$, ":" + nm$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 OR _ptMatch = 0)) OR (INSTR(##sharedStrDual$, ":" + nm$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0)) THEN
           IF INSTR(##strUbDual$, ":" + nm$ + ":") > 0 AND INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
             IF (INSTR(##dynStr$, ":" + nm$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + nm$ + ":") > 0) AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
               IF INSTR(out$, "char* *xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 AND INSTR(out$, "char** xb_str_" + sanitize_dual$(nm$) + "_arr = 0;") = 0 THEN
@@ -5096,9 +5096,9 @@ FUNCTION emit_hoists$(used$, dimmed$)
     ELSEIF nlpos > 1 THEN
       entry$ = LEFT$(rest$, nlpos - 1)
       rest$ = MID$(rest$, nlpos + 1, LEN(rest$) - nlpos)
-      IF INSTR(##sharedArrays$, ":" + entry$ + ":") > 0 AND INSTR(##sharedDual$, ":" + entry$ + ":") = 0 THEN
+      IF is_shared_arr$(entry$, "*") = "1" AND INSTR(##sharedDual$, ":" + entry$ + ":") = 0 THEN
         ' Shared array (non-dual): file-scope heap global already declared.
-      ELSEIF INSTR(##sharedArrays$, ":" + entry$ + ":") > 0 AND INSTR(##sharedDual$, ":" + entry$ + ":") > 0 THEN
+      ELSEIF is_shared_arr$(entry$, "*") = "1" AND INSTR(##sharedDual$, ":" + entry$ + ":") > 0 THEN
         ' Shared dual-use: file-scope has _arr pointer only; scalar facet
         ' needs a local declaration (matches Rust CEmitter local intptr_t).
         IF INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 THEN
@@ -6492,7 +6492,7 @@ FUNCTION arr_acc_name$(n$, t$)
   END IF
   ' Non-dual shared arrays are one file-scope pointer. Never the dual `_arr`
   ' facet (Rust `is_shared_array` skips `_arr`). `envp$[]` must match `xb_str_envp_s`.
-  IF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
+  IF is_shared_arr$(n$, "*") = "1" THEN
     arr_acc_name$ = c_var_name$(n$, t$)
     RETURN arr_acc_name$
   END IF
@@ -6686,7 +6686,7 @@ FUNCTION facet_has_entry$(tab$, name$, scope$)
 END FUNCTION
 FUNCTION is_shared_arr$(name$, scope$)
   IF LEN(##facetTab$) = 0 THEN
-    IF INSTR(##sharedArrays$, ":" + name$ + ":") > 0 THEN is_shared_arr$ = "1" ELSE is_shared_arr$ = "0"
+    IF is_shared_arr$(name$, "*") = "1" THEN is_shared_arr$ = "1" ELSE is_shared_arr$ = "0"
   ELSE
     is_shared_arr$ = facet_has_entry$(##facetTab$, name$, scope$)
   END IF
@@ -6746,7 +6746,7 @@ FUNCTION bd$(n$)
   ' early-return, which would otherwise emit no suffix.
   IF INSTR(##sharedDual$, ":" + n$ + ":") > 0 THEN
     bd$ = "_arr"
-  ELSEIF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
+  ELSEIF is_shared_arr$(n$, "*") = "1" THEN
     ' Non-dual shared array: one file-scope pointer, no _arr facet.
     bd$ = ""
   ELSEIF n$ = "null" OR n$ = "window" OR n$ = "host_address" THEN
@@ -6770,7 +6770,7 @@ FUNCTION ub_ref$(n$, t$)
     ub_ref$ = "xb_ub_" + sanitize_ident$(n$) + "_arr"
     RETURN ub_ref$
   END IF
-  IF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
+  IF is_shared_arr$(n$, "*") = "1" THEN
     ub_ref$ = "xb_ub_" + sanitize_ident$(n$)
     RETURN ub_ref$
   END IF
@@ -7578,7 +7578,7 @@ FUNCTION emit_stmt$(s$)
         emit_stmt$ = ""
         RETURN emit_stmt$
       END IF
-      IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
+      IF is_shared_arr$(varName$, "*") = "1" THEN
         IF bracketPos > 0 THEN
           IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
             emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)(" + ub_ref$(varName$, varType$) + " + 1), sizeof(" + c_type$(varType$) + ")); if (!" + arr_acc_name$(varName$, varType$) + ") abort(); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
@@ -7608,7 +7608,7 @@ FUNCTION emit_stmt$(s$)
         varType$ = "integer"
       END IF
       cExpr$ = emit_expr$(arrSize$)
-      IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
+      IF is_shared_arr$(varName$, "*") = "1" THEN
         IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
           emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)(" + ub_ref$(varName$, varType$) + " + 1), sizeof(" + c_type$(varType$) + ")); if (!" + arr_acc_name$(varName$, varType$) + ") abort(); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
@@ -7731,7 +7731,7 @@ FUNCTION emit_stmt$(s$)
         varName$ = rest$
         varType$ = "integer"
       END IF
-      IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
+      IF is_shared_arr$(varName$, "*") = "1" THEN
         emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = 0; " + ub_ref$(varName$, varType$) + " = -1;"
       ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(##byrefDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
         emit_stmt$ = ""
@@ -7763,7 +7763,7 @@ FUNCTION emit_stmt$(s$)
     spacePos = INSTR(tmp$, "= ", bracketPos + 1)
     right$ = MID$(tmp$, spacePos + 2, LEN(tmp$) - spacePos - 1)
     c2$ = emit_expr$(right$)
-    IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
+    IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND is_shared_arr$(varName$, "*") = "0" THEN
       IF varType$ = "string" AND INSTR(cExpr$, ",") = 0 THEN
         IF INSTR(##sharedDecls$, ":" + varName$ + ":") > 0 THEN
           emit_stmt$ = "    xb_setch(xb_shared_" + sanitize_ident$(varName$) + ", " + emit_expr$(cExpr$) + ", " + c2$ + ");"
@@ -7777,13 +7777,13 @@ FUNCTION emit_stmt$(s$)
       _ndShape$ = shape_of$(varName$)
       _ndRank = top_part_count(_ndShape$)
       _ndIdxRank = top_part_count(cExpr$)
-      IF _ndRank >= 3 AND INSTR(cExpr$, ",") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+      IF _ndRank >= 3 AND INSTR(cExpr$, ",") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_shared_arr$(varName$, "*") = "1" OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
         IF _ndRank = _ndIdxRank THEN
           emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_flat_nd$(cExpr$, _ndShape$) + "] = " + c2$ + ";"
         ELSE
           emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(cExpr$)) + "] = " + c2$ + ";"
         END IF
-      ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+      ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_shared_arr$(varName$, "*") = "1" OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
         emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_flat2d$(cExpr$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "] = " + c2$ + ";"
       ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(cExpr$)) + "] = " + c2$ + ";"
