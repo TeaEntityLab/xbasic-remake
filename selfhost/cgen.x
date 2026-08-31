@@ -967,7 +967,7 @@ WHILE sub2 <= LEN(src$)
       END IF
       ' SHARED string arrays are heap globals, not fixed `_arr` VLAs.
       ' `envp$[]` must not enter strUbDual or UBOUND emits sizeof(xb_str_envp_s_arr).
-      IF ity$ = "string" AND sizedDim = 1 AND INSTR(##allStrArr$, ":" + inm$ + ":") > 0 AND INSTR(##sharedArrays$, ":" + inm$ + ":") = 0 THEN
+      IF ity$ = "string" AND sizedDim = 1 AND is_all_str_arr$(inm$, "*") = "1" AND is_shared_arr$(inm$, "*") = "0" THEN
         IF INSTR(##strUbDual$, ":" + inm$ + ":") = 0 THEN
           ##strUbDual$ = ##strUbDual$ + ":" + inm$ + ":"
         END IF
@@ -6684,6 +6684,20 @@ FUNCTION facet_has_entry$(tab$, name$, scope$)
     END IF
   WEND
   facet_has_entry$ = "0"
+END FUNCTION
+FUNCTION is_shared_arr$(name$, scope$)
+  IF LEN(##facetTab$) = 0 THEN
+    IF INSTR(##sharedArrays$, ":" + name$ + ":") > 0 THEN is_shared_arr$ = "1" ELSE is_shared_arr$ = "0"
+  ELSE
+    IF INSTR(facets_in_scope$(##facetTab$, scope$, "shared"), ":" + name$ + ":") > 0 THEN is_shared_arr$ = "1" ELSE is_shared_arr$ = "0"
+  END IF
+END FUNCTION
+FUNCTION is_all_str_arr$(name$, scope$)
+  IF LEN(##facetTab$) = 0 THEN
+    IF INSTR(##allStrArr$, ":" + name$ + ":") > 0 THEN is_all_str_arr$ = "1" ELSE is_all_str_arr$ = "0"
+  ELSE
+    IF INSTR(facets_in_scope$(##facetTab$, scope$, "arr1"), ":" + name$ + ":") > 0 AND facet_type$(##facetTab$, name$, scope$) = "string" THEN is_all_str_arr$ = "1" ELSE is_all_str_arr$ = "0"
+  END IF
 END FUNCTION
 ' Look up a name's type from the facet table in a given scope.
 ' Returns "integer" if not found (matching dyn_type$ default).
