@@ -3743,7 +3743,7 @@ FUNCTION emit_expr$(e$)
       END IF
     ELSEIF INSTR(##strDual$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$) + bd$(varName$)
-    ELSEIF INSTR(##allStrArr$, ":" + varName$ + ":") > 0 AND INSTR(##strDual$, ":" + varName$ + ":") = 0 THEN
+    ELSEIF is_all_str_arr$(varName$, "*") = "1" AND INSTR(##strDual$, ":" + varName$ + ":") = 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
