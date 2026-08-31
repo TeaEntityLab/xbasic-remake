@@ -233,6 +233,17 @@ void xb_user_XstGetProgramName(char* *xb_str_prog_ref);
    by the CEmitter (initialized via constructor). */
 intptr_t xb_user_XstDecomposePathname(char* xb_str_pathname, char* *xb_str_path_ref, char* *xb_str_parent_ref,
     char* *xb_str_fileName_ref, char* *xb_str_file_ref, char* *xb_str_extent_ref);
+/* InitProgram: populates SHARED arrays (exception$[], sysException$[], etc).
+   Calling it from the harness unblocks shared-array-dependent functions:
+   XstExceptionNumberToName, XstSystemExceptionNumberToName,
+   XstExceptionToSystemException, XstSystemExceptionToException. */
+void xb_user_InitProgram(void);
+/* XstExceptionNumberToName: byref string — reads SHARED exception$[] array
+   populated by InitProgram. Returns $$TRUE (1) on out-of-range, else 0. */
+intptr_t xb_user_XstExceptionNumberToName(intptr_t xb_var_exception, char* *xb_str_exception_ref);
+/* XstSystemExceptionNumberToName: byref string — reads SHARED sysException$[]
+   array populated by InitProgram. Returns $$TRUE (1) on out-of-range, else 0. */
+intptr_t xb_user_XstSystemExceptionNumberToName(intptr_t xb_var_exception, char* *xb_str_exception_ref);
 /* XstFileTimeToDateAndTime: 1 byval int64 input + 8 byref int outputs.
    Converts Windows filetime (100ns units since 1601) to date/time.
    gmtime() call is emitted as 0 (CEmitter doesn't handle composite-returning
@@ -600,7 +611,33 @@ int main(void) {
     /* XstGetProgramName: byref string — reads sysProgram$ set by
        XstSetProgramName. ##WHOMASK=0 → sys path. Round-trip verification. */
     { char* prog = (char*)0; xb_user_XstGetProgramName(&prog); check_s("XstGetProgramName", prog, "MyApp"); }
-    printf("\n%d checks, %d failures\n", 128, fails);
+    /* --- InitProgram-dependent tests (SHARED array reads) --- */
+    /* InitProgram populates exception$[] and sysException$[] SHARED arrays.
+       After calling it, XstExceptionNumberToName and friends can read the
+       populated arrays. This unblocks functions previously blocked by
+       "SHARED array init" — the arrays are now DIM'd and filled by
+       InitProgram's function body (not GOSUB). */
+    xb_user_InitProgram();
+    /* XstExceptionNumberToName: reads exception$[exception] from SHARED array.
+       Values from xst.x InitProgram: ExceptionNone=0→"$$ExceptionNone",
+       ExceptionSegmentViolation=1→"$$ExceptionSegmentViolation",
+       ExceptionBreakpoint=3→"$$ExceptionBreakpoint",
+       ExceptionInvalidOperation=8→"$$ExceptionInvalidOperation",
+       ExceptionUnknown=17→"$$ExceptionUnknown". */
+    { char* name=(char*)0; xb_user_XstExceptionNumberToName(0, &name); check_s("ExcName(0)", name, "$$ExceptionNone"); }
+    { char* name=(char*)0; xb_user_XstExceptionNumberToName(1, &name); check_s("ExcName(1)", name, "$$ExceptionSegmentViolation"); }
+    { char* name=(char*)0; xb_user_XstExceptionNumberToName(3, &name); check_s("ExcName(3)", name, "$$ExceptionBreakpoint"); }
+    { char* name=(char*)0; xb_user_XstExceptionNumberToName(8, &name); check_s("ExcName(8)", name, "$$ExceptionInvalidOperation"); }
+    { char* name=(char*)0; xb_user_XstExceptionNumberToName(17, &name); check_s("ExcName(17)", name, "$$ExceptionUnknown"); }
+    /* XstSystemExceptionNumberToName: reads sysException$[exception] from SHARED array.
+       Values from xst.x InitProgram: SIGNONE=0→"$$SIGNONE",
+       SIGHUP=1→"$$SIGHUP", SIGSEGV=11→"$$SIGSEGV". */
+    { char* name=(char*)0; xb_user_XstSystemExceptionNumberToName(0, &name); check_s("SysExcName(0)", name, "$$SIGNONE"); }
+    { char* name=(char*)0; xb_user_XstSystemExceptionNumberToName(1, &name); check_s("SysExcName(1)", name, "$$SIGHUP"); }
+    { char* name=(char*)0; xb_user_XstSystemExceptionNumberToName(11, &name); check_s("SysExcName(11)", name, "$$SIGSEGV"); }
+    /* XstExceptionToSystemException and XstSystemExceptionToException already
+       tested above (SELECT CASE, no SHARED array needed). */
+    printf("\n%d checks, %d failures\n", 134, fails);
     return fails;
 }
 "#).unwrap();
@@ -760,5 +797,21 @@ int main(void) {
     assert!(
         stdout.contains("XstSetProgramName(MyApp)"),
         "missing XstSetProgramName check in output"
+    );
+    assert!(
+        stdout.contains("ExcName(0)"),
+        "missing ExcName(0) check in output"
+    );
+    assert!(
+        stdout.contains("ExcName(1)"),
+        "missing ExcName(1) check in output"
+    );
+    assert!(
+        stdout.contains("SysExcName(0)"),
+        "missing SysExcName(0) check in output"
+    );
+    assert!(
+        stdout.contains("SysExcName(11)"),
+        "missing SysExcName(11) check in output"
     );
 }

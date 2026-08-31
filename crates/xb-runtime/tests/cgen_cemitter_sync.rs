@@ -536,7 +536,7 @@ fn docs_headline_claims_are_recorded_at_named_surfaces() {
         ),
         ("docs/18", &d18, "shared composite"),
         ("docs/18", &d18, "Composite `TYPE` array boundary"),
-        ("docs/19", &d19, "Status: partial implementation"),
+        ("docs/19", &d19, "Status: substantially implemented"),
         ("docs/19", &d19, "Scope-qualified lookup"),
         ("docs/17", &d17, "Candidate Adoption Ledger"),
         (

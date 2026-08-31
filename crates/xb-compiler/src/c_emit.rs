@@ -2101,10 +2101,15 @@ fn emit_main(program: &IrProgram, out: &mut String) {
     // symbol errors, even for programs that don't directly use ARGV$.
     // The real definitions (when needed) are weak in xst.o and will
     // coalesce; otherwise these stay as 0/-1 singletons.
-    out.push_str("__attribute__((weak)) char** xb_str_ARGV_s_arr = (char**)0;\n");
-    out.push_str("__attribute__((weak)) intptr_t xb_ub_ARGV_s_arr = -1;\n");
-    out.push_str("__attribute__((weak)) char** xb_str_ENVP_s_arr = (char**)0;\n");
-    out.push_str("__attribute__((weak)) intptr_t xb_ub_ENVP_s_arr = -1;\n");
+    // Skip if already emitted by emit_globals (SHARED_ARRAYS has them).
+    if !crate::c_emit::is_shared_array("ARGV$") {
+        out.push_str("__attribute__((weak)) char** xb_str_ARGV_s_arr = (char**)0;\n");
+        out.push_str("__attribute__((weak)) intptr_t xb_ub_ARGV_s_arr = -1;\n");
+    }
+    if !crate::c_emit::is_shared_array("ENVP$") {
+        out.push_str("__attribute__((weak)) char** xb_str_ENVP_s_arr = (char**)0;\n");
+        out.push_str("__attribute__((weak)) intptr_t xb_ub_ENVP_s_arr = -1;\n");
+    }
     out.push_str("int main(int argc, char **argv) {\n");
     // ARCH-02: populate system shared arrays from process startup.
     out.push_str("    if (xb_str_ARGV_s_arr == (char**)0) {\n");
@@ -2266,8 +2271,8 @@ mod c_emit_argv_tests {
             "main should be int main(int argc, char **argv) with ARGV$ init"
         );
         assert!(
-            c.contains("__attribute__((weak)) char** xb_str_ARGV_s_arr"),
-            "file-scope weak def for ARGV$"
+            c.contains("char** xb_str_ARGV_s_arr"),
+            "file-scope def for ARGV$"
         );
         assert!(
             c.contains("xb_ub_ARGV_s_arr = (intptr_t)argc - 1"),
