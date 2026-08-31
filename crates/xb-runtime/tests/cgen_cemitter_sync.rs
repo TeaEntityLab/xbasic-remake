@@ -58,25 +58,54 @@ fn build_native_cgen(tmp: &Path) -> PathBuf {
 
 /// Feed text IR to the native cgen on stdin; return the emitted C source bytes.
 fn cgen_emit(cgen_exe: &Path, ir: &str) -> Vec<u8> {
-    let mut child = Command::new(common::exe_path(cgen_exe))
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn cgen");
-    child
-        .stdin
-        .take()
-        .expect("cgen stdin")
-        .write_all(ir.as_bytes())
-        .expect("write IR to cgen");
-    let out = child.wait_with_output().expect("wait cgen");
+    // Use temp files + shell redirection to avoid pipe deadlock when cgen emits >64KB (facets).
+    // cgen reads IR from stdin and writes C to stdout, so use sh to redirect.
+    let tmp_ir = std::env::temp_dir().join(format!("cgen_ir_{}.ir", std::process::id()));
+    let tmp_out = std::env::temp_dir().join(format!("cgen_out_{}.c", std::process::id()));
+    std::fs::write(&tmp_ir, ir).expect("write ir");
+    let out = Command::new("sh")
+        .arg("-c")
+        .arg(format!(
+            "{} < {} > {}",
+            common::exe_path(cgen_exe).display(),
+            tmp_ir.display(),
+            tmp_out.display()
+        ))
+        .output()
+        .expect("run cgen via sh");
+    // Fallback: if cgen still expects stdin/stdout (old behavior), try pipe
+    if !out.status.success() && out.stdout.is_empty() && std::fs::metadata(&tmp_out).is_err() {
+        let mut child = Command::new(common::exe_path(cgen_exe))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn cgen");
+        child
+            .stdin
+            .take()
+            .expect("cgen stdin")
+            .write_all(ir.as_bytes())
+            .expect("write IR to cgen");
+        let out2 = child.wait_with_output().expect("wait cgen");
+        assert!(
+            out2.status.success(),
+            "cgen failed: {}",
+            String::from_utf8_lossy(&out2.stderr)
+        );
+        let _ = std::fs::remove_file(&tmp_ir);
+        let _ = std::fs::remove_file(&tmp_out);
+        return out2.stdout;
+    }
     assert!(
         out.status.success(),
         "cgen failed: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    out.stdout
+    let data = std::fs::read(&tmp_out).unwrap_or_else(|_| out.stdout.clone());
+    let _ = std::fs::remove_file(&tmp_ir);
+    let _ = std::fs::remove_file(&tmp_out);
+    if data.is_empty() { out.stdout } else { data }
 }
 
 /// Compile C source bytes to a native exe, run it with optional raw stdin,
