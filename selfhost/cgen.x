@@ -6691,6 +6691,20 @@ FUNCTION is_shared_arr$(name$, scope$)
     is_shared_arr$ = facet_has_entry$(##facetTab$, name$, scope$)
   END IF
 END FUNCTION
+FUNCTION is_all_str_arr$(name$, scope$)
+  IF LEN(##facetTab$) = 0 THEN
+    IF INSTR(##allStrArr$, ":" + name$ + ":") > 0 THEN is_all_str_arr$ = "1" ELSE is_all_str_arr$ = "0"
+  ELSE
+    is_all_str_arr$ = facet_has_entry$(##facetTab$, name$, scope$)
+  END IF
+END FUNCTION
+FUNCTION is_str_dual$(name$, scope$)
+  IF LEN(##facetTab$) = 0 THEN
+    IF INSTR(##strDual$, ":" + name$ + ":") > 0 THEN is_str_dual$ = "1" ELSE is_str_dual$ = "0"
+  ELSE
+    is_str_dual$ = facet_has_entry$(##facetTab$, name$, scope$)
+  END IF
+END FUNCTION
 ' Look up a name's type from the facet table in a given scope.
 ' Returns "integer" if not found (matching dyn_type$ default).
 FUNCTION facet_type$(tab$, name$, scope$)
