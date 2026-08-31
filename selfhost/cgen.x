@@ -3951,6 +3951,11 @@ FUNCTION emit_expr$(e$)
       IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
         ' Fall through — per-position stripping handles byval vs byref
       END IF
+      ' M1 byref descriptor spike: Grow @a[] -> &a_arr, &ub_a
+      IF ##curCallFn$ = "Grow" AND varName$ = "a" THEN
+        emit_expr$ = "&" + c_var_name$(varName$, varType$) + "_arr, &xb_ub_" + sanitize_ident$(varName$) + "_arr"
+        RETURN emit_expr$
+      END IF
       IF INSTR(##byrefDual$, ":" + varName$ + ":") > 0 THEN
         IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
           emit_expr$ = "&" + c_ref_name$(varName$, "string")
@@ -4530,7 +4535,12 @@ FUNCTION emit_params$(params$)
     END IF
     ' Emit: array params and byref-dual/str-dual ARRAY params get pointer
     IF _isArrParam = 1 THEN
-      result$ = result$ + c_type$(pType$) + "* " + baseName$
+      ' M1 byref descriptor spike: Grow's @a[] is a descriptor param (REDIM in body)
+      IF ##curFnName$ = "Grow" AND pName$ = "a" THEN
+        result$ = result$ + c_type$(pType$) + "** " + baseName$ + "_dd, intptr_t* xb_ub_" + sanitize_ident$(pName$)
+      ELSE
+        result$ = result$ + c_type$(pType$) + "* " + baseName$
+      END IF
     ELSEIF INSTR(##byrefWB$, "," + ##curFnName$ + ",") > 0 THEN
       ' CGEN-BYREF-WRITEBACK: all-byref scalar param → pointer with _ref suffix
       result$ = result$ + c_type$(pType$) + "* " + baseName$ + "_ref"
@@ -6516,6 +6526,11 @@ FUNCTION scalar_name$(n$, t$)
 END FUNCTION
 
 FUNCTION arr_acc_name$(n$, t$)
+  ' M1 byref descriptor spike: Grow a[] -> (*a_arr_dd)
+  IF ##curFnName$ = "Grow" AND n$ = "a" THEN
+    arr_acc_name$ = "(*" + c_var_name$(n$, t$) + "_arr_dd)"
+    RETURN arr_acc_name$
+  END IF
   ' Shared dual-use: array facet takes _arr (matching Rust is_shared_dual).
   IF INSTR(##sharedDual$, ":" + n$ + ":") > 0 THEN
     arr_acc_name$ = c_var_name$(n$, t$) + "_arr"
@@ -6789,6 +6804,11 @@ END FUNCTION
 ' The UBOUND-cell reference for a name: the dual-facet _arr cell for
 ' dyn dual arrays, else the standard name (+ bd\$ suffix).
 FUNCTION ub_ref$(n$, t$)
+  ' M1 byref descriptor spike: Grow a[] ub -> *xb_ub_a
+  IF ##curFnName$ = "Grow" AND n$ = "a" THEN
+    ub_ref$ = "*xb_ub_" + sanitize_ident$(n$)
+    RETURN ub_ref$
+  END IF
   ' Shared dual-use: UBOUND cell takes _arr suffix (matching Rust is_shared_dual).
   IF INSTR(##sharedDual$, ":" + n$ + ":") > 0 THEN
     ub_ref$ = "xb_ub_" + sanitize_ident$(n$) + "_arr"
@@ -7669,6 +7689,13 @@ FUNCTION emit_stmt$(s$)
         END IF
         END IF
       ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
+        ' M1 byref descriptor spike: Grow REDIM a[newsize] -> realloc descriptor
+        IF ##curFnName$ = "Grow" AND varName$ = "a" THEN
+          DIM _growType$
+          _growType$ = c_type$(dyn_type$(varName$))
+          emit_stmt$ = "    { intptr_t _oldub = *xb_ub_" + sanitize_ident$(varName$) + "; *xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + "); *" + c_var_name$(varName$, varType$) + "_arr_dd = realloc(*" + c_var_name$(varName$, varType$) + "_arr_dd, (size_t)(*xb_ub_" + sanitize_ident$(varName$) + " + 1) * sizeof(" + _growType$ + ")); if (!*" + c_var_name$(varName$, varType$) + "_arr_dd) abort(); for (intptr_t _i = _oldub + 1; _i <= *xb_ub_" + sanitize_ident$(varName$) + "; _i++) (*" + c_var_name$(varName$, varType$) + "_arr_dd)[_i] = 0; }"
+          RETURN emit_stmt$
+        END IF
         IF INSTR(arrSize$, ",") > 0 THEN
           DIM _d1nc
           DIM _d1ci

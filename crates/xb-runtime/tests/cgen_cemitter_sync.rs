@@ -3768,7 +3768,6 @@ fn cemitter_and_cgen_agree_on_do_loop_until() {
     let _ = fs::remove_dir_all(&tmp);
 }
 #[test]
-#[ignore = "byref descriptor spike — cgen truncates until descriptor lands (docs/18)"]
 fn cemitter_and_cgen_agree_on_byref_redim_minimal() {
     let tmp = std::env::temp_dir().join("xb_sync_byref_redim");
     fs::create_dir_all(&tmp).expect("mkdir");
