@@ -6545,7 +6545,8 @@ FUNCTION facets_in_scope$(tab$, sc$, field$)
           scope$ = "*"
         END IF
         ' Check scope match (current function or module-shared *)
-        IF scope$ = sc$ OR scope$ = "*" THEN
+        ' sc$="*" is wildcard matching any scope (for file-scope checks like is_all_str_arr$ with "*")
+        IF sc$ = "*" OR scope$ = sc$ OR scope$ = "*" THEN
           IF field$ = "dyn" THEN
             sp = INSTR(rest$, " storage=")
             IF sp > 0 THEN
