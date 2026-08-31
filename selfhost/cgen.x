@@ -6686,7 +6686,7 @@ FUNCTION facet_has_entry$(tab$, name$, scope$)
 END FUNCTION
 FUNCTION is_shared_arr$(name$, scope$)
   IF LEN(##facetTab$) = 0 THEN
-    IF is_shared_arr$(name$, "*") = "1" THEN is_shared_arr$ = "1" ELSE is_shared_arr$ = "0"
+    IF INSTR(##sharedArrays$, ":" + name$ + ":") > 0 THEN is_shared_arr$ = "1" ELSE is_shared_arr$ = "0"
   ELSE
     is_shared_arr$ = facet_has_entry$(##facetTab$, name$, scope$)
   END IF
