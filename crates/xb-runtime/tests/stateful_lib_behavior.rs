@@ -187,12 +187,19 @@ char* xb_user_XstMergeStrings(char* xb_str_string, char* xb_str_add, intptr_t xb
    XxxPathString: converts path separators (\ → / on Linux). Returns NULL for empty path. */
 char* xb_user_XstParse(char* xb_str_source, char* xb_str_delimiter, intptr_t xb_var_n);
 intptr_t xb_user_XstTally(char* xb_str_source, char* xb_str_find);
-/* XstErrorNumberToName: byref string output — SHARED arrays uninitialized,
-   so UBOUND returns -1 and object > upperObject is always true.
-   Returns "$$ErrorObject too large" for any error value.
-   Previously broken by CEMITTER-S-SUFFIX-BYREF (copy-out read from copy-in
-   local, not the _s body variable); now fixed. */
+/* XstParseWhitespace$: returns the wordNumber-th word from a string.
+   Calls InitProgram() to populate charsetNotWhiteSpace[] SHARED array.
+   Handles quoted strings as single words. */
+char* xb_user_XstParseWhitespace(char* xb_str_string, intptr_t xb_var_wordNumber);
+/* XstBackStringToBinString$: converts backslash escape sequences (\xHH, \n, \t, etc.)
+   to binary characters. Calls InitProgram() to populate charset arrays. */
+char* xb_user_XstBackStringToBinString(char* xb_str_backString);
+/* XxxPathString: converts path separators (\ → / on Linux). Returns NULL for empty path. */
 char* xb_user_XxxPathString(char* xb_str_path);
+/* XstErrorNumberToName: byref string output — with InitProgram called,
+   errorObject$[]/errorNature$[] arrays are populated. error=0 → "NoError",
+   error=(1<<8)|0=256 → "Data". CEMITTER-S-SUFFIX-BYREF fix verified:
+   copy-out reads from xb_str_error_s (body local), not copy-in. */
 intptr_t xb_user_XstErrorNumberToName(intptr_t xb_var_error, char* *xb_str_error_ref);
 /* Setter functions: modify SHARED/SharedName variables. */
 void xb_user_XstSetException(intptr_t xb_var_exception);
@@ -455,6 +462,22 @@ int main(void) {
     check_i("XstTally(hello /,)", xb_user_XstTally(xb_str("hello"), xb_str(",")), 0);
     check_i("XstTally(empty /,)", xb_user_XstTally(xb_str(""), xb_str(",")), -1);
     check_i("XstTally(aaa a)", xb_user_XstTally(xb_str("aaa"), xb_str("a")), 3);
+    /* XstParseWhitespace$: returns the wordNumber-th word. Calls InitProgram()
+       to populate charsetNotWhiteSpace[]. Handles quoted strings as single words. */
+    check_s("ParseWS(hello world,1)", xb_user_XstParseWhitespace(xb_str("hello world"), 1), "hello");
+    check_s("ParseWS(hello world,2)", xb_user_XstParseWhitespace(xb_str("hello world"), 2), "world");
+    check_s("ParseWS(hello world,3)", xb_user_XstParseWhitespace(xb_str("hello world"), 3), "");
+    check_s("ParseWS(empty,1)", xb_user_XstParseWhitespace(xb_str(""), 1), "");
+    check_s("ParseWS(word0=word1)", xb_user_XstParseWhitespace(xb_str("hello world"), 0), "hello");
+    check_s("ParseWS(3words,2)", xb_user_XstParseWhitespace(xb_str("one two three"), 2), "two");
+    /* XstBackStringToBinString$: converts \xHH, \n, \t escape sequences to binary.
+       Calls InitProgram() to populate charset arrays. */
+    check_s("Back2Bin(noplain)", xb_user_XstBackStringToBinString(xb_str("hello")), "hello");
+    check_s("Back2Bin(\\x41)", xb_user_XstBackStringToBinString(xb_str("\\x41")), "A");
+    check_s("Back2Bin(\\n)", xb_user_XstBackStringToBinString(xb_str("\\n")), "\n");
+    check_s("Back2Bin(\\t)", xb_user_XstBackStringToBinString(xb_str("\\t")), "\t");
+    check_s("Back2Bin(empty)", xb_user_XstBackStringToBinString(xb_str("")), "");
+    check_s("Back2Bin(mixed)", xb_user_XstBackStringToBinString(xb_str("a\\x42c")), "aBc");
     /* XxxPathString: converts path separators. On Linux: \ (92) → / (47).
        Returns NULL for empty path (return 0), so skip that case. */
     char* ps1 = xb_user_XxxPathString(xb_str("a\\b\\c"));
@@ -513,21 +536,22 @@ int main(void) {
     check_i("XstMatchWild(hello,*x,1,1)", xb_user_XstMatchWild(xb_str("hello"), xb_str("*x"), 1, 1), 0);
     check_i("XstMatchWild(abc,?b?,1,1)", xb_user_XstMatchWild(xb_str("abc"), xb_str("?b?"), 1, 1), 2);
     check_i("XstMatchWild(ab,?b?,1,1)", xb_user_XstMatchWild(xb_str("ab"), xb_str("?b?"), 1, 1), 0);
-    /* XstErrorNumberToName: byref string output. SHARED arrays are uninitialized
-       (UBOUND returns -1), so object > upperObject (0 > -1) is always true.
-       Returns "$$ErrorObject too large" for any error value. This tests the
-       CEMITTER-S-SUFFIX-BYREF fix: copy-out now reads from xb_str_error_s
-       (the body's local), not xb_str_error (the copy-in local). */
+    /* XstErrorNumberToName: byref string output. With InitProgram called above,
+       errorObject$[]/errorNature$[] arrays are populated. error=0 → "NoError",
+       error=(1<<8)|0=256 → "Data". This tests the CEMITTER-S-SUFFIX-BYREF fix:
+       copy-out now reads from xb_str_error_s (the body's local), not xb_str_error
+       (the copy-in local). Enhanced checks at ErrName(0)/ErrName(769) below test
+       the same function with different error codes. */
     {
         char* err_name = xb_str("");
         intptr_t err_ret = xb_user_XstErrorNumberToName(0, &err_name);
-        check_s("XstErrorNumberToName(0)", err_name, "$$ErrorObject too large");
+        check_s("XstErrorNumberToName(0)", err_name, "NoError");
         check_i("XstErrorNumberToName(0,ret)", err_ret, 0);
     }
     {
         char* err_name = xb_str("");
         intptr_t err_ret = xb_user_XstErrorNumberToName(0x0100, &err_name);
-        check_s("XstErrorNumberToName(256)", err_name, "$$ErrorObject too large");
+        check_s("XstErrorNumberToName(256)", err_name, "Data");
         check_i("XstErrorNumberToName(256,ret)", err_ret, 0);
     }
     /* XstSetException: sets ##EXCEPTION SharedName. Verify the weak global
@@ -661,7 +685,7 @@ int main(void) {
     { char* name=(char*)0; xb_user_XstSystemExceptionNumberToName(11, &name); check_s("SysExcName(11)", name, "$$SIGSEGV"); }
     /* XstExceptionToSystemException and XstSystemExceptionToException already
        tested above (SELECT CASE, no SHARED array needed). */
-    printf("\n%d checks, %d failures\n", 143, fails);
+    printf("\n%d checks, %d failures\n", 156, fails);
     return fails;
 }
 "#).unwrap();
@@ -853,5 +877,13 @@ int main(void) {
     assert!(
         stdout.contains("SysErrToErr(2)"),
         "missing SysErrToErr(2) check in output"
+    );
+    assert!(
+        stdout.contains("ParseWS(hello world,1)"),
+        "missing ParseWS(hello world,1) check in output"
+    );
+    assert!(
+        stdout.contains("Back2Bin(\\x41)"),
+        "missing Back2Bin(\\x41) check in output"
     );
 }
