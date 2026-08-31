@@ -1453,7 +1453,7 @@ IF LEN(##facetTab$) > 0 THEN
         IF _fdSp > 0 THEN
           _fdTy$ = LEFT$(_fdRest$, _fdSp - 1)
         END IF
-        IF (_fdTy$ = "integer" OR _fdTy$ = "float") AND INSTR(##dynNames$, ":" + _fdNm$ + ":") = 0 AND INSTR(_fdNm$, ".") = 0 AND INSTR(##sharedArrays$, ":" + _fdNm$ + ":") = 0 AND INSTR(##allStrArr$, ":" + _fdNm$ + ":") = 0 AND INSTR(##xstArrays$, ":" + _fdNm$ + ":") = 0 AND (INSTR(src$, "dim " + _fdNm$ + ":" + _fdTy$ + "[") > 0 OR INSTR(src$, "dim shared " + _fdNm$ + ":" + _fdTy$ + "[") > 0) THEN
+        IF (_fdTy$ = "integer" OR _fdTy$ = "float") AND INSTR(##dynNames$, ":" + _fdNm$ + ":") = 0 AND INSTR(_fdNm$, ".") = 0 AND INSTR(##sharedArrays$, ":" + _fdNm$ + ":") = 0 AND is_all_str_arr$(_fdNm$, "*") = "0" AND INSTR(##xstArrays$, ":" + _fdNm$ + ":") = 0 AND (INSTR(src$, "dim " + _fdNm$ + ":" + _fdTy$ + "[") > 0 OR INSTR(src$, "dim shared " + _fdNm$ + ":" + _fdTy$ + "[") > 0) THEN
           ##dynNames$ = ##dynNames$ + ":" + _fdNm$ + ":" + _fdTy$ + ":"
         END IF
       END IF
@@ -1805,7 +1805,7 @@ WHILE pos <= LEN(src$)
               _adName$ = dim_name$(stmt$)
               _adSig$ = CHR$(10) + stmt$ + CHR$(10)
               _adNative = 1
-              IF INSTR(##dynNames$, ":" + _adName$ + ":") > 0 OR INSTR(##dynStr$, ":" + _adName$ + ":") > 0 OR INSTR(##strDual$, ":" + _adName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + _adName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + _adName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + _adName$ + ":") > 0 THEN
+              IF INSTR(##dynNames$, ":" + _adName$ + ":") > 0 OR INSTR(##dynStr$, ":" + _adName$ + ":") > 0 OR INSTR(##strDual$, ":" + _adName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + _adName$ + ":") > 0 OR is_all_str_arr$(_adName$, "*") = "1" OR INSTR(##xstArrays$, ":" + _adName$ + ":") > 0 THEN
                 _adNative = 0
               END IF
               IF _adNative = 1 THEN
@@ -3683,7 +3683,7 @@ FUNCTION emit_expr$(e$)
       _ndShape$ = shape_of$(varName$)
       _ndRank = top_part_count(_ndShape$)
       _ndIdxRank = top_part_count(t$)
-      IF _ndRank >= 3 AND INSTR(t$, ",") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+      IF _ndRank >= 3 AND INSTR(t$, ",") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR is_all_str_arr$(varName$, "*") = "1" OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
         IF _ndRank = _ndIdxRank THEN
           emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_flat_nd$(t$, _ndShape$) + "]"
         ELSE
