@@ -195,6 +195,7 @@ char* xb_user_XstParseWhitespace(char* xb_str_string, intptr_t xb_var_wordNumber
    to binary characters. Calls InitProgram() to populate charset arrays. */
 char* xb_user_XstBackStringToBinString(char* xb_str_backString);
 char* xb_user_XstBinStringToBackString(char* xb_str_rawString);
+char* xb_user_XstBinStringToBackStringNL(char* xb_str_rawString);
 /* XxxPathString: converts path separators (\ → / on Linux). Returns NULL for empty path. */
 char* xb_user_XxxPathString(char* xb_str_path);
 /* XstErrorNumberToName: byref string output — with InitProgram called,
@@ -484,6 +485,12 @@ int main(void) {
     check_s("Bin2Back(hello)", xb_user_XstBinStringToBackString(xb_str("hello")), "hello");
     check_s("Bin2Back(empty)", xb_user_XstBinStringToBackString(xb_str("")), "");
     check_s("Bin2Back(nl)", xb_user_XstBinStringToBackString(xb_str("\n")), "\\n");
+    /* XstBinStringToBackStringNL$: like Bin2Back but preserves newline (0x0A) as-is.
+       Plain Bin2Back converts 0x0A → "\\n"; NL keeps 0x0A → "\n" (actual newline). */
+    check_s("Bin2BackNL(hello)", xb_user_XstBinStringToBackStringNL(xb_str("hello")), "hello");
+    check_s("Bin2BackNL(empty)", xb_user_XstBinStringToBackStringNL(xb_str("")), "");
+    check_s("Bin2BackNL(nl)", xb_user_XstBinStringToBackStringNL(xb_str("\n")), "\n");
+    check_s("Bin2BackNL(tab)", xb_user_XstBinStringToBackStringNL(xb_str("\t")), "\\t");
     check_s("Bin2Back(tab)", xb_user_XstBinStringToBackString(xb_str("\t")), "\\t");
     /* XxxPathString: converts path separators. On Linux: \ (92) → / (47).
        Returns NULL for empty path (return 0), so skip that case. */
@@ -692,7 +699,7 @@ int main(void) {
     { char* name=(char*)0; xb_user_XstSystemExceptionNumberToName(11, &name); check_s("SysExcName(11)", name, "$$SIGSEGV"); }
     /* XstExceptionToSystemException and XstSystemExceptionToException already
        tested above (SELECT CASE, no SHARED array needed). */
-    printf("\n%d checks, %d failures\n", 161, fails);
+    printf("\n%d checks, %d failures\n", 165, fails);
     return fails;
 }
 "#).unwrap();
@@ -896,5 +903,9 @@ int main(void) {
     assert!(
         stdout.contains("Bin2Back(nl)"),
         "missing Bin2Back(nl) check in output"
+    );
+    assert!(
+        stdout.contains("Bin2BackNL(nl)"),
+        "missing Bin2BackNL(nl) check in output"
     );
 }
