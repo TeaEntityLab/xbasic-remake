@@ -194,6 +194,7 @@ char* xb_user_XstParseWhitespace(char* xb_str_string, intptr_t xb_var_wordNumber
 /* XstBackStringToBinString$: converts backslash escape sequences (\xHH, \n, \t, etc.)
    to binary characters. Calls InitProgram() to populate charset arrays. */
 char* xb_user_XstBackStringToBinString(char* xb_str_backString);
+char* xb_user_XstBinStringToBackString(char* xb_str_rawString);
 /* XxxPathString: converts path separators (\ → / on Linux). Returns NULL for empty path. */
 char* xb_user_XxxPathString(char* xb_str_path);
 /* XstErrorNumberToName: byref string output — with InitProgram called,
@@ -478,6 +479,12 @@ int main(void) {
     check_s("Back2Bin(\\t)", xb_user_XstBackStringToBinString(xb_str("\\t")), "\t");
     check_s("Back2Bin(empty)", xb_user_XstBackStringToBinString(xb_str("")), "");
     check_s("Back2Bin(mixed)", xb_user_XstBackStringToBinString(xb_str("a\\x42c")), "aBc");
+    /* XstBinStringToBackString$: inverse of Back2Bin — converts binary chars
+       to backslash escapes. Uses GOSUB AddNewByte/Backslash (local, safe). */
+    check_s("Bin2Back(hello)", xb_user_XstBinStringToBackString(xb_str("hello")), "hello");
+    check_s("Bin2Back(empty)", xb_user_XstBinStringToBackString(xb_str("")), "");
+    check_s("Bin2Back(nl)", xb_user_XstBinStringToBackString(xb_str("\n")), "\\n");
+    check_s("Bin2Back(tab)", xb_user_XstBinStringToBackString(xb_str("\t")), "\\t");
     /* XxxPathString: converts path separators. On Linux: \ (92) → / (47).
        Returns NULL for empty path (return 0), so skip that case. */
     char* ps1 = xb_user_XxxPathString(xb_str("a\\b\\c"));
@@ -685,7 +692,7 @@ int main(void) {
     { char* name=(char*)0; xb_user_XstSystemExceptionNumberToName(11, &name); check_s("SysExcName(11)", name, "$$SIGSEGV"); }
     /* XstExceptionToSystemException and XstSystemExceptionToException already
        tested above (SELECT CASE, no SHARED array needed). */
-    printf("\n%d checks, %d failures\n", 157, fails);
+    printf("\n%d checks, %d failures\n", 161, fails);
     return fails;
 }
 "#).unwrap();
@@ -885,5 +892,9 @@ int main(void) {
     assert!(
         stdout.contains("Back2Bin(\\x41)"),
         "missing Back2Bin(\\x41) check in output"
+    );
+    assert!(
+        stdout.contains("Bin2Back(nl)"),
+        "missing Bin2Back(nl) check in output"
     );
 }
