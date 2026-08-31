@@ -3689,7 +3689,7 @@ FUNCTION emit_expr$(e$)
         ELSE
           emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
         END IF
-      ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+      ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR is_all_str_arr$(varName$, "*") = "1" OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
         emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_flat2d$(t$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "]"
       ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
