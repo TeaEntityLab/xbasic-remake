@@ -61,22 +61,22 @@ On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` 
 
 ## License
 
-Complete canonical license texts ship at the repository root: `COPYING`
-(GPL-2.0) and `COPYING_LIB` (LGPL-2.1). `LICENSING.md` maps every
-directory to its license and provenance rules.
+The remake's own code — all `crates/`, `selfhost/`, fixtures, checks,
+scripts, and docs — is **MIT licensed** (`LICENSE`). The ported upstream
+source material in `xbasic/` remains **GPL-2.0 / LGPL-2.1** (canonical
+texts at `xbasic/COPYING` and `xbasic/COPYING_LIB`; per-file audit in
+`xbasic/LICENSES.md`). `LICENSING.md` maps every directory and the
+provenance rules.
 
-The original library sources carry a mixture of GPL and LGPL headers. Three
-Win32 compatibility shims (`gdi32`, `kernel32`, `user32`) carry no copyright
-notice or license statement. The remake crates independently declare
-`GPL-2.0-or-later` (compiler/frontend/CLI/linker/IDE) or
-`LGPL-2.1-or-later` (runtime/GUI).
+The upstream library sources carry a mixture of GPL and LGPL headers.
+Three Win32 compatibility shims (`gdi32`, `kernel32`, `user32`) carry no
+copyright notice or license statement — they ship only as part of the
+upstream release's tree-level distribution and must not be redistributed
+separately.
 
 `checks/link-core-libs.sh` combines GPL-header, LGPL-header, and no-notice
 inputs into one `xblibs` artifact. Repository evidence is insufficient to
 clear that artifact for redistribution; this is a provenance/compliance risk,
-not a legal determination. The vendor trees' own notice files contain their
-numbered license bodies but omit the GNU title, version line, and Preamble
-(the root copies restore the full texts). The harness is strictly
-internal-test-only and must not be packaged or redistributed without
-resolving shim provenance and distribution obligations. See docs/17
-L15/RR-11 and `LICENSING.md`.
+not a legal determination. The harness is strictly internal-test-only and
+must not be packaged or redistributed without resolving shim provenance and
+distribution obligations. See docs/17 L15/RR-11 and `LICENSING.md`.
