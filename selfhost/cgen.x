@@ -1251,20 +1251,20 @@ WHILE fwdPos <= LEN(src$)
   END IF
 WEND
 IF INSTR(##dualUse$, ":found:") > 0 THEN
-  IF ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":found:") > 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, "found", "*") = "1")) AND INSTR(##sharedArrDecls$, ":found:") = 0 THEN
+  IF is_shared_arr$("found", "*") = "1" AND INSTR(##sharedArrDecls$, ":found:") = 0 THEN
     PRINT "intptr_t* xb_var_found_arr = 0; intptr_t xb_ub_found_arr = -1;"
     IF INSTR(##arr2d$, ":found:") > 0 THEN
       PRINT "intptr_t xb_d1_found_arr = 0;"
     END IF
   END IF
 END IF
-IF ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":tool:") > 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, "tool", "*") = "1")) AND INSTR(##sharedArrDecls$, ":tool:") = 0 THEN
+IF is_shared_arr$("tool", "*") = "1" AND INSTR(##sharedArrDecls$, ":tool:") = 0 THEN
   PRINT "intptr_t* xb_var_tool_arr = 0; intptr_t xb_ub_tool_arr = -1;"
   IF INSTR(##arr2d$, ":tool:") > 0 THEN
     PRINT "intptr_t xb_d1_tool_arr = 0;"
   END IF
 END IF
-IF ((LEN(##facetTab$) = 0 AND INSTR(##sharedArrays$, ":window:") > 0) OR (LEN(##facetTab$) > 0 AND facet_has_entry$(##facetTab$, "window", "*") = "1")) AND INSTR(##sharedArrDecls$, ":window:") = 0 THEN
+IF is_shared_arr$("window", "*") = "1" AND INSTR(##sharedArrDecls$, ":window:") = 0 THEN
   PRINT "intptr_t* xb_var_window_arr = 0; intptr_t xb_ub_window_arr = -1;"
   IF INSTR(##arr2d$, ":window:") > 0 THEN
     PRINT "intptr_t xb_d1_window_arr = 0;"
