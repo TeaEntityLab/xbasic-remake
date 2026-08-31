@@ -884,6 +884,7 @@ IF LEN(##facetTab$) > 0 THEN
   fDyn$ = ""
   fDual$ = ""
   fArr2d$ = ""
+  fShared$ = ""
   fPos2 = 1
   WHILE fPos2 <= LEN(##facetTab$)
     fLe2 = INSTR(##facetTab$, CHR$(10), fPos2)
@@ -903,6 +904,18 @@ IF LEN(##facetTab$) > 0 THEN
           IF fStor2$ = "dyn" THEN
             IF INSTR(fDyn$, ":" + fNm2$ + ":") = 0 THEN
               fDyn$ = fDyn$ + ":" + fNm2$ + ":"
+            END IF
+          ELSEIF INSTR(fRest2$, "storage=shared") > 0 AND INSTR(fNm2$, ".") = 0 THEN
+            ' Top-level shared arrays only (no ".") — composite-member leaves like func_ti_bpexe stay on scanner path
+            fRankShared$ = ""
+            fSpRankShared = INSTR(fRest2$, " rank=")
+            IF fSpRankShared > 0 THEN
+              fRankShared$ = MID$(fRest2$, fSpRankShared + 6, 1)
+            END IF
+            IF VAL(fRankShared$) >= 1 THEN
+              IF INSTR(fShared$, ":" + fNm2$ + ":") = 0 THEN
+                fShared$ = fShared$ + ":" + fNm2$ + ":"
+              END IF
             END IF
           END IF
         END IF
@@ -930,6 +943,24 @@ IF LEN(##facetTab$) > 0 THEN
   ##dynNames$ = fDyn$
   ##dualUse$ = fDual$
   ##arr2d$ = fArr2d$
+  ' Additive shared: keep scanner ##sharedArrays$ and union facet top-level shared (preserves composite-member leaves)
+  pShare = 1
+  WHILE pShare <= LEN(fShared$)
+    leShare = INSTR(fShared$, ":", pShare + 1)
+    IF leShare = 0 THEN
+      leShare = LEN(fShared$) + 1
+    END IF
+    nmShare$ = MID$(fShared$, pShare + 1, leShare - pShare - 1)
+    IF LEN(nmShare$) > 0 THEN
+      IF INSTR(##sharedArrays$, ":" + nmShare$ + ":") = 0 THEN
+        ##sharedArrays$ = ##sharedArrays$ + ":" + nmShare$ + ":"
+      END IF
+    END IF
+    pShare = leShare + 1
+    IF pShare > LEN(fShared$) THEN
+      EXIT WHILE
+    END IF
+  WEND
   ' RR-03: store full (all-scope) facet-derived dyn set for per-function filtering.
   ##facetDynAll$ = fDyn$
 END IF
