@@ -6686,9 +6686,9 @@ FUNCTION facet_has_entry$(tab$, name$, scope$)
 END FUNCTION
 FUNCTION is_shared_arr$(name$, scope$)
   IF LEN(##facetTab$) = 0 THEN
-    IF INSTR(##sharedArrays$, ":" + name$ + ":") > 0 THEN is_shared_array$ = "1" ELSE is_shared_array$ = "0"
+    IF INSTR(##sharedArrays$, ":" + name$ + ":") > 0 THEN is_shared_arr$ = "1" ELSE is_shared_arr$ = "0"
   ELSE
-    is_shared_array$ = facet_has_entry$(##facetTab$, name$, scope$)
+    is_shared_arr$ = facet_has_entry$(##facetTab$, name$, scope$)
   END IF
 END FUNCTION
 ' Look up a name's type from the facet table in a given scope.
