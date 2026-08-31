@@ -1036,10 +1036,12 @@ impl Parser {
         Ok(Statement::Call { name: full, args })
     }
     fn function_stmt(&mut self) -> Result<Statement, ParseError> {
+        let mut is_external = false;
         while matches!(
             self.peek_keyword(),
             Some(Keyword::External) | Some(Keyword::Internal)
         ) {
+            is_external = true;
             self.index += 1;
         }
         if matches!(self.peek_kind(), TokenKind::SystemVariable { .. })
@@ -1146,7 +1148,16 @@ impl Parser {
                             | TokenKind::Keyword(Keyword::Internal)
                     )
                 }))
-            || next_is_external_function;
+            || next_is_external_function
+            // .dec files have $$ constants after EXTERNAL FUNCTION declarations;
+            // a SystemConstant or $$ SystemVariable here means no function body.
+            // Only apply to EXTERNAL/INTERNAL (forward) declarations — regular
+            // FUNCTION bodies can contain $$ constant definitions.
+            || (is_external && matches!(self.peek_kind(), TokenKind::SystemConstant(_)))
+            || (is_external && matches!(
+                self.peek_kind(),
+                TokenKind::SystemVariable { name, .. } if name.starts_with("$$")
+            ));
         if is_forward {
             let mut decl = FunctionDecl::new(name, effective_suffix, params, body);
             decl.return_type_name = return_type_name;
@@ -1163,12 +1174,18 @@ impl Parser {
                             | TokenKind::Keyword(Keyword::Internal)
                     )
                 });
-            let at_function_start =
-                (matches!(
+            let at_function_start = (matches!(
                     self.peek_keyword(),
                     Some(Keyword::Function) | Some(Keyword::Internal) | Some(Keyword::CFunction)
                 ) && !matches!(self.peek_next_kind(), Some(TokenKind::Symbol('='))))
-                    || at_external_function;
+                    || at_external_function
+                    // $$ constants in .dec files signal next declaration, not body.
+                    // Only for EXTERNAL/INTERNAL (forward) declarations.
+                    || (is_external && matches!(self.peek_kind(), TokenKind::SystemConstant(_)))
+                    || (is_external && matches!(
+                        self.peek_kind(),
+                        TokenKind::SystemVariable { name, .. } if name.starts_with("$$")
+                    ));
             if at_function_start {
                 break;
             }

@@ -2,6 +2,7 @@ mod builtin;
 mod c_emit;
 mod c_emit_attach;
 mod c_emit_bitops;
+pub use xb_frontend::full_name;
 mod c_emit_data;
 mod c_emit_expr;
 mod c_emit_goto;
@@ -96,6 +97,17 @@ impl FrontendUnit {
 
     pub fn program(&self) -> &Program {
         &self.program
+    }
+
+    /// Create a new unit with extra statements (from `.dec` file TYPE and
+    /// EXTERNAL FUNCTION declarations) prepended to the program.  This lets
+    /// the analyzer see imported type definitions and function signatures.
+    pub fn with_extra_statements(&self, extra: Vec<Statement>) -> Self {
+        let mut statements = extra;
+        statements.extend(self.program.statements.clone());
+        Self {
+            program: Program::new(statements),
+        }
     }
 
     pub fn analyze(&self) -> Result<CheckedProgram, CompileError> {

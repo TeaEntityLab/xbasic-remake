@@ -154,6 +154,12 @@ fn emit_c_for_path(path: &Path) -> Result<String, CliError> {
     let source = read_source(path)?;
     let unit = FrontendUnit::parse(&source)?;
     let constants = resolve_import_constants(path, &unit);
+    let extra_decls = resolve_import_decls(path, &unit);
+    let unit = if extra_decls.is_empty() {
+        unit
+    } else {
+        unit.with_extra_statements(extra_decls)
+    };
     let program = if constants.is_empty() {
         unit.lower_ir()?
     } else {
@@ -210,6 +216,68 @@ fn resolve_import_constants(
         }
     }
     constants
+}
+
+/// Extract TYPE definitions and EXTERNAL FUNCTION/CFUNCTION declarations
+/// from IMPORTed `.dec` files.  These are prepended to the main program's
+/// statement list so the analyzer can register composite types and function
+/// signatures from declaration files.
+///
+/// Only `.dec` files are processed here — `.x` files already have their
+/// TYPE and FUNCTION declarations in the source that gets compiled directly.
+/// Returns statements in order: TYPE declarations first, then FUNCTION decls.
+fn resolve_import_decls(path: &Path, unit: &FrontendUnit) -> Vec<xb_compiler::Statement> {
+    let mut decls = Vec::new();
+    let mut seen_types: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen_funcs: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let source_dir = path.parent().unwrap_or(Path::new("."));
+    use xb_compiler::Statement;
+    for statement in unit.program().statements.iter() {
+        if let Statement::Import(lib_name) = statement {
+            let candidates = [
+                source_dir.join(format!("{lib_name}.dec")),
+                source_dir
+                    .join("..")
+                    .join("..")
+                    .join("include")
+                    .join(format!("{lib_name}.dec")),
+                source_dir
+                    .join("..")
+                    .join("include")
+                    .join(format!("{lib_name}.dec")),
+            ];
+            for lib_path in &candidates {
+                if lib_path.extension().is_none_or(|e| e != "dec") {
+                    continue;
+                }
+                let Ok(lib_source) = fs::read_to_string(lib_path) else {
+                    continue;
+                };
+                let Ok(lib_unit) = FrontendUnit::parse(&lib_source) else {
+                    // Fall back to text-scan constants only (already handled
+                    // by resolve_import_constants).
+                    continue;
+                };
+                for stmt in lib_unit.program().statements.iter() {
+                    match stmt {
+                        Statement::TypeDecl { name, .. } => {
+                            if seen_types.insert(name.to_ascii_uppercase()) {
+                                decls.push(stmt.clone());
+                            }
+                        }
+                        Statement::Function(f) if f.body.is_empty() => {
+                            let key = xb_compiler::full_name(f.name.clone(), f.suffix);
+                            if seen_funcs.insert(key) {
+                                decls.push(stmt.clone());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    decls
 }
 
 /// Extract `$$` constant definitions from raw text (for `.dec` files that
