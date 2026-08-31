@@ -1453,7 +1453,7 @@ IF LEN(##facetTab$) > 0 THEN
         IF _fdSp > 0 THEN
           _fdTy$ = LEFT$(_fdRest$, _fdSp - 1)
         END IF
-        IF (_fdTy$ = "integer" OR _fdTy$ = "float") AND INSTR(##dynNames$, ":" + _fdNm$ + ":") = 0 AND INSTR(_fdNm$, ".") = 0 AND is_shared_arr$(_fdNm$, "*") = "0" AND is_all_str_arr$(_fdNm$, "*") = "0" AND INSTR(##xstArrays$, ":" + _fdNm$ + ":") = 0 AND (INSTR(src$, "dim " + _fdNm$ + ":" + _fdTy$ + "[") > 0 OR INSTR(src$, "dim shared " + _fdNm$ + ":" + _fdTy$ + "[") > 0) THEN
+        IF (_fdTy$ = "integer" OR _fdTy$ = "float") AND is_dyn$(_fdNm$, "*") = "0" AND INSTR(_fdNm$, ".") = 0 AND is_shared_arr$(_fdNm$, "*") = "0" AND is_all_str_arr$(_fdNm$, "*") = "0" AND is_xst_arr$(_fdNm$, "*") = "0" AND (INSTR(src$, "dim " + _fdNm$ + ":" + _fdTy$ + "[") > 0 OR INSTR(src$, "dim shared " + _fdNm$ + ":" + _fdTy$ + "[") > 0) THEN
           ##dynNames$ = ##dynNames$ + ":" + _fdNm$ + ":" + _fdTy$ + ":"
         END IF
       END IF
@@ -1617,7 +1617,7 @@ WHILE pos <= LEN(src$)
               _fdNm$ = MID$(_fdExtra$, _fdPos + 1, _fdLe - _fdPos - 1)
               _fdPos = _fdLe + 1
               IF LEN(_fdNm$) > 0 AND RIGHT$(_fdNm$, 1) <> "$" THEN
-                IF INSTR(##dynNames$, ":" + _fdNm$ + ":") = 0 THEN
+                IF is_dyn$(_fdNm$, "*") = "0" THEN
                   DIM _fdTy$
                   _fdTy$ = dyn_type$(_fdNm$)
                   ' Skip string-typed facets: ##dynNames$ is for integer/float
@@ -1805,7 +1805,7 @@ WHILE pos <= LEN(src$)
               _adName$ = dim_name$(stmt$)
               _adSig$ = CHR$(10) + stmt$ + CHR$(10)
               _adNative = 1
-              IF INSTR(##dynNames$, ":" + _adName$ + ":") > 0 OR INSTR(##dynStr$, ":" + _adName$ + ":") > 0 OR is_str_dual$(_adName$, "*") = "1" OR is_shared_arr$(_adName$, "*") = "1" OR is_all_str_arr$(_adName$, "*") = "1" OR INSTR(##xstArrays$, ":" + _adName$ + ":") > 0 THEN
+              IF is_dyn$(_adName$, "*") = "1" OR INSTR(##dynStr$, ":" + _adName$ + ":") > 0 OR is_str_dual$(_adName$, "*") = "1" OR is_shared_arr$(_adName$, "*") = "1" OR is_all_str_arr$(_adName$, "*") = "1" OR is_xst_arr$(_adName$, "*") = "1" THEN
                 _adNative = 0
               END IF
               IF _adNative = 1 THEN
@@ -3683,13 +3683,13 @@ FUNCTION emit_expr$(e$)
       _ndShape$ = shape_of$(varName$)
       _ndRank = top_part_count(_ndShape$)
       _ndIdxRank = top_part_count(t$)
-      IF _ndRank >= 3 AND INSTR(t$, ",") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_shared_arr$(varName$, "*") = "1" OR is_all_str_arr$(varName$, "*") = "1" OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+      IF _ndRank >= 3 AND INSTR(t$, ",") > 0 AND (is_dyn$(varName$, "*") = "1" OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_shared_arr$(varName$, "*") = "1" OR is_all_str_arr$(varName$, "*") = "1" OR is_xst_arr$(varName$, "*") = "1") THEN
         IF _ndRank = _ndIdxRank THEN
           emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_flat_nd$(t$, _ndShape$) + "]"
         ELSE
           emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
         END IF
-      ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_shared_arr$(varName$, "*") = "1" OR is_all_str_arr$(varName$, "*") = "1" OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+      ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (is_dyn$(varName$, "*") = "1" OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_shared_arr$(varName$, "*") = "1" OR is_all_str_arr$(varName$, "*") = "1" OR is_xst_arr$(varName$, "*") = "1") THEN
         emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_flat2d$(t$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "]"
       ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
@@ -3747,13 +3747,13 @@ FUNCTION emit_expr$(e$)
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSEIF INSTR(##dynStr$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
-    ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
+    ELSEIF is_dyn$(varName$, "*") = "1" THEN
       IF INSTR(##byrefDual$, ":" + varName$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
         emit_expr$ = "(int)(sizeof(" + arr_acc_name$(varName$, varType$) + ")/sizeof(" + arr_acc_name$(varName$, varType$) + "[0])-1)"
       ELSE
         emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$) + bd$(varName$)
       END IF
-    ELSEIF INSTR(##xstArrays$, ":" + varName$ + ":") > 0 AND INSTR(##dynNames$, ":" + varName$ + ":") = 0 AND is_all_str_arr$(varName$, "*") = "0" THEN
+    ELSEIF is_xst_arr$(varName$, "*") = "1" AND is_dyn$(varName$, "*") = "0" AND is_all_str_arr$(varName$, "*") = "0" THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSE
       emit_expr$ = "(int)(sizeof(" + c_var_name$(varName$, varType$) + ")/sizeof(" + c_var_name$(varName$, varType$) + "[0])-1)"
@@ -3957,7 +3957,7 @@ FUNCTION is_array_var_in_scope$(nm$)
     END IF
   END IF
   ' Scope-specific sets: dynNames/dynStr (RR-03 filtered), curFnArrays, arrParams
-  IF INSTR(##dynNames$, ":" + nm$ + ":") > 0 THEN _arr = 1
+  IF is_dyn$(nm$, "*") = "1" THEN _arr = 1
   IF INSTR(##dynStr$, ":" + nm$ + ":") > 0 THEN _arr = 1
   IF INSTR(##curFnArrays$, ":" + nm$ + ":") > 0 THEN _arr = 1
   IF INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) > 0 THEN _arr = 1
@@ -3969,7 +3969,7 @@ FUNCTION is_array_var_in_scope$(nm$)
     ' positives for shared arrays used as local scalars (e.g. xui grid).
     IF is_shared_arr$(nm$, "*") = "1" THEN _arr = 1
     IF is_all_str_arr$(nm$, "*") = "1" THEN _arr = 1
-    IF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 THEN _arr = 1
+    IF is_xst_arr$(nm$, "*") = "1" THEN _arr = 1
     IF INSTR(##byrefDual$, ":" + nm$ + ":") > 0 THEN _arr = 1
     IF is_str_dual$(nm$, "*") = "1" THEN _arr = 1
     IF INSTR(##dualUse$, ":" + nm$ + ":") > 0 THEN _arr = 1
@@ -5057,11 +5057,11 @@ FUNCTION emit_hoists$(used$, dimmed$)
             IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
               out$ = out$ + "    char** " + c_var_name$(nm$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
-          ELSEIF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 AND is_all_str_arr$(nm$, "*") = "0" AND INSTR(##dynNames$, ":" + nm$ + ":") = 0 AND ty$ = "string" THEN
+          ELSEIF is_xst_arr$(nm$, "*") = "1" AND is_all_str_arr$(nm$, "*") = "0" AND is_dyn$(nm$, "*") = "0" AND ty$ = "string" THEN
             IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
               out$ = out$ + "    char** " + c_var_name$(nm$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
-          ELSEIF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 AND is_all_str_arr$(nm$, "*") = "0" AND INSTR(##dynNames$, ":" + nm$ + ":") = 0 AND (LEN(##facetTab$) = 0 OR facet_has_entry$(##facetTab$, nm$, ##curHoistFn$) = 0 OR INSTR(facets_in_scope$(##facetTab$, ##curHoistFn$, "arr1"), ":" + nm$ + ":") > 0) AND ty$ <> "string" AND RIGHT$(nm$, 1) <> "$" THEN
+          ELSEIF is_xst_arr$(nm$, "*") = "1" AND is_all_str_arr$(nm$, "*") = "0" AND is_dyn$(nm$, "*") = "0" AND (LEN(##facetTab$) = 0 OR facet_has_entry$(##facetTab$, nm$, ##curHoistFn$) = 0 OR INSTR(facets_in_scope$(##facetTab$, ##curHoistFn$, "arr1"), ":" + nm$ + ":") > 0) AND ty$ <> "string" AND RIGHT$(nm$, 1) <> "$" THEN
             IF INSTR(out$, " xb_var_" + sanitize_ident$(nm$) + " = 0; intptr_t xb_ub_") = 0 THEN
               out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(nm$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
@@ -5154,7 +5154,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
             out$ = out$ + "    intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
           END IF
         END IF
-      ELSEIF INSTR(##dynNames$, ":" + entry$ + ":") > 0 THEN
+      ELSEIF is_dyn$(entry$, "*") = "1" THEN
         IF (INSTR(##byrefDual$, ":" + entry$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) > 0) OR INSTR(##dualUse$, ":" + entry$ + ":") > 0 THEN
           DIM _dt$
           _dt$ = dyn_type$(entry$)
@@ -5199,13 +5199,13 @@ FUNCTION emit_hoists$(used$, dimmed$)
             out$ = out$ + "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)
           END IF
         END IF
-      ELSEIF INSTR(##xstArrays$, ":" + entry$ + ":") > 0 AND INSTR(##dynNames$, ":" + entry$ + ":") = 0 AND (LEN(##facetTab$) = 0 OR facet_has_entry$(##facetTab$, entry$, ##curHoistFn$) = 0 OR INSTR(facets_in_scope$(##facetTab$, ##curHoistFn$, "arr1"), ":" + entry$ + ":") > 0) AND is_all_str_arr$(entry$, "*") = "0" AND is_str_dual$(entry$, "*") = "0" THEN
+      ELSEIF is_xst_arr$(entry$, "*") = "1" AND is_dyn$(entry$, "*") = "0" AND (LEN(##facetTab$) = 0 OR facet_has_entry$(##facetTab$, entry$, ##curHoistFn$) = 0 OR INSTR(facets_in_scope$(##facetTab$, ##curHoistFn$, "arr1"), ":" + entry$ + ":") > 0) AND is_all_str_arr$(entry$, "*") = "0" AND is_str_dual$(entry$, "*") = "0" THEN
         IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
           out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
         END IF
       END IF
       IF INSTR(##arr2d$, ":" + entry$ + ":") > 0 THEN
-        IF INSTR(##dynStr$, ":" + entry$ + ":") > 0 OR INSTR(##dynNames$, ":" + entry$ + ":") > 0 OR is_all_str_arr$(entry$, "*") = "1" THEN
+        IF INSTR(##dynStr$, ":" + entry$ + ":") > 0 OR is_dyn$(entry$, "*") = "1" OR is_all_str_arr$(entry$, "*") = "1" THEN
           IF INSTR(out$, "xb_d1_" + sanitize_ident$(entry$) + bd$(entry$) + " = ") = 0 THEN
             out$ = out$ + "    intptr_t xb_d1_" + sanitize_ident$(entry$) + bd$(entry$) + " = 0;" + CHR$(10)
           END IF
@@ -5453,7 +5453,7 @@ FUNCTION is_xfn_dyn$(n$)
   is_xfn_dyn$ = ""
   IF ##inFuncScope = 1 THEN
     IF INSTR(##curFnArrays$, ":" + n$ + ":") = 0 THEN
-      IF INSTR(##dynStr$, ":" + n$ + ":") > 0 OR INSTR(##dynNames$, ":" + n$ + ":") > 0 OR is_str_dual$(n$, "*") = "1" OR INSTR(##strUbDual$, ":" + n$ + ":") > 0 OR is_all_str_arr$(n$, "*") = "1" OR INSTR(##xstArrays$, ":" + n$ + ":") > 0 THEN
+      IF INSTR(##dynStr$, ":" + n$ + ":") > 0 OR is_dyn$(n$, "*") = "1" OR is_str_dual$(n$, "*") = "1" OR INSTR(##strUbDual$, ":" + n$ + ":") > 0 OR is_all_str_arr$(n$, "*") = "1" OR is_xst_arr$(n$, "*") = "1" THEN
         is_xfn_dyn$ = "1"
       END IF
     END IF
@@ -6246,7 +6246,7 @@ FUNCTION scan_byref_dual$(s$)
           _pnm$ = trim_spaces$(_pnm$)
           IF LEN(_pnm$) > 0 AND INSTR(_pty$, "[]") > 0 THEN
             ' Condition 1: name is in ##dynNames$ (DIM'd as both scalar+array)
-            IF INSTR(##dynNames$, ":" + _pnm$ + ":") > 0 THEN
+            IF is_dyn$(_pnm$, "*") = "1" THEN
               IF INSTR(res$, ":" + _pnm$ + ":") = 0 THEN
                 res$ = res$ + ":" + _pnm$ + ":"
               END IF
@@ -6450,7 +6450,7 @@ FUNCTION scan_dual_use$(s$)
     p = sp + 1
     IF LEN(nm$) > 0 THEN
       IF INSTR(arraySet$, ":" + nm$ + ":") > 0 THEN
-        IF INSTR(##dynNames$, ":" + nm$ + ":") > 0 OR nm$ = "found" THEN
+        IF is_dyn$(nm$, "*") = "1" OR nm$ = "found" THEN
           IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
             res$ = res$ + ":" + nm$ + ":"
           END IF
@@ -6703,6 +6703,20 @@ FUNCTION is_str_dual$(name$, scope$)
     IF INSTR(##strDual$, ":" + name$ + ":") > 0 THEN is_str_dual$ = "1" ELSE is_str_dual$ = "0"
   ELSE
     IF INSTR(facets_in_scope$(##facetTab$, scope$, "dual"), ":" + name$ + ":") > 0 AND facet_type$(##facetTab$, name$, scope$) = "string" THEN is_str_dual$ = "1" ELSE is_str_dual$ = "0"
+  END IF
+END FUNCTION
+FUNCTION is_xst_arr$(name$, scope$)
+  IF LEN(##facetTab$) = 0 THEN
+    IF is_xst_arr$(name$, "*") = "1" THEN is_xst_arr$ = "1" ELSE is_xst_arr$ = "0"
+  ELSE
+    IF INSTR(facets_in_scope$(##facetTab$, scope$, "arr1"), ":" + name$ + ":") > 0 THEN is_xst_arr$ = "1" ELSE is_xst_arr$ = "0"
+  END IF
+END FUNCTION
+FUNCTION is_dyn$(name$, scope$)
+  IF LEN(##facetTab$) = 0 THEN
+    IF is_dyn$(name$, "*") = "1" THEN is_dyn$ = "1" ELSE is_dyn$ = "0"
+  ELSE
+    IF INSTR(facets_in_scope$(##facetTab$, scope$, "dyn"), ":" + name$ + ":") > 0 THEN is_dyn$ = "1" ELSE is_dyn$ = "0"
   END IF
 END FUNCTION
 ' Look up a name's type from the facet table in a given scope.
@@ -7658,7 +7672,7 @@ FUNCTION emit_stmt$(s$)
           emit_stmt$ = "    " + c_var_name$(varName$, "string") + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(char*)); if (!" + c_var_name$(varName$, "string") + ") abort(); for (intptr_t _i = 0; _i <= (" + cExpr$ + "); _i++) " + c_var_name$(varName$, "string") + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + "); xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + ");"
         END IF
         END IF
-      ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
+      ELSEIF is_dyn$(varName$, "*") = "1" THEN
         IF INSTR(arrSize$, ",") > 0 THEN
           DIM _d1nc
           DIM _d1ci
@@ -7727,7 +7741,7 @@ FUNCTION emit_stmt$(s$)
         ELSE
           emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + "[(" + cExpr$ + ") + 1];" + CHR$(10) + "    for (int _i = 0; _i < (" + cExpr$ + ") + 1; _i++) " + c_var_name$(varName$, varType$) + "[_i] = xb_str(" + CHR$(34) + CHR$(34) + ");"
         END IF
-      ELSEIF INSTR(##xstArrays$, ":" + varName$ + ":") > 0 AND INSTR(##dynNames$, ":" + varName$ + ":") = 0 AND varType$ <> "string" THEN
+      ELSEIF is_xst_arr$(varName$, "*") = "1" AND is_dyn$(varName$, "*") = "0" AND varType$ <> "string" THEN
         IF INSTR(arrSize$, ",") > 0 THEN
           emit_stmt$ = "    xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = " + emit_mtotal$(arrSize$) + " - 1; xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)(xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " + 1), sizeof(intptr_t)); if (!xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + ") abort(); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
         ELSE
@@ -7747,7 +7761,7 @@ FUNCTION emit_stmt$(s$)
       END IF
       IF is_shared_arr$(varName$, "*") = "1" THEN
         emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = 0; " + ub_ref$(varName$, varType$) + " = -1;"
-      ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_str_dual$(varName$, "*") = "1" OR INSTR(##byrefDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
+      ELSEIF is_dyn$(varName$, "*") = "1" OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_str_dual$(varName$, "*") = "1" OR INSTR(##byrefDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
         emit_stmt$ = ""
       ELSEIF varType$ = "string" THEN
         emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");"
@@ -7791,13 +7805,13 @@ FUNCTION emit_stmt$(s$)
       _ndShape$ = shape_of$(varName$)
       _ndRank = top_part_count(_ndShape$)
       _ndIdxRank = top_part_count(cExpr$)
-      IF _ndRank >= 3 AND INSTR(cExpr$, ",") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_shared_arr$(varName$, "*") = "1" OR is_all_str_arr$(varName$, "*") = "1" OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+      IF _ndRank >= 3 AND INSTR(cExpr$, ",") > 0 AND (is_dyn$(varName$, "*") = "1" OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_shared_arr$(varName$, "*") = "1" OR is_all_str_arr$(varName$, "*") = "1" OR is_xst_arr$(varName$, "*") = "1") THEN
         IF _ndRank = _ndIdxRank THEN
           emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_flat_nd$(cExpr$, _ndShape$) + "] = " + c2$ + ";"
         ELSE
           emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(cExpr$)) + "] = " + c2$ + ";"
         END IF
-      ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_shared_arr$(varName$, "*") = "1" OR is_all_str_arr$(varName$, "*") = "1" OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+      ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (is_dyn$(varName$, "*") = "1" OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR is_shared_arr$(varName$, "*") = "1" OR is_all_str_arr$(varName$, "*") = "1" OR is_xst_arr$(varName$, "*") = "1") THEN
         emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_flat2d$(cExpr$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "] = " + c2$ + ";"
       ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(cExpr$)) + "] = " + c2$ + ";"
