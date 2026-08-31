@@ -56,7 +56,12 @@ pub(crate) fn eval_expr(
             }
         }
         IrExprKind::FloatLiteral(v) => RuntimeValue::Float(parse_float(v)?),
-        IrExprKind::Constant { value, .. } => RuntimeValue::Integer(parse_integer(value)?),
+        IrExprKind::Constant { value, .. } => match expr.value_type {
+            ValueType::String => RuntimeValue::from_string(value.clone()),
+            ValueType::Giant => RuntimeValue::Giant(parse_giant(value)?),
+            ValueType::Float => RuntimeValue::Float(parse_float(value)?),
+            _ => RuntimeValue::Integer(parse_integer(value)?),
+        },
         // `@x` reads as the current value of the referenced lvalue; the
         // write-back on return is performed by the call site (call.rs).
         IrExprKind::ByRef(inner) => eval(program, inner, state, output)?,
