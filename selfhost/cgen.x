@@ -3968,7 +3968,7 @@ FUNCTION is_array_var_in_scope$(nm$)
     ' check only runs for callees with array params, preventing false
     ' positives for shared arrays used as local scalars (e.g. xui grid).
     IF INSTR(##sharedArrays$, ":" + nm$ + ":") > 0 THEN _arr = 1
-    IF INSTR(##allStrArr$, ":" + nm$ + ":") > 0 THEN _arr = 1
+    IF is_all_str_arr$(nm$, "*") = "1" THEN _arr = 1
     IF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 THEN _arr = 1
     IF INSTR(##byrefDual$, ":" + nm$ + ":") > 0 THEN _arr = 1
     IF INSTR(##strDual$, ":" + nm$ + ":") > 0 THEN _arr = 1
@@ -5053,7 +5053,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
                 out$ = out$ + "    char* xb_str_" + sanitize_dual$(nm$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
               END IF
             END IF
-          ELSEIF INSTR(##allStrArr$, ":" + nm$ + ":") > 0 AND INSTR(##strDual$, ":" + nm$ + ":") = 0 AND INSTR(##strUbDual$, ":" + nm$ + ":") = 0 AND RIGHT$(nm$, 1) = "$" AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
+          ELSEIF is_all_str_arr$(nm$, "*") = "1" AND is_str_dual$(nm$, "*") = "0" AND INSTR(##strUbDual$, ":" + nm$ + ":") = 0 AND RIGHT$(nm$, 1) = "$" AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
             IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
               out$ = out$ + "    char** " + c_var_name$(nm$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
