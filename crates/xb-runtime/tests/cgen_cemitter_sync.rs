@@ -60,8 +60,8 @@ fn build_native_cgen(tmp: &Path) -> PathBuf {
 fn cgen_emit(cgen_exe: &Path, ir: &str) -> Vec<u8> {
     // Use temp files + shell redirection to avoid pipe deadlock when cgen emits >64KB (facets).
     // cgen reads IR from stdin and writes C to stdout, so use sh to redirect.
-    let tmp_ir = std::env::temp_dir().join(format!("cgen_ir_{}.ir", std::process::id()));
-    let tmp_out = std::env::temp_dir().join(format!("cgen_out_{}.c", std::process::id()));
+    let tmp_ir = std::env::temp_dir().join(format!("cgen_ir_{}_{:?}.ir", std::process::id(), std::thread::current().id()));
+    let tmp_out = std::env::temp_dir().join(format!("cgen_out_{}_{:?}.c", std::process::id(), std::thread::current().id()));
     std::fs::write(&tmp_ir, ir).expect("write ir");
     let out = Command::new("sh")
         .arg("-c")
