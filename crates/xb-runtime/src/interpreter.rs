@@ -91,7 +91,8 @@ fn cond_bool(v: &RuntimeValue) -> Option<bool> {
     match v {
         RuntimeValue::Integer(n) => Some(*n != 0),
         RuntimeValue::Giant(g) => Some(*g != 0),
-        _ => None,
+        RuntimeValue::String(bytes) => Some(!bytes.is_empty()),
+        RuntimeValue::Float(f) => Some(*f != 0.0),
     }
 }
 

@@ -603,7 +603,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         } => {
             out.push_str(&ind);
             out.push_str("if (");
-            emit_expr(condition, out);
+            crate::c_emit_expr::emit_condition(condition, out);
             out.push_str(") {\n");
             emit_body(then_body, out, indent + 1);
             if let Some(eb) = else_body {
@@ -617,7 +617,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         IrItem::While { condition, body } => {
             out.push_str(&ind);
             out.push_str("while (");
-            emit_expr(condition, out);
+            crate::c_emit_expr::emit_condition(condition, out);
             out.push_str(") {\n");
             emit_body(body, out, indent + 1);
             out.push_str(&ind);
@@ -634,10 +634,10 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     out.push_str("while (");
                     if !*is_while {
                         out.push_str("!(");
-                        emit_expr(cond, out);
+                        crate::c_emit_expr::emit_condition(cond, out);
                         out.push(')');
                     } else {
-                        emit_expr(cond, out);
+                        crate::c_emit_expr::emit_condition(cond, out);
                     }
                     out.push_str(") {\n");
                 }
@@ -664,10 +664,10 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     out.push_str("if (");
                     if *is_while {
                         out.push_str("!(");
-                        emit_expr(cond, out);
+                        crate::c_emit_expr::emit_condition(cond, out);
                         out.push(')');
                     } else {
-                        emit_expr(cond, out);
+                        crate::c_emit_expr::emit_condition(cond, out);
                     }
                     out.push_str(") break;\n");
                     out.push_str(&ind);
@@ -678,10 +678,10 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     out.push_str("} while (");
                     if !*is_while {
                         out.push_str("!(");
-                        emit_expr(cond, out);
+                        crate::c_emit_expr::emit_condition(cond, out);
                         out.push(')');
                     } else {
-                        emit_expr(cond, out);
+                        crate::c_emit_expr::emit_condition(cond, out);
                     }
                     out.push_str(");\n");
                 }

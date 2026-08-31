@@ -1933,10 +1933,10 @@ WHILE pos <= LEN(src$)
               kw2$ = MID$(tr2$, 6, 5)
               IF kw2$ = "while" THEN
                 postK$ = "1"
-                cExpr$ = emit_expr$(trim_spaces$(MID$(tr2$, 11, LEN(tr2$) - 10)))
+                cExpr$ = emit_cond$(trim_spaces$(MID$(tr2$, 11, LEN(tr2$) - 10)))
               ELSEIF kw2$ = "until" THEN
                 postK$ = "2"
-                cExpr$ = emit_expr$(trim_spaces$(MID$(tr2$, 11, LEN(tr2$) - 10)))
+                cExpr$ = emit_cond$(trim_spaces$(MID$(tr2$, 11, LEN(tr2$) - 10)))
               END IF
             END IF
             IF postK$ = "1" THEN
@@ -2784,6 +2784,18 @@ FUNCTION trim_spaces$(s$)
     trim_spaces$ = ""
   ELSE
     trim_spaces$ = MID$(s$, i, j - i + 1)
+  END IF
+END FUNCTION
+
+FUNCTION emit_cond$(e$)
+  DIM c$
+  DIM t$
+  c$ = emit_expr$(e$)
+  t$ = expr_type$(e$)
+  IF t$ = "string" THEN
+    emit_cond$ = "(xb_len(" + c$ + ") > 0)"
+  ELSE
+    emit_cond$ = c$
   END IF
 END FUNCTION
 
@@ -7986,7 +7998,7 @@ FUNCTION emit_stmt$(s$)
 
   IF LEFT$(s$, 3) = "if " THEN
     rest$ = MID$(s$, 4, LEN(s$) - 3)
-    cExpr$ = emit_expr$(rest$)
+    cExpr$ = emit_cond$(rest$)
     emit_stmt$ = "    if (" + cExpr$ + ") {"
     RETURN emit_stmt$
   END IF
@@ -8003,7 +8015,7 @@ FUNCTION emit_stmt$(s$)
 
   IF LEFT$(s$, 6) = "while " THEN
     rest$ = MID$(s$, 7, LEN(s$) - 6)
-    cExpr$ = emit_expr$(rest$)
+    cExpr$ = emit_cond$(rest$)
     emit_stmt$ = "    while (" + cExpr$ + ") {"
     RETURN emit_stmt$
   END IF
@@ -8019,14 +8031,14 @@ FUNCTION emit_stmt$(s$)
 
   IF LEFT$(s$, 9) = "do while " THEN
     rest$ = MID$(s$, 10, LEN(s$) - 9)
-    cExpr$ = emit_expr$(rest$)
+    cExpr$ = emit_cond$(rest$)
     emit_stmt$ = "    do {" + CHR$(10) + "    if (!(" + cExpr$ + ")) break;"
     RETURN emit_stmt$
   END IF
 
   IF LEFT$(s$, 9) = "do until " THEN
     rest$ = MID$(s$, 10, LEN(s$) - 9)
-    cExpr$ = emit_expr$(rest$)
+    cExpr$ = emit_cond$(rest$)
     emit_stmt$ = "    do {" + CHR$(10) + "    if (" + cExpr$ + ") break;"
     RETURN emit_stmt$
   END IF
@@ -8038,14 +8050,14 @@ FUNCTION emit_stmt$(s$)
 
   IF LEFT$(s$, 11) = "loop while " THEN
     rest$ = MID$(s$, 12, LEN(s$) - 11)
-    cExpr$ = emit_expr$(rest$)
+    cExpr$ = emit_cond$(rest$)
     emit_stmt$ = "    } while (" + cExpr$ + ");"
     RETURN emit_stmt$
   END IF
 
   IF LEFT$(s$, 11) = "loop until " THEN
     rest$ = MID$(s$, 12, LEN(s$) - 11)
-    cExpr$ = emit_expr$(rest$)
+    cExpr$ = emit_cond$(rest$)
     emit_stmt$ = "    } while (!(" + cExpr$ + "));"
     RETURN emit_stmt$
   END IF

@@ -687,6 +687,20 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
     }
 }
 
+/// Emit a condition expression in boolean context. A string-typed condition
+/// is wrapped with `xb_len(...) > 0` — in XBasic, `IF s$` is true when the
+/// string is non-empty, but a C `char*` pointer is always truthy (non-NULL),
+/// even for `xb_str("")`. Integer/float conditions pass through unchanged.
+pub(crate) fn emit_condition(expr: &IrExpr, out: &mut String) {
+    if expr.value_type == ValueType::String {
+        out.push_str("(xb_len(");
+        emit_expr(expr, out);
+        out.push_str(") > 0)");
+    } else {
+        emit_expr(expr, out);
+    }
+}
+
 fn emit_symbol_ref(s: &IrSymbol, out: &mut String) {
     if crate::c_emit::is_descriptor_param(&s.name) {
         // A bare descriptor-array-param name reads the slot's SCALAR field, which

@@ -244,6 +244,12 @@ intptr_t xb_user_XstExceptionNumberToName(intptr_t xb_var_exception, char* *xb_s
 /* XstSystemExceptionNumberToName: byref string — reads SHARED sysException$[]
    array populated by InitProgram. Returns $$TRUE (1) on out-of-range, else 0. */
 intptr_t xb_user_XstSystemExceptionNumberToName(intptr_t xb_var_exception, char* *xb_str_exception_ref);
+/* XstSystemErrorNumberToName: byref string — reads #OSERROR$[] SHARED array
+   populated by InitProgram. Returns 0 on success. */
+intptr_t xb_user_XstSystemErrorNumberToName(intptr_t xb_var_sysError, char* *xb_str_sysError_ref);
+/* XstSystemErrorToError: byref int — reads #OSTOXERROR[] SHARED array.
+   With InitProgram, maps errno to (object<<8)|nature. Without, returns 6147. */
+intptr_t xb_user_XstSystemErrorToError(intptr_t xb_var_sysError, intptr_t *xb_var_error_ref);
 /* XstFileTimeToDateAndTime: 1 byval int64 input + 8 byref int outputs.
    Converts Windows filetime (100ns units since 1601) to date/time.
    gmtime() call is emitted as 0 (CEmitter doesn't handle composite-returning
@@ -629,6 +635,17 @@ int main(void) {
     { char* name=(char*)0; xb_user_XstExceptionNumberToName(3, &name); check_s("ExcName(3)", name, "$$ExceptionBreakpoint"); }
     { char* name=(char*)0; xb_user_XstExceptionNumberToName(8, &name); check_s("ExcName(8)", name, "$$ExceptionInvalidOperation"); }
     { char* name=(char*)0; xb_user_XstExceptionNumberToName(17, &name); check_s("ExcName(17)", name, "$$ExceptionUnknown"); }
+    /* XstErrorNumberToName (enhanced with InitProgram): now reads populated
+       errorObject$[]/errorNature$[] arrays. error=(object<<8)|nature.
+       error=0 → "NoError", error=(3<<8)|1=769 → "File Busy",
+       error=(24<<8)|3=6147 → "System Error". */
+    { char* name=(char*)0; xb_user_XstErrorNumberToName(0, &name); check_s("ErrName(0)", name, "NoError"); }
+    { char* name=(char*)0; xb_user_XstErrorNumberToName(769, &name); check_s("ErrName(769)", name, "File Busy"); }
+    /* XstSystemErrorNumberToName and XstSystemErrorToError depend on
+       #OSERROR$[]/#OSTOXERROR[] which are DIM'd as #name[] (SharedName
+       arrays) in InitProgram. The CEmitter treats DIM #name[] as a local,
+       not a shared global — so the arrays are empty after InitProgram
+       returns. Blocked on #name[] DIM shared array support. */
     /* XstSystemExceptionNumberToName: reads sysException$[exception] from SHARED array.
        Values from xst.x InitProgram: SIGNONE=0→"$$SIGNONE",
        SIGHUP=1→"$$SIGHUP", SIGSEGV=11→"$$SIGSEGV". */
@@ -637,7 +654,7 @@ int main(void) {
     { char* name=(char*)0; xb_user_XstSystemExceptionNumberToName(11, &name); check_s("SysExcName(11)", name, "$$SIGSEGV"); }
     /* XstExceptionToSystemException and XstSystemExceptionToException already
        tested above (SELECT CASE, no SHARED array needed). */
-    printf("\n%d checks, %d failures\n", 134, fails);
+    printf("\n%d checks, %d failures\n", 137, fails);
     return fails;
 }
 "#).unwrap();
@@ -813,5 +830,13 @@ int main(void) {
     assert!(
         stdout.contains("SysExcName(11)"),
         "missing SysExcName(11) check in output"
+    );
+    assert!(
+        stdout.contains("ErrName(0)"),
+        "missing ErrName(0) check in output"
+    );
+    assert!(
+        stdout.contains("ErrName(769)"),
+        "missing ErrName(769) check in output"
     );
 }
