@@ -869,6 +869,7 @@ WHILE LEN(_sdIter$) > 0
   END IF
 WEND
 ##dynNames$ = scan_dyn$(src$)
+##scanDynAll$ = ##dynNames$
 ##byrefDual$ = scan_byref_dual$(src$)
 ##strDual$ = scan_str_dual$(src$)
 ##strDual$ = replace$(##strDual$, ":found:", ":")
@@ -1471,7 +1472,6 @@ END IF
 ##dualUse$ = scan_dual_use$(src$)
 ##arr2d$ = scan_arr2d$(src$)
 ' RR-03: save scanner-derived global dyn set for per-function filtering.
-##scanDynAll$ = ##dynNames$
 hasMain = 0
 inFunc = 0
 inNest = 0
