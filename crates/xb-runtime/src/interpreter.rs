@@ -250,7 +250,26 @@ pub(crate) fn exec_items(
                 // current storage resizes to index+1 (preserving the prefix),
                 // matching the compiled backends' dyn grow-guard. 1-D only.
                 let grow = state.dyn_arrays.contains(&target.name) && idxs.len() == 1;
-                if let Some(slot) = state.slots.get_mut(&target.name) {
+                // Shared arrays (SHARED keyword or #name[] with parser shared flag)
+                // live in `state.shared`; prefer that store when it already holds
+                // an array, even if `state.slots` has a scalar shadowing entry
+                // (e.g., arecord's hoisted `dim globaltype0.a` scalar vs
+                // `dim shared globaltype0.a[0]` array). This matches the
+                // shared-first read path in eval.rs.
+                let is_shared_array = state
+                    .shared
+                    .get(&target.name)
+                    .map_or(false, |s| s.array.is_some());
+                if is_shared_array {
+                    if let Some(slot) = state.shared.get_mut(&target.name) {
+                        if let Some(off) = slot.array_offset(&idxs) {
+                            slot.array_set(off, v)?;
+                        } else if grow && idxs[0] < (1 << 20) {
+                            slot.array_reshape(vec![idxs[0] + 1]);
+                            slot.array_set(idxs[0], v)?;
+                        }
+                    }
+                } else if let Some(slot) = state.slots.get_mut(&target.name) {
                     if let Some(off) = slot.array_offset(&idxs) {
                         slot.array_set(off, v)?;
                     } else if grow && idxs[0] < (1 << 20) {

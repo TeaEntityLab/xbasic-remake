@@ -160,11 +160,11 @@ pub(crate) fn eval_expr(
                     }
                 }
             }
-            let value = match state
-                .slots
+            let slot_opt = state
+                .shared
                 .get(&symbol.name)
-                .or_else(|| state.shared.get(&symbol.name))
-            {
+                .or_else(|| state.slots.get(&symbol.name));
+            let value = match slot_opt {
                 Some(slot) => {
                     match slot.array_offset(&idxs) {
                         Some(off) => slot.array_get(off)?,
@@ -180,9 +180,9 @@ pub(crate) fn eval_expr(
         }
         IrExprKind::ArrayUBound { symbol } => {
             let slot = state
-                .slots
+                .shared
                 .get(&symbol.name)
-                .or_else(|| state.shared.get(&symbol.name));
+                .or_else(|| state.slots.get(&symbol.name));
             let upper = match slot {
                 Some(s) if s.array.is_some() => s.array.as_ref().map_or(0, |a| a.len()) as i32 - 1,
                 // UBOUND(string$) is the last byte offset = LEN(string$) - 1.
@@ -198,9 +198,9 @@ pub(crate) fn eval_expr(
         IrExprKind::FuncAddr(name) => RuntimeValue::Integer(function_id(program, name)),
         IrExprKind::SizeOf { symbol } => {
             let slot = state
-                .slots
+                .shared
                 .get(&symbol.name)
-                .or_else(|| state.shared.get(&symbol.name))
+                .or_else(|| state.slots.get(&symbol.name))
                 .ok_or_else(|| RuntimeError::UnknownSlot {
                     name: symbol.name.clone(),
                 })?;

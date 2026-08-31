@@ -532,6 +532,7 @@ impl TextIrEmitter {
                 size,
                 extra_dims,
                 shared,
+                is_array,
                 ..
             } => {
                 let sh = if *shared { "shared " } else { "" };
@@ -549,7 +550,14 @@ impl TextIrEmitter {
                         ));
                     }
                     None => {
-                        out.push_str(&format!("{prefix}dim {sh}{}\n", self.emit_symbol(symbol)))
+                        if *is_array {
+                            out.push_str(&format!(
+                                "{prefix}dim {sh}{}[]\n",
+                                self.emit_symbol(symbol)
+                            ))
+                        } else {
+                            out.push_str(&format!("{prefix}dim {sh}{}\n", self.emit_symbol(symbol)))
+                        }
                     }
                 }
             }

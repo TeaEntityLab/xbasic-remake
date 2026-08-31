@@ -52,17 +52,36 @@ pub(crate) fn exec_swap(
     state: &mut ExecutionState,
 ) -> Result<(), RuntimeError> {
     // Swap the entire slots (value + array contents), auto-declaring either
-    // operand if it was never DIM'd (legacy XBasic).
-    let l = state
-        .slots
-        .remove(&left.name)
-        .unwrap_or_else(|| crate::slot::TypedSlot::new(left.value_type));
-    let r = state
-        .slots
-        .remove(&right.name)
-        .unwrap_or_else(|| crate::slot::TypedSlot::new(right.value_type));
-    state.slots.insert(left.name.clone(), r);
-    state.slots.insert(right.name.clone(), l);
+    // operand if it was never DIM'd (legacy XBasic). Shared arrays/scalars
+    // live in `state.shared` and must be swapped there, not in `slots`.
+    let l_is_shared = state.shared.contains_key(&left.name);
+    let r_is_shared = state.shared.contains_key(&right.name);
+    let l = if l_is_shared {
+        state.shared.remove(&left.name).unwrap()
+    } else {
+        state
+            .slots
+            .remove(&left.name)
+            .unwrap_or_else(|| crate::slot::TypedSlot::new(left.value_type))
+    };
+    let r = if r_is_shared {
+        state.shared.remove(&right.name).unwrap()
+    } else {
+        state
+            .slots
+            .remove(&right.name)
+            .unwrap_or_else(|| crate::slot::TypedSlot::new(right.value_type))
+    };
+    if l_is_shared {
+        state.shared.insert(left.name.clone(), r);
+    } else {
+        state.slots.insert(left.name.clone(), r);
+    }
+    if r_is_shared {
+        state.shared.insert(right.name.clone(), l);
+    } else {
+        state.slots.insert(right.name.clone(), l);
+    }
     Ok(())
 }
 

@@ -713,6 +713,15 @@ fn emit_symbol_ref(s: &IrSymbol, out: &mut String) {
         emit_default(s.value_type, out);
         return;
     }
+    if crate::c_emit::is_array_param(&s.name) && s.value_type == crate::ValueType::String {
+        // Plain by-ref string array param used as scalar (e.g., `IFZ qb$[]` where
+        // `qb$` is `string[]` param). The scalar slot is the type default (empty
+        // string), not the array data pointer. Emitting `xb_str("")` makes
+        // `IFZ` correctly test empty (length 0) so the early RETURN is taken
+        // for empty input, matching the interpreter.
+        emit_default(s.value_type, out);
+        return;
+    }
     emit_var_name(s, out);
 }
 

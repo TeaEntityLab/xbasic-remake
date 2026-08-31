@@ -330,6 +330,12 @@ impl Parser {
         }
         let mut dims = Vec::new();
         loop {
+            // `DIM #name[]` — a `#`-prefixed (SharedName) array is a shared
+            // global, just like `DIM SHARED name[]`. Without this, the array
+            // is local to the function and lost when it returns (e.g.
+            // `DIM #OSERROR$[]` in InitProgram must persist for
+            // XstSystemErrorNumberToName to read).
+            let is_shared_name = matches!(self.peek_kind(), TokenKind::SharedName(_));
             let (name, suffix) = Self::shared_name_suffix(self.expect_name_or_keyword()?);
             let (size, is_array, extra_dims) = self.parse_array_size()?;
             dims.push(Statement::Dim {
@@ -339,7 +345,7 @@ impl Parser {
                 extra_dims,
                 is_array,
                 redim: false,
-                shared,
+                shared: shared || is_shared_name,
             });
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
@@ -373,6 +379,7 @@ impl Parser {
         }
         let mut dims = Vec::new();
         loop {
+            let is_shared_name = matches!(self.peek_kind(), TokenKind::SharedName(_));
             let (name, name_suffix) = Self::shared_name_suffix(self.expect_name_or_keyword()?);
             // Skip parameter type list in parentheses (FUNCADDR declarations)
             // Check before parse_array_size to avoid consuming ( as array size
@@ -414,7 +421,7 @@ impl Parser {
                 extra_dims,
                 is_array,
                 redim: false,
-                shared: false,
+                shared: is_shared_name,
             });
             if matches!(self.peek_kind(), TokenKind::Symbol(',')) {
                 self.index += 1;
@@ -1357,7 +1364,12 @@ impl Parser {
             p: &mut Parser,
         ) -> Result<(String, Option<TypeSuffix>, Vec<Expression>), ParseError> {
             let (target, suffix) = p.expect_name_or_keyword()?;
-            let mut full = target;
+            let mut full = match suffix {
+                Some(TypeSuffix::String) => format!("{target}$"),
+                Some(TypeSuffix::Single) => format!("{target}!"),
+                Some(TypeSuffix::Double) => format!("{target}#"),
+                _ => target,
+            };
             let mut indices: Vec<Expression> = Vec::new();
             // Empty `[]` = whole-array reference: no index captured.
             loop {

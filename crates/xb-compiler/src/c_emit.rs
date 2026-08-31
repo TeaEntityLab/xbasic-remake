@@ -54,6 +54,7 @@ thread_local! {
     /// Per-function parameter names: a `Dim` of a name that is already a
     /// parameter must not re-declare it in C (would be a redefinition).
     static FN_PARAMS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
+    static FN_ARRAY_PARAMS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
     /// `&Func` synthetic ids: 1-based program-item order, mirroring the
     /// interpreter's eval.rs `function_id` (LLVM emits the same ids).
     static FUNC_IDS: RefCell<HashMap<String, i32>> = RefCell::new(HashMap::new());
@@ -805,7 +806,7 @@ pub(crate) fn func_addr_id(name: &str) -> i32 {
 
 /// Establish the per-function emit context for `items` (a function body, or the
 /// whole program's items for `main` — the walkers skip nested `Function` bodies).
-fn set_fn_context(
+pub(crate) fn set_fn_context(
     name: &str,
     items: &[IrItem],
     params: &[crate::ir::IrParam],
@@ -876,6 +877,11 @@ fn set_fn_context(
         let mut set = s.borrow_mut();
         set.clear();
         set.extend(params.iter().map(|p| p.name.clone()));
+    });
+    FN_ARRAY_PARAMS.with(|s| {
+        let mut set = s.borrow_mut();
+        set.clear();
+        set.extend(params.iter().filter(|p| p.is_array).map(|p| p.name.clone()));
     });
     let peel_host_str = FN_DUAL_USE.with(|s| {
         let forced_array: HashSet<String> = descriptors
@@ -1294,6 +1300,11 @@ pub(crate) fn is_suppress_comp_r() -> bool {
 /// name must not re-declare it in C (would be a redefinition).
 pub(crate) fn is_fn_param(name: &str) -> bool {
     FN_PARAMS.with(|s| s.borrow().contains(name))
+}
+
+/// True if `name` is an `is_array` parameter of the current function.
+pub(crate) fn is_array_param(name: &str) -> bool {
+    FN_ARRAY_PARAMS.with(|s| s.borrow().contains(name))
 }
 
 pub(crate) fn next_comp_tmp_id() -> usize {

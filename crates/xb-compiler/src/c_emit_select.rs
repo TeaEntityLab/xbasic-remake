@@ -94,9 +94,50 @@ pub(crate) fn emit_swap(
     out: &mut String,
     ind: &str,
 ) {
-    // A descriptor by-ref array param swaps its data pointer `(*x_d)` (type `T*`);
-    // a plain name swaps its value. The temp uses the raw name so `(*…)` never
-    // appears in an identifier (docs/18).
+    // Array swap: when both sides are dynamic arrays (shared, local dyn, or
+    // plain array params), swap the storage pointer and ub. This handles
+    // `SWAP #arr[], local[]` where IR loses brackets (e.g., `swap qbasic$:string qb:integer`).
+    let ldesc = crate::c_emit::is_descriptor_param(&left.name);
+    let rdesc = crate::c_emit::is_descriptor_param(&right.name);
+    let larr = crate::c_emit::is_dyn_array(&left.name) || crate::c_emit::is_array_param(&left.name);
+    let rarr =
+        crate::c_emit::is_dyn_array(&right.name) || crate::c_emit::is_array_param(&right.name);
+    if (larr || ldesc) && (rarr || rdesc) {
+        let l_base = crate::c_emit_expr::sanitize_c_ident(&left.name);
+        let r_base = crate::c_emit_expr::sanitize_c_ident(&right.name);
+        if l_base == r_base {
+            return;
+        }
+        let mut lvar = String::new();
+        crate::c_emit::emit_array_var_name(left, &mut lvar);
+        let mut rvar = String::new();
+        crate::c_emit::emit_array_var_name(right, &mut rvar);
+        let ptr_ty = if left.value_type == crate::ValueType::String {
+            "char**"
+        } else {
+            "intptr_t*"
+        };
+        out.push_str(ind);
+        out.push_str(&format!(
+            "{{ {ptr_ty} _swap_var_{l_base} = {lvar}; {lvar} = {rvar}; {rvar} = _swap_var_{l_base}; }}"
+        ));
+        let l_has_ub = crate::c_emit::is_dyn_array(&left.name)
+            || crate::c_emit::is_descriptor_param(&left.name);
+        let r_has_ub = crate::c_emit::is_dyn_array(&right.name)
+            || crate::c_emit::is_descriptor_param(&right.name);
+        if l_has_ub && r_has_ub {
+            let mut lub = String::new();
+            crate::c_emit::emit_array_ub_ref(&left.name, &mut lub);
+            let mut rub = String::new();
+            crate::c_emit::emit_array_ub_ref(&right.name, &mut rub);
+            out.push_str(ind);
+            out.push_str(&format!(
+                "{{ intptr_t _swap_ub_{l_base} = {lub}; {lub} = {rub}; {rub} = _swap_ub_{l_base}; }}"
+            ));
+        }
+        out.push('\n');
+        return;
+    }
     let ldesc = crate::c_emit::is_descriptor_param(&left.name);
     let lt = if ldesc {
         format!("{}*", c_type(left.value_type))

@@ -769,8 +769,7 @@ END FUNCTION
 #[test]
 fn cgen_composite_member_array_read_compiles_kernel32() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let src = fs::read_to_string(root.join("xbasic/lib/kernel32.x"))
-        .expect("read kernel32.x");
+    let src = fs::read_to_string(root.join("xbasic/lib/kernel32.x")).expect("read kernel32.x");
     let prog = FrontendUnit::parse(&src)
         .expect("parse kernel32")
         .lower_ir()

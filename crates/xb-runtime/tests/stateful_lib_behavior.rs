@@ -641,11 +641,18 @@ int main(void) {
        error=(24<<8)|3=6147 → "System Error". */
     { char* name=(char*)0; xb_user_XstErrorNumberToName(0, &name); check_s("ErrName(0)", name, "NoError"); }
     { char* name=(char*)0; xb_user_XstErrorNumberToName(769, &name); check_s("ErrName(769)", name, "File Busy"); }
-    /* XstSystemErrorNumberToName and XstSystemErrorToError depend on
-       #OSERROR$[]/#OSTOXERROR[] which are DIM'd as #name[] (SharedName
-       arrays) in InitProgram. The CEmitter treats DIM #name[] as a local,
-       not a shared global — so the arrays are empty after InitProgram
-       returns. Blocked on #name[] DIM shared array support. */
+    /* XstSystemErrorNumberToName: reads #OSERROR$[sysError] SHARED array
+       populated by InitProgram. errno 2=ENOENT, 13=EACCES, 22=EINVAL. */
+    { char* name=(char*)0; xb_user_XstSystemErrorNumberToName(2, &name); check_s("SysErrName(2)", name, "ENOENT"); }
+    { char* name=(char*)0; xb_user_XstSystemErrorNumberToName(13, &name); check_s("SysErrName(13)", name, "EACCES"); }
+    { char* name=(char*)0; xb_user_XstSystemErrorNumberToName(22, &name); check_s("SysErrName(22)", name, "EINVAL"); }
+    /* XstSystemErrorToError: reads #OSTOXERROR[sysError] SHARED array.
+       errno 2 (ENOENT) → (3<<8)|40 = 808 (File Nonexistent).
+       errno 13 (EACCES) → (0<<8)|33 = 33 (Permission).
+       errno 999 (out of range) → (24<<8)|3 = 6147 (System Error). */
+    { intptr_t e=-1; xb_user_XstSystemErrorToError(2, &e); check_i("SysErrToErr(2)", e, 808); }
+    { intptr_t e=-1; xb_user_XstSystemErrorToError(13, &e); check_i("SysErrToErr(13)", e, 33); }
+    { intptr_t e=-1; xb_user_XstSystemErrorToError(999, &e); check_i("SysErrToErr(999)", e, 6147); }
     /* XstSystemExceptionNumberToName: reads sysException$[exception] from SHARED array.
        Values from xst.x InitProgram: SIGNONE=0→"$$SIGNONE",
        SIGHUP=1→"$$SIGHUP", SIGSEGV=11→"$$SIGSEGV". */
@@ -654,7 +661,7 @@ int main(void) {
     { char* name=(char*)0; xb_user_XstSystemExceptionNumberToName(11, &name); check_s("SysExcName(11)", name, "$$SIGSEGV"); }
     /* XstExceptionToSystemException and XstSystemExceptionToException already
        tested above (SELECT CASE, no SHARED array needed). */
-    printf("\n%d checks, %d failures\n", 137, fails);
+    printf("\n%d checks, %d failures\n", 143, fails);
     return fails;
 }
 "#).unwrap();
@@ -838,5 +845,13 @@ int main(void) {
     assert!(
         stdout.contains("ErrName(769)"),
         "missing ErrName(769) check in output"
+    );
+    assert!(
+        stdout.contains("SysErrName(2)"),
+        "missing SysErrName(2) check in output"
+    );
+    assert!(
+        stdout.contains("SysErrToErr(2)"),
+        "missing SysErrToErr(2) check in output"
     );
 }
