@@ -3753,7 +3753,7 @@ FUNCTION emit_expr$(e$)
       ELSE
         emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$) + bd$(varName$)
       END IF
-    ELSEIF INSTR(##xstArrays$, ":" + varName$ + ":") > 0 AND INSTR(##dynNames$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 THEN
+    ELSEIF is_xst_arr$(varName$, "*") = "1" AND is_dyn$(varName$, "*") = "0" AND is_all_str_arr$(varName$, "*") = "0" THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
     ELSE
       emit_expr$ = "(int)(sizeof(" + c_var_name$(varName$, varType$) + ")/sizeof(" + c_var_name$(varName$, varType$) + "[0])-1)"
