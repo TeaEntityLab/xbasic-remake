@@ -198,6 +198,11 @@ pub struct ExecutionState {
     /// Headless GUI runtime: whether a synthetic `CloseWindow` callback has been
     /// delivered (so `XuiGetNextCallback` terminates the demo's event loop once).
     pub(crate) gui_close_sent: bool,
+    /// Fake addresses for SUBADDR/AT memory model: maps fake intptr_t address
+    /// to variable name for UBYTEAT etc. writes (XstGetEndian). XstGetEndian
+    /// does `addr=&temp$$; UBYTEAT(addr,off)=val` to set GIANT bytes.
+    pub(crate) fake_addrs: std::collections::HashMap<i32, String>,
+    pub(crate) next_fake_addr: i32,
 }
 impl ExecutionState {
     pub const fn metadata(&self) -> &ProgramMetadata {

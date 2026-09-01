@@ -412,6 +412,32 @@ pub(crate) fn call_function(
     // testing (RR-08a/RR-08b) by ensuring compiled legacy bodies are exercised.
     if find_function(program, name).is_ok() {
         // Fall through to the user-defined function body below.
+    } else if name.eq_ignore_ascii_case("SUBADDR") || name.eq_ignore_ascii_case("SUBADDRESS") || name.eq_ignore_ascii_case("VARPTR") {
+        if let Some(arg) = args.first() {
+            let var_name = match &arg.kind {
+                xb_compiler::IrExprKind::Symbol(s) => Some(s.name.clone()),
+                xb_compiler::IrExprKind::SharedVariable(s) => Some(s.name.clone()),
+                _ => None,
+            };
+            if let Some(nm) = var_name {
+                if let Some((&addr, _)) = state.fake_addrs.iter().find(|(_, v)| *v == &nm) {
+                    return Ok(RuntimeValue::Integer(addr));
+                }
+                let addr = if state.next_fake_addr == 0 {
+                    0x100000
+                } else {
+                    state.next_fake_addr
+                };
+                state.next_fake_addr = addr + 16;
+                state.fake_addrs.insert(addr, nm);
+                return Ok(RuntimeValue::Integer(addr));
+            }
+        }
+        let mut vals = Vec::with_capacity(args.len());
+        for arg in args {
+            vals.push(eval(program, arg, state, output)?);
+        }
+        return crate::builtin::eval_builtin(name, &vals);
     } else if is_builtin(name) {
         let mut vals = Vec::with_capacity(args.len());
         for arg in args {
@@ -518,6 +544,8 @@ pub(crate) fn call_function(
         label_addresses: std::collections::HashMap::new(),
         gui_close_sent: state.gui_close_sent,
         dyn_arrays: state.dyn_arrays.clone(),
+        fake_addrs: state.fake_addrs.clone(),
+        next_fake_addr: state.next_fake_addr,
     };
     let result = match exec_items(program, body, body, 0, &mut sub, output)? {
         Flow::Return(Some(v)) => Ok(v),

@@ -523,16 +523,30 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             out.push_str(");\n");
         }
         IrItem::BuiltinAssign { name, args, value } => {
-            out.push_str(&ind);
-            // *AT assignment: the interpreter has no real memory — it no-ops the
-            // write, evaluating only the value for side-effects/errors
-            // (interpreter.rs BuiltinAssign). Match it: a real `*(T*)(addr)=v`
-            // would dereference the stub-0 address and crash.
             if is_at_write_builtin(name) {
-                out.push_str("(void)(");
+                let (ctype, _) = at_write_ctype(name);
+                out.push_str(&ind);
+                out.push_str("{ ");
+                out.push_str(ctype);
+                out.push_str(" _at_v = (");
+                out.push_str(ctype);
+                out.push_str(")(");
                 emit_expr(value, out);
-                out.push_str(");\n");
+                out.push_str("); if ((intptr_t)(");
+                emit_expr(&args[0], out);
+                out.push_str(")) *(");
+                out.push_str(ctype);
+                out.push_str("*)((char*)(intptr_t)(");
+                emit_expr(&args[0], out);
+                out.push_str(") + (");
+                if args.len() > 1 {
+                    emit_expr(&args[1], out);
+                } else {
+                    out.push_str("0");
+                }
+                out.push_str(")) = _at_v; }\n");
             } else {
+                out.push_str(&ind);
                 // Fallback: function call style
                 emit_c_function_name(name, out);
                 out.push('(');

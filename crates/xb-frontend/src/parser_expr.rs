@@ -355,7 +355,11 @@ impl Parser {
                         return Ok(Expression::FuncAddr(fname));
                     }
                 }
-                self.primary()
+                let inner = self.primary()?;
+                Ok(Expression::FunctionCall {
+                    name: "SUBADDR".to_string(),
+                    args: vec![inner],
+                })
             }
             TokenKind::Symbol('~') => {
                 self.index += 1;
