@@ -38,7 +38,7 @@ FLAGS="-O0 -Wno-incompatible-pointer-types -Wno-int-conversion"
 PASS=0
 FAIL=0
 FAILED_LIST=""
-for lib in xbasic/lib/*.x xbasic/lib/*.x; do
+for lib in xbasic/lib/*.x; do
     name=$(basename "$lib" .x)
     # Emit Text IR via Rust (heuristic; facet probe is similar at 9/15 — see docs/19)
     if ! "$XB_BIN" --emit-ir "$lib" > "$OUT/$name.ir" 2> "$OUT/$name.emit-err"; then
