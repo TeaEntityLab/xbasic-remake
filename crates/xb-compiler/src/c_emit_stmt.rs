@@ -556,7 +556,9 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     }
                     emit_expr(arg, out);
                 }
-                out.push_str(");\n");
+                out.push_str(") = ");
+                emit_expr(value, out);
+                out.push_str(";\n");
             }
         }
         IrItem::ConstantDefinition { .. } => {}
