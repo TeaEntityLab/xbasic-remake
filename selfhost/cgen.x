@@ -7877,48 +7877,7 @@ FUNCTION emit_stmt$(s$)
   IF LEFT$(s$, 15) = "builtin_assign " THEN
     rest$ = MID$(s$, 16, LEN(s$) - 15)
     eqPos = INSTR(rest$, " = ")
-    bLeft$ = LEFT$(rest$, eqPos - 1)
     start$ = MID$(rest$, eqPos + 3, LEN(rest$) - eqPos - 2)
-    bSpacePos = INSTR(bLeft$, " ")
-    IF bSpacePos > 0 THEN
-      bName$ = LEFT$(bLeft$, bSpacePos - 1)
-      bArgs$ = MID$(bLeft$, bSpacePos + 1, LEN(bLeft$) - bSpacePos)
-    ELSE
-      bName$ = bLeft$
-      bArgs$ = ""
-    END IF
-    ctype$ = ""
-    colonPos = INSTR(bName$, ":")
-    IF colonPos > 0 THEN bName$ = LEFT$(bName$, colonPos - 1)
-    IF UCASE$(bName$) = "SBYTEAT" OR UCASE$(bName$) = "UBYTEAT" OR UCASE$(bName$) = "SSHORTAT" OR UCASE$(bName$) = "USHORTAT" OR UCASE$(bName$) = "SLONGAT" OR UCASE$(bName$) = "ULONGAT" OR UCASE$(bName$) = "XLONGAT" OR UCASE$(bName$) = "GIANTAT" OR UCASE$(bName$) = "SINGLEAT" OR UCASE$(bName$) = "DOUBLEAT" OR UCASE$(bName$) = "SUBADDRAT" OR UCASE$(bName$) = "GOADDRAT" THEN
-      IF UCASE$(bName$) = "SBYTEAT" THEN ctype$ = "signed char"
-      ELSEIF UCASE$(bName$) = "UBYTEAT" THEN ctype$ = "unsigned char"
-      ELSEIF UCASE$(bName$) = "SSHORTAT" THEN ctype$ = "signed short"
-      ELSEIF UCASE$(bName$) = "USHORTAT" THEN ctype$ = "unsigned short"
-      ELSEIF UCASE$(bName$) = "SLONGAT" THEN ctype$ = "signed int"
-      ELSEIF UCASE$(bName$) = "ULONGAT" THEN ctype$ = "unsigned int"
-      ELSEIF UCASE$(bName$) = "XLONGAT" THEN ctype$ = "intptr_t"
-      ELSEIF UCASE$(bName$) = "GIANTAT" THEN ctype$ = "intptr_t"
-      ELSEIF UCASE$(bName$) = "SINGLEAT" THEN ctype$ = "float"
-      ELSEIF UCASE$(bName$) = "DOUBLEAT" THEN ctype$ = "double"
-      ELSEIF UCASE$(bName$) = "SUBADDRAT" THEN ctype$ = "intptr_t"
-      ELSEIF UCASE$(bName$) = "GOADDRAT" THEN ctype$ = "intptr_t"
-      ELSE ctype$ = "int"
-      END IF
-      addrEnd = INSTR(bArgs$, " ")
-      IF addrEnd > 0 THEN
-        addrExpr$ = LEFT$(bArgs$, addrEnd - 1)
-        offExpr$ = MID$(bArgs$, addrEnd + 1, LEN(bArgs$) - addrEnd)
-      ELSE
-        addrExpr$ = bArgs$
-        offExpr$ = "integer(0)"
-      END IF
-      IF LEN(addrExpr$) = 0 THEN addrExpr$ = "integer(0)"
-      IF LEN(offExpr$) = 0 THEN offExpr$ = "integer(0)"
-      emit_stmt$ = "    { " + ctype$ + " _at_v = (" + ctype$ + ")(" + emit_expr$(start$) + "); if ((intptr_t)(" + emit_expr$(addrExpr$) + ")) *( " + ctype$ + " *)((char*)(intptr_t)(" + emit_expr$(addrExpr$) + ") + (" + emit_expr$(offExpr$) + ")) = _at_v; }"
-      RETURN emit_stmt$
-    END IF
-    ' Fallback for non-AT builtin_assign (should not happen): no-op
     emit_stmt$ = "    (void)(" + emit_expr$(start$) + ");"
     RETURN emit_stmt$
   END IF
