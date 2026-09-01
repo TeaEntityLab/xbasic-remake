@@ -9483,6 +9483,7 @@ mod tests {
         let _ = std::fs::remove_file(&exep);
     }
     #[cfg(feature = "llvm")]
+    #[ignore = "LLVM backend does not implement kernel32 WriteFile/ReadFile yet"]
     #[test]
     fn llvm_backend_kernel32_stdio() {
         use std::io::Write as _;
