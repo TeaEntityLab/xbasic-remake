@@ -881,6 +881,7 @@ pub(crate) fn set_fn_context(
         set.clear();
         crate::c_emit_hoist::collect_labels(items, &mut set);
     });
+    GOSUB_RET_SEEN.with(|s| s.borrow_mut().clear());
     FN_PARAMS.with(|s| {
         let mut set = s.borrow_mut();
         set.clear();
