@@ -1,14 +1,26 @@
 # 17 — Open-Work Roadmap (everything not done yet)
 
-> Status: living umbrella roadmap and sole current authority for open work.
-> Each item marks provenance: `[verified <session>]` means re-measured with a
-> named command; `[carried]` means retained from prior evidence and not
-> re-measured in the current pass.
+> Status: living open-work and evidence ledger. This is the sole authority for
+> granular open rows and their exit gates; docs/20 sequences those rows into
+> M1–M6 milestones. `[verified <date>]` means a named command was re-run;
+> `[carried]` means retained historical evidence.
 >
-> Scoped sibling: [16-cgen-cemitter-sync-roadmap.md](16-cgen-cemitter-sync-roadmap.md)
-> (the two C generators). Progress narrative: [14-self-hosting-progress.md](14-self-hosting-progress.md).
+> **Current active regression ledger (2026-09-01):**
+> - **CGEN-LABEL-EMIT:** the latest targeted release run passed
+>   `cemitter_compiles_gtk_and_helpsrc_clean` and failed
+>   `cgen_x_compiles_all_demos_cc_clean` for 21 demos on undeclared generated
+>   labels such as `xb_label_Create`.
+> - **CGEN-POSITIVE-FILEIO:** the positive-corpus `fileio_test` golden mismatch
+>   is under investigation.
+> - **CGEN-SUBADDR-TYPING:** the CEmitter needs type-aware SUBADDR lowering
+>   while the parser continues to represent all prefix `&` forms as SUBADDR.
+>
+> These active results supersede any unqualified current-green reading of the
+> dated snapshot below. They do not invalidate unrelated historical evidence.
+> Scoped contracts: docs/16 (two C generators), docs/18 (array ABI), docs/19
+> (facets). Milestone sequence: docs/20.
 
-> Last full re-verification: **2026-08-31** (comprehensive C runtime + interpreter
+> Historical full re-verification snapshot: **2026-08-31** (comprehensive C runtime + interpreter
 > hardening audit complete: buffer overflow guards on all fixed-size arrays — xb_format
 > r[128] pos<127 guards, xb_fmt_float outn-based o<oend guards, xb_binb2/xb_bin2
 > n>32 clamps, DATA segment xb_data_count<256, gosub stack xb_gosub_sp<256,
@@ -196,6 +208,12 @@ sections below or the named sibling docs; ✅-done items are omitted.
 
 | Order / track | Job | Exit gate |
 |---|---|---|
+| **active repair** | **CGEN-LABEL-EMIT — emit every referenced `xb_label_*` definition in raw cgen output** | `cgen_x_compiles_all_demos_cc_clean` returns green without C rewrites; add a focused referenced-label/definition contract |
+| **active repair** | **CGEN-POSITIVE-FILEIO — resolve the `fileio_test` golden mismatch at the behavioral source** | positive-corpus behavior and its narrow C-identity lock pass without weakening assertions |
+| **active repair** | **CGEN-SUBADDR-TYPING — keep broad parser SUBADDR representation; lower strings as managed pointers and numeric objects as addresses** | targeted `kernel32_*`/address tests and full `cgen_cemitter_sync` pass; no parser input-shape exception |
+| **M1 architecture** | **CGEN-FACET-RETIREMENT — replace `strDual`/`allStrArr`/`sharedArrays`/`xstArrays` inference with scope-qualified facts** | direct facet contracts plus raw demos, 15 libraries, positive corpus, and bootstrap pass; replaced scanners/fallbacks deleted |
+| **gated design** | **CGEN-MODULARITY-GATE — choose physical boundaries only after scanner retirement** | reduced dependency graph measured; fragments vs native multi-unit vs retained single file decided with falsifiable tests; no mechanism pre-approved |
+| **test architecture** | **TEST-DIFFERENTIAL-MATRIX — assign each suite to a named contract and improve three-engine diagnostic locality** | docs/20 matrix covered; existing pairwise assertions retained until any consolidation proves equal behavior coverage and no worse runtime/diagnostics |
 | **done** | **RR-02 ARY composite descriptor — shared `ARY_VAR_DATA` member arrays now forward as `T*` (shared `T*` globals) and both ARY sources are cc-clean** | `xbsourcelib_ary_compiles_clean` 2/2, workspace 308/0 |
 | **done** | **RR-13 raw demo guard — harness post-emission rewrites removed; `cgen_x_compiles_all_demos_cc_clean` is now a raw-generator contract (114/114, no C mutation)** | raw 114/114 verified 2026-08-30 |
 | **done** | **~~RR-03 scoped facets~~ done 2026-08-30 (`8fe02ce`)** | 15/15 core libs compile clean via self-hosted cgen.x (xui/xin/xit/xst fixed) |
@@ -215,13 +233,13 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > fails the first three gates is closed; single-letter `a`/`k`/`array`
 > replacements are not an admissible substitute for scoped facets.
 
-> CI regression-locks the 114 top-level demos, the 13 XBSourceLib programs, and
-> compile/link of all 15 core libraries. `multi_lib_integration` executes seven
-> `Version$` calls only; it does not execute every library implementation.
-> `legacy_corpus` recursively parse/lowers the wider `.x` inventory. The 19
-> GTK demos and three helpsrc programs now have a compile-clean guard
-> (`cemitter_compiles_gtk_and_helpsrc_clean`); they are not behavior-tested.
-> The **308/0 across 33 binaries** is the current workspace state.
+> Named gates cover top-level demos, the available XBSourceLib corpus, core
+> library compile/link, and recursive legacy lowering at different evidence
+> levels. `multi_lib_integration` executes seven `Version$` calls only; it does
+> not execute every library implementation. The gtk/helpsrc guard is
+> compile-only. The **308/0 across 33 binaries** result is the historical
+> 2026-08-31 snapshot above; current targeted regressions are listed in the
+> active ledger.
 ### cgen.x demos: raw 114/114 guard (RR-13 done 2026-08-30)
 
 > The cgen.x compile guard (`cgen_x_compiles_all_demos_cc_clean`) is now a
@@ -541,6 +559,107 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | L15 | License/provenance boundary for 15 linked inputs | **done for disclosure; clearance deferred** | Six shared + nine Linux inputs inventoried; GPL/LGPL headers separated from three no-notice shims; both notice bodies present but GNU front matter absent; aggregate marked internal-test-only without presenting legal inference as determination | RR-11 resolves shim provenance, complete notices, and distribution obligations |
 | ~~L16~~ | Weak-link/harness determinism | **done 2026-08-30** | Deterministic link order, clean `OUT`, Darwin/Linux `nm` fallbacks, `XB_BIN` env override honored. Duplicate weak definitions now reported (`nm -m` on macOS, 198 duplicates informational). `cgen-lib-compile.sh` exits non-zero on failures by default; `CGEN_LIB_STRICT=0` preserves old informational behavior. | — |
 | ~~L17~~ | Named cgen core-library floor (`cgen_x_compiles_core_libs_floor_9_cc_clean`) | **done — 15/15 locked 2026-08-30 (`8fe02ce`)** | Cargo test asserts `passes.len() >= 15`; all 15 core libs compile clean via `emit_program_with_facets` + `-Wno-int-conversion -Wno-incompatible-pointer-types`. | — |
+
+### Self-hosting purpose and testability panel 2026-09-01 — Candidate Adoption Ledger
+
+#### Panel Consensus
+
+- **Decision:** **7/7 AGREE WITH CHANGES.** Seven read-only lenses reviewed one
+  shared packet; all delivered complete findings. Lens names describe review
+  responsibilities, not model-provider identities.
+- **Use-case recommendation:**
+
+| Use case | Recommendation | Governing evidence / missing gate |
+|---|---|---|
+| study the original and remake architectures | yes | source-backed scope comparison; raw LOC is not a simplicity metric |
+| reproduce historical milestones | yes, by dated named commands | 2026-08-29/31 snapshots remain evidence but are not current-green claims |
+| adopt the dual-generator, facet-first direction | yes | real self-hosting requires cgen.x; contract/facet ownership removes duplicate inference |
+| physically split cgen.x now | no | remaining scanner state makes current boundaries unstable; mechanism is deferred |
+| deploy or claim full port completion | no | active generator regressions plus later GUI/PDE/distribution/provenance gates remain |
+
+#### Required Wording Changes
+
+1. Root README owns a current charter: permanent Rust reference/bootstrap and
+   XBasic-native self-host roles, shared contract, explicit non-goals, and
+   historical-versus-active verification.
+2. Docs/16 owns the typed-IR/runtime-ABI contract and differential rule;
+   line-by-line mirroring is not proof. Positive-corpus and bootstrap identity
+   remain narrowly bounded.
+3. Docs/19 reports the current cgen size, makes remaining scanner retirement
+   explicit, and orders scanner deletion before physical modularization.
+4. Docs/20 replaces stale M1 entry steps with active contract repair,
+   facet/ABI completion, a verification matrix, and a post-retirement
+   modularization decision gate.
+5. Docs/README defines canonical authority without creating a new roadmap.
+6. Stable charter/contract/ledger anchors are deterministic documentation
+   guards; volatile counts and prose are not.
+
+#### Shared Findings
+
+- Keeping two generators is justified: Rust is the reference/bootstrap path;
+  XBasic cgen is the self-host proof and native path.
+- The main complexity defect is duplicated semantic inference in cgen.x, not
+  Rust modules, tests, C as a target, or total LOC. Original `xcol.x` also
+  bundled assembler, machine-code/JIT, object, linker, and ABI work now
+  delegated to system C tooling.
+- The shared contract is typed IR (including scope-qualified facets) plus the
+  runtime ABI and observable behavior. Existing `version 0.1` is sufficient;
+  no multi-version governance framework is currently required.
+- The suite is already broad. The improvement target is ownership,
+  diagnostic locality, and missing contract coverage—not maximizing test
+  count or replacing behavior checks with C formatting checks.
+- No new purpose/testability document is needed; existing living documents
+  have sufficient, now-explicit responsibilities.
+
+#### Disagreements / Residual Risks
+
+- **Physical modularization:** three lenses favored deterministic fragments
+  after scanner retirement; the minimality lens favored retaining one source
+  until native multi-unit support exists. Decision: adopt the sequencing gate,
+  defer the mechanism, and require measured dependency/test evidence before
+  adding assembly machinery.
+- **Positive-corpus C identity:** one lens would demote it to optional local
+  diagnostics; the others retained the narrow lock. Decision: retain it until
+  a measured replacement proves equal diagnostic sensitivity; never expand it
+  to demos or libraries.
+- **Contract versioning:** formal version governance was challenged as
+  premature. Decision: use the existing Text IR version field and documented
+  ABI transitions, without parallel-version or SemVer infrastructure.
+- **Documentation guards:** broad prose guards were challenged as brittle.
+  Decision: guard only stable charter, authority, contract, sequencing, and
+  adoption-ledger anchors—not active counts or incidental sentences.
+- A future unified three-engine runner may reduce pairwise duplication, but
+  deleting current tests before proving equivalent assertions, runtime, and
+  failure localization would reduce evidence.
+
+#### Evidence Actually Checked
+
+- Read: root README; docs/README; docs/16, 17, 19, and 20; original
+  `xbasic/lib/xcol.x`; Rust frontend/compiler/runtime boundaries;
+  `selfhost/cgen.x`; sync, corpus, demo, behavior, bootstrap, and documentation
+  test sources; bootstrap/check scripts.
+- Measured: `selfhost/cgen.x` 8,674 lines, 72 functions; `Main` 2,089 lines,
+  `emit_expr$` about 1,145, and `emit_stmt$` 1,173; 188 integration
+  `#[test]` functions under `crates/**/tests`.
+- Executed by coordinator: formatting/check of the active compiler edit and a
+  targeted gtk/helpsrc + raw-demo release test. This panel did not run the
+  project-wide suite.
+- Author-reported/current-session evidence: positive-corpus `fileio_test`
+  mismatch and active SUBADDR work.
+
+| ID | Candidate | Status | Evidence | Next action / trigger |
+|---|---|---|---|---|
+| CAL-20260901-01 | Permanent dual roles and concise project charter | adopted | root README charter; maintainer intent | keep roles stable unless self-hosting goal changes |
+| CAL-20260901-02 | Shared typed-IR and runtime-ABI contract replaces blanket line mirroring | adopted | docs/16 contract authority; sync drift history | every lowering/ABI change updates contract, implementations, and focused differential |
+| CAL-20260901-03 | Behavior/ABI primary; C identity narrow to positive corpus and bootstrap fixed point | adopted | docs/16 CG-BYTES; bootstrap checks | re-litigate only with measured equal-or-better diagnostic evidence |
+| CAL-20260901-04 | Facet-first deletion of remaining cgen inference | adopted | docs/19; repeated scanner collision regressions | retire facts/scanners one at a time behind direct and end-to-end gates |
+| CAL-20260901-05 | Physical cgen modularization | deferred | panel agreed on sequencing but disagreed on fragments vs native modules | decide only after scanner retirement and dependency measurement |
+| CAL-20260901-06 | Seven-layer verification contract matrix | adopted | existing tests already map to all layers with gaps | add missing contracts; do not chase a test-count target |
+| CAL-20260901-07 | Unified three-engine fixture runner and bootstrap-test consolidation | partial | pairwise overlap exists; equivalence/runtime not measured | prototype only if assertions, diagnostics, and runtime are no worse; delete nothing first |
+| CAL-20260901-08 | Existing-document authority map; no new purpose roadmap | adopted | docs/README conflict resolved in place | change authority map before adding any canonical surface |
+| CAL-20260901-09 | Separate historical verification snapshots from active regressions | adopted | stale README/docs banners vs targeted current failures | update active ledger when named gates rerun |
+| CAL-20260901-10 | Original/remake comparisons account for assembler/JIT/object/link scope | adopted | `xcol.x`/docs/02 vs remake C/system-toolchain boundary | avoid asymmetric LOC/file-count claims |
+| CAL-20260901-11 | Deterministic wording guards cover stable decisions only | partial | existing docs guard is useful but prose-sensitive | guard charter/authority/contract/ledger anchors, not volatile metrics |
 
 ### Roadmap and known-issues panel 2026-08-29 — Candidate Adoption Ledger
 

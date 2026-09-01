@@ -1,24 +1,27 @@
 # 19 — CGEN-FACET-MANIFEST: Frontend-Emitted Symbol Facets for cgen.x
 
-> Status: substantially implemented (updated 2026-08-31). Slices 1–8 emit and
-> consume `dyn`/`dual`/`arr2d` facets. Scope-qualified lookup
-> (`facets_in_scope$`, `filter_dyn_scope$`, `facet_has_entry$`, `facet_type$`)
-> is implemented and all 15 core libs + 114 demos compile clean via
-> `emit_program_with_facets` (since `8fe02ce`, 2026-08-30). RR-03 and RR-05
-> are done. `strDual` and `allStrArr` remain on heuristic scans (no current
-> corpus trigger). Full replacement of the remaining heuristic scanners
-> (`strDual`, `allStrArr`, `sharedArrays`, `xstArrays`) with facet lookups
-> is a maintainability improvement, not a functional blocker.
-> Single-letter identifier dual-use (`a` vs `align`/`array`, `k` vs `kid`) cannot
-> be fixed reliably with substring replacement; scoped facet ingestion is the
-> required mechanism — now implemented for `dyn`/`dual`/`arr2d`.
+> Status: active migration (updated 2026-09-01). Scope-qualified
+> `dyn`/`dual`/`arr2d` production and lookup are implemented. Remaining
+> `strDual`, `allStrArr`, `sharedArrays`, and `xstArrays` inference must move to
+> frontend-owned facts before the generator's physical module boundaries are
+> finalized.
+>
+> Historical 2026-08-30 evidence recorded 15/15 core libraries and 114/114
+> demos compiling through the facet path. The current active tree has a
+> separate 21-demo label-emission regression, so those totals are not a
+> current-green claim. This document owns the facet migration regardless of
+> transient generator defects.
+>
+> Single-letter identifier dual-use (`a` vs `align`/`array`, `k` vs `kid`)
+> cannot be fixed reliably with substring replacement. Scope-qualified facets,
+> not more exclusions, are the accepted mechanism.
 
 ## 1. Why this exists
 
-`selfhost/cgen.x` (6608 lines) currently reconstructs symbol storage decisions
-by scanning `src$` with ~30 global `##`-prefixed string sets (`##dynNames$`,
-`##strDual$`, `##gosubDyn$`, ...) and 72 multi-set predicates. Three
-consecutive `gosubDyn` attempts regressed demo compilation 114→89 and were
+`selfhost/cgen.x` is currently 8,674 lines across 72 functions. It still
+reconstructs some symbol-storage decisions by scanning `src$` into global
+`##`-prefixed string sets (`##dynNames$`, `##strDual$`, `##gosubDyn$`, ...).
+Three consecutive `gosubDyn` attempts regressed demo compilation 114→89 and were
 reverted because:
 
 - Scans are program-wide, not per-function scoped, causing cross-function leakage.
@@ -38,18 +41,23 @@ This document defines the smallest IR extension that unblocks `cgen.x`.
 
 **Goals**
 
-- One text-IR header block that makes `cgen.x` byte-identical to the Rust
-  CEmitter without heuristic string matching.
+- One frontend-owned Text IR facet block that lets both C generators implement
+  the same storage and ABI decisions without heuristic string matching.
 - Deterministic, per-symbol, per-scope facts: scope, element type, storage
-  class, dual-use, rank, and descriptor forwarding.
-- Backward-compatible with existing corpus goldens (the header is additive;
-  old `cgen.x` ignores unknown header lines).
+  class, dual-use, rank, descriptor forwarding, and other facts proven
+  necessary by behavior.
+- A clean cutover: once the named migration gates pass, delete each replaced
+  scanner and its fallback rather than keeping two classifiers.
+- Preserve the deliberately narrow positive-corpus C-identity diagnostic
+  during migration; broader correctness is behavioral and ABI conformance.
 
 **Non-goals**
 
 - Changing the Rust CEmitter's emission logic.
 - Optimizing runtime performance.
 - MSVC portability of emitted C (tracked separately as `C-BACKEND-PORTABILITY`).
+- Choosing physical `cgen.x` fragment boundaries before scanner retirement.
+- Adding a general multi-version IR compatibility framework.
 
 ## 3. Proposed Text IR extension
 
@@ -113,12 +121,14 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
 
 ## 5. Compatibility and migration
 
-- The header is **optional**. If absent, `cgen.x` falls back to the existing
-  scanner path (the 114/114 baseline). This keeps old goldens valid.
-- The Rust `TextIrEmitter` emits the header when a new flag or version bump is
-  present; `TextIrParser` ignores unknown header lines in older builds.
-- `fixtures/corpus/v0.1/positive/*.ir` goldens gain the header on next
-  regeneration; the change is additive and does not affect interpreter execution.
+- During migration, an absent header may use the existing scanner path so
+  historical Text IR inputs remain diagnosable. This fallback is temporary,
+  not a second permanent contract.
+- Remove a scanner and its fallback together when its complete facet
+  replacement passes direct facet tests, raw demo compilation, 15-library
+  compilation, the positive-corpus lock, and bootstrap parity.
+- The default positive-corpus path remains unchanged until its goldens are
+  deliberately regenerated and reviewed.
 
 ## 6. Implementation progress
 
@@ -186,20 +196,26 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
 
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` asserts
   per-program byte-identical emitted C; the header must not break this.
-- `cgen_x_compiles_all_demos_cc_clean` must stay green, but its Kittedy/qbtoxb
-  rewrites remain transitional until RR-13 locks raw output.
-- `checks/validate-all.sh` remains the full default-feature gate; the current
-  carried workspace headline is 308/0 in docs/17.
+- `cgen_x_compiles_all_demos_cc_clean` is the RR-13 raw-output compile gate;
+  the current label-emission regression must be fixed in the generator, not in
+  a post-emission rewrite.
+- `checks/validate-all.sh` remains the full default-feature gate. The 308/0
+  workspace result is a dated historical snapshot; current status lives in
+  docs/17.
 
-## 7. Open decisions
+## 7. Adopted sequencing and open decisions
 
 - The header keyword is adopted as `facet`.
-- Define whether composite-array byref needs per-leaf descriptor facts or a
+- Define whether composite-array by-ref needs per-leaf descriptor facts or a
   distinct structured descriptor fact.
 - Define the minimum comprehensive emission set after scope-qualified lookup:
   only non-default storage facets or every symbol.
-- Remove the heuristic fallback only after raw demo compilation, 15-library
-  compilation, positive-corpus byte identity, and bootstrap parity are locked.
+- Retire `strDual`, `allStrArr`, `sharedArrays`, and `xstArrays` inference
+  before choosing physical generator modules.
+- **Scanner retirement precedes physical modularization.** The later mechanism
+  (deterministic fragments, native multi-unit support, or retaining one source
+  file) is intentionally deferred until the reduced dependency graph is
+  measured. No concatenation build step is authorized by this document.
 
 ## 8. References
 

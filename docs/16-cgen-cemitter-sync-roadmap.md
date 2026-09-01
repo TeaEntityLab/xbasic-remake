@@ -1,19 +1,21 @@
 # 16 — cgen ↔ CEmitter Sync Roadmap
 
-> Status: living roadmap. Behavioral sync and positive-corpus emitted-C byte
-> identity are **locked by tests**; demo-scale C-text identity is **de-scoped**
-> (a non-goal; future storage-facet work is tracked in docs/17 and docs/19).
-> Companion to [17-open-work-roadmap.md](17-open-work-roadmap.md) (the umbrella
-> "everything not done yet" list). This doc is scoped to the two C generators.
+> Status: living dual-generator contract. Behavioral equivalence, runtime-ABI
+> conformance, helper-signature parity, and the narrow positive-corpus
+> emitted-C lock are test-enforced contracts. A failing gate records an
+> implementation regression; it does not relax the contract. Demo- and
+> library-scale C-text identity remains a non-goal.
 >
-> Re-verified **2026-08-29**: the positive-corpus sync test asserts emitted-C
-> byte equality per program (`assert_eq!` in
-> `cemitter_and_cgen_agree_on_positive_corpus`). The named all-demo test reports
-> 114/114 through `cgen.x`, but retains transitional Kittedy/qbtoxb
-> post-emission rewrites; RR-13 removes them before raw 114/114 becomes the CI
-> contract. CG-BYTES is complete for the positive corpus. Demo-scale C-text
-> identity remains de-scoped, and CG-BODY-COVER retains only the low-priority
-> AT-read/file-mode blind spots below.
+> **Active development notice (2026-09-01):**
+> `cgen_x_compiles_all_demos_cc_clean` currently fails for 21 demos on missing
+> generated label definitions, and the positive-corpus `fileio_test` golden is
+> under investigation. The last green totals below are dated historical
+> evidence. Current defects and exit gates are owned by docs/17.
+>
+> Historical snapshot **2026-08-29/30**: the positive-corpus test asserted
+> per-program emitted-C equality; RR-13 subsequently removed all-demo harness
+> rewrites and established the raw-generator compile contract. This snapshot
+> must not be read as the current working-tree result.
 
 ## 1. Why this exists
 
@@ -31,9 +33,42 @@ if some corpus program happens to exercise it.
 
 That drift was real and undetected until this roadmap's tests were added — see §3.
 
-## 2. What is LOCKED (tests, present tense)
+### 1.1 Contract authority
+
+Both generators implement one shared typed-IR and runtime ABI contract:
+
+1. **Typed IR syntax and meaning:** every statement, expression, value type,
+   control-flow form, and `version` transition has one defined interpretation.
+2. **Scope-qualified symbol facets:** storage, rank, dual-use, shared, and
+   by-ref facts are frontend-owned and serialized for consumers as specified
+   by docs/19. A generator must not silently reconstruct a conflicting fact.
+3. **Runtime ABI:** primitive and composite representations, managed-string
+   layout, array descriptors, by-ref write-back, lowered symbol/label
+   conventions, entry points, and helper signatures are shared invariants.
+4. **Observable behavior:** exit status, stdout/stderr, files and permitted host
+   effects, memory/aliasing semantics, and runtime errors must agree for the
+   same supported program.
+
+The implementations may differ in traversal, temporary names, whitespace,
+comments, and local organization. Any lowering or ABI change updates the
+applicable contract surface, both implementations unless explicitly
+backend-only, and the smallest differential test that observes the change.
+Hand-maintained line-by-line emitter mirroring is not evidence of conformance.
+
+“Versioned” means the existing Text IR `version` field and documented ABI
+transitions. It does not introduce parallel-version or SemVer machinery until
+the toolchain actually needs to consume more than one live contract version.
+
+Text identity has two bounded roles: cross-generator emitted-C identity on the
+positive diagnostic corpus, and stage-to-stage identity in bootstrap
+fixed-point checks. Demo/library C text identity is not required.
+
+## 2. What the tests lock (contract, not a green-status claim)
 
 `crates/xb-runtime/tests/cgen_cemitter_sync.rs`:
+
+A red result means an implementation currently violates the named contract; it
+must not be rewritten as a weaker claim to make the test pass.
 
 - **`cemitter_and_cgen_agree_on_positive_corpus`** — for every program in
   `fixtures/corpus/v0.1/positive`, both generators' native executables produce

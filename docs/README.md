@@ -45,26 +45,27 @@ and how it achieves cross-platform portability.
 
 ## Roadmap and lifecycle authority
 
-- **Current truth:** the root `README.md` gives the headline; docs 16–19 are
-  living contracts, and docs/17 is the sole umbrella authority for open work.
-- **Frozen milestones:** docs 13–14, Stage-2 contracts v0.1–v0.18,
-  `TASKS.bootstrap.md`, and `TASKS.stage2.md` preserve completed evidence.
-- **Historical reference:** docs 00–12 describe source history, reverse
-  engineering, proposals, and research. Their dated bodies are not execution
-  queues.
+Each living document has one canonical responsibility. Open work is created and
+closed in docs/17; docs/20 sequences those rows but does not duplicate their
+evidence. A milestone change that affects both surfaces updates both in the same
+change.
 
-## Roadmaps
+| Surface | Canonical authority | Lifecycle |
+|---|---|---|
+| Root [`README.md`](../README.md) | Project charter, dual-generator roles, headline active/historical verification status, and licensing boundary | living headline |
+| `docs/README.md` | Documentation index and this authority map | living index |
+| [16 — cgen ↔ CEmitter Sync](16-cgen-cemitter-sync-roadmap.md) | Shared typed-IR/runtime-ABI contract, cross-generator differential rules, and narrow positive-corpus byte lock | living contract |
+| [17 — Open Work](17-open-work-roadmap.md) | Sole open-work and evidence ledger: defect rows, exit gates, panel adoption ledgers, and dated verification records | living ledger |
+| [18 — By-ref Array ABI](18-byref-array-abi.md) | Primitive/flat and shared-composite descriptor progress; general composite `TYPE` array by-ref and runtime behavior remain open | living contract |
+| [19 — CGEN Facets](19-cgen-facet-manifest.md) | Scope-qualified symbol-facet contract and retirement of cgen.x heuristic inference | living contract |
+| [20 — Port Completion](20-port-completion-roadmap.md) | M1–M6 milestone sequencing from current open rows to full legacy behavior, bootstrap, and distribution | living roadmap |
+| [21 — Session Record 2026-08-31](21-session-2026-08-31-licensing-port-record.md) | Dated handoff evidence; never an execution queue | frozen session record |
+| Docs 00–12 | Original-system reference, reverse engineering, historical proposals, and research | historical reference |
+| Docs 13–15, Stage-2 contracts v0.1–v0.18, `TASKS.bootstrap.md`, `TASKS.stage2.md` | Completed bootstrap decisions and milestone evidence | frozen milestones |
 
-Living roadmaps of open work (current truth; updated as work lands):
-
-| Doc | Covers |
-|---|---|
-| [16 — cgen ↔ CEmitter Sync Roadmap](16-cgen-cemitter-sync-roadmap.md) | Keeping the Rust `CEmitter` and self-hosted `cgen.x` in sync: behavioral sync + positive-corpus emitted-C byte identity, both locked by tests |
-| [17 — Open-Work Roadmap](17-open-work-roadmap.md) | Umbrella "everything not done yet": open rows, panel adoption ledger, demo/GUI status, historical session logs |
-| [18 — By-ref Array ABI](18-byref-array-abi.md) | Landed descriptor ABI for primitive/flat arrays and shared composite `ARY_VAR_DATA` member arrays (compile-only); general composite `TYPE` array by-ref and runtime behavior remain open |
-| [19 — CGEN Facet Manifest](19-cgen-facet-manifest.md) | Partial frontend-emitted facet implementation; scope-qualified consumption and full heuristic replacement remain open |
-| [20 — Port-Completion Roadmap](20-port-completion-roadmap.md) | Forward milestone plan to the end state: every legacy source workable (incl. GUI + PDE), full-scope self-hosting bootstrap, distribution — six gated milestones M1–M6 sequencing the docs/17 open rows |
-| [21 — Session Record 2026-08-31](21-session-2026-08-31-licensing-port-record.md) | Knowledge capture: tracked `xbasic/` port mechanics, path repoint map, license scan results, MIT relicense facts, composite-injection bug, local-only state, CI truth — resume-from-compaction reference |
+No additional purpose or testability roadmap should duplicate these
+responsibilities. Change this authority map first if a genuinely new canonical
+surface becomes necessary.
 
 ## The big picture
 

@@ -1,24 +1,50 @@
-# XBasic 6.5.0 Rust bootstrap
+# XBasic 6.5.0 remake and self-hosting toolchain
 
-This is the stage-0 Rust workspace for bootstrapping XBasic 6.5.0.
+A modern, portable remake of the XBasic language, runtime, libraries, and
+development environment. The project preserves legacy behavior where it is
+observable while providing a maintainable toolchain for current platforms.
 
-Resolved decisions:
+## Project charter
 
-1. **Floating point:** use plain `f64`/libm-style operations by default. Exact x87 JIT behavior is deferred unless compatibility tests prove it is required.
-2. **Windows:** focus on **Win64** first. Linux and macOS remain first-class targets.
-3. **Self-hosting:** use Rust as the stage-0 host, keep compiler layers clean enough to port back into XBasic later, and start self-hosting from low-level utility/library surfaces before attempting a compiler-in-XBasic stage.
+1. **Real self-hosting:** keep the Rust frontend and `CEmitter` as the
+   reference/bootstrap implementation, and keep `selfhost/compiler.x` plus
+   `selfhost/cgen.x` as the XBasic-native compiler path. Neither implementation
+   is throwaway scaffolding.
+2. **One contract, independent implementations:** both C generators implement
+   the shared typed-IR and runtime ABI contract. Behavioral and ABI
+   differential checks govern correctness; line-by-line textual mirroring is
+   not the contract.
+3. **Single-source semantic facts:** the frontend emits scope-qualified symbol
+   facets for storage, rank, dual-use, and by-ref behavior. Generators consume
+   those facts instead of reconstructing them with source-text heuristics.
+4. **Compatibility and modern correctness:** tests cover observable original
+   XBasic behavior, portable C execution, bootstrap closure, runtime safety,
+   capability boundaries, and supported platforms. Test count is not a goal;
+   each test must defend a named contract.
+5. **Portable backend:** standard C and the system toolchain replace the
+   original compiler's machine-code encoder, assembler, and object/link logic.
+   Linux, macOS, and Win64 are the target platform families.
 
-## Workspace crates
+Explicit non-goals: demo-wide byte-identical generated C, re-creating the
+legacy i486/ELF assembly backend, 32-bit binary compatibility with historical
+runtime archives, and bit-exact x87 behavior unless compatibility evidence
+requires it. Emitted-C identity remains a deliberately narrow diagnostic lock
+for the positive corpus; bootstrap stages retain their separate fixed-point
+identity requirements.
 
-| Crate | Role |
+## Repository components
+
+| Component | Role |
 |---|---|
-| `xb-frontend` | Tokens and lexer for the XBasic syntax surface |
-| `xb-compiler` | Typed compiler boundary and optional LLVM backend (`llvm` feature; default off) |
-| `xb-runtime` | `XxxMain` entry contract, exception mappings, f64 math defaults, fault-hook skeletons |
+| `xb-frontend` | Lexer, parser, and XBasic syntax surface |
+| `xb-compiler` | Semantic analysis, typed IR, Rust reference `CEmitter`, and optional LLVM backend (`llvm` feature; default off) |
+| `xb-runtime` | Interpreter, runtime contracts, capability gates, and behavioral integration tests |
 | `xb-link` | Object-link command construction for Unix and Win64 drivers |
-| `xb-cli` | `xb` command that parses/analyzes/lowers `.x` files and prints stable IR summaries |
+| `xb-cli` | `xb` command for analysis, IR/C emission, execution, and native compilation |
 | `xb-gui` | GDI-spirit drawing trait and deterministic framebuffer backend |
 | `xb-ide` | eframe/egui IDE shell, feature-gated behind `eframe-app` |
+| `selfhost/` | XBasic-native compiler and C generator used to prove and ship self-hosting |
+| `xbasic/` | Ported upstream source corpus and compatibility reference, under its original licenses |
 
 ## Local verification
 
@@ -47,7 +73,18 @@ cargo check -p xb-compiler --features llvm
 
 On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` is 1.97.1 after update. The IDE feature requires Rust ≥1.95 and was checked with explicit rustup cargo/rustc. Homebrew `llvm` is **22.1.8** (`/opt/homebrew/opt/llvm`); the LLVM backend builds and tests with `LLVM_SYS_221_PREFIX=/opt/homebrew/opt/llvm` but stays feature-gated off by default — `./checks/validate-all.sh` covers default features only (the CI LLVM job `llvm-build` in `bootstrap-verify.yml` covers `--features llvm` in CI).
 
-## Recorded verification state (2026-08-29)
+## Verification status
+
+> **Active development notice (2026-09-01):** the latest targeted run passed
+> `cemitter_compiles_gtk_and_helpsrc_clean` but
+> `cgen_x_compiles_all_demos_cc_clean` failed for 21 demos because generated C
+> referenced undeclared `xb_label_Create`-class labels. The positive-corpus
+> `fileio_test` golden mismatch is also under investigation. The dated results
+> below are historical evidence, not a claim that the current working tree is
+> green. Current defects and exit gates live in
+> [docs/17-open-work-roadmap.md](docs/17-open-work-roadmap.md).
+
+### Historical verification snapshot (2026-08-29)
 
 - **All 15 core libraries compile cc-clean through the Rust CEmitter and via self-hosted cgen.x facet harness** (`xbasic/{lib,include}/*.x`) with `-O0 -Wno-incompatible-pointer-types -Wno-int-conversion` (cgen.x standalone script compiles 13/15; xcol/xui require facet manifest ingestion). This is compile-only; `ATTACH` has copy-semantics runtime in interpreter and Rust CEmitter (5 cases, `c_emit_attach.rs`/`interpreter_attach.rs`), but dynamic 2nd-dim arrays still no-op.
 - **All 15 link in the internal test harness** — `checks/link-core-libs.sh` records 1979 `xb_user_*` symbols and seven `Version$` smoke checks, not compiled-body behavior.

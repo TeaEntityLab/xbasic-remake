@@ -38,7 +38,7 @@ fn docs_adopted_wording_is_present() {
     let open_work = "docs/17-open-work-roadmap.md";
 
     // One canonical evidence banner: raw-generator contract (RR-13 done).
-    assert_occurs_exactly(open_work, "Last full re-verification:", 1);
+    assert_occurs_exactly(open_work, "Historical full re-verification snapshot:", 1);
     assert_contains(open_work, "raw-generator contract");
     assert_contains(open_work, "RR-13 done");
     assert_not_contains(open_work, "transitional post-emission rewrites");
@@ -47,7 +47,7 @@ fn docs_adopted_wording_is_present() {
     // Current compiler queue and falsifiability.
     assert_contains(open_work, "RR-03 scoped facets");
     assert_contains(open_work, "Heuristic patch falsifiability");
-    assert_contains(open_work, "RR-08a pure-library behavior");
+    assert_contains(open_work, "RR-08a pure lib behavior");
 
     // ARY compile-only evidence is separate from the 11-program parity loop.
     assert_contains("README.md", "locks runtime parity for 11 non-ARY programs");
@@ -83,7 +83,7 @@ fn docs_adopted_wording_is_present() {
     assert_contains("docs/13-bootstrap-scaffold.md", "Homebrew LLVM **22.1.8**");
     assert_contains(
         "docs/14-self-hosting-progress.md",
-        "test-locked **9/15 floor**",
+        "test-locked **15/15 floor**",
     );
     assert_not_contains(
         "docs/14-self-hosting-progress.md",
@@ -121,6 +121,45 @@ fn docs_adopted_wording_is_present() {
     );
     assert_contains(
         "docs/19-cgen-facet-manifest.md",
-        "keyed by `(scope, name, type)`",
+        "per-symbol, per-scope facts",
     );
+
+    // Stable 2026-09-01 purpose/testability decisions. Do not guard volatile
+    // pass counts or incidental prose here.
+    assert_contains("README.md", "## Project charter");
+    assert_contains("README.md", "shared typed-IR and runtime ABI contract");
+    assert_not_contains("README.md", "before attempting a compiler-in-XBasic stage");
+    assert_contains("docs/README.md", "Sole open-work and evidence ledger");
+    assert_contains("docs/README.md", "M1–M6 milestone sequencing");
+    assert_contains(
+        "docs/README.md",
+        "No additional purpose or testability roadmap",
+    );
+    assert_contains(
+        "docs/16-cgen-cemitter-sync-roadmap.md",
+        "Both generators implement one shared typed-IR and runtime ABI contract",
+    );
+    assert_contains(
+        "docs/16-cgen-cemitter-sync-roadmap.md",
+        "Hand-maintained line-by-line emitter mirroring is not evidence of conformance",
+    );
+    assert_contains(
+        "docs/19-cgen-facet-manifest.md",
+        "Scanner retirement precedes physical modularization",
+    );
+    assert_not_contains("docs/19-cgen-facet-manifest.md", "(6608 lines)");
+    assert_contains(
+        "docs/20-port-completion-roadmap.md",
+        "## 4. Verification contract matrix",
+    );
+    assert_contains(
+        "docs/20-port-completion-roadmap.md",
+        "Two-generator contract and differential lock",
+    );
+    assert_contains(
+        open_work,
+        "Self-hosting purpose and testability panel 2026-09-01 — Candidate Adoption Ledger",
+    );
+    assert_contains(open_work, "CAL-20260901-01");
+    assert_contains(open_work, "CAL-20260901-11");
 }

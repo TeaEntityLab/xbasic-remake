@@ -1,9 +1,9 @@
 # 20 — Port-completion roadmap: everything legacy, self-bootstrapped
 
-> Status: forward milestone plan. `docs/17-open-work-roadmap.md` remains the
-> sole open-work ledger; this document sequences its open items toward one
-> end state. Item IDs below refer to docs/17 rows. Created 2026-08-31 at
-> `62c617b` (MIT relicense; tracked `xbasic/` corpus).
+> Status: forward milestone sequence, updated 2026-09-01 after the
+> self-hosting-purpose/testability panel. `docs/17-open-work-roadmap.md` is the
+> sole open-work and evidence ledger; this document orders its rows toward the
+> end state. Historical measurements below are not current-green claims.
 
 ## 0. The milestone (end state, concretely)
 
@@ -27,7 +27,7 @@ Explicit non-goals of the milestone: x87 bit-exact FPU semantics (JIT-X87
 stays deferred), 32-bit binary compatibility with `libxb64.a`, and re-porting
 the generated `.s` assembly (replaced by the Rust/C backends by design).
 
-## 1. Verified baseline (2026-08-31)
+## 1. Historical verified baseline (2026-08-31)
 
 | Surface | State |
 |---|---|
@@ -38,6 +38,12 @@ the generated `.s` assembly (replaced by the Rust/C backends by design).
 | Corpus | tracked `xbasic/` tree (lib/include/demo/crtl/helpsrc/help/templates); licenses audited (`xbasic/LICENSES.md`) |
 | Licensing | remake code MIT; ported tree GPL-2/LGPL-2.1; RR-11 legal residue = 3 no-notice shims |
 | IDE | `crates/xb-ide` scaffold only (egui optional deps); legacy PDE not runnable (needs GUI runtime) |
+
+> **Active development notice (2026-09-01):** the latest targeted run passed
+> the gtk/helpsrc compile guard but the raw cgen demo compile gate failed for 21
+> demos on missing label definitions; the positive-corpus `fileio_test` golden
+> also needs resolution. No milestone is closed from the historical table
+> alone. Current defects and named exit gates live in docs/17.
 
 ## 2. Milestone graph
 
@@ -58,46 +64,49 @@ M2 (real builtins) but not the GUI. M4 is the integration milestone; M6 ships.
 
 ## 3. Milestones
 
-### M1 — Storage & ABI foundation (size: XL, the critical path)
+### M1 — Semantic storage & ABI convergence (size: XL, the critical path)
 
-Everything hard downstream (GUI libs, PDE, full bootstrap) is blocked on how
-arrays, composites, and shared storage lower to C. Do this first, once,
-instead of per-feature workarounds.
+Everything hard downstream depends on both C generators consuming the same
+frontend facts and implementing the same storage/runtime ABI. M1 is active.
+Facet, shared-array, descriptor, and AT-write slices have landed historically,
+but the current named gates are not green; completion is based on re-executed
+behavior, compile, and bootstrap checks rather than landed code alone.
 
-In scope (docs/17 IDs):
-- **CGEN-FACET-MANIFEST** (docs/19): per-variable storage-facet manifest so
-  the two C generators agree on scalar/array/string/composite storage from
-  one computed source of truth. Prerequisite for everything below.
-- **CGEN-SHARED-ARR / SHARED-array end-to-end**: `SHARED a[]` and `#name[]`
-  as correctly-typed module globals (parser SharedName arrays → semantics
-  shared-array tracking → IR node → CEmitter + cgen.x mirror). Unblocks
-  xui/xgr/xcol behavior tests and the blocked xst functions
-  (`XstErrorNameToNumber`, `XstGetEnvironmentVariable`, …).
-- **Byref array descriptor ABI** (docs/18): `{data, dims}` descriptors for
-  `@array[]` params with REDIM-through-byref, shared across interp/C/LLVM.
-- **Composite call ABI completion**: composite byval args, composite returns
-  for import-only functions (re-enable the `resolve_import_decls` composite
-  filter dropped 2026-08-31 — search `c_emit`/cli for the RR-08 comment),
-  `TokenMatch`/`ReplaceArray`/`FindArray` xit tests as the acceptance probes.
-- **ATTACH real aliasing**: today interp has copy-semantics cases 1–5 and
-  text IR drops ATTACH as Nop. Decide and implement the real model (view
-  binding), or formally spec copy-semantics as the remake's documented
-  behavior; either way cgen.x must stop parser-discarding it in
-  xcol/xst/xgr/xui/xit.
-- **UBYTEAT/UWORDAT write support** (unblocks `XstGetEndian`).
-- **C-library builtins**: `gmtime`/`localtime`/`mktime`/`gettimeofday` in
-  the builtin table + runtime helpers (time functions currently emit 0).
+Work packages (canonical open rows live in docs/17):
+
+1. **Restore contract gates.** Fix cgen label-definition emission, resolve the
+   positive-corpus `fileio_test` mismatch, and complete the active SUBADDR
+   type-aware lowering without parser special cases.
+2. **Finish CGEN-FACET-MANIFEST.** Emit and consume complete scope-qualified
+   facts for `strDual`, `allStrArr`, `sharedArrays`, and `xstArrays`; add direct
+   nested/shared/composite facet contracts; delete each replaced scanner and
+   fallback together.
+3. **Close storage and call ABI behavior.** Re-measure `SHARED a[]`/`#name[]`,
+   by-ref descriptors including REDIM-through-byref, composite by-value and
+   return paths, and AT-write byte semantics with interpreter/CEmitter/cgen
+   probes. General composite-array by-ref remains governed by docs/18.
+4. **Resolve remaining memory/runtime contracts.** Decide real `ATTACH`
+   aliasing versus the documented bounded copy model, and implement required
+   C-library time/file helpers against observable programs rather than stubs.
+5. **Run the modularization gate after scanner retirement.** Measure the
+   reduced `cgen.x` dependency graph, then choose deterministic fragments,
+   native multi-unit support, or a retained single source. If fragments are
+   chosen, canonical assembly freshness and isolated module contracts are
+   mandatory. No concatenation mechanism is pre-approved.
 
 Exit gate:
-- Behavior checks grow past 431 with ≥1 SHARED-array-dependent xst function
-  and ≥1 composite-byval xit function locked.
-- All 15 libs still cc-clean via BOTH generators; sync 64/64 holds;
-  bootstrap fixed point unchanged.
-- The composite-signature injection filter is removed (decls flow whole).
 
-Risks: this touches the frozen text-IR contract and cgen.x byte-identity —
-every step gated on `cgen_cemitter_sync` + bootstrap verify, exactly like
-the SEL-CASE-TRUE / facet-1 precedents.
+- The raw demo, gtk/helpsrc, 15-library, positive-corpus, and
+  `cgen_cemitter_sync` gates pass without post-emission repair.
+- Direct facet tests cover every retired classifier; no replaced scanner or
+  fallback remains.
+- Named three-engine behavior probes cover shared arrays, descriptor REDIM,
+  composite calls, and AT writes.
+- The composite-signature injection filter is removed, and bootstrap
+  fixed-point checks remain exact.
+
+Risk control: keep changes contract-sized. A new source-string classifier, a
+parser input special case, or a weaker test assertion is not an admissible fix.
 
 ### M2 — Console-scope runtime completeness (size: M, parallel after M1)
 
@@ -200,26 +209,58 @@ storage decisions from shared computed facts instead of parallel logic.
 Exit gate: a downloadable release a third party can install and use to run
 the PDE and compile the demos on Linux/macOS (+ Windows if MSVC leg green).
 
-## 4. Cross-cutting invariants (hold at every step)
+## 4. Verification contract matrix
 
-1. **Two-generator lock**: any CEmitter change mirrors in cgen.x (or is
-   documented Rust-only); `cgen_cemitter_sync` + demo regression gate every
-   merge (docs/16).
-2. **Interp/backend byte-faithful lock**: behavior changes land coordinated
-   (interp + backend) or not at all — no interp-only "wins" that diverge
-   the faithful set.
-3. **License boundary**: new code MIT only if original; anything derived
-   from upstream goes to `xbasic/` under upstream terms; GUI shim work
-   implements from call signatures, not shim sources (LICENSING.md rules).
-4. **Corpus is tracked**: tests target `xbasic/`; local-only material
-   (legacy trees, XBSourceLib) stays skip-if-absent.
-5. **No time estimates in gates** — every exit is a runnable check.
+The project keeps extensive tests because it must preserve legacy behavior and
+support modern execution. Coverage is organized by owned contract, not by a
+target test count:
 
-## 5. Immediate next actions (M1 entry)
+| Layer | Owned contract | Evidence shape |
+|---|---|---|
+| 1. Frontend and typed IR | syntax, diagnostics, lowering, scope-qualified facets, Text IR round-trip | fast unit/contract fixtures |
+| 2. Generator-local logic | expression/statement/storage decisions within Rust modules and, after stable seams exist, isolated cgen units | focused unit or tiny harness tests |
+| 3. Generated C and ABI | warning-clean compilation, helper signatures, symbols, layouts, cross-object calls | C compile/link probes |
+| 4. Three-engine behavior | interpreter, Rust `CEmitter`, and native `cgen.x` agree on stdout/stderr, exit status, state, and permitted effects | deterministic differential fixtures |
+| 5. Original compatibility | ported source parses/lowers and named original programs/libraries retain observable behavior | legacy corpus and library behavior suites |
+| 6. Bootstrap closure | native compiler/cgen stages converge without generational drift | exact IR/C/binary fixed-point checks |
+| 7. Platform and safety | GUI/event integration, filesystem/network/shell gates, bounds/OOM behavior, supported OS/toolchains | platform and adversarial integration gates |
 
-1. Land CGEN-FACET-MANIFEST skeleton (docs/19): compute facets in Rust,
-   emit as comments first (byte-neutral), assert both generators read them.
-2. SHARED scalar-array globals behind the facet data (the CGEN-SHARED-ARR
-   facet-2 path already mapped in docs/17 §"CGEN-SHARED-ARR design").
-3. Byref array descriptor spike per docs/18 on `aarray_ISNODE` +
-   `XstQuickSort` as the acceptance pair.
+Emitted-C byte identity is required only for the positive diagnostic corpus.
+Exact stage identity remains required for bootstrap fixed points. Demo/library
+C formatting identity is not a correctness contract. Existing pairwise suites
+are not deleted merely to create a unified harness; consolidation must preserve
+or improve diagnostic locality, runtime, and every observable assertion.
+
+## 5. Cross-cutting invariants (hold at every step)
+
+1. **Two-generator contract and differential lock:** every lowering or ABI
+   change updates the shared typed-IR/runtime-ABI contract, both generators
+   unless explicitly backend-only, and the smallest affected differential
+   gate (docs/16).
+2. **Observable-behavior lock:** interpreter/backend changes land coordinated;
+   formatting or internal structure never substitutes for behavior.
+3. **Compatibility/safety conflicts are explicit:** a modern guard that changes
+   legacy behavior needs a named compatibility decision and regression probe;
+   neither side silently wins.
+4. **License boundary:** original code and clean-room remake code remain under
+   their documented provenance rules; unresolved shim distribution stays
+   blocked (RR-11).
+5. **Tracked corpus authority:** required gates target the repository corpus;
+   local-only material remains supplemental and skip-if-absent.
+6. **Runnable, truthful gates:** no time estimates or raw test-count goals;
+   historical green snapshots and current active regressions are labeled
+   separately.
+
+## 6. Immediate next actions
+
+1. Restore the raw cgen demo and positive-corpus gates: emit referenced
+   `xb_label_*` definitions, resolve `fileio_test`, and finish type-aware
+   SUBADDR lowering.
+2. Complete remaining facet facts and direct facet tests; delete corresponding
+   cgen scanners/fallbacks one classifier at a time.
+3. Re-run and record the M1 shared-array, descriptor-REDIM, composite-call, and
+   AT-write behavior probes across the applicable engines.
+4. Only after scanner retirement, execute the cgen modularization decision gate
+   and record its chosen mechanism and falsifiable acceptance checks in docs/17.
+5. Start M2 console-runtime and M3 GUI work from the re-verified M1 exit, not
+   from the historical baseline.
