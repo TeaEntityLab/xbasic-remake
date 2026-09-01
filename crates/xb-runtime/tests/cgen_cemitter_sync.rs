@@ -34,15 +34,18 @@ fn root() -> PathBuf {
 
 /// Build the native `cgen` executable from `selfhost/cgen.x` using the Rust
 /// `CEmitter` (this is exactly how the native bootstrap seeds its C generator).
-fn build_native_cgen(tmp: &Path) -> PathBuf {
+/// Cached via LazyLock so 50+ tests share one build instead of 50 parallel builds (10GB).
+static NATIVE_CGEN: std::sync::LazyLock<PathBuf> = std::sync::LazyLock::new(|| {
     let cgen_src = fs::read_to_string(root().join("selfhost/cgen.x")).expect("read cgen.x");
     let cgen_prog = FrontendUnit::parse(&cgen_src)
         .expect("parse cgen.x")
         .lower_ir()
         .expect("lower cgen.x");
     let cgen_c = CEmitter::new().emit_program(&cgen_prog);
-    let c_path = tmp.join("cgen.c");
-    let exe = tmp.join("cgen");
+    let shared_tmp = std::env::temp_dir().join("xb_sync_cgen_shared");
+    let _ = fs::create_dir_all(&shared_tmp);
+    let c_path = shared_tmp.join("cgen.c");
+    let exe = shared_tmp.join("cgen");
     fs::write(&c_path, &cgen_c).expect("write cgen.c");
     let cc = Command::new(common::cc::cc())
         .args(["-o", exe.to_str().unwrap(), c_path.to_str().unwrap()])
@@ -54,6 +57,9 @@ fn build_native_cgen(tmp: &Path) -> PathBuf {
         String::from_utf8_lossy(&cc.stderr)
     );
     exe
+});
+fn build_native_cgen(_tmp: &Path) -> PathBuf {
+    NATIVE_CGEN.clone()
 }
 
 /// Feed text IR to the native cgen on stdin; return the emitted C source bytes.
