@@ -1,7 +1,7 @@
 #!/bin/sh
 # Probe: compile all 15 core libs through self-hosted cgen.x (CGEN-LIB-SCALE).
 # Builds native cgen from selfhost/cgen.x via Rust CEmitter, then feeds
-# Text IR (xb --emit-ir) to cgen and cc's the output. Reports passes/fails
+# Text IR (xb --emit-ir-facets) to cgen and cc's the output. Reports passes/fails
 # per lib. Exits non-zero if any lib fails; set CGEN_LIB_STRICT=0 for the
 # old informational exit-0 behavior. CI can gate on exit code or grep count.
 
