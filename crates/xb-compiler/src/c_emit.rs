@@ -115,7 +115,9 @@ fn set_defined_funcs(program: &IrProgram) {
                 // (SQRT, SIN, COS, EXP, etc.) have empty bodies. Skip them
                 // so call sites use the C runtime helper (xb_sqrt, xb_sin)
                 // instead of a zero-returning weak stub (xb_user_SQRT).
-                if body.is_empty() && crate::is_builtin::is_builtin(name) {
+                if body.is_empty()
+                    && (crate::is_builtin::is_builtin(name) || name.starts_with("Xin"))
+                {
                     continue;
                 }
                 set.insert(name.clone());
@@ -2112,7 +2114,11 @@ fn emit_main(program: &IrProgram, out: &mut String) {
         })
         .or_else(|| {
             program.items.iter().find_map(|i| match i {
-                IrItem::Function { name, params, .. } => Some((name, params)),
+                // Skip forward declarations (empty body from .dec IMPORT):
+                // the entry point must be a real function with a body.
+                IrItem::Function {
+                    name, params, body, ..
+                } if !body.is_empty() => Some((name, params)),
                 _ => None,
             })
         });
