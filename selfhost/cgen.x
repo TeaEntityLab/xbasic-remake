@@ -7891,8 +7891,7 @@ FUNCTION emit_stmt$(s$)
     colonPos = INSTR(bName$, ":")
     IF colonPos > 0 THEN bName$ = LEFT$(bName$, colonPos - 1)
     IF UCASE$(bName$) = "SBYTEAT" OR UCASE$(bName$) = "UBYTEAT" OR UCASE$(bName$) = "SSHORTAT" OR UCASE$(bName$) = "USHORTAT" OR UCASE$(bName$) = "SLONGAT" OR UCASE$(bName$) = "ULONGAT" OR UCASE$(bName$) = "XLONGAT" OR UCASE$(bName$) = "GIANTAT" OR UCASE$(bName$) = "SINGLEAT" OR UCASE$(bName$) = "DOUBLEAT" OR UCASE$(bName$) = "SUBADDRAT" OR UCASE$(bName$) = "GOADDRAT" THEN
-      IF UCASE$(bName$) = "SBYTEAT" THEN
-        ctype$ = "signed char"
+      IF UCASE$(bName$) = "SBYTEAT" THEN ctype$ = "signed char"
       ELSEIF UCASE$(bName$) = "UBYTEAT" THEN ctype$ = "unsigned char"
       ELSEIF UCASE$(bName$) = "SSHORTAT" THEN ctype$ = "signed short"
       ELSEIF UCASE$(bName$) = "USHORTAT" THEN ctype$ = "unsigned short"

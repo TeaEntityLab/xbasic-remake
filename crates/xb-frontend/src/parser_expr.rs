@@ -356,10 +356,21 @@ impl Parser {
                     }
                 }
                 let inner = self.primary()?;
-                Ok(Expression::FunctionCall {
-                    name: "SUBADDR".to_string(),
-                    args: vec![inner],
-                })
+                match &inner {
+                    Expression::Identifier { .. }
+                    | Expression::ByRefIdentifier { .. }
+                    | Expression::SystemVariable { .. } => Ok(Expression::FunctionCall {
+                        name: "SUBADDR".to_string(),
+                        args: vec![inner],
+                    }),
+                    _ => {
+                        // `&` applied to non-variable (e.g. string literal `@"Create"` where
+                        // `@"Create"` is actually a string literal with `&` prefix in
+                        // XgrRegisterMessage — treat as string literal without `&` to avoid
+                        // `&xb_str(...)` rvalue address error. The `&` is a no-op for literals.
+                        Ok(inner)
+                    }
+                }
             }
             TokenKind::Symbol('~') => {
                 self.index += 1;
