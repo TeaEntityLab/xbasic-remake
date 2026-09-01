@@ -7,7 +7,7 @@ intptr_t* ub)`, content-preserving `REDIM`, and the `XstQuickSort`/
 follow-on (`c_emit_expr` `is_shared_array` → `emit_raw_array_name`) now forwards
 the five `ARY_VAR_DATA` member arrays (`status` … `numElements`) as shared
 `T*` globals at both definition and all four call sites. The last full
-workspace run reports **282 passed / 0 failed**; both `ary.x` and
+workspace run reports **308 passed / 0 failed**; both `ary.x` and
 `ary1.0001.x` compile cc-clean in `xbsourcelib_ary_compiles_clean`. The
 separate `xbsourcelib_interp_matches_compiled` loop covers 11 non-ARY programs,
 not these sources. Runtime `ARY` remains compile-only until `ATTACH` alias
