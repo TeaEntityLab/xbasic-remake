@@ -40,8 +40,8 @@ FAIL=0
 FAILED_LIST=""
 for lib in xbasic/lib/*.x; do
     name=$(basename "$lib" .x)
-    # Emit Text IR via Rust (heuristic; facet probe is similar at 9/15 — see docs/19)
-    if ! "$XB_BIN" --emit-ir "$lib" > "$OUT/$name.ir" 2> "$OUT/$name.emit-err"; then
+    # Emit Text IR via Rust (facet path achieves 15/15 since 8fe02ce; non-facet 13/15 due to xcol/xui heuristic collisions — see docs/19)
+    if ! "$XB_BIN" --emit-ir-facets "$lib" > "$OUT/$name.ir" 2> "$OUT/$name.emit-err"; then
         echo "emit-ir FAIL $name" >&2
         cat "$OUT/$name.emit-err" >&2
         FAIL=$((FAIL+1))

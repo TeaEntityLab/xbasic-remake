@@ -189,7 +189,7 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
 - `cgen_x_compiles_all_demos_cc_clean` must stay green, but its Kittedy/qbtoxb
   rewrites remain transitional until RR-13 locks raw output.
 - `checks/validate-all.sh` remains the full default-feature gate; the current
-  carried workspace headline is 282/0 in docs/17.
+  carried workspace headline is 308/0 in docs/17.
 
 ## 7. Open decisions
 
