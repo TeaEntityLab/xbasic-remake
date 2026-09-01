@@ -398,13 +398,19 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 || name.eq_ignore_ascii_case("SUBADDRESS")
                 || name.eq_ignore_ascii_case("VARPTR")
             {
-                out.push_str("((intptr_t)&");
                 if let Some(arg) = args.first() {
-                    emit_expr(arg, out);
+                    // String vars are already `char*` (xb_str_...), not `intptr_t`.
+                    // `&strVar$` should be the string pointer itself, not `&char*`.
+                    if arg.value_type == ValueType::String {
+                        emit_expr(arg, out);
+                    } else {
+                        out.push_str("((intptr_t)&");
+                        emit_expr(arg, out);
+                        out.push(')');
+                    }
                 } else {
-                    out.push('0');
+                    out.push_str("((intptr_t)0)");
                 }
-                out.push(')');
             } else if name == "HEXX$" {
                 crate::c_emit_str2::emit_hexx(args, out, emit_expr);
             } else if crate::c_emit_str2::try_emit_int2str2(name, args, out, emit_expr) {
