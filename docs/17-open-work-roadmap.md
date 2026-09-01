@@ -26,14 +26,14 @@
 > guarded against negative integer args. MID$ len saturating_add. ATTACH row
 > index bounds check. Dynamic array auto-grow sanity limit (1M elements).
 > All mirrored in cgen.x where applicable.
-> sync 63/63, positive corpus 81/81, demo regression 27/27,
+> sync 64/64, positive corpus 81/81, demo regression 27/27,
 > frontend 26/26, compiler 77 (70 lib + 4 dec_processing + 1 legacy_corpus + 2 source_coverage), zero compiler warnings, zero clippy warnings).
-> The last full workspace run reports **285 passed / 0 failed across 34 binaries**. In
+> The last full workspace run reports **308 passed / 0 failed across 33 binaries**. In
 > `xbsourcelib_parity.rs`, `xbsourcelib_interp_matches_compiled` covers 11
 > non-ARY programs; the separate compile-only
 > `xbsourcelib_ary_compiles_clean` covers the two ARY sources.
 >
-> `cgen_cemitter_sync` is **63/63**, the positive corpus is **81/81
+> `cgen_cemitter_sync` is **64/64**, the positive corpus is **81/81
 > emitted-C byte-identical**, and native compiler vs Rust frontend for
 > `cgen.x` is `IR_IDENTICAL`. The named all-demo guard reports **114/114**
 > as a raw-generator contract — no post-emission C rewrites (RR-13 done
@@ -196,13 +196,13 @@ sections below or the named sibling docs; ✅-done items are omitted.
 
 | Order / track | Job | Exit gate |
 |---|---|---|
-| **done** | **RR-02 ARY composite descriptor — shared `ARY_VAR_DATA` member arrays now forward as `T*` (shared `T*` globals) and both ARY sources are cc-clean** | `xbsourcelib_ary_compiles_clean` 2/2, workspace 285/0 |
+| **done** | **RR-02 ARY composite descriptor — shared `ARY_VAR_DATA` member arrays now forward as `T*` (shared `T*` globals) and both ARY sources are cc-clean** | `xbsourcelib_ary_compiles_clean` 2/2, workspace 308/0 |
 | **done** | **RR-13 raw demo guard — harness post-emission rewrites removed; `cgen_x_compiles_all_demos_cc_clean` is now a raw-generator contract (114/114, no C mutation)** | raw 114/114 verified 2026-08-30 |
 | **done** | **~~RR-03 scoped facets~~ done 2026-08-30 (`8fe02ce`)** | 15/15 core libs compile clean via self-hosted cgen.x (xui/xin/xit/xst fixed) |
 | **done** | **~~RR-05 xcol/xgr scale~~ done 2026-08-30 (`8fe02ce`)** | xcol/xgr no longer OOM/signal; 15/15 locked |
-| **done** | **~~RR-06 ATTACH~~ copy-semantics runtime (2026-08-30)** | 5 ATTACH patterns in interpreter + Rust CEmitter; per-dim size vars at 2D DIM; guarded no-op for dynamic 2nd-dim; sync 63/63, demo regression 27/27 |
-| **done** | **~~ATTACH string-array name fix~~ done 2026-08-30 (`8ab10c0`)** | `attach_stmt` uses type suffix for array operands (full_name with `$`); C emitter Case 4 `xb_strdup` missing `)` fixed; `multi_lib_integration` + `demo_parity` now pass; workspace 285/0 fully green |
-| **done** | **~~RR-08a pure lib behavior~~ done 2026-08-30** | `pure_lib_behavior` test: xma.x compiled legacy bodies (SINH/COSH/TANH/ACOS/XmaVersion$) produce correct deterministic outputs; extended RR-07 to cover builtins (find_function before is_builtin in interp, is_user_defined in C emitter final else); sync 63/63, positive corpus 81/81 |
+| **done** | **~~RR-06 ATTACH~~ copy-semantics runtime (2026-08-30)** | 5 ATTACH patterns in interpreter + Rust CEmitter; per-dim size vars at 2D DIM; guarded no-op for dynamic 2nd-dim; sync 64/64, demo regression 27/27 |
+| **done** | **~~ATTACH string-array name fix~~ done 2026-08-30 (`8ab10c0`)** | `attach_stmt` uses type suffix for array operands (full_name with `$`); C emitter Case 4 `xb_strdup` missing `)` fixed; `multi_lib_integration` + `demo_parity` now pass; workspace 308/0 fully green |
+| **done** | **~~RR-08a pure lib behavior~~ done 2026-08-30** | `pure_lib_behavior` test: xma.x compiled legacy bodies (SINH/COSH/TANH/ACOS/XmaVersion$) produce correct deterministic outputs; extended RR-07 to cover builtins (find_function before is_builtin in interp, is_user_defined in C emitter final else); sync 64/64, positive corpus 81/81 |
 | pre-distribution | **~~RR-10 harness hardening~~ done 2026-08-30** | Duplicate weak definitions reported in `link-core-libs.sh` (198 dups, informational); `cgen-lib-compile.sh` exits non-zero on failure by default (`CGEN_LIB_STRICT=0` for old behavior) |
 | safe execution | **~~RR-09 SHELL/network capabilities~~ done 2026-08-30** | `XB_ALLOW_SHELL`/`XB_ALLOW_NETWORK` env vars gate `xb_shell`/`xb_xin_socket_open`; denied by default |
 | pre-distribution | **RR-11 provenance/licensing** | resolve shim provenance, complete notices, distribution obligations |
@@ -221,7 +221,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > `legacy_corpus` recursively parse/lowers the wider `.x` inventory. The 19
 > GTK demos and three helpsrc programs now have a compile-clean guard
 > (`cemitter_compiles_gtk_and_helpsrc_clean`); they are not behavior-tested.
-> The **285/0 across 34 binaries** is the current workspace state.
+> The **308/0 across 33 binaries** is the current workspace state.
 ### cgen.x demos: raw 114/114 guard (RR-13 done 2026-08-30)
 
 > The cgen.x compile guard (`cgen_x_compiles_all_demos_cc_clean`) is now a
@@ -431,7 +431,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | ~~CGEN-XST-ARG-BOUNDS~~ | cgen.x | ✅ **done 2026-08-30** — `scan_xst_arrays$` now tracks `argPos` and only processes positions 0–1, matching Rust CEmitter's `builtin_needs_descriptor(name, pos) → pos < 2`. Previously all args were scanned (latent risk: if any pos-2+ arg were `byref(symbol(...))` it would be misclassified as an array). `extract_byref_sym$` already filtered non-byref args, so no current corpus triggered the bug. Sync 61/61. | — |
 | ~~CGEN-RETURN-VAR-HOIST-SYNC~~ | cgen.x | ✅ **done 2026-08-30** — cgen.x now always declares the return-var for non-integer return types (String, Float, Giant), matching the Rust CEmitter's `*return_type != ValueType::Integer || own_name_used` condition. Previously cgen.x only declared when the function name appeared in the body, causing a divergence for non-integer functions that never self-reference. Sync 61/61, demo 27/27. | — |
 | CGEN-INSTR-NEEDLES | cgen.x | **Latent, not triggering** — ~12 scanner needles with literal `(` in quoted strings (`"symbol("`, `"array_ubound("`); investigated 2026-08-30: zero false-matches across all 15 core library IRs (`symbol(`, `array_ubound(`, `array_access(` never appear inside `string("...")` literals). `CHR$(40)` approach would not help (same string value). Real fix = string-literal skipping in scanners; deferred until a real false-match appears. | — |
-| ~~LEGACY-LIB-BINDING-POLICY~~ | frontend + C backend + runtime | ✅ **done 2026-08-30** — 340 behavior checks prove user-defined functions take precedence: `pure_lib_behavior` (175) + `stateful_lib_behavior (165) link compiled `xb_user_*` weak exports with C harness and verify deterministic outputs from user-defined bodies (xma SINH/COSH/ACOS, xcm DCCONJ/DCSQRT, xst XstGetOSName/XstVersion$, XstParseWhitespace$/XstBackStringToBinString$/XstBinStringToBackStringNL$ etc.). CEmitter `is_defined_func` gate + interp `find_function` ensure user-defined precedence over native helpers. | — |
+| ~~LEGACY-LIB-BINDING-POLICY~~ | frontend + C backend + runtime | ✅ **done 2026-08-30** — 340 behavior checks prove user-defined functions take precedence: `pure_lib_behavior` (175) + `stateful_lib_behavior` (165) link compiled `xb_user_*` weak exports with C harness and verify deterministic outputs from user-defined bodies (xma SINH/COSH/ACOS, xcm DCCONJ/DCSQRT, xst XstGetOSName/XstVersion$, XstParseWhitespace$/XstBackStringToBinString$/XstBinStringToBackStringNL$ etc.). CEmitter `is_defined_func` gate + interp `find_function` ensure user-defined precedence over native helpers. | — |
 | ~~CORE-LIB-BEHAVIOR-GATE~~ | tests | ✅ **done 2026-08-30** — 340 behavior checks across `pure_lib_behavior` (175: xma 56, xcm 107, xut 1, xit 8, xdis 3) + `stateful_lib_behavior (165: xst getters, setters, string functions including ParseWhitespace/BackStringToBinString/BinStringToBackString+NL, exception mapping, byval RETURN paths). Non-Version$ functions behavior-locked via C harness linking compiled `xb_user_*` exports. | — |
 | LICENSE-BOUNDARY | distribution + provenance | Fifteen inputs mix GPL/LGPL headers with three no-notice shims; both vendor notice files contain numbered bodies but omit GNU title/version/Preamble. `xblibs` combines them into one artifact without established redistribution clearance. | Keep internal-test-only; RR-11 resolves shim provenance, complete notices, and documented distribution obligations |
 | ~~EXTERNAL-FUNCTION-PARSE~~ | frontend + all backends | ✅ **done** `14f9c69`: `EXTERNAL FUNCTION` now flat top-level (`External` + `Function` in `is_forward`/`at_function_start`), so `xma` `SIN`/`SQRT`/`TAN`/`EXP10`/`POWER` are emitted (was nested inside `EXP2`, now 46 new `xb_user_*`, 1690→1736) | — |
@@ -521,9 +521,9 @@ sections below or the named sibling docs; ✅-done items are omitted.
 
 | ID | Candidate | Status | Evidence | Next action / trigger |
 |---|---|---|---|---|
-| ~~L1~~ | Separate compile/link/behavior/production readiness wording | **done 2026-08-30** | 15/15 Rust compile/link; 312 behavior checks (pure 175 + stateful 134); 15/15 cgen.x compile floor. Readiness classes: (a) emit+cc-clean ✓, (b) multi-lib link ✓, (c) behavior of compiled legacy body ✓ (312 checks), (d) production runtime — open (GUI-RUNTIME, packaging). | — |
-| ~~L2~~ | Native-vs-legacy call-binding policy before behavior-port claims | **done 2026-08-30** | `pure_lib_behavior` + `stateful_lib_behavior` tests link compiled `xb_user_*` exports (weak) with C harness; 312 checks verify user-defined bodies execute, not native helpers. `is_defined_func` gate in CEmitter + `find_function` in interp ensure user-defined precedence. | — |
-| ~~L3~~ | Non-Version$ core-library behavior test | **done 2026-08-30** | 312 behavior checks: `pure_lib_behavior` (175: xma/xcm/xut/xit/xdis) + `stateful_lib_behavior` (137: xst, including XstGetOSVersion/XstGetPrintTab/XstGetSystemError via DECLARE byref) | — |
+| ~~L1~~ | Separate compile/link/behavior/production readiness wording | **done 2026-08-30** | 15/15 Rust compile/link; 340 behavior checks (pure 175 + stateful 165); 15/15 cgen.x compile floor. Readiness classes: (a) emit+cc-clean ✓, (b) multi-lib link ✓, (c) behavior of compiled legacy body ✓ (340 checks), (d) production runtime — open (GUI-RUNTIME, packaging). | — |
+| ~~L2~~ | Native-vs-legacy call-binding policy before behavior-port claims | **done 2026-08-30** | `pure_lib_behavior` + `stateful_lib_behavior` tests link compiled `xb_user_*` exports (weak) with C harness; 340 checks verify user-defined bodies execute, not native helpers. `is_defined_func` gate in CEmitter + `find_function` in interp ensure user-defined precedence. | — |
+| ~~L3~~ | Non-Version$ core-library behavior test | **done 2026-08-30** | 340 behavior checks: `pure_lib_behavior` (175: xma/xcm/xut/xit/xdis) + `stateful_lib_behavior` (165: xst, including XstGetOSVersion/XstGetPrintTab/XstGetSystemError via DECLARE byref) | — |
 | ~~L4~~ | EXTERNAL parser fix before xma/xdis/xrun behavior work | **done** `14f9c69` | `EXTERNAL FUNCTION` now flat top-level; xma SIN/SQRT/TAN/EXP10/POWER emitted (1690→1736 symbols); behavior tests verify SINH/COSH/ACOS etc. produce correct outputs | — |
 | ~~L5~~ | cgen.x nested-function and memory fixes | **done 2026-08-30 (`8fe02ce`)** | 15/15 core libs compile clean; former orphaned-body failures + xgr OOM resolved by `xb_append` cap + per-line scan improvements + string-typed facet skip | — |
 | L6 | Keep CGEN-FACET-MANIFEST as storage-work prerequisite only | partial | facets cannot fix EXTERNAL nesting or whole-string OOM | finish strDual/allStrArr before the next storage change |
@@ -555,9 +555,9 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | Use case | Recommendation | Governing evidence / missing gate |
 |---|---|---|
 | study code and compiler structure | yes | source and roadmap evidence is available; GitHub tracker was not accessible |
-| reproduce locked compiler claims | yes, with named-test caveats | 81/81 corpus byte lock, 63/63 sync, `IR_IDENTICAL`; demo compile guard is raw 114/114 (RR-13 done) |
-| adopt Rust-CEmitter library scaffolding | conditional | 15/15 compile/link plus 175 pure + 137 stateful behavior checks; no general compiled-body authority for SHARED-array-dependent functions |
-| adopt self-hosted cgen for core libraries | compile-clean | 15/15 core libs compile via `emit_program_with_facets` + `-Wno-` flags (`8fe02ce`); 312+137 behavior checks via Rust CEmitter (not cgen.x) |
+| reproduce locked compiler claims | yes, with named-test caveats | 81/81 corpus byte lock, 64/64 sync, `IR_IDENTICAL`; demo compile guard is raw 114/114 (RR-13 done) |
+| adopt Rust-CEmitter library scaffolding | conditional | 15/15 compile/link plus 175 pure + 165 stateful behavior checks; no general compiled-body authority for SHARED-array-dependent functions |
+| adopt self-hosted cgen for core libraries | compile-clean | 15/15 core libs compile via `emit_program_with_facets` + `-Wno-` flags (`8fe02ce`); 340 behavior checks via Rust CEmitter (not cgen.x) |
 | deploy or run untrusted legacy code | no | `ATTACH` copy-semantics (not full aliasing for dynamic 2nd-dim), native/stub binding ambiguity, SHELL/network gated (RR-09 done), licensing/provenance gaps |
 
 #### Required Wording Changes
@@ -632,7 +632,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | RR-04 | Split cgen failure classes | **adopted as tracking** | four C errors vs two signal/resource exits | keep separate assertions/results; not a blocking implementation phase |
 | ~~RR-05~~ | Bound and fix xcol/xgr generation | **done 2026-08-30 (`8fe02ce`)** — xcol/xgr no longer OOM/signal; 15/15 core libs compile clean via `emit_program_with_facets` + `-Wno-` flags; `xb_append` cap + per-line scan improvements (`08fc0cb`) resolved resource exits | — |
 | ~~RR-08a~~ | Behavior gates for pure libraries | **done 2026-08-30** — `pure_lib_behavior` test compiles xma.x + xcm.x + xut.x + xit.x via CEmitter and verifies 175 deterministic outputs: xma (56: 27 scalar math functions including COT via FPU wrapper mapping, at 0/1/2/0.5/PI/sqrt2 inputs exercising full EXP/SQRT/LOG/ATAN/tan paths, plus internal Hart approximation helpers Asin0/Expmo), xcm (107: all 22 DCOMPLEX + all 19 SCOMPLEX-returning functions + 3 SINGLE-returning scalar functions (SCABS/SCARG/SCNORM) + 4 internal helpers (XdcGetAlpha/XdcGetBeta/XscGetAlpha/XscGetBeta) + Atan2 edge cases + XcmVersion$), xut (1), xit (8: XitVersion$ + MakeStringHex hex-string conversion via strtol with base 0), xdis (3: GetAddrLabel64 hex formatting via xb_hexx). CEmitter fixes: EXTERNAL builtin mapping (SQRT/SIN/COS→C helpers), x87 FPU wra…
-| ~~RR-08b~~ | Behavior gates for stateful libraries | **done 2026-08-30** — `stateful_lib_behavior` test compiles xst.x via CEmitter and verifies 137 deterministic outputs: XstGetOSName(@name$)="unix" (SELECT CASE: ##XBSystem=0 != $$XBSysLinux=1, now correctly resolved from xut.dec), XstGetConsoleGrid(@grid)=0, XstVersion$()="6.4.5", XstGetEndianName(ret)=0, XstGetCPUName(ret)=0, XstGetApplicationEnvironment(@standalone,@reserved)=(0,0,0), XstExceptionToSystemException(1,@sig)=11 (SegViolation->SIGSEGV), (4,@sig)=2 (BreakKey->SIGINT), (7,@sig)=8 (DivByZero->SIGFPE), (12,@sig)=4 (InvalidInstr->SIGILL), (14,@sig)=11 (StackOverflow->SIGSEGV), (99,@sig)=11 (CASE ELSE->SIGSEGV). Parser fix (725a833): `is_forward` detection for `END EXPORT` and `EXTERNAL ##` preve…
+| ~~RR-08b~~ | Behavior gates for stateful libraries | **done 2026-08-30** — `stateful_lib_behavior` test compiles xst.x via CEmitter and verifies 165 deterministic outputs: XstGetOSName(@name$)="unix" (SELECT CASE: ##XBSystem=0 != $$XBSysLinux=1, now correctly resolved from xut.dec), XstGetConsoleGrid(@grid)=0, XstVersion$()="6.4.5", XstGetEndianName(ret)=0, XstGetCPUName(ret)=0, XstGetApplicationEnvironment(@standalone,@reserved)=(0,0,0), XstExceptionToSystemException(1,@sig)=11 (SegViolation->SIGSEGV), (4,@sig)=2 (BreakKey->SIGINT), (7,@sig)=8 (DivByZero->SIGFPE), (12,@sig)=4 (InvalidInstr->SIGILL), (14,@sig)=11 (StackOverflow->SIGSEGV), (99,@sig)=11 (CASE ELSE->SIGSEGV). Parser fix (725a833): `is_forward` detection for `END EXPORT` and `EXTERNAL ##` prev…
 | RR-09 | SHELL/network capability gates | **done 2026-08-30** | `xb_shell` checks `XB_ALLOW_SHELL`; `xb_xin_socket_open` checks `XB_ALLOW_NETWORK`; interpreter SHELL gated; xin_sockets tests set env vars | — |
 | ~~RR-10~~ | Harness reproducibility | **done 2026-08-30** | Deterministic link order, `OUT` clean, `nm` fallbacks, `XB_BIN` override honored. Duplicate weak definitions reported (198 dups, informational). `cgen-lib-compile.sh` exits non-zero on failure by default; `CGEN_LIB_STRICT=0` for old behavior. | — |
 | RR-11 | Licensing and shim provenance | **partial — notices + MIT relicense 2026-08-31** | The remake's original code (all 7 crates, `selfhost/`, fixtures/checks/scripts/docs) is now **MIT** (root `LICENSE`, Cargo.toml `license = "MIT"` ×7; sole author John <johnteee@gmail.com>; audited — zero upstream copyright markers/copied code in the new trees; all external deps permissive MIT/Apache-2.0). Ported upstream material stays GPL-2/LGPL-2.1 in the tracked `xbasic/` tree with canonical GNU texts + per-file audit `xbasic/LICENSES.md` (root `COPYING`/`COPYING_LIB` removed — GNU texts scoped to `xbasic/`); legacy versioned trees stay gitignored local-only. LGPL-derived C ports live in one canonical location (`xbasic/crtl/`). Compilation does not propagate licenses; programs linking ported libs inherit GPL/LGPL for those parts only (LICENSING.md rule 4). **Remaining (legal):** three shims (`gdi32`/`kernel32`/`user32`) carry no copyright/license statement — ship in `xbasic/lib/` solely under the upstream tree-level distribution (flagged in LICENSES.md); do not redistribute separately, and `xblibs` stays internal-test-only until distribution obligations cleared | resolve shim provenance and distribution obligations before packaging |
@@ -786,7 +786,7 @@ program uses it (§2 RT-FUNCPTR).
 > before). Verified: `XstErrorNumberToName(0)` → "$$ErrorObject too large",
 > `XstErrorNumberToName(256)` → "$$ErrorObject too large" (SHARED arrays
 > uninitialized, UBOUND=-1, object > upperObject always true). All gates green:
-> frontend 26/26, compiler 77 (70 lib + 4 dec + 1 legacy + 2 source), behavior 312 checks (175 pure + 137 stateful), demo 27/27, sync 63/63.
+> frontend 26/26, compiler 77 (70 lib + 4 dec + 1 legacy + 2 source), behavior 340 checks (175 pure + 165 stateful), demo 27/27, sync 64/64.
 
 ### ~~CGEN-ARGSPLIT-STRLIT~~ — call-arg splitter string-literal-aware ✅ done `[2026-08-23, d9d665b]`
 

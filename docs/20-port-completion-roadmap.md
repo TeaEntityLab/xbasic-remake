@@ -32,8 +32,8 @@ the generated `.s` assembly (replaced by the Rust/C backends by design).
 | Surface | State |
 |---|---|
 | Interpreter | 106/106 non-platform demos byte-faithful; 0 genuine failures; GUI demos blocked on runtime |
-| C backend (Rust CEmitter) | 15/15 core libs cc-clean; 114/114 demos compile, 112 match (2 real-I/O skips); 303 pure + 128 stateful behavior checks |
-| Self-hosted cgen.x | byte-identical to Rust CEmitter on positive corpus (sync 63/63); bootstrap fixed point on v0.1 subset |
+| C backend (Rust CEmitter) | 15/15 core libs cc-clean; 114/114 demos compile, 112 match (2 real-I/O skips); 175 pure + 165 stateful behavior checks |
+| Self-hosted cgen.x | byte-identical to Rust CEmitter on positive corpus (sync 64/64); bootstrap fixed point on v0.1 subset |
 | LLVM backend (feature) | 106/106 faithful on interpreter-clean programs; CI job green |
 | Corpus | tracked `xbasic/` tree (lib/include/demo/crtl/helpsrc/help/templates); licenses audited (`xbasic/LICENSES.md`) |
 | Licensing | remake code MIT; ported tree GPL-2/LGPL-2.1; RR-11 legal residue = 3 no-notice shims |
@@ -91,7 +91,7 @@ In scope (docs/17 IDs):
 Exit gate:
 - Behavior checks grow past 431 with ≥1 SHARED-array-dependent xst function
   and ≥1 composite-byval xit function locked.
-- All 15 libs still cc-clean via BOTH generators; sync 63/63 holds;
+- All 15 libs still cc-clean via BOTH generators; sync 64/64 holds;
   bootstrap fixed point unchanged.
 - The composite-signature injection filter is removed (decls flow whole).
 

@@ -563,7 +563,7 @@ fn docs_headline_claims_are_recorded_at_named_surfaces() {
         (
             "README.md",
             &readme,
-            "Full workspace:** 285 passed / 0 failed",
+            "Full workspace:** 308 passed / 0 failed",
         ),
         ("docs/16", &d16, "identity are **locked by tests**"),
         (

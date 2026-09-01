@@ -89,7 +89,7 @@ signature/type change in one only (the CG-ADDR `int`/`intptr_t` drift). 174
 signatures, identical on both sides.
 
 ### CG-BYTES — positive corpus byte-identical ✅ done; demo text identity de-scoped
-All **80/80** programs in `fixtures/corpus/v0.1/positive` now emit byte-identical
+All **81/81** programs in `fixtures/corpus/v0.1/positive` now emit byte-identical
 C from the Rust CEmitter and self-hosted `cgen.x`. The sync suite locks this
 contract alongside behavioral parity and helper signatures.
 

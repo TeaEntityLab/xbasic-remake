@@ -45,17 +45,17 @@ LLVM backend check, requires LLVM 22 in `PATH` or `LLVM_SYS_221_PREFIX`:
 cargo check -p xb-compiler --features llvm
 ```
 
-On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` is 1.97.1 after update. The IDE feature requires Rust ≥1.95 and was checked with explicit rustup cargo/rustc. Homebrew `llvm` is **22.1.8** (`/opt/homebrew/opt/llvm`); the LLVM backend builds and tests with `LLVM_SYS_221_PREFIX=/opt/homebrew/opt/llvm` but stays feature-gated off by default — `./checks/validate-all.sh` covers default features only (no `--features llvm`, no CI LLVM job yet; see docs/17 LLVM-CI-BITROT).
+On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` is 1.97.1 after update. The IDE feature requires Rust ≥1.95 and was checked with explicit rustup cargo/rustc. Homebrew `llvm` is **22.1.8** (`/opt/homebrew/opt/llvm`); the LLVM backend builds and tests with `LLVM_SYS_221_PREFIX=/opt/homebrew/opt/llvm` but stays feature-gated off by default — `./checks/validate-all.sh` covers default features only (the CI LLVM job `llvm-build` in `bootstrap-verify.yml` covers `--features llvm` in CI).
 
 ## Recorded verification state (2026-08-29)
 
-- **All 15 core libraries compile cc-clean through both the Rust CEmitter and self-hosted cgen.x** (`xbasic-6.4.5/src/{shared,linux}/*.x`) with `-O0 -Wno-incompatible-pointer-types -Wno-int-conversion`. This is compile-only; `ATTACH` is parser-discarded in xcol/xst/xgr/xui/xit.
+- **All 15 core libraries compile cc-clean through both the Rust CEmitter and self-hosted cgen.x** (`xbasic/{lib,include}/*.x`) with `-O0 -Wno-incompatible-pointer-types -Wno-int-conversion`. This is compile-only; `ATTACH` has copy-semantics runtime in interpreter and Rust CEmitter (5 cases, `c_emit_attach.rs`/`interpreter_attach.rs`), but dynamic 2nd-dim arrays still no-op.
 - **All 15 link in the internal test harness** — `checks/link-core-libs.sh` records 1736 `xb_user_*` symbols and seven `Version$` smoke checks, not compiled-body behavior.
 - **The all-demo cgen guard reports 114/114** (`cgen_x_compiles_all_demos_cc_clean`) as a raw-generator contract — no post-emission C rewrites. Rust CEmitter `demo_parity` records 112 matches and two real-I/O skips.
-- **80/80 positive-corpus programs** emit byte-identical C (locked by `cgen_cemitter_sync`).
+- **81/81 positive-corpus programs** emit byte-identical C (locked by `cgen_cemitter_sync`).
 - **Byte access `{}`** works on string scalars and array elements.
 - **INC/DEC + SWAP subscripts** work on indexed/composite targets.
-- **Full workspace:** 285 passed / 0 failed across 34 binaries. `xbsourcelib_interp_matches_compiled` locks runtime parity for 11 non-ARY programs; the separate compile-only guard `xbsourcelib_ary_compiles_clean` compiles `ary` and `ary1.0001` cc-clean via shared `ARY_VAR_DATA` forwarding. ARY runtime behavior remains unproven and blocked on `ATTACH`.
+- **Full workspace:** 308 passed / 0 failed across 33 binaries. `xbsourcelib_interp_matches_compiled` locks runtime parity for 11 non-ARY programs; the separate compile-only guard `xbsourcelib_ary_compiles_clean` compiles `ary` and `ary1.0001` cc-clean via shared `ARY_VAR_DATA` forwarding. ARY runtime behavior remains unproven and blocked on `ATTACH`.
 - Self-hosting: compiler.x → cgen.x → native C generator; bootstrap fixed point and native/Rust IR parity remain locked.
 - **SHELL/network capability gates (RR-09):** `SHELL` and `Xin*` socket builtins are denied by default; set `XB_ALLOW_SHELL=1` or `XB_ALLOW_NETWORK=1` to opt in. Applies to both interpreter and compiled C runtime.
 
