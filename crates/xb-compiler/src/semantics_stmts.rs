@@ -20,10 +20,28 @@ impl Analyzer {
         // module-shared storage instead of shadowing it with a fresh local.
         // Keyword-`SHARED` scalars are captured separately: their reads/writes
         // route to the shared slot (classic BASIC), other scopes keep locals.
+        // For arrays, use the full typed name (e.g. `gridType$`) to distinguish
+        // string vs integer facets (`gridType` vs `gridType$`). Scalars must NOT
+        // inherit shared from a same-named array (dual-use `gridName` vs
+        // `gridName$[]`): the scalar is a local `char*` shadowing the global
+        // `char**`, not the global itself. Only array DIMs inherit.
+        let vt = ValueType::from_suffix(suffix);
+        let full_name = match suffix {
+            Some(TypeSuffix::String) => format!("{name}$"),
+            Some(TypeSuffix::Single) => format!("{name}!"),
+            Some(TypeSuffix::Double) => format!("{name}#"),
+            Some(TypeSuffix::Integer) => format!("{name}%"),
+            Some(TypeSuffix::Giant) => format!("{name}&&"),
+            None => name.to_owned(),
+        };
         let keyword_shared_scalar = shared && !is_array;
-        let shared = shared || self.shared_arrays.contains(name);
+        let shared = if is_array {
+            shared || self.shared_arrays.contains(&full_name)
+        } else {
+            shared
+        };
         if shared && is_array {
-            self.shared_arrays.insert(name.to_owned());
+            self.shared_arrays.insert(full_name.clone());
         }
         let checked_extra_dims = extra_dims
             .iter()
@@ -54,15 +72,6 @@ impl Analyzer {
                 return Ok(CheckedItem::Compound(items));
             }
         }
-        let vt = ValueType::from_suffix(suffix);
-        let full_name = match suffix {
-            Some(TypeSuffix::String) => format!("{name}$"),
-            Some(TypeSuffix::Single) => format!("{name}!"),
-            Some(TypeSuffix::Double) => format!("{name}#"),
-            Some(TypeSuffix::Integer) => format!("{name}%"),
-            Some(TypeSuffix::Giant) => format!("{name}&&"),
-            None => name.to_owned(),
-        };
         // Any bracketed declaration — sized `a[n]` or empty `a[]` — is an array.
         let checked_size = match size {
             Some(e) => {

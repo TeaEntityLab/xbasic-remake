@@ -259,7 +259,7 @@ pub(crate) fn exec_items(
                 let is_shared_array = state
                     .shared
                     .get(&target.name)
-                    .map_or(false, |s| s.array.is_some());
+                    .is_some_and(|s| s.array.is_some());
                 if is_shared_array {
                     if let Some(slot) = state.shared.get_mut(&target.name) {
                         if let Some(off) = slot.array_offset(&idxs) {

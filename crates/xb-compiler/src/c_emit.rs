@@ -292,9 +292,15 @@ fn set_defined_funcs(program: &IrProgram) {
             // for xin/xgr/xst). So only exclude NON-dotted names (true dual-use
             // scalar+array of one bare name); dotted composite members stay in
             // SHARED_ARRAYS and get a global decl (CGEN-SHARED-COMPOSITE).
+            // However, a bare shared array that IS dual-use (scalar + array
+            // facets, e.g. xui `gridType$`/`gridName$` with `STATIC` scalar in
+            // AppearanceCode and `SHARED` array elsewhere) must stay as a
+            // `_arr`-suffixed global (docs/18, xit lineLast) — otherwise the
+            // array facet would be considered undimmed and mis-emitted as
+            // `xb_setch` (xui CleanGridInfoArrays regression).
             let mut scalar_dimmed = std::collections::HashSet::new();
             collect_scalar_dimmed_names(&program.items, &mut scalar_dimmed);
-            m.retain(|name, _| !scalar_dimmed.contains(name) || name.contains('.'));
+            m.retain(|name, _| !scalar_dimmed.contains(name) || name.contains('.') || dual.contains(name));
             SHARED_DUAL.with(|d| d.borrow_mut().retain(|n| m.contains_key(n)));
         }
     });
