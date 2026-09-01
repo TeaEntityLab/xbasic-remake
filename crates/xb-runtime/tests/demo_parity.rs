@@ -4,17 +4,23 @@
 //!
 //! Demos link against the prebuilt core-library objects (built by
 //! checks/link-core-libs.sh into a temp dir) so GUI/kernel32 externals
-//! resolve. SKIPped: aclient/aserver — the C backend now implements the
-//! Xin* socket builtins for real while the interp keeps zero-stubs, so
-//! their outputs legitimately diverge; the compiled path is locked by
-//! xin_sockets.rs instead.
+//! resolve.
+//!
+//! Explicit SKIP rationale:
+//! - `aclient` / `aserver`: C backend implements real BSD sockets while
+//!   interpreter uses zero-stubs; differential locked by `xin_sockets.rs`.
+//! - `arecord`: Differential on lines 281-282 (shared composite `READ`) due to
+//!   `__WRITE_RECORD`/`__READ_RECORD` stub uninitialized struct data in interp
+//!   (2112454933 / 0.123...) vs compiled zero-fill (0 / 0.0). Tracked for M2.
+//! - `asound`: Contains 5-second `XstSleep` audio loop and 59 `sndPlaySoundA`
+//!   lookups that stall or exceed test execution deadlines without audio HW.
 
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 mod common;
 
-/// Demos that fail standalone LINK (undefined external symbols).
+/// Demos skipped from automated stdout parity comparison (see module docs).
 const SKIP: &[&str] = &["aclient", "aserver", "arecord", "asound"];
 /// Sentinel for "process timed out" — compared like any other outcome.
 const TIMED_OUT: &[u8] = b"<TIMED_OUT>";
@@ -112,13 +118,14 @@ fn demo_interp_matches_compiled() {
         eprintln!("link-core-libs.sh smoke reported failures (expected 3/7 weak-version mismatches): status {:?}", build.status);
         eprintln!("STDOUT:\n{}", stdout);
     }
-    let lib_objs = std::fs::read_dir(&lib_dir)
+    let mut lib_objs = std::fs::read_dir(&lib_dir)
         .expect("lib dir")
         .filter_map(|e| {
             let p = e.ok()?.path();
             (p.extension()?.to_str()? == "o").then_some(p)
         })
         .collect::<Vec<_>>();
+    lib_objs.sort();
     assert!(!lib_objs.is_empty(), "no library objects built");
 
     let mut checked = 0;

@@ -49,7 +49,7 @@ On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` 
 
 ## Recorded verification state (2026-08-29)
 
-- **All 15 core libraries compile cc-clean through both the Rust CEmitter and self-hosted cgen.x** (`xbasic/{lib,include}/*.x`) with `-O0 -Wno-incompatible-pointer-types -Wno-int-conversion`. This is compile-only; `ATTACH` has copy-semantics runtime in interpreter and Rust CEmitter (5 cases, `c_emit_attach.rs`/`interpreter_attach.rs`), but dynamic 2nd-dim arrays still no-op.
+- **All 15 core libraries compile cc-clean through the Rust CEmitter and via self-hosted cgen.x facet harness** (`xbasic/{lib,include}/*.x`) with `-O0 -Wno-incompatible-pointer-types -Wno-int-conversion` (cgen.x standalone script compiles 13/15; xcol/xui require facet manifest ingestion). This is compile-only; `ATTACH` has copy-semantics runtime in interpreter and Rust CEmitter (5 cases, `c_emit_attach.rs`/`interpreter_attach.rs`), but dynamic 2nd-dim arrays still no-op.
 - **All 15 link in the internal test harness** — `checks/link-core-libs.sh` records 1736 `xb_user_*` symbols and seven `Version$` smoke checks, not compiled-body behavior.
 - **The all-demo cgen guard reports 114/114** (`cgen_x_compiles_all_demos_cc_clean`) as a raw-generator contract — no post-emission C rewrites. Rust CEmitter `demo_parity` records 112 matches and two real-I/O skips.
 - **81/81 positive-corpus programs** emit byte-identical C (locked by `cgen_cemitter_sync`).

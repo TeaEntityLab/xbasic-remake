@@ -182,10 +182,10 @@
   version line, and Preamble; their numbered bodies are present as shown.
 * **Inventory:** `src/shared` 6 + `src/linux` 9 = 15. The harness performs
   local compile/link plus seven `Version$` calls, not behavioral adoption.
-* **Remake crates:** `xb-cli`/`xb-compiler`/`xb-frontend`/`xb-link`/`xb-ide`
-  declare `GPL-2.0-or-later`; `xb-runtime`/`xb-gui` declare
-  `LGPL-2.1-or-later`. Those declarations do not resolve the vendor shim or
-  combined-artifact boundary.
+* **Remake crates:** All 7 crates (`xb-cli`, `xb-compiler`, `xb-frontend`,
+  `xb-gui`, `xb-ide`, `xb-link`, `xb-runtime`) declare `MIT` (relicensed in
+  `62c617b`). Original code is under MIT; ported upstream code in `xbasic/`
+  remains under GPL-2.0 / LGPL-2.1.
 
 ## 0. Open-gap index (at a glance)
 
@@ -341,6 +341,9 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > generators together (sync + bootstrap-locked), not a cgen.x-only edit. The string analog
 > of the integer byref/dyn work; not a bounded fix.
 
+> *Note on Historical Counts:* Individual completed items below record point-in-time test suite counts (e.g. `Sync 61/61`, `62/62`) as immutable audit snapshots at the time of merge. Current authoritative totals are maintained in the top banner above.
+
+| Fix / Feature | Subsystem | Status | Scope | Synced |
 | ~~CGEN-ARRAYS~~ | C backend | ✅ **done** (2026-08-20): auto-vivified array hoisting + dynamic DIMs + undimmed-array folds | — | ✅ |
 | ~~CGEN-ARGC~~ | C backend | ✅ **done** (2026-08-20): arity reconciliation (drop extras, pad missing) via `DEFINED_SIGS` | — | ✅ |
 | ~~CGEN-BUILTINS~~ | C backend | ✅ **done** (2026-08-20): `INLINE$`, `EOF`, `RIGHT$`/`LEFT$` 1-arg, `STRING$` via `xb_string` | — | ✅ |

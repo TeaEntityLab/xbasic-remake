@@ -33,9 +33,13 @@ for name in xcm xdis xma xui xut xutpde gdi32 kernel32 user32 xcol xgr xin xit x
     $CC $FLAGS -c "$OUT/$name.c" -o "$OUT/$name.o"
 done
 echo "int main(void){return 0;}" > "$OUT/stub_main.c"
-# Deterministic link order matching cc loop (was "$OUT"/*.o glob — filesystem-dependent for weak symbols, see L16)
+# Deterministic link order matching cc loop (was "$OUT"/*.o glob — filesystem-dependent for weak symbols, see L16).
+# NOTE: xcm.o imports xst/xma and emits weak empty stubs for XstVersion$/XgrVersion$/XmaVersion$;
+# because xcm.o precedes xst/xgr/xma in this link line, those stubs win first-definition resolution
+# in the smoke binary below, producing 3/7 Version$ mismatches (informational).
 $CC "$OUT/stub_main.c" "$OUT/xcm.o" "$OUT/xdis.o" "$OUT/xma.o" "$OUT/xui.o" "$OUT/xut.o" "$OUT/xutpde.o" "$OUT/gdi32.o" "$OUT/kernel32.o" "$OUT/user32.o" "$OUT/xcol.o" "$OUT/xgr.o" "$OUT/xin.o" "$OUT/xit.o" "$OUT/xrun.o" "$OUT/xst.o" -o "$OUT/xblibs"
-echo "linked: $OUT/xblibs ($(nm -U "$OUT/xblibs" 2>/dev/null | grep -c '_xb_user_' || nm "$OUT/xblibs" | grep -c '_xb_user_') xb_user_ symbols)"
+SYM_COUNT=$(nm "$OUT/xblibs" 2>/dev/null | grep -v -E ' (U|w) ' | grep -E -c '(_xb_user_|xb_user_)[A-Za-z0-9_]+' || true)
+echo "linked: $OUT/xblibs ($SYM_COUNT xb_user_ symbols)"
 # Report duplicate weak definitions (informational — first-definition-wins is correct).
 DUPS=$(nm -m "$OUT"/*.o 2>/dev/null | grep 'weak external' | awk '{print $NF}' | sort | uniq -d | wc -l | tr -d ' ')
 if [ "$DUPS" -gt 0 ] 2>/dev/null; then
