@@ -143,6 +143,7 @@ fn compile_and_exec_bytes(tmp: &Path, name: &str, c: &[u8], input: Option<&[u8]>
     );
     let mut cmd = Command::new(common::exe_path(&exe));
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.env("XB_ALLOW_SHELL", "1");
     cmd.stdin(if input.is_some() {
         Stdio::piped()
     } else {
@@ -183,6 +184,7 @@ fn compile_and_exec(tmp: &Path, name: &str, c: &[u8], input: Option<&str>) -> St
     );
     let mut cmd = Command::new(common::exe_path(&exe));
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.env("XB_ALLOW_SHELL", "1");
     cmd.stdin(if input.is_some() {
         Stdio::piped()
     } else {
@@ -228,7 +230,8 @@ fn compile_and_exec_in(
         String::from_utf8_lossy(&cc.stderr)
     );
     let mut cmd = Command::new(common::exe_path(&exe));
-    cmd.current_dir(run_dir)
+    cmd.env("XB_ALLOW_SHELL", "1")
+        .current_dir(run_dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .stdin(if input.is_some() {

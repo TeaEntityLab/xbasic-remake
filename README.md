@@ -91,7 +91,7 @@ On this machine, `rustc` in `PATH` is Homebrew Rust 1.94, while `rustup stable` 
 - **The all-demo cgen guard reports 114/114** (`cgen_x_compiles_all_demos_cc_clean`) as a raw-generator contract — no post-emission C rewrites. Rust CEmitter `demo_parity` records 112 matches and two real-I/O skips.
 - **81/81 positive-corpus programs** emit byte-identical C (locked by `cgen_cemitter_sync`).
 - **Byte access `{}`** works on string scalars and array elements.
-- **Historical full workspace (2026-08-31):** 308 passed / 0 failed across 33 binaries at that snapshot. `xbsourcelib_interp_matches_compiled` locks runtime parity for 11 non-ARY programs; the separate compile-only guard `xbsourcelib_ary_compiles_clean` compiles `ary` and `ary1.0001` cc-clean via shared `ARY_VAR_DATA` forwarding. ARY runtime behavior remains unproven and blocked on `ATTACH`.
+- **Full workspace:** 308 passed / 0 failed across 33 binaries at the 2026-08-31 snapshot. `xbsourcelib_interp_matches_compiled` locks runtime parity for 11 non-ARY programs; the separate compile-only guard `xbsourcelib_ary_compiles_clean` compiles `ary` and `ary1.0001` cc-clean via shared `ARY_VAR_DATA` forwarding. ARY runtime behavior remains unproven and blocked on `ATTACH`.
 - Self-hosting: compiler.x → cgen.x → native C generator; bootstrap fixed point and native/Rust IR parity remain locked.
 - **SHELL/network capability gates (RR-09):** `SHELL` and `Xin*` socket builtins are denied by default; set `XB_ALLOW_SHELL=1` or `XB_ALLOW_NETWORK=1` to opt in. Applies to both interpreter and compiled C runtime.
 

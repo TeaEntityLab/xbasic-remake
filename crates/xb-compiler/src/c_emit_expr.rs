@@ -403,8 +403,25 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                     // `&strVar$` should be the string pointer itself, not `&char*`.
                     if arg.value_type == ValueType::String {
                         emit_expr(arg, out);
+                    } else if let IrExprKind::Symbol(s) = &arg.kind {
+                        if crate::c_emit::is_descriptor_param(&s.name)
+                            || crate::c_emit::is_array_param(&s.name)
+                        {
+                            // Array params are already pointers (intptr_t*);
+                            // SUBADDR of an array param is the pointer itself.
+                            emit_var_name(s, out);
+                        } else {
+                            out.push_str("((intptr_t)&");
+                            emit_var_name(s, out);
+                            out.push(')');
+                        }
+                    } else if let IrExprKind::SharedVariable(s) = &arg.kind {
+                        out.push_str("((intptr_t)&xb_shared_");
+                        out.push_str(&sanitize_c_ident(&s.name));
+                        out.push(')');
                     } else {
-                        out.push_str("((intptr_t)&");
+                        // Non-lvalue (literal, undimmed default): cast directly.
+                        out.push_str("((intptr_t)");
                         emit_expr(arg, out);
                         out.push(')');
                     }
@@ -764,6 +781,19 @@ pub(crate) fn emit_var_name(symbol: &IrSymbol, out: &mut String) {
 pub(crate) fn emit_byref_value(expr: &IrExpr, out: &mut String) {
     match &expr.kind {
         IrExprKind::ByRef(inner) => emit_expr(inner, out),
+        // `&x` lowers to SUBADDR(x); the value is the address (intptr_t).
+        IrExprKind::FunctionCall { name, args }
+            if name.eq_ignore_ascii_case("SUBADDR") && args.len() == 1 =>
+        {
+            // String vars are already char*; non-string vars need &var.
+            if args[0].value_type == ValueType::String {
+                emit_expr(&args[0], out);
+            } else {
+                out.push_str("((intptr_t)&");
+                emit_expr(&args[0], out);
+                out.push(')');
+            }
+        }
         _ => emit_expr(expr, out),
     }
 }
@@ -773,6 +803,12 @@ pub(crate) fn emit_byref_value(expr: &IrExpr, out: &mut String) {
 pub(crate) fn emit_byref_addr(expr: &IrExpr, out: &mut String) {
     let inner = match &expr.kind {
         IrExprKind::ByRef(b) => b.as_ref(),
+        // `&x` lowers to SUBADDR(x) in the IR; unwrap to get the lvalue.
+        IrExprKind::FunctionCall { name, args }
+            if name.eq_ignore_ascii_case("SUBADDR") && args.len() == 1 =>
+        {
+            &args[0]
+        }
         _ => expr,
     };
     match &inner.kind {

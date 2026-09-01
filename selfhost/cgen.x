@@ -3199,7 +3199,26 @@ FUNCTION emit_expr$(e$)
       emit_expr$ = "xb_gui_next_callback(" + emit_args_n$(args$, 2) + ")"
       RETURN emit_expr$
     END IF
-    IF fn$ = "GetStdHandle" THEN
+    IF fn$ = "SUBADDR" OR fn$ = "SUBADDRESS" OR fn$ = "VARPTR" THEN
+      ' String vars are already char* (xb_str_...), not intptr_t.
+      ' &strVar$ is the string pointer itself. Mirrors Rust CEmitter.
+      DIM _saArg$
+      _saArg$ = first_comma_part$(args$)
+      IF INSTR(_saArg$, ":string") > 0 OR LEFT$(_saArg$, 7) = "string(" THEN
+        emit_expr$ = emit_expr$(_saArg$)
+      ELSE
+        DIM _saInner$
+        _saInner$ = emit_expr$(_saArg$)
+        ' Only take address of lvalues (vars/arrays); cast literals directly.
+        IF LEFT$(_saInner$, 7) = "xb_var_" OR LEFT$(_saInner$, 7) = "xb_str_" OR LEFT$(_saInner$, 10) = "xb_shared_" OR LEFT$(_saInner$, 5) = "xb_ub" OR INSTR(_saInner$, "[") > 0 THEN
+          emit_expr$ = "((intptr_t)&" + _saInner$ + ")"
+        ELSE
+          emit_expr$ = "((intptr_t)" + _saInner$ + ")"
+        END IF
+      END IF
+      RETURN emit_expr$
+     END IF
+     IF fn$ = "GetStdHandle" THEN
       ' RT-KERNEL32: Win32-CGI stdio handles (-10 stdin, -11 stdout, -12 stderr).
       emit_expr$ = "xb_getstdhandle(" + emit_expr$(first_comma_part$(args$)) + ")"
       RETURN emit_expr$
@@ -3219,6 +3238,10 @@ FUNCTION emit_expr$(e$)
       _k32buf$ = top_part$(args$, 2)
       _k32bytes$ = top_part$(args$, 3)
       _k32out$ = top_part$(args$, 4)
+      ' Strip `call SUBADDR(...)` wrapper — &x lowers to SUBADDR in IR
+      IF LEFT$(_k32out$, 13) = "call SUBADDR(" AND RIGHT$(_k32out$, 2) = "))" THEN
+        _k32out$ = MID$(_k32out$, 14, LEN(_k32out$) - 14)
+      END IF
       _k32bn$ = _k32out$
       _k32bt$ = "integer"
       IF LEFT$(_k32out$, 7) = "symbol(" AND RIGHT$(_k32out$, 1) = ")" THEN
@@ -3239,6 +3262,10 @@ FUNCTION emit_expr$(e$)
         DIM _k32rbt$
         _k32rbn$ = _k32buf$
         _k32rbt$ = "string"
+        ' Strip `call SUBADDR(...)` wrapper for buffer arg too
+        IF LEFT$(_k32buf$, 13) = "call SUBADDR(" AND RIGHT$(_k32buf$, 2) = "))" THEN
+          _k32buf$ = MID$(_k32buf$, 14, LEN(_k32buf$) - 14)
+        END IF
         IF LEFT$(_k32buf$, 7) = "symbol(" AND RIGHT$(_k32buf$, 1) = ")" THEN
           _k32rbn$ = MID$(_k32buf$, 8, LEN(_k32buf$) - 8)
           _k32colon = INSTR(_k32rbn$, ":")
@@ -7891,21 +7918,48 @@ FUNCTION emit_stmt$(s$)
     colonPos = INSTR(bName$, ":")
     IF colonPos > 0 THEN bName$ = LEFT$(bName$, colonPos - 1)
     IF UCASE$(bName$) = "SBYTEAT" OR UCASE$(bName$) = "UBYTEAT" OR UCASE$(bName$) = "SSHORTAT" OR UCASE$(bName$) = "USHORTAT" OR UCASE$(bName$) = "SLONGAT" OR UCASE$(bName$) = "ULONGAT" OR UCASE$(bName$) = "XLONGAT" OR UCASE$(bName$) = "GIANTAT" OR UCASE$(bName$) = "SINGLEAT" OR UCASE$(bName$) = "DOUBLEAT" OR UCASE$(bName$) = "SUBADDRAT" OR UCASE$(bName$) = "GOADDRAT" THEN
-      IF UCASE$(bName$) = "SBYTEAT" THEN ctype$ = "signed char"
-      ELSEIF UCASE$(bName$) = "UBYTEAT" THEN ctype$ = "unsigned char"
-      ELSEIF UCASE$(bName$) = "SSHORTAT" THEN ctype$ = "signed short"
-      ELSEIF UCASE$(bName$) = "USHORTAT" THEN ctype$ = "unsigned short"
-      ELSEIF UCASE$(bName$) = "SLONGAT" THEN ctype$ = "signed int"
-      ELSEIF UCASE$(bName$) = "ULONGAT" THEN ctype$ = "unsigned int"
-      ELSEIF UCASE$(bName$) = "XLONGAT" THEN ctype$ = "intptr_t"
-      ELSEIF UCASE$(bName$) = "GIANTAT" THEN ctype$ = "intptr_t"
-      ELSEIF UCASE$(bName$) = "SINGLEAT" THEN ctype$ = "float"
-      ELSEIF UCASE$(bName$) = "DOUBLEAT" THEN ctype$ = "double"
-      ELSEIF UCASE$(bName$) = "SUBADDRAT" THEN ctype$ = "intptr_t"
-      ELSEIF UCASE$(bName$) = "GOADDRAT" THEN ctype$ = "intptr_t"
-      ELSE ctype$ = "int"
+      IF UCASE$(bName$) = "SBYTEAT" THEN
+        ctype$ = "signed char"
+      ELSEIF UCASE$(bName$) = "UBYTEAT" THEN
+        ctype$ = "unsigned char"
+      ELSEIF UCASE$(bName$) = "SSHORTAT" THEN
+        ctype$ = "signed short"
+      ELSEIF UCASE$(bName$) = "USHORTAT" THEN
+        ctype$ = "unsigned short"
+      ELSEIF UCASE$(bName$) = "SLONGAT" THEN
+        ctype$ = "signed int"
+      ELSEIF UCASE$(bName$) = "ULONGAT" THEN
+        ctype$ = "unsigned int"
+      ELSEIF UCASE$(bName$) = "XLONGAT" THEN
+        ctype$ = "intptr_t"
+      ELSEIF UCASE$(bName$) = "GIANTAT" THEN
+        ctype$ = "intptr_t"
+      ELSEIF UCASE$(bName$) = "SINGLEAT" THEN
+        ctype$ = "float"
+      ELSEIF UCASE$(bName$) = "DOUBLEAT" THEN
+        ctype$ = "double"
+      ELSEIF UCASE$(bName$) = "SUBADDRAT" THEN
+        ctype$ = "intptr_t"
+      ELSEIF UCASE$(bName$) = "GOADDRAT" THEN
+        ctype$ = "intptr_t"
+      ELSE
+        ctype$ = "int"
       END IF
-      addrEnd = INSTR(bArgs$, " ")
+      ' Find first space at paren-depth 0 (not inside nested parens).
+      DIM _baI
+      DIM _baDepth
+      DIM _baCh$
+      addrEnd = 0
+      _baDepth = 0
+      FOR _baI = 1 TO LEN(bArgs$)
+        _baCh$ = MID$(bArgs$, _baI, 1)
+        IF _baCh$ = "(" THEN _baDepth = _baDepth + 1
+        IF _baCh$ = ")" THEN _baDepth = _baDepth - 1
+        IF _baCh$ = " " AND _baDepth = 0 THEN
+          addrEnd = _baI
+          EXIT FOR
+        END IF
+      NEXT _baI
       IF addrEnd > 0 THEN
         addrExpr$ = LEFT$(bArgs$, addrEnd - 1)
         offExpr$ = MID$(bArgs$, addrEnd + 1, LEN(bArgs$) - addrEnd)

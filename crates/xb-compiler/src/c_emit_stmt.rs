@@ -542,7 +542,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 if args.len() > 1 {
                     emit_expr(&args[1], out);
                 } else {
-                    out.push_str("0");
+                    out.push('0');
                 }
                 out.push_str(")) = _at_v; }\n");
             } else {

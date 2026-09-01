@@ -649,12 +649,24 @@ fn xst_string_to_number(
 
 /// Write `val` (coerced to the lvalue's declared type) into the caller's slot
 /// named by an `@arg` (`ByRef`) or a bare symbol / shared reference.
+/// Unwrap `@expr` (ByRef) or `SUBADDR(expr)` to get the inner lvalue.
+/// `&x` lowers to SUBADDR(x) in the IR; both forms need unwrapping for
+/// by-ref out-params and buffer values.
+fn unwrap_byref(expr: &IrExpr) -> &IrExpr {
+    match &expr.kind {
+        IrExprKind::ByRef(inner) => inner.as_ref(),
+        IrExprKind::FunctionCall { name, args }
+            if name.eq_ignore_ascii_case("SUBADDR") && args.len() == 1 =>
+        {
+            &args[0]
+        }
+        _ => expr,
+    }
+}
+
 fn xst_write_back(expr: &IrExpr, val: RuntimeValue, state: &mut ExecutionState) {
-    let target = match &expr.kind {
-        IrExprKind::ByRef(inner) => &inner.kind,
-        other => other,
-    };
-    let (name, vt, shared) = match target {
+    let target = unwrap_byref(expr);
+    let (name, vt, shared) = match &target.kind {
         IrExprKind::Symbol(s) => (s.name.clone(), s.value_type, false),
         IrExprKind::SharedVariable(s) => (s.name.clone(), s.value_type, true),
         _ => return,
@@ -674,11 +686,8 @@ fn xst_write_back(expr: &IrExpr, val: RuntimeValue, state: &mut ExecutionState) 
 /// Resolve an `@array[]` (or bare array) argument to its caller slot name and
 /// whether it lives in the shared table.
 fn array_lvalue(expr: &IrExpr) -> (String, bool) {
-    let inner = match &expr.kind {
-        IrExprKind::ByRef(b) => &b.kind,
-        k => k,
-    };
-    match inner {
+    let inner = unwrap_byref(expr);
+    match &inner.kind {
         IrExprKind::Symbol(s) => (s.name.clone(), false),
         IrExprKind::SharedVariable(s) => (s.name.clone(), true),
         _ => (String::new(), false),
@@ -706,7 +715,7 @@ fn kernel32_write_file(
         RuntimeValue::Integer(v) => v,
         _ => -1,
     };
-    let data = match eval(program, &args[1], state, output)? {
+    let data = match eval(program, unwrap_byref(&args[1]), state, output)? {
         RuntimeValue::String(b) => b,
         other => other.render().into_bytes(),
     };

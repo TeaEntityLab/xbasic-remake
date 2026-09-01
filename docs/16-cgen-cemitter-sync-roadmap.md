@@ -81,8 +81,7 @@ must not be rewritten as a weaker claim to make the test pass.
 
 Sync is asserted on observable native behavior, and the positive-corpus test
 additionally asserts the two generators' emitted C byte-for-byte per program
-(added 2026-08-27 — previously session-verified only). Demo-scale emitted-C
-identity is de-scoped; see docs/17 CGEN-FACET-MANIFEST.
+(added 2026-08-27 — previously session-verified only). demo-scale C-text identity is **de-scoped**; see docs/17 CGEN-FACET-MANIFEST. Positive-corpus and selfhost-tool identity are **locked by tests**.
 
 Run: `cargo test -p xb-runtime --test cgen_cemitter_sync`
 

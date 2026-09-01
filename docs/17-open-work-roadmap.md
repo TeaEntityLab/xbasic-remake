@@ -531,7 +531,8 @@ sections below or the named sibling docs; ✅-done items are omitted.
 > compile-clean guard** (`cemitter_compiles_gtk_and_helpsrc_clean`):
 > 19 GTK demos + 3 helpsrc programs compile via Rust CEmitter but are
 > not behavior-tested. No path is class (d): real GUI, `ATTACH`,
-> `XxxMain`, and packaging remain open.
+> GTK demos and three helpsrc programs now have a compile-clean guard.
+> No path is class (d): real GUI, `ATTACH`,
 >
 > Decision: ready to start **behavior-port work on selected non-GUI surfaces**
 > through the Rust CEmitter, not ready to claim every legacy library is ported.

@@ -1,6 +1,6 @@
 # 19 — CGEN-FACET-MANIFEST: Frontend-Emitted Symbol Facets for cgen.x
 
-> Status: active migration (updated 2026-09-01). Scope-qualified
+> Status: substantially implemented. Scope-qualified lookup
 > `dyn`/`dual`/`arr2d` production and lookup are implemented. Remaining
 > `strDual`, `allStrArr`, `sharedArrays`, and `xstArrays` inference must move to
 > frontend-owned facts before the generator's physical module boundaries are

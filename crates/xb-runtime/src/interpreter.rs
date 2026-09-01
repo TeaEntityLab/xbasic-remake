@@ -372,56 +372,54 @@ pub(crate) fn exec_items(
                 );
                 if is_at {
                     let v = eval(program, value, state, output)?;
-                    if args.is_empty() {
-                        continue;
-                    }
-                    let addr_val = eval(program, &args[0], state, output)?;
-                    let off_val = if args.len() > 1 {
-                        eval(program, &args[1], state, output)?
-                    } else {
-                        RuntimeValue::Integer(0)
-                    };
-                    let addr = match addr_val {
-                        RuntimeValue::Integer(a) => a,
-                        RuntimeValue::Giant(g) => g as i32,
-                        _ => 0,
-                    };
-                    let off = match off_val {
-                        RuntimeValue::Integer(o) => o as usize,
-                        RuntimeValue::Giant(g) => g as usize,
-                        _ => 0,
-                    };
-                    if addr == 0 {
-                        continue;
-                    }
-                    if let Some(var_name) = state.fake_addrs.get(&addr).cloned() {
-                        let slot_opt = state
-                            .shared
-                            .get_mut(&var_name)
-                            .or_else(|| state.slots.get_mut(&var_name));
-                        if let Some(slot) = slot_opt {
-                            let val_i32 = match v {
-                                RuntimeValue::Integer(i) => i,
-                                RuntimeValue::Giant(g) => g as i32,
-                                RuntimeValue::Float(f) => f as i32,
-                                RuntimeValue::String(ref s) => s.len() as i32,
-                            };
-                            match &mut slot.value {
-                                RuntimeValue::Giant(g) => {
-                                    let mut bytes = g.to_le_bytes();
-                                    if off < bytes.len() {
-                                        bytes[off] = val_i32 as u8;
-                                        *g = i64::from_le_bytes(bytes);
+                    if !args.is_empty() {
+                        let addr_val = eval(program, &args[0], state, output)?;
+                        let off_val = if args.len() > 1 {
+                            eval(program, &args[1], state, output)?
+                        } else {
+                            RuntimeValue::Integer(0)
+                        };
+                        let addr = match addr_val {
+                            RuntimeValue::Integer(a) => a,
+                            RuntimeValue::Giant(g) => g as i32,
+                            _ => 0,
+                        };
+                        let off = match off_val {
+                            RuntimeValue::Integer(o) => o as usize,
+                            RuntimeValue::Giant(g) => g as usize,
+                            _ => 0,
+                        };
+                        if addr != 0 {
+                            if let Some(var_name) = state.fake_addrs.get(&addr).cloned() {
+                                let slot_opt = state
+                                    .shared
+                                    .get_mut(&var_name)
+                                    .or_else(|| state.slots.get_mut(&var_name));
+                                if let Some(slot) = slot_opt {
+                                    let val_i32 = match v {
+                                        RuntimeValue::Integer(i) => i,
+                                        RuntimeValue::Giant(g) => g as i32,
+                                        RuntimeValue::Float(f) => f as i32,
+                                        RuntimeValue::String(ref s) => s.len() as i32,
+                                    };
+                                    match &mut slot.value {
+                                        RuntimeValue::Giant(g) => {
+                                            let mut bytes = g.to_le_bytes();
+                                            if off < bytes.len() {
+                                                bytes[off] = val_i32 as u8;
+                                                *g = i64::from_le_bytes(bytes);
+                                            }
+                                        }
+                                        RuntimeValue::Integer(i) => {
+                                            let mut bytes = i.to_le_bytes();
+                                            if off < bytes.len() {
+                                                bytes[off] = val_i32 as u8;
+                                                *i = i32::from_le_bytes(bytes);
+                                            }
+                                        }
+                                        _ => {}
                                     }
                                 }
-                                RuntimeValue::Integer(i) => {
-                                    let mut bytes = i.to_le_bytes();
-                                    if off < bytes.len() {
-                                        bytes[off] = val_i32 as u8;
-                                        *i = i32::from_le_bytes(bytes);
-                                    }
-                                }
-                                _ => {}
                             }
                         }
                     }

@@ -57,7 +57,7 @@ change.
 | [16 — cgen ↔ CEmitter Sync](16-cgen-cemitter-sync-roadmap.md) | Shared typed-IR/runtime-ABI contract, cross-generator differential rules, and narrow positive-corpus byte lock | living contract |
 | [17 — Open Work](17-open-work-roadmap.md) | Sole open-work and evidence ledger: defect rows, exit gates, panel adoption ledgers, and dated verification records | living ledger |
 | [18 — By-ref Array ABI](18-byref-array-abi.md) | Primitive/flat and shared-composite descriptor progress; general composite `TYPE` array by-ref and runtime behavior remain open | living contract |
-| [19 — CGEN Facets](19-cgen-facet-manifest.md) | Scope-qualified symbol-facet contract and retirement of cgen.x heuristic inference | living contract |
+| [19 — CGEN Facets](19-cgen-facet-manifest.md) | Scope-qualified symbol-facet contract and retirement of cgen.x heuristic inference; scope-qualified consumption and full heuristic replacement remain open | living contract |
 | [20 — Port Completion](20-port-completion-roadmap.md) | M1–M6 milestone sequencing from current open rows to full legacy behavior, bootstrap, and distribution | living roadmap |
 | [21 — Session Record 2026-08-31](21-session-2026-08-31-licensing-port-record.md) | Dated handoff evidence; never an execution queue | frozen session record |
 | Docs 00–12 | Original-system reference, reverse engineering, historical proposals, and research | historical reference |
