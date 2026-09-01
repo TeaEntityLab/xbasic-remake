@@ -300,7 +300,9 @@ fn set_defined_funcs(program: &IrProgram) {
             // `xb_setch` (xui CleanGridInfoArrays regression).
             let mut scalar_dimmed = std::collections::HashSet::new();
             collect_scalar_dimmed_names(&program.items, &mut scalar_dimmed);
-            m.retain(|name, _| !scalar_dimmed.contains(name) || name.contains('.') || dual.contains(name));
+            m.retain(|name, _| {
+                !scalar_dimmed.contains(name) || name.contains('.') || dual.contains(name)
+            });
             SHARED_DUAL.with(|d| d.borrow_mut().retain(|n| m.contains_key(n)));
         }
     });

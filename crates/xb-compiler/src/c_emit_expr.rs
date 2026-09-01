@@ -394,7 +394,10 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push(')');
             } else if is_type_conversion(name) {
                 emit_type_conversion(name, &args[0], out, emit_expr);
-            } else if name.eq_ignore_ascii_case("SUBADDR") || name.eq_ignore_ascii_case("SUBADDRESS") || name.eq_ignore_ascii_case("VARPTR") {
+            } else if name.eq_ignore_ascii_case("SUBADDR")
+                || name.eq_ignore_ascii_case("SUBADDRESS")
+                || name.eq_ignore_ascii_case("VARPTR")
+            {
                 out.push_str("((intptr_t)&");
                 if let Some(arg) = args.first() {
                     emit_expr(arg, out);

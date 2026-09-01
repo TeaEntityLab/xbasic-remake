@@ -3820,7 +3820,6 @@ fn cemitter_and_cgen_agree_on_byref_redim_minimal() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
-
 /// LEGACY-CORPUS-COMPILE-COVERAGE: verify that the 19 GTK demos and 3 helpsrc
 /// programs — previously only parse/lower-tested by `legacy_corpus` — compile
 /// clean through the Rust CEmitter. This locks the compile inventory so no

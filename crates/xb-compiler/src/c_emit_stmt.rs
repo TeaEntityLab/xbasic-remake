@@ -1,5 +1,6 @@
 use crate::c_emit::c_type;
 use crate::c_emit_expr::{emit_default, emit_expr, emit_var_name};
+use crate::c_emit_helpers::emit_c_function_name;
 use crate::c_emit_select::emit_body;
 use crate::ir::{IrExpr, IrItem, IrSymbol};
 use crate::ValueType;
@@ -521,15 +522,42 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             emit_expr(value, out);
             out.push_str(");\n");
         }
-        IrItem::BuiltinAssign { name: _, args: _, value } => {
-            // *AT-write lvalue (parser restricts to is_at_builtin): the interpreter has
-            // no real memory, so it no-ops the write and only evaluates the value for
-            // side-effects/errors. Match cgen.x's (void)(value) — a real *(T*)(addr)=v
-            // would dereference a stub address and crash.
-            out.push_str(&ind);
-            out.push_str("(void)(");
-            emit_expr(value, out);
-            out.push_str(");\n");
+        IrItem::BuiltinAssign { name, args, value } => {
+            if is_at_write_builtin(name) {
+                let (ctype, _) = at_write_ctype(name);
+                out.push_str(&ind);
+                out.push_str("{ ");
+                out.push_str(ctype);
+                out.push_str(" _at_v = (");
+                out.push_str(ctype);
+                out.push_str(")(");
+                emit_expr(value, out);
+                out.push_str("); if ((intptr_t)(");
+                emit_expr(&args[0], out);
+                out.push_str(")) *(");
+                out.push_str(ctype);
+                out.push_str("*)((char*)(intptr_t)(");
+                emit_expr(&args[0], out);
+                out.push_str(") + (");
+                if args.len() > 1 {
+                    emit_expr(&args[1], out);
+                } else {
+                    out.push_str("0");
+                }
+                out.push_str(")) = _at_v; }\n");
+            } else {
+                out.push_str(&ind);
+                // Fallback: function call style
+                emit_c_function_name(name, out);
+                out.push('(');
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    emit_expr(arg, out);
+                }
+                out.push_str(");\n");
+            }
         }
         IrItem::ConstantDefinition { .. } => {}
         IrItem::SharedAssignment { target, value } => {

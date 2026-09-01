@@ -135,7 +135,10 @@ FUNCTION Main()
   PRINT a[4]
 END FUNCTION
 "#;
-    let prog = FrontendUnit::parse(src).expect("parse").lower_ir().expect("lower");
+    let prog = FrontendUnit::parse(src)
+        .expect("parse")
+        .lower_ir()
+        .expect("lower");
     let mut interp_out = Vec::new();
     Interpreter::new()
         .execute_main_with_input(&prog, Vec::new(), &mut interp_out)
@@ -167,7 +170,10 @@ FUNCTION Main()
   PRINT UBOUND(g[])
 END FUNCTION
 "#;
-    let prog = FrontendUnit::parse(src).expect("parse").lower_ir().expect("lower");
+    let prog = FrontendUnit::parse(src)
+        .expect("parse")
+        .lower_ir()
+        .expect("lower");
     let mut interp_out = Vec::new();
     Interpreter::new()
         .execute_main_with_input(&prog, Vec::new(), &mut interp_out)

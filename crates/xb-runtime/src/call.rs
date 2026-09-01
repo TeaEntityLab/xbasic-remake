@@ -412,7 +412,10 @@ pub(crate) fn call_function(
     // testing (RR-08a/RR-08b) by ensuring compiled legacy bodies are exercised.
     if find_function(program, name).is_ok() {
         // Fall through to the user-defined function body below.
-    } else if name.eq_ignore_ascii_case("SUBADDR") || name.eq_ignore_ascii_case("SUBADDRESS") || name.eq_ignore_ascii_case("VARPTR") {
+    } else if name.eq_ignore_ascii_case("SUBADDR")
+        || name.eq_ignore_ascii_case("SUBADDRESS")
+        || name.eq_ignore_ascii_case("VARPTR")
+    {
         if let Some(arg) = args.first() {
             let var_name = match &arg.kind {
                 xb_compiler::IrExprKind::Symbol(s) => Some(s.name.clone()),
