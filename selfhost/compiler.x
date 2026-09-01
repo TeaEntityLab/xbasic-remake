@@ -419,17 +419,35 @@ midLen$ = ""
 WHILE tpos <= ntok
   IF stmtState = 0 THEN
     IF singleLineIf = 2 THEN
-      singleLineIf = 0
-      indent = indent - 1
-      prefix$ = ""
-      i = 1
-      WHILE i <= indent
-        prefix$ = prefix$ + "  "
-        i = i + 1
-      WEND
-      PRINT prefix$ + "end if"
-      ifDepth = ifStack(ifSP)
-      ifSP = ifSP - 1
+      ' Check if next token is ELSE — if so, this is a single-line
+      ' IF...THEN...ELSE; emit "else" and set singleLineIf = 1 so the
+      ' ELSE branch statement gets the same treatment as the THEN branch
+      ' (singleLineIf 1→2→end-if after the statement is emitted).
+      IF tpos <= ntok AND tt$(tpos) = "keyword" AND tv$(tpos) = "ELSE" THEN
+        singleLineIf = 1
+        indent = indent - 1
+        prefix$ = ""
+        i = 1
+        WHILE i <= indent
+          prefix$ = prefix$ + "  "
+          i = i + 1
+        WEND
+        PRINT prefix$ + "else"
+        indent = indent + 1
+        tpos = tpos + 1
+      ELSE
+        singleLineIf = 0
+        indent = indent - 1
+        prefix$ = ""
+        i = 1
+        WHILE i <= indent
+          prefix$ = prefix$ + "  "
+          i = i + 1
+        WEND
+        PRINT prefix$ + "end if"
+        ifDepth = ifStack(ifSP)
+        ifSP = ifSP - 1
+      END IF
     END IF
     IF singleLineIf = 1 THEN
       singleLineIf = 2
