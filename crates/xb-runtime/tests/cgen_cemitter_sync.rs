@@ -3253,6 +3253,63 @@ fn cemitter_and_cgen_agree_on_hash_shared_array_cross_function() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// AT-write byte semantics (docs/20 package 3): `addr = &temp$$` plus
+/// `UBYTEAT(addr, off) = val` must write the GIANT's bytes, matching XstGetEndian.
+/// `cemitter_and_cgen_agree_on_builtin_assign` only covers the null-addr no-op
+/// (value side effects). Little-endian bytes 1,2,3,4 → 0x04030201 = 67305985.
+#[test]
+fn cemitter_and_cgen_agree_on_at_write_real_memory() {
+    let tmp = std::env::temp_dir().join("xb_sync_atwrite");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"atw\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main ()\n",
+        "GIANT temp\n",
+        "temp = 0\n",
+        "addr = &temp\n",
+        "UBYTEAT(addr, 0) = 1\n",
+        "UBYTEAT(addr, 1) = 2\n",
+        "UBYTEAT(addr, 2) = 3\n",
+        "UBYTEAT(addr, 3) = 4\n",
+        "PRINT temp\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse AT-write program")
+        .lower_ir()
+        .expect("lower AT-write program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "atw_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "atw_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret AT-write program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "67305985\n",
+        "AT-write real-memory reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled UBYTEAT writes through SUBADDR"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled UBYTEAT writes through SUBADDR"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Function-address id (CGEN-FUNCADDR): `&Func` / `funcaddr(Func)` is a synthetic
 /// 1-based id in program declaration order (interp eval.rs `function_id`; Rust/LLVM
 /// match), NOT a machine address. cgen.x folded it to 0 (no handler); it now returns

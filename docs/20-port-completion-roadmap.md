@@ -85,11 +85,13 @@ Work packages (canonical open rows live in docs/17):
    `#name[]` SHARED heap-globals are locked
    (`cemitter_and_cgen_agree_on_shared_array_cross_function`,
    `cemitter_and_cgen_agree_on_shared_2d_array_cross_function`,
-   `cemitter_and_cgen_agree_on_hash_shared_array_cross_function`). Remaining:
-   by-ref descriptors including REDIM-through-byref (minimal lock exists),
-   composite by-value and return paths, and AT-write byte semantics with
-   interpreter/CEmitter/cgen probes. General composite-array by-ref remains
-   governed by docs/18.
+   `cemitter_and_cgen_agree_on_hash_shared_array_cross_function`).
+   AT-write byte semantics through `&var` + `UBYTEAT` are locked
+   (`cemitter_and_cgen_agree_on_at_write_real_memory`; the null-addr no-op
+   remains `cemitter_and_cgen_agree_on_builtin_assign`). Remaining:
+   by-ref descriptors including REDIM-through-byref (minimal lock exists)
+   and composite by-value and return paths. General composite-array by-ref
+   remains governed by docs/18.
 4. **Resolve remaining memory/runtime contracts.** Decide real `ATTACH`
    aliasing versus the documented bounded copy model, and implement required
    C-library time/file helpers against observable programs rather than stubs.
