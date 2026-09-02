@@ -212,6 +212,11 @@ impl TextIrEmitter {
                 ));
             }
         }
+        // Descriptor-forwarded locals with no array DIM in this scope: the
+        // storage decision is dyn (a `(T** data, intptr_t* ub)` descriptor),
+        // but there is no `dim X:t[...]` behind it. `byref=1` (docs/19 §3.1)
+        // lets a consumer separate "DIM'd as an array" from "forwarded only";
+        // cgen.x's DIM-based `allStrArr` fact must exclude these.
         for (name, vt) in desc_locals {
             let key = format!("{}:{}", name, scope);
             if seen.contains(&key) {
@@ -223,7 +228,7 @@ impl TextIrEmitter {
             seen.insert(key);
             let dual = if dual_use.contains(name) { 1 } else { 0 };
             out.push(format!(
-                "facet {}:{} scope={} storage=dyn rank=1 dual={}",
+                "facet {}:{} scope={} storage=dyn rank=1 dual={} byref=1",
                 name,
                 self.emit_type(*vt),
                 scope,
