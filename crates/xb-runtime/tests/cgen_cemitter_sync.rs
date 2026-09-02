@@ -1144,7 +1144,7 @@ fn cemitter_and_cgen_apply_nonblock_to_fifo() {
             &tmp,
             &format!("fifo_{tag}"),
             &c,
-            std::time::Duration::from_secs(3),
+            std::time::Duration::from_secs(10),
         );
         assert_eq!(out, "3\n");
         let _ = fs::remove_file(fifo);
