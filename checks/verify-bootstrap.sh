@@ -24,7 +24,7 @@ grep -Fq '# 14 — Self-Hosting Progress' docs/14-self-hosting-progress.md \
 grep -Eq 'Cross-platform CI (remains (the only outstanding task|as the final task)|workflow added)' \
   docs/14-self-hosting-progress.md \
   || fail "self-hosting completion boundary missing"
-grep -Fq '| 14 | [Self-Hosting Progress](14-self-hosting-progress.md) |' docs/README.md \
+grep -Fq '| 14 | [Self-Hosting Progress — milestone narrative](14-self-hosting-progress.md) |' docs/README.md \
   || fail "self-hosting progress chapter index entry missing"
 
 # ERE for BSD/GNU grep parity; matches real `unsafe` only, not the safe extern "C" XxxMain ABI.
