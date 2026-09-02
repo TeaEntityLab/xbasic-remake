@@ -3198,6 +3198,61 @@ fn cemitter_and_cgen_agree_on_shared_2d_array_cross_function() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Hash-prefix shared array (`DIM #g[n]` / `#g[i]`): the remaining docs/20
+/// package-3 ABI probe after keyword-SHARED 1-D and 2-D locks. Helper's write
+/// through `#g[1]` must be visible in Main — same heap global as `SHARED g[]`.
+#[test]
+fn cemitter_and_cgen_agree_on_hash_shared_array_cross_function() {
+    let tmp = std::env::temp_dir().join("xb_sync_hashsharedarr");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"hn\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main ()\n",
+        "DIM #g[3]\n",
+        "#g[1] = 5\n",
+        "Helper()\n",
+        "PRINT #g[1]\n",
+        "END FUNCTION\n",
+        "FUNCTION Helper ()\n",
+        "#g[1] = 42\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse hash-shared array program")
+        .lower_ir()
+        .expect("lower hash-shared array program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "hasharr_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "hasharr_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret hash-shared array program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "42\n",
+        "hash-shared array cross-function reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled the hash-shared array"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the hash-shared array"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Function-address id (CGEN-FUNCADDR): `&Func` / `funcaddr(Func)` is a synthetic
 /// 1-based id in program declaration order (interp eval.rs `function_id`; Rust/LLVM
 /// match), NOT a machine address. cgen.x folded it to 0 (no handler); it now returns
