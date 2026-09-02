@@ -214,6 +214,24 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
   `checks/verify-bootstrap.sh` `ok` including `cgen_cemitter_sync` **65/65**,
   and the LLVM feature gate **144 passed, 1 documented ignore**.
 
+- **2026-09-02 (allStrArr facet-driven consumption):** cgen.x now parses
+  `##facetTab$` for string-array facets (`type=string`, `rank>=1`,
+  `storage!=shared`, `storage!=param`, `byref!=1`) and assigns
+  `##allStrArr$ = fAllStrArr$` when facets are present. The scanner
+  `scan_all_strarr$` is retained as the fallback for headerless producers
+  (historical/self-hosted IR without facet headers). Three naming fixes
+  accompany the migration: (1) `arr_acc_name$` returns direct `c_var_name$`
+  for non-strDual allStrArr members (not the `_arr` dual facet); (2) `ub_ref$`
+  returns direct `xb_ub_<name>` for non-strDual allStrArr members; (3) the
+  `used$` hoist path gains an `allStrArr+strDual` branch that emits both the
+  scalar `char*` facet and the `char** _arr` heap pointer for dual-use string
+  arrays in functions that use the name without a local DIM. The scanner-hostile
+  three-engine lock `cemitter_and_cgen_agree_on_all_strarr_facet_without_dim_shape`
+  proves the facet path works when DIM brackets are hidden from the scanner.
+  Verified 2026-09-02: `checks/validate-all.sh` **311/311 across 40 binaries**,
+  `checks/verify-bootstrap.sh` `ok` including `cgen_cemitter_sync` **66/66**,
+  15/15 core libs, 114/114 demos.
+
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` asserts
   per-program byte-identical emitted C; the header must not break this.
 - `cgen_x_compiles_all_demos_cc_clean` is the RR-13 raw-output compile gate;

@@ -2703,6 +2703,59 @@ fn cemitter_and_cgen_agree_on_unsized_array_growth_and_reset() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// A facet-bearing producer must not depend on cgen.x rescanning DIM text.
+/// Remove the array brackets from the test-only IR after facet emission: the
+/// `allStrArr` facet still carries the string-array storage contract, while
+/// `scan_all_strarr$` deliberately sees only a scalar-shaped DIM.
+#[test]
+fn cemitter_and_cgen_agree_on_all_strarr_facet_without_dim_shape() {
+    let tmp = std::env::temp_dir().join("xb_sync_allstrarr_facet");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"asf\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM names$[]\n\
+               names$[2] = \"ok\"\n\
+               PRINT \"[\" + names$[0] + \"]\"\n\
+               PRINT names$[2]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse allStrArr facet program")
+        .lower_ir()
+        .expect("lower allStrArr facet program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+    let scanner_hostile_ir = ir.replacen("dim names$:string[]", "dim names$:string", 1);
+    assert_ne!(
+        scanner_hostile_ir, ir,
+        "test setup did not hide the array shape from scan_all_strarr$"
+    );
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "allstrarr_facet_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &scanner_hostile_ir);
+    let self_out = compile_and_exec(&tmp, "allstrarr_facet_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret allStrArr facet program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "[]\nok\n", "allStrArr facet reference output");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled the unsized string array"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x ignored the allStrArr facet and depended on DIM scanning"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Scalar-used dyn array (CGEN-DYN-ARRAY, extended): a name used as a bare scalar
 /// (`IF dsp == 0`, a null/allocated check) AND indexed as an array (`dsp[i]`), often
 /// used *before* its DIM, must lower to ONE dyn pointer — 0 before the DIM's calloc,

@@ -885,6 +885,7 @@ IF LEN(##facetTab$) > 0 THEN
   fDual$ = ""
   fArr2d$ = ""
   fShared$ = ""
+  fAllStrArr$ = ""
   fPos2 = 1
   WHILE fPos2 <= LEN(##facetTab$)
     fLe2 = INSTR(##facetTab$, CHR$(10), fPos2)
@@ -937,12 +938,33 @@ IF LEN(##facetTab$) > 0 THEN
             END IF
           END IF
         END IF
+        ' Facet replacement for scan_all_strarr$: program-wide, non-shared,
+        ' non-parameter string array DIMs. byref=1 marks descriptor-forwarded
+        ' locals with no DIM in this scope, so those are excluded.
+        fAllType$ = fRest2$
+        fAllTypeSp = INSTR(fAllType$, " ")
+        IF fAllTypeSp > 0 THEN
+          fAllType$ = LEFT$(fAllType$, fAllTypeSp - 1)
+        END IF
+        fAllRank$ = ""
+        fAllRankPos = INSTR(fRest2$, " rank=")
+        IF fAllRankPos > 0 THEN
+          fAllRank$ = MID$(fRest2$, fAllRankPos + 6, 1)
+        END IF
+        IF fAllType$ = "string" AND VAL(fAllRank$) >= 1 AND INSTR(fRest2$, " storage=shared") = 0 AND INSTR(fRest2$, " storage=param") = 0 AND INSTR(fRest2$, " byref=1") = 0 THEN
+          IF INSTR(fAllStrArr$, ":" + fNm2$ + ":") = 0 THEN
+            fAllStrArr$ = fAllStrArr$ + ":" + fNm2$ + ":"
+          END IF
+        END IF
       END IF
     END IF
   WEND
   ##dynNames$ = fDyn$
   ##dualUse$ = fDual$
   ##arr2d$ = fArr2d$
+  ' Facet-bearing producers use the exact allStrArr replacement. Headerless
+  ' historical/self-hosted IR retains scan_all_strarr$ as the migration fallback.
+  ##allStrArr$ = fAllStrArr$
   ' Additive shared: keep scanner ##sharedArrays$ and union facet top-level shared (preserves composite-member leaves)
   pShare = 1
   WHILE pShare <= LEN(fShared$)
@@ -3734,7 +3756,7 @@ FUNCTION emit_expr$(e$)
       ELSE
         varType$ = "integer"
       END IF
-      IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
+      IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 THEN
         emit_expr$ = c_default$(varType$)
         RETURN emit_expr$
       END IF
@@ -5128,6 +5150,15 @@ FUNCTION emit_hoists$(used$, dimmed$)
           ELSEIF INSTR(##allStrArr$, ":" + nm$ + ":") > 0 AND INSTR(##strDual$, ":" + nm$ + ":") = 0 AND INSTR(##strUbDual$, ":" + nm$ + ":") = 0 AND RIGHT$(nm$, 1) = "$" AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
             IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
               out$ = out$ + "    char** " + c_var_name$(nm$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
+            END IF
+          ELSEIF INSTR(##allStrArr$, ":" + nm$ + ":") > 0 AND INSTR(##strDual$, ":" + nm$ + ":") > 0 AND INSTR(##strUbDual$, ":" + nm$ + ":") = 0 AND RIGHT$(nm$, 1) = "$" AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
+            ' Dual-use string arrays need the scalar facet and the _arr heap
+            ' pointer even in functions that only use the name (no local DIM).
+            IF INSTR(out$, " " + c_var_name$(nm$, "string") + " = xb_str(") = 0 THEN
+              out$ = out$ + "    char* " + c_var_name$(nm$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
+            END IF
+            IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + "_arr = 0;") = 0 THEN
+              out$ = out$ + "    char** " + c_var_name$(nm$, "string") + "_arr = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + "_arr = -1;" + CHR$(10)
             END IF
           ELSEIF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 AND INSTR(##allStrArr$, ":" + nm$ + ":") = 0 AND INSTR(##dynNames$, ":" + nm$ + ":") = 0 AND ty$ = "string" THEN
             IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
@@ -6594,6 +6625,13 @@ FUNCTION arr_acc_name$(n$, t$)
     arr_acc_name$ = "xb_str_" + sanitize_dual$(n$) + "_arr"
     RETURN arr_acc_name$
   END IF
+  ' allStrArr names use direct char** storage (matching the DIM handler at
+  ' ~7846 and the hoist at ~5150), not the dual _arr facet. strDual names
+  ' keep the scalar + _arr split via bd$ below.
+  IF INSTR(##allStrArr$, ":" + n$ + ":") > 0 AND INSTR(##strDual$, ":" + n$ + ":") = 0 THEN
+    arr_acc_name$ = c_var_name$(n$, t$)
+    RETURN arr_acc_name$
+  END IF
   arr_acc_name$ = c_var_name$(n$, t$) + bd$(n$)
 END FUNCTION
 
@@ -6868,6 +6906,13 @@ FUNCTION ub_ref$(n$, t$)
   END IF
   IF INSTR(##strUbDual$, ":" + n$ + ":") > 0 AND (INSTR(##dynStr$, ":" + n$ + ":") > 0 OR INSTR(##byrefStrArr$, ":" + n$ + ":") > 0) THEN
     ub_ref$ = "xb_ub_" + sanitize_dual$(n$) + "_arr"
+    RETURN ub_ref$
+  END IF
+  ' allStrArr names use direct xb_ub_<name> (matching the DIM handler at
+  ' ~7846 and the hoist at ~5150), not the dual _arr cell. strDual names
+  ' keep the _arr UBOUND cell via bd$ below.
+  IF INSTR(##allStrArr$, ":" + n$ + ":") > 0 AND INSTR(##strDual$, ":" + n$ + ":") = 0 THEN
+    ub_ref$ = "xb_ub_" + sanitize_ident$(n$)
     RETURN ub_ref$
   END IF
   ub_ref$ = "xb_ub_" + sanitize_ident$(n$) + bd$(n$)
@@ -7852,7 +7897,7 @@ FUNCTION emit_stmt$(s$)
       END IF
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
         emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = 0; " + ub_ref$(varName$, varType$) + " = -1;"
-      ELSEIF (varType$ <> "string" AND INSTR(##dynNames$, ":" + varName$ + ":") > 0) OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(##byrefDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
+      ELSEIF (varType$ <> "string" AND INSTR(##dynNames$, ":" + varName$ + ":") > 0) OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(##byrefDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
         ' ##dynNames$ holds integer/float dyn arrays only (scan_dyn$ and the
         ' facet additions both skip string types); a same-named string scalar
         ' (xui: `image$` in AppearanceCode vs `DIM image[]` in XuiSetImage) is a
@@ -7886,7 +7931,7 @@ FUNCTION emit_stmt$(s$)
     spacePos = INSTR(tmp$, "= ", bracketPos + 1)
     right$ = MID$(tmp$, spacePos + 2, LEN(tmp$) - spacePos - 1)
     c2$ = emit_expr$(right$)
-    IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 THEN
+    IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 THEN
       IF varType$ = "string" AND INSTR(cExpr$, ",") = 0 THEN
         IF INSTR(##sharedDecls$, ":" + varName$ + ":") > 0 THEN
           emit_stmt$ = "    xb_setch(xb_shared_" + sanitize_ident$(varName$) + ", " + emit_expr$(cExpr$) + ", " + c2$ + ");"
@@ -7917,8 +7962,8 @@ FUNCTION emit_stmt$(s$)
         ' (c_emit_stmt.rs) and the interpreter's auto-vivify. Required once an
         ' unsized `DIM x[]` resets the pointer to the empty state. Scoped to
         ' the heap-pointer sets whose hoist declares `T* p = 0; ub = -1`
-        ' (##dynNames$ / ##dynStr$); shared globals, array params and
-        ' fixed-native strUbDual VLAs are not realloc targets.
+        ' (##dynNames$ / ##dynStr$ / ##allStrArr$); shared globals, array
+        ' params and fixed-native strUbDual VLAs are not realloc targets.
         DIM _avGuard$
         DIM _avPtr$
         DIM _avUb$
@@ -7926,7 +7971,7 @@ FUNCTION emit_stmt$(s$)
         DIM _avFill$
         _avGuard$ = ""
         IF INSTR(cExpr$, ",") = 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) = 0 AND INSTR(##strUbDual$, ":" + varName$ + ":") = 0 THEN
-          IF (varType$ = "string" AND INSTR(##dynStr$, ":" + varName$ + ":") > 0) OR (varType$ <> "string" AND INSTR(##dynNames$, ":" + varName$ + ":") > 0) THEN
+          IF (varType$ = "string" AND (INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0)) OR (varType$ <> "string" AND INSTR(##dynNames$, ":" + varName$ + ":") > 0) THEN
             _avPtr$ = arr_acc_name$(varName$, varType$)
             _avUb$ = ub_ref$(varName$, varType$)
             _avIdx$ = emit_expr$(cExpr$)

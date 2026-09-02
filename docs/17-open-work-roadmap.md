@@ -14,12 +14,17 @@
 > file-scope block uses); named lock added to
 > `native_pipeline::native_compiler_emits_cgen_ir_for_cgen` (cgen3(cgen.x IR)
 > == cgen1(cgen.x IR)); `checks/verify-bootstrap.sh` hard gate restored.
-> The same-day unsized-array/facet slice now preserves `DIM a[]` in Text IR,
+> The same-day unsized-array/facet slice preserves `DIM a[]` in Text IR,
 > locks empty → auto-grow/zero-fill → reset behavior across interpreter,
 > CEmitter, and cgen.x, and measures the scanner/facet gap over 234 programs.
-> `checks/validate-all.sh` passes **310 tests across 40 binaries**;
+> The follow-on allStrArr facet-driven migration slice makes cgen.x consume
+> facet headers for `##allStrArr$` when facets are present (falling back to
+> `scan_all_strarr$` for headerless producers), adds a scanner-hostile
+> three-engine behavior lock, and fixes `arr_acc_name$`/`ub_ref$` to use
+> direct `char**`/`xb_ub_` naming for non-strDual allStrArr members.
+> `checks/validate-all.sh` passes **311 tests across 40 binaries**;
 > `checks/verify-bootstrap.sh` is green, including `cgen_cemitter_sync`
-> **65/65**. The LLVM feature gate passes **144 tests** with one documented
+> **66/66**. The LLVM feature gate passes **144 tests** with one documented
 > ignore. Remaining known non-green: none in the default gates. Advisory only:
 > LLVM backend lacks `INLINE$` and kernel32 I/O (`ahello.x` skipped,
 > `llvm_backend_kernel32_stdio` ignored with reason).
@@ -221,7 +226,7 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | **done** | **~~CGEN-POSITIVE-FILEIO~~ closed 2026-09-02** | `cemitter_and_cgen_agree_on_positive_corpus` ok (byte-identical) `[verified 2026-09-02]` |
 | **done** | **~~CGEN-SUBADDR-TYPING~~ done `bc45ff9`** — parser keeps all prefix `&` as SUBADDR; CEmitter/cgen.x emit strings as managed `char*`, numerics as `((intptr_t)&x)`; interp `unwrap_byref` | `cgen_cemitter_sync` 65/65, `cgen_demo_regression` 27/27, `multi_lib_integration` `[verified 2026-09-02]` |
 | **done** | **~~CGEN-SELF-MASK~~ fixed 2026-09-02** — per-function `tool`/`window` masks gated on `##sharedArrays$` instead of `fullBody$` text | `native_pipeline` self-fixed-point lock (fails on the pre-fix cgen.x at line 2466, passes after); `verify-bootstrap.sh` cgen1==cgen2 hard gate; 15/15 libs, 114/114 demos, positive corpus, bootstrap `IR_IDENTICAL` all green |
-| **M1 architecture — measured** | **CGEN-FACET-RETIREMENT — retire `allStrArr` next; keep `strDual`/`sharedArrays`/`xstArrays` until their contracts are complete** | 234-program ratchet: `allStrArr` scanner-only/facet-only **0/0** (exact replacement); `strDual` **0/187** because facet `dual=1` is use-based, not the DIM-based scanner fact; `xstArrays` has **4/0** shared/param exceptions. Delete only the proven `allStrArr` scanner+fallback, then re-run raw demos, 15 libraries, positive corpus, bootstrap, and 65/65 sync. |
+| **M1 architecture — in progress** | **CGEN-FACET-RETIREMENT — `allStrArr` facet-driven consumption landed; scanner kept as headerless fallback. `arr_acc_name$`/`ub_ref$` fixed for non-strDual allStrArr naming. `strDual`+`allStrArr` used$ hoist added. Next: retire `scan_all_strarr$` after golden regeneration, then tackle `strDual`/`xstArrays`** | 234-program ratchet: `allStrArr` scanner-only/facet-only **0/0** (exact replacement); `strDual` **0/187** (facet `dual=1` is use-based, not DIM-based); `xstArrays` **4/0** (shared/param exceptions). Scanner-hostile lock `cemitter_and_cgen_agree_on_all_strarr_facet_without_dim_shape` proves facet path works without DIM brackets. Verified: 311/311 gates, 66/66 sync, 15/15 libs, 114/114 demos, bootstrap `ok`. |
 | **gated design** | **CGEN-MODULARITY-GATE — choose physical boundaries only after scanner retirement** | reduced dependency graph measured; fragments vs native multi-unit vs retained single file decided with falsifiable tests; no mechanism pre-approved |
 | **test architecture** | **TEST-DIFFERENTIAL-MATRIX — assign each suite to a named contract and improve three-engine diagnostic locality** | docs/20 matrix covered; existing pairwise assertions retained until any consolidation proves equal behavior coverage and no worse runtime/diagnostics |
 | **done** | **RR-02 ARY composite descriptor — shared `ARY_VAR_DATA` member arrays now forward as `T*` (shared `T*` globals) and both ARY sources are cc-clean** | `xbsourcelib_ary_compiles_clean` 2/2, workspace 308/0 |
