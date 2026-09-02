@@ -1743,7 +1743,11 @@ WHILE pos <= LEN(src$)
               fullBody$ = "    intptr_t xb_var_found = 0;" + CHR$(10) + fullBody$
             END IF
           END IF
-          IF INSTR(fullBody$, "xb_var_tool[") > 0 OR INSTR(fullBody$, "xb_var_tool = calloc") > 0 THEN
+          ' Gate on the program's shared-array facts (same fact as the file-scope
+          ' tool/window block): a body-text-only gate self-triggers when cgen.x
+          ' compiles itself (these very string literals live in this function's
+          ' body), breaking the cgen1==cgen2 bootstrap fixed point.
+          IF INSTR(##sharedArrays$, ":tool:") > 0 AND (INSTR(fullBody$, "xb_var_tool[") > 0 OR INSTR(fullBody$, "xb_var_tool = calloc") > 0) THEN
             fullBody$ = replace$(fullBody$, "xb_str_tool_s", "##STR_TOOL_S##")
             fullBody$ = replace$(fullBody$, "xb_ub_tool_s", "##UB_TOOL_S##")
             fullBody$ = replace$(fullBody$, "xb_d1_tool_s", "##D1_TOOL_S##")
@@ -1758,12 +1762,12 @@ WHILE pos <= LEN(src$)
             fullBody$ = replace$(fullBody$, "##UB_TOOL_S##", "xb_ub_tool_s")
             fullBody$ = replace$(fullBody$, "##D1_TOOL_S##", "xb_d1_tool_s")
           END IF
-          IF INSTR(fullBody$, "xb_var_tool") > 0 THEN
+          IF INSTR(##sharedArrays$, ":tool:") > 0 AND INSTR(fullBody$, "xb_var_tool") > 0 THEN
             IF INSTR(fullBody$, "intptr_t xb_var_tool = 0;") = 0 THEN
               fullBody$ = "    intptr_t xb_var_tool = 0;" + CHR$(10) + fullBody$
             END IF
           END IF
-          IF INSTR(fullBody$, "xb_var_window[") > 0 OR INSTR(fullBody$, "xb_var_window =") > 0 THEN
+          IF INSTR(##sharedArrays$, ":window:") > 0 AND (INSTR(fullBody$, "xb_var_window[") > 0 OR INSTR(fullBody$, "xb_var_window =") > 0) THEN
             fullBody$ = replace$(fullBody$, "xb_str_window_s", "##STR_WIN_S##")
             fullBody$ = replace$(fullBody$, "xb_ub_window_s", "##UB_WIN_S##")
             fullBody$ = replace$(fullBody$, "xb_d1_window_s", "##D1_WIN_S##")
@@ -1795,7 +1799,7 @@ WHILE pos <= LEN(src$)
             fullBody$ = replace$(fullBody$, "##WIN_DISP##", "xb_str_windowDisplay")
             fullBody$ = replace$(fullBody$, "##UB_WIN_DISP##", "xb_ub_windowDisplay")
           END IF
-          IF INSTR(fullBody$, "xb_var_window") > 0 AND INSTR(CHR$(10) + ##curParams$ + CHR$(10), CHR$(10) + "window" + CHR$(10)) = 0 THEN
+          IF INSTR(##sharedArrays$, ":window:") > 0 AND INSTR(fullBody$, "xb_var_window") > 0 AND INSTR(CHR$(10) + ##curParams$ + CHR$(10), CHR$(10) + "window" + CHR$(10)) = 0 THEN
             IF INSTR(fullBody$, "intptr_t xb_var_window = 0;") = 0 AND INSTR(fullBody$, "intptr_t* xb_var_window") = 0 THEN
               fullBody$ = "    intptr_t xb_var_window = 0;" + CHR$(10) + fullBody$
             END IF

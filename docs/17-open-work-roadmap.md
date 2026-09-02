@@ -5,15 +5,18 @@
 > M1–M6 milestones. `[verified <date>]` means a named command was re-run;
 > `[carried]` means retained historical evidence.
 >
-> **Current active regression ledger (2026-09-01):**
-> - **CGEN-LABEL-EMIT:** the latest targeted release run passed
->   `cemitter_compiles_gtk_and_helpsrc_clean` and failed
->   `cgen_x_compiles_all_demos_cc_clean` for 21 demos on undeclared generated
->   labels such as `xb_label_Create`.
-> - **CGEN-POSITIVE-FILEIO:** the positive-corpus `fileio_test` golden mismatch
->   is under investigation.
-> - **CGEN-SUBADDR-TYPING:** the CEmitter needs type-aware SUBADDR lowering
->   while the parser continues to represent all prefix `&` forms as SUBADDR.
+> **Current active regression ledger (2026-09-02):** all three 2026-09-01
+> repair rows are closed by re-executed gates — see the queue below. Newly
+> found and fixed the same day: **CGEN-SELF-MASK** (cgen.x `54db874`'s
+> per-function `tool`/`window` masks were gated on body *text*, so cgen.x
+> rewrote its own string literals when compiling itself; cgen1 C != cgen2 C
+> since 2026-08-29). Fix: gate on `##sharedArrays$` (the same fact the
+> file-scope block uses); named lock added to
+> `native_pipeline::native_compiler_emits_cgen_ir_for_cgen` (cgen3(cgen.x IR)
+> == cgen1(cgen.x IR)); `checks/verify-bootstrap.sh` hard gate restored.
+> Remaining known non-green: none in the default gates. Advisory only:
+> LLVM backend lacks `INLINE$` and kernel32 I/O (`ahello.x` skipped,
+> `llvm_backend_kernel32_stdio` ignored with reason).
 >
 > These active results supersede any unqualified current-green reading of the
 > dated snapshot below. They do not invalidate unrelated historical evidence.
@@ -208,9 +211,10 @@ sections below or the named sibling docs; ✅-done items are omitted.
 
 | Order / track | Job | Exit gate |
 |---|---|---|
-| **active repair** | **CGEN-LABEL-EMIT — emit every referenced `xb_label_*` definition in raw cgen output** | `cgen_x_compiles_all_demos_cc_clean` returns green without C rewrites; add a focused referenced-label/definition contract |
-| **active repair** | **CGEN-POSITIVE-FILEIO — resolve the `fileio_test` golden mismatch at the behavioral source** | positive-corpus behavior and its narrow C-identity lock pass without weakening assertions |
-| **active repair** | **CGEN-SUBADDR-TYPING — keep broad parser SUBADDR representation; lower strings as managed pointers and numeric objects as addresses** | targeted `kernel32_*`/address tests and full `cgen_cemitter_sync` pass; no parser input-shape exception |
+| **done** | **~~CGEN-LABEL-EMIT~~ closed 2026-09-02** | `cgen_x_compiles_all_demos_cc_clean` ok (raw, 114/114) `[verified 2026-09-02]` |
+| **done** | **~~CGEN-POSITIVE-FILEIO~~ closed 2026-09-02** | `cemitter_and_cgen_agree_on_positive_corpus` ok (byte-identical) `[verified 2026-09-02]` |
+| **done** | **~~CGEN-SUBADDR-TYPING~~ done `bc45ff9`** — parser keeps all prefix `&` as SUBADDR; CEmitter/cgen.x emit strings as managed `char*`, numerics as `((intptr_t)&x)`; interp `unwrap_byref` | `cgen_cemitter_sync` 64/64, `cgen_demo_regression` 27/27, `multi_lib_integration` `[verified 2026-09-02]` |
+| **done** | **~~CGEN-SELF-MASK~~ fixed 2026-09-02** — per-function `tool`/`window` masks gated on `##sharedArrays$` instead of `fullBody$` text | `native_pipeline` self-fixed-point lock (fails on the pre-fix cgen.x at line 2466, passes after); `verify-bootstrap.sh` cgen1==cgen2 hard gate; 15/15 libs, 114/114 demos, positive corpus, bootstrap `IR_IDENTICAL` all green |
 | **M1 architecture** | **CGEN-FACET-RETIREMENT — replace `strDual`/`allStrArr`/`sharedArrays`/`xstArrays` inference with scope-qualified facts** | direct facet contracts plus raw demos, 15 libraries, positive corpus, and bootstrap pass; replaced scanners/fallbacks deleted |
 | **gated design** | **CGEN-MODULARITY-GATE — choose physical boundaries only after scanner retirement** | reduced dependency graph measured; fragments vs native multi-unit vs retained single file decided with falsifiable tests; no mechanism pre-approved |
 | **test architecture** | **TEST-DIFFERENTIAL-MATRIX — assign each suite to a named contract and improve three-engine diagnostic locality** | docs/20 matrix covered; existing pairwise assertions retained until any consolidation proves equal behavior coverage and no worse runtime/diagnostics |

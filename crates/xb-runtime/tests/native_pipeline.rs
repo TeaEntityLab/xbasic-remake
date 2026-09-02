@@ -132,5 +132,41 @@ fn native_compiler_emits_cgen_ir_for_cgen() {
         "cgen3 output differs from cgen1"
     );
 
+    // Self-compilation fixed point: cgen3 (built from cgen1's C for cgen.x)
+    // must emit byte-identical C for cgen.x itself. A trivial program above
+    // cannot detect a generator that rewrites only its own body (e.g. a
+    // whole-body substring mask that matches its own string literals).
+    let mut c3_self = Command::new(common::exe_path(&cgen3_exe))
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn cgen3 on cgen.x IR");
+    if let Some(mut stdin) = c3_self.stdin.take() {
+        stdin
+            .write_all(native_cgen_ir.as_bytes())
+            .expect("write IR");
+    }
+    let c3_self_out = c3_self.wait_with_output().expect("wait");
+    assert!(c3_self_out.status.success(), "cgen3 failed on cgen.x IR");
+    if c3_self_out.stdout != cgen1_out.stdout {
+        let c1: Vec<&[u8]> = cgen1_out.stdout.split(|&b| b == b'\n').collect();
+        let c3: Vec<&[u8]> = c3_self_out.stdout.split(|&b| b == b'\n').collect();
+        let first = c1
+            .iter()
+            .zip(c3.iter())
+            .position(|(a, b)| a != b)
+            .unwrap_or(c1.len().min(c3.len()));
+        panic!(
+            "cgen self-compilation drift: cgen1 C != cgen3 C for cgen.x \
+             ({} vs {} lines; first differing line {}):\n  cgen1: {}\n  cgen3: {}",
+            c1.len(),
+            c3.len(),
+            first + 1,
+            String::from_utf8_lossy(c1.get(first).copied().unwrap_or(b"<eof>")),
+            String::from_utf8_lossy(c3.get(first).copied().unwrap_or(b"<eof>")),
+        );
+    }
+
     let _ = fs::remove_dir_all(&tmp);
 }

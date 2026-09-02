@@ -129,6 +129,6 @@ printf '%s' "$CGEN1_C" > "$TMPDIR_NBP/cgen1.c"
 CGEN2_C="$(printf '%s' "$CGEN_IR" | "$TMPDIR_NBP/cgen2" 2>/dev/null)" \
   || fail "cgen2 failed to compile cgen.x IR"
 [ "$CGEN1_C" = "$CGEN2_C" ] \
-  || echo "verify-bootstrap: advisory: cgen1 C != cgen2 C (pre-existing self-compilation drift in ##STR_TOOL_S## marker resolution)"
+  || fail "cgen1 C != cgen2 C (cgen self-compilation drift)"
 
 echo "verify-bootstrap: ok"
