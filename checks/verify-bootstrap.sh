@@ -13,7 +13,7 @@ cargo check --workspace
 cargo test --workspace
 cargo clippy --workspace --all-targets
 
-[ ! -e xbasic ] || fail "nested xbasic/ must not exist"
+# xbasic/ is now a tracked source tree (commit a0eb09a), not a nested copy.
 ! grep -RIn 'xbasic-6\.5\.0' docs >/tmp/xbasic-verify-docrefs.txt 2>&1 || {
   cat /tmp/xbasic-verify-docrefs.txt >&2
   fail "docs still reference nested xbasic"

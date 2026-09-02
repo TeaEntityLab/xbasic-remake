@@ -10,7 +10,7 @@
 //! deferred as COMPOSITE-ARR-BYREF/CGEN-FACET-MANIFEST.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 use xb_compiler::{CEmitter, FrontendUnit};
@@ -44,7 +44,7 @@ fn compile_and_run(c: &[u8], tmp: &Path, name: &str) -> String {
 
 #[test]
 fn local_dyn_string_array_ubound_and_redim() {
-    let tmp = PathBuf::from(std::env::temp_dir().join("xb_local_array_behavior"));
+    let tmp = std::env::temp_dir().join("xb_local_array_behavior");
     let _ = fs::remove_dir_all(&tmp);
     fs::create_dir_all(&tmp).unwrap();
 
@@ -113,7 +113,7 @@ END FUNCTION
 
 #[test]
 fn local_dyn_integer_array_redim_preserves() {
-    let tmp = PathBuf::from(std::env::temp_dir().join("xb_local_int_array"));
+    let tmp = std::env::temp_dir().join("xb_local_int_array");
     let _ = fs::remove_dir_all(&tmp);
     fs::create_dir_all(&tmp).unwrap();
 
@@ -154,7 +154,7 @@ END FUNCTION
 
 #[test]
 fn local_fixed_2d_array_row_major() {
-    let tmp = PathBuf::from(std::env::temp_dir().join("xb_local_2d"));
+    let tmp = std::env::temp_dir().join("xb_local_2d");
     let _ = fs::remove_dir_all(&tmp);
     fs::create_dir_all(&tmp).unwrap();
 
