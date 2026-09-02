@@ -81,10 +81,13 @@ Work packages (canonical open rows live in docs/17):
    facts for `strDual`, `allStrArr`, `sharedArrays`, and `xstArrays`; add direct
    nested/shared/composite facet contracts; delete each replaced scanner and
    fallback together.
-3. **Close storage and call ABI behavior.** Re-measure `SHARED a[]`/`#name[]`,
-   by-ref descriptors including REDIM-through-byref, composite by-value and
-   return paths, and AT-write byte semantics with interpreter/CEmitter/cgen
-   probes. General composite-array by-ref remains governed by docs/18.
+3. **Close storage and call ABI behavior.** 1-D and 2-D `SHARED` heap-globals
+   are locked (`cemitter_and_cgen_agree_on_shared_array_cross_function`,
+   `cemitter_and_cgen_agree_on_shared_2d_array_cross_function`). Remaining:
+   re-measure `#name[]`, by-ref descriptors including REDIM-through-byref,
+   composite by-value and return paths, and AT-write byte semantics with
+   interpreter/CEmitter/cgen probes. General composite-array by-ref remains
+   governed by docs/18.
 4. **Resolve remaining memory/runtime contracts.** Decide real `ATTACH`
    aliasing versus the documented bounded copy model, and implement required
    C-library time/file helpers against observable programs rather than stubs.

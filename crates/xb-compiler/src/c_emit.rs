@@ -32,6 +32,11 @@ thread_local! {
     /// pointer/`xb_ub_` cell take the `_arr` suffix so emit_globals matches
     /// every access site (xit `lineLast` / `funcAfterAddr`).
     static SHARED_DUAL: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
+    /// Program-wide multi-dim shapes for SHARED arrays. `FN_ARRAY_DIMS` only
+    /// records shapes `Dim`'d in the current function, so a Helper that only
+    /// says `SHARED g[]` would otherwise emit first-index-only access while
+    /// Main (which `DIM g[2,2]`) flattens — interpreter keeps one shape.
+    static SHARED_ARRAY_DIMS: RefCell<HashMap<String, Vec<IrExpr>>> = RefCell::new(HashMap::new());
     /// Per-function emit context: array names referenced but never `Dim`'d in the
     /// current function (auto-vivified — reads fold to the type default like the
     /// interpreter's missing-slot path), and the labels the current C function
@@ -308,6 +313,11 @@ fn set_defined_funcs(program: &IrProgram) {
             SHARED_DUAL.with(|d| d.borrow_mut().retain(|n| m.contains_key(n)));
         }
     });
+    SHARED_ARRAY_DIMS.with(|s| {
+        let mut m = s.borrow_mut();
+        m.clear();
+        collect_shared_array_dims(&program.items, &mut m);
+    });
 }
 
 /// Check if a function is user-defined in the current translation unit.
@@ -354,6 +364,23 @@ fn collect_shared_arrays(items: &[IrItem], out: &mut HashMap<String, crate::Valu
             }
             IrItem::Compound(items) => collect_shared_arrays(items, out),
             _ => {}
+        }
+    }
+}
+
+/// Program-wide multi-dim shapes of SHARED arrays. Walks every function body
+/// so Helper's `SHARED g[]` (no local DIM) still flattens `g[i,j]` with the
+/// shape from Main's `DIM g[d1,d2]`.
+fn collect_shared_array_dims(items: &[IrItem], out: &mut HashMap<String, Vec<IrExpr>>) {
+    for item in items {
+        if let IrItem::Function { body, .. } = item {
+            let mut local = HashMap::new();
+            crate::c_emit_hoist::collect_array_dims(body, &mut local);
+            for (name, dims) in local {
+                if is_shared_array(&name) && dims.len() >= 2 {
+                    out.entry(name).or_insert(dims);
+                }
+            }
         }
     }
 }
@@ -583,6 +610,10 @@ fn collect_program_dual_use(items: &[IrItem], out: &mut HashSet<String>) {
 /// their array facet uses `_arr` (`is_shared_dual`).
 pub(crate) fn is_shared_array(name: &str) -> bool {
     SHARED_ARRAYS.with(|s| s.borrow().contains_key(name))
+}
+
+fn shared_array_dims(name: &str) -> Option<Vec<IrExpr>> {
+    SHARED_ARRAY_DIMS.with(|s| s.borrow().get(name).cloned())
 }
 
 /// True if `name` is a shared array that is also used as a scalar somewhere
@@ -1258,7 +1289,14 @@ pub(crate) fn emit_array_subscript(
     out: &mut String,
 ) {
     if !extra_indices.is_empty() {
-        if let Some(dims) = array_dims(name) {
+        let dims = array_dims(name).or_else(|| {
+            if is_shared_array(name) {
+                shared_array_dims(name)
+            } else {
+                None
+            }
+        });
+        if let Some(dims) = dims {
             if dims.len() == 1 + extra_indices.len() {
                 let mut indices: Vec<&IrExpr> = Vec::with_capacity(dims.len());
                 indices.push(index);

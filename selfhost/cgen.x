@@ -7723,7 +7723,12 @@ FUNCTION emit_stmt$(s$)
       END IF
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
         IF bracketPos > 0 THEN
-          IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
+          IF LEN(trim_spaces$(arrSize$)) = 0 THEN
+            ' Unsized SHARED g[] is a declaration of the file-scope heap
+            ' global, not an allocate/reset. calloc(1) here wipes the
+            ' cross-function array (Helper after Main's DIM g[2,2]).
+            emit_stmt$ = ""
+          ELSEIF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
             emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)(" + ub_ref$(varName$, varType$) + " + 1), sizeof(" + c_type$(varType$) + ")); if (!" + arr_acc_name$(varName$, varType$) + ") abort(); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
           ELSE
             cExpr$ = emit_expr$(arrSize$)

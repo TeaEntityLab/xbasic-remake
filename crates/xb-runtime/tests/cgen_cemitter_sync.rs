@@ -3137,6 +3137,67 @@ fn cemitter_and_cgen_agree_on_shared_array_cross_function() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// CGEN-SHARED-ARR-SELFHOST multi-dim: a `SHARED g[]` + `DIM g[d1,d2]` heap global is
+/// flattened row-major (`i*(d1+1)+j`) in both C backends, matching the interpreter.
+/// Helper's write to `g[1,1]` must be visible in Main. The 1-D lock above does not
+/// cover `xb_d1_*` file-scope stride or `emit_flat2d$`.
+#[test]
+fn cemitter_and_cgen_agree_on_shared_2d_array_cross_function() {
+    let tmp = std::env::temp_dir().join("xb_sync_sharedarr2d");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"sa2\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main ()\n",
+        "SHARED g[]\n",
+        "DIM g[2, 2]\n",
+        "g[0, 1] = 3\n",
+        "Helper()\n",
+        "PRINT g[1, 1]\n",
+        "PRINT g[0, 1]\n",
+        "PRINT g[0, 0]\n",
+        "END FUNCTION\n",
+        "FUNCTION Helper ()\n",
+        "SHARED g[]\n",
+        "g[1, 1] = 9\n",
+        "g[0, 0] = 7\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse shared 2d array program")
+        .lower_ir()
+        .expect("lower shared 2d array program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "sharr2d_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "sharr2d_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret shared 2d array program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "9\n3\n7\n",
+        "shared 2d array cross-function reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled the shared 2d array"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled the shared 2d array (flatten/stride or heap global)"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Function-address id (CGEN-FUNCADDR): `&Func` / `funcaddr(Func)` is a synthetic
 /// 1-based id in program declaration order (interp eval.rs `function_id`; Rust/LLVM
 /// match), NOT a machine address. cgen.x folded it to 0 (no handler); it now returns
