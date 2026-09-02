@@ -22,9 +22,9 @@
 > `scan_all_strarr$` for headerless producers), adds a scanner-hostile
 > three-engine behavior lock, and fixes `arr_acc_name$`/`ub_ref$` to use
 > direct `char**`/`xb_ub_` naming for non-strDual allStrArr members.
-> `checks/validate-all.sh` passes **314 tests across 40 binaries**;
+> `checks/validate-all.sh` passes **315 tests across 40 binaries**;
 > `checks/verify-bootstrap.sh` is green, including `cgen_cemitter_sync`
-> **69/69**. The LLVM feature gate passes **144 tests** with one documented
+> **70/70**. The LLVM feature gate passes **144 tests** with one documented
 > ignore. Remaining known non-green: none in the default gates. Advisory only:
 > LLVM backend lacks `INLINE$` and kernel32 I/O (`ahello.x` skipped,
 > `llvm_backend_kernel32_stdio` ignored with reason).
@@ -229,7 +229,8 @@ sections below or the named sibling docs; ✅-done items are omitted.
 | **done** | **~~CGEN-SHARED-ARR-SELFHOST 2-D~~ locked 2026-09-02** — CEmitter looks up SHARED array shapes program-wide so Helper flattens `g[i,j]`; cgen.x unsized `dim shared g[]` is a no-op (does not calloc(1) and wipe the heap global) | `cemitter_and_cgen_agree_on_shared_2d_array_cross_function`; 1-D lock retained |
 | **done** | **~~CGEN-HASH-SHARED-ARR~~ locked 2026-09-02** — `DIM #g[n]` / `#g[i]` is the same file-scope heap global as keyword `SHARED g[]`; Helper writes are visible in Main | `cemitter_and_cgen_agree_on_hash_shared_array_cross_function` |
 | **done** | **~~CGEN-AT-WRITE-BYTES~~ locked 2026-09-02** — `addr = &temp$$` + `UBYTEAT(addr, off) = val` writes GIANT bytes (little-endian 1,2,3,4 → 67305985) in interp, CEmitter, and cgen.x. The null-addr no-op remains `cemitter_and_cgen_agree_on_builtin_assign`. | `cemitter_and_cgen_agree_on_at_write_real_memory` |
-| **M1 architecture — in progress** | **CGEN-FACET-RETIREMENT — `allStrArr` facet-driven consumption landed; scanner kept as headerless fallback. Cannot delete `scan_all_strarr$` until compiler.x emits facets (bootstrap IR_IDENTICAL). Next: `strDual`/`xstArrays`.** | 234-program ratchet: `allStrArr` 0/0; `strDual` 0/187; `xstArrays` 4/0. Headerless producer (compiler.x `--emit-ir`) is the cutover blocker. Verified: 314/314 gates target, 69/69 sync, 15/15 libs, 114/114 demos. |
+| **done** | **~~CGEN-COMPOSITE-BYVAL~~ locked 2026-09-02** — `TYPE` params passed without `@` are copies: `Mutate(p)` does not write back; `Sum(p)` still sees the caller's members. Complementary to `cgen_matches_interpreter_on_byref_writeback`. | `cemitter_and_cgen_agree_on_composite_by_value_param` |
+| **M1 architecture — in progress** | **CGEN-FACET-RETIREMENT — `allStrArr` facet-driven consumption landed; scanner kept as headerless fallback. Cannot delete `scan_all_strarr$` until compiler.x emits facets (bootstrap IR_IDENTICAL). Next: `strDual`/`xstArrays`.** | 234-program ratchet: `allStrArr` 0/0; `strDual` 0/187; `xstArrays` 4/0. Headerless producer (compiler.x `--emit-ir`) is the cutover blocker. Verified: 315/315 gates target, 70/70 sync, 15/15 libs, 114/114 demos. |
 | **gated design** | **CGEN-MODULARITY-GATE — choose physical boundaries only after scanner retirement** | reduced dependency graph measured; fragments vs native multi-unit vs retained single file decided with falsifiable tests; no mechanism pre-approved |
 | **test architecture** | **TEST-DIFFERENTIAL-MATRIX — assign each suite to a named contract and improve three-engine diagnostic locality** | docs/20 matrix covered; existing pairwise assertions retained until any consolidation proves equal behavior coverage and no worse runtime/diagnostics |
 | **done** | **RR-02 ARY composite descriptor — shared `ARY_VAR_DATA` member arrays now forward as `T*` (shared `T*` globals) and both ARY sources are cc-clean** | `xbsourcelib_ary_compiles_clean` 2/2, workspace 308/0 |

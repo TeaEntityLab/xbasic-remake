@@ -88,10 +88,14 @@ Work packages (canonical open rows live in docs/17):
    `cemitter_and_cgen_agree_on_hash_shared_array_cross_function`).
    AT-write byte semantics through `&var` + `UBYTEAT` are locked
    (`cemitter_and_cgen_agree_on_at_write_real_memory`; the null-addr no-op
-   remains `cemitter_and_cgen_agree_on_builtin_assign`). Remaining:
-   by-ref descriptors including REDIM-through-byref (minimal lock exists)
-   and composite by-value and return paths. General composite-array by-ref
-   remains governed by docs/18.
+   remains `cemitter_and_cgen_agree_on_builtin_assign`). Composite by-value
+   `TYPE` params are locked
+   (`cemitter_and_cgen_agree_on_composite_by_value_param`; complementary
+   `@p` write-back remains `cgen_matches_interpreter_on_byref_writeback`).
+   Remaining: by-ref descriptors including REDIM-through-byref (minimal lock
+   exists) and user-TYPE composite return paths (DCOMPLEX/SCOMPLEX returns
+   already covered by RR-08a). General composite-array by-ref remains
+   governed by docs/18.
 4. **Resolve remaining memory/runtime contracts.** Decide real `ATTACH`
    aliasing versus the documented bounded copy model, and implement required
    C-library time/file helpers against observable programs rather than stubs.
