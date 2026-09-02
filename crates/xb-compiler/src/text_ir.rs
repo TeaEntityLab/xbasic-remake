@@ -555,7 +555,13 @@ impl TextIrEmitter {
                         ));
                     }
                     None => {
-                        if *is_array && *shared {
+                        // An unsized array DIM (`DIM a[]`) keeps its `[]`: the
+                        // scalar form `dim a:t` would be indistinguishable from
+                        // a scalar DIM, hiding `is_array` from every text-IR
+                        // consumer (cgen.x's DIM-based scanners) and from the
+                        // round-trip parser. selfhost/compiler.x already emits
+                        // `dim a:t[]` here (two-frontend IR_IDENTICAL contract).
+                        if *is_array {
                             out.push_str(&format!(
                                 "{prefix}dim {sh}{}[]\n",
                                 self.emit_symbol(symbol)

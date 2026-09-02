@@ -2644,6 +2644,65 @@ fn cemitter_and_cgen_agree_on_dyn_array() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// An unsized DIM is an observable dynamic-array operation, not a scalar DIM:
+/// it starts empty, grows through indexed writes with zero-filled intermediate
+/// elements, and a later unsized DIM resets the array to empty. The text IR
+/// must retain `[]` so cgen.x can preserve the same state transitions.
+#[test]
+fn cemitter_and_cgen_agree_on_unsized_array_growth_and_reset() {
+    let tmp = std::env::temp_dir().join("xb_sync_unsized_array");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"ua\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM a[]\n\
+               PRINT UBOUND(a)\n\
+               a[3] = 7\n\
+               PRINT UBOUND(a)\n\
+               PRINT a[0]\n\
+               PRINT a[3]\n\
+               DIM a[]\n\
+               PRINT UBOUND(a)\n\
+               a[1] = 9\n\
+               PRINT a[0]\n\
+               PRINT a[1]\n\
+               PRINT UBOUND(a)\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse unsized-array program")
+        .lower_ir()
+        .expect("lower unsized-array program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "unsized_array_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "unsized_array_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret unsized-array program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "-1\n3\n0\n7\n-1\n0\n9\n1\n",
+        "unsized-array reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled unsized-array growth or reset"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled unsized-array growth or reset"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Scalar-used dyn array (CGEN-DYN-ARRAY, extended): a name used as a bare scalar
 /// (`IF dsp == 0`, a null/allocated check) AND indexed as an array (`dsp[i]`), often
 /// used *before* its DIM, must lower to ONE dyn pointer — 0 before the DIM's calloc,

@@ -318,34 +318,31 @@ fn facet_header_covers_cgen_scanner_facts_ratchet() {
         }
     }
 
-    // Ratchet: recorded 2026-09-02 over 234 programs. Lower these when the
-    // emitter or the text IR closes a gap; never raise them.
+    // Ratchet (2026-09-02, 234 programs). `scanner-only` = facts a scanner
+    // derives that the facet header lacks; that is the retirement blocker and
+    // may only shrink. `facet-only` is a retirement metric only where the facet
+    // fact is *defined* to equal the scanner fact (allStrArr).
     //
-    // allStrArr facet-only = 21: every one is an unsized `DIM x$[]` that the
-    //   text IR emits as the scalar form `dim x$:string` (only *shared* unsized
-    //   DIMs get `[]`), so the DIM-based scanner cannot see the array. The facet
-    //   (from the IR struct, `is_array: true`) is right; the text IR is lossy.
-    // strDual: a DIM-based fact (scalar DIM + array DIM of one name) with no
-    //   emitted counterpart; facet `dual=1` is use-based, hence the two-way gap.
+    // allStrArr: exact equivalence, both directions 0. This became true once
+    //   the text IR kept `[]` on unsized non-shared array DIMs (`DIM x$[]`);
+    //   before that the scanner could not see 21 such arrays.
+    // strDual: a DIM-based fact (scalar DIM + array DIM of one string name)
+    //   with no emitted counterpart; facet `dual=1` is use-based and a
+    //   superset (scanner-only 0), so `facet-only` is reported, not ratcheted.
     // xstArrays not facet-dyn = 4: xcol `export$`/`import$`, xit `symbol$`,
     //   xui `helpText$` (shared / param arrays passed to XstQuickSort).
-    const ALLSTRARR_FACET_ONLY: usize = 21;
-    const STRDUAL_SCANNER_ONLY: usize = 21;
-    const STRDUAL_FACET_ONLY: usize = 142;
     const XST_NOT_DYN: usize = 4;
     assert!(programs >= 200, "only {programs} programs lowered");
-    // Facets already carry every string-array DIM the scanner sees: hold at 0.
     assert!(
-        all_strarr.scanner_only == 0 && all_strarr.facet_only <= ALLSTRARR_FACET_ONLY,
-        "allStrArr gap regressed: scanner-only={} facet-only={}",
+        all_strarr.scanner_only == 0 && all_strarr.facet_only == 0,
+        "allStrArr facet/scanner equivalence broken: scanner-only={} facet-only={}",
         all_strarr.scanner_only,
         all_strarr.facet_only
     );
     assert!(
-        str_dual.scanner_only <= STRDUAL_SCANNER_ONLY && str_dual.facet_only <= STRDUAL_FACET_ONLY,
-        "strDual gap regressed: scanner-only={} facet-only={}",
-        str_dual.scanner_only,
-        str_dual.facet_only
+        str_dual.scanner_only == 0,
+        "strDual: facet dual=1 no longer covers every DIM-based string dual: scanner-only={}",
+        str_dual.scanner_only
     );
     assert!(
         xst_not_dyn.scanner_only <= XST_NOT_DYN,

@@ -194,6 +194,26 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
 - **2026-08-29 (fix):** Single-line `IF..THEN..ELSE` in `selfhost/cgen.x` `host_address` hoist parsed differently by `selfhost/compiler.x` vs Rust `FrontendUnit` (ELSE attachment) — `native_pipeline` `native_compiler_emits_cgen_ir_for_cgen` diverged 6 lines. Fixed block-form `IF/ELSE/END IF` in `dedfe25`; `IR_IDENTICAL` restored. `ARCH-02` (`2b0f6ee`) `int main(int argc, char **argv)` stale asserts in `cgen_selfhost.rs:63` and `native_emit.rs:40` also fixed (`b60640a`).
 - **2026-08-28 (deferred):** `crates/xb-frontend/src/parser.rs` `DIM #name` → `dim shared` (deec869) correctly marks `DIM #OSERROR$`, `#line[]`, `#token[]` etc. as `storage=shared` (xst 20→1 error) but regresses `qbtoxb` `cgen_x_compiles_all_demos_cc_clean` 60/60→59/60 (`qbtoxb.c:2670 array subscript is not an integer` for `line` in `LoadQBasicProgram`). Root cause: `cgen.x` flattens facets globally (`##dynNames$=":line:"` substring of `":ParseSourceLine:line:"`) and emits `dim shared line` forward-decl as global `intptr_t* xb_var_line` at `1118` that collides with scalar `line` in `LoadQBasicProgram` (`FOR line`). Attempted scope-aware `is_dyn_facet$(nm,sc)` + `is_shared_facet$` with `":scope:name:"` for `dyn`/`dual`/`arr2d`/`shared` (plus `LEN(##facetTab$)=0` heuristic fallback) still left `":line:"` substring match for forward-decl and missed `##curFnName$` wiring for shared. Reverted parser to `aea801b` (`shared` only via `DIM SHARED` keyword) to keep 60/60 and 9/15; `xst` returns to 20 errors. **Deferred:** `CGEN-FACET-SCOPE` must make `##sharedArrays$`/`##dynNames$` truly per-function (no `":name:"` substring fallback when `LEN(##facetTab$)>0`, and forward-decl for `dim shared` must check any-scope via separate helper, not `is_shared_facet$` with `##curFnName$`). Until then `xst` `#OSERROR` fix and `qbtoxb` `#line[]` remain via `scan_shared_arr$` heuristic (global), not facets.
 
+- **2026-09-02 (unsized-DIM fidelity and retirement measurement):**
+  `TextIrEmitter` now retains `[]` for every unsized array DIM instead of
+  serializing it indistinguishably from a scalar DIM. cgen.x mirrors the Rust
+  storage contract: empty-bracket arrays classify as dynamic, `DIM a[]`
+  resets pointer/UBOUND state to empty, indexed writes auto-grow with
+  zero-filled intermediate elements, and numeric dyn names no longer suppress
+  a same-named string scalar declaration. The named three-engine lock
+  `cemitter_and_cgen_agree_on_unsized_array_growth_and_reset` covers UBOUND
+  `-1`, growth, zero-fill, and reset. The 234-program
+  `facet_header_covers_cgen_scanner_facts_ratchet` now measures:
+  `allStrArr` scanner-only/facet-only **0/0** (an exact facet replacement and
+  the next safe one-classifier retirement); `strDual` **0/187** (not
+  equivalent—facet `dual=1` is use-based while the scanner is DIM-based);
+  `xstArrays` **4/0** (xcol `export$`/`import$`, xit `symbol$`, xui
+  `helpText$`, all shared/param arrays rather than facet-dyn). No scanner is
+  deleted in this measurement slice. Verified 2026-09-02:
+  `checks/validate-all.sh` **310/310 across 40 binaries**,
+  `checks/verify-bootstrap.sh` `ok` including `cgen_cemitter_sync` **65/65**,
+  and the LLVM feature gate **144 passed, 1 documented ignore**.
+
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` asserts
   per-program byte-identical emitted C; the header must not break this.
 - `cgen_x_compiles_all_demos_cc_clean` is the RR-13 raw-output compile gate;

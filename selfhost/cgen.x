@@ -6064,6 +6064,14 @@ FUNCTION scan_dyn$(s$)
     p = le + 1
     IF LEFT$(ln$, 4) = "dim " THEN
       r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ' An unsized `dim X:t[]` (`DIM x[]`) establishes the variable like a scalar
+      ' DIM does — it is the "scalar facet" this dual classifier was calibrated
+      ' on while the text IR emitted unsized DIMs in scalar form. Treat it as
+      ' the scalar form here so the dyn set is unchanged; array-ness flows
+      ' through the `[` scan below (and the unsized rule there).
+      IF RIGHT$(r$, 2) = "[]" THEN
+        r$ = LEFT$(r$, LEN(r$) - 2)
+      END IF
       IF INSTR(r$, "[") = 0 THEN
         nm$ = r$
         cp = INSTR(nm$, ":")
@@ -6217,6 +6225,15 @@ FUNCTION scan_dyn$(s$)
           ' uses GOSUB (goto over VLA is illegal in C). Rust CEmitter makes these heap
           ' (dyn); mirror that.
           IF INSTR(sub$, "symbol(") > 0 OR INSTR(sub$, "shared(") > 0 OR INSTR(sub$, "call ") > 0 OR INSTR(sub$, "array_ubound") > 0 THEN
+            IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
+              res$ = res$ + ":" + nm$ + ":" + ty$ + ":"
+            END IF
+          END IF
+          ' Unsized `dim X:t[]` (`DIM x[]`: an empty growable array, UBOUND -1).
+          ' Rust's collect_dyn_names forces `unsized_arrays` dyn — a heap pointer
+          ' plus ub cell that a later sized DIM, or an auto-vivifying write,
+          ' grows. Mirror it (shared arrays keep their file-scope global path).
+          IF trim_spaces$(sub$) = "]" AND LEFT$(r$, 7) <> "shared " THEN
             IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
               res$ = res$ + ":" + nm$ + ":" + ty$ + ":"
             END IF
@@ -7046,7 +7063,7 @@ FUNCTION scan_dynstr$(s$)
             nm$ = LEFT$(nm$, e - 1)
             DIM sub2$
             sub2$ = MID$(r$, bp + 1, LEN(r$) - bp)
-            IF INSTR(sub2$, "symbol(") > 0 OR INSTR(sub2$, "shared(") > 0 OR INSTR(sub2$, "call ") > 0 OR INSTR(sub2$, "array_ubound") > 0 THEN
+            IF INSTR(sub2$, "symbol(") > 0 OR INSTR(sub2$, "shared(") > 0 OR INSTR(sub2$, "call ") > 0 OR INSTR(sub2$, "array_ubound") > 0 OR (trim_spaces$(sub2$) = "]" AND LEFT$(r$, 7) <> "shared ") THEN
               IF INSTR(res$, ":" + nm$ + ":") = 0 THEN res$ = res$ + ":" + nm$ + ":"
             END IF
           END IF
@@ -7054,7 +7071,7 @@ FUNCTION scan_dynstr$(s$)
           IF RIGHT$(nm$, 1) = "$" THEN
             DIM sub3$
             sub3$ = MID$(r$, bp + 1, LEN(r$) - bp)
-            IF INSTR(sub3$, "symbol(") > 0 OR INSTR(sub3$, "shared(") > 0 OR INSTR(sub3$, "call ") > 0 OR INSTR(sub3$, "array_ubound") > 0 THEN
+            IF INSTR(sub3$, "symbol(") > 0 OR INSTR(sub3$, "shared(") > 0 OR INSTR(sub3$, "call ") > 0 OR INSTR(sub3$, "array_ubound") > 0 OR (trim_spaces$(sub3$) = "]" AND LEFT$(r$, 7) <> "shared ") THEN
               IF INSTR(res$, ":" + nm$ + ":") = 0 THEN res$ = res$ + ":" + nm$ + ":"
             END IF
           END IF
@@ -7212,6 +7229,12 @@ FUNCTION scan_str_dual$(s$)
     IF LEFT$(ln$, 4) = "dim " THEN
       r$ = MID$(ln$, 5, LEN(ln$) - 4)
       bp = INSTR(r$, "[")
+      ' Unsized `[]` DIMs count as the scalar facet (see scan_dyn$): the dual set
+      ' must not change because the text IR now keeps `[]` on `DIM x$[]`.
+      IF RIGHT$(r$, 2) = "[]" THEN
+        r$ = LEFT$(r$, LEN(r$) - 2)
+        bp = 0
+      END IF
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
         e = INSTR(nm$, ":")
@@ -7682,6 +7705,20 @@ FUNCTION emit_stmt$(s$)
       ELSE
         varType$ = "integer"
       END IF
+      IF LEN(trim_spaces$(arrSize$)) = 0 THEN
+        ' Unsized `DIM x[]` (text IR `dim x:t[]`): mirror the Rust CEmitter
+        ' Dim `None` arms — a shared array's bare declaration is a no-op (its
+        ' storage is the file-scope global); any other array is dyn (scanner
+        ' rule above) and resets its hoisted heap pointer to the empty state
+        ' (UBOUND -1), like the interpreter's empty array. A later write grows
+        ' it through the array_assign guard.
+        IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
+          emit_stmt$ = ""
+        ELSE
+          emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = -1;" + CHR$(10) + "    " + arr_acc_name$(varName$, varType$) + " = 0;"
+        END IF
+        RETURN emit_stmt$
+      END IF
       cExpr$ = emit_expr$(arrSize$)
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
         IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
@@ -7815,7 +7852,11 @@ FUNCTION emit_stmt$(s$)
       END IF
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
         emit_stmt$ = "    " + c_var_name$(varName$, varType$) + " = 0; " + ub_ref$(varName$, varType$) + " = -1;"
-      ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(##byrefDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
+      ELSEIF (varType$ <> "string" AND INSTR(##dynNames$, ":" + varName$ + ":") > 0) OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(##byrefDual$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
+        ' ##dynNames$ holds integer/float dyn arrays only (scan_dyn$ and the
+        ' facet additions both skip string types); a same-named string scalar
+        ' (xui: `image$` in AppearanceCode vs `DIM image[]` in XuiSetImage) is a
+        ' different C variable and keeps its own declaration.
         emit_stmt$ = ""
       ELSEIF varType$ = "string" THEN
         emit_stmt$ = "    char* " + c_var_name$(varName$, varType$) + " = xb_str(" + CHR$(34) + CHR$(34) + ");"
@@ -7870,7 +7911,34 @@ FUNCTION emit_stmt$(s$)
       ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(cExpr$)) + "] = " + c2$ + ";"
       ELSE
-        emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + emit_msub$(cExpr$, 0) + " = " + c2$ + ";"
+        ' CGEN-AUTOVIVIFY (cgen.x portion): a write past the current bound of
+        ' a heap (dyn) 1-D array grows it to that index, preserving content and
+        ' filling the new tail — the Rust CEmitter's `dyn_1d` guard
+        ' (c_emit_stmt.rs) and the interpreter's auto-vivify. Required once an
+        ' unsized `DIM x[]` resets the pointer to the empty state. Scoped to
+        ' the heap-pointer sets whose hoist declares `T* p = 0; ub = -1`
+        ' (##dynNames$ / ##dynStr$); shared globals, array params and
+        ' fixed-native strUbDual VLAs are not realloc targets.
+        DIM _avGuard$
+        DIM _avPtr$
+        DIM _avUb$
+        DIM _avIdx$
+        DIM _avFill$
+        _avGuard$ = ""
+        IF INSTR(cExpr$, ",") = 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) = 0 AND INSTR(##strUbDual$, ":" + varName$ + ":") = 0 THEN
+          IF (varType$ = "string" AND INSTR(##dynStr$, ":" + varName$ + ":") > 0) OR (varType$ <> "string" AND INSTR(##dynNames$, ":" + varName$ + ":") > 0) THEN
+            _avPtr$ = arr_acc_name$(varName$, varType$)
+            _avUb$ = ub_ref$(varName$, varType$)
+            _avIdx$ = emit_expr$(cExpr$)
+            IF varType$ = "string" THEN
+              _avFill$ = "xb_str(" + CHR$(34) + CHR$(34) + ")"
+            ELSE
+              _avFill$ = "0"
+            END IF
+            _avGuard$ = "    if ((" + _avIdx$ + ") > " + _avUb$ + ") { intptr_t _oldub = " + _avUb$ + "; " + _avUb$ + " = (" + _avIdx$ + "); " + _avPtr$ + " = realloc(" + _avPtr$ + ", (size_t)(" + _avUb$ + " + 1) * sizeof(*" + _avPtr$ + ")); if (!" + _avPtr$ + ") abort(); for (intptr_t _i = _oldub + 1; _i <= " + _avUb$ + "; _i++) " + _avPtr$ + "[_i] = " + _avFill$ + "; }" + CHR$(10)
+          END IF
+        END IF
+        emit_stmt$ = _avGuard$ + "    " + arr_acc_name$(varName$, varType$) + emit_msub$(cExpr$, 0) + " = " + c2$ + ";"
       END IF
     END IF
     RETURN emit_stmt$
