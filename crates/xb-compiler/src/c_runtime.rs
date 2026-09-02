@@ -441,8 +441,11 @@ pub(crate) fn emit_forward_decls(program: &IrProgram, out: &mut String) {
                 continue;
             }
             if let Some(tn) = return_type_name.as_deref() {
-                if tn == "DCOMPLEX" || tn == "SCOMPLEX" {
-                    out.push_str(crate::c_emit::composite_c_type(tn));
+                if tn == "DCOMPLEX"
+                    || tn == "SCOMPLEX"
+                    || crate::c_emit::composite_ret_members(name).is_some()
+                {
+                    out.push_str(&crate::c_emit::composite_c_type(tn));
                 } else {
                     out.push_str(c_type(*return_type));
                 }

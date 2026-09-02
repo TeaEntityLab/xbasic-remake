@@ -103,8 +103,13 @@ thread_local! {
     /// Map from function name to composite return type name, for functions
     /// that return a composite (e.g. DCOMPLEX). Populated once per `emit_program`.
     static DEFINED_COMPOSITE_RET: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    /// Member layouts for user-TYPE composite-returning functions: function name
+    /// → vec of (member_suffix, value_type). Discovered by scanning the function
+    /// body for `Dim`/`Assignment` targets with dotted names prefixed by the
+    /// function name (e.g. `Make.x`, `Make.y`). DCOMPLEX/SCOMPLEX are NOT here
+    /// — they use the hardcoded R/I path. Populated once per `emit_program`.
+    static DEFINED_COMPOSITE_MEMBERS: RefCell<HashMap<String, Vec<(String, ValueType)>>> = RefCell::new(HashMap::new());
     /// When true, suppress `.R` extraction on composite-returning calls
-    /// (the assignment handler needs the full struct, not just .R).
     static SUPPRESS_COMP_R: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
@@ -876,7 +881,10 @@ pub(crate) fn set_fn_context(
     });
     FN_COMPOSITE_RET.with(|s| {
         *s.borrow_mut() = return_type_name
-            .filter(|tn| *tn == "DCOMPLEX" || *tn == "SCOMPLEX")
+            .filter(|tn| {
+                is_builtin_composite(tn)
+                    || DEFINED_COMPOSITE_MEMBERS.with(|m| m.borrow().contains_key(name))
+            })
             .map(|tn| tn.to_string());
     });
     FN_NAME.with(|s| {
@@ -1752,6 +1760,7 @@ impl CEmitter {
     pub fn emit_program(&self, program: &IrProgram) -> String {
         crate::c_emit_select::reset_select_state();
         set_defined_funcs(program);
+        collect_program_composite_ret(program);
         // Bodies first, so usage-gated helpers (xb_inline) can be emitted only
         // when referenced — programs that never use them (the entire shared
         // corpus) stay byte-identical to cgen.x.
@@ -1814,11 +1823,100 @@ impl CEmitter {
         out
     }
 }
+/// True if `type_name` is a built-in composite (DCOMPLEX/SCOMPLEX) with
+/// hardcoded member layouts. User-TYPE composites use the dynamic path.
+fn is_builtin_composite(type_name: &str) -> bool {
+    type_name == "DCOMPLEX" || type_name == "SCOMPLEX"
+}
 
-/// Emit struct typedefs for built-in composite types (DCOMPLEX, SCOMPLEX) when
-/// any function in the program returns that type. The C emitter flattens
-/// composite *parameters* into member scalars, but composite *returns* need a
-/// real struct type so `return funcname;` can return the assembled value.
+/// Scan a function body for dotted `Dim`/`Assignment` targets prefixed by the
+/// function name (e.g. `Make.x:integer`, `Make.y:integer`) to discover the
+/// leaf member layout of a user-TYPE composite return. Returns sorted
+/// `(suffix, value_type)` pairs. Recurses through `Compound` and control flow.
+fn collect_composite_ret_members(
+    fname: &str,
+    items: &[IrItem],
+    out: &mut Vec<(String, ValueType)>,
+) {
+    let prefix = format!("{}.", fname);
+    for item in items {
+        match item {
+            IrItem::Dim { symbol, .. } => {
+                if symbol.name.starts_with(&prefix) {
+                    let suffix = symbol.name[prefix.len()..].to_string();
+                    if !suffix.contains('.') && !out.iter().any(|(s, _)| s == &suffix) {
+                        out.push((suffix, symbol.value_type));
+                    }
+                }
+            }
+            IrItem::Assignment { target, .. } => {
+                if target.name.starts_with(&prefix) {
+                    let suffix = target.name[prefix.len()..].to_string();
+                    if !suffix.contains('.') && !out.iter().any(|(s, _)| s == &suffix) {
+                        out.push((suffix, target.value_type));
+                    }
+                }
+            }
+            IrItem::Compound(inner) => collect_composite_ret_members(fname, inner, out),
+            IrItem::If {
+                then_body,
+                else_body,
+                ..
+            } => {
+                collect_composite_ret_members(fname, then_body, out);
+                if let Some(eb) = else_body {
+                    collect_composite_ret_members(fname, eb, out);
+                }
+            }
+            IrItem::While { body, .. } | IrItem::DoLoop { body, .. } | IrItem::For { body, .. } => {
+                collect_composite_ret_members(fname, body, out);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The member layout of a user-TYPE composite-returning function, or `None`
+/// for DCOMPLEX/SCOMPLEX (hardcoded) or non-composite returns.
+pub(crate) fn composite_ret_members(name: &str) -> Option<Vec<(String, ValueType)>> {
+    DEFINED_COMPOSITE_MEMBERS.with(|s| s.borrow().get(name).cloned())
+}
+
+/// Populate `DEFINED_COMPOSITE_RET` and `DEFINED_COMPOSITE_MEMBERS` for every
+/// user-TYPE composite-returning function in the program. Called once per
+/// `emit_program` before any body is emitted. DCOMPLEX/SCOMPLEX go into
+/// `DEFINED_COMPOSITE_RET` only (hardcoded R/I path); user types go into both.
+fn collect_program_composite_ret(program: &IrProgram) {
+    let mut ret_map: HashMap<String, String> = HashMap::new();
+    let mut member_map: HashMap<String, Vec<(String, ValueType)>> = HashMap::new();
+    for item in &program.items {
+        if let IrItem::Function {
+            name,
+            body,
+            return_type_name: Some(tn),
+            ..
+        } = item
+        {
+            if is_builtin_composite(tn) {
+                ret_map.insert(name.clone(), tn.clone());
+            } else {
+                let mut members = Vec::new();
+                collect_composite_ret_members(name, body, &mut members);
+                members.sort_by(|a, b| a.0.cmp(&b.0));
+                if !members.is_empty() {
+                    ret_map.insert(name.clone(), tn.clone());
+                    member_map.insert(name.clone(), members);
+                }
+            }
+        }
+    }
+    DEFINED_COMPOSITE_RET.with(|s| *s.borrow_mut() = ret_map);
+    DEFINED_COMPOSITE_MEMBERS.with(|s| *s.borrow_mut() = member_map);
+}
+
+/// Emit struct typedefs for composite types when any function returns that
+/// type. DCOMPLEX/SCOMPLEX are hardcoded; user TYPEs are emitted from the
+/// discovered member layout.
 fn emit_composite_typedefs(program: &IrProgram, out: &mut String) {
     let mut needed: HashSet<&str> = HashSet::new();
     for item in &program.items {
@@ -1834,17 +1932,50 @@ fn emit_composite_typedefs(program: &IrProgram, out: &mut String) {
         match *tn {
             "DCOMPLEX" => out.push_str("typedef struct { double R; double I; } xb_dcomplex;\n"),
             "SCOMPLEX" => out.push_str("typedef struct { float R; float I; } xb_scomplex;\n"),
-            _ => {}
+            user_tn => {
+                // User TYPE: emit from the first function that returns this type.
+                if let Some((fname, _)) = program.items.iter().find_map(|item| {
+                    if let IrItem::Function {
+                        name,
+                        return_type_name: Some(rtn),
+                        ..
+                    } = item
+                    {
+                        if rtn == user_tn {
+                            Some((name.clone(), rtn.clone()))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }) {
+                    if let Some(members) = composite_ret_members(&fname) {
+                        out.push_str("typedef struct { ");
+                        for (suffix, vt) in &members {
+                            out.push_str(c_type(*vt));
+                            out.push(' ');
+                            out.push_str(suffix);
+                            out.push_str("; ");
+                        }
+                        out.push_str("} xb_comp_");
+                        out.push_str(user_tn);
+                        out.push_str(";\n");
+                    }
+                }
+            }
         }
     }
 }
 
-/// Map a composite TYPE name to its C struct typedef name.
-pub(crate) fn composite_c_type(type_name: &str) -> &'static str {
+/// Map a composite TYPE name to its C struct typedef name. Returns an owned
+/// `String` for user types (`xb_comp_{name}`) and a `&'static str` for
+/// DCOMPLEX/SCOMPLEX. The caller writes the result into the C output.
+pub(crate) fn composite_c_type(type_name: &str) -> String {
     match type_name {
-        "DCOMPLEX" => "xb_dcomplex",
-        "SCOMPLEX" => "xb_scomplex",
-        _ => "intptr_t",
+        "DCOMPLEX" => "xb_dcomplex".to_string(),
+        "SCOMPLEX" => "xb_scomplex".to_string(),
+        other => format!("xb_comp_{}", other),
     }
 }
 
@@ -1852,26 +1983,46 @@ pub(crate) fn composite_c_type(type_name: &str) -> &'static str {
 /// struct from the function name's member variables and return it.
 /// Called at the end of the function body (fall-through path).
 fn emit_composite_fallback_return(name: &str, type_name: &str, out: &mut String) {
-    let members: &[(&str, &str)] = match type_name {
-        "DCOMPLEX" => &[("R", "xb_var_"), ("I", "xb_var_")],
-        "SCOMPLEX" => &[("R", "xb_var_"), ("I", "xb_var_")],
-        _ => &[],
-    };
-    out.push_str("    xb_var_");
-    out.push_str(name);
-    out.push_str(".R = ");
-    out.push_str(members[0].1);
-    out.push_str(name);
-    out.push_str("_R;\n");
-    out.push_str("    xb_var_");
-    out.push_str(name);
-    out.push_str(".I = ");
-    out.push_str(members[1].1);
-    out.push_str(name);
-    out.push_str("_I;\n");
-    out.push_str("    return xb_var_");
-    out.push_str(name);
-    out.push_str(";\n");
+    if is_builtin_composite(type_name) {
+        out.push_str("    xb_var_");
+        out.push_str(name);
+        out.push_str(".R = xb_var_");
+        out.push_str(name);
+        out.push_str("_R;\n");
+        out.push_str("    xb_var_");
+        out.push_str(name);
+        out.push_str(".I = xb_var_");
+        out.push_str(name);
+        out.push_str("_I;\n");
+        out.push_str("    return xb_var_");
+        out.push_str(name);
+        out.push_str(";\n");
+    } else if let Some(members) = composite_ret_members(name) {
+        for (suffix, vt) in &members {
+            let mut member_buf = String::new();
+            crate::c_emit_expr::emit_var_name(
+                &IrSymbol {
+                    name: format!("{}.{}", name, suffix),
+                    value_type: *vt,
+                },
+                &mut member_buf,
+            );
+            out.push_str("    xb_var_");
+            out.push_str(name);
+            out.push('.');
+            out.push_str(suffix);
+            out.push_str(" = ");
+            out.push_str(&member_buf);
+            out.push_str(";\n");
+        }
+        out.push_str("    return xb_var_");
+        out.push_str(name);
+        out.push_str(";\n");
+    } else {
+        out.push_str("    return xb_var_");
+        out.push_str(name);
+        out.push_str(";\n");
+    }
 }
 
 fn emit_functions(program: &IrProgram, out: &mut String) {
@@ -1915,10 +2066,11 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
                 out.push_str("__attribute__((weak)) ");
             }
             // Composite return type: emit the struct typedef name instead of
-            // the primitive C type (e.g. `xb_dcomplex` instead of `double`).
+            // the primitive C type (e.g. `xb_dcomplex` instead of `double`,
+            // `xb_comp_PT` for user TYPE PT).
             if let Some(tn) = return_type_name.as_deref() {
-                if tn == "DCOMPLEX" || tn == "SCOMPLEX" {
-                    out.push_str(composite_c_type(tn));
+                if is_builtin_composite(tn) || composite_ret_members(name).is_some() {
+                    out.push_str(&composite_c_type(tn));
                 } else {
                     out.push_str(c_type(*return_type));
                 }
@@ -2005,16 +2157,17 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
                 && !crate::c_emit_hoist::body_dims_name(body, name);
             let is_composite_ret = return_type_name
                 .as_deref()
-                .map(|tn| tn == "DCOMPLEX" || tn == "SCOMPLEX")
+                .map(|tn| is_builtin_composite(tn) || composite_ret_members(name).is_some())
                 .unwrap_or(false);
             if is_composite_ret {
                 // Composite return: declare the function name as a struct local.
-                // The member variables (funcname.R, funcname.I) are already
-                // hoisted as separate doubles by emit_hoisted_scalars; the struct
-                // local is assembled from them at the return point.
+                // The member variables (funcname.R, funcname.I for DCOMPLEX;
+                // funcname.x, funcname.y for user TYPE PT) are already hoisted
+                // as separate scalars by emit_hoisted_scalars; the struct local
+                // is assembled from them at the return point.
                 let tn = return_type_name.as_deref().unwrap();
                 out.push_str("    ");
-                out.push_str(composite_c_type(tn));
+                out.push_str(&composite_c_type(tn));
                 out.push_str(" xb_var_");
                 out.push_str(name);
                 out.push_str(" = {0};\n");

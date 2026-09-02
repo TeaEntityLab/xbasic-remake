@@ -808,6 +808,8 @@ END IF
 ##facetDynAll$ = ""
 ##scanDynAll$ = ""
 ##curHoistFn$ = ""
+##compRet$ = ""
+##compMembers$ = ""
 facetPos = 1
 WHILE facetPos <= LEN(src$)
   facetE = INSTR(src$, CHR$(10), facetPos)
@@ -822,6 +824,10 @@ WHILE facetPos <= LEN(src$)
     ##facetTab$ = ##facetTab$ + CHR$(10) + facetRest$ + CHR$(10)
   END IF
 WEND
+##compRet$ = ""
+##compMembers$ = ""
+DIM _scrDummy$
+_scrDummy$ = scan_comp_ret$(src$)
 ##sharedArrays$ = scan_shared_arr$(src$)
 ' Shared dual-use: a shared array also used as a scalar (symbol(X:) somewhere.
 ' These get _arr suffix for the array facet, matching Rust is_shared_dual.
@@ -1135,6 +1141,61 @@ IF INSTR(src$, "XgrProcessMessages") > 0 THEN
   PRINT "static void xb_xgr_process_messages(intptr_t mode) { (void)mode; exit(0); }"
   PRINT ""
 END IF
+' Emit composite typedefs for user-TYPE composite-returning functions.
+IF LEN(##compRet$) > 0 THEN
+  DIM _ctdPos
+  _ctdPos = 1
+  DIM _emittedCompTypes$
+  _emittedCompTypes$ = ""
+  WHILE _ctdPos <= LEN(##compRet$)
+    DIM _ctdEnd
+    _ctdEnd = INSTR(##compRet$, ":", _ctdPos + 1)
+    IF _ctdEnd = 0 THEN _ctdEnd = LEN(##compRet$) + 1
+    DIM _ctdFn$
+    _ctdFn$ = MID$(##compRet$, _ctdPos + 1, _ctdEnd - _ctdPos - 1)
+    _ctdPos = _ctdEnd
+    DIM _ctdEnd2
+    _ctdEnd2 = INSTR(##compRet$, ":", _ctdPos + 1)
+    IF _ctdEnd2 = 0 THEN _ctdEnd2 = LEN(##compRet$) + 1
+    DIM _ctdType$
+    _ctdType$ = MID$(##compRet$, _ctdPos + 1, _ctdEnd2 - _ctdPos - 1)
+    _ctdPos = _ctdEnd2 + 1
+    ' Emit typedef from discovered members
+    DIM _ctdSig$
+    _ctdSig$ = "typedef struct { "
+    DIM _ctdMPos
+    _ctdMPos = 1
+    WHILE _ctdMPos <= LEN(##compMembers$)
+      DIM _ctdMEnd
+      _ctdMEnd = INSTR(##compMembers$, ":", _ctdMPos + 1)
+      IF _ctdMEnd = 0 THEN _ctdMEnd = LEN(##compMembers$) + 1
+      DIM _ctdMFn$
+      _ctdMFn$ = MID$(##compMembers$, _ctdMPos + 1, _ctdMEnd - _ctdMPos - 1)
+      _ctdMPos = _ctdMEnd
+      DIM _ctdMEnd2
+      _ctdMEnd2 = INSTR(##compMembers$, ":", _ctdMPos + 1)
+      IF _ctdMEnd2 = 0 THEN _ctdMEnd2 = LEN(##compMembers$) + 1
+      DIM _ctdMName$
+      _ctdMName$ = MID$(##compMembers$, _ctdMPos + 1, _ctdMEnd2 - _ctdMPos - 1)
+      _ctdMPos = _ctdMEnd2
+      DIM _ctdMEnd3
+      _ctdMEnd3 = INSTR(##compMembers$, ":", _ctdMPos + 1)
+      IF _ctdMEnd3 = 0 THEN _ctdMEnd3 = LEN(##compMembers$) + 1
+      DIM _ctdMType$
+      _ctdMType$ = MID$(##compMembers$, _ctdMPos + 1, _ctdMEnd3 - _ctdMPos - 1)
+      _ctdMPos = _ctdMEnd3 + 1
+      IF _ctdMFn$ = _ctdFn$ THEN
+        _ctdSig$ = _ctdSig$ + c_type$(_ctdMType$) + " " + _ctdMName$ + "; "
+      END IF
+    WEND
+    _ctdSig$ = _ctdSig$ + "} xb_comp_" + _ctdType$ + ";"
+    IF INSTR(_emittedCompTypes$, ":" + _ctdType$ + ":") = 0 THEN
+      PRINT _ctdSig$
+      _emittedCompTypes$ = _emittedCompTypes$ + ":" + _ctdType$ + ":"
+    END IF
+  WEND
+END IF
+
 ' Forward declarations: pre-scan top-level function signatures only
 fwdPos = 1
 fwdDepth = 0
@@ -1207,6 +1268,16 @@ WHILE fwdPos <= LEN(src$)
           fwdClose = INSTR(fwdAfter$, ")")
           fwdParams$ = LEFT$(fwdAfter$, fwdClose - 1)
           fwdRet$ = MID$(fwdAfter$, fwdClose + 5, LEN(fwdAfter$) - fwdClose - 4)
+
+
+          IF INSTR(fwdRet$, " composite ") > 0 THEN
+
+            _fwdCpos = INSTR(fwdRet$, " composite ")
+
+            _fwdCtn$ = MID$(fwdRet$, _fwdCpos + 11, LEN(fwdRet$) - _fwdCpos - 10)
+            fwdRet$ = LEFT$(fwdRet$, _fwdCpos - 1)
+            ##compRet$ = ##compRet$ + ":" + fwdName$ + ":" + _fwdCtn$ + ":"
+          END IF
           ##curFnName$ = fwdName$
           IF INSTR(CHR$(10) + fwdDeclsBuf$, CHR$(10) + fwdName$ + CHR$(9)) = 0 THEN
             IF LEFT$(fwdDeclsBuf$, LEN(fwdName$) + 1) <> fwdName$ + CHR$(9) THEN
@@ -1234,6 +1305,16 @@ WHILE fwdPos <= LEN(src$)
           fwdClose = INSTR(fwdAfter$, ")")
           fwdParams$ = LEFT$(fwdAfter$, fwdClose - 1)
           fwdRet$ = MID$(fwdAfter$, fwdClose + 5, LEN(fwdAfter$) - fwdClose - 4)
+
+
+          IF INSTR(fwdRet$, " composite ") > 0 THEN
+
+            _fwdCpos = INSTR(fwdRet$, " composite ")
+
+            _fwdCtn$ = MID$(fwdRet$, _fwdCpos + 11, LEN(fwdRet$) - _fwdCpos - 10)
+            fwdRet$ = LEFT$(fwdRet$, _fwdCpos - 1)
+            ##compRet$ = ##compRet$ + ":" + fwdName$ + ":" + _fwdCtn$ + ":"
+          END IF
           IF INSTR(##funcArity$, ":" + fwdName$ + "=") = 0 THEN
             ##funcArity$ = ##funcArity$ + ":" + fwdName$ + "=" + param_count$(fwdParams$) + ":"
           END IF
@@ -1472,10 +1553,10 @@ WHILE LEN(fwdDeclsBuf$) > 0
   ' line, matching the Rust CEmitter's forward-declaration block.
   IF LEN(trim_spaces$(_fdParams$)) = 0 THEN
     ##hadDecls$ = "1"
-    PRINT c_type$(_fdRet$) + " xb_user_" + _fdName$ + "(void);"
+    PRINT comp_ret_type$(_fdName$, _fdRet$) + " xb_user_" + _fdName$ + "(void);"
   ELSE
     ##hadDecls$ = "1"
-    PRINT c_type$(_fdRet$) + " xb_user_" + _fdName$ + "(" + emit_params$(_fdParams$) + ");"
+    PRINT comp_ret_type$(_fdName$, _fdRet$) + " xb_user_" + _fdName$ + "(" + emit_params$(_fdParams$) + ");"
   END IF
   _fdRest$ = MID$(fwdDeclsBuf$, INSTR(fwdDeclsBuf$, CHR$(10)) + 1, LEN(fwdDeclsBuf$) - INSTR(fwdDeclsBuf$, CHR$(10)))
   fwdDeclsBuf$ = _fdRest$
@@ -1644,6 +1725,16 @@ WHILE pos <= LEN(src$)
             firstParams$ = params$
           END IF
           retType$ = MID$(afterParen$, closeParen + 5, LEN(afterParen$) - closeParen - 4)
+
+
+          IF INSTR(retType$, " composite ") > 0 THEN
+
+            _retCpos = INSTR(retType$, " composite ")
+
+            _retCtn$ = MID$(retType$, _retCpos + 11, LEN(retType$) - _retCpos - 10)
+            retType$ = LEFT$(retType$, _retCpos - 1)
+            ##compRet$ = ##compRet$ + ":" + funcName$ + ":" + _retCtn$ + ":"
+          END IF
           ##arrParams$ = arr_param_names$(params$)
           ##curParams$ = param_names$(params$)
           ##curParamTypes$ = param_types$(params$)
@@ -1695,9 +1786,9 @@ WHILE pos <= LEN(src$)
             WEND
           END IF
           IF LEN(trim_spaces$(params$)) = 0 THEN
-            PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(void) {"
+            PRINT comp_ret_type$(funcName$, retType$) + " xb_user_" + funcName$ + "(void) {"
           ELSE
-            PRINT c_type$(retType$) + " xb_user_" + funcName$ + "(" + emit_params$(params$) + ") {"
+            PRINT comp_ret_type$(funcName$, retType$) + " xb_user_" + funcName$ + "(" + emit_params$(params$) + ") {"
           END IF
           ' CGEN-BYREF-WRITEBACK: copy-in prologue for all-byref scalar params
           DIM _wbIn$
@@ -1742,11 +1833,46 @@ WHILE pos <= LEN(src$)
           ' when the function name is used in the body (own_name_used).
           ' Any reference (the self-DIM is suppressed, so reads of the
           ' function-name variable need this declaration).
+          ' Composite return: declare struct local + assemble fallback return
+          IF INSTR(##compRet$, ":" + funcName$ + ":") > 0 THEN
+            DIM _crType$
+            _crType$ = comp_ret_type$(funcName$, retType$)
+            hoists$ = hoists$ + "    " + _crType$ + " xb_var_" + funcName$ + " = {0};" + CHR$(10)
+            ' Build fallback return: assemble struct from member variables
+            DIM _crFb$
+            _crFb$ = ""
+            DIM _crMPos
+            _crMPos = 1
+            WHILE _crMPos <= LEN(##compMembers$)
+              DIM _crMEnd
+              _crMEnd = INSTR(##compMembers$, ":", _crMPos + 1)
+              IF _crMEnd = 0 THEN _crMEnd = LEN(##compMembers$) + 1
+              DIM _crMFn$
+              _crMFn$ = MID$(##compMembers$, _crMPos + 1, _crMEnd - _crMPos - 1)
+              _crMPos = _crMEnd
+              DIM _crMEnd2
+              _crMEnd2 = INSTR(##compMembers$, ":", _crMPos + 1)
+              IF _crMEnd2 = 0 THEN _crMEnd2 = LEN(##compMembers$) + 1
+              DIM _crMName$
+              _crMName$ = MID$(##compMembers$, _crMPos + 1, _crMEnd2 - _crMPos - 1)
+              _crMPos = _crMEnd2
+              DIM _crMEnd3
+              _crMEnd3 = INSTR(##compMembers$, ":", _crMPos + 1)
+              IF _crMEnd3 = 0 THEN _crMEnd3 = LEN(##compMembers$) + 1
+              _crMPos = _crMEnd3 + 1
+              IF _crMFn$ = funcName$ THEN
+                _crFb$ = _crFb$ + "    xb_var_" + funcName$ + "." + _crMName$ + " = " + c_var_name$(funcName$ + "." + _crMName$, "integer") + ";" + CHR$(10)
+              END IF
+            WEND
+            _crFb$ = _crFb$ + "    return xb_var_" + funcName$ + ";"
+            retStmt$ = _crFb$
+          ELSE
           IF retType$ <> "integer" OR INSTR(funcBody$ + nestBlocks$, c_var_name$(funcName$, retType$)) > 0 THEN
             hoists$ = hoists$ + "    " + c_type$(retType$) + " " + c_var_name$(funcName$, retType$) + " = " + c_default$(retType$) + ";" + CHR$(10)
             retStmt$ = "    return " + c_var_name$(funcName$, retType$) + ";"
           ELSE
             retStmt$ = "    return " + c_default$(retType$) + ";"
+          END IF
           END IF
           fullBody$ = hoists$ + computed_goto_prologue$(funcBody$ + nestBlocks$) + funcBody$
           IF LEN(nestBlocks$) > 0 THEN
@@ -2123,6 +2249,103 @@ FUNCTION c_type$(t$)
   ELSE
     c_type$ = "intptr_t"
   END IF
+END FUNCTION
+' Map a composite TYPE name to its C struct typedef name.
+FUNCTION comp_c_type$(tn$)
+  comp_c_type$ = "xb_comp_" + tn$
+END FUNCTION
+' Return the C type for a function's return type, using xb_comp_ for user-TYPE composites.
+FUNCTION comp_ret_type$(fn$, rt$)
+  IF INSTR(##compRet$, ":" + fn$ + ":") > 0 THEN
+    DIM _crtPos
+    _crtPos = INSTR(##compRet$, ":" + fn$ + ":")
+    DIM _crtStart
+    _crtStart = _crtPos + LEN(fn$) + 2
+    DIM _crtEnd
+    _crtEnd = INSTR(##compRet$, ":", _crtStart)
+    IF _crtEnd = 0 THEN _crtEnd = LEN(##compRet$) + 1
+    DIM _crtType$
+    _crtType$ = MID$(##compRet$, _crtStart, _crtEnd - _crtStart)
+    comp_ret_type$ = comp_c_type$(_crtType$)
+  ELSE
+    comp_ret_type$ = c_type$(rt$)
+  END IF
+END FUNCTION
+
+' Scan IR for functions with ' composite TYPE' suffix in the return type.
+' Populates ##compRet$ (:fn:type:) and ##compMembers$ (:fn:member:type:...:).
+FUNCTION scan_comp_ret$(src$)
+  DIM sp
+  sp = 1
+  WHILE sp <= LEN(src$)
+    DIM el
+    el = INSTR(src$, CHR$(10), sp)
+    IF el = 0 THEN el = LEN(src$) + 1
+    DIM ln$
+    ln$ = MID$(src$, sp, el - sp)
+    sp = el + 1
+    IF LEFT$(ln$, 9) = "function " THEN
+      ' Check for ' composite ' in the return type
+      DIM cpos
+      cpos = INSTR(ln$, " composite ")
+      IF cpos > 0 THEN
+        ' Extract function name
+        DIM paren
+        paren = INSTR(ln$, "(")
+        DIM fnm$
+        fnm$ = LEFT$(ln$, paren - 1)
+        fnm$ = MID$(fnm$, 10, LEN(fnm$) - 9)
+        ' Extract composite type name (after ' composite ')
+        DIM ctn$
+        ctn$ = MID$(ln$, cpos + 11, LEN(ln$) - cpos - 10)
+        ' Strip trailing whitespace
+        ctn$ = trim_spaces$(ctn$)
+        ##compRet$ = ##compRet$ + ":" + fnm$ + ":" + ctn$ + ":"
+      END IF
+    ELSEIF LEFT$(trim_spaces$(ln$), 7) = "assign " THEN
+      ' Check for assign FuncName.member:type = ... to discover members
+      ' Only if the function name is in ##compRet$
+      DIM asRest$
+      asRest$ = MID$(trim_spaces$(ln$), 8, LEN(trim_spaces$(ln$)) - 7)
+      DIM asEq
+      asEq = INSTR(asRest$, " = ")
+      IF asEq > 0 THEN
+        DIM asTarget$
+        asTarget$ = LEFT$(asRest$, asEq - 1)
+        ' Check if target has a dot (composite member)
+        DIM dotPos
+        dotPos = INSTR(asTarget$, ".")
+        IF dotPos > 0 THEN
+          DIM asFn$
+          asFn$ = LEFT$(asTarget$, dotPos - 1)
+          ' Check if this function is in ##compRet$
+          IF INSTR(##compRet$, ":" + asFn$ + ":") > 0 THEN
+            DIM asMember$
+            asMember$ = MID$(asTarget$, dotPos + 1, LEN(asTarget$) - dotPos)
+            ' Strip :type suffix if present
+            DIM colonPos
+            colonPos = INSTR(asMember$, ":")
+            DIM memName$
+            memName$ = asMember$
+            DIM memType$
+            memType$ = "integer"
+            IF colonPos > 0 THEN
+              memName$ = LEFT$(asMember$, colonPos - 1)
+              memType$ = MID$(asMember$, colonPos + 1, LEN(asMember$) - colonPos)
+            END IF
+            ' Only add leaf members (no further dots)
+            IF INSTR(memName$, ".") = 0 THEN
+              ' Don't add duplicates
+              IF INSTR(##compMembers$, ":" + asFn$ + ":" + memName$ + ":") = 0 THEN
+                ##compMembers$ = ##compMembers$ + ":" + asFn$ + ":" + memName$ + ":" + memType$ + ":"
+              END IF
+            END IF
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  scan_comp_ret$ = ""
 END FUNCTION
 
 FUNCTION c_var_name$(n$, t$)
@@ -8110,6 +8333,58 @@ FUNCTION emit_stmt$(s$)
       varName$ = LEFT$(varName$, colonPos - 1)
     ELSE
       varType$ = "integer"
+    END IF
+    ' Composite call assignment: p = Make() where Make returns a user-TYPE composite.
+    ' Emit temp struct + member copies instead of scalar assignment.
+    IF INSTR(rest$, "call ") = 1 AND INSTR(varName$, ".") = 0 THEN
+      DIM _caCallName$
+      DIM _caParenPos
+      _caParenPos = INSTR(rest$, "(")
+      IF _caParenPos > 0 THEN
+        _caCallName$ = MID$(rest$, 6, _caParenPos - 6)
+        IF INSTR(##compRet$, ":" + _caCallName$ + ":") > 0 THEN
+          DIM _caType$
+          _caType$ = comp_ret_type$(_caCallName$, varType$)
+          DIM _caTmp$
+          _caTmp$ = "_xb_comp_tmp_" + _caCallName$ + "_0"
+          DIM _caStmt$
+          _caStmt$ = "    " + _caType$ + " " + _caTmp$ + " = xb_user_" + _caCallName$ + "("
+          ' Extract args from the call expression
+          DIM _caArgs$
+          _caArgs$ = MID$(rest$, _caParenPos + 1, LEN(rest$) - _caParenPos - 1)
+          _caStmt$ = _caStmt$ + emit_args$(_caArgs$) + ");" + CHR$(10)
+          ' Emit member copies
+          DIM _caMPos
+          _caMPos = 1
+          WHILE _caMPos <= LEN(##compMembers$)
+            DIM _caMEnd
+            _caMEnd = INSTR(##compMembers$, ":", _caMPos + 1)
+            IF _caMEnd = 0 THEN _caMEnd = LEN(##compMembers$) + 1
+            DIM _caMFn$
+            _caMFn$ = MID$(##compMembers$, _caMPos + 1, _caMEnd - _caMPos - 1)
+            _caMPos = _caMEnd
+            DIM _caMEnd2
+            _caMEnd2 = INSTR(##compMembers$, ":", _caMPos + 1)
+            IF _caMEnd2 = 0 THEN _caMEnd2 = LEN(##compMembers$) + 1
+            DIM _caMName$
+            _caMName$ = MID$(##compMembers$, _caMPos + 1, _caMEnd2 - _caMPos - 1)
+            _caMPos = _caMEnd2
+            DIM _caMEnd3
+            _caMEnd3 = INSTR(##compMembers$, ":", _caMPos + 1)
+            IF _caMEnd3 = 0 THEN _caMEnd3 = LEN(##compMembers$) + 1
+            _caMPos = _caMEnd3 + 1
+            IF _caMFn$ = _caCallName$ THEN
+              _caStmt$ = _caStmt$ + "    " + c_var_name$(varName$ + "." + _caMName$, "integer") + " = " + _caTmp$ + "." + _caMName$ + ";" + CHR$(10)
+            END IF
+          WEND
+          ' Remove trailing CHR$(10)
+          IF RIGHT$(_caStmt$, 1) = CHR$(10) THEN
+            _caStmt$ = LEFT$(_caStmt$, LEN(_caStmt$) - 1)
+          END IF
+          emit_stmt$ = _caStmt$
+          RETURN emit_stmt$
+        END IF
+      END IF
     END IF
     cExpr$ = emit_expr$(rest$)
     emit_stmt$ = "    " + c_ref_name$(varName$, varType$) + " = " + cExpr$ + ";"

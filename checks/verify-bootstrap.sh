@@ -8,6 +8,7 @@ fail() {
   exit 1
 }
 
+export CARGO_BUILD_JOBS=4
 cargo fmt --all -- --check
 cargo check --workspace
 cargo test --workspace

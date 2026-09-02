@@ -2549,6 +2549,66 @@ fn cemitter_and_cgen_agree_on_composite_by_value_param() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// User-TYPE composite return (M1-ABI): `FUNCTION PT Make()` returns a user
+/// composite struct. The interpreter collects `{fname}.*` slots after the
+/// callee body; the Rust CEmitter discovers members via
+/// `collect_composite_ret_members`, emits `xb_comp_PT` typedef + struct local
+/// + fallback return; cgen.x mirrors via `scan_comp_ret$` / `##compMembers$`.
+/// All three engines must produce `3\n4\n`.
+#[test]
+fn cemitter_and_cgen_agree_on_user_type_composite_return() {
+    let tmp = std::env::temp_dir().join("xb_sync_comp_ret");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"cret\"\n",
+        "VERSION \"0.1\"\n",
+        "TYPE PT\n",
+        "XLONG .x\n",
+        "XLONG .y\n",
+        "END TYPE\n",
+        "FUNCTION Main ()\n",
+        "PT p\n",
+        "p = Make()\n",
+        "PRINT p.x\n",
+        "PRINT p.y\n",
+        "END FUNCTION\n",
+        "FUNCTION PT Make ()\n",
+        "Make.x = 3\n",
+        "Make.y = 4\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse composite return program")
+        .lower_ir()
+        .expect("lower composite return program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "cret_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "cret_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret composite return program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "3\n4\n", "composite return reference output");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter failed to return user-TYPE composite"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x failed to return user-TYPE composite"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Binary integer literals (CGEN-SELFHOST-PARITY): `0b1000000` is a gcc/clang
 /// extension the interpreter evaluates (64) and the Rust CEmitter emits verbatim.
 /// cgen.x's strip_zeros$ (added for the `08`/`09` octal hazard) exempted hex

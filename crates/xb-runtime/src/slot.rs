@@ -203,6 +203,12 @@ pub struct ExecutionState {
     /// does `addr=&temp$$; UBYTEAT(addr,off)=val` to set GIANT bytes.
     pub(crate) fake_addrs: std::collections::HashMap<i32, String>,
     pub(crate) next_fake_addr: i32,
+    /// Composite return members from a just-called user-TYPE function:
+    /// `(function_name, [(member_suffix, value)])`. Set by `call_function`
+    /// before returning; consumed by the Assignment handler to copy members
+    /// into `target.{suffix}` slots. DCOMPLEX/SCOMPLEX use the existing
+    /// ret-slot path, not this field.
+    pub(crate) last_composite_ret: Option<(String, Vec<(String, RuntimeValue)>)>,
 }
 impl ExecutionState {
     pub const fn metadata(&self) -> &ProgramMetadata {

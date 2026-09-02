@@ -8,7 +8,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 OUT=$(mktemp)
-cargo test --release > "$OUT" 2>&1 || true
+CARGO_BUILD_JOBS=4 cargo test --release > "$OUT" 2>&1 || true
 
 echo "=== suites ==="
 grep "Running" "$OUT" | sed 's|.*deps/||; s|-[0-9a-f]*||' | head -40

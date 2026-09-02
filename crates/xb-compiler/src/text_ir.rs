@@ -4,6 +4,27 @@ use crate::ir::{IrItem, IrParam, IrProgram};
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TextIrEmitter;
 
+fn body_has_explicit_return(items: &[IrItem]) -> bool {
+    items.iter().any(|item| match item {
+        IrItem::Return { value: Some(_) } => true,
+        IrItem::If {
+            then_body,
+            else_body,
+            ..
+        } => {
+            body_has_explicit_return(then_body)
+                || else_body
+                    .as_ref()
+                    .is_some_and(|e| body_has_explicit_return(e))
+        }
+        IrItem::While { body, .. } => body_has_explicit_return(body),
+        IrItem::DoLoop { body, .. } => body_has_explicit_return(body),
+        IrItem::For { body, .. } => body_has_explicit_return(body),
+        IrItem::Compound(body) => body_has_explicit_return(body),
+        _ => false,
+    })
+}
+
 impl TextIrEmitter {
     pub const fn new() -> Self {
         Self
@@ -738,7 +759,7 @@ impl TextIrEmitter {
                 name,
                 params,
                 return_type,
-                return_type_name: _,
+                return_type_name,
                 body,
             } => {
                 let ps: Vec<String> = params
@@ -752,11 +773,21 @@ impl TextIrEmitter {
                         )
                     })
                     .collect();
+                let mut ret_sig = self.emit_type(*return_type).to_string();
+                if let Some(tn) = return_type_name {
+                    if tn != "DCOMPLEX" && tn != "SCOMPLEX" {
+                        let has_explicit_return = body_has_explicit_return(body);
+                        if !has_explicit_return {
+                            ret_sig.push_str(" composite ");
+                            ret_sig.push_str(tn.as_str());
+                        }
+                    }
+                }
                 out.push_str(&format!(
                     "{prefix}function {}({}) -> {}\n",
                     name,
                     ps.join(", "),
-                    self.emit_type(*return_type)
+                    ret_sig
                 ));
                 for item in body {
                     self.emit_item(item, out, indent + 1);

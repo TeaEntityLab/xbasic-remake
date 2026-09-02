@@ -1,6 +1,12 @@
 use std::collections::BTreeMap;
 use xb_compiler::{IrExpr, IrExprKind, IrItem, IrParam, IrProgram, ValueType};
-type FuncInfo<'a> = (&'a str, &'a [IrParam], &'a [IrItem], ValueType);
+type FuncInfo<'a> = (
+    &'a str,
+    &'a [IrParam],
+    &'a [IrItem],
+    ValueType,
+    Option<&'a String>,
+);
 
 use crate::eval::eval;
 use crate::interpreter::{exec_items, ExecutionState, Flow, RuntimeError, RuntimeValue, TypedSlot};
@@ -461,7 +467,7 @@ pub(crate) fn call_function(
         }
         return crate::builtin::eval_builtin(name, &vals);
     }
-    let (fname, params, body, return_type) = match find_function(program, name) {
+    let (fname, params, body, return_type, ret_type_name) = match find_function(program, name) {
         Ok(info) => info,
         Err(_) => {
             // Indirect call through a FUNCADDR value: the callee name is a slot
@@ -549,6 +555,7 @@ pub(crate) fn call_function(
         dyn_arrays: state.dyn_arrays.clone(),
         fake_addrs: state.fake_addrs.clone(),
         next_fake_addr: state.next_fake_addr,
+        last_composite_ret: None,
     };
     let result = match exec_items(program, body, body, 0, &mut sub, output)? {
         Flow::Return(Some(v)) => Ok(v),
@@ -561,6 +568,26 @@ pub(crate) fn call_function(
             Ok(ret.unwrap_or(RuntimeValue::Integer(0)))
         }
     };
+    // User-TYPE composite return: collect {fname}.{member} slots from the
+    // callee state before it's discarded. The Assignment handler in the
+    // caller copies them into {target}.{member} slots. DCOMPLEX/SCOMPLEX
+    // use the existing ret-slot path (the return value itself carries the
+    // struct), so they are excluded here.
+    if let Some(tn) = ret_type_name {
+        if tn != "DCOMPLEX" && tn != "SCOMPLEX" {
+            let prefix = format!("{}.", fname);
+            let mut members: Vec<(String, RuntimeValue)> = sub
+                .slots
+                .iter()
+                .filter(|(k, _)| k.starts_with(&prefix))
+                .map(|(k, v)| (k[prefix.len()..].to_string(), v.value.clone()))
+                .collect();
+            members.sort_by(|a, b| a.0.cmp(&b.0));
+            if !members.is_empty() {
+                state.last_composite_ret = Some((fname.to_string(), members));
+            }
+        }
+    }
     state.input_pos = sub.input_pos;
     state.shared = sub.shared;
     state.error_code = sub.error_code;
@@ -918,11 +945,11 @@ fn find_function<'a>(program: &'a IrProgram, name: &str) -> Result<FuncInfo<'a>,
             params,
             body,
             return_type,
-            return_type_name: _,
+            return_type_name,
         } = item
         {
             if fname == name {
-                return Ok((fname, params, body, *return_type));
+                return Ok((fname, params, body, *return_type, return_type_name.as_ref()));
             }
         }
     }

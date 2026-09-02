@@ -594,8 +594,15 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 out.push('(');
                 emit_call_args(name, args, out);
                 out.push(')');
-                if comp_ret.is_some() {
-                    out.push_str(").R");
+                if let Some(tn) = &comp_ret {
+                    if tn == "DCOMPLEX" || tn == "SCOMPLEX" {
+                        out.push_str(").R");
+                    } else if let Some(members) = crate::c_emit::composite_ret_members(name) {
+                        if let Some((first, _)) = members.first() {
+                            out.push_str(").");
+                            out.push_str(first);
+                        }
+                    }
                 }
             } else {
                 emit_c_function_name(name, out);

@@ -92,9 +92,15 @@ Work packages (canonical open rows live in docs/17):
    `TYPE` params are locked
    (`cemitter_and_cgen_agree_on_composite_by_value_param`; complementary
    `@p` write-back remains `cgen_matches_interpreter_on_byref_writeback`).
+   User-TYPE composite returns (`FUNCTION PT Make()`) are locked
+   (`cemitter_and_cgen_agree_on_user_type_composite_return`; interpreter
+   collects `{fname}.*` slots, CEmitter emits `xb_comp_PT` typedef + struct
+   local + fallback return, cgen.x mirrors via `scan_comp_ret$`). Text IR
+   appends ` composite PT` suffix only when the function has no explicit
+   `RETURN` — xcol.x `FUNCTION TOKEN AddLabel(...)` with explicit `RETURN`
+   is a type annotation, not a real composite return.
    Remaining: by-ref descriptors including REDIM-through-byref (minimal lock
-   exists) and user-TYPE composite return paths (DCOMPLEX/SCOMPLEX returns
-   already covered by RR-08a). General composite-array by-ref remains
+   exists). General composite-array by-ref remains
    governed by docs/18.
 4. **Resolve remaining memory/runtime contracts.** Decide real `ATTACH`
    aliasing versus the documented bounded copy model, and implement required

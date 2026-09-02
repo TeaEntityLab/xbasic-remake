@@ -209,6 +209,25 @@ pub(crate) fn exec_items(
             }
             IrItem::Assignment { target, value } => {
                 let v = eval(program, value, state, output)?;
+                // User-TYPE composite return: if the RHS was a call to a
+                // composite-returning function, copy the callee's member
+                // slots into {target}.{member} slots (struct-of-arrays model).
+                // DCOMPLEX/SCOMPLEX return the struct value directly (no
+                // member copy needed).
+                if let Some((callee, members)) = &state.last_composite_ret {
+                    if !target.name.contains('.') {
+                        for (suffix, mval) in members {
+                            let mname = format!("{}.{}", target.name, suffix);
+                            let mslot = state
+                                .slots
+                                .entry(mname.clone())
+                                .or_insert_with(|| TypedSlot::new(mval.value_type()));
+                            mslot.value = mval.clone();
+                        }
+                    }
+                    let _ = callee;
+                    state.last_composite_ret = None;
+                }
                 // Coerce to the target type (XBasic implicit coercion).
                 let v = crate::helpers::coerce_value(v, target.value_type);
                 // Auto-declare the variable on first assignment (legacy XBasic

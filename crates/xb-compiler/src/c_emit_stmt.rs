@@ -339,16 +339,17 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
         }
         IrItem::Assignment { target, value } => {
             // Composite call assignment: `polar = DCPOLAR(...)` where `polar`
-            // is a DCOMPLEX var and DCPOLAR returns DCOMPLEX. The call returns
-            // a struct; the target's member scalars (polar_R, polar_I) are
-            // hoisted locals. Emit a temp struct + member assignments.
+            // is a DCOMPLEX var and DCPOLAR returns DCOMPLEX, or `p = Make()`
+            // where `p` is a PT var and Make returns PT. The call returns a
+            // struct; the target's member scalars are hoisted locals. Emit a
+            // temp struct + member assignments.
             if !target.name.contains('.') {
                 if let crate::ir::IrExprKind::FunctionCall { name: fn_name, .. } = &value.kind {
                     if let Some(tn) = crate::c_emit::func_return_composite(fn_name) {
                         let tmp_id = crate::c_emit::next_comp_tmp_id();
                         let tmp_var = format!("_xb_comp_tmp_{}_{}", fn_name, tmp_id);
                         out.push_str(&ind);
-                        out.push_str(crate::c_emit::composite_c_type(&tn));
+                        out.push_str(&crate::c_emit::composite_c_type(&tn));
                         out.push(' ');
                         out.push_str(&tmp_var);
                         out.push_str(" = ");
@@ -359,28 +360,42 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                             crate::c_emit_expr::emit_call_args(fn_name, args, out);
                         }
                         out.push_str(");\n");
-                        out.push_str(&ind);
-                        emit_var_name(
-                            &IrSymbol {
-                                name: format!("{}.R", target.name),
-                                value_type: ValueType::Float,
-                            },
-                            out,
-                        );
-                        out.push_str(" = ");
-                        out.push_str(&tmp_var);
-                        out.push_str(".R;\n");
-                        out.push_str(&ind);
-                        emit_var_name(
-                            &IrSymbol {
-                                name: format!("{}.I", target.name),
-                                value_type: ValueType::Float,
-                            },
-                            out,
-                        );
-                        out.push_str(" = ");
-                        out.push_str(&tmp_var);
-                        out.push_str(".I;\n");
+                        // DCOMPLEX/SCOMPLEX: hardcoded R/I members.
+                        // User TYPE: use discovered member layout.
+                        if tn == "DCOMPLEX" || tn == "SCOMPLEX" {
+                            for member in &["R", "I"] {
+                                out.push_str(&ind);
+                                emit_var_name(
+                                    &IrSymbol {
+                                        name: format!("{}.{}", target.name, member),
+                                        value_type: ValueType::Float,
+                                    },
+                                    out,
+                                );
+                                out.push_str(" = ");
+                                out.push_str(&tmp_var);
+                                out.push('.');
+                                out.push_str(member);
+                                out.push_str(";\n");
+                            }
+                        } else if let Some(members) = crate::c_emit::composite_ret_members(fn_name)
+                        {
+                            for (suffix, vt) in &members {
+                                out.push_str(&ind);
+                                emit_var_name(
+                                    &IrSymbol {
+                                        name: format!("{}.{}", target.name, suffix),
+                                        value_type: *vt,
+                                    },
+                                    out,
+                                );
+                                out.push_str(" = ");
+                                out.push_str(&tmp_var);
+                                out.push('.');
+                                out.push_str(suffix);
+                                out.push_str(";\n");
+                            }
+                        }
                         return;
                     }
                 }
@@ -759,21 +774,38 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             // Composite return: assemble the struct from member variables.
             let composite_ret = crate::c_emit::current_composite_ret();
             if let Some(tn) = &composite_ret {
+                let is_builtin = tn == "DCOMPLEX" || tn == "SCOMPLEX";
+                let members: Vec<(String, ValueType)> = if is_builtin {
+                    vec![
+                        ("R".to_string(), ValueType::Float),
+                        ("I".to_string(), ValueType::Float),
+                    ]
+                } else if let Some(fname) = crate::c_emit::current_fn_name() {
+                    crate::c_emit::composite_ret_members(&fname).unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
                 if let Some(e) = value {
                     if let crate::ir::IrExprKind::Symbol(ref s) = e.kind {
-                        // RETURN funcname — assemble struct from funcname.R/.I
-                        out.push_str(&ind);
-                        out.push_str("xb_var_");
-                        out.push_str(&s.name);
-                        out.push_str(".R = xb_var_");
-                        out.push_str(&s.name);
-                        out.push_str("_R;\n");
-                        out.push_str(&ind);
-                        out.push_str("xb_var_");
-                        out.push_str(&s.name);
-                        out.push_str(".I = xb_var_");
-                        out.push_str(&s.name);
-                        out.push_str("_I;\n");
+                        // RETURN funcname — assemble struct from funcname.{member}
+                        for (suffix, vt) in &members {
+                            let mut member_buf = String::new();
+                            emit_var_name(
+                                &IrSymbol {
+                                    name: format!("{}.{}", s.name, suffix),
+                                    value_type: *vt,
+                                },
+                                &mut member_buf,
+                            );
+                            out.push_str(&ind);
+                            out.push_str("xb_var_");
+                            out.push_str(&s.name);
+                            out.push('.');
+                            out.push_str(suffix);
+                            out.push_str(" = ");
+                            out.push_str(&member_buf);
+                            out.push_str(";\n");
+                        }
                         out.push_str(&ind);
                         out.push_str("return xb_var_");
                         out.push_str(&s.name);
@@ -786,18 +818,24 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 if value.is_none() {
                     let fn_name = crate::c_emit::current_fn_name();
                     if let Some(fname) = &fn_name {
-                        out.push_str(&ind);
-                        out.push_str("xb_var_");
-                        out.push_str(fname);
-                        out.push_str(".R = xb_var_");
-                        out.push_str(fname);
-                        out.push_str("_R;\n");
-                        out.push_str(&ind);
-                        out.push_str("xb_var_");
-                        out.push_str(fname);
-                        out.push_str(".I = xb_var_");
-                        out.push_str(fname);
-                        out.push_str("_I;\n");
+                        for (suffix, vt) in &members {
+                            let mut member_buf = String::new();
+                            emit_var_name(
+                                &IrSymbol {
+                                    name: format!("{}.{}", fname, suffix),
+                                    value_type: *vt,
+                                },
+                                &mut member_buf,
+                            );
+                            out.push_str(&ind);
+                            out.push_str("xb_var_");
+                            out.push_str(fname);
+                            out.push('.');
+                            out.push_str(suffix);
+                            out.push_str(" = ");
+                            out.push_str(&member_buf);
+                            out.push_str(";\n");
+                        }
                         out.push_str(&ind);
                         out.push_str("return xb_var_");
                         out.push_str(fname);
@@ -1002,16 +1040,35 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             let comp_ret = crate::c_emit::current_composite_ret();
             if comp_ret.is_some() {
                 if let Some(fname) = crate::c_emit::current_fn_name() {
+                    let tn = comp_ret.as_ref().unwrap();
+                    let is_builtin = tn == "DCOMPLEX" || tn == "SCOMPLEX";
+                    let members: Vec<(String, ValueType)> = if is_builtin {
+                        vec![
+                            ("R".to_string(), ValueType::Float),
+                            ("I".to_string(), ValueType::Float),
+                        ]
+                    } else {
+                        crate::c_emit::composite_ret_members(&fname).unwrap_or_default()
+                    };
                     out.push_str("if (xb_gosub_sp > xb_gosub_base) { goto *xb_gosub_stack[--xb_gosub_sp]; } ");
-                    out.push_str("xb_var_");
-                    out.push_str(&fname);
-                    out.push_str(".R = xb_var_");
-                    out.push_str(&fname);
-                    out.push_str("_R; xb_var_");
-                    out.push_str(&fname);
-                    out.push_str(".I = xb_var_");
-                    out.push_str(&fname);
-                    out.push_str("_I; return xb_var_");
+                    for (suffix, vt) in &members {
+                        let mut member_buf = String::new();
+                        emit_var_name(
+                            &IrSymbol {
+                                name: format!("{}.{}", fname, suffix),
+                                value_type: *vt,
+                            },
+                            &mut member_buf,
+                        );
+                        out.push_str("xb_var_");
+                        out.push_str(&fname);
+                        out.push('.');
+                        out.push_str(suffix);
+                        out.push_str(" = ");
+                        out.push_str(&member_buf);
+                        out.push_str("; ");
+                    }
+                    out.push_str("return xb_var_");
                     out.push_str(&fname);
                     out.push_str(";\n");
                     return;
