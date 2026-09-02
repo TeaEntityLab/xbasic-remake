@@ -2114,11 +2114,14 @@ fn emit_main(program: &IrProgram, out: &mut String) {
         })
         .or_else(|| {
             program.items.iter().find_map(|i| match i {
-                // Skip forward declarations (empty body from .dec IMPORT):
-                // the entry point must be a real function with a body.
+                // Skip empty-body Xin* stubs from .dec IMPORT files:
+                // these are external declarations, not callable entry
+                // points. XBasic INTERNAL FUNCTION forward declarations
+                // (also empty-body) are kept to match the interpreter's
+                // entry_or_first_callable behavior.
                 IrItem::Function {
                     name, params, body, ..
-                } if !body.is_empty() => Some((name, params)),
+                } if !(body.is_empty() && name.starts_with("Xin")) => Some((name, params)),
                 _ => None,
             })
         });
