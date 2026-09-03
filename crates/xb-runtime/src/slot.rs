@@ -68,6 +68,19 @@ impl RuntimeValue {
     }
 }
 
+/// An ATTACH view/alias binding between array slots (M1-ATTACH-ALIAS): real
+/// XBasic `ATTACH` shares storage rather than copying. `name` reads, writes,
+/// REDIMs, and UBOUNDs route to `target`'s storage: whole-array (`row: None`)
+/// or one 1-D window over row `row` of a 2-D target. View shape derives live
+/// from the target (whole: target dims; row: current row length), so no sync
+/// state exists to go stale. Chains resolve with a visited cap; a missing
+/// target degrades to the view's owned (copy-model) storage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AliasLink {
+    pub(crate) target: String,
+    pub(crate) row: Option<usize>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypedSlot {
     pub(crate) value_type: ValueType,
@@ -209,6 +222,11 @@ pub struct ExecutionState {
     /// into `target.{suffix}` slots. DCOMPLEX/SCOMPLEX use the existing
     /// ret-slot path, not this field.
     pub(crate) last_composite_ret: Option<(String, Vec<(String, RuntimeValue)>)>,
+    /// ATTACH view/alias bindings (`M1-ATTACH-ALIAS`): view name → link.
+    /// Cloned into callee sub-states like `dyn_arrays`; links whose target
+    /// is absent in the current state degrade to owned storage (bounded
+    /// copy-model behavior across call boundaries).
+    pub(crate) aliases: BTreeMap<String, AliasLink>,
 }
 impl ExecutionState {
     pub const fn metadata(&self) -> &ProgramMetadata {

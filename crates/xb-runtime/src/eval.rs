@@ -165,25 +165,22 @@ pub(crate) fn eval_expr(
                     }
                 }
             }
-            let slot_opt = state
-                .shared
-                .get(&symbol.name)
-                .or_else(|| state.slots.get(&symbol.name));
-            let value = match slot_opt {
-                Some(slot) => {
-                    match slot.array_offset(&idxs) {
-                        Some(off) => slot.array_get(off)?,
-                        // Slot exists but has no array (undimmed): read as
-                        // type default, matching the C backend's fold.
-                        None => RuntimeValue::default_for(symbol.value_type),
-                    }
-                }
-                // Undeclared array element reads as the type default (auto-declared).
-                None => RuntimeValue::default_for(symbol.value_type),
-            };
+            // ATTACH views route into shared storage (M1-ATTACH-ALIAS); plain
+            // names resolve to themselves, preserving the exact rules below.
+            let value =
+                match crate::interpreter_attach::read_window_element(state, &symbol.name, &idxs) {
+                    Some(v) => v,
+                    // Unbacked or out of range: type default (undimmed fold and
+                    // auto-declared reads, matching the C backend).
+                    None => RuntimeValue::default_for(symbol.value_type),
+                };
             return Ok(value);
         }
         IrExprKind::ArrayUBound { symbol } => {
+            // ATTACH views report their live window length (M1-ATTACH-ALIAS).
+            if let Some(len) = crate::interpreter_attach::alias_window_len(state, &symbol.name) {
+                return Ok(RuntimeValue::Integer(len as i32 - 1));
+            }
             let slot = state
                 .shared
                 .get(&symbol.name)

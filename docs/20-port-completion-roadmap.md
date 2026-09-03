@@ -111,9 +111,17 @@ Work packages (canonical open rows live in docs/17):
    composite-array by-ref, and 2-D stride tracking for forwarded locals
    (first-index fallback matches the reference emitter for now).
    Composite-array by-ref remains governed by docs/18.
-4. **Resolve remaining memory/runtime contracts.** Decide real `ATTACH`
-   aliasing versus the documented bounded copy model, and implement required
-   C-library time/file helpers against observable programs rather than stubs.
+4. **Resolve remaining memory/runtime contracts.** `ATTACH` aliasing DECIDED
+   (2026-09-04 M1-ATTACH-ALIAS): real ATTACH shares storage — the ary.x
+   row-growth idiom (extract → REDIM view → write back) is impossible under
+   the bounded-copy model, and in-repo analysis agrees (docs/17 MIG-ARY).
+   Interpreter reference landed (view links + REDIM-through-view row splice,
+   locked by four `attach_*` interp tests; the five copy cases pass unchanged
+   since they assert immediates). Remaining: Rust CEmitter + cgen.x alias
+   emission (C design: pointer + shared-ub alias sets with realloc-all on
+   REDIM; unowned across calls like the interp), then ary.x runtime. Also
+   implement required C-library time/file helpers against observable programs
+   rather than stubs.
 5. **Run the modularization gate after scanner retirement.** Measure the
    reduced `cgen.x` dependency graph, then choose deterministic fragments,
    native multi-unit support, or a retained single source. If fragments are

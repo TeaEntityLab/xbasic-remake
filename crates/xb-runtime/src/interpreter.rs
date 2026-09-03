@@ -155,45 +155,109 @@ pub(crate) fn exec_items(
                             }
                         }
                     }
-                    // `SHARED x[…]` arrays live in the module-shared store so they
-                    // persist across function calls (threaded via ExecutionState);
-                    // plain `DIM`/`REDIM` arrays are function-local.
-                    let store = if *shared {
-                        &mut state.shared
+                    // ATTACH views (M1-ATTACH-ALIAS): a fresh DIM allocates
+                    // owned storage and detaches the name and its viewers;
+                    // a REDIM resizes the shared holder storage instead.
+                    let (holder, base, vdims) =
+                        crate::interpreter_attach::resolve_alias(state, &symbol.name);
+                    let is_linked_view = state.aliases.contains_key(&symbol.name)
+                        && (holder != symbol.name || vdims.is_some());
+                    if !*redim {
+                        // Fresh storage detaches the name and its viewers.
+                        state.aliases.remove(&symbol.name);
+                        state.aliases.retain(|_, l| l.target != symbol.name);
+                    }
+                    if *redim && is_linked_view {
+                        // REDIM through the view resizes shared storage.
+                        let hslot = match state
+                            .shared
+                            .get_mut(&holder)
+                            .or_else(|| state.slots.get_mut(&holder))
+                        {
+                            Some(s) => s,
+                            None => {
+                                // Degraded mid-route: fall back to owned.
+                                state.aliases.remove(&symbol.name);
+                                state.slots.entry(symbol.name.clone()).or_insert_with(|| {
+                                    TypedSlot::new_array_nd(symbol.value_type, Vec::new())
+                                })
+                            }
+                        };
+                        match vdims {
+                            Some(vd) if dims.len() == 1 => {
+                                // Row-view 1-D REDIM: splice the shared row to
+                                // the new length (later rows shift), widening
+                                // the holder stride — the ary.x growth idiom.
+                                let rowlen: usize = vd.iter().product();
+                                let want = dims[0];
+                                let fill = RuntimeValue::default_for(hslot.value_type);
+                                if let Some(arr) = hslot.array.as_mut() {
+                                    let end = (base + rowlen).min(arr.len());
+                                    if want >= rowlen {
+                                        arr.splice(
+                                            end..end,
+                                            std::iter::repeat_n(fill, want - rowlen),
+                                        );
+                                    } else {
+                                        arr.drain(end - (rowlen - want)..end);
+                                    }
+                                }
+                                if hslot.dims.len() >= 2 {
+                                    hslot.dims[1] = want;
+                                } else {
+                                    hslot.array_reshape(dims.clone());
+                                }
+                            }
+                            _ => {
+                                // Whole-view (or rank-changing) REDIM reshapes
+                                // the shared holder.
+                                hslot.array_reshape(dims.clone());
+                            }
+                        }
                     } else {
-                        &mut state.slots
-                    };
-                    if *redim {
-                        // REDIM reshapes preserving the common prefix; REDIM of an
-                        // undeclared name creates it (legacy XBasic).
-                        store
-                            .entry(symbol.name.clone())
-                            .or_insert_with(|| {
+                        // `SHARED x[…]` arrays live in the module-shared store so they
+                        // persist across function calls (threaded via ExecutionState);
+                        // plain `DIM`/`REDIM` arrays are function-local.
+                        let store = if *shared {
+                            &mut state.shared
+                        } else {
+                            &mut state.slots
+                        };
+                        if *redim {
+                            // REDIM reshapes preserving the common prefix; REDIM of an
+                            // undeclared name creates it (legacy XBasic).
+                            store
+                                .entry(symbol.name.clone())
+                                .or_insert_with(|| {
+                                    TypedSlot::new_array_nd(symbol.value_type, Vec::new())
+                                })
+                                .array_reshape(dims);
+                        } else if *shared && dims.is_empty() {
+                            // `SHARED x[]` references the shared array without resizing;
+                            // create an empty one only if it does not exist yet.
+                            store.entry(symbol.name.clone()).or_insert_with(|| {
                                 TypedSlot::new_array_nd(symbol.value_type, Vec::new())
-                            })
-                            .array_reshape(dims);
-                    } else if *shared && dims.is_empty() {
-                        // `SHARED x[]` references the shared array without resizing;
-                        // create an empty one only if it does not exist yet.
-                        store.entry(symbol.name.clone()).or_insert_with(|| {
-                            TypedSlot::new_array_nd(symbol.value_type, Vec::new())
-                        });
-                    } else if *shared {
-                        // `SHARED x[n]` sizes the shared array (create-or-resize,
-                        // preserving existing data across re-declaration/order).
-                        store
-                            .entry(symbol.name.clone())
-                            .or_insert_with(|| {
-                                TypedSlot::new_array_nd(symbol.value_type, Vec::new())
-                            })
-                            .array_reshape(dims);
-                    } else {
-                        store.insert(
-                            symbol.name.clone(),
-                            TypedSlot::new_array_nd(symbol.value_type, dims),
-                        );
+                            });
+                        } else if *shared {
+                            // `SHARED x[n]` sizes the shared array (create-or-resize,
+                            // preserving existing data across re-declaration/order).
+                            store
+                                .entry(symbol.name.clone())
+                                .or_insert_with(|| {
+                                    TypedSlot::new_array_nd(symbol.value_type, Vec::new())
+                                })
+                                .array_reshape(dims);
+                        } else {
+                            store.insert(
+                                symbol.name.clone(),
+                                TypedSlot::new_array_nd(symbol.value_type, dims),
+                            );
+                        }
                     }
                 } else if *shared {
+                    // A scalar DIM replaces the slot: drop any ATTACH view
+                    // on the name (M1-ATTACH-ALIAS).
+                    state.aliases.remove(&symbol.name);
                     // Keyword-`SHARED` scalar: module-shared storage (classic
                     // BASIC); reads/writes go through SharedVariable /
                     // SharedAssignment which target `state.shared`.
@@ -202,6 +266,7 @@ pub(crate) fn exec_items(
                         .entry(symbol.name.clone())
                         .or_insert_with(|| TypedSlot::new(symbol.value_type));
                 } else {
+                    state.aliases.remove(&symbol.name);
                     state
                         .slots
                         .insert(symbol.name.clone(), TypedSlot::new(symbol.value_type));
@@ -260,54 +325,61 @@ pub(crate) fn exec_items(
                     eval(program, value, state, output)?,
                     target.value_type,
                 );
-                // Auto-vivify the slot if it doesn't exist in either local or
-                // shared scope (matches the C backend's hoist-all-used-symbols
-                // behavior; reads already auto-vivify via read_slot/ArrayAccess).
-                // If the slot has no array (undimmed), discard the write —
-                // matching the C backend's undimmed-array fold (write → discard).
-                // Dynamic arrays (dyn_arrays set) GROW instead: a write past the
-                // current storage resizes to index+1 (preserving the prefix),
-                // matching the compiled backends' dyn grow-guard. 1-D only.
-                let grow = state.dyn_arrays.contains(&target.name) && idxs.len() == 1;
-                // Shared arrays (SHARED keyword or #name[] with parser shared flag)
-                // live in `state.shared`; prefer that store when it already holds
-                // an array, even if `state.slots` has a scalar shadowing entry
-                // (e.g., arecord's hoisted `dim globaltype0.a` scalar vs
-                // `dim shared globaltype0.a[0]` array). This matches the
-                // shared-first read path in eval.rs.
-                let is_shared_array = state
-                    .shared
-                    .get(&target.name)
-                    .is_some_and(|s| s.array.is_some());
-                if is_shared_array {
-                    if let Some(slot) = state.shared.get_mut(&target.name) {
+                // ATTACH views write into shared storage (M1-ATTACH-ALIAS).
+                // Non-views take the historical path below unchanged.
+                let is_view = state.aliases.contains_key(&target.name);
+                if is_view {
+                    crate::interpreter_attach::write_window_element(state, &target.name, &idxs, v);
+                } else {
+                    // Auto-vivify the slot if it doesn't exist in either local or
+                    // shared scope (matches the C backend's hoist-all-used-symbols
+                    // behavior; reads already auto-vivify via read_slot/ArrayAccess).
+                    // If the slot has no array (undimmed), discard the write —
+                    // matching the C backend's undimmed-array fold (write → discard).
+                    // Dynamic arrays (dyn_arrays set) GROW instead: a write past the
+                    // current storage resizes to index+1 (preserving the prefix),
+                    // matching the compiled backends' dyn grow-guard. 1-D only.
+                    let grow = state.dyn_arrays.contains(&target.name) && idxs.len() == 1;
+                    // Shared arrays (SHARED keyword or #name[] with parser shared flag)
+                    // live in `state.shared`; prefer that store when it already holds
+                    // an array, even if `state.slots` has a scalar shadowing entry
+                    // (e.g., arecord's hoisted `dim globaltype0.a` scalar vs
+                    // `dim shared globaltype0.a[0]` array). This matches the
+                    // shared-first read path in eval.rs.
+                    let is_shared_array = state
+                        .shared
+                        .get(&target.name)
+                        .is_some_and(|s| s.array.is_some());
+                    if is_shared_array {
+                        if let Some(slot) = state.shared.get_mut(&target.name) {
+                            if let Some(off) = slot.array_offset(&idxs) {
+                                slot.array_set(off, v)?;
+                            } else if grow && idxs[0] < (1 << 20) {
+                                slot.array_reshape(vec![idxs[0] + 1]);
+                                slot.array_set(idxs[0], v)?;
+                            }
+                        }
+                    } else if let Some(slot) = state.slots.get_mut(&target.name) {
                         if let Some(off) = slot.array_offset(&idxs) {
                             slot.array_set(off, v)?;
                         } else if grow && idxs[0] < (1 << 20) {
                             slot.array_reshape(vec![idxs[0] + 1]);
                             slot.array_set(idxs[0], v)?;
                         }
+                    } else if let Some(slot) = state.shared.get_mut(&target.name) {
+                        if let Some(off) = slot.array_offset(&idxs) {
+                            slot.array_set(off, v)?;
+                        } else if grow && idxs[0] < (1 << 20) {
+                            slot.array_reshape(vec![idxs[0] + 1]);
+                            slot.array_set(idxs[0], v)?;
+                        }
+                    } else {
+                        let mut slot = TypedSlot::new(target.value_type);
+                        if let Some(off) = slot.array_offset(&idxs) {
+                            slot.array_set(off, v)?;
+                        }
+                        state.slots.insert(target.name.clone(), slot);
                     }
-                } else if let Some(slot) = state.slots.get_mut(&target.name) {
-                    if let Some(off) = slot.array_offset(&idxs) {
-                        slot.array_set(off, v)?;
-                    } else if grow && idxs[0] < (1 << 20) {
-                        slot.array_reshape(vec![idxs[0] + 1]);
-                        slot.array_set(idxs[0], v)?;
-                    }
-                } else if let Some(slot) = state.shared.get_mut(&target.name) {
-                    if let Some(off) = slot.array_offset(&idxs) {
-                        slot.array_set(off, v)?;
-                    } else if grow && idxs[0] < (1 << 20) {
-                        slot.array_reshape(vec![idxs[0] + 1]);
-                        slot.array_set(idxs[0], v)?;
-                    }
-                } else {
-                    let mut slot = TypedSlot::new(target.value_type);
-                    if let Some(off) = slot.array_offset(&idxs) {
-                        slot.array_set(off, v)?;
-                    }
-                    state.slots.insert(target.name.clone(), slot);
                 }
             }
             IrItem::MidAssign {

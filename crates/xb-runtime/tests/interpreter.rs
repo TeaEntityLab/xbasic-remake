@@ -938,3 +938,125 @@ fn ifz_on_string_tests_emptiness() {
         .unwrap();
     assert_eq!(output, ["empty", "done"]);
 }
+
+#[test]
+fn attach_whole_array_aliases_storage_both_directions() {
+    // Real ATTACH shares storage (M1-ATTACH-ALIAS): writes through either
+    // name are visible through the other (the bounded-copy model could not
+    // express this; the ary.x row-growth idiom needs it).
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM a[2]\n\
+         DIM b[2]\n\
+         b[0] = 10\n\
+         b[1] = 20\n\
+         ATTACH a[] TO b[]\n\
+         b[0] = 99\n\
+         a[1] = 88\n\
+         PRINT a[0]\n\
+         PRINT a[1]\n\
+         PRINT b[0]\n\
+         PRINT b[1]\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["99", "88", "99", "88"]);
+}
+
+#[test]
+fn attach_row_view_grows_shared_holder_on_redim() {
+    // The ary.x idiom: extract a row to a view, REDIM the view bigger, and
+    // the shared holder row grows with content preserved.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM t[1, 2]\n\
+         t[0, 0] = 1\n\
+         t[0, 1] = 2\n\
+         t[0, 2] = 3\n\
+         t[1, 0] = 4\n\
+         t[1, 1] = 5\n\
+         t[1, 2] = 6\n\
+         DIM a[]\n\
+         ATTACH a[] TO t[0,]\n\
+         PRINT UBOUND(a[])\n\
+         PRINT a[0]\n\
+         PRINT a[2]\n\
+         REDIM a[4]\n\
+         a[3] = 30\n\
+         a[4] = 40\n\
+         ATTACH t[0,] TO a[]\n\
+         PRINT t[0, 0]\n\
+         PRINT t[0, 3]\n\
+         PRINT t[0, 4]\n\
+         PRINT t[1, 0]\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["2", "1", "3", "1", "30", "40", "4"]);
+}
+
+#[test]
+fn attach_empty_source_joins_row_without_wiping() {
+    // Ary order: ATTACH row TO empty-a links a as a view (the row is NOT
+    // wiped — the old copy guard for empty sources); a sees live contents
+    // and UBOUND follows the shared row.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM t[1, 2]\n\
+         t[0, 0] = 1\n\
+         t[0, 1] = 2\n\
+         t[0, 2] = 3\n\
+         t[1, 0] = 4\n\
+         t[1, 1] = 5\n\
+         t[1, 2] = 6\n\
+         DIM a[]\n\
+         ATTACH t[0,] TO a[]\n\
+         PRINT t[0, 0]\n\
+         PRINT t[0, 1]\n\
+         PRINT t[0, 2]\n\
+         PRINT UBOUND(a[])\n\
+         REDIM a[4]\n\
+         ATTACH a[] TO t[0,]\n\
+         PRINT t[0, 0]\n\
+         PRINT t[0, 2]\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["1", "2", "3", "2", "1", "3"]);
+}
+
+#[test]
+fn attach_dim_unlinks_fresh_storage() {
+    // A fresh DIM on a view allocates owned storage and detaches: later
+    // writes no longer reach the former holder.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM a[2]\n\
+         DIM b[2]\n\
+         b[0] = 10\n\
+         ATTACH a[] TO b[]\n\
+         DIM a[2]\n\
+         a[0] = 77\n\
+         PRINT a[0]\n\
+         PRINT b[0]\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["77", "10"]);
+}
