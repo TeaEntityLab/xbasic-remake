@@ -765,6 +765,7 @@ END IF
 ##sharedArrDecls$ = ""
 ##dynNames$ = ""
 ##byrefDual$ = ""
+##redimNames$ = ""
 ##undimmed$ = ""
 ##sharedDual$ = ""
 ##fileScopeDecls$ = ""
@@ -891,8 +892,8 @@ WHILE LEN(_sdIter$) > 0
   END IF
 WEND
 ##dynNames$ = scan_dyn$(src$)
-##scanDynAll$ = ##dynNames$
 ##byrefDual$ = scan_byref_dual$(src$)
+##redimNames$ = scan_redim_names$(src$)
 ##strDual$ = scan_str_dual$(src$)
 ##strDual$ = replace$(##strDual$, ":found:", ":")
 ##strDual$ = replace$(##strDual$, "::", ":")
@@ -1663,6 +1664,7 @@ IF LEN(##facetTab$) > 0 THEN
   WEND
 END IF
 ##byrefDual$ = scan_byref_dual$(src$)
+##redimNames$ = scan_redim_names$(src$)
 ##undimmed$ = scan_undimmed$(src$)
 ##dynStr$ = scan_dynstr$(src$)
 ##dynStr$ = replace$(##dynStr$, ":found:", ":")
@@ -5720,7 +5722,13 @@ FUNCTION emit_hoists$(used$, dimmed$)
         ' function): the in-place member array owns the sanitized C name
         ' (xb_var_p_x), so a scalar facet would redefine it. The byref call
         ' arg is member forwarding, never a scalar use — emit nothing.
-        IF INSTR(entry$, ".") = 0 OR INSTR(##curFnArrays$, ":" + entry$ + ":") = 0 THEN
+        ' Plain forward-only array with an in-place fixed DIM and no REDIM
+        ' anywhere (no `:name:` in ##redimNames$): same — the array owns the
+        ' C name and no descriptor callee needs the cell (REDIM seeds
+        ' descriptors, e.g. minimal's Grow/`a` keeps its scalar). Headerless-
+        ' safe: ##redimNames$ is scanner-built, unlike facet-fed ##descParams$.
+        ' Genuine scalar+DIM duals are unaffected unless byref-called params.
+        IF (INSTR(entry$, ".") = 0 OR INSTR(##curFnArrays$, ":" + entry$ + ":") = 0) AND (INSTR(entry$, ".") > 0 OR INSTR(##curFnArrays$, ":" + entry$ + ":") = 0 OR INSTR(##redimNames$, ":" + entry$ + ":") > 0) THEN
         IF RIGHT$(entry$, 1) = "$" THEN
           IF INSTR(out$, "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + ");") = 0 THEN
             out$ = out$ + "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
@@ -7030,6 +7038,53 @@ FUNCTION scan_dual_use$(s$)
     END IF
   WEND
   scan_dual_use$ = res$
+END FUNCTION
+
+' Names REDIM'd anywhere in the program (headerless-safe descriptor-seed
+' signal: a REDIM seeds a descriptor callee param, which needs the scalar
+' cell in forwarding callers). Used by the byrefDual scalar branch to keep
+' the cell exactly when some callee may take the address for (data, ub)
+' writeback. `redim shared X` (lowered shared-REDIM) counts as well.
+FUNCTION scan_redim_names$(s$)
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM r$
+  DIM nm$
+  DIM cp
+  DIM bp
+  res$ = ""
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 6) = "redim " THEN
+      r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      IF LEFT$(r$, 7) = "shared " THEN
+        r$ = MID$(r$, 8, LEN(r$) - 7)
+      END IF
+      cp = INSTR(r$, ":")
+      IF cp > 0 THEN
+        nm$ = LEFT$(r$, cp - 1)
+      ELSE
+        nm$ = r$
+      END IF
+      bp = INSTR(nm$, "[")
+      IF bp > 0 THEN
+        nm$ = LEFT$(nm$, bp - 1)
+      END IF
+      nm$ = trim_spaces$(nm$)
+      IF LEN(nm$) > 0 AND INSTR(res$, ":" + nm$ + ":") = 0 THEN
+        res$ = res$ + ":" + nm$ + ":"
+      END IF
+    END IF
+  WEND
+  scan_redim_names$ = res$
 END FUNCTION
 
 ' The C-name suffix for the ARRAY facet of a byref-dual name (`_arr`), else "".

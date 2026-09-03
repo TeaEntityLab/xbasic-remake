@@ -2741,6 +2741,59 @@ fn cemitter_and_cgen_agree_on_composite_member_ubound() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Plain forward-only callee UBOUND (M1-ABI): `Show (@a[])` with no REDIM
+/// anywhere forwards a fixed array; the caller keeps no scalar cell unless a
+/// descriptor callee needs it. cgen.x used to emit the byrefDual scalar facet
+/// beside the in-place array (same C name, cc redefinition); the branch now
+/// skips names with an in-place DIM and no REDIM anywhere (`##redimNames$`,
+/// headerless-safe), while REDIM-seeded names (minimal's `Grow`/`a`) keep
+/// their cell. Interp sees the real bound (`2`); both C backends fold plain-
+/// pointer sizeof (`0`). Locks C parity plus the interp reference.
+#[test]
+fn cemitter_and_cgen_agree_on_plain_forward_ubound() {
+    let tmp = std::env::temp_dir().join("xb_sync_plain_fwd_ub");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"pfu\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main\n",
+        "DIM a[2]\n",
+        "a[0] = 5\n",
+        "Show(@a[])\n",
+        "END FUNCTION\n",
+        "FUNCTION Show (@a[])\n",
+        "PRINT UBOUND(a[])\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse plain forward ubound program")
+        .lower_ir()
+        .expect("lower plain forward ubound program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "pfu_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "pfu_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret plain forward ubound program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "2\n", "plain forward ubound reference output");
+    assert_eq!(rust_out, "0\n", "CEmitter changed callee-UBOUND folding");
+    assert_eq!(
+        self_out, rust_out,
+        "cgen.x callee-UBOUND differs from CEmitter (cc-fail or drift)"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Binary integer literals (CGEN-SELFHOST-PARITY): `0b1000000` is a gcc/clang
 /// extension the interpreter evaluates (64) and the Rust CEmitter emits verbatim.
 /// cgen.x's strip_zeros$ (added for the `08`/`09` octal hazard) exempted hex
