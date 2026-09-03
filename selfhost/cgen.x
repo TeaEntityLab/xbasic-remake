@@ -4201,6 +4201,13 @@ FUNCTION emit_expr$(e$)
       END IF
     ELSEIF INSTR(##xstArrays$, ":" + varName$ + ":") > 0 AND INSTR(##dynNames$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
+    ' Byref-dual array param outside ##dynNames$ (plain `a` with only a
+    ' byref call-arg use, dotted member `p.x`): the param cell is the `_arr`
+    ' pointer, so UBOUND folds to sizeof over it (0 for a pointer) exactly
+    ' like the Rust CEmitter — never over the scalar facet (undeclared or a
+    ' redefinition). Matches the dynNames twin branch above.
+    ELSEIF INSTR(##byrefDual$, ":" + varName$ + ":") > 0 AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + varName$ + CHR$(10)) > 0 THEN
+      emit_expr$ = "(int)(sizeof(" + arr_acc_name$(varName$, varType$) + ")/sizeof(" + arr_acc_name$(varName$, varType$) + "[0])-1)"
     ELSE
       emit_expr$ = "(int)(sizeof(" + c_var_name$(varName$, varType$) + ")/sizeof(" + c_var_name$(varName$, varType$) + "[0])-1)"
     END IF

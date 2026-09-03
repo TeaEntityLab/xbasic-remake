@@ -2681,6 +2681,66 @@ fn cemitter_and_cgen_agree_on_composite_array_byref() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Composite member UBOUND in the callee (M1-ABI): `UBOUND(p[])` lowers to the
+/// first member (`array_ubound(p.x)`). The interpreter forwards member storage
+/// so the callee sees the real bound (`1`); both C backends pass plain member
+/// pointers (a bare UBOUND does not seed descriptors, per the qbtoxb decision
+/// in docs/18), so they fold to `sizeof(ptr)-1` (`0`). cgen.x used to emit
+/// `sizeof` over the scalar facet — undeclared, cc-fail; the UBOUND chain now
+/// takes `arr_acc_name$` for byrefDual params, matching the Rust CEmitter.
+/// Locks C-model parity (`0`) plus the interp reference (`1`); closing the
+/// interp gap needs descriptor seeding, explicitly deferred.
+#[test]
+fn cemitter_and_cgen_agree_on_composite_member_ubound() {
+    let tmp = std::env::temp_dir().join("xb_sync_comp_ubound");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"cbu\"\n",
+        "VERSION \"0.1\"\n",
+        "TYPE PT\n",
+        "XLONG .x\n",
+        "XLONG .y\n",
+        "END TYPE\n",
+        "FUNCTION Main ()\n",
+        "PT p[]\n",
+        "DIM p[1]\n",
+        "p[0].x = 3\n",
+        "Sum(@p[])\n",
+        "END FUNCTION\n",
+        "FUNCTION Sum (PT p[])\n",
+        "PRINT UBOUND(p[])\n",
+        "PRINT UBOUND(p.x[])\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse composite ubound program")
+        .lower_ir()
+        .expect("lower composite ubound program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "cbu_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "cbu_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret composite ubound program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "1\n1\n", "composite ubound reference output");
+    assert_eq!(rust_out, "0\n0\n", "CEmitter changed callee-UBOUND folding");
+    assert_eq!(
+        self_out, rust_out,
+        "cgen.x callee-UBOUND differs from CEmitter (cc-fail or drift)"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Binary integer literals (CGEN-SELFHOST-PARITY): `0b1000000` is a gcc/clang
 /// extension the interpreter evaluates (64) and the Rust CEmitter emits verbatim.
 /// cgen.x's strip_zeros$ (added for the `08`/`09` octal hazard) exempted hex
