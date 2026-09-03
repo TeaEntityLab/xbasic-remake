@@ -1071,6 +1071,204 @@ pub(crate) struct DynNames {
     /// name → type, for names with only scalar `Dim`s.
     pub scalars: BTreeMap<String, ValueType>,
 }
+
+/// Whole-array ATTACH alias groups (M1-ATTACH-ALIAS): directed last-wins links
+/// (`src` views `dst`), resolved to ultimate homes with cycle guards —
+/// mirroring the interpreter's link table. Only same-type, non-param,
+/// non-descriptor, non-shared, non-dual whole-array links participate; row
+/// ATTACH stays copy in C for now. Linked names join the dyn (heap) model so
+/// views can reseat; REDIMs realloc the home and update the group behind a
+/// pointer-equality guard (conditional ATTACH / detach stay sound).
+pub(crate) fn collect_attach_alias_groups(
+    items: &[IrItem],
+    params: &[IrParam],
+    descriptors: &HashSet<String>,
+    descriptor_locals: &HashMap<String, ValueType>,
+    dual_use: &HashSet<String>,
+) -> (HashMap<String, Vec<String>>, HashMap<String, ValueType>) {
+    let param_names: HashSet<&str> = params.iter().map(|p| p.name.as_str()).collect();
+    fn walk(
+        items: &[IrItem],
+        param_names: &HashSet<&str>,
+        descriptors: &HashSet<String>,
+        descriptor_locals: &HashMap<String, ValueType>,
+        dual_use: &HashSet<String>,
+        links: &mut Vec<(String, String, ValueType)>,
+    ) {
+        for it in items {
+            match it {
+                IrItem::Attach {
+                    left,
+                    left_indices,
+                    left_is_row,
+                    right,
+                    right_indices,
+                    right_is_row,
+                } => {
+                    // Whole-array form only, same element type (mirrors the
+                    // copy path's type gate in c_emit_attach Case 3).
+                    if !left_is_row
+                        && !right_is_row
+                        && left_indices.is_empty()
+                        && right_indices.is_empty()
+                        && left.value_type == right.value_type
+                        && !param_names.contains(left.name.as_str())
+                        && !param_names.contains(right.name.as_str())
+                        && !descriptors.contains(&left.name)
+                        && !descriptors.contains(&right.name)
+                        && !descriptor_locals.contains_key(&left.name)
+                        && !descriptor_locals.contains_key(&right.name)
+                        && !dual_use.contains(&left.name)
+                        && !dual_use.contains(&right.name)
+                        && !crate::c_emit::is_shared_array(&left.name)
+                        && !crate::c_emit::is_shared_array(&right.name)
+                    {
+                        links.push((left.name.clone(), right.name.clone(), left.value_type));
+                    }
+                }
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
+                    walk(
+                        then_body,
+                        param_names,
+                        descriptors,
+                        descriptor_locals,
+                        dual_use,
+                        links,
+                    );
+                    if let Some(b) = else_body {
+                        walk(
+                            b,
+                            param_names,
+                            descriptors,
+                            descriptor_locals,
+                            dual_use,
+                            links,
+                        );
+                    }
+                }
+                IrItem::While { body, .. } | IrItem::DoLoop { body, .. } => {
+                    walk(
+                        body,
+                        param_names,
+                        descriptors,
+                        descriptor_locals,
+                        dual_use,
+                        links,
+                    );
+                }
+                IrItem::For { body, .. } => {
+                    walk(
+                        body,
+                        param_names,
+                        descriptors,
+                        descriptor_locals,
+                        dual_use,
+                        links,
+                    );
+                }
+                IrItem::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        walk(
+                            &c.body,
+                            param_names,
+                            descriptors,
+                            descriptor_locals,
+                            dual_use,
+                            links,
+                        );
+                    }
+                    if let Some(b) = default {
+                        walk(
+                            b,
+                            param_names,
+                            descriptors,
+                            descriptor_locals,
+                            dual_use,
+                            links,
+                        );
+                    }
+                }
+                IrItem::Compound(inner) => {
+                    walk(
+                        inner,
+                        param_names,
+                        descriptors,
+                        descriptor_locals,
+                        dual_use,
+                        links,
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut links: Vec<(String, String, ValueType)> = Vec::new();
+    walk(
+        items,
+        &param_names,
+        descriptors,
+        descriptor_locals,
+        dual_use,
+        &mut links,
+    );
+    // Last-wins directed map, then resolve to ultimate homes (cycle → drop).
+    let mut direct: HashMap<String, (String, ValueType)> = HashMap::new();
+    for (src, dst, vt) in links {
+        direct.insert(src, (dst, vt));
+    }
+    let mut home_of: HashMap<String, String> = HashMap::new();
+    for src in direct.keys() {
+        let mut cur = src.clone();
+        let mut seen = HashSet::new();
+        seen.insert(cur.clone());
+        let mut cyclic = false;
+        while let Some((dst, _)) = direct.get(&cur) {
+            if !seen.insert(dst.clone()) {
+                cyclic = true;
+                break;
+            }
+            cur = dst.clone();
+        }
+        if cyclic {
+            continue;
+        }
+        home_of.insert(src.clone(), cur);
+    }
+    // Invert: home → members, with the home itself a member (it shares the
+    // block after the first alias-assign). Member → full sorted group; only
+    // multi-member groups alias. Member types ride the (same-type) links.
+    let mut groups: HashMap<String, Vec<String>> = HashMap::new();
+    let mut types: HashMap<String, ValueType> = HashMap::new();
+    for (src, (dst, vt)) in &direct {
+        types.insert(src.clone(), *vt);
+        types.insert(dst.clone(), *vt);
+    }
+    for (src, home) in &home_of {
+        let entry = groups.entry(home.clone()).or_default();
+        if !entry.contains(src) {
+            entry.push(src.clone());
+        }
+        if !entry.contains(home) {
+            entry.push(home.clone());
+        }
+    }
+    let mut out: HashMap<String, Vec<String>> = HashMap::new();
+    for members in groups.values() {
+        if members.len() < 2 {
+            continue;
+        }
+        let mut sorted = members.clone();
+        sorted.sort();
+        for m in &sorted {
+            out.insert(m.clone(), sorted.clone());
+        }
+    }
+    (out, types)
+}
 #[derive(Default)]
 struct DynWalk {
     used: HashSet<String>,

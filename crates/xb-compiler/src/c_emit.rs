@@ -56,6 +56,12 @@ thread_local! {
     /// declarations: referenced before their first `Dim` in emission order, or
     /// `Dim`'d 2+ times (see c_emit_hoist::collect_dyn_names). Arrays carry the
     static FN_DYN: RefCell<crate::c_emit_hoist::DynNames> = RefCell::new(crate::c_emit_hoist::DynNames::default());
+    /// Whole-array ATTACH alias groups (M1-ATTACH-ALIAS): member → sorted
+    /// group (members share one heap block after alias-assign; REDIMs realloc
+    /// the home — members[0] — and update the group behind a pointer guard).
+    /// Multi-member groups only; empty for the shared corpus.
+    static FN_ATTACH_GROUPS: RefCell<HashMap<String, Vec<String>>> =
+        RefCell::new(HashMap::new());
     /// Per-function parameter names: a `Dim` of a name that is already a
     /// parameter must not re-declare it in C (would be a redefinition).
     static FN_PARAMS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
@@ -1029,6 +1035,31 @@ pub(crate) fn set_fn_context(
             }
         });
     });
+    // Whole-array ATTACH alias groups (M1-ATTACH-ALIAS): linked members join
+    // the dyn (heap) model so views can reseat, and record the group for
+    // alias-assign + guarded group-REDIM emission. Runs after dual-use so
+    // dual names stay on the copy path.
+    FN_DUAL_USE.with(|dual| {
+        let dual_set = dual.borrow();
+        let (groups, types) = crate::c_emit_hoist::collect_attach_alias_groups(
+            items,
+            params,
+            &descriptors,
+            &descriptor_locals,
+            &dual_set,
+        );
+        FN_DYN.with(|dyn_s| {
+            let mut dyn_names = dyn_s.borrow_mut();
+            for m in groups.keys() {
+                if let Some(vt) = types.get(m) {
+                    dyn_names.arrays.entry(m.clone()).or_insert(*vt);
+                }
+            }
+        });
+        FN_ATTACH_GROUPS.with(|s| {
+            *s.borrow_mut() = groups;
+        });
+    });
     FN_ARRAY_DIMS.with(|s| {
         let mut m = s.borrow_mut();
         m.clear();
@@ -1396,6 +1427,14 @@ pub(crate) fn is_dyn_array(name: &str) -> bool {
     // A module-shared array is a heap global (dyn pointer), so it always takes the
     // realloc/pointer path — never a stack fixed array (CGEN-SHARED-ARR).
     is_shared_array(name) || FN_DYN.with(|s| s.borrow().arrays.contains_key(name))
+}
+
+/// The whole-array ATTACH alias group of `name` (sorted members, home first),
+/// or empty when unlinked (M1-ATTACH-ALIAS).
+pub(crate) fn attach_group(name: &str) -> Vec<String> {
+    FN_ATTACH_GROUPS
+        .with(|s| s.borrow().get(name).cloned())
+        .unwrap_or_default()
 }
 
 /// A scalar whose `Dim` is late/repeated: declared at function top, reset at the

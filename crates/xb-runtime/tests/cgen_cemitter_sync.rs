@@ -2939,6 +2939,124 @@ fn cemitter_and_cgen_agree_on_2d_redim_flat() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Whole-array ATTACH aliasing (M1-ATTACH-ALIAS): `ATTACH a[] TO b[]` shares
+/// one heap block, so writes through either name are visible through both
+/// (`99/88/99/88`). The Rust CEmitter marks linked names dyn and emits
+/// pointer + bound assignment. cgen.x still copies (`10/88/99/20`, locked
+/// as the documented gap; alias mirror is next).
+#[test]
+fn cemitter_attach_whole_array_aliases() {
+    let tmp = std::env::temp_dir().join("xb_sync_attach_alias");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"ata\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main\n",
+        "DIM a[2]\n",
+        "DIM b[2]\n",
+        "b[0] = 10\n",
+        "b[1] = 20\n",
+        "ATTACH a[] TO b[]\n",
+        "b[0] = 99\n",
+        "a[1] = 88\n",
+        "PRINT a[0]\n",
+        "PRINT a[1]\n",
+        "PRINT b[0]\n",
+        "PRINT b[1]\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse attach alias program")
+        .lower_ir()
+        .expect("lower attach alias program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "ata_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "ata_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret attach alias program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "99\n88\n99\n88\n",
+        "attach alias reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter failed to alias whole-array ATTACH"
+    );
+    assert_eq!(
+        self_out, "10\n88\n99\n20\n",
+        "cgen.x changed copy-model output (alias mirror pending)"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// Whole-array ATTACH plus group REDIM (M1-ATTACH-ALIAS): REDIM through one
+/// member reallocs the shared home block and repoints the group, so the
+/// caller-visible bound and grown tail propagate (`10/40/30/40/4/4`). The
+/// pointer-equality guard keeps conditional-ATTACH/detach sound. cgen.x
+/// cannot compile this shape yet (fixed-array REDIM path); its mirror
+/// follows the alias work.
+#[test]
+fn cemitter_attach_group_redim_propagates() {
+    let tmp = std::env::temp_dir().join("xb_sync_attach_redim");
+    fs::create_dir_all(&tmp).expect("mkdir");
+
+    let src = concat!(
+        "PROGRAM \"atg\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main\n",
+        "DIM a[2]\n",
+        "DIM b[2]\n",
+        "b[0] = 10\n",
+        "b[1] = 20\n",
+        "ATTACH a[] TO b[]\n",
+        "REDIM a[4]\n",
+        "a[3] = 30\n",
+        "a[4] = 40\n",
+        "PRINT a[0]\n",
+        "PRINT a[4]\n",
+        "PRINT b[3]\n",
+        "PRINT b[4]\n",
+        "PRINT UBOUND(a[])\n",
+        "PRINT UBOUND(b[])\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse attach redim program")
+        .lower_ir()
+        .expect("lower attach redim program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "atg_rust", rust_c.as_bytes(), None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret attach redim program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "10\n40\n30\n40\n4\n4\n",
+        "attach redim reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter failed group REDIM through ATTACH alias"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Binary integer literals (CGEN-SELFHOST-PARITY): `0b1000000` is a gcc/clang
 /// extension the interpreter evaluates (64) and the Rust CEmitter emits verbatim.
 /// cgen.x's strip_zeros$ (added for the `08`/`09` octal hazard) exempted hex

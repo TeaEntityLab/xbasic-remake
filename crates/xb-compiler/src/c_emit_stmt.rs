@@ -251,38 +251,49 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             out.push_str(&ind);
             match size {
                 Some(sz) if dyn_array && *redim => {
-                    // Content-preserving REDIM: realloc keeps existing elements
-                    // and the grown tail is default-filled, matching the interp's
-                    // execute_dim resize (slot.rs). (First DIM is redim=false →
-                    // the calloc arm below.) Block-scoped so `_oldub` never clashes.
-                    let id = crate::c_emit::array_ident(&symbol.name);
-                    out.push_str("{ intptr_t _oldub = xb_ub_");
-                    out.push_str(&id);
-                    out.push_str("; xb_ub_");
-                    out.push_str(&id);
-                    out.push_str(" = (");
-                    emit_expr(sz, out);
-                    out.push_str("); ");
-                    crate::c_emit::emit_array_var_name(symbol, out);
-                    out.push_str(" = realloc(");
-                    crate::c_emit::emit_array_var_name(symbol, out);
-                    out.push_str(", (size_t)(xb_ub_");
-                    out.push_str(&id);
-                    out.push_str(" + 1) * sizeof(*");
-                    crate::c_emit::emit_array_var_name(symbol, out);
-                    out.push_str(")); if (!");
-                    crate::c_emit::emit_array_var_name(symbol, out);
-                    out.push_str(") abort(); for (intptr_t _i = _oldub + 1; _i <= xb_ub_");
-                    out.push_str(&id);
-                    out.push_str("; _i++) ");
-                    crate::c_emit::emit_array_var_name(symbol, out);
-                    out.push_str("[_i] = ");
-                    out.push_str(if symbol.value_type == ValueType::String {
-                        "xb_str(\"\")"
+                    // Group-aware REDIM (M1-ATTACH-ALIAS): members of a
+                    // whole-array alias group realloc the home block and
+                    // repoint the group behind a pointer guard; otherwise the
+                    // existing single-REDIM shape below.
+                    let group = crate::c_emit::attach_group(&symbol.name);
+                    if group.len() > 1 {
+                        crate::c_emit_attach::emit_group_redim(
+                            symbol, sz, &group, &group[0], &ind, out,
+                        );
                     } else {
-                        "0"
-                    });
-                    out.push_str("; }\n");
+                        // Content-preserving REDIM: realloc keeps existing elements
+                        // and the grown tail is default-filled, matching the interp's
+                        // execute_dim resize (slot.rs). (First DIM is redim=false →
+                        // the calloc arm below.) Block-scoped so `_oldub` never clashes.
+                        let id = crate::c_emit::array_ident(&symbol.name);
+                        out.push_str("{ intptr_t _oldub = xb_ub_");
+                        out.push_str(&id);
+                        out.push_str("; xb_ub_");
+                        out.push_str(&id);
+                        out.push_str(" = (");
+                        emit_expr(sz, out);
+                        out.push_str("); ");
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push_str(" = realloc(");
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push_str(", (size_t)(xb_ub_");
+                        out.push_str(&id);
+                        out.push_str(" + 1) * sizeof(*");
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push_str(")); if (!");
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push_str(") abort(); for (intptr_t _i = _oldub + 1; _i <= xb_ub_");
+                        out.push_str(&id);
+                        out.push_str("; _i++) ");
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push_str("[_i] = ");
+                        out.push_str(if symbol.value_type == ValueType::String {
+                            "xb_str(\"\")"
+                        } else {
+                            "0"
+                        });
+                        out.push_str("; }\n");
+                    }
                 }
                 Some(sz) if dyn_array => {
                     // Late/repeated `DIM`: the pointer + xb_ub_ var are hoisted;
