@@ -4733,3 +4733,57 @@ fn cemitter_attach_copy_semantics_match_interp() {
     assert_eq!(self_out, expected, "cgen.x ATTACH copy semantics");
     let _ = fs::remove_dir_all(&tmp);
 }
+
+/// Dynamic trailing-comma DIM (`DIM m[1,]`): lowering normalizes it to 1-D
+/// in every engine, so multi-index access aliases the first index, UBOUND
+/// reports the flat bound, and row-ATTACH is a guarded no-op for lack of a
+/// 2-D shape. REDIM-across-fixed content preservation is NOT covered here:
+/// the interpreter and Rust CEmitter (dyn-promoting REDIM) preserve while
+/// cgen.x keeps fixed stack storage — a pre-existing, separately tracked gap.
+#[test]
+fn cemitter_and_cgen_agree_on_dynamic_trailing_comma_dim() {
+    let tmp = std::env::temp_dir().join("xb_sync_dyndim");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"dyndim\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM m[1,]\n\
+               PRINT UBOUND(m[])\n\
+               m[0,0] = 11\n\
+               m[0,1] = 22\n\
+               PRINT m[0,0]\n\
+               PRINT m[0,1]\n\
+               PRINT UBOUND(m[])\n\
+               DIM row[2]\n\
+               ATTACH row[] TO m[0,]\n\
+               PRINT row[0]\n\
+               PRINT row[1]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse dyndim program")
+        .lower_ir()
+        .expect("lower dyndim program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "dyndim_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "dyndim_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret dyndim program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "1\n22\n22\n1\n0\n0\n",
+        "dyndim reference output"
+    );
+    assert_eq!(rust_out, interp_out, "CEmitter dynamic-dim mismatch");
+    assert_eq!(self_out, interp_out, "cgen.x dynamic-dim mismatch");
+    let _ = fs::remove_dir_all(&tmp);
+}
