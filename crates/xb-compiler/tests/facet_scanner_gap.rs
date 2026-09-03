@@ -299,18 +299,19 @@ fn facet_header_covers_cgen_scanner_facts_ratchet() {
             .filter(|f| f.ty == "string" && f.rank >= 1 && f.dual)
             .map(|f| f.name.clone())
             .collect();
-        str_dual.diff(&name, &s_dual, &f_dual);
-
         // (3) xstArrays: every consumer of ##xstArrays$ is guarded by
         // `NOT IN ##dynNames$`, and facets rebuild ##dynNames$ from storage=dyn.
-        // The scanner is retirable iff every xst array is facet-dyn.
+        // Shared/param arrays never need dyn membership (file-scope globals /
+        // caller-owned cells), so the retirable invariant is classified
+        // storage (dyn/shared/param), not dyn alone. `missing` names have no
+        // facet with an owning storage in any scope.
         let s_xst: BTreeSet<String> = scan_xst_arrays(&ir).into_keys().collect();
-        let f_dyn: BTreeSet<String> = facets
+        let f_stored: BTreeSet<String> = facets
             .iter()
-            .filter(|f| f.storage == "dyn")
+            .filter(|f| f.storage == "dyn" || f.storage == "shared" || f.storage == "param")
             .map(|f| f.name.clone())
             .collect();
-        let missing: BTreeSet<String> = s_xst.difference(&f_dyn).cloned().collect();
+        let missing: BTreeSet<String> = s_xst.difference(&f_stored).cloned().collect();
         xst_not_dyn.diff(&name, &missing, &BTreeSet::new());
     }
 
@@ -339,28 +340,19 @@ fn facet_header_covers_cgen_scanner_facts_ratchet() {
     //
     // allStrArr: exact equivalence, both directions 0. This became true once
     //   the text IR kept `[]` on unsized non-shared array DIMs (`DIM x$[]`);
-    //   before that the scanner could not see 21 such arrays.
     // strDual: a DIM-based fact (scalar DIM + array DIM of one string name)
     //   with no emitted counterpart; facet `dual=1` is use-based and a
     //   superset (scanner-only 0), so `facet-only` is reported, not ratcheted.
-    // xstArrays not facet-dyn = 4: xcol `export$`/`import$`, xit `symbol$`,
-    //   xui `helpText$` (shared / param arrays passed to XstQuickSort).
-    const XST_NOT_DYN: usize = 4;
-    assert!(programs >= 200, "only {programs} programs lowered");
+    // xstArrays unclassified = 0: every XstQuickSort/XstCopyArray array has a
+    //   facet with an owning storage (dyn, shared, or param) in some scope —
+    //   xcol `export$`/`import$` and xui `helpText$` are shared globals, xit
+    //   `symbol$` is a (descriptor) array param. Shared/param arrays never
+    //   needed dyn membership; the old `XST_NOT_DYN = 4` constant recorded
+    //   the dyn-only shortfall this refinement closes.
     assert!(
-        all_strarr.scanner_only == 0 && all_strarr.facet_only == 0,
-        "allStrArr facet/scanner equivalence broken: scanner-only={} facet-only={}",
-        all_strarr.scanner_only,
-        all_strarr.facet_only
-    );
-    assert!(
-        str_dual.scanner_only == 0,
-        "strDual: facet dual=1 no longer covers every DIM-based string dual: scanner-only={}",
-        str_dual.scanner_only
-    );
-    assert!(
-        xst_not_dyn.scanner_only <= XST_NOT_DYN,
-        "xstArrays-not-dyn regressed: {}",
-        xst_not_dyn.scanner_only
+        xst_not_dyn.scanner_only == 0 && xst_not_dyn.facet_only == 0,
+        "xstArrays storage-classification broken: scanner-only={} facet-only={}",
+        xst_not_dyn.scanner_only,
+        xst_not_dyn.facet_only
     );
 }

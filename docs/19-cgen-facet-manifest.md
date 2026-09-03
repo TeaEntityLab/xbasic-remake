@@ -207,8 +207,10 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
   `allStrArr` scanner-only/facet-only **0/0** (an exact facet replacement and
   the next safe one-classifier retirement); `strDual` **0/187** (not
   equivalent—facet `dual=1` is use-based while the scanner is DIM-based);
-  `xstArrays` **4/0** (xcol `export$`/`import$`, xit `symbol$`, xui
-  `helpText$`, all shared/param arrays rather than facet-dyn). No scanner is
+  `xstArrays` **unclassified 0/0** under the refined invariant (every Xst
+  array has a facet with an owning storage — dyn, shared, or param — in some
+  scope; the 4 former `not facet-dyn` names are shared globals / array params
+  that never needed dyn membership). No scanner is
   deleted in this measurement slice. Verified 2026-09-02:
   `checks/validate-all.sh` **310/310 across 40 binaries**,
   `checks/verify-bootstrap.sh` `ok` including `cgen_cemitter_sync` **65/65**,
