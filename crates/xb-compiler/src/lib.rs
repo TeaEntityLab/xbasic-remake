@@ -169,7 +169,7 @@ impl Codegen for DisabledLlvmBackend {
 pub mod llvm_backend {
     use super::{Codegen, CompileError, FrontendUnit, ObjectFile};
     use crate::checked::{ArithmeticOp, BooleanOp, ComparisonOp, LogicalOp, PrintSep};
-    use crate::ir::{IrExpr, IrExprKind, IrItem, IrProgram};
+    use crate::ir::{IrExpr, IrExprKind, IrItem, IrProgram, IrSymbol};
     use crate::ValueType;
     use inkwell::basic_block::BasicBlock;
     use inkwell::builder::Builder;
@@ -1513,6 +1513,426 @@ pub mod llvm_backend {
                     .map_err(Self::err)?
             };
             Ok(Some((ep, elem)))
+        }
+
+        /// Copy `count` (i64) elements of `elem` from `src_buf`+`src_off` to
+        /// `dst_buf`+`dst_off`. A counted loop with an entry-alloca counter,
+        /// so it stays correct across state-machine GOSUB re-entry (same
+        /// idiom as the `For` arm).
+        fn emit_copy_loop(
+            &self,
+            elem: ValueType,
+            dst_buf: PointerValue<'ctx>,
+            dst_off: IntValue<'ctx>,
+            src_buf: PointerValue<'ctx>,
+            src_off: IntValue<'ctx>,
+            count: IntValue<'ctx>,
+        ) -> Result<(), CompileError> {
+            let ety = self.llvm_type(elem);
+            let ctr = self.entry_alloca(self.i64t.into(), "at.k")?;
+            self.builder
+                .build_store(ctr, self.i64t.const_zero())
+                .map_err(Self::err)?;
+            let head = self.ctx.append_basic_block(self.cur_fn, "at.head");
+            let body = self.ctx.append_basic_block(self.cur_fn, "at.body");
+            let exit = self.ctx.append_basic_block(self.cur_fn, "at.exit");
+            self.branch_to(head)?;
+            self.builder.position_at_end(head);
+            let k = self
+                .builder
+                .build_load(self.i64t, ctr, "at.k")
+                .map_err(Self::err)?
+                .into_int_value();
+            let more = self
+                .builder
+                .build_int_compare(IntPredicate::ULT, k, count, "at.more")
+                .map_err(Self::err)?;
+            self.builder
+                .build_conditional_branch(more, body, exit)
+                .map_err(Self::err)?;
+            self.builder.position_at_end(body);
+            let dk = self
+                .builder
+                .build_int_add(dst_off, k, "at.dk")
+                .map_err(Self::err)?;
+            let sk = self
+                .builder
+                .build_int_add(src_off, k, "at.sk")
+                .map_err(Self::err)?;
+            let dp = unsafe {
+                self.builder
+                    .build_in_bounds_gep(ety, dst_buf, &[dk], "at.dp")
+                    .map_err(Self::err)?
+            };
+            let sp = unsafe {
+                self.builder
+                    .build_in_bounds_gep(ety, src_buf, &[sk], "at.sp")
+                    .map_err(Self::err)?
+            };
+            let v = self
+                .builder
+                .build_load(ety, sp, "at.v")
+                .map_err(Self::err)?;
+            self.builder.build_store(dp, v).map_err(Self::err)?;
+            if self
+                .builder
+                .get_insert_block()
+                .and_then(|b| b.get_terminator())
+                .is_none()
+            {
+                let k2 = self
+                    .builder
+                    .build_load(self.i64t, ctr, "at.k2")
+                    .map_err(Self::err)?
+                    .into_int_value();
+                let next = self
+                    .builder
+                    .build_int_add(k2, self.i64t.const_int(1, false), "at.next")
+                    .map_err(Self::err)?;
+                self.builder.build_store(ctr, next).map_err(Self::err)?;
+                self.branch_to(head)?;
+            }
+            self.builder.position_at_end(exit);
+            Ok(())
+        }
+
+        /// `ATTACH` copy semantics (mirrors `c_emit_attach`/`interpreter_attach`
+        /// Cases 1–5). Counts are element counts; strings copy pointer-wide
+        /// (shallow), consistent with this backend's own string assignment.
+        /// Unknowable shapes (rank mismatch, missing dims or arrays) and type
+        /// puns are guarded no-ops. Index expressions evaluate first for
+        /// side-effect parity even on paths that later no-op.
+        #[allow(clippy::too_many_arguments)]
+        fn emit_attach(
+            &mut self,
+            left: &IrSymbol,
+            left_indices: &[IrExpr],
+            left_is_row: bool,
+            right: &IrSymbol,
+            right_indices: &[IrExpr],
+            right_is_row: bool,
+        ) -> Result<(), CompileError> {
+            let mut lidx: Vec<IntValue<'ctx>> = Vec::new();
+            for e in left_indices {
+                let r = self.eval_int(e)?;
+                lidx.push(
+                    self.builder
+                        .build_int_s_extend(r, self.i64t, "atik")
+                        .map_err(Self::err)?,
+                );
+            }
+            let mut ridx: Vec<IntValue<'ctx>> = Vec::new();
+            for e in right_indices {
+                let r = self.eval_int(e)?;
+                ridx.push(
+                    self.builder
+                        .build_int_s_extend(r, self.i64t, "atik")
+                        .map_err(Self::err)?,
+                );
+            }
+            let esz = |elem: ValueType| -> u64 {
+                match elem {
+                    ValueType::Float | ValueType::String => 8,
+                    _ => 4,
+                }
+            };
+            let is_str = |elem: ValueType| -> u64 { u64::from(elem == ValueType::String) };
+            // Case 1: ATTACH src[] TO dst[i,] — row i of 2-D dst into 1-D src.
+            if !left_is_row && right_is_row && lidx.is_empty() && ridx.len() == 1 {
+                if let (Some((lholder, lelem, ldims)), Some((rholder, _, rdims))) = (
+                    self.arrays.get(&left.name).cloned(),
+                    self.arrays.get(&right.name).cloned(),
+                ) {
+                    if ldims.len() == 1 && rdims.len() >= 2 {
+                        let row = ridx[0];
+                        let rowlen = self
+                            .builder
+                            .build_load(self.i64t, rdims[1], "at.rl")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        let mut total = self.i64t.const_int(1, false);
+                        for c in &rdims {
+                            let cv = self
+                                .builder
+                                .build_load(self.i64t, *c, "at.tc")
+                                .map_err(Self::err)?
+                                .into_int_value();
+                            total = self
+                                .builder
+                                .build_int_mul(total, cv, "at.tot")
+                                .map_err(Self::err)?;
+                        }
+                        let start = self
+                            .builder
+                            .build_int_mul(row, rowlen, "at.st")
+                            .map_err(Self::err)?;
+                        let inb = self
+                            .builder
+                            .build_int_compare(IntPredicate::ULT, start, total, "at.inb")
+                            .map_err(Self::err)?;
+                        let rem = self
+                            .builder
+                            .build_int_sub(total, start, "at.rem")
+                            .map_err(Self::err)?;
+                        let short = self
+                            .builder
+                            .build_int_compare(IntPredicate::ULT, rem, rowlen, "at.short")
+                            .map_err(Self::err)?;
+                        let clen = self
+                            .builder
+                            .build_select(short, rem, rowlen, "at.clen")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        let copy_len = self
+                            .builder
+                            .build_select(inb, clen, self.i64t.const_zero(), "at.n")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        let lbuf = self
+                            .builder
+                            .build_load(self.ptr, lholder, "at.lb")
+                            .map_err(Self::err)?
+                            .into_pointer_value();
+                        let rbuf = self
+                            .builder
+                            .build_load(self.ptr, rholder, "at.rb")
+                            .map_err(Self::err)?
+                            .into_pointer_value();
+                        self.builder
+                            .build_call(
+                                self.dyn_resize,
+                                &[
+                                    lholder.into(),
+                                    ldims[0].into(),
+                                    rowlen.into(),
+                                    self.i64t.const_int(esz(lelem), false).into(),
+                                    self.ctx.bool_type().const_int(is_str(lelem), false).into(),
+                                ],
+                                "atgrow",
+                            )
+                            .map_err(Self::err)?;
+                        self.emit_copy_loop(
+                            lelem,
+                            lbuf,
+                            self.i64t.const_zero(),
+                            rbuf,
+                            start,
+                            copy_len,
+                        )?;
+                    }
+                }
+                return Ok(());
+            }
+            // Case 2: ATTACH dst[i,] TO src[] — 1-D src back into row i of dst.
+            if left_is_row && !right_is_row && lidx.len() == 1 && ridx.is_empty() {
+                if let (Some((lholder, lelem, ldims)), Some((rholder, _, rdims))) = (
+                    self.arrays.get(&left.name).cloned(),
+                    self.arrays.get(&right.name).cloned(),
+                ) {
+                    if ldims.len() >= 2 && !rdims.is_empty() {
+                        let row = lidx[0];
+                        let rowlen = self
+                            .builder
+                            .build_load(self.i64t, ldims[1], "at.rl")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        let mut src_total = self.i64t.const_int(1, false);
+                        for c in &rdims {
+                            let cv = self
+                                .builder
+                                .build_load(self.i64t, *c, "at.sc")
+                                .map_err(Self::err)?
+                                .into_int_value();
+                            src_total = self
+                                .builder
+                                .build_int_mul(src_total, cv, "at.stot")
+                                .map_err(Self::err)?;
+                        }
+                        let mut dst_total = self.i64t.const_int(1, false);
+                        for c in &ldims {
+                            let cv = self
+                                .builder
+                                .build_load(self.i64t, *c, "at.dc")
+                                .map_err(Self::err)?
+                                .into_int_value();
+                            dst_total = self
+                                .builder
+                                .build_int_mul(dst_total, cv, "at.dtot")
+                                .map_err(Self::err)?;
+                        }
+                        let start = self
+                            .builder
+                            .build_int_mul(row, rowlen, "at.st")
+                            .map_err(Self::err)?;
+                        let inb = self
+                            .builder
+                            .build_int_compare(IntPredicate::ULT, start, dst_total, "at.inb")
+                            .map_err(Self::err)?;
+                        let rem = self
+                            .builder
+                            .build_int_sub(dst_total, start, "at.rem")
+                            .map_err(Self::err)?;
+                        let c1short = self
+                            .builder
+                            .build_int_compare(IntPredicate::ULT, src_total, rowlen, "at.c1s")
+                            .map_err(Self::err)?;
+                        let c1 = self
+                            .builder
+                            .build_select(c1short, src_total, rowlen, "at.c1")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        let c2short = self
+                            .builder
+                            .build_int_compare(IntPredicate::ULT, c1, rem, "at.c2s")
+                            .map_err(Self::err)?;
+                        let c2 = self
+                            .builder
+                            .build_select(c2short, c1, rem, "at.c2")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        let copy_len = self
+                            .builder
+                            .build_select(inb, c2, self.i64t.const_zero(), "at.n")
+                            .map_err(Self::err)?
+                            .into_int_value();
+                        let lbuf = self
+                            .builder
+                            .build_load(self.ptr, lholder, "at.lb")
+                            .map_err(Self::err)?
+                            .into_pointer_value();
+                        let rbuf = self
+                            .builder
+                            .build_load(self.ptr, rholder, "at.rb")
+                            .map_err(Self::err)?
+                            .into_pointer_value();
+                        self.emit_copy_loop(
+                            lelem,
+                            lbuf,
+                            start,
+                            rbuf,
+                            self.i64t.const_zero(),
+                            copy_len,
+                        )?;
+                    }
+                }
+                return Ok(());
+            }
+            // Case 3: ATTACH src[] TO dst[] — whole-array copy, same type and rank.
+            if !left_is_row
+                && !right_is_row
+                && lidx.is_empty()
+                && ridx.is_empty()
+                && left.value_type == right.value_type
+            {
+                if let (Some((lholder, lelem, ldims)), Some((rholder, _, rdims))) = (
+                    self.arrays.get(&left.name).cloned(),
+                    self.arrays.get(&right.name).cloned(),
+                ) {
+                    if ldims.len() == rdims.len() && !ldims.is_empty() {
+                        let old_total = self.entry_alloca(self.i64t.into(), "at.old")?;
+                        let mut old = self.i64t.const_int(1, false);
+                        for c in &ldims {
+                            let cv = self
+                                .builder
+                                .build_load(self.i64t, *c, "at.oc")
+                                .map_err(Self::err)?
+                                .into_int_value();
+                            old = self
+                                .builder
+                                .build_int_mul(old, cv, "at.otot")
+                                .map_err(Self::err)?;
+                        }
+                        self.builder
+                            .build_store(old_total, old)
+                            .map_err(Self::err)?;
+                        let mut total = self.i64t.const_int(1, false);
+                        for (k, c) in rdims.iter().enumerate() {
+                            let cv = self
+                                .builder
+                                .build_load(self.i64t, *c, "at.nc")
+                                .map_err(Self::err)?
+                                .into_int_value();
+                            self.builder.build_store(ldims[k], cv).map_err(Self::err)?;
+                            total = self
+                                .builder
+                                .build_int_mul(total, cv, "at.ntot")
+                                .map_err(Self::err)?;
+                        }
+                        self.builder
+                            .build_call(
+                                self.dyn_resize,
+                                &[
+                                    lholder.into(),
+                                    old_total.into(),
+                                    total.into(),
+                                    self.i64t.const_int(esz(lelem), false).into(),
+                                    self.ctx.bool_type().const_int(is_str(lelem), false).into(),
+                                ],
+                                "atgrow",
+                            )
+                            .map_err(Self::err)?;
+                        let lbuf = self
+                            .builder
+                            .build_load(self.ptr, lholder, "at.lb")
+                            .map_err(Self::err)?
+                            .into_pointer_value();
+                        let rbuf = self
+                            .builder
+                            .build_load(self.ptr, rholder, "at.rb")
+                            .map_err(Self::err)?
+                            .into_pointer_value();
+                        self.emit_copy_loop(
+                            lelem,
+                            lbuf,
+                            self.i64t.const_zero(),
+                            rbuf,
+                            self.i64t.const_zero(),
+                            total,
+                        )?;
+                    }
+                }
+                return Ok(());
+            }
+            // Case 4: ATTACH scalar TO dst[k] — element into scalar, same type.
+            if !left_is_row
+                && !right_is_row
+                && lidx.is_empty()
+                && ridx.len() == 1
+                && left.value_type == right.value_type
+            {
+                if let Some((ep, _)) =
+                    self.array_elem_ptr(&right.name, &right_indices[0], &right_indices[1..])?
+                {
+                    let v = self
+                        .builder
+                        .build_load(self.llvm_type(left.value_type), ep, "at.v")
+                        .map_err(Self::err)?;
+                    let slot = self.get_or_alloca(&left.name, left.value_type)?;
+                    self.builder.build_store(slot, v).map_err(Self::err)?;
+                }
+                return Ok(());
+            }
+            // Case 5: ATTACH dst[k] TO scalar — scalar into element, same type.
+            if !left_is_row
+                && !right_is_row
+                && lidx.len() == 1
+                && ridx.is_empty()
+                && left.value_type == right.value_type
+            {
+                if let Some((ep, elem)) =
+                    self.array_elem_ptr(&left.name, &left_indices[0], &left_indices[1..])?
+                {
+                    let slot = self.get_or_alloca(&right.name, right.value_type)?;
+                    let v = self
+                        .builder
+                        .build_load(self.llvm_type(right.value_type), slot, "at.s")
+                        .map_err(Self::err)?;
+                    let v = self.coerce_to(v, self.llvm_type(elem).into())?;
+                    self.builder.build_store(ep, v).map_err(Self::err)?;
+                }
+                return Ok(());
+            }
+            Ok(())
         }
 
         /// Build a return for the current function's type if the block is still open.
@@ -2917,6 +3337,23 @@ pub mod llvm_backend {
                         // matching the interpreter's empty-GOSUB-stack GosubReturn = halt.
                         self.ret_default()?;
                     }
+                }
+                IrItem::Attach {
+                    left,
+                    left_indices,
+                    left_is_row,
+                    right,
+                    right_indices,
+                    right_is_row,
+                } => {
+                    self.emit_attach(
+                        left,
+                        left_indices,
+                        *left_is_row,
+                        right,
+                        right_indices,
+                        *right_is_row,
+                    )?;
                 }
                 _ => {}
             }
@@ -7368,6 +7805,101 @@ mod tests {
         );
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(String::from_utf8_lossy(&run.stdout), "30\n");
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_attach_copy_semantics() {
+        use std::io::Write;
+        use std::process::Command;
+        // All five ATTACH cases plus string moves: must match the interpreter
+        // reference locked by `cemitter_attach_copy_semantics_match_interp`
+        // (17 lines). Previously fell through the `_ => {}` arm (silent no-op).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM src[3]\n\
+             DIM dst[3]\n\
+             dst[0] = 10\n\
+             dst[1] = 20\n\
+             dst[2] = 30\n\
+             ATTACH src[] TO dst[]\n\
+             PRINT src[0]\n\
+             PRINT src[1]\n\
+             PRINT src[2]\n\
+             DIM val\n\
+             ATTACH val TO dst[1]\n\
+             PRINT val\n\
+             val = 99\n\
+             ATTACH dst[2] TO val\n\
+             PRINT dst[2]\n\
+             DIM src2[3]\n\
+             DIM dst2[2,3]\n\
+             dst2[0,0] = 100\n\
+             dst2[0,1] = 200\n\
+             dst2[0,2] = 300\n\
+             dst2[1,0] = 400\n\
+             dst2[1,1] = 500\n\
+             dst2[1,2] = 600\n\
+             ATTACH src2[] TO dst2[0,]\n\
+             PRINT src2[0]\n\
+             PRINT src2[1]\n\
+             PRINT src2[2]\n\
+             src2[0] = 999\n\
+             src2[1] = 888\n\
+             src2[2] = 777\n\
+             ATTACH dst2[1,] TO src2[]\n\
+             PRINT dst2[1,0]\n\
+             PRINT dst2[1,1]\n\
+             PRINT dst2[1,2]\n\
+             DIM s$\n\
+             DIM sdst$[2]\n\
+             sdst$[0] = \"aa\"\n\
+             sdst$[1] = \"bb\"\n\
+             sdst$[2] = \"cc\"\n\
+             ATTACH s$ TO sdst$[1]\n\
+             PRINT s$\n\
+             s$ = \"zz\"\n\
+             ATTACH sdst$[0] TO s$\n\
+             PRINT sdst$[0]\n\
+             PRINT sdst$[1]\n\
+             DIM sa$[2]\n\
+             DIM sb$[2]\n\
+             sb$[0] = \"x\"\n\
+             sb$[1] = \"y\"\n\
+             sb$[2] = \"z\"\n\
+             ATTACH sa$[] TO sb$[]\n\
+             PRINT sa$[0]\n\
+             PRINT sa$[1]\n\
+             PRINT sa$[2]\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_attach.o");
+        let exep = dir.join("xb_llvm_attach.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new(cc())
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "10\n20\n30\n20\n99\n100\n200\n300\n999\n888\n777\nbb\nzz\nbb\nx\ny\nz\n"
+        );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
     }
