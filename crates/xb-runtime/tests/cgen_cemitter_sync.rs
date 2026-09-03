@@ -2741,6 +2741,81 @@ fn cemitter_and_cgen_agree_on_composite_member_ubound() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Composite member REDIM through by-ref (M1-ABI): `REDIM p[4]` on a composite
+/// var expands to per-member REDIMs; a callee REDIM seeds member descriptors
+/// (`(data**, ub*)` params), so the caller's member arrays resize with content
+/// preserved and new elements writable from the callee. All three engines
+/// must produce `3\n30\n42\n420\n4\n` (preserved prefix, callee-written tail,
+/// caller-visible bound).
+/// Test IR uses facets: member descriptors (`descriptor=1`) reach cgen.x via
+/// the facet header. Headerless IR + callee REDIM (plain signature) is the
+/// deferred headerless-producer gap, same as plain byref_redim_minimal.
+#[test]
+fn cemitter_and_cgen_agree_on_composite_member_redim() {
+    let tmp = std::env::temp_dir().join("xb_sync_comp_redim");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"cmr\"\n",
+        "VERSION \"0.1\"\n",
+        "TYPE PT\n",
+        "XLONG .x\n",
+        "XLONG .y\n",
+        "END TYPE\n",
+        "FUNCTION Main ()\n",
+        "PT p[]\n",
+        "DIM p[1]\n",
+        "p[0].x = 3\n",
+        "p[0].y = 30\n",
+        "p[1].x = 5\n",
+        "p[1].y = 50\n",
+        "Grow(@p[])\n",
+        "PRINT p[0].x\n",
+        "PRINT p[0].y\n",
+        "PRINT p[4].x\n",
+        "PRINT p[4].y\n",
+        "PRINT UBOUND(p.x[])\n",
+        "END FUNCTION\n",
+        "FUNCTION Grow (PT p[])\n",
+        "REDIM p[4]\n",
+        "p[4].x = 42\n",
+        "p[4].y = 420\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse composite redim program")
+        .lower_ir()
+        .expect("lower composite redim program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "cmr_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "cmr_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret composite redim program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "3\n30\n42\n420\n4\n",
+        "composite redim reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter failed to REDIM composite members through by-ref"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x failed to REDIM composite members through by-ref"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Binary integer literals (CGEN-SELFHOST-PARITY): `0b1000000` is a gcc/clang
 /// extension the interpreter evaluates (64) and the Rust CEmitter emits verbatim.
 /// cgen.x's strip_zeros$ (added for the `08`/`09` octal hazard) exempted hex
