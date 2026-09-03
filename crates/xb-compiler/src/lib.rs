@@ -2650,6 +2650,27 @@ pub mod llvm_backend {
                     // and content-preserving REDIM resize through them.
                     let is_dyn = self.dyn_arrays.contains(&symbol.name);
                     let existing = self.arrays.get(&symbol.name).cloned();
+                    // Old flat total for REDIM fill-clamping: product of the
+                    // CURRENT slot values, captured before the new counts
+                    // overwrite them below. Rank changes keep working (a
+                    // product is a product); no array yet → 0 (fill all).
+                    let mut old_total = self.i64t.const_int(0, false);
+                    if let Some((_, _, sh)) = &existing {
+                        if !sh.is_empty() {
+                            old_total = self.i64t.const_int(1, false);
+                            for c in sh.iter() {
+                                let cv = self
+                                    .builder
+                                    .build_load(self.i64t, *c, "at.oc")
+                                    .map_err(Self::err)?
+                                    .into_int_value();
+                                old_total = self
+                                    .builder
+                                    .build_int_mul(old_total, cv, "at.otot")
+                                    .map_err(Self::err)?;
+                            }
+                        }
+                    }
                     let shape: Vec<PointerValue<'ctx>> = if is_dyn {
                         match &existing {
                             Some((_, _, sh)) if sh.len() == counts.len() => {
@@ -2714,14 +2735,27 @@ pub mod llvm_backend {
                         .bool_type()
                         .const_int(u64::from(elem == ValueType::String), false);
                     let buf = if is_dyn && *redim {
-                        // Content-preserving REDIM: realloc + fill the grown tail.
-                        // The helper stores the new buffer into `holder` itself.
+                        // Content-preserving REDIM: realloc + fill the grown
+                        // tail. The count goes through a scratch slot: passing
+                        // a per-dim slot would clobber it with the flat total
+                        // (multi-dim UBOUND then reads garbage). A fresh
+                        // holder (REDIM without prior DIM) starts NULL so
+                        // realloc behaves as malloc.
+                        if existing.is_none() {
+                            self.builder
+                                .build_store(holder, self.ptr.const_null())
+                                .map_err(Self::err)?;
+                        }
+                        let old_slot = self.entry_alloca(self.i64t.into(), "redim.old")?;
+                        self.builder
+                            .build_store(old_slot, old_total)
+                            .map_err(Self::err)?;
                         self.builder
                             .build_call(
                                 self.dyn_resize,
                                 &[
                                     holder.into(),
-                                    shape[0].into(),
+                                    old_slot.into(),
                                     total.into(),
                                     self.i64t.const_int(esz, false).into(),
                                     is_str_b.into(),
@@ -7899,6 +7933,75 @@ mod tests {
         assert_eq!(
             String::from_utf8_lossy(&run.stdout),
             "10\n20\n30\n20\n99\n100\n200\n300\n999\n888\n777\nbb\nzz\nbb\nx\ny\nz\n"
+        );
+        let _ = std::fs::remove_file(&objp);
+        let _ = std::fs::remove_file(&exep);
+    }
+
+    #[cfg(feature = "llvm")]
+    #[test]
+    fn llvm_backend_redim_preserves_content() {
+        use std::io::Write;
+        use std::process::Command;
+        // Content-preserving REDIM (1-D int/string, 2-D flat): must match the
+        // interpreter reference locked by
+        // `cemitter_and_cgen_agree_on_redim_preserves_content`. The 2-D case
+        // once mis-set UBOUND (the flat total clobbered the dim-0 count slot).
+        let unit = FrontendUnit::parse(
+            "VERSION \"1\"\n\
+             DIM a[2]\n\
+             a[0] = 10\n\
+             a[1] = 20\n\
+             a[2] = 30\n\
+             PRINT UBOUND(a[])\n\
+             REDIM a[4]\n\
+             PRINT UBOUND(a[])\n\
+             PRINT a[0]\n\
+             PRINT a[1]\n\
+             PRINT a[2]\n\
+             PRINT a[3]\n\
+             PRINT a[4]\n\
+             DIM s$[1]\n\
+             s$[0] = \"aa\"\n\
+             s$[1] = \"bb\"\n\
+             REDIM s$[2]\n\
+             PRINT s$[0]\n\
+             PRINT s$[1]\n\
+             PRINT s$[2]\n\
+             DIM m[1,2]\n\
+             m[0,0] = 11\n\
+             m[1,2] = 23\n\
+             REDIM m[2,3]\n\
+             PRINT UBOUND(m[])\n\
+             PRINT m[0,0]\n\
+             PRINT m[1,2]\n\
+             PRINT m[2,3]\n",
+        )
+        .unwrap();
+        let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
+        assert!(!obj.as_bytes().is_empty());
+        let dir = std::env::temp_dir();
+        let objp = dir.join("xb_llvm_redim.o");
+        let exep = dir.join("xb_llvm_redim.bin");
+        std::fs::File::create(&objp)
+            .unwrap()
+            .write_all(obj.as_bytes())
+            .unwrap();
+        let link = Command::new(cc())
+            .arg(&objp)
+            .arg("-o")
+            .arg(&exep)
+            .output()
+            .unwrap();
+        assert!(
+            link.status.success(),
+            "link failed: {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&exep).output().unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            "2\n4\n10\n20\n30\n0\n0\naa\nbb\n\n11\n11\n0\n0\n"
         );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);
