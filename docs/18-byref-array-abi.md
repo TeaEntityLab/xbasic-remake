@@ -1,6 +1,6 @@
 # 18 — By-ref array ABI (`CGEN-BYREF-REDIM`) — turnkey implementation guide
 
-**Status (reviewed 2026-08-29, updated 2026-08-29 RR-02): LANDED for primitive/flat arrays and for shared composite `ARY_VAR_DATA` member arrays (compile-only). General composite-array by-ref (`PM pm[]`) remains open. Runtime behavior for `ARY` remains blocked on `ATTACH` alias semantics and a bounded behavior test (see docs/17 `RR-02`/`RR-06`).**
+**Status (reviewed 2026-08-29, updated 2026-09-04 M1-COMP-BYREF): LANDED for primitive/flat arrays, for shared composite `ARY_VAR_DATA` member arrays (compile-only), and for typed composite-array by-ref reads + writeback (`FUNCTION Sum (PT p[])` flattens to per-member byref; locked by `cemitter_and_cgen_agree_on_composite_array_byref`, `7/30/60` on all three engines). Still open: REDIM through a composite member (descriptor seeding for `p.x` member arrays) and UBOUND over composite/member arrays (interp `1` vs Rust `0` vs cgen.x cc-fail on `UBOUND(p[])`/`UBOUND(p.x[])`). Runtime behavior for `ARY` remains blocked on `ATTACH` alias semantics and a bounded behavior test (see docs/17 `RR-02`/`RR-06`).**
 Merge `be03117` implemented the primitive-array descriptor `(T** data,
 intptr_t* ub)`, content-preserving `REDIM`, and the `XstQuickSort`/
 `XstCopyArray` helper path. Those contracts remain covered. A focused
