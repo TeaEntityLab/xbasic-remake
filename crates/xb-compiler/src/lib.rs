@@ -2496,6 +2496,7 @@ pub mod llvm_backend {
                     extra_dims,
                     is_array: true,
                     shared: true,
+                    redim,
                     ..
                 } => {
                     // LLVM-SHARED-ARR: store the buffer + per-dim counts into the
@@ -2543,18 +2544,64 @@ pub mod llvm_backend {
                             .build_int_mul(total, cnt, "tot")
                             .map_err(Self::err)?;
                     }
-                    let buf = self
-                        .builder
-                        .build_call(
-                            self.calloc,
-                            &[total.into(), self.i64t.const_int(esz, false).into()],
-                            "arr",
-                        )
-                        .map_err(Self::err)?
-                        .try_as_basic_value()
-                        .basic()
-                        .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
-                        .into_pointer_value();
+                    let buf = if *redim {
+                        // Content-preserving REDIM of the shared backing
+                        // store (mirrors the non-shared arm): the count
+                        // travels through a scratch slot so no per-dim shape
+                        // slot is clobbered with the flat total. A never-DIM'd
+                        // holder is NULL (global zero-init), so realloc
+                        // behaves as malloc.
+                        let mut old = self.i64t.const_int(0, false);
+                        if !shape.is_empty() {
+                            old = self.i64t.const_int(1, false);
+                            for s in &shape {
+                                let cv = self
+                                    .builder
+                                    .build_load(self.i64t, *s, "sh.oc")
+                                    .map_err(Self::err)?
+                                    .into_int_value();
+                                old = self
+                                    .builder
+                                    .build_int_mul(old, cv, "sh.otot")
+                                    .map_err(Self::err)?;
+                            }
+                        }
+                        let old_slot = self.entry_alloca(self.i64t.into(), "sh.old")?;
+                        self.builder.build_store(old_slot, old).map_err(Self::err)?;
+                        let is_str_b = self
+                            .ctx
+                            .bool_type()
+                            .const_int(u64::from(elem == ValueType::String), false);
+                        self.builder
+                            .build_call(
+                                self.dyn_resize,
+                                &[
+                                    holder.into(),
+                                    old_slot.into(),
+                                    total.into(),
+                                    self.i64t.const_int(esz, false).into(),
+                                    is_str_b.into(),
+                                ],
+                                "shredim",
+                            )
+                            .map_err(Self::err)?;
+                        self.builder
+                            .build_load(self.ptr, holder, "shredbuf")
+                            .map_err(Self::err)?
+                            .into_pointer_value()
+                    } else {
+                        self.builder
+                            .build_call(
+                                self.calloc,
+                                &[total.into(), self.i64t.const_int(esz, false).into()],
+                                "arr",
+                            )
+                            .map_err(Self::err)?
+                            .try_as_basic_value()
+                            .basic()
+                            .ok_or_else(|| CompileError::Llvm("calloc returned void".into()))?
+                            .into_pointer_value()
+                    };
                     self.builder.build_store(holder, buf).map_err(Self::err)?;
                     // Store per-dim counts into the global shape slots.
                     for (k, e) in size.iter().chain(extra_dims.iter()).enumerate() {
@@ -7949,6 +7996,8 @@ mod tests {
         // once mis-set UBOUND (the flat total clobbered the dim-0 count slot).
         let unit = FrontendUnit::parse(
             "VERSION \"1\"\n\
+             SHARED g[]\n\
+             FUNCTION Main ()\n\
              DIM a[2]\n\
              a[0] = 10\n\
              a[1] = 20\n\
@@ -7975,7 +8024,24 @@ mod tests {
              PRINT UBOUND(m[])\n\
              PRINT m[0,0]\n\
              PRINT m[1,2]\n\
-             PRINT m[2,3]\n",
+             PRINT m[2,3]\n\
+             DIM SHARED g[2]\n\
+             g[0] = 10\n\
+             g[1] = 20\n\
+             g[2] = 30\n\
+             REDIM g[4]\n\
+             PRINT UBOUND(g[])\n\
+             PRINT g[0]\n\
+             PRINT g[1]\n\
+             PRINT g[2]\n\
+             Helper()\n\
+             PRINT g[0]\n\
+             PRINT g[4]\n\
+             END FUNCTION\n\
+             FUNCTION Helper ()\n\
+             g[0] = 99\n\
+             PRINT UBOUND(g[])\n\
+             END FUNCTION\n",
         )
         .unwrap();
         let obj = llvm_backend::LlvmBackend.compile(&unit).unwrap();
@@ -8001,7 +8067,7 @@ mod tests {
         let run = Command::new(&exep).output().unwrap();
         assert_eq!(
             String::from_utf8_lossy(&run.stdout),
-            "2\n4\n10\n20\n30\n0\n0\naa\nbb\n\n11\n11\n0\n0\n"
+            "2\n4\n10\n20\n30\n0\n0\naa\nbb\n\n11\n11\n0\n0\n4\n10\n20\n30\n4\n99\n0\n"
         );
         let _ = std::fs::remove_file(&objp);
         let _ = std::fs::remove_file(&exep);

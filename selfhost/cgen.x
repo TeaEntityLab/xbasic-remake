@@ -8446,6 +8446,33 @@ FUNCTION emit_stmt$(s$)
             ' global, not an allocate/reset. calloc(1) here wipes the
             ' cross-function array (Helper after Main's DIM g[2,2]).
             emit_stmt$ = ""
+          ELSEIF isRedim = 1 THEN
+            ' Content-preserving REDIM of a shared heap global (mirrors the
+            ' general interception below with shared-aware cells, which the
+            ' file-scope forward-decl loop always declares). Rust CEmitter
+            ' takes the same dyn+redim path for shared arrays.
+            DIM _shPtr$
+            DIM _shUb$
+            DIM _shFill$
+            DIM _shNewUb$
+            DIM _shD1$
+            _shPtr$ = arr_acc_name$(varName$, varType$)
+            _shUb$ = ub_ref$(varName$, varType$)
+            IF varType$ = "string" THEN
+              _shFill$ = "xb_str(" + CHR$(34) + CHR$(34) + ")"
+            ELSE
+              _shFill$ = "0"
+            END IF
+            IF INSTR(arrSize$, ",") > 0 THEN
+              _shNewUb$ = emit_mtotal$(arrSize$) + " - 1"
+            ELSE
+              _shNewUb$ = emit_expr$(arrSize$)
+            END IF
+            _shD1$ = ""
+            IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
+              _shD1$ = " xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+            END IF
+            emit_stmt$ = "    { intptr_t _oldub = " + _shUb$ + "; " + _shUb$ + " = (" + _shNewUb$ + "); " + _shPtr$ + " = realloc(" + _shPtr$ + ", (size_t)(" + _shUb$ + " + 1) * sizeof(*" + _shPtr$ + ")); if (!" + _shPtr$ + ") abort(); for (intptr_t _i = _oldub + 1; _i <= " + _shUb$ + "; _i++) " + _shPtr$ + "[_i] = " + _shFill$ + ";" + _shD1$ + " }"
           ELSEIF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
             emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)(" + ub_ref$(varName$, varType$) + " + 1), sizeof(" + c_type$(varType$) + ")); if (!" + arr_acc_name$(varName$, varType$) + ") abort(); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
           ELSE
@@ -8515,7 +8542,7 @@ FUNCTION emit_stmt$(s$)
       ' grown tail takes the type default. Plain DIM still calloc-zeroes
       ' below. Multi-dim resizes the flat product and refreshes the 2-D
       ' stride cell. Non-heap (fixed) REDIM keeps the historical calloc path.
-      IF isRedim = 1 AND attach_is_dyn$(varName$) = "1" AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND NOT (INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND INSTR(##dynStr$, ":" + varName$ + ":") = 0 AND INSTR(##byrefStrArr$, ":" + varName$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) = 0) THEN
+      IF isRedim = 1 AND attach_is_dyn$(varName$) = "1" AND NOT (INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND INSTR(##dynStr$, ":" + varName$ + ":") = 0 AND INSTR(##byrefStrArr$, ":" + varName$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) = 0) THEN
         DIM _rdPtr$
         DIM _rdUb$
         DIM _rdFill$

@@ -4800,6 +4800,7 @@ fn cemitter_and_cgen_agree_on_redim_preserves_content() {
 
     let src = "PROGRAM \"redim\"\n\
                VERSION \"0.1\"\n\
+               SHARED g[]\n\
                FUNCTION Main ()\n\
                DIM a[2]\n\
                a[0] = 10\n\
@@ -4830,6 +4831,22 @@ fn cemitter_and_cgen_agree_on_redim_preserves_content() {
                PRINT m[0,0]\n\
                PRINT m[1,2]\n\
                PRINT m[2,3]\n\
+               DIM SHARED g[2]\n\
+               g[0] = 10\n\
+               g[1] = 20\n\
+               g[2] = 30\n\
+               REDIM g[4]\n\
+               PRINT UBOUND(g[])\n\
+               PRINT g[0]\n\
+               PRINT g[1]\n\
+               PRINT g[2]\n\
+               Helper()\n\
+               PRINT g[0]\n\
+               PRINT g[4]\n\
+               END FUNCTION\n\
+               FUNCTION Helper ()\n\
+               g[0] = 99\n\
+               PRINT UBOUND(g[])\n\
                END FUNCTION\n";
     let prog = FrontendUnit::parse(src)
         .expect("parse redim program")
@@ -4850,7 +4867,8 @@ fn cemitter_and_cgen_agree_on_redim_preserves_content() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(
-        interp_out, "2\n4\n10\n20\n30\n0\n0\n1\n2\naa\nbb\n\n11\n11\n0\n0\n",
+        interp_out,
+        "2\n4\n10\n20\n30\n0\n0\n1\n2\naa\nbb\n\n11\n11\n0\n0\n4\n10\n20\n30\n4\n99\n0\n",
         "redim reference output"
     );
     assert_eq!(rust_out, interp_out, "CEmitter REDIM mismatch");
