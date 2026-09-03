@@ -202,6 +202,25 @@ interpreter), plus the existing corpus/selfhost sync tests. Residual: the `INSTR
 the null-free norm, imperfect only for an embedded NUL *inside a search string* (extreme
 edge), documented and non-crashing.
 
+### CG-SELFHOST-DETERMINISM — three extra `END IF`s made selfhosted compile nondeterministic ✅ done `[2026-09-04]`
+Compiling `cgen.x` with the selfhosted `compiler.x` binary was nondeterministic: identical
+inputs produced byte-identical output most runs but occasional multi-hundred-MB floods of bare
+`end if` lines (or hangs), and downstream core-lib `cc` failures (`xit.c` undeclared
+`xb_str_text_s_arr`, `xgr.c`/`xst.c` undeclared `xb_ub_*`, `xit.c`/`xui.c` redefinitions) that
+looked like real descriptor-lowering bugs but were flood artifacts — the whole sync suite
+(85/85) passes with no lowering change once the flood is gone.
+Root cause: three functions in `selfhost/cgen.x` each carried one unmatched `END IF`
+(`scan_mixed_byref$`, `scan_dynstr$` — both pre-existing — plus one off-by-one in the new
+`scan_attach_groups$` close cascade). The Rust frontend tolerates extras in permissive mode
+(verified: Rust-emitted IR is byte-identical before/after), but `compiler.x` counts
+`IF`/`END IF` on an `ifStack` with no underflow guard, so each extra `END IF` pops garbage
+(ASLR-dependent heap contents) into `ifDepth`; a positive garbage depth makes the `END IF`
+handler print millions of closers. Fix: delete the three dead `END IF`s (3-line diff, Rust
+IR-neutral by construction). Verified: 5/5 byte-identical self-compiles with zero underflows,
+`cgen_x_compiles_core_libs_floor_9_cc_clean` and `cgen_x_compiles_all_demos_cc_clean` green.
+Lesson: chase `cc` failures in `cgen.x` output only from a known-deterministic compile —
+re-run the self-compile a few times and `cmp` before treating an error as structural.
+
 ## 5. Verification
 
 ```sh

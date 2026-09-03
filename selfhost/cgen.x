@@ -6146,7 +6146,6 @@ FUNCTION scan_mixed_byref$(s$)
         END IF
       END IF
       msSP = msI2
-    END IF
   WEND
   scan_mixed_byref$ = msRes$
 END FUNCTION
@@ -7353,7 +7352,6 @@ FUNCTION scan_attach_groups$(s$)
         END IF
         END IF
         END IF
-        END IF
       END IF
     END IF
   WEND
@@ -8185,7 +8183,6 @@ FUNCTION scan_dynstr$(s$)
           END IF
         END IF
       END IF
-    END IF
   WEND
   ' Variable-sized string DIMs (e.g. `dim temp$[elementCount-1]`) whose size expr
   ' contains symbol/shared/call/array_ubound need heap (dyn) not VLA — same
