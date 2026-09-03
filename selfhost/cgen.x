@@ -1415,8 +1415,12 @@ WHILE fwdPos <= LEN(src$)
           END IF
         END IF
       END IF
-    ELSEIF LEFT$(fwdStmt$, 11) = "dim shared " THEN
-      fwdRest$ = MID$(fwdStmt$, 12, LEN(fwdStmt$) - 11)
+    ELSEIF LEFT$(fwdStmt$, 11) = "dim shared " OR LEFT$(fwdStmt$, 13) = "redim shared " THEN
+      IF LEFT$(fwdStmt$, 11) = "dim shared " THEN
+        fwdRest$ = MID$(fwdStmt$, 12, LEN(fwdStmt$) - 11)
+      ELSE
+        fwdRest$ = MID$(fwdStmt$, 14, LEN(fwdStmt$) - 13)
+      END IF
       fwdColon = INSTR(fwdRest$, ":")
       IF fwdColon > 0 THEN
         fwdSName$ = LEFT$(fwdRest$, fwdColon - 1)
@@ -7863,8 +7867,12 @@ FUNCTION scan_shared_arr$(s$)
     END IF
     ln$ = trim_spaces$(MID$(s$, p, le - p))
     p = le + 1
-    IF LEFT$(ln$, 11) = "dim shared " THEN
-      r$ = MID$(ln$, 12, LEN(ln$) - 11)
+    IF LEFT$(ln$, 11) = "dim shared " OR LEFT$(ln$, 13) = "redim shared " THEN
+      IF LEFT$(ln$, 11) = "dim shared " THEN
+        r$ = MID$(ln$, 12, LEN(ln$) - 11)
+      ELSE
+        r$ = MID$(ln$, 14, LEN(ln$) - 13)
+      END IF
       bp = INSTR(r$, "[")
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
@@ -8497,7 +8505,7 @@ FUNCTION emit_stmt$(s$)
       ' grown tail takes the type default. Plain DIM still calloc-zeroes
       ' below. Multi-dim resizes the flat product and refreshes the 2-D
       ' stride cell. Non-heap (fixed) REDIM keeps the historical calloc path.
-      IF isRedim = 1 AND attach_is_dyn$(varName$) = "1" AND NOT (INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND INSTR(##dynStr$, ":" + varName$ + ":") = 0 AND INSTR(##byrefStrArr$, ":" + varName$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) = 0) THEN
+      IF isRedim = 1 AND attach_is_dyn$(varName$) = "1" AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND NOT (INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND INSTR(##dynStr$, ":" + varName$ + ":") = 0 AND INSTR(##byrefStrArr$, ":" + varName$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) = 0) THEN
         DIM _rdPtr$
         DIM _rdUb$
         DIM _rdFill$
