@@ -220,6 +220,12 @@ IR-neutral by construction). Verified: 5/5 byte-identical self-compiles with zer
 `cgen_x_compiles_core_libs_floor_9_cc_clean` and `cgen_x_compiles_all_demos_cc_clean` green.
 Lesson: chase `cc` failures in `cgen.x` output only from a known-deterministic compile —
 re-run the self-compile a few times and `cmp` before treating an error as structural.
+Follow-up hardening (`compiler.x` `GUARD-UNDERFLOW`): the `END IF` handler now skips the
+pop/print when `ifSP = 0` instead of reading `ifStack` out of bounds — byte-identical to the
+Rust frontend's permissive skip (verified: guarded-vs-original output `diff`-clean on all of
+`cgen.x`, and byte-equal to Rust IR on stray-`END IF` probes), turning any future stray from
+intermittent UB into deterministic output. No stderr/diagnostic channel exists in `compiler.x`
+(`PRINT` is the IR stream), so detection of future strays stays with the gates, not the guard.
 
 ## 5. Verification
 

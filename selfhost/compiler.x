@@ -552,20 +552,25 @@ WHILE tpos <= ntok
       v$ = tv$(tpos)
       tpos = tpos + 1
       IF v$ = "IF" THEN
-        k = ifDepth
-        WHILE k >= 1
-          indent = indent - 1
-          prefix$ = ""
-          i = 1
-          WHILE i <= indent
-            prefix$ = prefix$ + "  "
-            i = i + 1
+        ' GUARD-UNDERFLOW: a stray END IF with no open IF (ifSP = 0) must not
+        ' pop ifStack OOB (ASLR garbage into ifDepth = nondeterministic end-if
+        ' floods). Skip it, exactly as the Rust frontend does in permissive mode.
+        IF ifSP >= 1 THEN
+          k = ifDepth
+          WHILE k >= 1
+            indent = indent - 1
+            prefix$ = ""
+            i = 1
+            WHILE i <= indent
+              prefix$ = prefix$ + "  "
+              i = i + 1
+            WEND
+            PRINT prefix$ + "end if"
+            k = k - 1
           WEND
-          PRINT prefix$ + "end if"
-          k = k - 1
-        WEND
-        ifDepth = ifStack(ifSP)
-        ifSP = ifSP - 1
+          ifDepth = ifStack(ifSP)
+          ifSP = ifSP - 1
+        END IF
       ELSEIF v$ = "FUNCTION" THEN
         indent = 0
         PRINT "end function"
