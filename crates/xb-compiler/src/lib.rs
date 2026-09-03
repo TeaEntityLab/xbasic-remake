@@ -3305,7 +3305,6 @@ pub mod llvm_backend {
                     }
                 }
                 IrItem::Call { name, args } => {
-                    eprintln!("TRACE arm reached {}", name);
                     if let Some(&f) = self.funcs.get(name) {
                         if let Some(argv) = self.eval_args(f, args)? {
                             self.builder
@@ -6117,7 +6116,6 @@ pub mod llvm_backend {
                     ))
                 }
                 ("WriteFile", 5) => {
-                    eprintln!("TRACE eval_builtin WriteFile");
                     let h = self.eval_int(&args[0])?;
                     let Some(BasicValueEnum::PointerValue(buf)) = self.eval_value(&args[1])? else {
                         return Ok(None);
