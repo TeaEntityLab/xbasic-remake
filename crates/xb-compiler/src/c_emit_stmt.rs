@@ -147,15 +147,20 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     let dyn_array = crate::c_emit::is_dyn_array(&symbol.name);
                     // Emit per-dimension size variables for ATTACH stride computation.
                     let ident = crate::c_emit::array_ident(&symbol.name);
+                    // REDIM re-assigns the stride cells (re-declaring would be
+                    // a cc redefinition); first DIM declares them.
+                    let dim_decl = if *redim { "" } else { "intptr_t " };
                     out.push_str(&ind);
-                    out.push_str("intptr_t xb_dim_");
+                    out.push_str(dim_decl);
+                    out.push_str("xb_dim_");
                     out.push_str(&ident);
                     out.push_str("_0 = ");
                     crate::c_emit_expr::emit_expr(sz, out);
                     out.push_str(";\n");
                     for (di, ed) in extra_dims.iter().enumerate() {
                         out.push_str(&ind);
-                        out.push_str("intptr_t xb_dim_");
+                        out.push_str(dim_decl);
+                        out.push_str("xb_dim_");
                         out.push_str(&ident);
                         out.push('_');
                         out.push_str(&(di + 1).to_string());
@@ -164,20 +169,58 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                         out.push_str(";\n");
                     }
                     if dyn_array {
-                        out.push_str("xb_ub_");
-                        out.push_str(&crate::c_emit::array_ident(&symbol.name));
-                        out.push_str(" = ");
-                        crate::c_emit::emit_flat_size(&dims, out);
-                        out.push_str(" - 1;\n");
-                        out.push_str(&ind);
-                        crate::c_emit::emit_array_var_name(symbol, out);
-                        out.push_str(" = calloc((size_t)(xb_ub_");
-                        out.push_str(&crate::c_emit::array_ident(&symbol.name));
-                        out.push_str(" + 1), sizeof(*");
-                        crate::c_emit::emit_array_var_name(symbol, out);
-                        out.push_str(")); if (!");
-                        crate::c_emit::emit_array_var_name(symbol, out);
-                        out.push_str(") abort();\n");
+                        if *redim {
+                            // Content-preserving multi-dim REDIM: flat realloc
+                            // keeps the row-major prefix, grown tail takes the
+                            // type default (mirrors the 1-D redim arm below).
+                            let id = crate::c_emit::array_ident(&symbol.name);
+                            out.push_str("xb_ub_");
+                            out.push_str(&id);
+                            out.push_str(" = ");
+                            crate::c_emit::emit_flat_size(&dims, out);
+                            out.push_str(" - 1;\n");
+                            out.push_str(&ind);
+                            out.push_str("{ intptr_t _oldub = xb_ub_");
+                            out.push_str(&id);
+                            // Re-read the bound after assignment (same shape as
+                            // the 1-D arm; `_oldub` was captured first).
+                            out.push_str("; ");
+                            crate::c_emit::emit_array_var_name(symbol, out);
+                            out.push_str(" = realloc(");
+                            crate::c_emit::emit_array_var_name(symbol, out);
+                            out.push_str(", (size_t)(xb_ub_");
+                            out.push_str(&id);
+                            out.push_str(" + 1) * sizeof(*");
+                            crate::c_emit::emit_array_var_name(symbol, out);
+                            out.push_str(")); if (!");
+                            crate::c_emit::emit_array_var_name(symbol, out);
+                            out.push_str(") abort(); for (intptr_t _i = _oldub + 1; _i <= xb_ub_");
+                            out.push_str(&id);
+                            out.push_str("; _i++) ");
+                            crate::c_emit::emit_array_var_name(symbol, out);
+                            out.push_str("[_i] = ");
+                            out.push_str(if symbol.value_type == ValueType::String {
+                                "xb_str(\"\")"
+                            } else {
+                                "0"
+                            });
+                            out.push_str("; }\n");
+                        } else {
+                            out.push_str("xb_ub_");
+                            out.push_str(&crate::c_emit::array_ident(&symbol.name));
+                            out.push_str(" = ");
+                            crate::c_emit::emit_flat_size(&dims, out);
+                            out.push_str(" - 1;\n");
+                            out.push_str(&ind);
+                            crate::c_emit::emit_array_var_name(symbol, out);
+                            out.push_str(" = calloc((size_t)(xb_ub_");
+                            out.push_str(&crate::c_emit::array_ident(&symbol.name));
+                            out.push_str(" + 1), sizeof(*");
+                            crate::c_emit::emit_array_var_name(symbol, out);
+                            out.push_str(")); if (!");
+                            crate::c_emit::emit_array_var_name(symbol, out);
+                            out.push_str(") abort();\n");
+                        }
                     } else {
                         out.push_str(c_type(symbol.value_type));
                         out.push(' ');
@@ -190,7 +233,10 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                         crate::c_emit::emit_array_var_name(symbol, out);
                         out.push_str("));\n");
                     }
-                    if symbol.value_type == ValueType::String {
+                    // First-DIM string fill. Skipped for dyn REDIM: the realloc
+                    // arm above already default-fills only the grown tail, and
+                    // blanking the whole array would destroy preserved content.
+                    if symbol.value_type == ValueType::String && !(*redim && dyn_array) {
                         out.push_str(&ind);
                         out.push_str("for (intptr_t _i = 0; _i < ");
                         crate::c_emit::emit_flat_size(&dims, out);

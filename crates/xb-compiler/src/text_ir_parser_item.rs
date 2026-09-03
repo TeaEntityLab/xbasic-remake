@@ -33,7 +33,11 @@ pub(crate) fn parse_item(
         let (items, separators) = crate::text_ir_parser_select::parse_print_items(rest, l)?;
         return Ok(IrItem::Print { items, separators });
     }
-    if let Some(rest0) = content.strip_prefix("dim ") {
+    if let Some((rest0, redim)) = content
+        .strip_prefix("redim ")
+        .map(|r| (r, true))
+        .or_else(|| content.strip_prefix("dim ").map(|r| (r, false)))
+    {
         let (shared, rest) = match rest0.strip_prefix("shared ") {
             Some(r) => (true, r),
             None => (false, rest0),
@@ -58,7 +62,7 @@ pub(crate) fn parse_item(
                 size,
                 extra_dims,
                 is_array: true,
-                redim: false,
+                redim,
                 shared,
             });
         }
@@ -68,7 +72,7 @@ pub(crate) fn parse_item(
             size: None,
             extra_dims: Vec::new(),
             is_array: false,
-            redim: false,
+            redim,
             shared,
         });
     }

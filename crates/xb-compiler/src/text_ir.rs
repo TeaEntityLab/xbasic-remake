@@ -609,9 +609,11 @@ impl TextIrEmitter {
                 extra_dims,
                 shared,
                 is_array,
+                redim,
                 ..
             } => {
                 let sh = if *shared { "shared " } else { "" };
+                let kw = if *redim { "redim" } else { "dim" };
                 match size {
                     Some(sz) => {
                         let mut dims = self.emit_expr(sz);
@@ -620,7 +622,7 @@ impl TextIrEmitter {
                             dims.push_str(&self.emit_expr(e));
                         }
                         out.push_str(&format!(
-                            "{prefix}dim {sh}{}[{}]\n",
+                            "{prefix}{kw} {sh}{}[{}]\n",
                             self.emit_symbol(symbol),
                             dims
                         ));
@@ -634,11 +636,14 @@ impl TextIrEmitter {
                         // `dim a:t[]` here (two-frontend IR_IDENTICAL contract).
                         if *is_array {
                             out.push_str(&format!(
-                                "{prefix}dim {sh}{}[]\n",
+                                "{prefix}{kw} {sh}{}[]\n",
                                 self.emit_symbol(symbol)
                             ))
                         } else {
-                            out.push_str(&format!("{prefix}dim {sh}{}\n", self.emit_symbol(symbol)))
+                            out.push_str(&format!(
+                                "{prefix}{kw} {sh}{}\n",
+                                self.emit_symbol(symbol)
+                            ))
                         }
                     }
                 }

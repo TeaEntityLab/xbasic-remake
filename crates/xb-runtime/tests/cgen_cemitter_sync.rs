@@ -4787,3 +4787,71 @@ fn cemitter_and_cgen_agree_on_dynamic_trailing_comma_dim() {
     assert_eq!(self_out, interp_out, "cgen.x dynamic-dim mismatch");
     let _ = fs::remove_dir_all(&tmp);
 }
+
+/// Content-preserving REDIM across all three engines: 1-D integer, 1-D
+/// string, and 2-D flat stores keep the existing prefix and default-fill
+/// the grown tail; UBOUND tracks the new bound. 2-D indices reinterpret
+/// under the new stride (flat preservation, matching the interpreter).
+#[test]
+fn cemitter_and_cgen_agree_on_redim_preserves_content() {
+    let tmp = std::env::temp_dir().join("xb_sync_redim");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "PROGRAM \"redim\"\n\
+               VERSION \"0.1\"\n\
+               FUNCTION Main ()\n\
+               DIM a[2]\n\
+               a[0] = 10\n\
+               a[1] = 20\n\
+               a[2] = 30\n\
+               PRINT UBOUND(a[])\n\
+               REDIM a[4]\n\
+               PRINT UBOUND(a[])\n\
+               PRINT a[0]\n\
+               PRINT a[1]\n\
+               PRINT a[2]\n\
+               PRINT a[3]\n\
+               PRINT a[4]\n\
+               DIM s$[1]\n\
+               s$[0] = \"aa\"\n\
+               s$[1] = \"bb\"\n\
+               REDIM s$[2]\n\
+               PRINT s$[0]\n\
+               PRINT s$[1]\n\
+               PRINT s$[2]\n\
+               DIM m[1,2]\n\
+               m[0,0] = 11\n\
+               m[1,2] = 23\n\
+               REDIM m[2,3]\n\
+               PRINT UBOUND(m[])\n\
+               PRINT m[0,0]\n\
+               PRINT m[1,2]\n\
+               PRINT m[2,3]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse redim program")
+        .lower_ir()
+        .expect("lower redim program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "redim_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "redim_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret redim program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "2\n4\n10\n20\n30\n0\n0\naa\nbb\n\n11\n11\n0\n0\n",
+        "redim reference output"
+    );
+    assert_eq!(rust_out, interp_out, "CEmitter REDIM mismatch");
+    assert_eq!(self_out, interp_out, "cgen.x REDIM mismatch");
+    let _ = fs::remove_dir_all(&tmp);
+}

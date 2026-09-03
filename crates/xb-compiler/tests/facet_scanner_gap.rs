@@ -50,7 +50,11 @@ fn scan_all_strarr(ir: &str) -> BTreeSet<String> {
     let mut res = BTreeSet::new();
     for raw in ir.split('\n') {
         let ln = trim_spaces(raw);
-        let Some(r) = ln.strip_prefix("dim ") else {
+        let r = if let Some(r) = ln.strip_prefix("dim ") {
+            r
+        } else if let Some(r) = ln.strip_prefix("redim ") {
+            r
+        } else {
             continue;
         };
         let Some(bp) = r.find('[') else {
@@ -75,7 +79,11 @@ fn scan_str_dual(ir: &str) -> BTreeSet<String> {
     let mut res = BTreeSet::new();
     for raw in ir.split('\n') {
         let ln = trim_spaces(raw);
-        let Some(r) = ln.strip_prefix("dim ") else {
+        let r = if let Some(r) = ln.strip_prefix("dim ") {
+            r
+        } else if let Some(r) = ln.strip_prefix("redim ") {
+            r
+        } else {
             continue;
         };
         if let Some(bp) = r.find('[') {

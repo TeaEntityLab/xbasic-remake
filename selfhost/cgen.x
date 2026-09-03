@@ -1075,10 +1075,15 @@ WHILE sub2 <= LEN(src$)
       ' Only FIXED string arrays (a sized dim, no empty bracket): dyn
       ' string arrays keep their existing calloc-dyn path.
       sizedDim = 0
-      IF INSTR(src$, "dim " + inm$ + ":string[") > 0 THEN
-        dbp = INSTR(src$, "dim " + inm$ + ":string[")
+      DIM _sdimProbe$
+      _sdimProbe$ = "dim " + inm$ + ":string["
+      IF INSTR(src$, _sdimProbe$) = 0 THEN
+        _sdimProbe$ = "redim " + inm$ + ":string["
+      END IF
+      IF INSTR(src$, _sdimProbe$) > 0 THEN
+        dbp = INSTR(src$, _sdimProbe$)
         dbr = INSTR(src$, "]", dbp)
-        dcont$ = MID$(src$, dbp + LEN("dim " + inm$ + ":string["), dbr - dbp - LEN("dim " + inm$ + ":string["))
+        dcont$ = MID$(src$, dbp + LEN(_sdimProbe$), dbr - dbp - LEN(_sdimProbe$))
         IF LEN(trim_spaces$(dcont$)) > 0 THEN
           sizedDim = 1
         END IF
@@ -1646,7 +1651,7 @@ IF LEN(##facetTab$) > 0 THEN
         IF _fdSp > 0 THEN
           _fdTy$ = LEFT$(_fdRest$, _fdSp - 1)
         END IF
-        IF (_fdTy$ = "integer" OR _fdTy$ = "float") AND INSTR(##dynNames$, ":" + _fdNm$ + ":") = 0 AND INSTR(_fdNm$, ".") = 0 AND INSTR(##sharedArrays$, ":" + _fdNm$ + ":") = 0 AND INSTR(##allStrArr$, ":" + _fdNm$ + ":") = 0 AND INSTR(##xstArrays$, ":" + _fdNm$ + ":") = 0 AND (INSTR(src$, "dim " + _fdNm$ + ":" + _fdTy$ + "[") > 0 OR INSTR(src$, "dim shared " + _fdNm$ + ":" + _fdTy$ + "[") > 0) THEN
+        IF (_fdTy$ = "integer" OR _fdTy$ = "float") AND INSTR(##dynNames$, ":" + _fdNm$ + ":") = 0 AND INSTR(_fdNm$, ".") = 0 AND INSTR(##sharedArrays$, ":" + _fdNm$ + ":") = 0 AND INSTR(##allStrArr$, ":" + _fdNm$ + ":") = 0 AND INSTR(##xstArrays$, ":" + _fdNm$ + ":") = 0 AND (INSTR(src$, "dim " + _fdNm$ + ":" + _fdTy$ + "[") > 0 OR INSTR(src$, "redim " + _fdNm$ + ":" + _fdTy$ + "[") > 0 OR INSTR(src$, "dim shared " + _fdNm$ + ":" + _fdTy$ + "[") > 0 OR INSTR(src$, "redim shared " + _fdNm$ + ":" + _fdTy$ + "[") > 0) THEN
           ##dynNames$ = ##dynNames$ + ":" + _fdNm$ + ":" + _fdTy$ + ":"
         END IF
       END IF
@@ -2036,7 +2041,7 @@ WHILE pos <= LEN(src$)
       IF skipFunc = 0 THEN
         cCode$ = emit_stmt$(stmt$)
         IF inFunc = 1 THEN
-          IF LEFT$(stmt$, 4) = "dim " THEN
+          IF LEFT$(stmt$, 4) = "dim " OR LEFT$(stmt$, 6) = "redim " THEN
             IF INSTR(stmt$, "[") > 0 THEN
               ' CGEN-DIM-DEDUP: suppress only an IDENTICAL repeated native
               ' fixed-array declaration in this C function (Kittedy's two
@@ -6499,8 +6504,12 @@ FUNCTION scan_dyn$(s$)
     END IF
     ln$ = trim_spaces$(MID$(s$, p, le - p))
     p = le + 1
-    IF LEFT$(ln$, 4) = "dim " THEN
-      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+    IF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
       ' An unsized `dim X:t[]` (`DIM x[]`) establishes the variable like a scalar
       ' DIM does — it is the "scalar facet" this dual classifier was calibrated
       ' on while the text IR emitted unsized DIMs in scalar form. Treat it as
@@ -6600,8 +6609,12 @@ FUNCTION scan_dyn$(s$)
     END IF
     ln$ = trim_spaces$(MID$(s$, p, le - p))
     p = le + 1
-    IF LEFT$(ln$, 4) = "dim " THEN
-      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+    IF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
       bp = INSTR(r$, "[")
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
@@ -6845,8 +6858,12 @@ FUNCTION scan_dual_use$(s$)
     END IF
     ln$ = trim_spaces$(MID$(s$, p, le - p))
     p = le + 1
-    IF LEFT$(ln$, 4) = "dim " AND LEFT$(ln$, 11) <> "dim shared " THEN
-      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+    IF (LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim ") AND LEFT$(ln$, 11) <> "dim shared " AND LEFT$(ln$, 13) <> "redim shared " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
       IF INSTR(r$, "[") = 0 THEN
         nm$ = r$
         cp = INSTR(nm$, ":")
@@ -6946,8 +6963,12 @@ FUNCTION scan_dual_use$(s$)
     END IF
     ln$ = trim_spaces$(MID$(s$, p, le - p))
     p = le + 1
-    IF LEFT$(ln$, 4) = "dim " THEN
-      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+    IF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
       bp = INSTR(r$, "[")
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
@@ -7451,8 +7472,12 @@ FUNCTION scan_undimmed$(s$)
     END IF
     ln$ = trim_spaces$(MID$(s$, p, le - p))
     p = le + 1
-    IF LEFT$(ln$, 4) = "dim " THEN
-      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+    IF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
       bp = INSTR(r$, "[")
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
@@ -7542,8 +7567,12 @@ FUNCTION scan_dynstr$(s$)
     END IF
     ln$ = trim_spaces$(MID$(s$, p, le - p))
     p = le + 1
-    IF LEFT$(ln$, 4) = "dim " THEN
-      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+    IF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
       bp = INSTR(r$, "[")
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
@@ -7552,7 +7581,6 @@ FUNCTION scan_dynstr$(s$)
           IF MID$(nm$, e + 1, LEN(nm$) - e) = "string" THEN
             nm$ = LEFT$(nm$, e - 1)
             IF INSTR(seen$, ":" + nm$ + ":") > 0 THEN
-              IF INSTR(res$, ":" + nm$ + ":") = 0 THEN
                 res$ = res$ + ":" + nm$ + ":"
               END IF
             ELSE
@@ -7584,8 +7612,12 @@ FUNCTION scan_dynstr$(s$)
     IF le = 0 THEN le = LEN(s$) + 1
     ln$ = trim_spaces$(MID$(s$, p, le - p))
     p = le + 1
-    IF LEFT$(ln$, 4) = "dim " THEN
-      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+    IF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
       bp = INSTR(r$, "[")
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
@@ -7636,8 +7668,12 @@ FUNCTION scan_all_strarr$(s$)
     END IF
     ln$ = trim_spaces$(MID$(s$, p, le - p))
     p = le + 1
-    IF LEFT$(ln$, 4) = "dim " THEN
-      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+    IF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
       bp = INSTR(r$, "[")
       IF bp > 0 THEN
         nm$ = LEFT$(r$, bp - 1)
@@ -7758,8 +7794,12 @@ FUNCTION scan_str_dual$(s$)
     END IF
     ln$ = trim_spaces$(MID$(s$, p, le - p))
     p = le + 1
-    IF LEFT$(ln$, 4) = "dim " THEN
-      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+    IF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
       bp = INSTR(r$, "[")
       ' Unsized `[]` DIMs count as the scalar facet (see scan_dyn$): the dual set
       ' must not change because the text IR now keeps `[]` on `DIM x$[]`.
@@ -7869,8 +7909,12 @@ FUNCTION scan_arr2d$(s$)
     END IF
     ln$ = trim_spaces$(MID$(s$, p, le - p))
     p = le + 1
-    IF LEFT$(ln$, 4) = "dim " THEN
-      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+    IF LEFT$(ln$, 4) = "dim " OR LEFT$(ln$, 6) = "redim " THEN
+      IF LEFT$(ln$, 4) = "dim " THEN
+        r$ = MID$(ln$, 5, LEN(ln$) - 4)
+      ELSE
+        r$ = MID$(ln$, 7, LEN(ln$) - 6)
+      END IF
       IF LEFT$(r$, 7) = "shared " THEN
         r$ = MID$(r$, 8, LEN(r$) - 7)
       END IF
@@ -8279,6 +8323,7 @@ FUNCTION emit_stmt$(s$)
   DIM _ndShape$
   DIM _ndRank
   DIM _ndIdxRank
+  DIM isRedim
 
   IF LEFT$(s$, 8) = "function" THEN
     emit_stmt$ = ""
@@ -8345,8 +8390,14 @@ FUNCTION emit_stmt$(s$)
     RETURN emit_stmt$
   END IF
 
-  IF LEFT$(s$, 3) = "dim" THEN
-    rest$ = MID$(s$, 5, LEN(s$) - 4)
+  IF LEFT$(s$, 3) = "dim" OR LEFT$(s$, 6) = "redim " THEN
+    IF LEFT$(s$, 6) = "redim " THEN
+      isRedim = 1
+      rest$ = MID$(s$, 7, LEN(s$) - 6)
+    ELSE
+      isRedim = 0
+      rest$ = MID$(s$, 5, LEN(s$) - 4)
+    END IF
     IF LEFT$(rest$, 7) = "shared " THEN
       rest$ = MID$(rest$, 8, LEN(rest$) - 7)
       bracketPos = INSTR(rest$, "[")
@@ -8439,6 +8490,36 @@ FUNCTION emit_stmt$(s$)
           _descNewUb$ = cExpr$
         END IF
         emit_stmt$ = "    { intptr_t _oldub = *" + _descUb$ + "; *" + _descUb$ + " = (" + _descNewUb$ + "); *" + _descCVar$ + "_dd = realloc(*" + _descCVar$ + "_dd, (size_t)(*" + _descUb$ + " + 1) * sizeof(" + _descCType$ + ")); if (!*" + _descCVar$ + "_dd) abort(); for (intptr_t _i = _oldub + 1; _i <= *" + _descUb$ + "; _i++) (*" + _descCVar$ + "_dd)[_i] = " + _descFill$ + "; }"
+        RETURN emit_stmt$
+      END IF
+      ' Content-preserving REDIM of a heap array (mirrors the Rust
+      ' CEmitter's dyn+redim arm): realloc keeps existing elements and the
+      ' grown tail takes the type default. Plain DIM still calloc-zeroes
+      ' below. Multi-dim resizes the flat product and refreshes the 2-D
+      ' stride cell. Non-heap (fixed) REDIM keeps the historical calloc path.
+      IF isRedim = 1 AND attach_is_dyn$(varName$) = "1" AND NOT (INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND INSTR(##dynStr$, ":" + varName$ + ":") = 0 AND INSTR(##byrefStrArr$, ":" + varName$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) = 0) THEN
+        DIM _rdPtr$
+        DIM _rdUb$
+        DIM _rdFill$
+        DIM _rdNewUb$
+        DIM _rdD1$
+        _rdPtr$ = arr_acc_name$(varName$, varType$)
+        _rdUb$ = ub_ref$(varName$, varType$)
+        IF varType$ = "string" THEN
+          _rdFill$ = "xb_str(" + CHR$(34) + CHR$(34) + ")"
+        ELSE
+          _rdFill$ = "0"
+        END IF
+        IF INSTR(arrSize$, ",") > 0 THEN
+          _rdNewUb$ = emit_mtotal$(arrSize$) + " - 1"
+        ELSE
+          _rdNewUb$ = cExpr$
+        END IF
+        _rdD1$ = ""
+        IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
+          _rdD1$ = " xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
+        END IF
+        emit_stmt$ = "    { intptr_t _oldub = " + _rdUb$ + "; " + _rdUb$ + " = (" + _rdNewUb$ + "); " + _rdPtr$ + " = realloc(" + _rdPtr$ + ", (size_t)(" + _rdUb$ + " + 1) * sizeof(*" + _rdPtr$ + ")); if (!" + _rdPtr$ + ") abort(); for (intptr_t _i = _oldub + 1; _i <= " + _rdUb$ + "; _i++) " + _rdPtr$ + "[_i] = " + _rdFill$ + ";" + _rdD1$ + " }"
         RETURN emit_stmt$
       END IF
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN

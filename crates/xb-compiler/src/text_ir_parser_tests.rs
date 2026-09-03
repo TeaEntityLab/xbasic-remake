@@ -289,3 +289,19 @@ END FUNCTION
 "#,
     );
 }
+
+#[test]
+fn round_trip_redim_preserves_flag() {
+    // REDIM must survive text IR emission/parsing as `redim` (not `dim`):
+    // the flag separates content-preserving resize from zeroing DIM.
+    round_trip(
+        r#"VERSION "0.1"
+FUNCTION Main
+DIM a[2]
+a[0] = 10
+REDIM a[4]
+PRINT a[0]
+END FUNCTION
+"#,
+    );
+}
