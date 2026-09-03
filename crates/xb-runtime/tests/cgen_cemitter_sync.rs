@@ -2609,6 +2609,78 @@ fn cemitter_and_cgen_agree_on_user_type_composite_return() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Composite-array by-ref (M1-ABI): `FUNCTION Sum (PT p[])` flattens the call
+/// to per-member `byref(symbol(p.x)), byref(symbol(p.y))` with member-array
+/// params. The interpreter forwards each member array (reads + writeback);
+/// both C backends pass member pointers with caller writeback. cgen.x used to
+/// emit a scalar facet (`intptr_t xb_var_p_x = 0;`) alongside the in-place
+/// member array (`xb_var_p_x[2]`) — same sanitized C name, so cc failed with
+/// redefinition. The byrefDual scalar branch now skips dotted member-array
+/// names owned by the current function's array DIMs. All three engines must
+/// produce `7\n30\n60\n` (read sum, then caller-visible writeback).
+#[test]
+fn cemitter_and_cgen_agree_on_composite_array_byref() {
+    let tmp = std::env::temp_dir().join("xb_sync_comp_byref");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"cba\"\n",
+        "VERSION \"0.1\"\n",
+        "TYPE PT\n",
+        "XLONG .x\n",
+        "XLONG .y\n",
+        "END TYPE\n",
+        "FUNCTION Main ()\n",
+        "PT p[]\n",
+        "DIM p[1]\n",
+        "p[0].x = 3\n",
+        "p[0].y = 4\n",
+        "p[1].x = 5\n",
+        "p[1].y = 6\n",
+        "Sum(@p[])\n",
+        "PRINT p[0].x\n",
+        "PRINT p[1].y\n",
+        "END FUNCTION\n",
+        "FUNCTION Sum (PT p[])\n",
+        "PRINT p[0].x + p[0].y\n",
+        "p[0].x = 30\n",
+        "p[1].y = 60\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse composite byref program")
+        .lower_ir()
+        .expect("lower composite byref program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "cba_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "cba_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret composite byref program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "7\n30\n60\n",
+        "composite byref reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter failed to forward composite member arrays by-ref"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x failed to forward composite member arrays by-ref"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Binary integer literals (CGEN-SELFHOST-PARITY): `0b1000000` is a gcc/clang
 /// extension the interpreter evaluates (64) and the Rust CEmitter emits verbatim.
 /// cgen.x's strip_zeros$ (added for the `08`/`09` octal hazard) exempted hex

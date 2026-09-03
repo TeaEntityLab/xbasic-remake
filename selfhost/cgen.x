@@ -5709,9 +5709,11 @@ FUNCTION emit_hoists$(used$, dimmed$)
         END IF
         END IF
       ELSEIF INSTR(##byrefDual$, ":" + entry$ + ":") > 0 AND (INSTR(CHR$(10) + ##curParams$, CHR$(10) + entry$ + CHR$(10)) = 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + entry$ + CHR$(10)) > 0) THEN
-        ' Array param used as scalar but NOT in ##dynNames$ — emit scalar facet only.
-        ' The array facet comes from the parameter (xb_var_X_arr / xb_str_X$_arr).
-        ' Skip if entry$ is a scalar param of the current function (no redefinition).
+        ' Dotted composite member array (p.x DIM'd with brackets in this
+        ' function): the in-place member array owns the sanitized C name
+        ' (xb_var_p_x), so a scalar facet would redefine it. The byref call
+        ' arg is member forwarding, never a scalar use — emit nothing.
+        IF INSTR(entry$, ".") = 0 OR INSTR(##curFnArrays$, ":" + entry$ + ":") = 0 THEN
         IF RIGHT$(entry$, 1) = "$" THEN
           IF INSTR(out$, "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + ");") = 0 THEN
             out$ = out$ + "    char* " + c_var_name$(entry$, "string") + " = xb_str(" + CHR$(34) + CHR$(34) + ");" + CHR$(10)
@@ -5720,6 +5722,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
           IF INSTR(out$, "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;") = 0 THEN
             out$ = out$ + "    intptr_t xb_var_" + sanitize_ident$(entry$) + " = 0;" + CHR$(10)
           END IF
+        END IF
         END IF
       ELSEIF INSTR(##xstArrays$, ":" + entry$ + ":") > 0 AND INSTR(##dynNames$, ":" + entry$ + ":") = 0 AND (LEN(##facetTab$) = 0 OR facet_has_entry$(##facetTab$, entry$, ##curHoistFn$) = 0 OR INSTR(facets_in_scope$(##facetTab$, ##curHoistFn$, "arr1"), ":" + entry$ + ":") > 0) AND INSTR(##allStrArr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 THEN
         IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
