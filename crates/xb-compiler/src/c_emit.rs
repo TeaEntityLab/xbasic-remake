@@ -1452,6 +1452,31 @@ pub(crate) fn emit_dyn_decls(out: &mut String, indent: usize) {
             out.push_str(";\n");
         }
     });
+    // Multi-dim stride cells (`xb_dim_<id>_<k>`): hoisted so DIMs in nested
+    // blocks and later REDIMs share one function-scope declaration. Site
+    // declarations break when the first DIM sits in a narrower block than a
+    // later REDIM (xit AddDispatch). Sorted for deterministic output. Empty
+    // for the shared corpus (all 1-D) — byte-identical there.
+    FN_ARRAY_DIMS.with(|s| {
+        let m = s.borrow();
+        let mut names: Vec<&String> = m.keys().collect();
+        names.sort();
+        for name in names {
+            let dims = &m[name];
+            if dims.len() < 2 {
+                continue;
+            }
+            let id = array_ident(name);
+            for (k, _) in dims.iter().enumerate() {
+                out.push_str(&ind);
+                out.push_str("intptr_t xb_dim_");
+                out.push_str(&id);
+                out.push('_');
+                out.push_str(&k.to_string());
+                out.push_str(" = 0;\n");
+            }
+        }
+    });
 }
 
 /// A recognized builtin that has neither a special emitter arm nor a real C

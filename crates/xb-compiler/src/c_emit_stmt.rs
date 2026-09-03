@@ -145,13 +145,13 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     let mut dims = vec![sz.clone()];
                     dims.extend(extra_dims.iter().cloned());
                     let dyn_array = crate::c_emit::is_dyn_array(&symbol.name);
-                    // Emit per-dimension size variables for ATTACH stride computation.
+                    // Per-dimension size variables for ATTACH stride computation.
+                    // Declared once at function top (see emit_dyn_decls); every
+                    // multi-dim DIM/REDIM only assigns (re-declaring is a cc
+                    // redefinition, and a block-scoped first declaration is
+                    // invisible to later REDIMs).
                     let ident = crate::c_emit::array_ident(&symbol.name);
-                    // REDIM re-assigns the stride cells (re-declaring would be
-                    // a cc redefinition); first DIM declares them.
-                    let dim_decl = if *redim { "" } else { "intptr_t " };
                     out.push_str(&ind);
-                    out.push_str(dim_decl);
                     out.push_str("xb_dim_");
                     out.push_str(&ident);
                     out.push_str("_0 = ");
@@ -159,7 +159,6 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     out.push_str(";\n");
                     for (di, ed) in extra_dims.iter().enumerate() {
                         out.push_str(&ind);
-                        out.push_str(dim_decl);
                         out.push_str("xb_dim_");
                         out.push_str(&ident);
                         out.push('_');
