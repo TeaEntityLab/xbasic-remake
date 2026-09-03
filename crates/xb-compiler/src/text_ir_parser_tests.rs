@@ -260,3 +260,32 @@ END FUNCTION
 "#,
     );
 }
+
+#[test]
+fn round_trip_attach_five_cases() {
+    // All five ATTACH copy-semantics shapes must survive text IR emission
+    // and parsing (the self-hosted cgen.x consumes this text): whole-array,
+    // scalar/element both directions, and 2-D row extract/restore.
+    round_trip(
+        r#"VERSION "0.1"
+FUNCTION Main
+DIM src[3]
+DIM dst[3]
+dst[0] = 10
+dst[1] = 20
+dst[2] = 30
+ATTACH src[] TO dst[]
+DIM val
+ATTACH val TO dst[1]
+val = 99
+ATTACH dst[2] TO val
+DIM src2[3]
+DIM dst2[2,3]
+dst2[0,0] = 100
+ATTACH src2[] TO dst2[0,]
+src2[0] = 999
+ATTACH dst2[1,] TO src2[]
+END FUNCTION
+"#,
+    );
+}

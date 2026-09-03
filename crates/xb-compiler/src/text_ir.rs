@@ -1,5 +1,5 @@
 use crate::checked::{PrintSep, ValueType};
-use crate::ir::{IrItem, IrParam, IrProgram};
+use crate::ir::{IrExpr, IrItem, IrParam, IrProgram, IrSymbol};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TextIrEmitter;
@@ -861,7 +861,21 @@ impl TextIrEmitter {
                     self.emit_symbol(right)
                 ));
             }
-            IrItem::Nop | IrItem::Attach { .. } => {}
+            IrItem::Nop => {}
+            IrItem::Attach {
+                left,
+                left_indices,
+                left_is_row,
+                right,
+                right_indices,
+                right_is_row,
+            } => {
+                out.push_str(&format!(
+                    "{prefix}attach {} TO {}\n",
+                    emit_attach_side(&self, left, left_indices, *left_is_row),
+                    emit_attach_side(&self, right, right_indices, *right_is_row)
+                ));
+            }
             IrItem::SelectCase {
                 selector,
                 cases,
@@ -918,4 +932,25 @@ impl TextIrEmitter {
             }
         }
     }
+}
+/// One side of an `attach A TO B` line: `sym`, `sym[i,j]`, `sym[i,]` (row),
+/// or `sym[]` (whole array, empty index list, not a row).
+fn emit_attach_side(
+    em: &TextIrEmitter,
+    symbol: &IrSymbol,
+    indices: &[IrExpr],
+    is_row: bool,
+) -> String {
+    let mut s = em.emit_symbol(symbol);
+    let has_brackets = !indices.is_empty() || is_row;
+    if has_brackets {
+        s.push('[');
+        let idx: Vec<String> = indices.iter().map(|e| em.emit_expr(e)).collect();
+        s.push_str(&idx.join(","));
+        if is_row {
+            s.push(',');
+        }
+        s.push(']');
+    }
+    s
 }

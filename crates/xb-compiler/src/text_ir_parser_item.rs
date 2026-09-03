@@ -102,6 +102,19 @@ pub(crate) fn parse_item(
             value: val,
         });
     }
+    if let Some(rest) = content.strip_prefix("attach ") {
+        let (left_s, right_s) = split_attach_sides(rest, l)?;
+        let (left, left_indices, left_is_row) = parse_attach_side(left_s, l)?;
+        let (right, right_indices, right_is_row) = parse_attach_side(right_s, l)?;
+        return Ok(IrItem::Attach {
+            left,
+            left_indices,
+            left_is_row,
+            right,
+            right_indices,
+            right_is_row,
+        });
+    }
     if let Some(rest) = content.strip_prefix("mid_assign ") {
         let parts: Vec<&str> = rest.split(" | ").collect();
         if parts.len() == 3 {
@@ -368,4 +381,69 @@ pub(crate) fn parse_item(
         return Ok(IrItem::Call { name, args });
     }
     Err(err(format!("unknown item: {content}"), l))
+}
+/// Split `LEFT TO RIGHT` at depth 0, skipping bracket nesting and string
+/// literals (an index string may itself contain " TO ").
+fn split_attach_sides(s: &str, l: usize) -> Result<(&str, &str), TextIrParseError> {
+    let bytes = s.as_bytes();
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut i = 0;
+    while i + 4 <= bytes.len() {
+        let b = bytes[i];
+        if in_string {
+            if b == b'"' {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+        match b {
+            b'"' => {
+                in_string = true;
+                i += 1;
+            }
+            b'[' | b'(' => {
+                depth += 1;
+                i += 1;
+            }
+            b']' | b')' => {
+                depth = depth.saturating_sub(1);
+                i += 1;
+            }
+            _ => {
+                if depth == 0 && &s[i..i + 4] == " TO " {
+                    return Ok((s[..i].trim(), s[i + 4..].trim()));
+                }
+                i += 1;
+            }
+        }
+    }
+    Err(err("missing TO in attach".into(), l))
+}
+
+/// Parse one `attach` side: `sym`, `sym[i,j]`, `sym[i,]` (row), or `sym[]`
+/// (whole array: empty index list, not a row).
+fn parse_attach_side(
+    s: &str,
+    l: usize,
+) -> Result<(crate::ir::IrSymbol, Vec<IrExpr>, bool), TextIrParseError> {
+    let s = s.trim();
+    if let Some(br) = s.find('[') {
+        let sym = parse_symbol_decl(s[..br].trim()).map_err(|e| err(e, l))?;
+        let inner = s[br + 1..]
+            .strip_suffix(']')
+            .ok_or_else(|| err("missing ] in attach".into(), l))?
+            .trim();
+        let is_row = inner.ends_with(',');
+        let body = if is_row {
+            inner[..inner.len() - 1].trim()
+        } else {
+            inner
+        };
+        let indices = parse_args(body).map_err(|e| err(e, l))?;
+        return Ok((sym, indices, is_row));
+    }
+    let sym = parse_symbol_decl(s).map_err(|e| err(e, l))?;
+    Ok((sym, Vec::new(), false))
 }
