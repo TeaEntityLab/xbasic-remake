@@ -160,10 +160,16 @@ pub enum Statement {
         left_indices: Vec<Expression>,
         /// `true` when the left operand had a trailing comma (`B[i,]`).
         left_is_row: bool,
+        /// `true` when the left operand had explicit brackets (`A[]`).
+        /// Distinguishes whole-array `A$[]` from scalar `A`: both have empty
+        /// `indices` and `is_row == false`, but only the former keeps its
+        /// type suffix for array-slot resolution.
+        left_has_brackets: bool,
         right_name: String,
         right_suffix: Option<TypeSuffix>,
         right_indices: Vec<Expression>,
         right_is_row: bool,
+        right_has_brackets: bool,
     },
 }
 

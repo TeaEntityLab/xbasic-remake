@@ -184,19 +184,23 @@ impl Analyzer {
                 left_suffix,
                 left_indices,
                 left_is_row,
+                left_has_brackets,
                 right_name,
                 right_suffix,
                 right_indices,
                 right_is_row,
+                right_has_brackets,
             } => self.attach_stmt(
                 left_name,
                 *left_suffix,
                 left_indices,
                 *left_is_row,
+                *left_has_brackets,
                 right_name,
                 *right_suffix,
                 right_indices,
                 *right_is_row,
+                *right_has_brackets,
             ),
         }
     }
@@ -437,23 +441,27 @@ impl Analyzer {
         left_suffix: Option<TypeSuffix>,
         left_indices: &[Expression],
         left_is_row: bool,
+        left_has_brackets: bool,
         right_name: &str,
         right_suffix: Option<TypeSuffix>,
         right_indices: &[Expression],
         right_is_row: bool,
+        right_has_brackets: bool,
     ) -> ItemResult {
         // Build full name with type suffix ONLY for array operands (those
-        // with indices or row markers). DIM stores `text$[]` as symbol
-        // `text$`, but the parser strips `$` into a separate suffix. Scalar
-        // operands use the base name so auto_symbol resolves to the scalar
-        // slot (e.g. `text` not `text$`), avoiding `xb_str_text_s` vs
-        // `xb_str_text` mismatch.
-        let left_full = if left_indices.is_empty() && !left_is_row {
+        // with indices, row markers, or explicit `[]`). DIM stores `text$[]`
+        // as symbol `text$`, but the parser strips `$` into a separate
+        // suffix. Scalar operands use the base name so auto_symbol resolves
+        // to the scalar slot (e.g. `text` not `text$`), avoiding
+        // `xb_str_text_s` vs `xb_str_text` mismatch. Whole-array `text$[]`
+        // has empty indices and no row marker, so the bracket flag carries
+        // the array-ness there.
+        let left_full = if left_indices.is_empty() && !left_is_row && !left_has_brackets {
             left_name.to_owned()
         } else {
             xb_frontend::full_name(left_name.to_owned(), left_suffix)
         };
-        let right_full = if right_indices.is_empty() && !right_is_row {
+        let right_full = if right_indices.is_empty() && !right_is_row && !right_has_brackets {
             right_name.to_owned()
         } else {
             xb_frontend::full_name(right_name.to_owned(), right_suffix)

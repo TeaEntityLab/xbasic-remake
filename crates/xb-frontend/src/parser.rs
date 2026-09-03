@@ -19,6 +19,17 @@ pub fn parse_program(source: &str) -> Result<Program, ParseError> {
     Parser::new(lex(source)?).parse_program()
 }
 
+/// One side of an ATTACH statement as parsed: `name[]`, `name[i,]`,
+/// `name[i]`, or `name`. `has_brackets` distinguishes whole-array `A[]`
+/// from scalar `A` (both have empty `indices` and `is_row == false`).
+struct AttachOperand {
+    name: String,
+    suffix: Option<TypeSuffix>,
+    indices: Vec<Expression>,
+    is_row: bool,
+    has_brackets: bool,
+}
+
 pub struct Parser {
     pub(crate) tokens: Vec<Token>,
     pub(crate) index: usize,
@@ -727,34 +738,35 @@ impl Parser {
 
     fn attach_stmt(&mut self) -> Result<Statement, ParseError> {
         self.index += 1; // ATTACH
-        let (left_name, left_suffix, left_indices, left_is_row) = self.parse_attach_operand()?;
+        let left = self.parse_attach_operand()?;
         self.expect_keyword(Keyword::To)?;
-        let (right_name, right_suffix, right_indices, right_is_row) =
-            self.parse_attach_operand()?;
+        let right = self.parse_attach_operand()?;
         self.expect_line_end()?;
         Ok(Statement::Attach {
-            left_name,
-            left_suffix,
-            left_indices,
-            left_is_row,
-            right_name,
-            right_suffix,
-            right_indices,
-            right_is_row,
+            left_name: left.name,
+            left_suffix: left.suffix,
+            left_indices: left.indices,
+            left_is_row: left.is_row,
+            left_has_brackets: left.has_brackets,
+            right_name: right.name,
+            right_suffix: right.suffix,
+            right_indices: right.indices,
+            right_is_row: right.is_row,
+            right_has_brackets: right.has_brackets,
         })
     }
 
     /// Parse one side of an ATTACH statement: `name[]`, `name[i,]`, `name[i]`,
-    /// or `name`. Returns (name, suffix, indices, is_row).
-    fn parse_attach_operand(
-        &mut self,
-    ) -> Result<(String, Option<TypeSuffix>, Vec<Expression>, bool), ParseError> {
+    /// or `name`.
+    fn parse_attach_operand(&mut self) -> Result<AttachOperand, ParseError> {
         let (name, suffix) = self.expect_name_or_keyword()?;
         let mut full = name;
         let mut indices: Vec<Expression> = Vec::new();
         let mut is_row = false;
+        let mut has_brackets = false;
         loop {
             if matches!(self.peek_kind(), TokenKind::Symbol('[')) {
+                has_brackets = true;
                 self.index += 1;
                 // Empty `[]` = whole-array reference.
                 if !matches!(self.peek_kind(), TokenKind::Symbol(']')) {
@@ -782,7 +794,13 @@ impl Parser {
                 break;
             }
         }
-        Ok((full, suffix, indices, is_row))
+        Ok(AttachOperand {
+            name: full,
+            suffix,
+            indices,
+            is_row,
+            has_brackets,
+        })
     }
 
     fn dot_access_stmt(&mut self) -> Result<Statement, ParseError> {

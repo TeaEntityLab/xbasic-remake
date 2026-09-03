@@ -4633,14 +4633,15 @@ fn cemitter_compiles_gtk_and_helpsrc_clean() {
 }
 
 /// ARY-STATUS-RECONCILIATION: bounded ATTACH behavior test.
-/// Verifies Case 3 (whole-array copy), Case 4 (element→scalar), and
-/// Case 5 (scalar→element) produce identical output across interp and
-/// Rust CEmitter. cgen.x is excluded because text IR drops ATTACH (known
-/// gap — text_ir.rs:688 serializes Attach as Nop).
+/// Verifies all five copy-semantics cases produce identical output across
+/// interp, Rust CEmitter, and selfhosted cgen.x: Case 3 (whole-array copy),
+/// Case 4 (element→scalar), Case 5 (scalar→element), Case 1 (2-D row
+/// extract), Case 2 (2-D row restore).
 #[test]
 fn cemitter_attach_copy_semantics_match_interp() {
     let tmp = std::env::temp_dir().join("xb_sync_attach");
     fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
 
     // Case 3: ATTACH src[] TO dst[] — whole-array copy (dst → src)
     // Case 4: ATTACH scalar TO dst[k] — copy element k of dst into scalar
@@ -4684,14 +4685,38 @@ fn cemitter_attach_copy_semantics_match_interp() {
                PRINT dst2[1,0]\n\
                PRINT dst2[1,1]\n\
                PRINT dst2[1,2]\n\
+               DIM s$\n\
+               DIM sdst$[2]\n\
+               sdst$[0] = \"aa\"\n\
+               sdst$[1] = \"bb\"\n\
+               sdst$[2] = \"cc\"\n\
+               ATTACH s$ TO sdst$[1]\n\
+               PRINT s$\n\
+               s$ = \"zz\"\n\
+               ATTACH sdst$[0] TO s$\n\
+               PRINT sdst$[0]\n\
+               PRINT sdst$[1]\n\
+               DIM sa$[2]\n\
+               DIM sb$[2]\n\
+               sb$[0] = \"x\"\n\
+               sb$[1] = \"y\"\n\
+               sb$[2] = \"z\"\n\
+               ATTACH sa$[] TO sb$[]\n\
+               PRINT sa$[0]\n\
+               PRINT sa$[1]\n\
+               PRINT sa$[2]\n\
                END FUNCTION\n";
     let prog = FrontendUnit::parse(src)
         .expect("parse attach program")
         .lower_ir()
         .expect("lower attach program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
 
     let rust_c = CEmitter::new().emit_program(&prog);
     let rust_out = compile_and_exec(&tmp, "attach_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "attach_self", &self_c, None);
 
     let mut interp = Vec::new();
     Interpreter::new()
@@ -4701,8 +4726,10 @@ fn cemitter_attach_copy_semantics_match_interp() {
 
     let expected = "10\n20\n30\n20\n99\n\
                     100\n200\n300\n\
-                    999\n888\n777\n";
+                    999\n888\n777\n\
+                    bb\nzz\nbb\nx\ny\nz\n";
     assert_eq!(interp_out, expected, "interp ATTACH reference output");
     assert_eq!(rust_out, expected, "CEmitter ATTACH copy semantics");
+    assert_eq!(self_out, expected, "cgen.x ATTACH copy semantics");
     let _ = fs::remove_dir_all(&tmp);
 }

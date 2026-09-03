@@ -819,6 +819,13 @@ END IF
 ##arrayPositions$ = ""
 ##curDescLocals$ = ""
 ##curFacetDual$ = ""
+##atLeft$ = ""
+##atRight$ = ""
+##atNm$ = ""
+##atTy$ = ""
+##atIdx$ = ""
+##atRow$ = ""
+##atHasBr$ = ""
 facetPos = 1
 WHILE facetPos <= LEN(src$)
   facetE = INSTR(src$, CHR$(10), facetPos)
@@ -5073,6 +5080,26 @@ FUNCTION scan_used$(s$, acc$)
       END IF
     END IF
   END IF
+  IF LEFT$(s$, 7) = "attach " THEN
+    ' Attach operands bypass the `symbol(` scanner (raw `name:type` sides), so
+    ' collect them directly: scalar sides for hoisting, `$` array sides for
+    ' string tracking (mirrors the `array_assign` branch above).
+    DIM atDummy$
+    IF attach_split$(MID$(s$, 8, LEN(s$) - 7)) = "1" THEN
+      atDummy$ = attach_side_parse$(##atLeft$)
+      IF ##atHasBr$ = "" THEN
+        out$ = add_sym$(out$, ##atNm$, ##atTy$)
+      ELSEIF RIGHT$(##atNm$, 1) = "$" THEN
+        out$ = add_sym$(out$, ##atNm$, ##atTy$)
+      END IF
+      atDummy$ = attach_side_parse$(##atRight$)
+      IF ##atHasBr$ = "" THEN
+        out$ = add_sym$(out$, ##atNm$, ##atTy$)
+      ELSEIF RIGHT$(##atNm$, 1) = "$" THEN
+        out$ = add_sym$(out$, ##atNm$, ##atTy$)
+      END IF
+    END IF
+  END IF
   IF LEFT$(s$, 5) = "swap " THEN
     fpart$ = MID$(s$, 6, LEN(s$) - 5)
     sp = INSTR(fpart$, " ")
@@ -8058,6 +8085,168 @@ FUNCTION computed_goto_prologue$(body$)
   computed_goto_prologue$ = p$
 END FUNCTION
 
+' Split an `attach` operand pair `LEFT TO RIGHT` at depth 0, skipping
+' bracket/paren nesting and string literals. Sets ##atLeft$/##atRight$;
+' returns "1" on success, "" when no top-level separator exists.
+FUNCTION attach_split$(s$)
+  DIM i
+  DIM ch
+  DIM depth
+  DIM inStr
+  i = 1
+  depth = 0
+  inStr = 0
+  WHILE i + 3 <= LEN(s$)
+    ch = ASC(MID$(s$, i, 1))
+    IF inStr = 1 THEN
+      IF ch = 92 THEN
+        i = i + 2
+      ELSEIF ch = 34 THEN
+        inStr = 0
+        i = i + 1
+      ELSE
+        i = i + 1
+      END IF
+    ELSEIF ch = 34 THEN
+      inStr = 1
+      i = i + 1
+    ELSEIF ch = 40 OR ch = 91 THEN
+      depth = depth + 1
+      i = i + 1
+    ELSEIF ch = 41 OR ch = 93 THEN
+      depth = depth - 1
+      i = i + 1
+    ELSE
+      IF depth = 0 AND MID$(s$, i, 4) = " TO " THEN
+        ##atLeft$ = trim_spaces$(LEFT$(s$, i - 1))
+        ##atRight$ = trim_spaces$(MID$(s$, i + 4, LEN(s$) - i - 3))
+        attach_split$ = "1"
+        RETURN attach_split$
+      END IF
+      i = i + 1
+    END IF
+  WEND
+  attach_split$ = ""
+END FUNCTION
+
+' Parse one `attach` side (`sym`, `sym[i,j]`, `sym[i,]` row, `sym[]` whole).
+' Sets ##atNm$/##atTy$/##atIdx$ (raw inside brackets) /##atRow$/##atHasBr$.
+FUNCTION attach_side_parse$(s$)
+  DIM bp
+  DIM head$
+  DIM inner$
+  DIM cp
+  s$ = trim_spaces$(s$)
+  bp = INSTR(s$, "[")
+  IF bp = 0 THEN
+    cp = INSTR(s$, ":")
+    IF cp > 0 THEN
+      ##atNm$ = trim_spaces$(LEFT$(s$, cp - 1))
+      ##atTy$ = trim_spaces$(MID$(s$, cp + 1, LEN(s$) - cp))
+    ELSE
+      ##atNm$ = s$
+      ##atTy$ = "integer"
+    END IF
+    ##atIdx$ = ""
+    ##atRow$ = ""
+    ##atHasBr$ = ""
+  ELSE
+    head$ = trim_spaces$(LEFT$(s$, bp - 1))
+    cp = INSTR(head$, ":")
+    IF cp > 0 THEN
+      ##atNm$ = trim_spaces$(LEFT$(head$, cp - 1))
+      ##atTy$ = trim_spaces$(MID$(head$, cp + 1, LEN(head$) - cp))
+    ELSE
+      ##atNm$ = head$
+      ##atTy$ = "integer"
+    END IF
+    inner$ = trim_spaces$(MID$(s$, bp + 1, LEN(s$) - bp - 1))
+    IF RIGHT$(inner$, 1) = "]" THEN
+      inner$ = trim_spaces$(LEFT$(inner$, LEN(inner$) - 1))
+    END IF
+    IF RIGHT$(inner$, 1) = "," THEN
+      ##atRow$ = "1"
+      inner$ = trim_spaces$(LEFT$(inner$, LEN(inner$) - 1))
+    ELSE
+      ##atRow$ = ""
+    END IF
+    ##atIdx$ = inner$
+    ##atHasBr$ = "1"
+  END IF
+  attach_side_parse$ = "1"
+END FUNCTION
+
+' True when `n$` owns a heap `xb_ub_` cell (dyn/shared/allStrArr/xst/strDual
+' or a descriptor-forwarded local). Fixed stack arrays have no cell.
+FUNCTION attach_is_dyn$(n$)
+  IF INSTR(##dynNames$, ":" + n$ + ":") > 0 OR INSTR(##dynStr$, ":" + n$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + n$ + ":") > 0 OR INSTR(##allStrArr$, ":" + n$ + ":") > 0 OR INSTR(##xstArrays$, ":" + n$ + ":") > 0 OR INSTR(##strDual$, ":" + n$ + ":") > 0 OR INSTR(##curDescLocals$, ":" + n$ + ":") > 0 THEN
+    attach_is_dyn$ = "1"
+  ELSE
+    attach_is_dyn$ = ""
+  END IF
+END FUNCTION
+
+' Last top-level comma segment (mirrors first_comma_part$). Used for the
+' static trailing extent of a fixed 2-D array shape.
+FUNCTION attach_last_part$(a$)
+  DIM i
+  DIM ch
+  DIM depth
+  DIM start
+  i = 1
+  depth = 0
+  start = 1
+  attach_last_part$ = a$
+  WHILE i <= LEN(a$)
+    ch = ASC(MID$(a$, i, 1))
+    IF ch = 34 THEN
+      i = i + 1
+      WHILE i <= LEN(a$)
+        ch = ASC(MID$(a$, i, 1))
+        IF ch = 92 THEN
+          i = i + 2
+        ELSEIF ch = 34 THEN
+          EXIT WHILE
+        ELSE
+          i = i + 1
+        END IF
+      WEND
+    ELSEIF ch = 40 THEN
+      depth = depth + 1
+    ELSEIF ch = 41 THEN
+      depth = depth - 1
+    ELSEIF ch = 44 AND depth = 0 THEN
+      attach_last_part$ = trim_spaces$(MID$(a$, i + 1, LEN(a$) - i))
+      start = i + 1
+    END IF
+    i = i + 1
+  WEND
+END FUNCTION
+
+' C expression for the row element count of 2-D array `n$`, or "" when the
+' shape is unknown (dynamic trailing-comma DIMs stay a guarded no-op, matching
+' the Rust CEmitter). Dyn arrays use the runtime `xb_d1_` stride (fresh across
+' REDIM); fixed arrays use the static trailing extent. Rank must be exactly 2.
+FUNCTION attach_row_len$(n$)
+  DIM shape$
+  DIM tail$
+  shape$ = shape_of$(n$)
+  IF LEN(shape$) = 0 THEN
+    attach_row_len$ = ""
+    RETURN attach_row_len$
+  END IF
+  IF top_part_count(shape$) <> 2 THEN
+    attach_row_len$ = ""
+    RETURN attach_row_len$
+  END IF
+  IF attach_is_dyn$(n$) = "1" THEN
+    attach_row_len$ = "(" + d1_ref$(n$) + " + 1)"
+  ELSE
+    tail$ = attach_last_part$(shape$)
+    attach_row_len$ = "((" + emit_expr$(tail$) + ") + 1)"
+  END IF
+END FUNCTION
+
 FUNCTION emit_stmt$(s$)
   DIM varName$
   DIM varType$
@@ -8390,6 +8579,114 @@ FUNCTION emit_stmt$(s$)
       ELSE
         emit_stmt$ = "    intptr_t " + c_var_name$(varName$, varType$) + " = 0;"
       END IF
+    END IF
+    RETURN emit_stmt$
+  END IF
+
+  IF LEFT$(s$, 7) = "attach " THEN
+    ' ATTACH copy semantics (mirrors c_emit_attach.rs): row extract/restore
+    ' via memcpy, whole-array copy, and element<->scalar moves. Unknown shapes
+    ' (dynamic trailing-comma DIMs) and type puns are guarded no-ops.
+    DIM atLNm$
+    DIM atLTy$
+    DIM atLIdx$
+    DIM atLRow$
+    DIM atLDyn$
+    DIM atLAcc$
+    DIM atLUb$
+    DIM atRNm$
+    DIM atRTy$
+    DIM atRIdx$
+    DIM atRRow$
+    DIM atRDyn$
+    DIM atRAcc$
+    DIM atRUb$
+    DIM atRowLen$
+    DIM atCnt$
+    DIM atIdxE$
+    DIM atDummy$
+    IF attach_split$(MID$(s$, 8, LEN(s$) - 7)) = "1" THEN
+      atDummy$ = attach_side_parse$(##atLeft$)
+      atLNm$ = ##atNm$
+      atLTy$ = ##atTy$
+      atLIdx$ = ##atIdx$
+      atLRow$ = ##atRow$
+      atDummy$ = attach_side_parse$(##atRight$)
+      atRNm$ = ##atNm$
+      atRTy$ = ##atTy$
+      atRIdx$ = ##atIdx$
+      atRRow$ = ##atRow$
+      atLAcc$ = arr_acc_name$(atLNm$, atLTy$)
+      atLUb$ = ub_ref$(atLNm$, atLTy$)
+      atRAcc$ = arr_acc_name$(atRNm$, atRTy$)
+      atRUb$ = ub_ref$(atRNm$, atRTy$)
+      atLDyn$ = attach_is_dyn$(atLNm$)
+      atRDyn$ = attach_is_dyn$(atRNm$)
+      IF atLRow$ = "" AND LEN(atLIdx$) = 0 AND atRRow$ = "1" AND LEN(atRIdx$) > 0 AND top_part_count(atRIdx$) = 1 THEN
+        atRowLen$ = attach_row_len$(atRNm$)
+        IF LEN(atRowLen$) = 0 THEN
+          emit_stmt$ = ""
+        ELSE
+          ' Dyn/shared 2-D arrays are flat heap storage (row i starts at
+          ' `base[i*rowlen]`); fixed 2-D arrays are native C 2-D, so the row
+          ' base is `&base[i][0]` (flat indexing would overrun dim 0).
+          atIdxE$ = emit_expr$(atRIdx$)
+          IF atRDyn$ = "1" OR is_desc_param$(##curFnName$, atRNm$) = "1" THEN
+            emit_stmt$ = "    memcpy(" + atLAcc$ + ", &" + atRAcc$ + "[(" + atIdxE$ + ") * (" + atRowLen$ + ")], (size_t)(" + atRowLen$ + ") * sizeof(*" + atLAcc$ + "));"
+          ELSE
+            emit_stmt$ = "    memcpy(" + atLAcc$ + ", &" + atRAcc$ + "[(" + atIdxE$ + ")][0], (size_t)(" + atRowLen$ + ") * sizeof(*" + atLAcc$ + "));"
+          END IF
+          IF atLDyn$ = "1" THEN
+            emit_stmt$ = emit_stmt$ + CHR$(10) + "    " + atLUb$ + " = (" + atRowLen$ + ") - 1;"
+          END IF
+        END IF
+      ELSEIF atLRow$ = "1" AND LEN(atLIdx$) > 0 AND top_part_count(atLIdx$) = 1 AND atRRow$ = "" AND LEN(atRIdx$) = 0 THEN
+        atRowLen$ = attach_row_len$(atLNm$)
+        IF LEN(atRowLen$) = 0 THEN
+          emit_stmt$ = ""
+        ELSE
+          IF atRDyn$ = "1" THEN
+            atCnt$ = "(" + atRUb$ + " + 1)"
+          ELSE
+            atCnt$ = "(sizeof(" + atRAcc$ + ") / sizeof(*" + atRAcc$ + "))"
+          END IF
+          IF atLDyn$ = "1" OR is_desc_param$(##curFnName$, atLNm$) = "1" THEN
+            emit_stmt$ = "    memcpy(&" + atLAcc$ + "[(" + emit_expr$(atLIdx$) + ") * (" + atRowLen$ + ")], " + atRAcc$ + ", (size_t)(" + atCnt$ + ") * sizeof(*" + atRAcc$ + "));"
+          ELSE
+            emit_stmt$ = "    memcpy(&" + atLAcc$ + "[(" + emit_expr$(atLIdx$) + ")][0], " + atRAcc$ + ", (size_t)(" + atCnt$ + ") * sizeof(*" + atRAcc$ + "));"
+          END IF
+        END IF
+      ELSEIF atLRow$ = "" AND LEN(atLIdx$) = 0 AND atRRow$ = "" AND LEN(atRIdx$) = 0 THEN
+        IF atLTy$ <> atRTy$ THEN
+          emit_stmt$ = ""
+        ELSEIF atLDyn$ = "1" AND atRDyn$ = "1" THEN
+          emit_stmt$ = "    memcpy(" + atLAcc$ + ", " + atRAcc$ + ", (size_t)(" + atRUb$ + " + 1) * sizeof(*" + atLAcc$ + "));" + CHR$(10) + "    " + atLUb$ + " = " + atRUb$ + ";"
+        ELSEIF atLDyn$ = "" AND atRDyn$ = "" AND INSTR(##curFnArrays$, ":" + atLNm$ + ":") > 0 AND INSTR(##curFnArrays$, ":" + atRNm$ + ":") > 0 THEN
+          emit_stmt$ = "    memcpy(" + atLAcc$ + ", " + atRAcc$ + ", sizeof(" + atLAcc$ + ") < sizeof(" + atRAcc$ + ") ? sizeof(" + atLAcc$ + ") : sizeof(" + atRAcc$ + "));"
+        ELSE
+          emit_stmt$ = ""
+        END IF
+      ELSEIF atLRow$ = "" AND LEN(atLIdx$) = 0 AND atRRow$ = "" AND LEN(atRIdx$) > 0 AND top_part_count(atRIdx$) = 1 THEN
+        IF atLTy$ <> atRTy$ THEN
+          emit_stmt$ = ""
+        ELSEIF atLTy$ = "string" THEN
+          emit_stmt$ = "    " + c_var_name$(atLNm$, atLTy$) + " = xb_strdup(" + atRAcc$ + "[" + emit_expr$(atRIdx$) + "]);"
+        ELSE
+          emit_stmt$ = "    " + c_var_name$(atLNm$, atLTy$) + " = " + atRAcc$ + "[" + emit_expr$(atRIdx$) + "];"
+        END IF
+      ELSEIF atLRow$ = "" AND LEN(atLIdx$) > 0 AND top_part_count(atLIdx$) = 1 AND atRRow$ = "" AND LEN(atRIdx$) = 0 THEN
+        IF atLTy$ <> atRTy$ THEN
+          emit_stmt$ = ""
+        ELSEIF atRTy$ = "string" THEN
+          emit_stmt$ = "    " + atLAcc$ + "[" + emit_expr$(atLIdx$) + "] = xb_strdup(" + c_var_name$(atRNm$, atRTy$) + ");"
+        ELSE
+          emit_stmt$ = "    " + atLAcc$ + "[" + emit_expr$(atLIdx$) + "] = " + c_var_name$(atRNm$, atRTy$) + ";"
+        END IF
+      ELSE
+        emit_stmt$ = ""
+      END IF
+    ELSE
+      emit_stmt$ = ""
     END IF
     RETURN emit_stmt$
   END IF
