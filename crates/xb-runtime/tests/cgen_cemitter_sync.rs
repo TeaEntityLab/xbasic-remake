@@ -2816,6 +2816,129 @@ fn cemitter_and_cgen_agree_on_composite_member_redim() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// Forward-only 2-D array by-ref (M1-ABI): a callee with no REDIM gets a flat
+/// member pointer with no stride cell, so both C backends lower `g[i,j]` to
+/// the first index (`g[i]`) — the reference-emitter fallback. The interpreter
+/// keeps real 2-D indexing. cgen.x used to emit `[i][j]` over the flat param
+/// (cc-fail); the read/assign lowering now falls back exactly when the name
+/// has no in-scope 2-D shape. The 5711 scalar is also gone here: no REDIM
+/// anywhere means no descriptor callee needs the cell (`##redimNames$`).
+/// Locks C parity (`1/2/6`) plus the interp reference (`1/6/6`); real stride
+/// tracking stays deferred.
+#[test]
+fn cemitter_and_cgen_agree_on_2d_forward_first_index() {
+    let tmp = std::env::temp_dir().join("xb_sync_2d_fwd");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"s2d\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main\n",
+        "DIM g[1, 2]\n",
+        "g[0, 0] = 1\n",
+        "g[0, 1] = 2\n",
+        "g[0, 2] = 3\n",
+        "g[1, 0] = 4\n",
+        "g[1, 1] = 5\n",
+        "g[1, 2] = 6\n",
+        "Show(@g[])\n",
+        "PRINT g[1, 2]\n",
+        "END FUNCTION\n",
+        "FUNCTION Show (@g[])\n",
+        "PRINT g[0, 0]\n",
+        "PRINT g[1, 2]\n",
+        "g[1, 1] = 50\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse 2d forward program")
+        .lower_ir()
+        .expect("lower 2d forward program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "s2d_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "s2d_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret 2d forward program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "1\n6\n6\n", "2d forward reference output");
+    assert_eq!(
+        rust_out, "1\n2\n6\n",
+        "CEmitter changed 2d first-index fold"
+    );
+    assert_eq!(
+        self_out, rust_out,
+        "cgen.x 2d forward differs from CEmitter (cc-fail or drift)"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// 2-D REDIM through by-ref (M1-ABI): a callee REDIM seeds the descriptor, so
+/// the flattened row-major product resizes with content preserved and the
+/// caller sees the new bound. All three engines agree (`3/1/3`); facet IR
+/// carries the descriptor facts (headerless + callee REDIM is the deferred
+/// headerless-producer gap).
+#[test]
+fn cemitter_and_cgen_agree_on_2d_redim_flat() {
+    let tmp = std::env::temp_dir().join("xb_sync_2d_redim");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"s2r\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main\n",
+        "DIM g[1, 2]\n",
+        "g[0, 0] = 1\n",
+        "g[1, 2] = 6\n",
+        "Grow(@g[])\n",
+        "PRINT g[0, 0]\n",
+        "PRINT UBOUND(g[])\n",
+        "END FUNCTION\n",
+        "FUNCTION Grow (@g[])\n",
+        "REDIM g[3]\n",
+        "PRINT UBOUND(g[])\n",
+        "g[3] = 99\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse 2d redim program")
+        .lower_ir()
+        .expect("lower 2d redim program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "s2r_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "s2r_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret 2d redim program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "3\n1\n3\n", "2d redim reference output");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter failed to REDIM a forwarded 2-D array"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x failed to REDIM a forwarded 2-D array"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Binary integer literals (CGEN-SELFHOST-PARITY): `0b1000000` is a gcc/clang
 /// extension the interpreter evaluates (64) and the Rust CEmitter emits verbatim.
 /// cgen.x's strip_zeros$ (added for the `08`/`09` octal hazard) exempted hex
