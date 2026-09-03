@@ -1032,9 +1032,238 @@ pub(crate) fn collect_dual_use(items: &[IrItem], extra_array: &HashSet<String>) 
         }
     }
     array_dims(items, &mut array_ctx);
-    // Names forced to arrays (by-ref descriptor params / descriptor-dyn locals) are
-    // array-context too: one with a scalar use (`~error`, `maxZ = z`) is dual-use —
-    // a scalar facet `xb_var_x` plus the array facet `xb_var_x_arr` (docs/18).
+    // By-ref whole-array forwarding (`@arr[]` lowers to `ByRef(Symbol)`) is
+    // noted as scalar use by walk_items, falsely dual-izing every forwarded
+    // array (atcursor `text$`: array-DIM'd + forwarded, never scalar-used).
+    // Re-walk noting scalar evidence EXCEPT bare symbols directly under
+    // `ByRef` (those go to `byref_syms`); strip names whose only scalar
+    // evidence is forwarding and that have array evidence. Every other note
+    // site mirrors walk_items exactly (assignment targets, scalar DIMs,
+    // SWAP/READ/loop vars, string UBOUNDs), so genuine scalar uses still
+    // dual-ize. NOTE: keep the two walkers arm-for-arm identical; drift is
+    // safe-sided (a missed note site keeps status-quo dual). Runs BEFORE the
+    // forced-array extension below, so forced membership neither shields
+    // byref-only notes nor substitutes for array evidence — genuine uses
+    // survive via `plain` either way (docs/18 promoted locals).
+    {
+        fn expr(
+            e: &crate::ir::IrExpr,
+            plain: &mut BTreeMap<(String, bool), crate::checked::ValueType>,
+            byref_syms: &mut HashSet<(String, bool)>,
+        ) {
+            match &e.kind {
+                crate::ir::IrExprKind::Symbol(s) => note(s, plain),
+                crate::ir::IrExprKind::ByRef(inner) => {
+                    if let crate::ir::IrExprKind::Symbol(s) = &inner.kind {
+                        byref_syms.insert((
+                            s.name.clone(),
+                            s.value_type == crate::checked::ValueType::String,
+                        ));
+                    } else {
+                        expr(inner, plain, byref_syms);
+                    }
+                }
+                crate::ir::IrExprKind::ArrayUBound { symbol } => {
+                    if symbol.value_type == crate::checked::ValueType::String {
+                        note(symbol, plain);
+                    }
+                }
+                crate::ir::IrExprKind::ArrayAccess {
+                    index,
+                    extra_indices,
+                    ..
+                } => {
+                    expr(index, plain, byref_syms);
+                    for x in extra_indices {
+                        expr(x, plain, byref_syms);
+                    }
+                }
+                crate::ir::IrExprKind::Not(inner) => expr(inner, plain, byref_syms),
+                crate::ir::IrExprKind::Unary { operand, .. } => expr(operand, plain, byref_syms),
+                crate::ir::IrExprKind::Comparison { left, right, .. }
+                | crate::ir::IrExprKind::Arithmetic { left, right, .. }
+                | crate::ir::IrExprKind::Boolean { left, right, .. }
+                | crate::ir::IrExprKind::Logical { left, right, .. } => {
+                    expr(left, plain, byref_syms);
+                    expr(right, plain, byref_syms);
+                }
+                crate::ir::IrExprKind::FunctionCall { args, .. } => {
+                    for a in args {
+                        expr(a, plain, byref_syms);
+                    }
+                }
+                _ => {}
+            }
+        }
+        fn items_walk(
+            items: &[crate::ir::IrItem],
+            plain: &mut BTreeMap<(String, bool), crate::checked::ValueType>,
+            byref_syms: &mut HashSet<(String, bool)>,
+        ) {
+            for it in items {
+                match it {
+                    crate::ir::IrItem::Print { items, .. } => {
+                        for e in items {
+                            expr(e, plain, byref_syms);
+                        }
+                    }
+                    crate::ir::IrItem::Assignment { target, value } => {
+                        note(target, plain);
+                        expr(value, plain, byref_syms);
+                    }
+                    crate::ir::IrItem::ArrayAssignment {
+                        index,
+                        extra_indices,
+                        value,
+                        ..
+                    } => {
+                        expr(index, plain, byref_syms);
+                        for x in extra_indices {
+                            expr(x, plain, byref_syms);
+                        }
+                        expr(value, plain, byref_syms);
+                    }
+                    crate::ir::IrItem::MidAssign {
+                        target,
+                        start,
+                        length,
+                        value,
+                        ..
+                    } => {
+                        expr(target, plain, byref_syms);
+                        expr(start, plain, byref_syms);
+                        if let Some(l) = length {
+                            expr(l, plain, byref_syms);
+                        }
+                        expr(value, plain, byref_syms);
+                    }
+                    crate::ir::IrItem::BuiltinAssign { args, value, .. } => {
+                        for a in args {
+                            expr(a, plain, byref_syms);
+                        }
+                        expr(value, plain, byref_syms);
+                    }
+                    crate::ir::IrItem::SharedAssignment { value, .. } => {
+                        expr(value, plain, byref_syms)
+                    }
+                    crate::ir::IrItem::If {
+                        condition,
+                        then_body,
+                        else_body,
+                        ..
+                    } => {
+                        expr(condition, plain, byref_syms);
+                        items_walk(then_body, plain, byref_syms);
+                        if let Some(b) = else_body {
+                            items_walk(b, plain, byref_syms);
+                        }
+                    }
+                    crate::ir::IrItem::While {
+                        condition, body, ..
+                    } => {
+                        expr(condition, plain, byref_syms);
+                        items_walk(body, plain, byref_syms);
+                    }
+                    crate::ir::IrItem::DoLoop {
+                        pre_condition,
+                        post_condition,
+                        body,
+                        ..
+                    } => {
+                        if let Some((e, _)) = pre_condition {
+                            expr(e, plain, byref_syms);
+                        }
+                        if let Some((e, _)) = post_condition {
+                            expr(e, plain, byref_syms);
+                        }
+                        items_walk(body, plain, byref_syms);
+                    }
+                    crate::ir::IrItem::For {
+                        var,
+                        start,
+                        end,
+                        step,
+                        body,
+                        ..
+                    } => {
+                        note(var, plain);
+                        expr(start, plain, byref_syms);
+                        expr(end, plain, byref_syms);
+                        if let Some(s) = step {
+                            expr(s, plain, byref_syms);
+                        }
+                        items_walk(body, plain, byref_syms);
+                    }
+                    crate::ir::IrItem::Dim {
+                        symbol,
+                        size,
+                        is_array,
+                        shared,
+                        extra_dims,
+                        ..
+                    } => {
+                        if !*is_array && size.is_none() && !*shared {
+                            note(symbol, plain);
+                        }
+                        if let Some(sz) = size {
+                            expr(sz, plain, byref_syms);
+                        }
+                        for e in extra_dims {
+                            expr(e, plain, byref_syms);
+                        }
+                    }
+                    crate::ir::IrItem::Return { value: Some(e) } => expr(e, plain, byref_syms),
+                    crate::ir::IrItem::Call { args, .. } => {
+                        for a in args {
+                            expr(a, plain, byref_syms);
+                        }
+                    }
+                    crate::ir::IrItem::Swap { left, right } => {
+                        note(left, plain);
+                        note(right, plain);
+                    }
+                    crate::ir::IrItem::SelectCase {
+                        selector,
+                        cases,
+                        default,
+                        ..
+                    } => {
+                        expr(selector, plain, byref_syms);
+                        for c in cases {
+                            for cd in &c.conditions {
+                                expr(cd, plain, byref_syms);
+                            }
+                            items_walk(&c.body, plain, byref_syms);
+                        }
+                        if let Some(b) = default {
+                            items_walk(b, plain, byref_syms);
+                        }
+                    }
+                    crate::ir::IrItem::GosubExpr(e) | crate::ir::IrItem::GotoExpr(e) => {
+                        expr(e, plain, byref_syms);
+                    }
+                    crate::ir::IrItem::Compound(body) => items_walk(body, plain, byref_syms),
+                    crate::ir::IrItem::Read(syms) => {
+                        for s in syms {
+                            note(s, plain);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let mut plain: BTreeMap<(String, bool), crate::checked::ValueType> = BTreeMap::new();
+        let mut byref_syms = HashSet::new();
+        items_walk(items, &mut plain, &mut byref_syms);
+        scalar_ctx.retain(|k, _| {
+            !(byref_syms.contains(k) && !plain.contains_key(k) && array_ctx.contains(&k.0))
+        });
+    }
+    // Names forced to arrays (by-ref descriptor params / descriptor-dyn locals)
+    // are array-context too: one with a scalar use (`~error`, `maxZ = z`) is
+    // dual-use — a scalar facet `xb_var_x` plus the array facet `xb_var_x_arr`
+    // (docs/18). Runs AFTER the strip above so forced membership neither
+    // shields byref-only notes nor substitutes for array evidence.
     array_ctx.extend(extra_array.iter().cloned());
     scalar_ctx
         .into_keys()
@@ -1057,7 +1286,6 @@ pub(crate) struct DynNames {
     /// name → type, for names with only scalar `Dim`s.
     pub scalars: BTreeMap<String, ValueType>,
 }
-
 #[derive(Default)]
 struct DynWalk {
     used: HashSet<String>,

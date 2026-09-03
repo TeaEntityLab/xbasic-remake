@@ -299,6 +299,7 @@ fn facet_header_covers_cgen_scanner_facts_ratchet() {
             .filter(|f| f.ty == "string" && f.rank >= 1 && f.dual)
             .map(|f| f.name.clone())
             .collect();
+        str_dual.diff(&name, &s_dual, &f_dual);
         // (3) xstArrays: every consumer of ##xstArrays$ is guarded by
         // `NOT IN ##dynNames$`, and facets rebuild ##dynNames$ from storage=dyn.
         // Shared/param arrays never need dyn membership (file-scope globals /
