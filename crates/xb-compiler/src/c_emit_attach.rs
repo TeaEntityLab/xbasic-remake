@@ -234,67 +234,65 @@ pub(crate) fn emit_group_redim(
         value_type: symbol.value_type,
     };
     let hid = array_ident(home);
+    let mid = array_ident(&symbol.name);
     let fill = if symbol.value_type == ValueType::String {
         "xb_str(\"\")"
     } else {
         "0"
     };
     out.push_str(ind);
-    out.push_str("{ intptr_t _oldub = xb_ub_");
+    out.push_str("{ ");
+    out.push_str(crate::c_emit::c_type(symbol.value_type));
+    out.push_str(" *_att_home = ");
+    emit_array_var_name(&home_sym, out);
+    out.push_str(";\n");
+    out.push_str(ind);
+    out.push_str("if (");
+    emit_array_var_name(symbol, out);
+    if symbol.name == home {
+        out.push_str(" != 0) {\n");
+    } else {
+        out.push_str(" == _att_home && ");
+        emit_array_var_name(symbol, out);
+        out.push_str(" != 0) {\n");
+    }
+    // Group path: realloc the home block, fill the grown tail, repoint the
+    // member itself plus exactly the members still sharing the old block.
+    out.push_str(ind);
+    out.push_str("    { intptr_t _oldub = xb_ub_");
     out.push_str(&hid);
     out.push_str("; xb_ub_");
     out.push_str(&hid);
     out.push_str(" = (");
     emit_expr(size, out);
-    out.push_str(");\n");
-    // Snapshot the home block: members sharing it ride the group realloc;
-    // detached/conditional-never-taken members keep independent blocks.
-    out.push_str(ind);
-    out.push_str("    ");
-    out.push_str(crate::c_emit::c_type(symbol.value_type));
-    out.push_str(" *_att_home = ");
+    out.push_str("); ");
     emit_array_var_name(&home_sym, out);
-    out.push_str(";\n");
-    // Group path iff the home is live and some member shares it.
-    out.push_str(ind);
-    out.push_str("if (_att_home != 0 && (");
-    let mut first = true;
-    for m in group {
-        if !first {
-            out.push_str(" || ");
-        }
-        first = false;
-        let msym = IrSymbol {
-            name: m.clone(),
-            value_type: symbol.value_type,
-        };
-        emit_array_var_name(&msym, out);
-        out.push_str(" == _att_home");
-    }
-    out.push_str(")) {\n");
-    out.push_str(ind);
-    out.push_str("    ");
-    emit_array_var_name(&home_sym, out);
-    out.push_str(" = realloc(_att_home");
-    out.push_str(", (size_t)(xb_ub_");
+    out.push_str(" = realloc(_att_home, (size_t)(xb_ub_");
     out.push_str(&hid);
     out.push_str(" + 1) * sizeof(*");
     emit_array_var_name(&home_sym, out);
     out.push_str(")); if (!");
     emit_array_var_name(&home_sym, out);
-    out.push_str(") abort();\n");
-    out.push_str(ind);
-    out.push_str("    for (intptr_t _i = _oldub + 1; _i <= xb_ub_");
+    out.push_str(") abort(); for (intptr_t _i = _oldub + 1; _i <= xb_ub_");
     out.push_str(&hid);
     out.push_str("; _i++) ");
     emit_array_var_name(&home_sym, out);
     out.push_str("[_i] = ");
     out.push_str(fill);
-    out.push_str(";\n");
-    // Repoint exactly the members sharing the old home block (detached
-    // members keep their blocks).
+    out.push_str("; ");
+    if symbol.name != home {
+        emit_array_var_name(symbol, out);
+        out.push_str(" = ");
+        emit_array_var_name(&home_sym, out);
+        out.push_str("; xb_ub_");
+        out.push_str(&mid);
+        out.push_str(" = xb_ub_");
+        out.push_str(&hid);
+        out.push_str("; ");
+    }
+    out.push_str("}\n");
     for m in group {
-        if m == home {
+        if m == home || m == &symbol.name {
             continue;
         }
         let msym = IrSymbol {
@@ -314,29 +312,33 @@ pub(crate) fn emit_group_redim(
         out.push_str(&hid);
         out.push_str("; }\n");
     }
-    // single-REDIM shape on the member itself.
+    // Independent path: existing single-REDIM shape on the member itself.
     out.push_str(ind);
     out.push_str("} else {\n");
     out.push_str(ind);
-    out.push_str("    ");
+    out.push_str("    { intptr_t _oldub = xb_ub_");
+    out.push_str(&mid);
+    out.push_str("; xb_ub_");
+    out.push_str(&mid);
+    out.push_str(" = (");
+    emit_expr(size, out);
+    out.push_str("); ");
     emit_array_var_name(symbol, out);
     out.push_str(" = realloc(");
     emit_array_var_name(symbol, out);
     out.push_str(", (size_t)(xb_ub_");
-    out.push_str(&hid);
+    out.push_str(&mid);
     out.push_str(" + 1) * sizeof(*");
     emit_array_var_name(symbol, out);
     out.push_str(")); if (!");
     emit_array_var_name(symbol, out);
-    out.push_str(") abort();\n");
-    out.push_str(ind);
-    out.push_str("    for (intptr_t _i = _oldub + 1; _i <= xb_ub_");
-    out.push_str(&hid);
+    out.push_str(") abort(); for (intptr_t _i = _oldub + 1; _i <= xb_ub_");
+    out.push_str(&mid);
     out.push_str("; _i++) ");
     emit_array_var_name(symbol, out);
     out.push_str("[_i] = ");
     out.push_str(fill);
-    out.push_str(";\n");
+    out.push_str("; }\n");
     out.push_str(ind);
     out.push_str("} }\n");
 }

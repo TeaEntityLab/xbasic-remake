@@ -765,6 +765,9 @@ END IF
 ##sharedArrDecls$ = ""
 ##dynNames$ = ""
 ##byrefDual$ = ""
+##attachGroupOf$ = ":"
+##attachGroupMembers$ = ":"
+##attachDynAdd$ = ""
 ##redimNames$ = ""
 ##undimmed$ = ""
 ##sharedDual$ = ""
@@ -1676,6 +1679,43 @@ END IF
 ##dualUse$ = scan_dual_use$(src$)
 ##arr2d$ = scan_arr2d$(src$)
 ' RR-03: save scanner-derived global dyn set for per-function filtering.
+' Whole-array ATTACH alias groups (M1-ATTACH-ALIAS): computed after every
+' other classifier including the second-pass rescans (it reads their final
+' sets) and before emission. Members join ##dynNames$ (`:name:type:` triples
+' for filter_dyn_scope$) and ##scanDynAll$ (per-function filtering base) so
+' heap decls, ub cells, and DIM/REDIM/UBOUND paths engage; dualUse/byrefDual
+' stay frozen after this point (members carry no scalar/call-arg evidence
+' by the link guards).
+##attachDynAdd$ = scan_attach_groups$(src$)
+IF LEN(##attachDynAdd$) > 0 THEN
+  DIM _agPos
+  DIM _agLe
+  DIM _agNm$
+  DIM _agTy$
+  DIM _agLe2
+  _agPos = 1
+  WHILE _agPos <= LEN(##attachDynAdd$)
+    _agLe = INSTR(##attachDynAdd$, ":", _agPos + 1)
+    IF _agLe = 0 THEN
+      _agPos = LEN(##attachDynAdd$) + 1
+    ELSE
+      _agNm$ = MID$(##attachDynAdd$, _agPos + 1, _agLe - _agPos - 1)
+      _agLe2 = INSTR(##attachDynAdd$, ":", _agLe + 1)
+      IF _agLe2 = 0 THEN
+        _agPos = LEN(##attachDynAdd$) + 1
+      ELSE
+        _agTy$ = MID$(##attachDynAdd$, _agLe + 1, _agLe2 - _agLe - 1)
+        _agPos = _agLe2
+        IF LEN(_agNm$) > 0 AND INSTR(##dynNames$, ":" + _agNm$ + ":") = 0 THEN
+          ##dynNames$ = ##dynNames$ + ":" + _agNm$ + ":" + _agTy$ + ":"
+        END IF
+        IF LEN(_agNm$) > 0 AND INSTR(##scanDynAll$, ":" + _agNm$ + ":") = 0 THEN
+          ##scanDynAll$ = ##scanDynAll$ + ":" + _agNm$ + ":" + _agTy$ + ":"
+        END IF
+      END IF
+    END IF
+  WEND
+END IF
 hasMain = 0
 inFunc = 0
 inNest = 0
@@ -7044,6 +7084,467 @@ FUNCTION scan_dual_use$(s$)
   scan_dual_use$ = res$
 END FUNCTION
 
+' Scalar evidence for an ATTACH candidate (M1-ATTACH-ALIAS): a bare
+' `symbol(nm:` outside byref(), or nm$ as a SWAP operand. Either would admit
+' the name to ##dualUse$ (scalar+`_arr` split) and break the shared heap-cell
+' naming — such names stay on the copy path. Returns "1" or "".
+FUNCTION attach_has_scalar_use$(s$, nm$)
+  DIM p
+  DIM le
+  DIM ln$
+  DIM rest$
+  DIM part$
+  DIM sp
+  DIM cp
+  DIM bp
+  DIM pat$
+  pat$ = "symbol(" + nm$ + ":"
+  p = INSTR(s$, pat$)
+  WHILE p > 0
+    IF p > 6 THEN
+      IF MID$(s$, p - 6, 6) <> "byref(" THEN
+        attach_has_scalar_use$ = "1"
+        RETURN attach_has_scalar_use$
+      END IF
+    ELSE
+      attach_has_scalar_use$ = "1"
+      RETURN attach_has_scalar_use$
+    END IF
+    p = INSTR(s$, pat$, p + 7)
+  WEND
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 5) = "swap " THEN
+      rest$ = MID$(ln$, 6, LEN(ln$) - 5) + " "
+      sp = INSTR(rest$, " ")
+      WHILE sp > 0
+        part$ = trim_spaces$(LEFT$(rest$, sp - 1))
+        rest$ = MID$(rest$, sp + 1, LEN(rest$) - sp)
+        sp = INSTR(rest$, " ")
+        cp = INSTR(part$, ":")
+        IF cp > 0 THEN
+          part$ = LEFT$(part$, cp - 1)
+        END IF
+        bp = INSTR(part$, "[")
+        IF bp > 0 THEN
+          part$ = LEFT$(part$, bp - 1)
+        END IF
+        IF part$ = nm$ THEN
+          attach_has_scalar_use$ = "1"
+          RETURN attach_has_scalar_use$
+        END IF
+      WEND
+    END IF
+  WEND
+  attach_has_scalar_use$ = ""
+END FUNCTION
+
+' Whole-array ATTACH alias groups (M1-ATTACH-ALIAS): directed last-wins links
+' (`src` views `dst`), resolved to ultimate homes with cycle guards — mirrors
+' the Rust CEmitter's collect_attach_alias_groups. Only same-type,
+' non-param/descriptor/shared/dual, array-DIM'd whole-form links participate;
+' row ATTACH stays copy in C. Sets ##attachGroupOf$ (`:member:home:`, home maps
+' to itself) and ##attachGroupMembers$ (`:home:m1,m2:` sorted); returns the
+' `:m1:m2:` member list for ##dynNames$ append (heap decls + ub cells flow
+' through the existing dyn paths; dualUse/byrefDual stay frozen since this
+' runs after them). Headerless-safe: all facts are scanner-derived.
+FUNCTION scan_attach_groups$(s$)
+  DIM res$
+  DIM arrDims$
+  DIM scaDims$
+  DIM arrParams$
+  DIM direct$
+  DIM atyp$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM r$
+  DIM nm$
+  DIM cp
+  DIM fp
+  DIM par$
+  DIM rest$
+  DIM one$
+  DIM cm
+  DIM pnm$
+  DIM pty$
+  DIM lNm$
+  DIM lTy$
+  DIM lBr$
+  DIM lRw$
+  DIM rNm$
+  DIM rTy$
+  DIM rBr$
+  DIM rRw$
+  DIM dum$
+  DIM vis$
+  DIM cur$
+  DIM cyc
+  DIM home$
+  DIM mem$
+  DIM csv$
+  DIM q
+  DIM srt$
+  DIM si
+  DIM sj
+  DIM st$
+  res$ = ":"
+  arrDims$ = ""
+  scaDims$ = ""
+  arrParams$ = ""
+  direct$ = ":"
+  atyp$ = ":"
+  ' Phase 1: array-DIM'd names (`dim `/`redim ` with brackets) and array
+  ' params (from `function `/`declare ` signature lists).
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 4) = "dim " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+    ELSEIF LEFT$(ln$, 6) = "redim " THEN
+      r$ = MID$(ln$, 7, LEN(ln$) - 6)
+    ELSE
+      r$ = ""
+    END IF
+    IF LEN(r$) > 0 THEN
+      IF LEFT$(r$, 7) = "shared " THEN
+        r$ = MID$(r$, 8, LEN(r$) - 7)
+      END IF
+      cp = INSTR(r$, ":")
+      IF cp > 0 THEN
+        nm$ = trim_spaces$(LEFT$(r$, cp - 1))
+      ELSE
+        nm$ = trim_spaces$(r$)
+      END IF
+      IF INSTR(nm$, ".") = 0 AND INSTR(r$, "[") > 0 AND INSTR(arrDims$, ":" + nm$ + ":") = 0 THEN
+        arrDims$ = arrDims$ + ":" + nm$ + ":"
+      END IF
+      IF INSTR(nm$, ".") = 0 AND INSTR(r$, "[") = 0 AND INSTR(scaDims$, ":" + nm$ + ":") = 0 THEN
+        scaDims$ = scaDims$ + ":" + nm$ + ":"
+      END IF
+    END IF
+    IF LEFT$(ln$, 9) = "function " OR LEFT$(ln$, 8) = "declare " THEN
+      IF LEFT$(ln$, 9) = "function " THEN
+        fp = INSTR(ln$, "(")
+      ELSE
+        fp = INSTR(ln$, "(")
+      END IF
+      IF fp > 0 THEN
+        par$ = MID$(ln$, fp + 1, LEN(ln$) - fp)
+        q = LEN(par$)
+        WHILE q > 0 AND MID$(par$, q, 1) <> ")" 
+          q = q - 1
+        WEND
+        IF q > 0 THEN
+          par$ = LEFT$(par$, q - 1)
+        END IF
+        rest$ = par$
+        WHILE LEN(rest$) > 0
+          cm = INSTR(rest$, ",")
+          IF cm > 0 THEN
+            one$ = trim_spaces$(LEFT$(rest$, cm - 1))
+            rest$ = MID$(rest$, cm + 1, LEN(rest$) - cm)
+          ELSE
+            one$ = trim_spaces$(rest$)
+            rest$ = ""
+          END IF
+          cp = INSTR(one$, ":")
+          IF cp > 0 THEN
+            pnm$ = trim_spaces$(LEFT$(one$, cp - 1))
+            pty$ = MID$(one$, cp + 1, LEN(one$) - cp)
+          ELSE
+            pnm$ = one$
+            pty$ = ""
+          END IF
+          IF LEN(pnm$) > 0 AND INSTR(pty$, "[") > 0 AND INSTR(arrParams$, ":" + pnm$ + ":") = 0 THEN
+            arrParams$ = arrParams$ + ":" + pnm$ + ":"
+          END IF
+        WEND
+      END IF
+    END IF
+  WEND
+  ' Phase 2: whole-form attach lines → directed links (last wins).
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 7) = "attach " THEN
+      IF attach_split$(MID$(ln$, 8, LEN(ln$) - 7)) = "1" THEN
+        dum$ = attach_side_parse$(##atLeft$)
+        lNm$ = ##atNm$
+        lTy$ = ##atTy$
+        lBr$ = ##atHasBr$
+        lRw$ = ##atRow$
+        dum$ = attach_side_parse$(##atRight$)
+        rNm$ = ##atNm$
+        rTy$ = ##atTy$
+        rBr$ = ##atHasBr$
+        rRw$ = ##atRow$
+        IF lBr$ = "" AND lRw$ = "" AND rBr$ = "" AND rRw$ = "" THEN
+        IF lTy$ = rTy$ AND lTy$ <> "string" AND lNm$ <> rNm$ THEN
+        IF INSTR(lNm$, ".") = 0 AND INSTR(rNm$, ".") = 0 THEN
+        IF INSTR(arrDims$, ":" + lNm$ + ":") > 0 AND INSTR(arrDims$, ":" + rNm$ + ":") > 0 THEN
+        IF INSTR(scaDims$, ":" + lNm$ + ":") = 0 AND INSTR(scaDims$, ":" + rNm$ + ":") = 0 THEN
+        IF INSTR(arrParams$, ":" + lNm$ + ":") = 0 AND INSTR(arrParams$, ":" + rNm$ + ":") = 0 THEN
+        IF INSTR(##dualUse$, ":" + lNm$ + ":") = 0 AND INSTR(##dualUse$, ":" + rNm$ + ":") = 0 THEN
+        IF INSTR(##sharedArrays$, ":" + lNm$ + ":") = 0 AND INSTR(##sharedArrays$, ":" + rNm$ + ":") = 0 THEN
+        IF INSTR(##strDual$, ":" + lNm$ + ":") = 0 AND INSTR(##strDual$, ":" + rNm$ + ":") = 0 THEN
+        IF INSTR(##allStrArr$, ":" + lNm$ + ":") = 0 AND INSTR(##allStrArr$, ":" + rNm$ + ":") = 0 THEN
+        IF INSTR(##dynStr$, ":" + lNm$ + ":") = 0 AND INSTR(##dynStr$, ":" + rNm$ + ":") = 0 THEN
+        IF INSTR(##xstArrays$, ":" + lNm$ + ":") = 0 AND INSTR(##xstArrays$, ":" + rNm$ + ":") = 0 THEN
+        IF INSTR(##strUbDual$, ":" + lNm$ + ":") = 0 AND INSTR(##strUbDual$, ":" + rNm$ + ":") = 0 THEN
+        IF INSTR(##sharedDual$, ":" + lNm$ + ":") = 0 AND INSTR(##sharedDual$, ":" + rNm$ + ":") = 0 THEN
+        IF INSTR(##descParams$, ":" + lNm$ + ":") = 0 AND INSTR(##descParams$, ":" + rNm$ + ":") = 0 THEN
+        IF attach_has_scalar_use$(s$, lNm$) = "" AND attach_has_scalar_use$(s$, rNm$) = "" THEN
+          q = INSTR(direct$, ":" + lNm$ + ":")
+          IF q > 0 THEN
+            si = INSTR(direct$, ":", q + LEN(lNm$) + 2)
+            IF si > 0 THEN
+              direct$ = LEFT$(direct$, q - 1) + MID$(direct$, si, LEN(direct$) - si + 1)
+            END IF
+          END IF
+          direct$ = direct$ + lNm$ + ":" + rNm$ + ":"
+          ' Member types for `:name:type:` dynNames triples (filter_dyn_scope$
+          ' parses triples; last wins like the links).
+          q = INSTR(atyp$, ":" + lNm$ + ":")
+          IF q > 0 THEN
+            si = INSTR(atyp$, ":", q + LEN(lNm$) + 2)
+            IF si > 0 THEN
+              atyp$ = LEFT$(atyp$, q - 1) + MID$(atyp$, si, LEN(atyp$) - si + 1)
+            END IF
+          END IF
+          atyp$ = atyp$ + lNm$ + ":" + lTy$ + ":"
+          q = INSTR(atyp$, ":" + rNm$ + ":")
+          IF q > 0 THEN
+            si = INSTR(atyp$, ":", q + LEN(rNm$) + 2)
+            IF si > 0 THEN
+              atyp$ = LEFT$(atyp$, q - 1) + MID$(atyp$, si, LEN(atyp$) - si + 1)
+            END IF
+          END IF
+          atyp$ = atyp$ + rNm$ + ":" + rTy$ + ":"
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  ' Phase 3: resolve homes (cycle → drop), build sorted groups.
+  ##attachGroupOf$ = ":"
+  ##attachGroupMembers$ = ":"
+  rest$ = direct$
+  WHILE LEN(rest$) > 0
+    IF LEFT$(rest$, 1) = ":" THEN
+      rest$ = MID$(rest$, 2, LEN(rest$) - 1)
+    END IF
+    cm = INSTR(rest$, ":")
+    IF cm = 0 THEN
+      rest$ = ""
+    ELSE
+      cur$ = LEFT$(rest$, cm - 1)
+      rest$ = MID$(rest$, cm + 1, LEN(rest$) - cm)
+      cm = INSTR(rest$, ":")
+      IF cm = 0 THEN
+        rest$ = ""
+      ELSE
+        rest$ = MID$(rest$, cm + 1, LEN(rest$) - cm)
+        vis$ = ":" + cur$ + ":"
+        home$ = cur$
+        cyc = 0
+        si = 0
+        WHILE si < 16
+          q = INSTR(direct$, ":" + home$ + ":")
+          IF q = 0 THEN
+            si = 16
+          ELSE
+            sj = INSTR(direct$, ":", q + LEN(home$) + 2)
+            IF sj = 0 THEN
+              si = 16
+            ELSE
+              home$ = MID$(direct$, q + LEN(home$) + 2, sj - q - LEN(home$) - 2)
+              IF INSTR(vis$, ":" + home$ + ":") > 0 THEN
+                cyc = 1
+                si = 16
+              ELSE
+                vis$ = vis$ + home$ + ":"
+                si = si + 1
+              END IF
+            END IF
+          END IF
+        WEND
+        IF cyc = 0 THEN
+          ' Stash resolved home keyed by src for the assembly pass.
+          ##attachGroupMembers$ = ##attachGroupMembers$ + cur$ + "@" + home$ + ":"
+        END IF
+      END IF
+    END IF
+  WEND
+  ' Assembly: home → sorted members (home included), keep len >= 2.
+  rest$ = ##attachGroupMembers$
+  ##attachGroupMembers$ = ":"
+  ##attachGroupOf$ = ":"
+  WHILE LEN(rest$) > 0
+    IF LEFT$(rest$, 1) = ":" THEN
+      rest$ = MID$(rest$, 2, LEN(rest$) - 1)
+    END IF
+    cm = INSTR(rest$, ":")
+    IF cm = 0 THEN
+      rest$ = ""
+    ELSE
+      cur$ = LEFT$(rest$, cm - 1)
+      rest$ = MID$(rest$, cm + 1, LEN(rest$) - cm)
+      q = INSTR(cur$, "@")
+      IF q = 0 THEN
+        home$ = ""
+      ELSE
+        home$ = MID$(cur$, q + 1, LEN(cur$) - q)
+        cur$ = LEFT$(cur$, q - 1)
+      END IF
+      IF LEN(home$) > 0 THEN
+        mem$ = "," + cur$ + ","
+        si = INSTR(##attachGroupMembers$, ":" + home$ + ":")
+        IF si = 0 THEN
+          IF cur$ = home$ THEN
+            ##attachGroupMembers$ = ##attachGroupMembers$ + home$ + ":" + home$ + ":"
+          ELSE
+            ##attachGroupMembers$ = ##attachGroupMembers$ + home$ + ":" + home$ + "," + cur$ + ":"
+          END IF
+        ELSE
+          sj = INSTR(##attachGroupMembers$, ":", si + LEN(home$) + 2)
+          IF sj > 0 THEN
+            csv$ = MID$(##attachGroupMembers$, si + LEN(home$) + 2, sj - si - LEN(home$) - 2)
+            IF INSTR("," + csv$ + ",", mem$) = 0 THEN
+              ##attachGroupMembers$ = LEFT$(##attachGroupMembers$, sj - 1) + "," + cur$ + MID$(##attachGroupMembers$, sj, LEN(##attachGroupMembers$) - sj + 1)
+            END IF
+          END IF
+        END IF
+        IF INSTR(##attachGroupOf$, ":" + home$ + ":") = 0 THEN
+          ##attachGroupOf$ = ##attachGroupOf$ + home$ + ":" + home$ + ":"
+        END IF
+      END IF
+    END IF
+  WEND
+  ' Emit groups (member order is link-emission order — deterministic; home
+  ' is first by construction) and the member list for dynNames. Drop
+  ' singletons.
+  srt$ = ##attachGroupMembers$
+  ##attachGroupMembers$ = ":"
+  WHILE LEN(srt$) > 0
+    IF LEFT$(srt$, 1) = ":" THEN
+      srt$ = MID$(srt$, 2, LEN(srt$) - 1)
+    END IF
+    cm = INSTR(srt$, ":")
+    IF cm = 0 THEN
+      srt$ = ""
+    ELSE
+      home$ = LEFT$(srt$, cm - 1)
+      srt$ = MID$(srt$, cm + 1, LEN(srt$) - cm)
+      cm = INSTR(srt$, ":")
+      IF cm = 0 THEN
+        srt$ = ""
+      ELSE
+        csv$ = LEFT$(srt$, cm - 1)
+        srt$ = MID$(srt$, cm + 1, LEN(srt$) - cm)
+        ' Count members (commas + 1); keep groups of 2+.
+        cm = 1
+        si = 1
+        WHILE si <= LEN(csv$)
+          IF MID$(csv$, si, 1) = "," THEN
+            cm = cm + 1
+          END IF
+          si = si + 1
+        WEND
+        IF cm >= 2 THEN
+          ##attachGroupMembers$ = ##attachGroupMembers$ + home$ + ":" + csv$ + ":"
+          rest$ = "," + csv$ + ","
+          WHILE LEN(rest$) > 1
+            rest$ = MID$(rest$, 2, LEN(rest$) - 1)
+            cm = INSTR(rest$, ",")
+            IF cm = 0 THEN
+              rest$ = ""
+            ELSE
+              mem$ = LEFT$(rest$, cm - 1)
+              rest$ = MID$(rest$, cm, LEN(rest$) - cm + 1)
+              ##attachGroupOf$ = ##attachGroupOf$ + mem$ + ":" + home$ + ":"
+              IF INSTR(res$, ":" + mem$ + ":") = 0 THEN
+                q = INSTR(atyp$, ":" + mem$ + ":")
+                IF q > 0 THEN
+                  si = INSTR(atyp$, ":", q + LEN(mem$) + 2)
+                  IF si > 0 THEN
+                    res$ = res$ + mem$ + ":" + MID$(atyp$, q + LEN(mem$) + 2, si - q - LEN(mem$) - 2) + ":"
+                  ELSE
+                    res$ = res$ + mem$ + ":integer:"
+                  END IF
+                ELSE
+                  res$ = res$ + mem$ + ":integer:"
+                END IF
+              END IF
+            END IF
+          WEND
+        END IF
+      END IF
+    END IF
+  WEND
+  scan_attach_groups$ = res$
+END FUNCTION
+
+' Home of an ATTACH group member (`""` when unlinked). Home is group[0]
+' (sorted-min in Rust, first-seen-dst here — both unobservable in behavior).
+FUNCTION attach_group_home$(nm$)
+  DIM p
+  DIM q
+  attach_group_home$ = ""
+  p = INSTR(##attachGroupOf$, ":" + nm$ + ":")
+  IF p > 0 THEN
+    q = INSTR(##attachGroupOf$, ":", p + LEN(nm$) + 2)
+    IF q > 0 THEN
+      attach_group_home$ = MID$(##attachGroupOf$, p + LEN(nm$) + 2, q - p - LEN(nm$) - 2)
+    END IF
+  END IF
+END FUNCTION
+
+' Comma-separated members of an ATTACH group by home (`""` when none).
+FUNCTION attach_group_members$(home$)
+  DIM p
+  DIM q
+  attach_group_members$ = ""
+  p = INSTR(##attachGroupMembers$, ":" + home$ + ":")
+  IF p > 0 THEN
+    q = INSTR(##attachGroupMembers$, ":", p + LEN(home$) + 2)
+    IF q > 0 THEN
+      attach_group_members$ = MID$(##attachGroupMembers$, p + LEN(home$) + 2, q - p - LEN(home$) - 2)
+    END IF
+  END IF
+END FUNCTION
+
 ' Names REDIM'd anywhere in the program (headerless-safe descriptor-seed
 ' signal: a REDIM seeds a descriptor callee param, which needs the scalar
 ' cell in forwarding callers). Used by the byrefDual scalar branch to keep
@@ -8612,6 +9113,61 @@ FUNCTION emit_stmt$(s$)
       ' below. Multi-dim resizes the flat product and refreshes the 2-D
       ' stride cell. Non-heap (fixed) REDIM keeps the historical calloc path.
       IF isRedim = 1 AND attach_is_dyn$(varName$) = "1" AND NOT (INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND INSTR(##dynStr$, ":" + varName$ + ":") = 0 AND INSTR(##byrefStrArr$, ":" + varName$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) = 0) THEN
+        ' Group-aware REDIM (M1-ATTACH-ALIAS): a member of a multi-member
+        ' whole-array group reallocs the home block and repoints exactly the
+        ' sharing members (mirrors the Rust CEmitter). 1-D only; multi-dim
+        ' sizes fall through to the single path below.
+        DIM _agHome$
+        DIM _agCsv$
+        DIM _agM$
+        DIM _agRest$
+        DIM _agCm
+        _agHome$ = attach_group_home$(varName$)
+        IF LEN(_agHome$) > 0 AND INSTR(arrSize$, ",") = 0 THEN
+          _agCsv$ = attach_group_members$(_agHome$)
+          IF INSTR("," + _agCsv$ + ",", "," + varName$ + ",") > 0 AND LEN(_agCsv$) <> LEN(varName$) THEN
+            DIM _agHPtr$
+            DIM _agHUb$
+            DIM _agMPtr$
+            DIM _agMUb$
+            DIM _agFill2$
+            _agHPtr$ = arr_acc_name$(_agHome$, varType$)
+            _agHUb$ = "xb_ub_" + sanitize_ident$(_agHome$)
+            _agMPtr$ = arr_acc_name$(varName$, varType$)
+            _agMUb$ = ub_ref$(varName$, varType$)
+            IF varType$ = "string" THEN
+              _agFill2$ = "xb_str(" + CHR$(34) + CHR$(34) + ")"
+            ELSE
+              _agFill2$ = "0"
+            END IF
+            emit_stmt$ = "    { " + c_type$(varType$) + "* _att_home = " + _agHPtr$ + ";"
+            IF varName$ = _agHome$ THEN
+              emit_stmt$ = emit_stmt$ + " if (" + _agMPtr$ + " != 0) {"
+            ELSE
+              emit_stmt$ = emit_stmt$ + " if (" + _agMPtr$ + " == _att_home && " + _agMPtr$ + " != 0) {"
+            END IF
+            emit_stmt$ = emit_stmt$ + " intptr_t _oldub = " + _agHUb$ + "; " + _agHUb$ + " = (" + cExpr$ + "); " + _agHPtr$ + " = realloc(_att_home, (size_t)(" + _agHUb$ + " + 1) * sizeof(*" + _agHPtr$ + ")); if (!" + _agHPtr$ + ") abort(); for (intptr_t _i = _oldub + 1; _i <= " + _agHUb$ + "; _i++) " + _agHPtr$ + "[_i] = " + _agFill2$ + ";"
+            IF varName$ <> _agHome$ THEN
+              emit_stmt$ = emit_stmt$ + " " + _agMPtr$ + " = " + _agHPtr$ + "; " + _agMUb$ + " = " + _agHUb$ + ";"
+            END IF
+            _agRest$ = "," + _agCsv$ + ","
+            WHILE LEN(_agRest$) > 1
+              _agRest$ = MID$(_agRest$, 2, LEN(_agRest$) - 1)
+              _agCm = INSTR(_agRest$, ",")
+              IF _agCm = 0 THEN
+                _agRest$ = ""
+              ELSE
+                _agM$ = LEFT$(_agRest$, _agCm - 1)
+                _agRest$ = MID$(_agRest$, _agCm, LEN(_agRest$) - _agCm + 1)
+                IF _agM$ <> _agHome$ AND _agM$ <> varName$ AND LEN(_agM$) > 0 THEN
+                  emit_stmt$ = emit_stmt$ + " if (" + arr_acc_name$(_agM$, varType$) + " == _att_home) { " + arr_acc_name$(_agM$, varType$) + " = " + _agHPtr$ + "; " + "xb_ub_" + sanitize_ident$(_agM$) + " = " + _agHUb$ + "; }"
+                END IF
+              END IF
+            WEND
+            emit_stmt$ = emit_stmt$ + " } else { intptr_t _oldub = " + _agMUb$ + "; " + _agMUb$ + " = (" + cExpr$ + "); " + _agMPtr$ + " = realloc(" + _agMPtr$ + ", (size_t)(" + _agMUb$ + " + 1) * sizeof(*" + _agMPtr$ + ")); if (!" + _agMPtr$ + ") abort(); for (intptr_t _i = _oldub + 1; _i <= " + _agMUb$ + "; _i++) " + _agMPtr$ + "[_i] = " + _agFill2$ + "; } }"
+            RETURN emit_stmt$
+          END IF
+        END IF
         DIM _rdPtr$
         DIM _rdUb$
         DIM _rdFill$
@@ -8852,8 +9408,16 @@ FUNCTION emit_stmt$(s$)
           END IF
         END IF
       ELSEIF atLRow$ = "" AND LEN(atLIdx$) = 0 AND atRRow$ = "" AND LEN(atRIdx$) = 0 THEN
+        ' Alias path (M1-ATTACH-ALIAS): same-group members share one heap
+        ' block after pointer + bound assignment (mirrors the Rust CEmitter).
+        DIM _agHL$
+        DIM _agHR$
+        _agHL$ = attach_group_home$(atLNm$)
+        _agHR$ = attach_group_home$(atRNm$)
         IF atLTy$ <> atRTy$ THEN
           emit_stmt$ = ""
+        ELSEIF LEN(_agHL$) > 0 AND _agHL$ = _agHR$ THEN
+          emit_stmt$ = "    " + atLAcc$ + " = " + atRAcc$ + ";" + CHR$(10) + "    " + atLUb$ + " = " + atRUb$ + ";"
         ELSEIF atLDyn$ = "1" AND atRDyn$ = "1" THEN
           emit_stmt$ = "    memcpy(" + atLAcc$ + ", " + atRAcc$ + ", (size_t)(" + atRUb$ + " + 1) * sizeof(*" + atLAcc$ + "));" + CHR$(10) + "    " + atLUb$ + " = " + atRUb$ + ";"
         ELSEIF atLDyn$ = "" AND atRDyn$ = "" AND INSTR(##curFnArrays$, ":" + atLNm$ + ":") > 0 AND INSTR(##curFnArrays$, ":" + atRNm$ + ":") > 0 THEN

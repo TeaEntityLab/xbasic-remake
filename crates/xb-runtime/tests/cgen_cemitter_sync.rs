@@ -2941,9 +2941,8 @@ fn cemitter_and_cgen_agree_on_2d_redim_flat() {
 
 /// Whole-array ATTACH aliasing (M1-ATTACH-ALIAS): `ATTACH a[] TO b[]` shares
 /// one heap block, so writes through either name are visible through both
-/// (`99/88/99/88`). The Rust CEmitter marks linked names dyn and emits
-/// pointer + bound assignment. cgen.x still copies (`10/88/99/20`, locked
-/// as the documented gap; alias mirror is next).
+/// (`99/88/99/88`) on all three engines. Both C emitters mark linked names
+/// dyn (heap pointers + bound cells) and emit pointer + bound assignment.
 #[test]
 fn cemitter_attach_whole_array_aliases() {
     let tmp = std::env::temp_dir().join("xb_sync_attach_alias");
@@ -2994,22 +2993,21 @@ fn cemitter_attach_whole_array_aliases() {
         "CEmitter failed to alias whole-array ATTACH"
     );
     assert_eq!(
-        self_out, "10\n88\n99\n20\n",
-        "cgen.x changed copy-model output (alias mirror pending)"
+        self_out, interp_out,
+        "cgen.x failed to alias whole-array ATTACH"
     );
-    let _ = fs::remove_dir_all(&tmp);
 }
 
 /// Whole-array ATTACH plus group REDIM (M1-ATTACH-ALIAS): REDIM through one
 /// member reallocs the shared home block and repoints the group, so the
-/// caller-visible bound and grown tail propagate (`10/40/30/40/4/4`). The
-/// pointer-equality guard keeps conditional-ATTACH/detach sound. cgen.x
-/// cannot compile this shape yet (fixed-array REDIM path); its mirror
-/// follows the alias work.
+/// caller-visible bound and grown tail propagate (`10/40/30/40/4/4`) on all
+/// three engines. The pointer-equality guard keeps conditional-ATTACH and
+/// detach sound on both C backends.
 #[test]
 fn cemitter_attach_group_redim_propagates() {
     let tmp = std::env::temp_dir().join("xb_sync_attach_redim");
     fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
 
     let src = concat!(
         "PROGRAM \"atg\"\n",
@@ -3040,6 +3038,9 @@ fn cemitter_attach_group_redim_propagates() {
     let rust_c = CEmitter::new().emit_program(&prog);
     let rust_out = compile_and_exec(&tmp, "atg_rust", rust_c.as_bytes(), None);
 
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "atg_self", &self_c, None);
+
     let mut interp = Vec::new();
     Interpreter::new()
         .execute_main_with_input(&prog, Vec::new(), &mut interp)
@@ -3053,6 +3054,10 @@ fn cemitter_attach_group_redim_propagates() {
     assert_eq!(
         rust_out, interp_out,
         "CEmitter failed group REDIM through ATTACH alias"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x failed group REDIM through ATTACH alias"
     );
     let _ = fs::remove_dir_all(&tmp);
 }
