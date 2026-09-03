@@ -4816,7 +4816,9 @@ fn cemitter_and_cgen_agree_on_redim_preserves_content() {
                DIM s$[1]\n\
                s$[0] = \"aa\"\n\
                s$[1] = \"bb\"\n\
+               PRINT UBOUND(s$[])\n\
                REDIM s$[2]\n\
+               PRINT UBOUND(s$[])\n\
                PRINT s$[0]\n\
                PRINT s$[1]\n\
                PRINT s$[2]\n\
@@ -4848,7 +4850,7 @@ fn cemitter_and_cgen_agree_on_redim_preserves_content() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(
-        interp_out, "2\n4\n10\n20\n30\n0\n0\naa\nbb\n\n11\n11\n0\n0\n",
+        interp_out, "2\n4\n10\n20\n30\n0\n0\n1\n2\naa\nbb\n\n11\n11\n0\n0\n",
         "redim reference output"
     );
     assert_eq!(rust_out, interp_out, "CEmitter REDIM mismatch");

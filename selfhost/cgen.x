@@ -1853,7 +1853,17 @@ WHILE pos <= LEN(src$)
                     ##dynNames$ = ##dynNames$ + ":" + _fdNm$ + ":" + _fdTy$ + ":"
                   END IF
                 END IF
-              END IF
+              ELSEIF LEN(_fdNm$) > 0 AND RIGHT$(_fdNm$, 1) = "$" AND INSTR(_fdNm$, ".") = 0 AND INSTR(##curDescLocals$, ":" + _fdNm$ + ":") = 0 THEN
+                ' String facet-dyn arrays the text scanner leaves on the
+                ' fixed-VLA path (e.g. dual-use s$): heap dyn cells, so a
+                ' later REDIM preserves instead of redeclaring. Params and
+                ' shared names never carry storage=dyn facets; dotted
+                ' composites (copy.name) and descriptor-forwarded locals
+                ' keep their existing paths.
+                IF INSTR(##dynStr$, ":" + _fdNm$ + ":") = 0 THEN
+                  ##dynStr$ = ##dynStr$ + ":" + _fdNm$ + ":"
+                END IF
+                END IF
             WEND
           END IF
           IF LEN(trim_spaces$(params$)) = 0 THEN
