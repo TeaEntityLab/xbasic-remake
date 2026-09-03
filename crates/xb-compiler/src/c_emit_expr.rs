@@ -628,6 +628,18 @@ pub(crate) fn emit_expr(expr: &IrExpr, out: &mut String) {
                 // Auto-vivified (never-`Dim`'d) array: the interpreter reads the
                 // type default for any index (eval.rs missing-slot arm); emit it.
                 emit_default(symbol.value_type, out);
+            } else if crate::c_emit::is_descriptor_local(&symbol.name) {
+                // Forwarded local with no DIM here: the caller-owned `_arr`
+                // cell is NULL until some callee allocates through the
+                // descriptor. Guard the read — unallocated reads the type
+                // default, matching UBOUND/IFZ scalar fallbacks (aprofile).
+                let mut arr = String::new();
+                crate::c_emit::emit_array_var_name(symbol, &mut arr);
+                let mut sub = String::new();
+                crate::c_emit::emit_array_subscript(&symbol.name, index, extra_indices, &mut sub);
+                let mut def = String::new();
+                emit_default(symbol.value_type, &mut def);
+                out.push_str(&format!("({arr} ? {arr}[{sub}] : {def})"));
             } else {
                 crate::c_emit::emit_array_var_name(symbol, out);
                 out.push('[');

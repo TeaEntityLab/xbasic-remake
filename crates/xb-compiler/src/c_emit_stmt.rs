@@ -101,7 +101,7 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                 // existing content (zero the grown tail); DIM re-inits (zero all) —
                 // matching the interpreter (docs/18).
                 if let Some(sz) = size {
-                    emit_descriptor_redim(symbol, sz, *redim, &ind, out);
+                    emit_descriptor_redim(symbol, sz, extra_dims, *redim, &ind, out);
                 }
                 return;
             }
@@ -1102,10 +1102,18 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
 }
 
 /// Emit a `DIM`/`REDIM` of a descriptor by-ref array param — realloc the caller's
-/// array through `*xb_var_x_d` and update `*xb_ub_x`. `REDIM` (`redim`) preserves
-/// existing elements + default-fills the grown tail; `DIM` re-initializes every
-/// element (matching the interpreter — docs/18).
-fn emit_descriptor_redim(symbol: &IrSymbol, sz: &IrExpr, redim: bool, ind: &str, out: &mut String) {
+/// array through `*xb_var_x_d` and update `*xb_ub_x`. Multi-dimensional arrays
+/// resize the flattened row-major product; the descriptor intentionally carries
+/// no per-dimension shape (docs/18). `REDIM` preserves existing elements and
+/// default-fills the grown tail; `DIM` re-initializes every element.
+fn emit_descriptor_redim(
+    symbol: &IrSymbol,
+    sz: &IrExpr,
+    extra_dims: &[IrExpr],
+    redim: bool,
+    ind: &str,
+    out: &mut String,
+) {
     let ub = crate::c_emit::descriptor_ub_ident(&symbol.name);
     let mut dp = String::new();
     crate::c_emit::emit_descriptor_data_ptr(symbol, &mut dp);
@@ -1123,9 +1131,18 @@ fn emit_descriptor_redim(symbol: &IrSymbol, sz: &IrExpr, redim: bool, ind: &str,
     }
     out.push('*');
     out.push_str(&ub);
-    out.push_str(" = (");
-    emit_expr(sz, out);
-    out.push_str("); *");
+    out.push_str(" = ");
+    if extra_dims.is_empty() {
+        out.push('(');
+        emit_expr(sz, out);
+        out.push(')');
+    } else {
+        let mut dims = vec![sz.clone()];
+        dims.extend(extra_dims.iter().cloned());
+        crate::c_emit::emit_flat_size(&dims, out);
+        out.push_str(" - 1");
+    }
+    out.push_str("; *");
     out.push_str(&dp);
     out.push_str(" = realloc(*");
     out.push_str(&dp);

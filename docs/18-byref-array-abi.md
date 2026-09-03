@@ -26,7 +26,16 @@ semantics and a bounded behavior test land (see docs/17 `RR-02`/`RR-06`).
   (passing-form consistency: descriptor pos → `(data,ub)`; plain pos ← descriptor
   local → `*x_d`), param decls (both sites).
 - Genuinely-dual descriptor **locals** (`maxZ = z` scalar + `@maxZ[]` array) stay
-  dual-use via `collect_dual_use(extra_array)`; descriptor **params** are never dual.
+  dual-use via `collect_dual_use(extra_array)`; a descriptor **param** used as a
+  scalar also splits (dual=1, e.g. xit `XitSetFunction text$`) — the facet
+  classifier forces descriptor params/locals into array-context like the
+  reference emitter. Callers dispatch by callee argument **position**
+  (`position=N` facets, `is_desc_position$`), never by variable name.
+- A forwarded local whose callee never allocates has no array storage: reads
+  are NULL-guarded (`(arr ? arr[i] : default)`), integer `UBOUND` stays `-1`,
+  string `UBOUND`/`IFZ` keep the scalar fallbacks (`LEN-1`, scalar truthiness).
+  A forwarded local used 2-D with no DIM shape falls back to first-index
+  lowering, matching the reference emitter (xit `FindSearch matches`).
 - `XstQuickSort`/`XstCopyArray`: interp (`xst::quicksort`/`copyarray`) + gated C
   runtimes (8-byte-slot reorder, `et`-dispatch, `xb_strdup` deep-copy).
 

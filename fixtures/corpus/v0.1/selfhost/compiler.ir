@@ -8,8 +8,8 @@ function Main() -> integer
   dim ch:integer
   dim ntok:integer
   dim done:integer
-  dim tt$:string[integer(65536)]
-  dim tv$:string[integer(65536)]
+  dim tt$:string[integer(131072)]
+  dim tv$:string[integer(131072)]
   dim tpos:integer
   dim indent:integer
   dim i:integer

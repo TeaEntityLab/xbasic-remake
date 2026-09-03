@@ -793,6 +793,9 @@ END IF
 ##funcMixed$ = ","
 ##byrefParamSet$ = ""
 ##curCallFn$ = ""
+' No-argument sentinel. Spelled `0 - 1`: the self-hosted compiler drops a
+' unary minus in a shared initializer (emits an empty value).
+##curCallArg = 0 - 1
 ##curFnName$ = ""
 ##byrefWBCopy$ = ""
 ##sharedStrInits$ = ""
@@ -810,6 +813,12 @@ END IF
 ##curHoistFn$ = ""
 ##compRet$ = ""
 ##compMembers$ = ""
+##descParams$ = ""
+##descRanks$ = ""
+##descPositions$ = ""
+##arrayPositions$ = ""
+##curDescLocals$ = ""
+##curFacetDual$ = ""
 facetPos = 1
 WHILE facetPos <= LEN(src$)
   facetE = INSTR(src$, CHR$(10), facetPos)
@@ -905,6 +914,14 @@ IF LEN(##facetTab$) > 0 THEN
       IF fCp2 > 0 THEN
         fNm2$ = LEFT$(fLn2$, fCp2 - 1)
         fRest2$ = MID$(fLn2$, fCp2 + 1, LEN(fLn2$) - fCp2)
+        fScope2$ = ""
+        fScopePos2 = INSTR(fRest2$, " scope=")
+        IF fScopePos2 > 0 THEN
+          fScopeStart2 = fScopePos2 + 7
+          fScopeEnd2 = INSTR(fRest2$, " ", fScopeStart2)
+          IF fScopeEnd2 = 0 THEN fScopeEnd2 = LEN(fRest2$) + 1
+          fScope2$ = MID$(fRest2$, fScopeStart2, fScopeEnd2 - fScopeStart2)
+        END IF
         fSp2 = INSTR(fRest2$, " storage=")
         IF fSp2 > 0 THEN
           fStor2$ = MID$(fRest2$, fSp2 + 9, 3)
@@ -926,12 +943,46 @@ IF LEN(##facetTab$) > 0 THEN
             END IF
           END IF
         END IF
+        fRank$ = ""
         fSpRank = INSTR(fRest2$, " rank=")
         IF fSpRank > 0 THEN
           fRank$ = MID$(fRest2$, fSpRank + 6, 1)
           IF VAL(fRank$) >= 2 THEN
             IF INSTR(fArr2d$, ":" + fNm2$ + ":") = 0 THEN
               fArr2d$ = fArr2d$ + ":" + fNm2$ + ":"
+            END IF
+          END IF
+        END IF
+        fPosition$ = ""
+        fSpPosition = INSTR(fRest2$, " position=")
+        IF fSpPosition > 0 THEN
+          fPositionStart = fSpPosition + 10
+          fPositionEnd = INSTR(fRest2$, " ", fPositionStart)
+          IF fPositionEnd = 0 THEN fPositionEnd = LEN(fRest2$) + 1
+          fPosition$ = MID$(fRest2$, fPositionStart, fPositionEnd - fPositionStart)
+        END IF
+        ' Every array-param facet owns its source argument position. This lets a
+        ' descriptor param forward its dereferenced data to an ordinary array
+        ' param without guessing from either variable name.
+        IF INSTR(fRest2$, " storage=param") > 0 AND VAL(fRank$) >= 1 AND LEN(fScope2$) > 0 AND LEN(fPosition$) > 0 THEN
+          fArrayPosPat$ = ":" + fScope2$ + ":" + fPosition$ + ":"
+          IF INSTR(##arrayPositions$, fArrayPosPat$) = 0 THEN
+            ##arrayPositions$ = ##arrayPositions$ + fArrayPosPat$
+          END IF
+        END IF
+        ' Producer-owned descriptor fact. No source-body classifier: names
+        ' drive callee declarations/body emission; positions drive caller
+        ' descriptor expansion because caller names may differ.
+        IF INSTR(fRest2$, " descriptor=1") > 0 AND LEN(fScope2$) > 0 THEN
+          fDescPat$ = ":" + fScope2$ + ":" + fNm2$ + ":"
+          IF INSTR(##descParams$, fDescPat$) = 0 THEN
+            ##descParams$ = ##descParams$ + fDescPat$
+            ##descRanks$ = ##descRanks$ + CHR$(10) + fScope2$ + "|" + fNm2$ + "|" + fRank$ + CHR$(10)
+          END IF
+          IF LEN(fPosition$) > 0 THEN
+            fDescPosPat$ = ":" + fScope2$ + ":" + fPosition$ + ":"
+            IF INSTR(##descPositions$, fDescPosPat$) = 0 THEN
+              ##descPositions$ = ##descPositions$ + fDescPosPat$
             END IF
           END IF
         END IF
@@ -1743,7 +1794,11 @@ WHILE pos <= LEN(src$)
           ' remove names that are dyn in OTHER scopes but not THIS scope.
           ' dualUse/arr2d stay scanner-derived (facet dual classifier is
           ' incomplete for string UBOUND patterns).
+          ##curDescLocals$ = ""
+          ##curFacetDual$ = ""
           IF LEN(##facetTab$) > 0 THEN
+            ##curDescLocals$ = facets_in_scope$(##facetTab$, funcName$, "byref")
+            ##curFacetDual$ = facets_in_scope$(##facetTab$, funcName$, "dual")
             ##dynNames$ = filter_dyn_scope$(##scanDynAll$, ##facetDynAll$, facets_in_scope$(##facetTab$, funcName$, "dyn"), ##facetTab$, funcName$)
             ' Add facet-confirmed dyn names that the scanner missed (e.g.,
             ' tokenTemp — storage=dyn in facets but only DIM'd as scalar,
@@ -2346,6 +2401,44 @@ FUNCTION scan_comp_ret$(src$)
     END IF
   WEND
   scan_comp_ret$ = ""
+END FUNCTION
+
+
+' Check if (fn$, param$) is a descriptor param (in ##descParams$).
+FUNCTION is_desc_param$(fn$, param$)
+  is_desc_param$ = "0"
+  IF INSTR(##descParams$, ":" + fn$ + ":" + param$ + ":") > 0 THEN
+    is_desc_param$ = "1"
+  END IF
+END FUNCTION
+
+' Check whether a callee's zero-based argument position uses the descriptor ABI.
+' Caller variable names are intentionally irrelevant.
+FUNCTION is_desc_position$(fn$, position)
+  is_desc_position$ = "0"
+  IF INSTR(##descPositions$, ":" + fn$ + ":" + STR$(position) + ":") > 0 THEN
+    is_desc_position$ = "1"
+  END IF
+END FUNCTION
+
+' Check whether a callee's zero-based argument position is an array parameter.
+FUNCTION is_array_position$(fn$, position)
+  is_array_position$ = "0"
+  IF INSTR(##arrayPositions$, ":" + fn$ + ":" + STR$(position) + ":") > 0 THEN
+    is_array_position$ = "1"
+  END IF
+END FUNCTION
+
+' Descriptor rank from producer-owned facet metadata. Headerless IR has rank 0.
+FUNCTION desc_rank(fn$, param$)
+  DIM pat$
+  DIM p
+  pat$ = CHR$(10) + fn$ + "|" + param$ + "|"
+  p = INSTR(##descRanks$, pat$)
+  desc_rank = 0
+  IF p > 0 THEN
+    desc_rank = VAL(MID$(##descRanks$, p + LEN(pat$), 1))
+  END IF
 END FUNCTION
 
 FUNCTION c_var_name$(n$, t$)
@@ -3176,6 +3269,10 @@ FUNCTION emit_expr$(e$)
       varName$ = t$
       varType$ = "integer"
     END IF
+    IF is_desc_param$(##curFnName$, varName$) = "1" AND is_array_position$(##curCallFn$, ##curCallArg) = "1" THEN
+      emit_expr$ = arr_acc_name$(varName$, varType$)
+      RETURN emit_expr$
+    END IF
     IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND (varType$ = "string" OR RIGHT$(varName$, 1) = "$") THEN
       emit_expr$ = "xb_str_" + sanitize_dual$(varName$)
       RETURN emit_expr$
@@ -3979,7 +4076,7 @@ FUNCTION emit_expr$(e$)
       ELSE
         varType$ = "integer"
       END IF
-      IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 THEN
+      IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##curDescLocals$, ":" + varName$ + ":") = 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 THEN
         emit_expr$ = c_default$(varType$)
         RETURN emit_expr$
       END IF
@@ -3996,10 +4093,22 @@ FUNCTION emit_expr$(e$)
         ELSE
           emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
         END IF
-      ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
-        emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_flat2d$(t$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "]"
+      ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND INSTR(##curDescLocals$, ":" + varName$ + ":") = 0 AND (is_desc_param$(##curFnName$, varName$) = "1" OR INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+        emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_flat2d$(t$, d1_ref$(varName$)) + "]"
+      ' Descriptor-forwarded local with no DIM shape in this scope: no stride
+      ' cell exists, so fall back to the reference emitter's first-index
+      ' lowering (xit FindSearch matches[match,0]). The cell is NULL until a
+      ' callee allocates through the descriptor; guard the read so the
+      ' never-allocated case yields the type default (aprofile). Full 2-D
+      ' stride tracking for forwarded locals is a separate ABI revision.
+      ELSEIF INSTR(t$, ",") > 0 AND INSTR(##curDescLocals$, ":" + varName$ + ":") > 0 THEN
+        emit_expr$ = "(" + arr_acc_name$(varName$, varType$) + " != 0 ? " + arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(t$)) + "] : " + c_default$(varType$) + ")"
       ELSEIF INSTR(t$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_expr$ = arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(t$)) + "]"
+      ' Forwarded-local 1-D read with no DIM in this scope: same NULL guard;
+      ' the interpreter yields the type default when no callee allocated.
+      ELSEIF INSTR(##curDescLocals$, ":" + varName$ + ":") > 0 THEN
+        emit_expr$ = "(" + arr_acc_name$(varName$, varType$) + " != 0 ? " + arr_acc_name$(varName$, varType$) + "[" + emit_expr$(t$) + "] : " + c_default$(varType$) + ")"
       ELSE
         emit_expr$ = arr_acc_name$(varName$, varType$) + emit_msub$(t$, 0)
       END IF
@@ -4022,7 +4131,11 @@ FUNCTION emit_expr$(e$)
       varType$ = "integer"
       varName$ = t$
     END IF
-    IF INSTR(##sharedDual$, ":" + varName$ + ":") > 0 THEN
+    IF is_desc_param$(##curFnName$, varName$) = "1" THEN
+      emit_expr$ = "(int)" + ub_ref$(varName$, varType$)
+    ELSEIF INSTR(##curDescLocals$, ":" + varName$ + ":") > 0 THEN
+      emit_expr$ = "(int)" + ub_ref$(varName$, varType$)
+    ELSEIF INSTR(##sharedDual$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$) + "_arr"
     ELSEIF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
@@ -4042,7 +4155,7 @@ FUNCTION emit_expr$(e$)
     ELSEIF INSTR(##sharedStrDual$, ":" + varName$ + ":") > 0 THEN
       _du$ = sanitize_dual$(varName$)
       emit_expr$ = "(int)xb_ub_" + _du$ + "_arr"
-    ELSEIF INSTR(##undimmed$, ":" + varName$ + ":") > 0 THEN
+    ELSEIF INSTR(##undimmed$, ":" + varName$ + ":") > 0 AND INSTR(##curDescLocals$, ":" + varName$ + ":") = 0 THEN
       IF varType$ = "string" THEN
         emit_expr$ = "(xb_len(" + c_var_name$(varName$, varType$) + ") - 1)"
       ELSE
@@ -4208,6 +4321,19 @@ FUNCTION emit_expr$(e$)
         varName$ = t$
         varType$ = "integer"
       END IF
+      ' Descriptor param: the callee's positional facet owns the ABI decision;
+      ' the caller variable name only selects the pointer and UBOUND operands.
+      IF is_desc_position$(##curCallFn$, ##curCallArg) = "1" THEN
+        emit_expr$ = "&" + desc_arg_array_name$(varName$, varType$) + ", &" + desc_arg_ub_ref$(varName$, varType$)
+        RETURN emit_expr$
+      END IF
+      ' Forwarding a descriptor param to an ordinary array position passes the
+      ' caller-owned data pointer by value. Descriptor-to-descriptor forwarding
+      ' returned above with both data and UBOUND cells.
+      IF is_desc_param$(##curFnName$, varName$) = "1" AND is_array_position$(##curCallFn$, ##curCallArg) = "1" THEN
+        emit_expr$ = arr_acc_name$(varName$, varType$)
+        RETURN emit_expr$
+      END IF
       IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND (RIGHT$(varName$, 1) = "$" OR varType$ = "string") THEN
         ' strUbDual array passed byref: emit the _arr array pointer directly
         ' (the callee's array param is char** X_arr, not char* X).
@@ -4226,11 +4352,6 @@ FUNCTION emit_expr$(e$)
       ' Fall through to normal byref handler below.
       IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
         ' Fall through — per-position stripping handles byval vs byref
-      END IF
-      ' M1 byref descriptor spike: Grow @a[] -> &a_arr, &ub_a
-      IF ##curCallFn$ = "Grow" AND varName$ = "a" THEN
-        emit_expr$ = "&" + c_var_name$(varName$, varType$) + "_arr, &xb_ub_" + sanitize_ident$(varName$) + "_arr"
-        RETURN emit_expr$
       END IF
       IF INSTR(##byrefDual$, ":" + varName$ + ":") > 0 THEN
         IF RIGHT$(varName$, 1) = "$" OR varType$ = "string" THEN
@@ -4300,6 +4421,9 @@ FUNCTION emit_args$(a$)
   DIM start
   DIM arg$
   DIM emitted
+  DIM callFn$
+  emitted = 0
+  callFn$ = ##curCallFn$
   IF LEN(a$) = 0 THEN
     emit_args$ = ""
     RETURN emit_args$
@@ -4331,6 +4455,8 @@ FUNCTION emit_args$(a$)
     ELSEIF ch = 44 AND depth = 0 THEN
       arg$ = MID$(a$, start, i - start)
       arg$ = trim_spaces$(arg$)
+      ##curCallFn$ = callFn$
+      ##curCallArg = emitted
       ' Per-param byref: strip byref() for non-byref positions in mixed funcs
       IF LEFT$(arg$, 6) = "byref(" + "" THEN
         IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
@@ -4355,6 +4481,8 @@ FUNCTION emit_args$(a$)
   IF start <= LEN(a$) THEN
     arg$ = MID$(a$, start, LEN(a$) - start + 1)
     arg$ = trim_spaces$(arg$)
+    ##curCallFn$ = callFn$
+    ##curCallArg = emitted
     ' Per-param byref: strip byref() for non-byref positions in mixed funcs
     IF LEFT$(arg$, 6) = "byref(" + "" THEN
       IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
@@ -4372,6 +4500,8 @@ FUNCTION emit_args$(a$)
     parts$ = parts$ + emit_expr$(arg$)
   END IF
 
+  ##curCallFn$ = callFn$
+  ##curCallArg = 0 - 1
   emit_args$ = parts$
 END FUNCTION
 
@@ -4811,9 +4941,9 @@ FUNCTION emit_params$(params$)
     END IF
     ' Emit: array params and byref-dual/str-dual ARRAY params get pointer
     IF _isArrParam = 1 THEN
-      ' M1 byref descriptor spike: Grow's @a[] is a descriptor param (REDIM in body)
-      IF ##curFnName$ = "Grow" AND pName$ = "a" THEN
-        result$ = result$ + c_type$(pType$) + "** " + baseName$ + "_dd, intptr_t* xb_ub_" + sanitize_ident$(pName$)
+      ' Descriptor param: producer facet requires the `(data**, ub*)` ABI.
+      IF is_desc_param$(##curFnName$, pName$) = "1" THEN
+        result$ = result$ + c_type$(pType$) + "** " + c_var_name$(pName$, pType$) + "_dd, intptr_t* xb_ub_" + sanitize_ident$(pName$)
       ELSE
         result$ = result$ + c_type$(pType$) + "* " + baseName$
       END IF
@@ -5171,8 +5301,10 @@ FUNCTION emit_args_n$(a$, n)
   DIM parts$
   DIM arg$
   DIM emitted
+  DIM callFn$
   parts$ = ""
   emitted = 0
+  callFn$ = ##curCallFn$
   IF LEN(a$) > 0 THEN
     i = 1
     start = 1
@@ -5198,6 +5330,8 @@ FUNCTION emit_args_n$(a$, n)
       ELSEIF ch = 44 AND depth = 0 THEN
         arg$ = trim_spaces$(MID$(a$, start, i - start))
         IF emitted < n THEN
+          ##curCallFn$ = callFn$
+          ##curCallArg = emitted
           ' Per-param byref: strip byref() for positions NOT consistently byref
           IF LEFT$(arg$, 6) = "byref(" + "" THEN
             IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
@@ -5221,6 +5355,8 @@ FUNCTION emit_args_n$(a$, n)
     WEND
     arg$ = trim_spaces$(MID$(a$, start, LEN(a$) - start + 1))
     IF emitted < n THEN
+      ##curCallFn$ = callFn$
+      ##curCallArg = emitted
       ' Per-param byref: strip byref() for non-byref positions in mixed funcs
       IF LEFT$(arg$, 6) = "byref(" + "" THEN
         IF LEN(##curCallFn$) > 0 AND INSTR(##funcMixed$, "," + ##curCallFn$ + ",") > 0 THEN
@@ -5246,6 +5382,8 @@ FUNCTION emit_args_n$(a$, n)
     parts$ = parts$ + "0"
     emitted = emitted + 1
   WEND
+  ##curCallFn$ = callFn$
+  ##curCallArg = 0 - 1
   emit_args_n$ = parts$
 END FUNCTION
 
@@ -5270,6 +5408,14 @@ FUNCTION emit_hoists$(used$, dimmed$)
       IF bar > 0 THEN
         nm$ = LEFT$(entry$, bar - 1)
         ty$ = MID$(entry$, bar + 1, LEN(entry$) - bar)
+        ' Descriptor signatures own the array pointer and UBOUND cells. If the
+        ' source also uses the same name as a scalar, emit only that independent
+        ' scalar facet; never run descriptor params through array hoisting.
+        IF is_desc_param$(##curFnName$, nm$) = "1" THEN
+          IF INSTR(##curFacetDual$, ":" + nm$ + ":") > 0 AND INSTR(out$, c_var_name$(nm$, ty$) + " = ") = 0 THEN
+            out$ = out$ + "    " + c_type$(ty$) + " " + c_var_name$(nm$, ty$) + " = " + c_default$(ty$) + ";" + CHR$(10)
+          END IF
+        ELSE
         ' IR $-stripping artifact: parser emits symbol(k:string) for k$ where k
         ' is DIM'd as a NON-STRING type (dim k:integer[...]). The string facet
         ' xb_str_k is a separate C variable from xb_var_k and must be hoisted.
@@ -5404,6 +5550,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
           END IF
         END IF
         END IF
+        END IF
       END IF
     ELSE
       rest$ = ""
@@ -5422,6 +5569,9 @@ FUNCTION emit_hoists$(used$, dimmed$)
     ELSEIF nlpos > 1 THEN
       entry$ = LEFT$(rest$, nlpos - 1)
       rest$ = MID$(rest$, nlpos + 1, LEN(rest$) - nlpos)
+      ' Descriptor array storage is already declared by the `(data**, ub*)`
+      ' signature. This second loop emits only non-parameter dyn storage.
+      IF is_desc_param$(##curFnName$, entry$) = "0" THEN
       IF INSTR(##sharedArrays$, ":" + entry$ + ":") > 0 AND INSTR(##sharedDual$, ":" + entry$ + ":") = 0 THEN
         ' Shared array (non-dual): file-scope heap global already declared.
       ELSEIF INSTR(##sharedArrays$, ":" + entry$ + ":") > 0 AND INSTR(##sharedDual$, ":" + entry$ + ":") > 0 THEN
@@ -5537,6 +5687,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
           END IF
         END IF
       END IF
+      END IF
     ELSE
       rest$ = ""
     END IF
@@ -5592,6 +5743,11 @@ FUNCTION emit_hoists$(used$, dimmed$)
         END IF
       END IF
     WEND
+  END IF
+  DIM _descLocalDecls$
+  _descLocalDecls$ = emit_desc_local_decls$(out$)
+  IF LEN(_descLocalDecls$) > 0 THEN
+    out$ = out$ + _descLocalDecls$
   END IF
   emit_hoists$ = out$
 END FUNCTION
@@ -5778,7 +5934,7 @@ END FUNCTION
 FUNCTION is_xfn_dyn$(n$)
   is_xfn_dyn$ = ""
   IF ##inFuncScope = 1 THEN
-    IF INSTR(##curFnArrays$, ":" + n$ + ":") = 0 THEN
+    IF INSTR(##curFnArrays$, ":" + n$ + ":") = 0 AND INSTR(##curDescLocals$, ":" + n$ + ":") = 0 THEN
       IF INSTR(##dynStr$, ":" + n$ + ":") > 0 OR INSTR(##dynNames$, ":" + n$ + ":") > 0 OR INSTR(##strDual$, ":" + n$ + ":") > 0 OR INSTR(##strUbDual$, ":" + n$ + ":") > 0 OR INSTR(##allStrArr$, ":" + n$ + ":") > 0 OR INSTR(##xstArrays$, ":" + n$ + ":") > 0 THEN
         is_xfn_dyn$ = "1"
       END IF
@@ -6828,9 +6984,16 @@ FUNCTION scalar_name$(n$, t$)
 END FUNCTION
 
 FUNCTION arr_acc_name$(n$, t$)
-  ' M1 byref descriptor spike: Grow a[] -> (*a_arr_dd)
-  IF ##curFnName$ = "Grow" AND n$ = "a" THEN
-    arr_acc_name$ = "(*" + c_var_name$(n$, t$) + "_arr_dd)"
+
+  ' Descriptor param: deref the data pointer (*xb_var_x_dd or *xb_str_x_s_dd)
+  IF is_desc_param$(##curFnName$, n$) = "1" THEN
+    arr_acc_name$ = "(*" + c_var_name$(n$, t$) + "_dd)"
+    RETURN arr_acc_name$
+  END IF
+  ' A descriptor-forwarded local keeps its original scalar cell and uses a
+  ' synthetic `_arr` heap cell for caller-owned array storage.
+  IF INSTR(##curDescLocals$, ":" + n$ + ":") > 0 THEN
+    arr_acc_name$ = c_var_name$(n$, t$) + "_arr"
     RETURN arr_acc_name$
   END IF
   ' Shared dual-use: array facet takes _arr (matching Rust is_shared_dual).
@@ -6856,6 +7019,54 @@ FUNCTION arr_acc_name$(n$, t$)
     RETURN arr_acc_name$
   END IF
   arr_acc_name$ = c_var_name$(n$, t$) + bd$(n$)
+END FUNCTION
+
+' Raw caller-owned cells for a descriptor argument. Descriptor-forwarded
+' locals have an existing scalar facet, so their synthetic array cell always
+' uses the `_arr` suffix. Other arrays keep the established naming path.
+FUNCTION desc_arg_array_name$(n$, t$)
+  IF INSTR(##curDescLocals$, ":" + n$ + ":") > 0 THEN
+    desc_arg_array_name$ = c_var_name$(n$, t$) + "_arr"
+    RETURN desc_arg_array_name$
+  END IF
+  desc_arg_array_name$ = arr_acc_name$(n$, t$)
+END FUNCTION
+
+FUNCTION desc_arg_ub_ref$(n$, t$)
+  IF INSTR(##curDescLocals$, ":" + n$ + ":") > 0 THEN
+    desc_arg_ub_ref$ = "xb_ub_" + sanitize_ident$(n$) + "_arr"
+    RETURN desc_arg_ub_ref$
+  END IF
+  desc_arg_ub_ref$ = ub_ref$(n$, t$)
+END FUNCTION
+
+' Declarations for locals promoted into the descriptor closure without a DIM
+' array in this scope (`facet ... storage=dyn ... byref=1`).
+FUNCTION emit_desc_local_decls$(existing$)
+  DIM out$
+  DIM rest$
+  DIM p
+  DIM e
+  DIM n$
+  DIM t$
+  DIM cName$
+  out$ = ""
+  rest$ = ##curDescLocals$
+  p = 1
+  WHILE p <= LEN(rest$)
+    e = INSTR(rest$, ":", p + 1)
+    IF e = 0 THEN EXIT WHILE
+    n$ = MID$(rest$, p + 1, e - p - 1)
+    p = e
+    IF LEN(n$) > 0 THEN
+      t$ = facet_type$(##facetTab$, n$, ##curHoistFn$)
+      cName$ = c_var_name$(n$, t$) + "_arr"
+      IF INSTR(existing$ + out$, cName$ + " = 0;") = 0 THEN
+        out$ = out$ + "    " + c_type$(t$) + "* " + cName$ + " = 0; intptr_t xb_ub_" + sanitize_ident$(n$) + "_arr = -1;" + CHR$(10)
+      END IF
+    END IF
+  WEND
+  emit_desc_local_decls$ = out$
 END FUNCTION
 
 ' RR-03: Scope-qualified facet lookup. Returns ":name:name:..." for facets
@@ -6931,7 +7142,7 @@ FUNCTION facets_in_scope$(tab$, sc$, field$)
                 END IF
               END IF
             END IF
-        ELSEIF field$ = "arr1" THEN
+          ELSEIF field$ = "arr1" THEN
             sp = INSTR(rest$, " rank=")
             IF sp > 0 THEN
               val$ = MID$(rest$, sp + 6, 1)
@@ -6939,6 +7150,12 @@ FUNCTION facets_in_scope$(tab$, sc$, field$)
                 IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
                   result$ = result$ + ":" + nm$ + ":"
                 END IF
+              END IF
+            END IF
+          ELSEIF field$ = "byref" THEN
+            IF INSTR(rest$, " byref=1") > 0 THEN
+              IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
+                result$ = result$ + ":" + nm$ + ":"
               END IF
             END IF
           END IF
@@ -7092,7 +7309,9 @@ FUNCTION bd$(n$)
   ' Shared dual-use: a shared array also used as a scalar → _arr suffix
   ' (matching Rust is_shared_dual). Must check BEFORE the sharedArrays
   ' early-return, which would otherwise emit no suffix.
-  IF INSTR(##sharedDual$, ":" + n$ + ":") > 0 THEN
+  IF INSTR(##curDescLocals$, ":" + n$ + ":") > 0 THEN
+    bd$ = "_arr"
+  ELSEIF INSTR(##sharedDual$, ":" + n$ + ":") > 0 THEN
     bd$ = "_arr"
   ELSEIF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
     ' Non-dual shared array: one file-scope pointer, no _arr facet.
@@ -7113,9 +7332,13 @@ END FUNCTION
 ' The UBOUND-cell reference for a name: the dual-facet _arr cell for
 ' dyn dual arrays, else the standard name (+ bd\$ suffix).
 FUNCTION ub_ref$(n$, t$)
-  ' M1 byref descriptor spike: Grow a[] ub -> *xb_ub_a
-  IF ##curFnName$ = "Grow" AND n$ = "a" THEN
+  ' Descriptor param: dereference the caller-owned UBOUND cell.
+  IF is_desc_param$(##curFnName$, n$) = "1" THEN
     ub_ref$ = "*xb_ub_" + sanitize_ident$(n$)
+    RETURN ub_ref$
+  END IF
+  IF INSTR(##curDescLocals$, ":" + n$ + ":") > 0 THEN
+    ub_ref$ = "xb_ub_" + sanitize_ident$(n$) + "_arr"
     RETURN ub_ref$
   END IF
   ' Shared dual-use: UBOUND cell takes _arr suffix (matching Rust is_shared_dual).
@@ -7139,6 +7362,20 @@ FUNCTION ub_ref$(n$, t$)
     RETURN ub_ref$
   END IF
   ub_ref$ = "xb_ub_" + sanitize_ident$(n$) + bd$(n$)
+END FUNCTION
+
+' Runtime 2-D stride. Descriptor params derive the trailing dimension from
+' producer-owned function-shape metadata; ordinary dyn arrays use xb_d1_<name>.
+FUNCTION d1_ref$(n$)
+  DIM shape$
+  IF desc_rank(##curFnName$, n$) >= 2 THEN
+    shape$ = shape_of$(n$)
+    IF LEN(shape$) > 0 THEN
+      d1_ref$ = "(" + emit_d1$(shape$) + ")"
+      RETURN d1_ref$
+    END IF
+  END IF
+  d1_ref$ = "xb_d1_" + sanitize_ident$(n$) + bd$(n$)
 END FUNCTION
 ' Get the element type of a ##dynNames$ entry. ##dynNames$ entries are
 ' :name:type: pairs. Returns "integer" if not found or type unknown.
@@ -7979,13 +8216,10 @@ FUNCTION emit_stmt$(s$)
         varType$ = "integer"
       END IF
       IF LEN(trim_spaces$(arrSize$)) = 0 THEN
-        ' Unsized `DIM x[]` (text IR `dim x:t[]`): mirror the Rust CEmitter
-        ' Dim `None` arms — a shared array's bare declaration is a no-op (its
-        ' storage is the file-scope global); any other array is dyn (scanner
-        ' rule above) and resets its hoisted heap pointer to the empty state
-        ' (UBOUND -1), like the interpreter's empty array. A later write grows
-        ' it through the array_assign guard.
-        IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
+        ' Unsized `DIM x[]` resets an ordinary dyn array. For a descriptor
+        ' parameter it is only the source-level array declaration; resizing
+        ' requires a sized REDIM/DIM and must preserve caller ownership.
+        IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR is_desc_param$(##curFnName$, varName$) = "1" THEN
           emit_stmt$ = ""
         ELSE
           emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = -1;" + CHR$(10) + "    " + arr_acc_name$(varName$, varType$) + " = 0;"
@@ -7993,6 +8227,31 @@ FUNCTION emit_stmt$(s$)
         RETURN emit_stmt$
       END IF
       cExpr$ = emit_expr$(arrSize$)
+      ' Descriptor param REDIM: realloc through the descriptor pointers.
+      ' Handles both integer/float and string array descriptor params.
+      ' Integer fill = 0; string fill = xb_str("").
+      IF is_desc_param$(##curFnName$, varName$) = "1" THEN
+        DIM _descCType$
+        _descCType$ = c_type$(varType$)
+        DIM _descCVar$
+        _descCVar$ = c_var_name$(varName$, varType$)
+        DIM _descUb$
+        _descUb$ = "xb_ub_" + sanitize_ident$(varName$)
+        DIM _descFill$
+        IF varType$ = "string" THEN
+          _descFill$ = "xb_str(" + CHR$(34) + CHR$(34) + ")"
+        ELSE
+          _descFill$ = "0"
+        END IF
+        DIM _descNewUb$
+        IF desc_rank(##curFnName$, varName$) >= 2 AND INSTR(arrSize$, ",") > 0 THEN
+          _descNewUb$ = emit_mtotal$(arrSize$) + " - 1"
+        ELSE
+          _descNewUb$ = cExpr$
+        END IF
+        emit_stmt$ = "    { intptr_t _oldub = *" + _descUb$ + "; *" + _descUb$ + " = (" + _descNewUb$ + "); *" + _descCVar$ + "_dd = realloc(*" + _descCVar$ + "_dd, (size_t)(*" + _descUb$ + " + 1) * sizeof(" + _descCType$ + ")); if (!*" + _descCVar$ + "_dd) abort(); for (intptr_t _i = _oldub + 1; _i <= *" + _descUb$ + "; _i++) (*" + _descCVar$ + "_dd)[_i] = " + _descFill$ + "; }"
+        RETURN emit_stmt$
+      END IF
       IF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
         IF INSTR(arrSize$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 THEN
           emit_stmt$ = "    " + ub_ref$(varName$, varType$) + " = " + emit_mtotal$(arrSize$) + " - 1; " + arr_acc_name$(varName$, varType$) + " = calloc((size_t)(" + ub_ref$(varName$, varType$) + " + 1), sizeof(" + c_type$(varType$) + ")); if (!" + arr_acc_name$(varName$, varType$) + ") abort(); xb_d1_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + emit_d1$(arrSize$) + ");"
@@ -8030,13 +8289,6 @@ FUNCTION emit_stmt$(s$)
         END IF
         END IF
       ELSEIF INSTR(##dynNames$, ":" + varName$ + ":") > 0 THEN
-        ' M1 byref descriptor spike: Grow REDIM a[newsize] -> realloc descriptor
-        IF ##curFnName$ = "Grow" AND varName$ = "a" THEN
-          DIM _growType$
-          _growType$ = c_type$(dyn_type$(varName$))
-          emit_stmt$ = "    { intptr_t _oldub = *xb_ub_" + sanitize_ident$(varName$) + "; *xb_ub_" + sanitize_ident$(varName$) + " = (" + cExpr$ + "); *" + c_var_name$(varName$, varType$) + "_arr_dd = realloc(*" + c_var_name$(varName$, varType$) + "_arr_dd, (size_t)(*xb_ub_" + sanitize_ident$(varName$) + " + 1) * sizeof(" + _growType$ + ")); if (!*" + c_var_name$(varName$, varType$) + "_arr_dd) abort(); for (intptr_t _i = _oldub + 1; _i <= *xb_ub_" + sanitize_ident$(varName$) + "; _i++) (*" + c_var_name$(varName$, varType$) + "_arr_dd)[_i] = 0; }"
-          RETURN emit_stmt$
-        END IF
         IF INSTR(arrSize$, ",") > 0 THEN
           DIM _d1nc
           DIM _d1ci
@@ -8159,7 +8411,7 @@ FUNCTION emit_stmt$(s$)
     spacePos = INSTR(tmp$, "= ", bracketPos + 1)
     right$ = MID$(tmp$, spacePos + 2, LEN(tmp$) - spacePos - 1)
     c2$ = emit_expr$(right$)
-    IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 THEN
+    IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##curDescLocals$, ":" + varName$ + ":") = 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 THEN
       IF varType$ = "string" AND INSTR(cExpr$, ",") = 0 THEN
         IF INSTR(##sharedDecls$, ":" + varName$ + ":") > 0 THEN
           emit_stmt$ = "    xb_setch(xb_shared_" + sanitize_ident$(varName$) + ", " + emit_expr$(cExpr$) + ", " + c2$ + ");"
@@ -8179,8 +8431,8 @@ FUNCTION emit_stmt$(s$)
         ELSE
           emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(cExpr$)) + "] = " + c2$ + ";"
         END IF
-      ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
-        emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_flat2d$(cExpr$, "xb_d1_" + sanitize_ident$(varName$) + bd$(varName$)) + "] = " + c2$ + ";"
+      ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") > 0 AND (is_desc_param$(##curFnName$, varName$) = "1" OR INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 OR INSTR(##allStrArr$, ":" + varName$ + ":") > 0 OR INSTR(##xstArrays$, ":" + varName$ + ":") > 0) THEN
+        emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_flat2d$(cExpr$, d1_ref$(varName$)) + "] = " + c2$ + ";"
       ELSEIF INSTR(cExpr$, ",") > 0 AND INSTR(##arr2d$, ":" + varName$ + ":") = 0 THEN
         emit_stmt$ = "    " + arr_acc_name$(varName$, varType$) + "[" + emit_expr$(first_comma_part$(cExpr$)) + "] = " + c2$ + ";"
       ELSE
@@ -8745,11 +8997,11 @@ FUNCTION emit_stmt$(s$)
         xsLen0$ = "(" + ub_ref$(xsN0$, xsT0$) + " + 1)"
         xsIdxData$ = arr_acc_name$(xsN1$, xsT1$)
         IF INSTR(##qsIdxNames$, ":" + xsN1$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN1$ + ":" + xsT1$
-        IF INSTR(xsIdxData$, "xb_str_") = 0 AND INSTR(xsIdxData$, "_arr") = 0 THEN
+        IF is_desc_param$(##curFnName$, xsN1$) = "0" AND INSTR(xsIdxData$, "xb_str_") = 0 AND INSTR(xsIdxData$, "_arr") = 0 THEN
           xsIdxData$ = "xb_var_" + sanitize_ident$(xsN1$) + "_arr"
         END IF
         xsIdxUb$ = ub_ref$(xsN1$, xsT1$)
-        IF INSTR(xsIdxUb$, "_arr") = 0 THEN
+        IF is_desc_param$(##curFnName$, xsN1$) = "0" AND INSTR(xsIdxUb$, "_arr") = 0 THEN
           xsIdxUb$ = "xb_ub_" + sanitize_ident$(xsN1$) + "_arr"
         END IF
         emit_stmt$ = "    xb_quicksort((void*)" + arr_acc_name$(xsN0$, xsT0$) + ", " + xsEt0$ + ", " + xsLen0$ + ", (intptr_t**)&" + xsIdxData$ + ", (intptr_t*)&" + xsIdxUb$ + ", (intptr_t)(" + emit_expr$(xsArgs$[2]) + "), (intptr_t)(" + emit_expr$(xsArgs$[3]) + "), (intptr_t)(" + emit_expr$(xsArgs$[4]) + "));"
@@ -8763,22 +9015,22 @@ FUNCTION emit_stmt$(s$)
         IF INSTR(##qsIdxNames$, ":" + xsN0$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN0$ + ":" + xsT0$
         DIM xsSrcData$
         xsSrcData$ = arr_acc_name$(xsN0$, xsT0$)
-        IF INSTR(xsSrcData$, "xb_str_") = 0 AND INSTR(xsSrcData$, "_arr") = 0 THEN
+        IF is_desc_param$(##curFnName$, xsN0$) = "0" AND INSTR(xsSrcData$, "xb_str_") = 0 AND INSTR(xsSrcData$, "_arr") = 0 THEN
           xsSrcData$ = "xb_var_" + sanitize_ident$(xsN0$) + "_arr"
         END IF
         DIM xsSrcUb$
         xsSrcUb$ = ub_ref$(xsN0$, xsT0$)
-        IF INSTR(xsSrcUb$, "_arr") = 0 THEN
+        IF is_desc_param$(##curFnName$, xsN0$) = "0" AND INSTR(xsSrcUb$, "_arr") = 0 THEN
           xsSrcUb$ = "xb_ub_" + sanitize_ident$(xsN0$) + "_arr"
         END IF
         xsSrcLen$ = "(" + xsSrcUb$ + " + 1)"
         IF INSTR(##qsIdxNames$, ":" + xsN1$ + ":") = 0 THEN ##qsIdxNames$ = ##qsIdxNames$ + ":" + xsN1$ + ":" + xsT1$
         xsDstData$ = arr_acc_name$(xsN1$, xsT1$)
-        IF INSTR(xsDstData$, "xb_str_") = 0 AND INSTR(xsDstData$, "_arr") = 0 THEN
+        IF is_desc_param$(##curFnName$, xsN1$) = "0" AND INSTR(xsDstData$, "xb_str_") = 0 AND INSTR(xsDstData$, "_arr") = 0 THEN
           xsDstData$ = "xb_var_" + sanitize_ident$(xsN1$) + "_arr"
         END IF
         xsDstUb$ = ub_ref$(xsN1$, xsT1$)
-        IF INSTR(xsDstUb$, "_arr") = 0 THEN
+        IF is_desc_param$(##curFnName$, xsN1$) = "0" AND INSTR(xsDstUb$, "_arr") = 0 THEN
           xsDstUb$ = "xb_ub_" + sanitize_ident$(xsN1$) + "_arr"
         END IF
         emit_stmt$ = "    xb_copyarray((void*)" + xsSrcData$ + ", " + xsSrcLen$ + ", " + xsEt0$ + ", (void**)&" + xsDstData$ + ", &" + xsDstUb$ + ");"

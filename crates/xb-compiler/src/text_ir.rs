@@ -90,7 +90,7 @@ impl TextIrEmitter {
         out: &mut Vec<String>,
         seen: &mut std::collections::HashSet<String>,
     ) {
-        use std::collections::HashMap;
+        use std::collections::{HashMap, HashSet};
         let desc_map = crate::c_emit_hoist::collect_descriptor_params(program);
         let top_items: Vec<IrItem> = program
             .items
@@ -99,18 +99,31 @@ impl TextIrEmitter {
             .cloned()
             .collect();
         if !top_items.is_empty() {
-            self.emit_facets_for_scope(&top_items, "*", &[], &HashMap::new(), out, seen);
+            self.emit_facets_for_scope(
+                &top_items,
+                "*",
+                &[],
+                &HashSet::new(),
+                &HashMap::new(),
+                out,
+                seen,
+            );
         }
         for item in &program.items {
             if let IrItem::Function {
                 name, params, body, ..
             } = item
             {
-                let desc_locals: HashMap<String, crate::checked::ValueType> = desc_map
-                    .get(name)
-                    .map(|(_, m)| m.clone())
-                    .unwrap_or_default();
-                self.emit_facets_for_scope(body, name, params, &desc_locals, out, seen);
+                let (desc_params, desc_locals) = desc_map.get(name).cloned().unwrap_or_default();
+                self.emit_facets_for_scope(
+                    body,
+                    name,
+                    params,
+                    &desc_params,
+                    &desc_locals,
+                    out,
+                    seen,
+                );
                 self.collect_facets_nested(body, out, seen, &desc_map);
             }
         }
@@ -134,11 +147,16 @@ impl TextIrEmitter {
                 name, params, body, ..
             } = item
             {
-                let desc_locals = desc_map
-                    .get(name)
-                    .map(|(_, m)| m.clone())
-                    .unwrap_or_default();
-                self.emit_facets_for_scope(body, name, params, &desc_locals, out, seen);
+                let (desc_params, desc_locals) = desc_map.get(name).cloned().unwrap_or_default();
+                self.emit_facets_for_scope(
+                    body,
+                    name,
+                    params,
+                    &desc_params,
+                    &desc_locals,
+                    out,
+                    seen,
+                );
                 self.collect_facets_nested(body, out, seen, desc_map);
             } else if let IrItem::If {
                 then_body,
@@ -173,6 +191,7 @@ impl TextIrEmitter {
         items: &[IrItem],
         scope: &str,
         params: &[IrParam],
+        desc_params: &std::collections::HashSet<String>,
         desc_locals: &std::collections::HashMap<String, crate::checked::ValueType>,
         out: &mut Vec<String>,
         seen: &mut std::collections::HashSet<String>,
@@ -181,7 +200,14 @@ impl TextIrEmitter {
         let has_gosub = crate::c_emit_hoist::has_gosub(items);
         let mut array_dimmed: HashSet<String> = HashSet::new();
         crate::c_emit_hoist::collect_array_dimmed_names(items, &mut array_dimmed);
-        let dual_use = crate::c_emit_hoist::collect_dual_use(items, &array_dimmed);
+        // Mirror the reference emitter: descriptor params and descriptor-
+        // forwarded locals count as array-context even with no array DIM in
+        // this scope, so a scalar use splits the facet (dual=1) and cgen.x
+        // emits the independent scalar cell (xit XitSetFunction text$).
+        let mut forced_array = array_dimmed.clone();
+        forced_array.extend(desc_params.iter().cloned());
+        forced_array.extend(desc_locals.keys().cloned());
+        let dual_use = crate::c_emit_hoist::collect_dual_use(items, &forced_array);
         let dyn_names =
             crate::c_emit_hoist::collect_dyn_names(items, params, has_gosub, desc_locals);
         let mut dim_info: HashMap<String, (bool, usize, ValueType, String)> = HashMap::new();
@@ -193,15 +219,32 @@ impl TextIrEmitter {
             }
             let dual = if dual_use.contains(name) { 1 } else { 0 };
             let sh = if *is_shared { " shared" } else { "" };
+            let param_position = params.iter().position(|p| p.is_array && p.name == *name);
+            let is_array_param = param_position.is_some();
+            let facet_storage = if is_array_param {
+                "param"
+            } else {
+                storage.as_str()
+            };
+            let param_contract = param_position
+                .map(|position| {
+                    if desc_params.contains(name) {
+                        format!(" descriptor=1 position={position}")
+                    } else {
+                        format!(" position={position}")
+                    }
+                })
+                .unwrap_or_default();
             out.push(format!(
-                "facet {}:{} scope={} storage={} rank={} dual={}{}",
+                "facet {}:{} scope={} storage={} rank={} dual={}{}{}",
                 name,
                 self.emit_type(*vt),
                 scope,
-                storage,
+                facet_storage,
                 rank,
                 dual,
-                sh
+                sh,
+                param_contract
             ));
         }
         // Composite TYPE member 2D arrays (e.g. squareInfo.grid[9,15] where
@@ -247,30 +290,37 @@ impl TextIrEmitter {
                 continue;
             }
             seen.insert(key);
-            let dual = if dual_use.contains(name) { 1 } else { 0 };
+            // A descriptor-forwarded local has an existing scalar cell plus a
+            // synthetic array cell (`_arr`) passed to the callee. It is
+            // therefore dual by construction even without an array DIM.
             out.push(format!(
-                "facet {}:{} scope={} storage=dyn rank=1 dual={} byref=1",
+                "facet {}:{} scope={} storage=dyn rank=1 dual=1 byref=1",
                 name,
                 self.emit_type(*vt),
-                scope,
-                dual
+                scope
             ));
         }
-        for p in params {
+        for (position, p) in params.iter().enumerate() {
             if p.is_array {
                 let key = format!("{}:{}", p.name, scope);
                 if !seen.insert(key) {
                     continue;
                 }
-                let rank = 1;
+                let rank = dim_info.get(&p.name).map_or(1, |(_, rank, _, _)| *rank);
                 let dual = if dual_use.contains(&p.name) { 1 } else { 0 };
+                let descriptor = if desc_params.contains(&p.name) {
+                    " descriptor=1"
+                } else {
+                    ""
+                };
                 out.push(format!(
-                    "facet {}:{} scope={} storage=param rank={} dual={}",
+                    "facet {}:{} scope={} storage=param rank={} dual={}{} position={position}",
                     p.name,
                     self.emit_type(p.value_type),
                     scope,
                     rank,
-                    dual
+                    dual,
+                    descriptor
                 ));
             }
         }

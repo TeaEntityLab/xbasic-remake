@@ -91,6 +91,10 @@ thread_local! {
     static DESC_INFO: RefCell<HashMap<String, (HashSet<String>, HashMap<String, ValueType>)>> = RefCell::new(HashMap::new());
     /// The current function's descriptor array params (subset of DESC_INFO).
     static FN_DESC: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
+    /// The current function's descriptor-forwarded locals: caller-owned `_arr`
+    /// heap cells for names passed `@x[]` to a descriptor position with no
+    /// array `Dim` here. Reads guard against the never-allocated (NULL) case.
+    static FN_DESC_LOCALS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
     /// Per-param descriptor flag per function (positional), so a call site passes
     /// the descriptor form at a descriptor position.
     static DEFINED_PARAM_DESC: RefCell<HashMap<String, Vec<bool>>> = RefCell::new(HashMap::new());
@@ -874,10 +878,19 @@ pub(crate) fn set_fn_context(
     let fn_has_gosub = crate::c_emit_hoist::has_gosub(items);
     let (descriptors, descriptor_locals) =
         DESC_INFO.with(|s| s.borrow().get(name).cloned().unwrap_or_default());
+    // Descriptor-forwarded locals have caller-owned heap storage even without
+    // a source DIM. Do not classify their later UBOUND/access nodes as
+    // undimmed defaults.
+    dimmed.extend(descriptor_locals.keys().cloned());
     FN_DESC.with(|s| {
         let mut set = s.borrow_mut();
         set.clear();
         set.extend(descriptors.iter().cloned());
+    });
+    FN_DESC_LOCALS.with(|s| {
+        let mut set = s.borrow_mut();
+        set.clear();
+        set.extend(descriptor_locals.keys().cloned());
     });
     FN_COMPOSITE_RET.with(|s| {
         *s.borrow_mut() = return_type_name
@@ -894,10 +907,10 @@ pub(crate) fn set_fn_context(
         let mut dyn_names =
             crate::c_emit_hoist::collect_dyn_names(items, params, fn_has_gosub, &descriptor_locals);
         // Descriptor-forward names (`@x[]` into a callee descriptor-array
-        // position): the call site emits `&x, &xb_ub_x`, so the caller needs
-        // the pointer+ubound pair declared even with no `Dim`. Adding to
-        // `arrays` also makes the scalar hoist skip the plain-scalar facet
-        // (no redefinition). Corpus has no such call → byte-neutral.
+        // position): the call site emits `&x_arr, &xb_ub_x_arr`, so the caller
+        // needs an independent pointer+UBOUND pair even with no array `Dim`.
+        // Any existing scalar facet remains separate. The promoted-local
+        // three-engine differential locks this path.
         let mut fwd: Vec<(String, ValueType)> = Vec::new();
         crate::c_emit_hoist::collect_descriptor_forwards(items, &mut fwd);
         let param_names: HashSet<&str> = params.iter().map(|p| p.name.as_str()).collect();
@@ -1145,6 +1158,14 @@ pub(crate) fn is_dual_use(name: &str) -> bool {
 /// `UBOUND` `*xb_ub_x`, `REDIM` via realloc (docs/18).
 pub(crate) fn is_descriptor_param(name: &str) -> bool {
     FN_DESC.with(|s| s.borrow().contains(name))
+}
+
+/// True if `name` is a descriptor-forwarded local of the current function: a
+/// caller-owned `_arr` heap cell for a name passed `@x[]` to a descriptor
+/// position with no array `Dim` here. The cell is NULL until some callee
+/// allocates through the descriptor; reads must guard (docs/18).
+pub(crate) fn is_descriptor_local(name: &str) -> bool {
+    FN_DESC_LOCALS.with(|s| s.borrow().contains(name))
 }
 
 /// The raw C array name `xb_var_x`/`xb_str_x` (+`_arr` if dual-use), WITHOUT the

@@ -8,8 +8,8 @@ DIM pos
 DIM ch
 DIM ntok
 DIM done
-DIM tt$(65536)
-DIM tv$(65536)
+DIM tt$(131072)
+DIM tv$(131072)
 DIM tpos
 DIM indent
 DIM i

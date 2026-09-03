@@ -4215,7 +4215,7 @@ fn cemitter_and_cgen_agree_on_byref_redim_minimal() {
         .expect("parse byref_redim program")
         .lower_ir()
         .expect("lower byref_redim program");
-    let ir = TextIrEmitter::new().emit_program(&prog);
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
 
     let rust_c = CEmitter::new().emit_program(&prog);
     let rust_out = compile_and_exec(&tmp, "byref_rust", rust_c.as_bytes(), None);
@@ -4237,6 +4237,323 @@ fn cemitter_and_cgen_agree_on_byref_redim_minimal() {
     assert_eq!(
         self_out, interp_out,
         "cgen.x mishandled byref REDIM (descriptor spike)"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// REDIM-through-byref with different function, callee-param, and caller-var
+/// names proves cgen.x descriptor dispatch is positional, not name-based.
+/// `Expand(123, @payload[], newSize)` expands second-position callee param
+/// `data`, preserving existing content and zero-filling the grown tail.
+#[test]
+fn cemitter_and_cgen_agree_on_byref_redim_generalized() {
+    let tmp = std::env::temp_dir().join("xb_sync_byref_redim_gen");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               DECLARE FUNCTION Expand (tag, @data[], newSize)\n\
+               FUNCTION Main\n\
+               DIM payload[3]\n\
+               payload[0] = 10\n\
+               payload[1] = 20\n\
+               payload[2] = 30\n\
+               Expand(123, @payload[], 6)\n\
+               PRINT \"ub=\"; UBOUND(payload[])\n\
+               FOR i = 0 TO UBOUND(payload[])\n\
+               PRINT \"d\"; i; \"=\"; payload[i]\n\
+               NEXT\n\
+               END FUNCTION\n\
+               FUNCTION Expand (tag, @data[], newSize)\n\
+               REDIM data[newSize]\n\
+               data[newSize] = 77\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byref_redim_gen program")
+        .lower_ir()
+        .expect("lower byref_redim_gen program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+    assert!(
+        ir.contains(
+            "facet Data:integer scope=Expand storage=param rank=1 dual=0 descriptor=1 position=1"
+        ),
+        "descriptor facet omitted the callee-owned argument position:\n{ir}"
+    );
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byref_redim_gen_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byref_redim_gen_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byref_redim_gen program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "ub=6\nd0=10\nd1=20\nd2=30\nd3=0\nd4=0\nd5=0\nd6=77\n",
+        "byref_redim_gen reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled generalized byref REDIM"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled generalized byref REDIM (descriptor generalization)"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// A scalar local forwarded to a descriptor position is promoted to an
+/// independent `_arr` heap cell. REDIM writes the array cell back without
+/// overwriting the caller's scalar facet.
+#[test]
+fn cemitter_and_cgen_agree_on_byref_redim_promoted_local() {
+    let tmp = std::env::temp_dir().join("xb_sync_byref_redim_promoted");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               DECLARE FUNCTION Expand (tag, @data[], newSize)\n\
+               FUNCTION Main\n\
+               payload = 7\n\
+               Expand(123, @payload[], 2)\n\
+               PRINT \"scalar=\"; payload\n\
+               PRINT \"ub=\"; UBOUND(payload[])\n\
+               FOR i = 0 TO UBOUND(payload[])\n\
+               PRINT \"d\"; i; \"=\"; payload[i]\n\
+               NEXT\n\
+               END FUNCTION\n\
+               FUNCTION Expand (tag, @data[], newSize)\n\
+               REDIM data[newSize]\n\
+               data[0] = 42\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byref_redim_promoted program")
+        .lower_ir()
+        .expect("lower byref_redim_promoted program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byref_redim_promoted_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byref_redim_promoted_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byref_redim_promoted program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "scalar=7\nub=2\nd0=42\nd1=0\nd2=0\n",
+        "byref_redim_promoted reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled a promoted descriptor local"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled a promoted descriptor local"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// A forwarded local whose callee never allocates (early return before any
+/// `DIM`) has no array storage back in the caller. The interpreter falls back
+/// to the scalar cell: integer `UBOUND` is -1 and elements read 0; string
+/// `UBOUND` is `LEN-1` and elements read empty; the scalar itself and `IFZ`
+/// keep scalar semantics. Both C emitters guard the `_arr` read with a NULL
+/// check so the never-allocated case yields the type default instead of
+/// faulting (aprofile `StringsToStringArray` early return in stub envs).
+#[test]
+fn cemitter_and_cgen_agree_on_byref_forwarded_unallocated_fallback() {
+    let tmp = std::env::temp_dir().join("xb_sync_byref_fwd_unalloc");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               DECLARE FUNCTION Maybe (@a[], flag)\n\
+               DECLARE FUNCTION MaybeS (@s$[], flag)\n\
+               FUNCTION Main\n\
+               payload = 7\n\
+               Maybe(@payload[], 0)\n\
+               PRINT \"int ub=\"; UBOUND(payload[])\n\
+               PRINT \"int d0=\"; payload[0]\n\
+               PRINT \"int scalar=\"; payload\n\
+               IFZ payload[] THEN PRINT \"int ifz=true\" ELSE PRINT \"int ifz=false\"\n\
+               s$ = \"hello\"\n\
+               MaybeS(@s$[], 0)\n\
+               PRINT \"str ub=\"; UBOUND(s$[])\n\
+               PRINT \"str d0=\"; s$[0]\n\
+               PRINT \"str scalar=\"; s$\n\
+               IFZ s$[] THEN PRINT \"str ifz=true\" ELSE PRINT \"str ifz=false\"\n\
+               END FUNCTION\n\
+               FUNCTION Maybe (@a[], flag)\n\
+               IFZ flag THEN RETURN\n\
+               DIM a[2]\n\
+               a[0] = 42\n\
+               END FUNCTION\n\
+               FUNCTION MaybeS (@s$[], flag)\n\
+               IFZ flag THEN RETURN\n\
+               DIM s$[2]\n\
+               s$[0] = \"hi\"\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byref_fwd_unalloc program")
+        .lower_ir()
+        .expect("lower byref_fwd_unalloc program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byref_fwd_unalloc_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byref_fwd_unalloc_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byref_fwd_unalloc program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out,
+        "int ub=-1\nint d0=0\nint scalar=7\nint ifz=false\nstr ub=4\nstr d0=\nstr scalar=hello\nstr ifz=false\n",
+        "byref_fwd_unalloc reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled a never-allocated forwarded local"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled a never-allocated forwarded local"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// String-array REDIM-through-byref: `GrowStr(@items$[], newSize)` REDIMs a
+/// string array, preserving existing strings and filling the tail with empty
+/// strings. Tests the descriptor path for string arrays.
+#[test]
+fn cemitter_and_cgen_agree_on_byref_redim_string_array() {
+    let tmp = std::env::temp_dir().join("xb_sync_byref_redim_str");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               DECLARE FUNCTION GrowStr (@items$[], newSize)\n\
+               FUNCTION Main\n\
+               DIM items$[2]\n\
+               items$[0] = \"alpha\"\n\
+               items$[1] = \"beta\"\n\
+               items$[2] = \"gamma\"\n\
+               GrowStr(@items$[], 4)\n\
+               PRINT \"ub=\"; UBOUND(items$[])\n\
+               FOR i = 0 TO UBOUND(items$[])\n\
+               PRINT items$[i]\n\
+               NEXT\n\
+               END FUNCTION\n\
+               FUNCTION GrowStr (@items$[], newSize)\n\
+               REDIM items$[newSize]\n\
+               items$[newSize] = \"delta\"\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byref_redim_str program")
+        .lower_ir()
+        .expect("lower byref_redim_str program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byref_redim_str_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byref_redim_str_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byref_redim_str program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "ub=4\nalpha\nbeta\ngamma\n\ndelta\n",
+        "byref_redim_str reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled string-array byref REDIM"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled string-array byref REDIM"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// Two-dimensional REDIM-through-byref resizes the flattened row-major store,
+/// preserves the common prefix, and updates the caller's UBOUND. The trailing
+/// dimension stays unchanged because the docs/18 descriptor carries `(data, ub)`
+/// but no per-dimension shape; changing that stride is a separate ABI revision.
+#[test]
+fn cemitter_and_cgen_agree_on_byref_redim_two_dimensional() {
+    let tmp = std::env::temp_dir().join("xb_sync_byref_redim_2d");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               DECLARE FUNCTION Grow2D (@matrix[], rows, cols)\n\
+               FUNCTION Main\n\
+               DIM matrix[1,2]\n\
+               matrix[0,0] = 11\n\
+               matrix[0,1] = 12\n\
+               matrix[1,2] = 23\n\
+               Grow2D(@matrix[], 2, 2)\n\
+               PRINT \"ub=\"; UBOUND(matrix[])\n\
+               PRINT \"m00=\"; matrix[0,0]\n\
+               PRINT \"m01=\"; matrix[0,1]\n\
+               PRINT \"m12=\"; matrix[1,2]\n\
+               PRINT \"m21=\"; matrix[2,1]\n\
+               PRINT \"m22=\"; matrix[2,2]\n\
+               END FUNCTION\n\
+               FUNCTION Grow2D (@matrix[], rows, cols)\n\
+               REDIM matrix[rows,cols]\n\
+               matrix[2,2] = 99\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byref_redim_2d program")
+        .lower_ir()
+        .expect("lower byref_redim_2d program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byref_redim_2d_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byref_redim_2d_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byref_redim_2d program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "ub=8\nm00=11\nm01=12\nm12=23\nm21=0\nm22=99\n",
+        "byref_redim_2d reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled two-dimensional byref REDIM"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled two-dimensional byref REDIM"
     );
     let _ = fs::remove_dir_all(&tmp);
 }

@@ -99,9 +99,18 @@ Work packages (canonical open rows live in docs/17):
    appends ` composite PT` suffix only when the function has no explicit
    `RETURN` — xcol.x `FUNCTION TOKEN AddLabel(...)` with explicit `RETURN`
    is a type annotation, not a real composite return.
-   Remaining: by-ref descriptors including REDIM-through-byref (minimal lock
-   exists). General composite-array by-ref remains
-   governed by docs/18.
+   REDIM-through-byref is locked across six three-engine differentials
+   (`..._byref_redim_minimal/generalized/promoted_local/string_array/
+   two_dimensional/forwarded_unallocated_fallback`): positional `(data, ub)`
+   dispatch by callee argument index, content-preserving string/2-D REDIM
+   through the descriptor, scalar/array split for descriptor params used as
+   scalars, and NULL-guarded reads with scalar fallbacks when the callee never
+   allocates. Self-hosted `cgen.x` compiles all 15 core libs cc-clean, and the
+   native compiler's 64K token tables are raised to 128K (`compiler.x`,
+   locked by `native_compiler_emits_cgen_ir_for_cgen`). Remaining: general
+   composite-array by-ref, and 2-D stride tracking for forwarded locals
+   (first-index fallback matches the reference emitter for now).
+   Composite-array by-ref remains governed by docs/18.
 4. **Resolve remaining memory/runtime contracts.** Decide real `ATTACH`
    aliasing versus the documented bounded copy model, and implement required
    C-library time/file helpers against observable programs rather than stubs.

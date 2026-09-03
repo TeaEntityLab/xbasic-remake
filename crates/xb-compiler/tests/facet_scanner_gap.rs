@@ -252,15 +252,11 @@ fn facet_header_covers_cgen_scanner_facts_ratchet() {
         let name = path.strip_prefix(&r).unwrap_or(path).display().to_string();
         let facets = parse_facets(&ir);
 
-        // (1) allStrArr: any non-shared string array DIM, program-wide. The
-        // scanner's `shared X` entries are dead (never match a `:name:` probe),
-        // so compare the effective set: names without a space. Facets with
-        // `byref=1` are descriptor-forwarded locals with no array DIM in that
-        // scope (emitter `desc_locals`) and are not DIM facts.
-        let s_strarr: BTreeSet<String> = scan_all_strarr(&ir)
-            .into_iter()
-            .filter(|n| !n.contains(' '))
-            .collect();
+        // (1) allStrArr: any non-shared, non-parameter string-array DIM.
+        // The legacy scanner also sees a parameter's in-body DIM/REDIM, but
+        // parameter storage is owned by the signature/descriptor path and is
+        // not an effective allStrArr fact. Remove names that are param-only;
+        // retain a name when another scope has real local array storage.
         let f_strarr: BTreeSet<String> = facets
             .iter()
             .filter(|f| {
@@ -271,6 +267,16 @@ fn facet_header_covers_cgen_scanner_facts_ratchet() {
                     && !f.byref
             })
             .map(|f| f.name.clone())
+            .collect();
+        let f_param_strarr: BTreeSet<String> = facets
+            .iter()
+            .filter(|f| f.ty == "string" && f.rank >= 1 && f.storage == "param")
+            .map(|f| f.name.clone())
+            .collect();
+        let s_strarr: BTreeSet<String> = scan_all_strarr(&ir)
+            .into_iter()
+            .filter(|n| !n.contains(' '))
+            .filter(|n| !f_param_strarr.contains(n) || f_strarr.contains(n))
             .collect();
         all_strarr.diff(&name, &s_strarr, &f_strarr);
 
