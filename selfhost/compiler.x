@@ -554,7 +554,9 @@ WHILE tpos <= ntok
       IF v$ = "IF" THEN
         ' GUARD-UNDERFLOW: a stray END IF with no open IF (ifSP = 0) must not
         ' pop ifStack OOB (ASLR garbage into ifDepth = nondeterministic end-if
-        ' floods). Skip it, exactly as the Rust frontend does in permissive mode.
+        ' floods). Skip it, matching the Rust parser's unconditional orphan-END IF
+        ' drop (parser.rs starts_end_if arm). Only this block-END IF path is
+        ' guarded; the single-line-IF pop at the loop head is not (docs/16 P6).
         IF ifSP >= 1 THEN
           k = ifDepth
           WHILE k >= 1

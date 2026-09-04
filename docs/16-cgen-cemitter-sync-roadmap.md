@@ -205,27 +205,63 @@ edge), documented and non-crashing.
 ### CG-SELFHOST-DETERMINISM — three extra `END IF`s made selfhosted compile nondeterministic ✅ done `[2026-09-04]`
 Compiling `cgen.x` with the selfhosted `compiler.x` binary was nondeterministic: identical
 inputs produced byte-identical output most runs but occasional multi-hundred-MB floods of bare
-`end if` lines (or hangs), and downstream core-lib `cc` failures (`xit.c` undeclared
-`xb_str_text_s_arr`, `xgr.c`/`xst.c` undeclared `xb_ub_*`, `xit.c`/`xui.c` redefinitions) that
-looked like real descriptor-lowering bugs but were flood artifacts — the whole sync suite
-(85/85) passes with no lowering change once the flood is gone.
-Root cause: three functions in `selfhost/cgen.x` each carried one unmatched `END IF`
-(`scan_mixed_byref$`, `scan_dynstr$` — both pre-existing — plus one off-by-one in the new
-`scan_attach_groups$` close cascade). The Rust frontend tolerates extras in permissive mode
-(verified: Rust-emitted IR is byte-identical before/after), but `compiler.x` counts
-`IF`/`END IF` on an `ifStack` with no underflow guard, so each extra `END IF` pops garbage
-(ASLR-dependent heap contents) into `ifDepth`; a positive garbage depth makes the `END IF`
-handler print millions of closers. Fix: delete the three dead `END IF`s (3-line diff, Rust
-IR-neutral by construction). Verified: 5/5 byte-identical self-compiles with zero underflows,
+`end if` lines (or hangs). Independently reproduced by the 2026-09-04 review panel: the
+unguarded `compiler.x` on the pre-fix `cgen.x` emitted 745 MB / 113 M bare `end if` lines in
+~18 s before being killed.
+Root cause: three functions in `selfhost/cgen.x` each carried one unmatched `END IF` —
+`scan_mixed_byref$` and `scan_dynstr$` (blame-confirmed pre-existing: `4e19a4ff` 2026-08-23
+and `60a12f3e` 2026-08-22) plus one off-by-one in the new `scan_attach_groups$` close cascade
+(`6f16ef2e`). The Rust **parser** unconditionally drops an orphaned `END IF` (the
+`starts_end_if` arm in `crates/xb-frontend/src/parser.rs` returns an empty `Compound`; this is
+NOT governed by the semantics `permissive` flag, which only relaxes type checking), so the
+Rust-emitted IR was byte-identical before and after the deletions (measured: SHA-256
+`197c77bf…d992bed` both sides; identity is empirical per site, not "by construction" — the
+attach-cascade deletion re-pairs consecutive closers without moving any statement's scope).
+`compiler.x` counts `IF`/`END IF` on an `ifStack` with no underflow guard, so each extra
+`END IF` popped garbage (ASLR-dependent heap contents) into `ifDepth`; a positive garbage
+depth makes the `END IF` handler print millions of closers. Fix: delete the three surplus
+closers (3-line diff). Verified: 5/5 byte-identical self-compiles with zero underflows;
 `cgen_x_compiles_core_libs_floor_9_cc_clean` and `cgen_x_compiles_all_demos_cc_clean` green.
+Attribution correction (panel): the same-session core-lib `cc` failures (`xit.c` undeclared
+`xb_str_text_s_arr`, `xgr.c`/`xst.c` undeclared `xb_ub_*`, `xit.c`/`xui.c` redefinitions)
+were NOT flood artifacts — the sync suite builds its `cgen` from the Rust `CEmitter` and never
+runs `compiler.x`, so the flood cannot reach it. Those failures were resolved by the
+descriptor-lowering changes in `9f8817e` (M1-DESCRIPTOR-REDIM), 29 commits earlier.
 Lesson: chase `cc` failures in `cgen.x` output only from a known-deterministic compile —
 re-run the self-compile a few times and `cmp` before treating an error as structural.
-Follow-up hardening (`compiler.x` `GUARD-UNDERFLOW`): the `END IF` handler now skips the
+Follow-up hardening (`compiler.x` `GUARD-UNDERFLOW`): the block-`END IF` handler now skips the
 pop/print when `ifSP = 0` instead of reading `ifStack` out of bounds — byte-identical to the
-Rust frontend's permissive skip (verified: guarded-vs-original output `diff`-clean on all of
-`cgen.x`, and byte-equal to Rust IR on stray-`END IF` probes), turning any future stray from
-intermittent UB into deterministic output. No stderr/diagnostic channel exists in `compiler.x`
-(`PRINT` is the IR stream), so detection of future strays stays with the gates, not the guard.
+Rust parser's orphan drop whenever the stray meets `ifSP = 0` (verified: guarded-vs-original
+output `diff`-clean on all of `cgen.x`; byte-equal to Rust IR on stray-`END IF` probes). The
+guard covers only that path: the single-line-`IF` closure at the loop head still pops
+unconditionally (`IF 1 THEN END IF` reaches `ifSP = -1` and emits one extra `end if`; nested
+single-line `IF 1 THEN IF 1 THEN PRINT 1` drops the outer closer — both reproduced, both
+pre-existing, neither present in the selfhost corpus), `ifSP` is not reset at `END FUNCTION`,
+and `ifStack(64)` has no overflow guard (measured max nesting 20). No stderr/diagnostic
+channel exists in `compiler.x` (`PRINT` is the IR stream), and no current gate can detect a
+stray that both frontends drop identically (`verify-bootstrap.sh` L118 compares native IR to
+Rust IR, which drops the stray too). See the Candidate Adoption Ledger below.
+Verification correction (found while re-running the gate for the panel edits): the guard
+commit `51e7eb2` changed `compiler.x`'s own IR, so the golden
+`fixtures/corpus/v0.1/selfhost/compiler.ir` went stale and `corpus_v0_1_is_valid_and_executable`
+failed inside `verify-bootstrap.sh`'s debug-suite step. The commit message's "verify-bootstrap
+exit 0" was `tail`'s exit status in a `script | tail; echo $?` pipeline, not the script's — the
+run never printed `verify-bootstrap: ok`. Golden regenerated from `xb --emit-ir` (diff is
+exactly the guard hunk, precedent `5819d6e`); gate re-run with the script's own exit captured.
+Rule: capture gate exit codes with `script > log; echo $?`, never through a pipe.
+
+#### Candidate Adoption Ledger — 2026-09-04 panel (devin/glm-5.2, codex/gpt-5.6-sol, claude/fable-5.1)
+
+| ID | Candidate | Status | Evidence | Next action / trigger |
+|---|---|---|---|---|
+| P1 | Replace "Rust permissive mode" wording with "unconditional parser orphan-`END IF` drop" (docs/16, `compiler.x` comment) | adopted | `parser.rs` `starts_end_if` arm; `semantics.rs` `permissive` gates type checks only — all 3 lenses | — |
+| P2 | Downgrade "cc failures were flood artifacts" to the `9f8817e` attribution | adopted | `NATIVE_CGEN` in `cgen_cemitter_sync.rs` builds via Rust `CEmitter`; `git log -S is_array_position` → `9f8817e` | — |
+| P3 | Upgrade "pre-existing" from inference to blame-confirmed | adopted | `git blame 3f558ce~1 -L 6149 / -L 8188` | — |
+| P4 | Narrow guard claim to the block-`END IF` path; record single-line counterexamples | adopted | `IF 1 THEN END IF` and nested single-line probes reproduced by codex and coordinator | — |
+| P5 | Parser-side orphan-`END IF` counter asserted zero over `selfhost/*.x` (named contract: "the bootstrap corpus never exercises either frontend's orphan-drop path") | deferred | 3/3 lenses: no current gate sees a stray both stages drop | implement with the next `selfhost/*.x` structural change or CGEN-FACET-MANIFEST slice |
+| P6 | Guard/redesign the single-line-`IF` pop (`singleLineIf` scalar → per-IF state) | deferred | counterexamples above; pre-existing; absent from corpus (gates green) | trigger: any selfhost source adopting single-line `IF … THEN` with nested/empty bodies |
+| P7 | Symmetric overflow guard for `ifStack(64)` | deferred | max nesting 20 measured (codex + coordinator scans) | trigger: nesting > 48 appears in any `selfhost/*.x` |
+| P8 | "Compile twice, `cmp`" determinism test | rejected | adds a second sample only; P5 is the real guard (claude); codex dissents (wants it alongside probes) | revisit only if P5 is not adopted |
 
 ## 5. Verification
 
