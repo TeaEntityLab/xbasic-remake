@@ -111,16 +111,32 @@ Work packages (canonical open rows live in docs/17):
    composite-array by-ref, and 2-D stride tracking for forwarded locals
    (first-index fallback matches the reference emitter for now).
    Composite-array by-ref remains governed by docs/18.
-4. **Resolve remaining memory/runtime contracts.** `ATTACH` aliasing DECIDED
-   (2026-09-04 M1-ATTACH-ALIAS): real ATTACH shares storage — the ary.x
-   row-growth idiom (extract → REDIM view → write back) is impossible under
-   the bounded-copy model, and in-repo analysis agrees (docs/17 MIG-ARY).
-   Interpreter reference landed (view links + REDIM-through-view row splice,
-   locked by four `attach_*` interp tests; the five copy cases pass unchanged
-   since they assert immediates). Remaining: Rust CEmitter + cgen.x alias
-   emission (C design: pointer + shared-ub alias sets with realloc-all on
-   REDIM; unowned across calls like the interp), then ary.x runtime. Also
-   implement required C-library time/file helpers against observable programs
+4. **Resolve remaining memory/runtime contracts.** `ATTACH` semantics DECIDED
+   (2026-09-04 decision reversal): `ATTACH` is **move semantics** (ownership
+   transfer), NOT aliasing views and NOT bounded copy. Upstream authority
+   `xbasic/helpsrc/help_text/lang.txt:57-62`:
+   > "ATTACH arrayNode TO arrayNode — Move an array from source node to
+   > destination node. If the destination node is not empty a runtime error
+   > occurs. After the array is moved to the destination node, the source node
+   > is made empty."
+   And `lang.txt:2244-2260` (`DIM d[3,]` + `ATTACH x[] TO d[0]` where `x[11]`,
+   `y[15]`, `z[31]` give `UBOUND(d[0,])=11, d[1,]=15, d[2,]=31, d[3,]=-1`):
+   trailing-comma higher dimensions are jagged arrays of independent (ptr, ub)
+   cells (confirming `aarray.x` L56-82 and L127-134 higher dimensions "hold
+   addresses").
+   The repo's earlier copy model (`c_emit_attach.rs` L3: "copies B's data into A")
+   reversed operand direction, and the 2026-09-04 alias attempt (`M1-ATTACH-ALIAS`,
+   `M1-CATTACH-*`) assumed a rectangular contiguous layout with stride-widening
+   splices and alias group repointing. Under real legacy move semantics, the `ary.x`
+   idiom (`DIM a[]` → `ATTACH bufferIndex[charCode,] TO a[]` → `REDIM a[...]` →
+   `ATTACH a[] TO bufferIndex[charCode,]`) is trivial: move row out into `a[]`
+   (leaving row empty), `REDIM a[...]` via standard 1-D realloc/preserve, and
+   move back into the empty row — no strides, no group realloc, no view links.
+   The existing locks (`cemitter_attach_copy_semantics_match_interp`,
+   `..._dynamic_trailing_comma_dim`, `attach_*` interp tests, whole-array alias
+   tests) assert interp==C, not legacy; they will be re-derived from `lang.txt`
+   test contracts.
+   Also implement required C-library time/file helpers against observable programs
    rather than stubs.
 5. **Run the modularization gate after scanner retirement.** Measure the
    reduced `cgen.x` dependency graph, then choose deterministic fragments,
