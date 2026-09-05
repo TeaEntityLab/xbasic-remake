@@ -5578,6 +5578,69 @@ fn cemitter_and_cgen_agree_on_byval_two_descriptor_redim() {
 }
 
 #[test]
+fn cemitter_and_cgen_agree_on_byval_two_string_descriptor_redim() {
+    // String twin of the twin-descriptor lock: two `&(char**)` copy
+    // cells plus two et=2 deep copies in one argument list. Crosses
+    // the temporary-lifetime interaction with per-element strdup.
+    let tmp = std::env::temp_dir().join("xb_sync_byval_str_desc_two");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               STRING a$[]\n\
+               STRING b$[]\n\
+               DIM a$[1]\n\
+               DIM b$[0]\n\
+               a$[0] = \"aa\"\n\
+               a$[1] = \"bb\"\n\
+               b$[0] = \"cc\"\n\
+               W(a$[], b$[])\n\
+               PRINT UBOUND(a$[])\n\
+               PRINT UBOUND(b$[])\n\
+               END FUNCTION\n\
+               FUNCTION W (STRING x$[], STRING y$[])\n\
+               REDIM x$[5]\n\
+               REDIM y$[2]\n\
+               x$[0] = \"xx\"\n\
+               y$[0] = \"yy\"\n\
+               PRINT UBOUND(x$[])\n\
+               PRINT UBOUND(y$[])\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byval_str_desc_two program")
+        .lower_ir()
+        .expect("lower byval_str_desc_two program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byval_str_desc_two_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byval_str_desc_two_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byval_str_desc_two program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "5\n2\n1\n0\n",
+        "byval_str_desc_two reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled twin string by-value REDIM copies"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled twin string by-value REDIM copies"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+#[test]
 fn cemitter_and_cgen_agree_on_byval_descriptor_chain_copy() {
     // Descriptor source passed by value to a descriptor callee
     // (`Mid(@m[])` calls `Leaf(m[])`, `Leaf` REDIMs): cgen.x must take
