@@ -252,10 +252,7 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
   (`scan_dual_use$`, already use-based) are union-untouched. Locked by
   `cgen_strdual_union::cgen_strdual_facet_union_decl_shape` (ubound `s$`,
   arecurse `file$`, xgrids `list$`). `scan_str_dual$` stays as the headerless
-  fallback; deletion still blocked on compiler.x emitting facets. Residual:
-  per-scope precision (`##strDual$` is program-global, facet dual per-scope;
-  qbtoxb `text$`/`xb$`/`xbasic$` and xui `start$` stay under on param/shared
-  facets) needs consumers moved to `facets_in_scope$` (RR-03 pattern).
+  fallback; deletion still blocked on compiler.x emitting facets. Adjudicated 2026-09-06 (throwaway decl-shape probe, removed after): all 16 sampled under-names are architecturally correct non-splits, not missed splits — 10× shared file-scope globals (`errSymbol$`, `ufont$`, `variableSaved$`, `errorNature$`, `errorObject$`, `exception$`, `fileInfo.fileName`, `export$`, `import$`, `helpText$`; Rust splits locally, cgen.x uses globals), 4× descriptor-forwarded caller-owned cells (`backupList$`, `dir$`, xcol `file$`, `start$`: `storage=dyn ... byref=1`, array-only is correct), 1× dotted member under a different lowering, 1× param; 2 sampled names (`copy.name`, xit `symbol$`) already agree post-union. Per-scope `facets_in_scope$` migration would change no correct output: residual closed as irreducible.
 
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` asserts
   per-program byte-identical emitted C; the header must not break this.
