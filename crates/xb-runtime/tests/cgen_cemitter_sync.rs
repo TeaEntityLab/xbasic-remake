@@ -5456,6 +5456,64 @@ fn cemitter_and_cgen_agree_on_byval_string_to_descriptor_redim() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+#[test]
+fn cemitter_and_cgen_agree_on_byval_to_descriptor_redim_second_position() {
+    // Positional twin of the descriptor-copy lock: the array sits at
+    // callee position 1 behind a scalar. Guards `param_descriptor.get(i)`
+    // (Rust) / `is_desc_position$(fn, ##curCallArg)` (cgen.x) against
+    // position-0 hardcoding or 0/1-based confusion.
+    let tmp = std::env::temp_dir().join("xb_sync_byval_desc_pos1");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM a[1]\n\
+               a[0] = 3\n\
+               a[1] = 4\n\
+               W(123, a[])\n\
+               PRINT a[0]\n\
+               PRINT UBOUND(a[])\n\
+               END FUNCTION\n\
+               FUNCTION W (XLONG n, XLONG w[])\n\
+               PRINT n\n\
+               REDIM w[5]\n\
+               w[0] = 30\n\
+               PRINT UBOUND(w[])\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byval_desc_pos1 program")
+        .lower_ir()
+        .expect("lower byval_desc_pos1 program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byval_desc_pos1_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byval_desc_pos1_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byval_desc_pos1 program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "123\n5\n3\n1\n",
+        "byval_desc_pos1 reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled by-value REDIM copy at position 1"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled by-value REDIM copy at position 1"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// REDIM-through-byref with different function, callee-param, and caller-var
 /// names proves cgen.x descriptor dispatch is positional, not name-based.
 /// `Expand(123, @payload[], newSize)` expands second-position callee param
