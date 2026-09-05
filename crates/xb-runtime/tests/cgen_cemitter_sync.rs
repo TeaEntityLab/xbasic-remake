@@ -2977,6 +2977,65 @@ fn cemitter_and_cgen_agree_on_byref_array_to_scalar_split() {
     );
     let _ = fs::remove_dir_all(&tmp);
 }
+
+/// Shared-shadow forward split (documented divergence, no action): with
+/// both `DIM SHARED S[]` and a local `DIM S[1]`, the C backends resolve
+/// `@S[]` to the local shadow (callee sees 3+4, writeback visible:
+/// `7\n30\n`) while the interpreter resolves to the shared slot (empty:
+/// `0\n3\n`). Local-shadows-shared is standard BASIC scoping; changing the
+/// interpreter's resolver is out of scope (central path, unknown legacy
+/// rule). Locks current behavior on all three sides against silent drift.
+#[test]
+fn cemitter_and_cgen_agree_on_shared_shadow_forward_split() {
+    let tmp = std::env::temp_dir().join("xb_sync_shared_shadow");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"shs\"\n",
+        "VERSION \"0.1\"\n",
+        "DIM SHARED S[]\n",
+        "FUNCTION Main ()\n",
+        "DIM S[1]\n",
+        "S[0] = 3\n",
+        "S[1] = 4\n",
+        "W(@S[])\n",
+        "PRINT S[0]\n",
+        "END FUNCTION\n",
+        "FUNCTION W (XLONG w[])\n",
+        "PRINT w[0] + w[1]\n",
+        "w[0] = 30\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse shadow program")
+        .lower_ir()
+        .expect("lower shadow program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "shs_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "shs_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret shadow program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "0\n3\n", "shadow reference output");
+    assert_eq!(
+        rust_out, "7\n30\n",
+        "CEmitter shadow-forwarding contract changed"
+    );
+    assert_eq!(
+        self_out, "7\n30\n",
+        "cgen.x shadow-forwarding must match the C-model (7/30)"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
 /// String alias-then-append (value semantics): `y$ = x$` duplicates (both
 /// emitters `xb_strdup` on assign), so a later in-place `xb_append` on `x$`
 /// (Rust's `x = x + ...` chain optimization; cgen.x emits `xb_concat`)
