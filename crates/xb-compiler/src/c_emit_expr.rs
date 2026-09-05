@@ -971,6 +971,37 @@ pub(crate) fn emit_call_args(name: &str, args: &[IrExpr], out: &mut String) {
                     _ => {}
                 }
             }
+            // By-value whole-array arg to an array/pointer param: the interpreter
+            // copies (p0 7/3, composite 7/3/6; CGEN-COMPOSITE-BYVAL precedent).
+            // The scalar facet would otherwise shadow the array data (cc
+            // int-to-pointer error, or silent 0/null under -w). Pass a fresh
+            // heap copy; callee writes die here. Fires only when an array
+            // facet exists (dual + dyn/shared/descriptor/array-DIM, fixed or
+            // heap); scalar-DIM-only duals keep the fold path, non-dual
+            // arrays already decay.
+            if !matches!(&arg.kind, IrExprKind::ByRef(_)) {
+                let whole: Option<&IrSymbol> = match &arg.kind {
+                    IrExprKind::Symbol(s) | IrExprKind::SharedVariable(s) => Some(s),
+                    _ => None,
+                };
+                if let Some(s) = whole {
+                    if crate::c_emit::is_dual_use(&s.name)
+                        && (crate::c_emit::is_dyn_array(&s.name)
+                            || crate::c_emit::is_shared_array(&s.name)
+                            || crate::c_emit::is_descriptor_param(&s.name)
+                            || crate::c_emit::has_array_dim(&s.name))
+                    {
+                        out.push_str("xb_array_copy((const void*)");
+                        crate::c_emit::emit_array_var_name(s, out);
+                        out.push_str(", ");
+                        emit_array_len(s, out);
+                        out.push_str(", ");
+                        out.push_str(array_et(s.value_type));
+                        out.push(')');
+                        continue;
+                    }
+                }
+            }
         }
         emit_expr(arg, out);
     }

@@ -23,6 +23,16 @@ pub(crate) fn emit_header(out: &mut String) {
     );
     out.push_str("static char* xb_from_cstr(const char* s) { if (!s) s = \"\"; size_t n = strlen(s); char* d = xb_alloc(n); if (n) memcpy(d, s, n); return d; }\n");
     out.push_str("static char* xb_strdup(const char* s) { int n = xb_len(s); char* d = xb_alloc((size_t)n); if (n) memcpy(d, s, (size_t)n); return d; }\n");
+    // Fresh-heap array copy for by-value whole-array call args. Unconditional
+    // (mirrors cgen.x core prelude position after xb_strdup): the helper
+    // parity test requires identical unconditional helper sets.
+    out.push_str("static void* xb_array_copy(const void* src, intptr_t len, int et) {\n");
+    out.push_str("    if (len <= 0 || !src) return 0;\n");
+    out.push_str("    uint64_t* dst = (uint64_t*)malloc((size_t)len * 8); if (!dst) return 0;\n");
+    out.push_str("    if (et == 2) { for (intptr_t k = 0; k < len; k++) dst[k] = (uint64_t)(intptr_t)xb_strdup((const char*)((uint64_t*)src)[k]); }\n");
+    out.push_str("    else { memcpy(dst, src, (size_t)len * 8); }\n");
+    out.push_str("    return dst;\n");
+    out.push_str("}\n");
     out.push_str("static char* xb_str(const char* s) { return xb_from_cstr(s); }\n");
     out.push_str("static char* xb_concat(const char* a, const char* b) {\n");
     out.push_str("    int la = xb_len(a), lb = xb_len(b);\n");

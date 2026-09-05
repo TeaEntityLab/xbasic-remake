@@ -43,6 +43,11 @@ thread_local! {
     /// will actually contain (a `LabelAddress`/`goto` to any other name would be
     /// an undeclared C label; the interpreter yields 0 / errors only if executed).
     static FN_UNDIMMED_ARRAYS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
+    /// Per-function emit context: names with an array `Dim`, array params, or
+    /// descriptor-owned storage in the current function. A dual-use name in
+    /// this set has a real `_arr` facet (fixed or heap); a dual-use name
+    /// outside it has only a scalar DIM and folds array uses (CGEN-DUALARR-DECL).
+    static FN_ARRAY_DIMMED: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
     /// MODULE-DIM-SCOPE: names hoisted to file scope by `emit_module_dims` —
     /// count as "dimmed" in every function context so accesses don't fold to
     /// undimmed-array defaults.
@@ -940,6 +945,11 @@ pub(crate) fn set_fn_context(
         set.clear();
         set.extend(refs.into_iter().filter(|n| !dimmed.contains(n)));
     });
+    FN_ARRAY_DIMMED.with(|s| {
+        let mut set = s.borrow_mut();
+        set.clear();
+        set.extend(dimmed.iter().cloned());
+    });
     FN_LABELS.with(|s| {
         let mut set = s.borrow_mut();
         set.clear();
@@ -1454,6 +1464,13 @@ pub(crate) fn is_dyn_array(name: &str) -> bool {
     // A module-shared array is a heap global (dyn pointer), so it always takes the
     // realloc/pointer path — never a stack fixed array (CGEN-SHARED-ARR).
     is_shared_array(name) || FN_DYN.with(|s| s.borrow().arrays.contains_key(name))
+}
+
+/// True if `name` has array storage in the current function: an array `Dim`,
+/// an array param, or descriptor-owned storage. A dual-use name here has a
+/// real `_arr` facet; outside it array uses fold (CGEN-DUALARR-DECL).
+pub(crate) fn has_array_dim(name: &str) -> bool {
+    FN_ARRAY_DIMMED.with(|s| s.borrow().contains(name))
 }
 
 /// The whole-array ATTACH alias group of `name` (sorted members, home first),

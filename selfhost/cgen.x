@@ -170,6 +170,13 @@ PRINT "static int xb_len(const char* s) { if (!s) return 0; return (int)((size_t
 PRINT "static size_t xb_cap(const char* s) { if (!s) return 0; return ((size_t*)s)[-1]; }"
 PRINT "static char* xb_from_cstr(const char* s) { if (!s) s = " + CHR$(34) + "" + CHR$(34) + "; size_t n = strlen(s); char* d = xb_alloc(n); if (n) memcpy(d, s, n); return d; }"
 PRINT "static char* xb_strdup(const char* s) { int n = xb_len(s); char* d = xb_alloc((size_t)n); if (n) memcpy(d, s, (size_t)n); return d; }"
+PRINT "static void* xb_array_copy(const void* src, intptr_t len, int et) {"
+PRINT "    if (len <= 0 || !src) return 0;"
+PRINT "    uint64_t* dst = (uint64_t*)malloc((size_t)len * 8); if (!dst) return 0;"
+PRINT "    if (et == 2) { for (intptr_t k = 0; k < len; k++) dst[k] = (uint64_t)(intptr_t)xb_strdup((const char*)((uint64_t*)src)[k]); }"
+PRINT "    else { memcpy(dst, src, (size_t)len * 8); }"
+PRINT "    return dst;"
+PRINT "}"
 PRINT "static char* xb_str(const char* s) { return xb_from_cstr(s); }"
 PRINT "static char* xb_concat(const char* a, const char* b) {"
 PRINT "    int la = xb_len(a), lb = xb_len(b);"
@@ -797,6 +804,7 @@ END IF
 ##funcHasArr$ = ","
 ##funcMixed$ = ","
 ##byrefParamSet$ = ""
+##arrParamPos$ = ""
 ##curCallFn$ = ""
 ' No-argument sentinel. Spelled `0 - 1`: the self-hosted compiler drops a
 ' unary minus in a shared initializer (emits an empty value).
@@ -1629,6 +1637,7 @@ PRINT ""
 ##funcMixed$ = scan_mixed_byref$(src$)
 ##byrefWB$ = scan_byref_wb$(src$)
 ##byrefParamSet$ = scan_byref_params$(src$)
+##arrParamPos$ = scan_arr_param_pos$(src$)
 ' Emit deferred forward declarations (now that ##byrefWB$ is set for pointer params)
 DIM _fdName$
 DIM _fdParams$
@@ -2545,6 +2554,15 @@ FUNCTION is_array_position$(fn$, position)
   END IF
 END FUNCTION
 
+' Declaration-scan twin of is_array_position$ (headerless-safe): the facet
+' ##arrayPositions$ is empty without headers.
+FUNCTION is_array_param_pos$(fn$, position)
+  is_array_param_pos$ = "0"
+  IF INSTR(##arrParamPos$, ":" + fn$ + ":" + STR$(position) + ":") > 0 THEN
+    is_array_param_pos$ = "1"
+  END IF
+END FUNCTION
+
 ' Descriptor rank from producer-owned facet metadata. Headerless IR has rank 0.
 FUNCTION desc_rank(fn$, param$)
   DIM pat$
@@ -3389,6 +3407,31 @@ FUNCTION emit_expr$(e$)
       emit_expr$ = arr_acc_name$(varName$, varType$)
       RETURN emit_expr$
     END IF
+    ' By-value whole-array arg to an array param (interp copies; mirrors the
+    ' Rust CEmitter xb_array_copy arm). The scalar facet would otherwise
+    ' shadow the array data. Fires for dual-use names with array storage at
+    ' a callee array position (facet table or declaration scan); scalar-
+    ' DIM-only duals keep folding. Callee writes die in the fresh copy.
+    IF LEN(##curCallFn$) > 0 AND ##curCallArg >= 0 AND (is_array_position$(##curCallFn$, ##curCallArg) = "1" OR is_array_param_pos$(##curCallFn$, ##curCallArg) = "1") THEN
+      IF (INSTR(##dualUse$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0) AND is_array_var_in_scope$(varName$) = "1" THEN
+        DIM cpData$
+        DIM cpUb$
+        DIM cpEt$
+        cpData$ = arr_acc_name$(varName$, varType$)
+        IF is_desc_param$(##curFnName$, varName$) = "0" AND INSTR(cpData$, "xb_str_") = 0 AND INSTR(cpData$, "_arr") = 0 THEN
+          cpData$ = "xb_var_" + sanitize_ident$(varName$) + "_arr"
+        END IF
+        cpUb$ = ub_ref$(varName$, varType$)
+        IF is_desc_param$(##curFnName$, varName$) = "0" AND INSTR(cpUb$, "_arr") = 0 THEN
+          cpUb$ = "xb_ub_" + sanitize_ident$(varName$) + "_arr"
+        END IF
+        cpEt$ = "0"
+        IF varType$ = "string" OR RIGHT$(varName$, 1) = "$" THEN cpEt$ = "2"
+        IF varType$ = "float" THEN cpEt$ = "1"
+        emit_expr$ = "xb_array_copy((const void*)" + cpData$ + ", (" + cpUb$ + " + 1), " + cpEt$ + ")"
+        RETURN emit_expr$
+      END IF
+    END IF
     IF INSTR(##strUbDual$, ":" + varName$ + ":") > 0 AND (varType$ = "string" OR RIGHT$(varName$, 1) = "$") THEN
       emit_expr$ = "xb_str_" + sanitize_dual$(varName$)
       RETURN emit_expr$
@@ -4192,7 +4235,7 @@ FUNCTION emit_expr$(e$)
       ELSE
         varType$ = "integer"
       END IF
-      IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##curDescLocals$, ":" + varName$ + ":") = 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 THEN
+      IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##curDescLocals$, ":" + varName$ + ":") = 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) = 0 THEN
         emit_expr$ = c_default$(varType$)
         RETURN emit_expr$
       END IF
@@ -4259,6 +4302,15 @@ FUNCTION emit_expr$(e$)
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$) + "_arr"
     ELSEIF INSTR(##sharedArrays$, ":" + varName$ + ":") > 0 THEN
       emit_expr$ = "(int)xb_ub_" + sanitize_ident$(varName$)
+    ' Array params own caller storage as bare pointers (no local ub cell):
+    ' UBOUND folds to sizeof (0), matching the Rust CEmitter. Exclusions
+    ' keep existing routing: descriptor params/locals (real *ub), shared
+    ' arrays (file-scope ub), locally DIM'd/REDIM'd params (ub cells), and
+    ' the undimmed fold for non-params. Must precede is_xfn_dyn$ (params
+    ' of dyn names elsewhere would otherwise fold) and strDual/dynNames
+    ' (whose ub cells don't exist for params).
+    ELSEIF INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 AND is_desc_param$(##curFnName$, varName$) = "0" AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##curFnArrays$, ":" + varName$ + ":") = 0 AND INSTR(##redimNames$, ":" + varName$ + ":") = 0 THEN
+      emit_expr$ = "(int)(sizeof(" + arr_acc_name$(varName$, varType$) + ")/sizeof(" + arr_acc_name$(varName$, varType$) + "[0])-1)"
     ELSEIF is_xfn_dyn$(varName$) = "1" THEN
       IF varType$ = "string" THEN
         emit_expr$ = "(xb_len(" + c_var_name$(varName$, varType$) + ") - 1)"
@@ -6562,6 +6614,73 @@ FUNCTION scan_byref_params$(s$)
     END IF
   WEND
   scan_byref_params$ = _finRes$
+END FUNCTION
+
+' Per-position array params from declarations (headerless-safe): scan
+' `function F(...)` / `declare F(...)` lines and record `:F:pos:` for
+' bracketed params. Complements the facet-driven ##arrayPositions$ (which
+' is empty for headerless IR) for by-value whole-array copy decisions.
+' Only top-level lines; nested SUBs share the house scanners' approximation.
+FUNCTION scan_arr_param_pos$(s$)
+  DIM apRes$
+  DIM apPos
+  DIM apLE
+  DIM apLn$
+  DIM apT$
+  DIM apPP
+  DIM apFN$
+  DIM apAfter$
+  DIM apClose
+  DIM apParams$
+  DIM apI
+  DIM apCh
+  DIM apDepth
+  DIM apStart
+  DIM apIdx
+  DIM apPart$
+  apRes$ = ""
+  apPos = 1
+  WHILE apPos <= LEN(s$)
+    apLE = INSTR(s$, CHR$(10), apPos)
+    IF apLE = 0 THEN apLE = LEN(s$) + 1
+    apLn$ = trim_spaces$(MID$(s$, apPos, apLE - apPos))
+    apPos = apLE + 1
+    apT$ = ""
+    IF LEFT$(apLn$, 9) = "function " THEN apT$ = MID$(apLn$, 10, LEN(apLn$) - 9)
+    IF LEFT$(apLn$, 8) = "declare " THEN apT$ = MID$(apLn$, 9, LEN(apLn$) - 8)
+    IF LEN(apT$) > 0 THEN
+      apPP = INSTR(apT$, "(")
+      IF apPP > 0 THEN
+        apFN$ = trim_spaces$(LEFT$(apT$, apPP - 1))
+        apAfter$ = MID$(apT$, apPP + 1, LEN(apT$) - apPP)
+        apClose = INSTR(apAfter$, ")")
+        IF apClose > 0 THEN
+          apParams$ = LEFT$(apAfter$, apClose - 1)
+          apI = 1
+          apDepth = 0
+          apStart = 1
+          apIdx = 0
+          WHILE apI <= LEN(apParams$) + 1
+            IF apI > LEN(apParams$) THEN apCh = 44 ELSE apCh = ASC(MID$(apParams$, apI, 1))
+            IF apCh = 40 THEN apDepth = apDepth + 1
+            IF apCh = 41 THEN apDepth = apDepth - 1
+            IF apCh = 44 AND apDepth = 0 THEN
+              apPart$ = trim_spaces$(MID$(apParams$, apStart, apI - apStart))
+              IF INSTR(apPart$, "[") > 0 THEN
+                IF INSTR(apRes$, ":" + apFN$ + ":" + STR$(apIdx) + ":") = 0 THEN
+                  apRes$ = apRes$ + ":" + apFN$ + ":" + STR$(apIdx) + ":"
+                END IF
+              END IF
+              apStart = apI + 1
+              apIdx = apIdx + 1
+            END IF
+            apI = apI + 1
+          WEND
+        END IF
+      END IF
+    END IF
+  WEND
+  scan_arr_param_pos$ = apRes$
 END FUNCTION
 
 
@@ -9593,7 +9712,7 @@ FUNCTION emit_stmt$(s$)
     spacePos = INSTR(tmp$, "= ", bracketPos + 1)
     right$ = MID$(tmp$, spacePos + 2, LEN(tmp$) - spacePos - 1)
     c2$ = emit_expr$(right$)
-    IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##curDescLocals$, ":" + varName$ + ":") = 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 THEN
+    IF (INSTR(##undimmed$, ":" + varName$ + ":") > 0 OR is_xfn_dyn$(varName$) = "1") AND INSTR(##curDescLocals$, ":" + varName$ + ":") = 0 AND INSTR(##sharedArrays$, ":" + varName$ + ":") = 0 AND INSTR(##allStrArr$, ":" + varName$ + ":") = 0 AND INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) = 0 THEN
       IF varType$ = "string" AND INSTR(cExpr$, ",") = 0 THEN
         IF INSTR(##sharedDecls$, ":" + varName$ + ":") > 0 THEN
           emit_stmt$ = "    xb_setch(xb_shared_" + sanitize_ident$(varName$) + ", " + emit_expr$(cExpr$) + ", " + c2$ + ");"

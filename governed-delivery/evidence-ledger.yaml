@@ -81,3 +81,19 @@ entries:
     receipt: "/tmp/xb-verify-bootstrap.log (session), 540 s"
     freshness_kind: recheck_date
     date_checked: "2026-09-05"
+  - claim: "BYVAL-ARRAY-COPY slice passes for real: checks/validate-all.sh ALL PASS (344 tests across 41 binaries, incl. 4 new byvalue/ubound locks)"
+    source: "./checks/validate-all.sh"
+    attester: "validate-all.sh (deterministic)"
+    revision: "working tree after 6ab940c (this change set)"
+    exit_status: 0
+    receipt: "/tmp/xb-validate-byval.log (session); core libs 15/15; Tier-1 guard passed (1979 symbols, pre-existing variance)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-05"
+  - claim: "checks/verify-bootstrap.sh ok with byval slice: fmt/clippy/debug-suite green; cgen1 C == cgen2 C fixed point exact"
+    source: "./checks/verify-bootstrap.sh"
+    attester: "verify-bootstrap.sh (deterministic)"
+    revision: "working tree after 6ab940c (this change set)"
+    exit_status: 0
+    receipt: "/tmp/xb-verify-byval.log (session)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-05"

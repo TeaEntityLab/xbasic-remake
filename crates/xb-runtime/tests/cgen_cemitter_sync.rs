@@ -2681,6 +2681,247 @@ fn cemitter_and_cgen_agree_on_composite_array_byref() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// By-value whole-array args copy (M1-ABI): `W(a[])` without `@` passes a
+/// fresh heap copy (`xb_array_copy`), never the scalar facet. The Rust
+/// CEmitter used to emit the scalar (`xb_var_a`) to a pointer param (hard
+/// cc error, or silent null under `-w`); cgen.x folded the callee reads to
+/// `0` (undimmed/xfn-dyn fold ignored caller-owned param storage). The
+/// interpreter copies (callee sees data, writes die). All three engines
+/// must produce `7\n3\n`.
+#[test]
+fn cemitter_and_cgen_agree_on_byvalue_whole_array_copy() {
+    let tmp = std::env::temp_dir().join("xb_sync_byval_copy");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"bvc\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main ()\n",
+        "XLONG a[]\n",
+        "DIM a[1]\n",
+        "a[0] = 3\n",
+        "a[1] = 4\n",
+        "W(a[])\n",
+        "PRINT a[0]\n",
+        "END FUNCTION\n",
+        "FUNCTION W (XLONG w[])\n",
+        "PRINT w[0] + w[1]\n",
+        "w[0] = 30\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byvalue program")
+        .lower_ir()
+        .expect("lower byvalue program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "bvc_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "bvc_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byvalue program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "7\n3\n", "byvalue reference output");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter failed to copy a by-value whole-array arg"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x failed to copy a by-value whole-array arg"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// Composite-array by-value copy (M1-ABI): `Sum(p[])` without `@` copies
+/// each member array. Same root cause as the plain case (scalar facet
+/// shadowing) plus the callee-side fold; locked separately because member
+/// storage (fixed vs heap, dotted names) takes different decl paths.
+/// All three engines must produce `7\n3\n6\n`.
+#[test]
+fn cemitter_and_cgen_agree_on_composite_array_byvalue_copy() {
+    let tmp = std::env::temp_dir().join("xb_sync_comp_byval");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"cbv\"\n",
+        "VERSION \"0.1\"\n",
+        "TYPE PT\n",
+        "XLONG .x\n",
+        "XLONG .y\n",
+        "END TYPE\n",
+        "FUNCTION Main ()\n",
+        "PT p[]\n",
+        "DIM p[1]\n",
+        "p[0].x = 3\n",
+        "p[0].y = 4\n",
+        "p[1].x = 5\n",
+        "p[1].y = 6\n",
+        "Sum(p[])\n",
+        "PRINT p[0].x\n",
+        "PRINT p[1].y\n",
+        "END FUNCTION\n",
+        "FUNCTION Sum (PT p[])\n",
+        "PRINT p[0].x + p[0].y\n",
+        "p[0].x = 30\n",
+        "p[1].y = 60\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse composite byvalue program")
+        .lower_ir()
+        .expect("lower composite byvalue program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "cbv_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "cbv_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret composite byvalue program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "7\n3\n6\n",
+        "composite byvalue reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter failed to copy composite member arrays by value"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x failed to copy composite member arrays by value"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// String-array by-value copy (M1-ABI): `W(s$[])` deep-copies each element
+/// (`et == 2`), so callee writes neither alias nor corrupt caller strings.
+/// Exercises the string leg of `xb_array_copy` in both emitters.
+/// All three engines must produce `aa\nbb\naa\nbb\n`.
+#[test]
+fn cemitter_and_cgen_agree_on_string_array_byvalue_copy() {
+    let tmp = std::env::temp_dir().join("xb_sync_str_byval");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"sbv\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main ()\n",
+        "STRING s$[]\n",
+        "DIM s$[1]\n",
+        "s$[0] = \"aa\"\n",
+        "s$[1] = \"bb\"\n",
+        "W(s$[])\n",
+        "PRINT s$[0]\n",
+        "PRINT s$[1]\n",
+        "END FUNCTION\n",
+        "FUNCTION W (STRING w$[])\n",
+        "PRINT w$[0]\n",
+        "PRINT w$[1]\n",
+        "w$[0] = \"zz\"\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse string byvalue program")
+        .lower_ir()
+        .expect("lower string byvalue program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "sbv_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "sbv_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret string byvalue program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "aa\nbb\naa\nbb\n",
+        "string byvalue reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter failed to deep-copy a string array by value"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x failed to deep-copy a string array by value"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// Plain-param UBOUND C-model (M1-ABI): array params own caller storage as
+/// bare pointers with no local ub cell, so both C backends fold UBOUND to
+/// `sizeof` (`0`), matching the Rust CEmitter; the interpreter sees the
+/// real bound (`1`). Same documented C-vs-interp split as composite member
+/// UBOUND. Guards the cgen.x array-param UBOUND branch (undeclared-ub and
+/// scalar-sizeof regressions both fail loudly here).
+#[test]
+fn cemitter_and_cgen_agree_on_param_ubound_c_model() {
+    let tmp = std::env::temp_dir().join("xb_sync_param_ubound");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"pub\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main ()\n",
+        "XLONG a[]\n",
+        "DIM a[1]\n",
+        "a[0] = 3\n",
+        "a[1] = 4\n",
+        "W(a[])\n",
+        "END FUNCTION\n",
+        "FUNCTION W (XLONG w[])\n",
+        "PRINT UBOUND(w[])\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse param ubound program")
+        .lower_ir()
+        .expect("lower param ubound program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "pub_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "pub_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret param ubound program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "1\n", "param ubound reference output");
+    assert_eq!(rust_out, "0\n", "CEmitter param UBOUND C-model changed");
+    assert_eq!(
+        self_out, "0\n",
+        "cgen.x param UBOUND must match the C-model (0), not fold or break"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Composite member UBOUND in the callee (M1-ABI): `UBOUND(p[])` lowers to the
 /// first member (`array_ubound(p.x)`). The interpreter forwards member storage
 /// so the callee sees the real bound (`1`); both C backends pass plain member
