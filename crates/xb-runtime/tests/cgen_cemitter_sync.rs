@@ -5766,6 +5766,67 @@ fn cemitter_and_cgen_agree_on_byval_desc_to_plain_copy() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+#[test]
+fn cemitter_and_cgen_agree_on_byval_str_desc_to_plain_split() {
+    // String twin of the desc-to-plain lock, pinned as a DOCUMENTED SPLIT:
+    // both C backends copy correctly (no leak, no crash) but report the
+    // plain callee param's UBOUND as 0 (locked plain-param UBOUND C-model
+    // fold) where the interpreter reports 3. Guards the string
+    // descriptor-cell routing (`xb_str_*_s_dd`, et=2) through the copy arm.
+    let tmp = std::env::temp_dir().join("xb_sync_byval_str_desc_plain");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               STRING s$[]\n\
+               DIM s$[1]\n\
+               s$[0] = \"aa\"\n\
+               s$[1] = \"bb\"\n\
+               Mid(@s$[])\n\
+               PRINT UBOUND(s$[])\n\
+               END FUNCTION\n\
+               FUNCTION Mid (@m$[])\n\
+               REDIM m$[3]\n\
+               Plain(m$[])\n\
+               PRINT UBOUND(m$[])\n\
+               END FUNCTION\n\
+               FUNCTION Plain (STRING p$[])\n\
+               p$[0] = \"zz\"\n\
+               PRINT UBOUND(p$[])\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byval_str_desc_plain program")
+        .lower_ir()
+        .expect("lower byval_str_desc_plain program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byval_str_desc_plain_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byval_str_desc_plain_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byval_str_desc_plain program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "3\n3\n3\n",
+        "byval_str_desc_plain reference output"
+    );
+    assert_eq!(
+        rust_out, "0\n3\n3\n",
+        "CEmitter plain-param UBOUND fold changed (string desc-to-plain)"
+    );
+    assert_eq!(
+        self_out, "0\n3\n3\n",
+        "cgen.x plain-param UBOUND fold changed (string desc-to-plain)"
+    );
+}
+
 /// REDIM-through-byref with different function, callee-param, and caller-var
 /// names proves cgen.x descriptor dispatch is positional, not name-based.
 /// `Expand(123, @payload[], newSize)` expands second-position callee param
