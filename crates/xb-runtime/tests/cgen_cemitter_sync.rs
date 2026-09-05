@@ -2921,6 +2921,62 @@ fn cemitter_and_cgen_agree_on_param_ubound_c_model() {
     );
     let _ = fs::remove_dir_all(&tmp);
 }
+
+/// Byref-array-to-scalar-param split (documented divergence, no action):
+/// `W(@a[])` into `W(XLONG @w)` aliases element 0 in both C backends
+/// (copy-in `w = *w_ref` reads `a[0]`, copy-out writes it back: `5\n30\n`)
+/// while the interpreter yields/discards (`0\n5\n`). Neither side may drift
+/// silently: changing C to fold (or interp to alias) needs a conscious
+/// contract decision, not an accidental emitter edit. The by-value form
+/// agrees everywhere (`0\n5\n`); only the byref form splits.
+#[test]
+fn cemitter_and_cgen_agree_on_byref_array_to_scalar_split() {
+    let tmp = std::env::temp_dir().join("xb_sync_at_scalar");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"ats\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main ()\n",
+        "XLONG a[]\n",
+        "DIM a[1]\n",
+        "a[0] = 5\n",
+        "a[1] = 6\n",
+        "W(@a[])\n",
+        "PRINT a[0]\n",
+        "END FUNCTION\n",
+        "FUNCTION W (XLONG @w)\n",
+        "PRINT w\n",
+        "w = 30\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse at-scalar program")
+        .lower_ir()
+        .expect("lower at-scalar program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "ats_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "ats_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret at-scalar program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "0\n5\n", "at-scalar reference output");
+    assert_eq!(rust_out, "5\n30\n", "CEmitter at-scalar contract changed");
+    assert_eq!(
+        self_out, "5\n30\n",
+        "cgen.x at-scalar must match the C-model (5/30), not fold or break"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
 /// String alias-then-append (value semantics): `y$ = x$` duplicates (both
 /// emitters `xb_strdup` on assign), so a later in-place `xb_append` on `x$`
 /// (Rust's `x = x + ...` chain optimization; cgen.x emits `xb_concat`)
