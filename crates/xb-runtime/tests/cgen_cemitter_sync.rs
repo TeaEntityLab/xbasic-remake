@@ -6059,6 +6059,74 @@ fn cemitter_and_cgen_agree_on_byval_shared_string_to_descriptor_copy() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+#[test]
+fn cemitter_and_cgen_agree_on_mixed_byref_byval_descriptor() {
+    // Mixed @-byref and by-value array args to descriptor callees in one
+    // call: the byref arg keeps byref() (writeback: `a[0]=30`, bound 5),
+    // the by-value arg is stripped to the copy pair (isolation: `b`
+    // keeps 7/8/1). Guards per-position strip-vs-keep routing against
+    // every copy/forwarding arm in both emitters.
+    let tmp = std::env::temp_dir().join("xb_sync_mixed_desc");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM a[1]\n\
+               DIM b[1]\n\
+               a[0] = 3\n\
+               a[1] = 4\n\
+               b[0] = 7\n\
+               b[1] = 8\n\
+               W(@a[], b[])\n\
+               PRINT a[0]\n\
+               PRINT a[1]\n\
+               PRINT b[0]\n\
+               PRINT b[1]\n\
+               PRINT UBOUND(a[])\n\
+               PRINT UBOUND(b[])\n\
+               END FUNCTION\n\
+               FUNCTION W (@x[], XLONG y[])\n\
+               REDIM x[5]\n\
+               REDIM y[5]\n\
+               x[0] = 30\n\
+               y[0] = 70\n\
+               PRINT UBOUND(x[])\n\
+               PRINT UBOUND(y[])\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse mixed_desc program")
+        .lower_ir()
+        .expect("lower mixed_desc program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "mixed_desc_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "mixed_desc_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret mixed_desc program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "5\n5\n30\n4\n7\n8\n5\n1\n",
+        "mixed_desc reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled mixed byref/byval descriptor call"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled mixed byref/byval descriptor call"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// REDIM-through-byref with different function, callee-param, and caller-var
 /// names proves cgen.x descriptor dispatch is positional, not name-based.
 /// `Expand(123, @payload[], newSize)` expands second-position callee param
