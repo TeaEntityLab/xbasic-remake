@@ -3424,7 +3424,10 @@ FUNCTION emit_expr$(e$)
       ' scanner to see): without it a descriptor source folds to its scalar
       ' facet and drops the callee ub cell (p23: cc arity error). Storage and
       ' scope disjuncts below still guard.
-      IF (INSTR(##dualUse$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(##curFacetDual$, ":" + varName$ + ":") > 0) AND is_array_var_in_scope$(varName$) = "1" AND (INSTR(##curFnArrays$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 OR INSTR(##curDescLocals$, ":" + varName$ + ":") > 0) THEN
+      ' Storage gate adds sharedDual$ (function-local _arr facet of a
+      ' shared-dual array, e.g. p31): without it a shared source folds to
+      ' its file-scope scalar and drops the callee ub cell (cc arity error).
+      IF (INSTR(##dualUse$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(##curFacetDual$, ":" + varName$ + ":") > 0) AND is_array_var_in_scope$(varName$) = "1" AND (INSTR(##curFnArrays$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 OR INSTR(##curDescLocals$, ":" + varName$ + ":") > 0 OR INSTR(##sharedDual$, ":" + varName$ + ":") > 0) THEN
         DIM cpData$
         DIM cpUb$
         DIM cpEt$
