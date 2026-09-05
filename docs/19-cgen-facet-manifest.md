@@ -283,3 +283,172 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
 - `crates/xb-compiler/src/c_emit.rs:961` `is_dyn_array`
 - `docs/16-cgen-cemitter-sync-roadmap.md` CG-BYTES
 - `docs/17-open-work-roadmap.md` DEMO-BYTES DE-SCOPED, CGEN-FACET-MANIFEST
+
+## 9. Compiler.x facet emission plan (PROPOSED 2026-09-06 — not reviewed, no code)
+
+Covers the last AC2 blocker (docs/17 CGEN-FACET-RETIREMENT: scanners cannot be
+deleted until a non-Rust producer emits facets). Design-only session: no
+compiler.x/cgen.x/Rust changes, no gate changes. Target state: `selfhost/
+compiler.x` emits complete, accurate facet headers itself, proven by
+native-vs-Rust facet-set equality; cgen.x consumes them with zero code
+changes (it already scans `facet ` position-independently).
+
+**Decision required (maintainer, before any phase):** docs/20 M1 work package 2
+and the M1 exit gate place facet-manifest completion (incl. scanner deletion)
+in M1; review guidance places compiler.x expansion in M5 and defers AC2
+deletion. This plan is milestone-neutral: phases P1–P6 build and prove emission
+(zero behavior change, safe under either milestone); P7 flips emission on;
+P8 (scanner deletion, AC2 proper) is explicitly OUT of scope here either way.
+
+### 9.1 Enabling facts (all verified this session, with evidence)
+
+1. **cgen.x needs no changes.** It buffers all of stdin into `src$`
+   (`selfhost/cgen.x`, input loop) and collects every `facet ` line anywhere
+   in the stream into `##facetTab$` (facet scan loop). Trailing (or
+   interleaved) facet emission works unmodified.
+2. **Native emission order must be discovery (source) order, never sorted.**
+   Rust facet order is nondeterministic across runs (proven 2026-09-06: same
+   sorted set `8d41…`, differing raw orders `a0c7…` vs `3b17…` on xcol.x —
+   `HashMap` iteration in `collect_facets_accurate`). All comparisons
+   therefore normalize (sort facet lines); cgen.x is order-insensitive
+   already (`:name:` probes). XBasic has no hash maps; linear scans preserve
+   insertion order, which keeps interp-vs-native output byte-exact.
+3. **Emission must be complete when on (no partial headers).** cgen.x
+   REPLACES `##dynNames$`/`##dualUse$`/`##arr2d$`/`##allStrArr$` from facets
+   whenever `##facetTab$` is non-empty (facet block). A partial header (e.g.
+   only allStrArr facts) would narrow the other sets catastrophically. This
+   clarifies §3.1 ("a producer may emit facets only for names that need
+   non-default handling"): sparse is fine, PARTIAL-by-classifier is not —
+   every classifier cgen.x consumes must be fully covered. (Follows: phases
+   compare per-classifier subsets but only ever SWITCH ON complete emission.)
+4. **Only Rust-vs-native comparisons need normalization.** Native-vs-native
+   and interp-vs-native stay byte-exact (same program, deterministic order):
+   `verify-bootstrap.sh` STAGE1==STAGE2, `bootstrap.rs` stage0==stage1,
+   `cgen_selfhost.rs` interp==native output. Normalization is required at
+   exactly three spots: `verify-bootstrap.sh` RUST_IR==STAGE1_IR and the
+   per-tool loop (both compare against `xb --emit-ir`), and
+   `native_pipeline.rs` native-vs-`emit_program`. (`self_rebuild.rs`/
+   `cgen_corpus.rs` must be audited in P7 for Rust-parse paths over native IR.)
+5. **Rust `TextIrParser` needs a `facet ` skip rule** wherever native-faceted
+   IR may flow into Rust parsing (one-line pre-pass + test; it currently has
+   zero facet handling and would fail on header lines).
+6. **Spec §3.1 is stale** and must be updated in P1: it omits fields Rust
+   actually emits and cgen.x consumes — trailing `shared` flag,
+   `descriptor=1`, `position=N`, and the `byref=1` gating semantics. Field
+   inventory (producer analysis → cgen.x consumers):
+   `name:type` (identity everywhere); `scope=` (per-function filtering,
+   RR-03); `storage=dyn` (##dynNames$ rebuild); `dual=1` (##dualUse$ rebuild);
+   `rank>=2` (##arr2d$ rebuild); `string`+`rank>=1`+absent shared/param/byref
+   (##allStrArr$ rebuild); `storage=shared`+rank (##sharedArrays$ union);
+   string+rank+`dual=1` (##strDual$ union, slice 5); `storage=param`+rank+scope
+   +`position=` (##arrayPositions$, param decls); `descriptor=1`+`position=`
+   (##descParams$/Positions/Ranks); `byref=1` (##curDescLocals$ exclusion).
+7. **No composite-TYPE parsing is required in compiler.x.** Text IR carries
+   flattened member DIMs (`dim p.x:integer[1]`) and accesses; member facts
+   (incl. the rank-2 member special case) derive from those, exactly as
+   `collect_member_2d` does on the Rust side. compiler.x has no `TYPE`
+   handling today (verified: zero matches) and needs none for facets.
+8. **Facts are available in compiler.x's existing flow.** It buffers all
+   source lines, lexes to token tables (`tt$`/`tv$`, 131072 slots), tracks
+   function nesting (`funcName$` stack) and parses typed params (`pname:vt`
+   pairs at function emission). DIMs, calls (callee + arg shapes), `GOSUB`,
+   and scopes all flow past the parse-emit pass — accumulation is new
+   tables, not new parsing.
+
+### 9.2 Accumulation architecture (constraints, not code)
+
+- New `##`-style globals (XBasic convention) + append-only table updates
+  during the existing parse-emit pass. READ-ONLY wrt emit state: accumulation
+  must never mutate what's printed (normal-path output stays byte-identical
+  through P1–P6; enforced by gates running green throughout).
+- Per-function tables reset at each `function ` line; program tables (call
+  graph edges, shared names) accumulate monotonically.
+- Budgets: tables are small delimited strings (facets for xst ≈ tens of KB;
+  bounded by symbol count, not source size). No sorting anywhere (discovery
+  order = determinism). No new per-statement scans over the whole source
+  inside hot paths (amortized appends only; the descriptor fixpoint in P5
+  iterates tables, not source).
+- Port from Rust ANALYSIS SEMANTICS (`text_ir.rs` collection fns +
+  `c_emit_hoist.rs` classifiers), not by transliterating AST walks: operate
+  on XBasic text facts with cgen.x-scanner idioms (bounded `INSTR`/`MID$`
+  loops). Independent implementation + set-equality gates = true differential
+  (shared bug-for-bug inheritance would defeat the purpose). Cite exact Rust
+  sources per analysis in each phase.
+
+### 9.3 Analysis port catalog (calibration)
+
+- Trivial (one XBasic scan each, straight from emit-time facts): array DIMs
+  with rank/scope/type (`collect_array_dimmed_names`, hoist:916);
+  `has_gosub` (hoist:1545); params with array-ness/position (parse-time);
+  shared (`dim shared`); member-2D access shapes (`collect_member_2d`,
+  text_ir:408 + `walk_expr_2d`:479).
+- Medium: dual-use (`collect_dual_use`, hoist:1002 + `walk_expr` divert rules
+  incl. byref-divert, UBOUND-string notes, SWAP arms, array-DIM-as-context):
+  needs nested-block use classification over buffered function bodies.
+  dyn storage (`collect_dyn_names`, hoist:1564: DIM counts, late detection,
+  nested/unsized/GOSUB/descriptor forces + dual injection): needs per-function
+  DIM-order records. DIM info incl. composite flattening
+  (`collect_dims_recursive`, text_ir:328).
+- Hard (long pole, may split): descriptors (`collect_descriptor_params`,
+  hoist:1809: whole-program call graph, seeding (DIM/REDIM vs bare UBOUND),
+  propagation fixpoint, byref/descriptor locals + types). Pure table
+  fixpoint post-parse (no source re-scan); unbounded iterations must carry a
+  proven bound (edges shrink monotonically — state the invariant in review).
+
+### 9.4 Dump hook (phase-gate visibility without output change)
+
+compiler.x: if the first input line is exactly `##FACETS##`, skip normal
+emission and print ONLY computed facet lines (trailing position), then stop.
+Zero impact on every existing path (all gates feed real sources; the hook
+fires solely for the new facet test's synthetic inputs). Test
+(`native_facet_gap`, new file): build native compA per existing harness,
+feed corpus programs (selfhost tools + positive corpus + selected libs/demos
+— start small, expand per phase), run with hook, parse facet sets, compare
+against Rust-computed sets per classifier with per-phase allowlists that only
+shrink. Corpus programs must all be inside compiler.x's language coverage
+(it compiles cgen.x + selfhost tools today; goldens stay headerless —
+CG-BYTES untouched).
+
+### 9.5 Phases (each: scope, gate, rollback = delete code, output unchanged)
+
+- P1 — Scaffold + schema: tables, dump hook, `native_facet_gap` harness,
+  §3.1 spec update, DIM/rank/scope/params/shared/member emission +
+  allStrArr-field equality. (S)
+- P2 — Dual: use-walk + divert rules → `dual=` equality. (M)
+- P3 — Dyn: DIM-order/counts + force rules → `storage=` equality. (M)
+- P4 — Descriptors/positions/byref: call-graph fixpoint → remaining-field
+  equality. (L; split allowed)
+- P5 — Member-2D + full-set equality over the expanded corpus; behavior
+  parity of cgen.x on native-faceted IR (named matrix: arrays, descriptors,
+  composites, duals). (M)
+- P6 — Flip: print trailing facets in normal emission (one gate) +
+  §9.4-normalization of the three Rust-vs-native spots + parser skip rule
+  + full gates. (M; revert = unflip)
+- P7 — OUT OF SCOPE HERE (scanner deletion = AC2 proper, separate decision).
+
+### 9.6 Risks
+
+- Triple-implementation window (P1–P6: Rust analysis, cgen.x scanners,
+  compiler.x tables): honest debt with a payoff date (P5 proof, P7 flip);
+  mitigated by read-only accumulation (normal path provably untouched —
+  gates green every phase).
+- Descriptor fixpoint divergence (the long pole): mitigated by seeding-rule
+  unit probes before the fixpoint, and by P4's field gate preceding any flip.
+- Silent-miscompile class (wrong facet → wrong storage, no error): mitigated
+  by exact-set equality (not sampling) over a growing corpus + behavior
+  parity in P5; never by reasoning alone.
+- XBasic performance: native compiler runs hot paths in gates (bootstrap
+  builds); per-phase wall-clock comparison against baseline required if any
+  phase adds >10% to `native_compiler_emits_cgen_ir_for_cgen`.
+- Over-scoping into cgen.x changes: FORBIDDEN in P1–P6 (consumer already
+  correct); any cgen.x touch restarts its own gate proof.
+
+### 9.7 Open questions (maintainer)
+
+1. Milestone: M1-track (docs/20 work package 2 + exit gate) or M5-track
+   (compiler.x expansion guidance)? P1–P6 are safe under either; P7/flip
+   timing follows the answer.
+2. If AC2 deletion stays deferred regardless: is P1–P6 emission+proof work
+   worth doing for evidence/optionality, or parked until M5?
+3. Corpus for P1: selfhost tools + positive corpus sufficient to start, or
+   include libs/demos from day one (slower gates, wider net)?
