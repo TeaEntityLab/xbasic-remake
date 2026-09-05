@@ -3415,7 +3415,7 @@ FUNCTION emit_expr$(e$)
     ' a callee array position (facet table or declaration scan); scalar-
     ' DIM-only duals keep folding. Callee writes die in the fresh copy.
     IF LEN(##curCallFn$) > 0 AND ##curCallArg >= 0 AND (is_array_position$(##curCallFn$, ##curCallArg) = "1" OR is_array_param_pos$(##curCallFn$, ##curCallArg) = "1") THEN
-      IF (INSTR(##dualUse$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0) AND is_array_var_in_scope$(varName$) = "1" AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##curFnArrays$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 OR INSTR(##curDescLocals$, ":" + varName$ + ":") > 0) THEN
+      IF (INSTR(##dualUse$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0) AND is_array_var_in_scope$(varName$) = "1" AND (INSTR(##curFnArrays$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 OR INSTR(##curDescLocals$, ":" + varName$ + ":") > 0) THEN
         DIM cpData$
         DIM cpUb$
         DIM cpEt$

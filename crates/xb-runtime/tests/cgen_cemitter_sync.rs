@@ -2921,6 +2921,59 @@ fn cemitter_and_cgen_agree_on_param_ubound_c_model() {
     );
     let _ = fs::remove_dir_all(&tmp);
 }
+/// String alias-then-append (value semantics): `y$ = x$` duplicates (both
+/// emitters `xb_strdup` on assign), so a later in-place `xb_append` on `x$`
+/// (Rust's `x = x + ...` chain optimization; cgen.x emits `xb_concat`)
+/// cannot observably alias `y$`. Guards the assign-duplicates discipline
+/// both append implementations rely on. All three: `abcd\nab\n`.
+#[test]
+fn cemitter_and_cgen_agree_on_string_alias_append() {
+    let tmp = std::env::temp_dir().join("xb_sync_str_alias");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"saa\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main ()\n",
+        "STRING x$\n",
+        "STRING y$\n",
+        "x$ = \"ab\"\n",
+        "y$ = x$\n",
+        "x$ = x$ + \"cd\"\n",
+        "PRINT x$\n",
+        "PRINT y$\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse alias program")
+        .lower_ir()
+        .expect("lower alias program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "saa_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "saa_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret alias program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "abcd\nab\n", "alias reference output");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter append mutated an aliased string"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x append mutated an aliased string"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
 
 /// By-ref heap array forwarding (M1-ABI): `W(@a[])` on a heap (dyn) array
 /// passes the array pointer itself. Both C backends used to take address-of
