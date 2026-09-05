@@ -1269,6 +1269,60 @@ pub(crate) fn collect_attach_alias_groups(
     }
     (out, types)
 }
+/// Array names involved in row-ATTACH operations (`left_is_row` or `right_is_row`).
+/// In C, these arrays cannot be flat contiguous stride buffers because their rows
+/// are detached, grown via 1-D REDIM, and reattached at variable lengths. They are
+/// emitted as tables of row pointers `T* name[rows]` and bounds `intptr_t name_rows[rows]`.
+pub(crate) fn collect_node_arrays(items: &[IrItem], out: &mut HashSet<String>) {
+    fn walk(items: &[IrItem], out: &mut HashSet<String>) {
+        for it in items {
+            match it {
+                IrItem::Attach {
+                    left,
+                    left_is_row,
+                    right,
+                    right_is_row,
+                    ..
+                } => {
+                    if *left_is_row {
+                        out.insert(left.name.clone());
+                    }
+                    if *right_is_row {
+                        out.insert(right.name.clone());
+                    }
+                }
+                IrItem::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
+                    walk(then_body, out);
+                    if let Some(b) = else_body {
+                        walk(b, out);
+                    }
+                }
+                IrItem::While { body, .. }
+                | IrItem::DoLoop { body, .. }
+                | IrItem::For { body, .. } => {
+                    walk(body, out);
+                }
+                IrItem::SelectCase { cases, default, .. } => {
+                    for c in cases {
+                        walk(&c.body, out);
+                    }
+                    if let Some(def) = default {
+                        walk(def, out);
+                    }
+                }
+                IrItem::Function { body, .. } => {
+                    walk(body, out);
+                }
+                _ => {}
+            }
+        }
+    }
+    walk(items, out);
+}
 #[derive(Default)]
 struct DynWalk {
     used: HashSet<String>,

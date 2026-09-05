@@ -506,22 +506,15 @@ pub(crate) fn call_function(
         };
         let mut passed_array = false;
         if let Some(s) = arg_symbol {
-            // ATTACH views pass a snapshot of their live window
-            // (M1-ATTACH-ALIAS); callees never inherit the link itself.
-            if let Some((vals, dims)) =
-                crate::interpreter_attach::materialize_window(state, &s.name)
-            {
-                slot.array = Some(vals);
-                slot.dims = dims;
-                passed_array = true;
-            } else if let Some(src) = state
+            if let Some(src) = state
                 .slots
                 .get(&s.name)
                 .or_else(|| state.shared.get(&s.name))
             {
-                if src.array.is_some() {
+                if src.array.is_some() || src.node_rows.is_some() {
                     slot.array = src.array.clone();
                     slot.dims = src.dims.clone();
+                    slot.node_rows = src.node_rows.clone();
                     passed_array = true;
                 }
             }
@@ -561,7 +554,6 @@ pub(crate) fn call_function(
         label_addresses: std::collections::HashMap::new(),
         gui_close_sent: state.gui_close_sent,
         dyn_arrays: state.dyn_arrays.clone(),
-        aliases: state.aliases.clone(),
         fake_addrs: state.fake_addrs.clone(),
         next_fake_addr: state.next_fake_addr,
         last_composite_ret: None,
@@ -605,57 +597,11 @@ pub(crate) fn call_function(
         let Some(src) = sub.slots.get(pname) else {
             continue;
         };
-        if src.array.is_some() {
-            // Array by-ref: write the (possibly REDIM'd) elements + shape back
-            // into the caller's array so callee resize/fill propagates.
+        if src.array.is_some() || src.node_rows.is_some() {
             let arr = src.array.clone();
             let dims = src.dims.clone();
+            let rows = src.node_rows.clone();
             let vt = src.value_type;
-            // ATTACH views write through into shared storage (M1-ATTACH-ALIAS):
-            // whole views replace the holder (dropping its stale row
-            // overrides); row views splice the arrival into the shared row.
-            let (holder, base, vdims) = crate::interpreter_attach::resolve_alias(state, target);
-            let through_view = state.aliases.contains_key(target) && holder != *target;
-            if through_view {
-                match vdims {
-                    Some(vd) => {
-                        let rowlen: usize = vd.iter().product();
-                        let store = if *target_shared {
-                            &mut state.shared
-                        } else {
-                            &mut state.slots
-                        };
-                        if let Some(hslot) = store.get_mut(&holder) {
-                            if let Some(harr) = hslot.array.as_mut() {
-                                let end = (base + rowlen).min(harr.len());
-                                harr.splice(
-                                    base..end,
-                                    arr.clone()
-                                        .unwrap_or_default()
-                                        .into_iter()
-                                        .take(dims.iter().product()),
-                                );
-                                if hslot.dims.len() >= 2 {
-                                    hslot.dims[1] = dims.iter().product();
-                                }
-                            }
-                        }
-                        continue;
-                    }
-                    None => {
-                        let store = if *target_shared {
-                            &mut state.shared
-                        } else {
-                            &mut state.slots
-                        };
-                        if let Some(hslot) = store.get_mut(&holder) {
-                            hslot.array = arr.clone();
-                            hslot.dims = dims.clone();
-                        }
-                        continue;
-                    }
-                }
-            }
             let dst = if *target_shared {
                 state
                     .shared
@@ -669,6 +615,7 @@ pub(crate) fn call_function(
             };
             dst.array = arr;
             dst.dims = dims;
+            dst.node_rows = rows;
         } else {
             let val = src.value.clone();
             let vt = if *target_shared {
@@ -776,13 +723,6 @@ fn array_lvalue(expr: &IrExpr) -> (String, bool) {
 }
 
 fn slot_array(state: &ExecutionState, name: &str, shared: bool) -> Vec<RuntimeValue> {
-    // Views read their live window (M1-ATTACH-ALIAS); plain names take the
-    // historical table read.
-    if state.aliases.contains_key(name) {
-        if let Some((vals, _)) = crate::interpreter_attach::materialize_window(state, name) {
-            return vals;
-        }
-    }
     let tbl = if shared { &state.shared } else { &state.slots };
     tbl.get(name)
         .and_then(|s| s.array.clone())
@@ -923,40 +863,28 @@ fn xst_quicksort(
     let elems = slot_array(state, &a_name, a_shared);
     let (sorted, perm) = crate::xst::quicksort(&elems, low, high, mode);
     let sorted_len = sorted.len();
-    // Views sort their live window element-wise (M1-ATTACH-ALIAS); plain
-    // names take the historical wholesale replace.
-    if state.aliases.contains_key(&a_name) {
-        for (i, v) in sorted.into_iter().enumerate() {
-            crate::interpreter_attach::write_window_element(state, &a_name, &[i], v);
-        }
+    let tbl = if a_shared {
+        &mut state.shared
     } else {
-        let tbl = if a_shared {
-            &mut state.shared
-        } else {
-            &mut state.slots
-        };
-        if let Some(slot) = tbl.get_mut(&a_name) {
-            slot.array = Some(sorted);
-        }
+        &mut state.slots
+    };
+    if let Some(slot) = tbl.get_mut(&a_name) {
+        slot.array = Some(sorted);
     }
     let (n_name, n_shared) = array_lvalue(&args[1]);
     let perm_vals: Vec<RuntimeValue> = perm
         .iter()
         .map(|&x| RuntimeValue::Integer(x as i32))
         .collect();
-    if state.aliases.contains_key(&n_name) {
-        crate::interpreter_attach::write_window_values(state, &n_name, perm_vals);
+    let tbl = if n_shared {
+        &mut state.shared
     } else {
-        let tbl = if n_shared {
-            &mut state.shared
-        } else {
-            &mut state.slots
-        };
-        if let Some(slot) = tbl.get_mut(&n_name) {
-            if slot.array.as_ref().is_some_and(|a| !a.is_empty()) {
-                slot.array = Some(perm_vals);
-                slot.dims = vec![sorted_len];
-            }
+        &mut state.slots
+    };
+    if let Some(slot) = tbl.get_mut(&n_name) {
+        if slot.array.as_ref().is_some_and(|a| !a.is_empty()) {
+            slot.array = Some(perm_vals);
+            slot.dims = vec![sorted_len];
         }
     }
     Ok(RuntimeValue::Integer(0))
@@ -973,18 +901,14 @@ fn xst_copyarray(
     let (dst_name, dst_shared) = array_lvalue(&args[1]);
     let src = slot_array(state, &src_name, src_shared);
     let len = src.len();
-    if state.aliases.contains_key(&dst_name) {
-        crate::interpreter_attach::write_window_values(state, &dst_name, src);
+    let tbl = if dst_shared {
+        &mut state.shared
     } else {
-        let tbl = if dst_shared {
-            &mut state.shared
-        } else {
-            &mut state.slots
-        };
-        if let Some(slot) = tbl.get_mut(&dst_name) {
-            slot.array = Some(src);
-            slot.dims = vec![len];
-        }
+        &mut state.slots
+    };
+    if let Some(slot) = tbl.get_mut(&dst_name) {
+        slot.array = Some(src);
+        slot.dims = vec![len];
     }
     Ok(RuntimeValue::Integer(0))
 }

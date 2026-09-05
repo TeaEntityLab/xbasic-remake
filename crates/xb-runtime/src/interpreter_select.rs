@@ -58,8 +58,6 @@ pub(crate) fn exec_swap(
     // view OF the swapped names goes stale with the old storage — drop them
     // (links pointing AT the names follow the new storage automatically,
     // since links are name-keyed).
-    state.aliases.remove(&left.name);
-    state.aliases.remove(&right.name);
     let l_is_shared = state.shared.contains_key(&left.name);
     let r_is_shared = state.shared.contains_key(&right.name);
     let l = if l_is_shared {

@@ -1,6 +1,6 @@
 # 18 — By-ref array ABI (`CGEN-BYREF-REDIM`) — turnkey implementation guide
 
-**Status (reviewed 2026-08-29, updated 2026-09-04 M1-ATTACH-MOVE): LANDED for primitive/flat arrays, for shared composite `ARY_VAR_DATA` member arrays (compile-only), for typed composite-array by-ref reads + writeback (`FUNCTION Sum (PT p[])`, `7/30/60`), for callee-side member UBOUND at C-model parity (C `0,0`, interp `1,1`), and for member REDIM through by-ref (`3/30/42/420/4`). ATTACH decision reversed 2026-09-04: ATTACH is move semantics (ownership transfer, clear source, error on non-empty destination) per `xbasic/helpsrc/help_text/lang.txt:57-62` and `L2244-2260` (trailing-comma higher dims are jagged arrays of independent cells, `aarray.x` L56-82; ary.x row-growth idiom is move-out, 1-D REDIM, move-back), reversing the 2026-09-04 alias/copy attempt. Still open: UBOUND real bounds in C (descriptor seeding, deferred), plain forward-only callee-UBOUND callers without REDIM-seeded dyn (cc redefinition — candidate ##redimNames$ design recorded, deferred), ATTACH move-semantics implementation across interpreter and C backends, and ary.x runtime proof (see docs/17 `RR-02`/`RR-06`).**
+**Status (reviewed 2026-08-29, updated 2026-09-04 M1-ATTACH-MOVE): LANDED for primitive/flat arrays, for shared composite `ARY_VAR_DATA` member arrays (compile-only), for typed composite-array by-ref reads + writeback (`FUNCTION Sum (PT p[])`, `7/30/60`), for callee-side member UBOUND at C-model parity (C `0,0`, interp `1,1`), and for member REDIM through by-ref (`3/30/42/420/4`). ATTACH decision reversed 2026-09-04: ATTACH is move semantics (ownership transfer, clear source, error on non-empty destination) per `xbasic/helpsrc/help_text/lang.txt:57-62` and `L2244-2260` (trailing-comma higher dims are jagged arrays of independent cells, `aarray.x` L56-82; ary.x row-growth idiom is move-out, 1-D REDIM, move-back), reversing the 2026-09-04 alias/copy attempt. Still open: UBOUND real bounds in C (descriptor seeding, deferred), plain forward-only callee-UBOUND callers without REDIM-seeded dyn (cc redefinition — candidate ##redimNames$ design recorded, deferred), and ary.x runtime proof (see docs/17 `RR-02`/`RR-06`). ATTACH move semantics are landed on interpreter, CEmitter, and cgen.x.**
 Merge `be03117` implemented the primitive-array descriptor `(T** data,
 intptr_t* ub)`, content-preserving `REDIM`, and the `XstQuickSort`/
 `XstCopyArray` helper path. Those contracts remain covered. A focused
@@ -10,8 +10,7 @@ the five `ARY_VAR_DATA` member arrays (`status` … `numElements`) as shared
 workspace run reports **308 passed / 0 failed**; both `ary.x` and
 `ary1.0001.x` compile cc-clean in `xbsourcelib_ary_compiles_clean`. The
 separate `xbsourcelib_interp_matches_compiled` loop covers 11 non-ARY programs,
-not these sources. Runtime `ARY` remains compile-only until `ATTACH` alias
-semantics and a bounded behavior test land (see docs/17 `RR-02`/`RR-06`).
+not these sources. Runtime `ARY` remains compile-only until a bounded behavior test lands (see docs/17 `RR-02`/`RR-06`). ATTACH is move semantics, not aliasing.
 ### What the landed primitive-array implementation covers (branch `625ce19`)
 - `collect_descriptor_params` fixpoint — **resize-seeded** (`REDIM`/`DIM`-with-size
   + `XstQuickSort`/`XstCopyArray` pos 0/1), **backward-propagated**; a bare

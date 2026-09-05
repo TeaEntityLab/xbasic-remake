@@ -790,6 +790,7 @@ END IF
 ##fwdScalars$ = ""
 ##curFnDimmed$ = ""
 ##curFnShapes$ = ""
+##curNodeArrays$ = ""
 ##curParamTypes$ = ""
 ##arrParams$ = ""
 ##qsIdxNames$ = ""
@@ -1934,6 +1935,7 @@ WHILE pos <= LEN(src$)
           ##curFnDimmed$ = fn_all_dims$(src$, pos)
           ##qsIdxNames$ = ""
           ##curFnShapes$ = fn_array_shapes$(src$, pos)
+          ##curNodeArrays$ = fn_node_arrays$(src$, pos)
           ##inFuncScope = 1
           ##selectExitCount = 0
           ##selectExitStack$ = ""
@@ -1948,6 +1950,7 @@ WHILE pos <= LEN(src$)
         inFunc = 0
         ##inFuncScope = 0
         ##curFnShapes$ = ""
+        ##curNodeArrays$ = ""
         ' RR-03: restore happens after function body emission (below).
         ##curHoistFn$ = funcName$
         IF skipFunc = 0 THEN
@@ -6017,6 +6020,54 @@ FUNCTION fn_array_shapes$(s$, fromPos)
   fn_array_shapes$ = res$
 END FUNCTION
 
+' Arrays whose rows are ATTACH'd in this function (`sym[i,]`). Matches Rust
+' collect_node_arrays: only those names emit T* row tables; other 2-D locals
+' stay contiguous C arrays / flattened heap, so a by-ref callee can fold to
+' the first index without scribbling over row pointers.
+FUNCTION fn_node_arrays$(s$, fromPos)
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM depth
+  DIM dum$
+  DIM nm$
+  res$ = ""
+  p = fromPos
+  depth = 1
+  WHILE p <= LEN(s$) AND depth > 0
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    IF LEFT$(ln$, 9) = "function " THEN
+      depth = depth + 1
+    ELSEIF ln$ = "end function" THEN
+      depth = depth - 1
+    ELSEIF LEFT$(ln$, 7) = "attach " THEN
+      IF attach_split$(MID$(ln$, 8, LEN(ln$) - 7)) = "1" THEN
+        dum$ = attach_side_parse$(##atLeft$)
+        IF ##atRow$ = "1" THEN
+          nm$ = ##atNm$
+          IF LEN(nm$) > 0 AND INSTR(res$, ":" + nm$ + ":") = 0 THEN
+            res$ = res$ + ":" + nm$ + ":"
+          END IF
+        END IF
+        dum$ = attach_side_parse$(##atRight$)
+        IF ##atRow$ = "1" THEN
+          nm$ = ##atNm$
+          IF LEN(nm$) > 0 AND INSTR(res$, ":" + nm$ + ":") = 0 THEN
+            res$ = res$ + ":" + nm$ + ":"
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  fn_node_arrays$ = res$
+END FUNCTION
+
 FUNCTION shape_of$(n$)
   DIM p
   DIM start
@@ -8876,10 +8927,22 @@ FUNCTION attach_row_len$(n$)
   END IF
 END FUNCTION
 
+' In-function multi-dim non-dyn non-shared array whose rows are independent cells
+FUNCTION is_node_array$(n$)
+  DIM s$
+  s$ = shape_of$(n$)
+  IF INSTR(##curNodeArrays$, ":" + n$ + ":") > 0 AND LEN(s$) > 0 AND top_part_count(s$) = 2 AND INSTR(##sharedArrays$, ":" + n$ + ":") = 0 AND attach_is_dyn$(n$) = "" THEN
+    is_node_array$ = "1"
+  ELSE
+    is_node_array$ = ""
+  END IF
+END FUNCTION
+
 FUNCTION emit_stmt$(s$)
   DIM varName$
   DIM varType$
   DIM colonPos
+  DIM _cp
   DIM bracketPos
   DIM arrSize$
   DIM cExpr$
@@ -9300,6 +9363,13 @@ FUNCTION emit_stmt$(s$)
         ELSE
           emit_stmt$ = "    xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + " = calloc((size_t)((" + cExpr$ + ") + 1), sizeof(intptr_t)); if (!xb_var_" + sanitize_ident$(varName$) + bd$(varName$) + ") abort(); xb_ub_" + sanitize_ident$(varName$) + bd$(varName$) + " = (" + cExpr$ + ");"
         END IF
+      ELSEIF is_node_array$(varName$) = "1" AND INSTR(arrSize$, ",") > 0 THEN
+        _d0$ = first_comma_part$(arrSize$)
+        _cp = INSTR(arrSize$, ",")
+        _d1$ = emit_expr$(trim_spaces$(MID$(arrSize$, _cp + 1, LEN(arrSize$) - _cp)))
+        _tnm$ = c_var_name$(varName$, varType$)
+        _tty$ = c_type$(varType$)
+        emit_stmt$ = "    " + _tty$ + "* " + _tnm$ + "[(" + emit_expr$(_d0$) + ") + 1];" + CHR$(10) + "    for (intptr_t _r = 0; _r <= (" + emit_expr$(_d0$) + "); _r++) " + _tnm$ + "[_r] = (" + _tty$ + "*)calloc((size_t)((" + _d1$ + ") + 1), sizeof(" + _tty$ + "));"
       ELSE
         emit_stmt$ = "    " + c_type$(varType$) + " " + c_var_name$(varName$, varType$) + emit_msub$(arrSize$, 1) + "; memset(" + c_var_name$(varName$, varType$) + ", 0, sizeof(" + c_var_name$(varName$, varType$) + "));"
       END IF
@@ -9332,9 +9402,9 @@ FUNCTION emit_stmt$(s$)
   END IF
 
   IF LEFT$(s$, 7) = "attach " THEN
-    ' ATTACH copy semantics (mirrors c_emit_attach.rs): row extract/restore
-    ' via memcpy, whole-array copy, and element<->scalar moves. Unknown shapes
-    ' (dynamic trailing-comma DIMs) and type puns are guarded no-ops.
+    ' ATTACH move semantics (mirrors c_emit_attach.rs): node-array pointer
+    ' swaps, flat memcpy fallback, whole-array move, and element<->scalar
+    ' moves. Unknown shapes (dynamic trailing-comma DIMs) are guarded no-ops.
     DIM atLNm$
     DIM atLTy$
     DIM atLIdx$
@@ -9371,54 +9441,69 @@ FUNCTION emit_stmt$(s$)
       atLDyn$ = attach_is_dyn$(atLNm$)
       atRDyn$ = attach_is_dyn$(atRNm$)
       IF atLRow$ = "" AND LEN(atLIdx$) = 0 AND atRRow$ = "1" AND LEN(atRIdx$) > 0 AND top_part_count(atRIdx$) = 1 THEN
-        atRowLen$ = attach_row_len$(atRNm$)
-        IF LEN(atRowLen$) = 0 THEN
-          emit_stmt$ = ""
-        ELSE
-          ' Dyn/shared 2-D arrays are flat heap storage (row i starts at
-          ' `base[i*rowlen]`); fixed 2-D arrays are native C 2-D, so the row
-          ' base is `&base[i][0]` (flat indexing would overrun dim 0).
+        IF is_node_array$(atRNm$) = "1" THEN
           atIdxE$ = emit_expr$(atRIdx$)
-          IF atRDyn$ = "1" OR is_desc_param$(##curFnName$, atRNm$) = "1" THEN
-            emit_stmt$ = "    memcpy(" + atLAcc$ + ", &" + atRAcc$ + "[(" + atIdxE$ + ") * (" + atRowLen$ + ")], (size_t)(" + atRowLen$ + ") * sizeof(*" + atLAcc$ + "));"
-          ELSE
-            emit_stmt$ = "    memcpy(" + atLAcc$ + ", &" + atRAcc$ + "[(" + atIdxE$ + ")][0], (size_t)(" + atRowLen$ + ") * sizeof(*" + atLAcc$ + "));"
-          END IF
           IF atLDyn$ = "1" THEN
-            emit_stmt$ = emit_stmt$ + CHR$(10) + "    " + atLUb$ + " = (" + atRowLen$ + ") - 1;"
+            emit_stmt$ = "    " + atRAcc$ + "[" + atIdxE$ + "] = " + atLAcc$ + ";" + CHR$(10) + "    " + atLAcc$ + " = 0;" + CHR$(10) + "    " + atLUb$ + " = -1;"
+          ELSE
+            emit_stmt$ = "    " + atRAcc$ + "[" + atIdxE$ + "] = " + atLAcc$ + ";"
+          END IF
+          RETURN emit_stmt$
+        ELSE
+          atRowLen$ = attach_row_len$(atRNm$)
+          IF LEN(atRowLen$) = 0 THEN
+            emit_stmt$ = ""
+          ELSE
+            IF atLDyn$ = "1" THEN
+              atCnt$ = "(" + atLUb$ + " + 1)"
+            ELSE
+              atCnt$ = "(sizeof(" + atLAcc$ + ") / sizeof(*" + atLAcc$ + "))"
+            END IF
+            atIdxE$ = emit_expr$(atRIdx$)
+            IF atRDyn$ = "1" OR is_desc_param$(##curFnName$, atRNm$) = "1" THEN
+              emit_stmt$ = "    memcpy(&" + atRAcc$ + "[(" + atIdxE$ + ") * (" + atRowLen$ + ")], " + atLAcc$ + ", (size_t)(" + atCnt$ + ") * sizeof(*" + atLAcc$ + "));"
+            ELSE
+              emit_stmt$ = "    memcpy(&" + atRAcc$ + "[(" + atIdxE$ + ")][0], " + atLAcc$ + ", (size_t)(" + atCnt$ + ") * sizeof(*" + atLAcc$ + "));"
+            END IF
+            IF atLDyn$ = "1" THEN
+              emit_stmt$ = emit_stmt$ + CHR$(10) + "    " + atLAcc$ + " = 0;" + CHR$(10) + "    " + atLUb$ + " = -1;"
+            END IF
           END IF
         END IF
       ELSEIF atLRow$ = "1" AND LEN(atLIdx$) > 0 AND top_part_count(atLIdx$) = 1 AND atRRow$ = "" AND LEN(atRIdx$) = 0 THEN
         atRowLen$ = attach_row_len$(atLNm$)
-        IF LEN(atRowLen$) = 0 THEN
-          emit_stmt$ = ""
-        ELSE
+        IF is_node_array$(atLNm$) = "1" THEN
+          atIdxE$ = emit_expr$(atLIdx$)
           IF atRDyn$ = "1" THEN
-            atCnt$ = "(" + atRUb$ + " + 1)"
+            emit_stmt$ = "    " + atRAcc$ + " = " + atLAcc$ + "[" + atIdxE$ + "];" + CHR$(10) + "    " + atRUb$ + " = (" + atRowLen$ + ") - 1;" + CHR$(10) + "    " + atLAcc$ + "[" + atIdxE$ + "] = 0;"
           ELSE
-            atCnt$ = "(sizeof(" + atRAcc$ + ") / sizeof(*" + atRAcc$ + "))"
+            emit_stmt$ = "    " + atRAcc$ + " = " + atLAcc$ + "[" + atIdxE$ + "];" + CHR$(10) + "    " + atLAcc$ + "[" + atIdxE$ + "] = 0;"
           END IF
-          IF atLDyn$ = "1" OR is_desc_param$(##curFnName$, atLNm$) = "1" THEN
-            emit_stmt$ = "    memcpy(&" + atLAcc$ + "[(" + emit_expr$(atLIdx$) + ") * (" + atRowLen$ + ")], " + atRAcc$ + ", (size_t)(" + atCnt$ + ") * sizeof(*" + atRAcc$ + "));"
+          RETURN emit_stmt$
+        ELSE
+          IF LEN(atRowLen$) = 0 THEN
+            emit_stmt$ = ""
           ELSE
-            emit_stmt$ = "    memcpy(&" + atLAcc$ + "[(" + emit_expr$(atLIdx$) + ")][0], " + atRAcc$ + ", (size_t)(" + atCnt$ + ") * sizeof(*" + atRAcc$ + "));"
+            atIdxE$ = emit_expr$(atLIdx$)
+            IF atLDyn$ = "1" OR is_desc_param$(##curFnName$, atLNm$) = "1" THEN
+              emit_stmt$ = "    memcpy(" + atRAcc$ + ", &" + atLAcc$ + "[(" + atIdxE$ + ") * (" + atRowLen$ + ")], (size_t)(" + atRowLen$ + ") * sizeof(*" + atRAcc$ + "));"
+            ELSE
+              emit_stmt$ = "    memcpy(" + atRAcc$ + ", &" + atLAcc$ + "[(" + atIdxE$ + ")][0], (size_t)(" + atRowLen$ + ") * sizeof(*" + atRAcc$ + "));"
+            END IF
+            IF atRDyn$ = "1" THEN
+              emit_stmt$ = emit_stmt$ + CHR$(10) + "    " + atRUb$ + " = (" + atRowLen$ + ") - 1;"
+            END IF
           END IF
         END IF
       ELSEIF atLRow$ = "" AND LEN(atLIdx$) = 0 AND atRRow$ = "" AND LEN(atRIdx$) = 0 THEN
-        ' Alias path (M1-ATTACH-ALIAS): same-group members share one heap
-        ' block after pointer + bound assignment (mirrors the Rust CEmitter).
-        DIM _agHL$
-        DIM _agHR$
-        _agHL$ = attach_group_home$(atLNm$)
-        _agHR$ = attach_group_home$(atRNm$)
         IF atLTy$ <> atRTy$ THEN
           emit_stmt$ = ""
-        ELSEIF LEN(_agHL$) > 0 AND _agHL$ = _agHR$ THEN
-          emit_stmt$ = "    " + atLAcc$ + " = " + atRAcc$ + ";" + CHR$(10) + "    " + atLUb$ + " = " + atRUb$ + ";"
+        ELSEIF atLTy$ = "string" AND INSTR(##curFnArrays$, ":" + atLNm$ + ":") = 0 AND INSTR(##curFnArrays$, ":" + atRNm$ + ":") = 0 AND INSTR(##allStrArr$, ":" + atLNm$ + ":") = 0 AND INSTR(##allStrArr$, ":" + atRNm$ + ":") = 0 THEN
+          emit_stmt$ = "    " + c_var_name$(atRNm$, atRTy$) + " = " + c_var_name$(atLNm$, atLTy$) + ";" + CHR$(10) + "    " + c_var_name$(atLNm$, atLTy$) + " = xb_str(\"\");"
         ELSEIF atLDyn$ = "1" AND atRDyn$ = "1" THEN
-          emit_stmt$ = "    memcpy(" + atLAcc$ + ", " + atRAcc$ + ", (size_t)(" + atRUb$ + " + 1) * sizeof(*" + atLAcc$ + "));" + CHR$(10) + "    " + atLUb$ + " = " + atRUb$ + ";"
+          emit_stmt$ = "    " + atRAcc$ + " = " + atLAcc$ + ";" + CHR$(10) + "    " + atRUb$ + " = " + atLUb$ + ";" + CHR$(10) + "    " + atLAcc$ + " = 0;" + CHR$(10) + "    " + atLUb$ + " = -1;"
         ELSEIF atLDyn$ = "" AND atRDyn$ = "" AND INSTR(##curFnArrays$, ":" + atLNm$ + ":") > 0 AND INSTR(##curFnArrays$, ":" + atRNm$ + ":") > 0 THEN
-          emit_stmt$ = "    memcpy(" + atLAcc$ + ", " + atRAcc$ + ", sizeof(" + atLAcc$ + ") < sizeof(" + atRAcc$ + ") ? sizeof(" + atLAcc$ + ") : sizeof(" + atRAcc$ + "));"
+          emit_stmt$ = "    memcpy(" + atRAcc$ + ", " + atLAcc$ + ", sizeof(" + atRAcc$ + ") < sizeof(" + atLAcc$ + ") ? sizeof(" + atRAcc$ + ") : sizeof(" + atLAcc$ + "));"
         ELSE
           emit_stmt$ = ""
         END IF
@@ -9426,17 +9511,17 @@ FUNCTION emit_stmt$(s$)
         IF atLTy$ <> atRTy$ THEN
           emit_stmt$ = ""
         ELSEIF atLTy$ = "string" THEN
-          emit_stmt$ = "    " + c_var_name$(atLNm$, atLTy$) + " = xb_strdup(" + atRAcc$ + "[" + emit_expr$(atRIdx$) + "]);"
+          emit_stmt$ = "    " + atRAcc$ + "[" + emit_expr$(atRIdx$) + "] = " + c_var_name$(atLNm$, atLTy$) + ";" + CHR$(10) + "    " + c_var_name$(atLNm$, atLTy$) + " = xb_str(\"\");"
         ELSE
-          emit_stmt$ = "    " + c_var_name$(atLNm$, atLTy$) + " = " + atRAcc$ + "[" + emit_expr$(atRIdx$) + "];"
+          emit_stmt$ = "    " + atRAcc$ + "[" + emit_expr$(atRIdx$) + "] = " + c_var_name$(atLNm$, atLTy$) + ";"
         END IF
       ELSEIF atLRow$ = "" AND LEN(atLIdx$) > 0 AND top_part_count(atLIdx$) = 1 AND atRRow$ = "" AND LEN(atRIdx$) = 0 THEN
         IF atLTy$ <> atRTy$ THEN
           emit_stmt$ = ""
         ELSEIF atRTy$ = "string" THEN
-          emit_stmt$ = "    " + atLAcc$ + "[" + emit_expr$(atLIdx$) + "] = xb_strdup(" + c_var_name$(atRNm$, atRTy$) + ");"
+          emit_stmt$ = "    " + c_var_name$(atRNm$, atRTy$) + " = " + atLAcc$ + "[" + emit_expr$(atLIdx$) + "];" + CHR$(10) + "    " + atLAcc$ + "[" + emit_expr$(atLIdx$) + "] = xb_str(\"\");"
         ELSE
-          emit_stmt$ = "    " + atLAcc$ + "[" + emit_expr$(atLIdx$) + "] = " + c_var_name$(atRNm$, atRTy$) + ";"
+          emit_stmt$ = "    " + c_var_name$(atRNm$, atRTy$) + " = " + atLAcc$ + "[" + emit_expr$(atLIdx$) + "];"
         END IF
       ELSE
         emit_stmt$ = ""

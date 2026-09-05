@@ -2944,8 +2944,8 @@ fn cemitter_and_cgen_agree_on_2d_redim_flat() {
 /// (`99/88/99/88`) on all three engines. Both C emitters mark linked names
 /// dyn (heap pointers + bound cells) and emit pointer + bound assignment.
 #[test]
-fn cemitter_attach_whole_array_aliases() {
-    let tmp = std::env::temp_dir().join("xb_sync_attach_alias");
+fn cemitter_attach_whole_array_move() {
+    let tmp = std::env::temp_dir().join("xb_sync_attach_move");
     fs::create_dir_all(&tmp).expect("mkdir");
     let cgen_exe = build_native_cgen(&tmp);
 
@@ -2954,22 +2954,22 @@ fn cemitter_attach_whole_array_aliases() {
         "VERSION \"0.1\"\n",
         "FUNCTION Main\n",
         "DIM a[2]\n",
-        "DIM b[2]\n",
-        "b[0] = 10\n",
-        "b[1] = 20\n",
+        "a[0] = 10\n",
+        "a[1] = 20\n",
+        "a[2] = 30\n",
+        "DIM b[]\n",
         "ATTACH a[] TO b[]\n",
-        "b[0] = 99\n",
-        "a[1] = 88\n",
-        "PRINT a[0]\n",
-        "PRINT a[1]\n",
+        "PRINT UBOUND(b[])\n",
         "PRINT b[0]\n",
         "PRINT b[1]\n",
+        "PRINT b[2]\n",
+        "PRINT UBOUND(a[])\n",
         "END FUNCTION\n"
     );
     let prog = FrontendUnit::parse(src)
-        .expect("parse attach alias program")
+        .expect("parse attach move program")
         .lower_ir()
-        .expect("lower attach alias program");
+        .expect("lower attach move program");
     let ir = TextIrEmitter::new().emit_program(&prog);
 
     let rust_c = CEmitter::new().emit_program(&prog);
@@ -2981,21 +2981,22 @@ fn cemitter_attach_whole_array_aliases() {
     let mut interp = Vec::new();
     Interpreter::new()
         .execute_main_with_input(&prog, Vec::new(), &mut interp)
-        .expect("interpret attach alias program");
+        .expect("interpret attach move program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(
-        interp_out, "99\n88\n99\n88\n",
-        "attach alias reference output"
+        interp_out, "2\n10\n20\n30\n-1\n",
+        "attach move reference output"
     );
     assert_eq!(
         rust_out, interp_out,
-        "CEmitter failed to alias whole-array ATTACH"
+        "CEmitter failed whole-array ATTACH move"
     );
     assert_eq!(
         self_out, interp_out,
-        "cgen.x failed to alias whole-array ATTACH"
+        "cgen.x failed whole-array ATTACH move"
     );
+    let _ = fs::remove_dir_all(&tmp);
 }
 
 /// Whole-array ATTACH plus group REDIM (M1-ATTACH-ALIAS): REDIM through one
@@ -3004,7 +3005,7 @@ fn cemitter_attach_whole_array_aliases() {
 /// three engines. The pointer-equality guard keeps conditional-ATTACH and
 /// detach sound on both C backends.
 #[test]
-fn cemitter_attach_group_redim_propagates() {
+fn cemitter_attach_row_growth_round_trip() {
     let tmp = std::env::temp_dir().join("xb_sync_attach_redim");
     fs::create_dir_all(&tmp).expect("mkdir");
     let cgen_exe = build_native_cgen(&tmp);
@@ -3013,20 +3014,24 @@ fn cemitter_attach_group_redim_propagates() {
         "PROGRAM \"atg\"\n",
         "VERSION \"0.1\"\n",
         "FUNCTION Main\n",
-        "DIM a[2]\n",
-        "DIM b[2]\n",
-        "b[0] = 10\n",
-        "b[1] = 20\n",
-        "ATTACH a[] TO b[]\n",
+        "DIM t[1, 2]\n",
+        "t[0, 0] = 1\n",
+        "t[0, 1] = 2\n",
+        "t[0, 2] = 3\n",
+        "t[1, 0] = 4\n",
+        "t[1, 1] = 5\n",
+        "t[1, 2] = 6\n",
+        "DIM a[]\n",
+        "ATTACH t[0,] TO a[]\n",
         "REDIM a[4]\n",
         "a[3] = 30\n",
         "a[4] = 40\n",
-        "PRINT a[0]\n",
-        "PRINT a[4]\n",
-        "PRINT b[3]\n",
-        "PRINT b[4]\n",
+        "ATTACH a[] TO t[0,]\n",
         "PRINT UBOUND(a[])\n",
-        "PRINT UBOUND(b[])\n",
+        "PRINT t[0, 0]\n",
+        "PRINT t[0, 3]\n",
+        "PRINT t[0, 4]\n",
+        "PRINT t[1, 0]\n",
         "END FUNCTION\n"
     );
     let prog = FrontendUnit::parse(src)
@@ -3048,17 +3053,11 @@ fn cemitter_attach_group_redim_propagates() {
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
     assert_eq!(
-        interp_out, "10\n40\n30\n40\n4\n4\n",
+        interp_out, "-1\n1\n30\n40\n4\n",
         "attach redim reference output"
     );
-    assert_eq!(
-        rust_out, interp_out,
-        "CEmitter failed group REDIM through ATTACH alias"
-    );
-    assert_eq!(
-        self_out, interp_out,
-        "cgen.x failed group REDIM through ATTACH alias"
-    );
+    assert_eq!(rust_out, interp_out, "CEmitter failed row-growth ATTACH");
+    assert_eq!(self_out, interp_out, "cgen.x failed row-growth ATTACH");
     let _ = fs::remove_dir_all(&tmp);
 }
 
@@ -5091,73 +5090,48 @@ fn cemitter_compiles_gtk_and_helpsrc_clean() {
 /// Case 4 (element→scalar), Case 5 (scalar→element), Case 1 (2-D row
 /// extract), Case 2 (2-D row restore).
 #[test]
-fn cemitter_attach_copy_semantics_match_interp() {
+fn cemitter_attach_move_semantics_match_interp() {
     let tmp = std::env::temp_dir().join("xb_sync_attach");
     fs::create_dir_all(&tmp).expect("mkdir");
     let cgen_exe = build_native_cgen(&tmp);
 
-    // Case 3: ATTACH src[] TO dst[] — whole-array copy (dst → src)
-    // Case 4: ATTACH scalar TO dst[k] — copy element k of dst into scalar
-    // Case 5: ATTACH dst[k] TO scalar — copy scalar into element k of dst
-    // Case 1: ATTACH src[] TO dst[i,] — copy row i of 2D dst into 1D src
-    // Case 2: ATTACH dst[i,] TO src[] — copy 1D src back into row i of 2D dst
     let src = "PROGRAM \"attach\"\n\
                VERSION \"0.1\"\n\
                FUNCTION Main ()\n\
-               DIM src[3]\n\
-               DIM dst[3]\n\
-               dst[0] = 10\n\
-               dst[1] = 20\n\
-               dst[2] = 30\n\
+               DIM src[2]\n\
+               src[0] = 10\n\
+               src[1] = 20\n\
+               src[2] = 30\n\
+               DIM dst[]\n\
                ATTACH src[] TO dst[]\n\
-               PRINT src[0]\n\
-               PRINT src[1]\n\
-               PRINT src[2]\n\
-               DIM val\n\
-               ATTACH val TO dst[1]\n\
-               PRINT val\n\
-               val = 99\n\
-               ATTACH dst[2] TO val\n\
+               PRINT dst[0]\n\
+               PRINT dst[1]\n\
                PRINT dst[2]\n\
-               DIM src2[3]\n\
-               DIM dst2[2,3]\n\
-               dst2[0,0] = 100\n\
-               dst2[0,1] = 200\n\
-               dst2[0,2] = 300\n\
-               dst2[1,0] = 400\n\
-               dst2[1,1] = 500\n\
-               dst2[1,2] = 600\n\
-               ATTACH src2[] TO dst2[0,]\n\
-               PRINT src2[0]\n\
-               PRINT src2[1]\n\
-               PRINT src2[2]\n\
-               src2[0] = 999\n\
-               src2[1] = 888\n\
-               src2[2] = 777\n\
-               ATTACH dst2[1,] TO src2[]\n\
-               PRINT dst2[1,0]\n\
-               PRINT dst2[1,1]\n\
-               PRINT dst2[1,2]\n\
-               DIM s$\n\
+               PRINT UBOUND(src[])\n\
+               DIM val$\n\
+               val$ = \"hello\"\n\
                DIM sdst$[2]\n\
-               sdst$[0] = \"aa\"\n\
-               sdst$[1] = \"bb\"\n\
-               sdst$[2] = \"cc\"\n\
-               ATTACH s$ TO sdst$[1]\n\
-               PRINT s$\n\
-               s$ = \"zz\"\n\
-               ATTACH sdst$[0] TO s$\n\
-               PRINT sdst$[0]\n\
+               ATTACH val$ TO sdst$[1]\n\
                PRINT sdst$[1]\n\
-               DIM sa$[2]\n\
-               DIM sb$[2]\n\
-               sb$[0] = \"x\"\n\
-               sb$[1] = \"y\"\n\
-               sb$[2] = \"z\"\n\
-               ATTACH sa$[] TO sb$[]\n\
-               PRINT sa$[0]\n\
-               PRINT sa$[1]\n\
-               PRINT sa$[2]\n\
+               PRINT val$\n\
+               val$ = \"\"\n\
+               ATTACH sdst$[1] TO val$\n\
+               PRINT val$\n\
+               PRINT sdst$[1]\n\
+               DIM d2[1, 2]\n\
+               d2[0, 0] = 100\n\
+               d2[0, 1] = 200\n\
+               d2[0, 2] = 300\n\
+               DIM row[]\n\
+               ATTACH d2[0,] TO row[]\n\
+               PRINT row[0]\n\
+               PRINT row[1]\n\
+               PRINT row[2]\n\
+               row[0] = 999\n\
+               ATTACH row[] TO d2[0,]\n\
+               PRINT d2[0, 0]\n\
+               PRINT d2[0, 1]\n\
+               PRINT UBOUND(row[])\n\
                END FUNCTION\n";
     let prog = FrontendUnit::parse(src)
         .expect("parse attach program")
@@ -5177,13 +5151,14 @@ fn cemitter_attach_copy_semantics_match_interp() {
         .expect("interpret attach program");
     let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
 
-    let expected = "10\n20\n30\n20\n99\n\
+    let expected = "10\n20\n30\n-1\n\
+                    hello\n\n\
+                    hello\n\n\
                     100\n200\n300\n\
-                    999\n888\n777\n\
-                    bb\nzz\nbb\nx\ny\nz\n";
+                    999\n200\n-1\n";
     assert_eq!(interp_out, expected, "interp ATTACH reference output");
-    assert_eq!(rust_out, expected, "CEmitter ATTACH copy semantics");
-    assert_eq!(self_out, expected, "cgen.x ATTACH copy semantics");
+    assert_eq!(rust_out, expected, "CEmitter ATTACH move semantics");
+    assert_eq!(self_out, expected, "cgen.x ATTACH move semantics");
     let _ = fs::remove_dir_all(&tmp);
 }
 

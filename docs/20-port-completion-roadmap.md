@@ -132,10 +132,9 @@ Work packages (canonical open rows live in docs/17):
    `ATTACH a[] TO bufferIndex[charCode,]`) is trivial: move row out into `a[]`
    (leaving row empty), `REDIM a[...]` via standard 1-D realloc/preserve, and
    move back into the empty row — no strides, no group realloc, no view links.
-   The existing locks (`cemitter_attach_copy_semantics_match_interp`,
-   `..._dynamic_trailing_comma_dim`, `attach_*` interp tests, whole-array alias
-   tests) assert interp==C, not legacy; they will be re-derived from `lang.txt`
-   test contracts.
+   Interpreter + CEmitter + cgen.x now implement that move (2026-09-05):
+   `attach_move_*` interp locks, `cemitter_attach_*`, 2-D first-index fold,
+   undeclared dest vivify, and unknown-shape row ATTACH no-op.
    Also implement required C-library time/file helpers against observable programs
    rather than stubs.
 5. **Run the modularization gate after scanner retirement.** Measure the

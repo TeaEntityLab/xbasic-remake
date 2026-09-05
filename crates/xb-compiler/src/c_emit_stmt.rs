@@ -220,6 +220,43 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                             crate::c_emit::emit_array_var_name(symbol, out);
                             out.push_str(") abort();\n");
                         }
+                    } else if crate::c_emit::is_node_array(&symbol.name) {
+                        let id = crate::c_emit::array_ident(&symbol.name);
+                        let ty = c_type(symbol.value_type);
+                        out.push_str(ty);
+                        out.push_str("* ");
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push('[');
+                        crate::c_emit_expr::emit_expr(&dims[0], out);
+                        out.push_str(" + 1];\n");
+                        out.push_str(&ind);
+                        out.push_str("intptr_t xb_ub_");
+                        out.push_str(&id);
+                        out.push_str("_rows[");
+                        crate::c_emit_expr::emit_expr(&dims[0], out);
+                        out.push_str(" + 1];\n");
+                        out.push_str(&ind);
+                        out.push_str("for (intptr_t _r = 0; _r <= ");
+                        crate::c_emit_expr::emit_expr(&dims[0], out);
+                        out.push_str("; _r++) {\n");
+                        out.push_str(&ind);
+                        out.push_str("    ");
+                        crate::c_emit::emit_array_var_name(symbol, out);
+                        out.push_str("[_r] = (");
+                        out.push_str(ty);
+                        out.push_str("*)calloc((size_t)(");
+                        crate::c_emit_expr::emit_expr(&dims[1], out);
+                        out.push_str(" + 1), sizeof(");
+                        out.push_str(ty);
+                        out.push_str("));\n");
+                        out.push_str(&ind);
+                        out.push_str("    xb_ub_");
+                        out.push_str(&id);
+                        out.push_str("_rows[_r] = ");
+                        crate::c_emit_expr::emit_expr(&dims[1], out);
+                        out.push_str(";\n");
+                        out.push_str(&ind);
+                        out.push_str("}\n");
                     } else {
                         out.push_str(c_type(symbol.value_type));
                         out.push(' ');
@@ -235,7 +272,12 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
                     // First-DIM string fill. Skipped for dyn REDIM: the realloc
                     // arm above already default-fills only the grown tail, and
                     // blanking the whole array would destroy preserved content.
-                    if symbol.value_type == ValueType::String && !(*redim && dyn_array) {
+                    // Node holders are `T*` row tables; a flat fill would write
+                    // strings into the pointer table.
+                    if symbol.value_type == ValueType::String
+                        && !(*redim && dyn_array)
+                        && !crate::c_emit::is_node_array(&symbol.name)
+                    {
                         out.push_str(&ind);
                         out.push_str("for (intptr_t _i = 0; _i < ");
                         crate::c_emit::emit_flat_size(&dims, out);

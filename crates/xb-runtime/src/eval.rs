@@ -165,27 +165,49 @@ pub(crate) fn eval_expr(
                     }
                 }
             }
-            // ATTACH views route into shared storage (M1-ATTACH-ALIAS); plain
-            // names resolve to themselves, preserving the exact rules below.
-            let value =
-                match crate::interpreter_attach::read_window_element(state, &symbol.name, &idxs) {
-                    Some(v) => v,
-                    // Unbacked or out of range: type default (undimmed fold and
-                    // auto-declared reads, matching the C backend).
-                    None => RuntimeValue::default_for(symbol.value_type),
-                };
-            return Ok(value);
+            let slot = state
+                .shared
+                .get(&symbol.name)
+                .or_else(|| state.slots.get(&symbol.name));
+            if let Some(s) = slot {
+                if let Some(ref rows) = s.node_rows {
+                    if idxs.len() >= 2 {
+                        let r = idxs[0];
+                        let c = idxs[1];
+                        if let Some(row) = rows.get(r) {
+                            if let Some(ref arr) = row.array {
+                                if c < arr.len() {
+                                    return Ok(arr[c].clone());
+                                }
+                            }
+                        }
+                    } else if idxs.len() == 1 {
+                        let r = idxs[0];
+                        if let Some(row) = rows.get(r) {
+                            if row.array.is_some() {
+                                return Ok(RuntimeValue::Integer(1));
+                            }
+                        }
+                    }
+                    return Ok(RuntimeValue::default_for(symbol.value_type));
+                }
+                if let Some(off) = s.array_offset(&idxs) {
+                    if let Some(ref arr) = s.array {
+                        if off < arr.len() {
+                            return Ok(arr[off].clone());
+                        }
+                    }
+                }
+            }
+            return Ok(RuntimeValue::default_for(symbol.value_type));
         }
         IrExprKind::ArrayUBound { symbol } => {
-            // ATTACH views report their live window length (M1-ATTACH-ALIAS).
-            if let Some(len) = crate::interpreter_attach::alias_window_len(state, &symbol.name) {
-                return Ok(RuntimeValue::Integer(len as i32 - 1));
-            }
             let slot = state
                 .shared
                 .get(&symbol.name)
                 .or_else(|| state.slots.get(&symbol.name));
             let upper = match slot {
+                Some(s) if s.node_rows.is_some() => s.node_rows.as_ref().unwrap().len() as i32 - 1,
                 Some(s) if s.array.is_some() => s.array.as_ref().map_or(0, |a| a.len()) as i32 - 1,
                 // UBOUND(string$) is the last byte offset = LEN(string$) - 1.
                 Some(s) => match &s.value {

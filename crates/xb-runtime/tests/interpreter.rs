@@ -940,37 +940,79 @@ fn ifz_on_string_tests_emptiness() {
 }
 
 #[test]
-fn attach_whole_array_aliases_storage_both_directions() {
-    // Real ATTACH shares storage (M1-ATTACH-ALIAS): writes through either
-    // name are visible through the other (the bounded-copy model could not
-    // express this; the ary.x row-growth idiom needs it).
+fn attach_move_semantics_whole_array_transfers_and_empties_source() {
+    // ATTACH arrayNode TO arrayNode (lang.txt:57-62):
+    // Move an array from source node to destination node.
+    // After the array is moved, the source node is made empty.
     let program = lower(
         "VERSION \"0.1\"\n\
          FUNCTION Main\n\
          DIM a[2]\n\
-         DIM b[2]\n\
-         b[0] = 10\n\
-         b[1] = 20\n\
+         a[0] = 10\n\
+         a[1] = 20\n\
+         a[2] = 30\n\
+         DIM b[]\n\
          ATTACH a[] TO b[]\n\
-         b[0] = 99\n\
-         a[1] = 88\n\
-         PRINT a[0]\n\
-         PRINT a[1]\n\
+         PRINT UBOUND(b[])\n\
          PRINT b[0]\n\
          PRINT b[1]\n\
+         PRINT b[2]\n\
+         PRINT UBOUND(a[])\n\
          END FUNCTION\n",
     );
     let mut output = Vec::new();
     Interpreter::new()
         .execute_main(&program, &mut output)
         .unwrap();
-    assert_eq!(output, ["99", "88", "99", "88"]);
+    assert_eq!(output, ["2", "10", "20", "30", "-1"]);
 }
 
 #[test]
-fn attach_row_view_grows_shared_holder_on_redim() {
-    // The ary.x idiom: extract a row to a view, REDIM the view bigger, and
-    // the shared holder row grows with content preserved.
+fn attach_move_undeclared_destination_vivifies_empty_node() {
+    // aarray_ISNODE.x uses an undeclared `xtemp[]` as a type-pun node:
+    // ATTACH src[] TO xtemp[] is legal because an absent destination is empty.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM a[2]\n\
+         a[0] = 10\n\
+         a[2] = 30\n\
+         ATTACH a[] TO xtemp[]\n\
+         PRINT UBOUND(xtemp[])\n\
+         PRINT xtemp[0]\n\
+         PRINT xtemp[2]\n\
+         PRINT UBOUND(a[])\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap();
+    assert_eq!(output, ["2", "10", "30", "-1"]);
+}
+
+#[test]
+fn attach_move_destination_not_empty_raises_runtime_error() {
+    // lang.txt:60-61: If the destination node is not empty a runtime error occurs.
+    let program = lower(
+        "VERSION \"0.1\"\n\
+         FUNCTION Main\n\
+         DIM a[2]\n\
+         DIM b[2]\n\
+         ATTACH a[] TO b[]\n\
+         END FUNCTION\n",
+    );
+    let mut output = Vec::new();
+    let err = Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap_err();
+    assert_eq!(err, RuntimeError::AttachDestinationNotEmpty);
+}
+
+#[test]
+fn attach_move_row_growth_round_trip() {
+    // The ary.x idiom (lang.txt:57-62, aarray.x L131-133, ary.x L2886-2890):
+    // Move row out into empty a[], 1-D REDIM on a[], move back into empty row.
     let program = lower(
         "VERSION \"0.1\"\n\
          FUNCTION Main\n\
@@ -982,14 +1024,15 @@ fn attach_row_view_grows_shared_holder_on_redim() {
          t[1, 1] = 5\n\
          t[1, 2] = 6\n\
          DIM a[]\n\
-         ATTACH a[] TO t[0,]\n\
+         ATTACH t[0,] TO a[]\n\
          PRINT UBOUND(a[])\n\
          PRINT a[0]\n\
          PRINT a[2]\n\
          REDIM a[4]\n\
          a[3] = 30\n\
          a[4] = 40\n\
-         ATTACH t[0,] TO a[]\n\
+         ATTACH a[] TO t[0,]\n\
+         PRINT UBOUND(a[])\n\
          PRINT t[0, 0]\n\
          PRINT t[0, 3]\n\
          PRINT t[0, 4]\n\
@@ -1000,63 +1043,31 @@ fn attach_row_view_grows_shared_holder_on_redim() {
     Interpreter::new()
         .execute_main(&program, &mut output)
         .unwrap();
-    assert_eq!(output, ["2", "1", "3", "1", "30", "40", "4"]);
+    assert_eq!(output, ["2", "1", "3", "-1", "1", "30", "40", "4"]);
 }
 
 #[test]
-fn attach_empty_source_joins_row_without_wiping() {
-    // Ary order: ATTACH row TO empty-a links a as a view (the row is NOT
-    // wiped — the old copy guard for empty sources); a sees live contents
-    // and UBOUND follows the shared row.
+fn attach_move_string_scalar_transfers_and_clears_source() {
+    // lang.txt:68-69 & abuffer.x / GUI demos:
+    // ATTACH r1$ TO display$ moves r1$ into display$, clearing r1$.
+    // ATTACH display$ TO r1$ moves it back.
     let program = lower(
         "VERSION \"0.1\"\n\
          FUNCTION Main\n\
-         DIM t[1, 2]\n\
-         t[0, 0] = 1\n\
-         t[0, 1] = 2\n\
-         t[0, 2] = 3\n\
-         t[1, 0] = 4\n\
-         t[1, 1] = 5\n\
-         t[1, 2] = 6\n\
-         DIM a[]\n\
-         ATTACH t[0,] TO a[]\n\
-         PRINT t[0, 0]\n\
-         PRINT t[0, 1]\n\
-         PRINT t[0, 2]\n\
-         PRINT UBOUND(a[])\n\
-         REDIM a[4]\n\
-         ATTACH a[] TO t[0,]\n\
-         PRINT t[0, 0]\n\
-         PRINT t[0, 2]\n\
+         r1$ = \"hello\"\n\
+         display$ = \"\"\n\
+         ATTACH r1$ TO display$\n\
+         PRINT display$\n\
+         PRINT r1$\n\
+         r1$ = \"\"\n\
+         ATTACH display$ TO r1$\n\
+         PRINT r1$\n\
+         PRINT display$\n\
          END FUNCTION\n",
     );
     let mut output = Vec::new();
     Interpreter::new()
         .execute_main(&program, &mut output)
         .unwrap();
-    assert_eq!(output, ["1", "2", "3", "2", "1", "3"]);
-}
-
-#[test]
-fn attach_dim_unlinks_fresh_storage() {
-    // A fresh DIM on a view allocates owned storage and detaches: later
-    // writes no longer reach the former holder.
-    let program = lower(
-        "VERSION \"0.1\"\n\
-         FUNCTION Main\n\
-         DIM a[2]\n\
-         DIM b[2]\n\
-         b[0] = 10\n\
-         ATTACH a[] TO b[]\n\
-         DIM a[2]\n\
-         a[0] = 77\n\
-         PRINT a[0]\n\
-         PRINT b[0]\n\
-         END FUNCTION\n",
-    );
-    let mut output = Vec::new();
-    Interpreter::new()
-        .execute_main(&program, &mut output)
-        .unwrap();
-    assert_eq!(output, ["77", "10"]);
+    assert_eq!(output, ["hello", "", "hello", ""]);
 }

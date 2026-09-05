@@ -68,19 +68,6 @@ impl RuntimeValue {
     }
 }
 
-/// An ATTACH view/alias binding between array slots (M1-ATTACH-ALIAS): real
-/// XBasic `ATTACH` shares storage rather than copying. `name` reads, writes,
-/// REDIMs, and UBOUNDs route to `target`'s storage: whole-array (`row: None`)
-/// or one 1-D window over row `row` of a 2-D target. View shape derives live
-/// from the target (whole: target dims; row: current row length), so no sync
-/// state exists to go stale. Chains resolve with a visited cap; a missing
-/// target degrades to the view's owned (copy-model) storage.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AliasLink {
-    pub(crate) target: String,
-    pub(crate) row: Option<usize>,
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypedSlot {
     pub(crate) value_type: ValueType,
@@ -89,6 +76,9 @@ pub struct TypedSlot {
     /// Row-major per-dimension lengths (the shape). `[len]` for 1-D; empty only
     /// for scalars / not-yet-shaped arrays.
     pub(crate) dims: Vec<usize>,
+    /// Row nodes for jagged / node arrays (e.g. `DIM d[3,]` or attached 2-D rows).
+    /// When present, row `i` is an independent 1-D `TypedSlot`.
+    pub(crate) node_rows: Option<Vec<TypedSlot>>,
 }
 
 impl TypedSlot {
@@ -98,6 +88,7 @@ impl TypedSlot {
             value: RuntimeValue::default_for(value_type),
             array: None,
             dims: Vec::new(),
+            node_rows: None,
         }
     }
     pub(crate) fn set(&mut self, v: RuntimeValue) {
@@ -120,8 +111,10 @@ impl TypedSlot {
             value: RuntimeValue::default_for(value_type),
             array: Some(vec![RuntimeValue::default_for(value_type); flat]),
             dims,
+            node_rows: None,
         }
     }
+    #[allow(dead_code)]
     pub(crate) fn array_get(&self, index: usize) -> Result<RuntimeValue, RuntimeError> {
         self.array
             .as_ref()
@@ -155,6 +148,70 @@ impl TypedSlot {
             None => self.array = Some(vec![fill; flat]),
         }
         self.dims = dims;
+    }
+    /// True if this slot represents an empty array (unallocated or 0 elements).
+    pub(crate) fn is_empty_array(&self) -> bool {
+        if let Some(ref rows) = self.node_rows {
+            rows.is_empty() || rows.iter().all(|r| r.is_empty_array())
+        } else if let Some(ref arr) = self.array {
+            arr.is_empty()
+        } else {
+            true
+        }
+    }
+    /// Ensure `node_rows` is populated for a multi-dimensional array.
+    /// Slices flat storage into independent row slots if not already done.
+    pub(crate) fn ensure_node_rows(&mut self) {
+        if self.node_rows.is_some() {
+            return;
+        }
+        if self.dims.len() >= 2 {
+            let num_rows = self.dims[0];
+            let row_len = self.dims[1];
+            let mut rows = Vec::with_capacity(num_rows);
+            if let Some(flat) = self.array.take() {
+                for r in 0..num_rows {
+                    let start = r * row_len;
+                    let end = (start + row_len).min(flat.len());
+                    let slice = if start < flat.len() {
+                        flat[start..end].to_vec()
+                    } else {
+                        Vec::new()
+                    };
+                    rows.push(TypedSlot {
+                        value_type: self.value_type,
+                        value: RuntimeValue::default_for(self.value_type),
+                        array: Some(slice),
+                        dims: vec![row_len],
+                        node_rows: None,
+                    });
+                }
+            } else {
+                for _ in 0..num_rows {
+                    rows.push(TypedSlot {
+                        value_type: self.value_type,
+                        value: RuntimeValue::default_for(self.value_type),
+                        array: None,
+                        dims: vec![0],
+                        node_rows: None,
+                    });
+                }
+            }
+            self.node_rows = Some(rows);
+        } else if self.dims.len() == 1 {
+            let num_rows = self.dims[0];
+            let mut rows = Vec::with_capacity(num_rows);
+            for _ in 0..num_rows {
+                rows.push(TypedSlot {
+                    value_type: self.value_type,
+                    value: RuntimeValue::default_for(self.value_type),
+                    array: None,
+                    dims: vec![0],
+                    node_rows: None,
+                });
+            }
+            self.node_rows = Some(rows);
+        }
     }
     /// Row-major flat offset for `indices` given this slot's shape. Falls back to
     /// the first index when no shape is recorded (1-D). `None` if any subscript is
@@ -222,11 +279,6 @@ pub struct ExecutionState {
     /// into `target.{suffix}` slots. DCOMPLEX/SCOMPLEX use the existing
     /// ret-slot path, not this field.
     pub(crate) last_composite_ret: Option<(String, Vec<(String, RuntimeValue)>)>,
-    /// ATTACH view/alias bindings (`M1-ATTACH-ALIAS`): view name → link.
-    /// Cloned into callee sub-states like `dyn_arrays`; links whose target
-    /// is absent in the current state degrade to owned storage (bounded
-    /// copy-model behavior across call boundaries).
-    pub(crate) aliases: BTreeMap<String, AliasLink>,
 }
 impl ExecutionState {
     pub const fn metadata(&self) -> &ProgramMetadata {
@@ -278,6 +330,8 @@ pub enum RuntimeError {
     ArrayIndexOutOfRange { index: i32 },
     #[error("not an array")]
     NotAnArray,
+    #[error("ATTACH destination node is not empty")]
+    AttachDestinationNotEmpty,
     #[error("program quit with code {code}")]
     Quit { code: i32 },
 }

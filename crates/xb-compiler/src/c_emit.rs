@@ -80,6 +80,10 @@ thread_local! {
     /// the current function; empty for the shared corpus (all 1-D), so no 1-D
     /// emission changes.
     static FN_ARRAY_DIMS: RefCell<HashMap<String, Vec<IrExpr>>> = RefCell::new(HashMap::new());
+    /// Node arrays (arrays involved in row-ATTACH): emitted as tables of row
+    /// pointers rather than flat contiguous buffers, allowing individual rows
+    /// to be detached, resized via 1-D REDIM, and reattached at variable lengths.
+    static FN_NODE_ARRAYS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
     /// By-reference SCALAR params of the current function (`@value`, not arrays):
     /// emitted as `T* x_ref` with copy-in (`T x = *x_ref;`) at the top and
     /// copy-out (`*x_ref = x;`) before every return, so writes reach the caller
@@ -1065,6 +1069,11 @@ pub(crate) fn set_fn_context(
         m.clear();
         crate::c_emit_hoist::collect_array_dims(items, &mut m);
     });
+    FN_NODE_ARRAYS.with(|s| {
+        let mut m = s.borrow_mut();
+        m.clear();
+        crate::c_emit_hoist::collect_node_arrays(items, &mut m);
+    });
     FN_BYREF_PARAMS.with(|s| {
         let mut v = s.borrow_mut();
         v.clear();
@@ -1299,6 +1308,16 @@ pub(crate) fn defined_param_descriptor(name: &str) -> Option<Vec<bool>> {
 pub(crate) fn array_dims(name: &str) -> Option<Vec<IrExpr>> {
     FN_ARRAY_DIMS.with(|s| s.borrow().get(name).cloned())
 }
+pub(crate) fn is_node_array(name: &str) -> bool {
+    // Bounded predicate, matched in cgen.x `is_node_array$`: row-ATTACH
+    // operand AND in-function rank-2 DIM AND not dyn/shared/param. Shared,
+    // heap, and by-ref holders stay contiguous so DIM/subscript/ATTACH agree.
+    FN_NODE_ARRAYS.with(|s| s.borrow().contains(name))
+        && array_dims(name).is_some_and(|d| d.len() == 2)
+        && !is_shared_array(name)
+        && !is_dyn_array(name)
+        && !is_array_param(name)
+}
 
 /// Emit the row-major flat offset for a multi-dim access `arr[i0,i1,…]` given the
 /// array's declared dimension-size expressions `dims` (`[d0,d1,…]`). Mirrors the
@@ -1349,6 +1368,14 @@ pub(crate) fn emit_array_subscript(
     out: &mut String,
 ) {
     if !extra_indices.is_empty() {
+        if is_node_array(name) {
+            crate::c_emit_expr::emit_expr(index, out);
+            for ei in extra_indices {
+                out.push_str("][");
+                crate::c_emit_expr::emit_expr(ei, out);
+            }
+            return;
+        }
         let dims = array_dims(name).or_else(|| {
             if is_shared_array(name) {
                 shared_array_dims(name)

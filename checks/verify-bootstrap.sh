@@ -11,7 +11,7 @@ fail() {
 export CARGO_BUILD_JOBS=4
 cargo fmt --all -- --check
 cargo check --workspace
-cargo test --workspace
+cargo test --workspace -- --test-threads=1
 cargo clippy --workspace --all-targets
 
 # xbasic/ is now a tracked source tree (commit a0eb09a), not a nested copy.

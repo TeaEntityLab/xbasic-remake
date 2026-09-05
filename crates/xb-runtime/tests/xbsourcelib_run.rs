@@ -68,3 +68,22 @@ fn xbsourcelib_geo_runs_via_composite_params() {
         out[0]
     );
 }
+
+/// `ary.x` runs its `TestAry_AddName` unit test (which exercises `Ary_AddName`,
+/// `Ary_AddToNameBufferIndex`, and move-semantics `ATTACH bufferIndex[charCode,] TO a[]`
+/// with 1-D REDIM row growth) to a clean exit through the interpreter.
+#[test]
+fn xbsourcelib_ary_add_name_runs_clean() {
+    let src = std::fs::read_to_string(root().join("XBSourceLib/ary/ary.x"))
+        .unwrap_or_else(|e| panic!("read ary.x: {e}"));
+    let src = src.replace("TestAryPerformance()", "TestAry_AddName()");
+    let program = FrontendUnit::parse(&src)
+        .unwrap_or_else(|e| panic!("parse ary.x: {e:?}"))
+        .lower_ir()
+        .unwrap_or_else(|e| panic!("lower ary.x: {e:?}"));
+    let mut output = Vec::new();
+    Interpreter::new()
+        .execute_main(&program, &mut output)
+        .unwrap_or_else(|e| panic!("run ary.x: {e:?}"));
+    assert_eq!(output, ["IN INDEX", "IN BUFFER"]);
+}
