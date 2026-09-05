@@ -3405,14 +3405,14 @@ FUNCTION emit_expr$(e$)
       varName$ = t$
       varType$ = "integer"
     END IF
-    ' Descriptor source forwarded to a DESCRIPTOR callee needs the copy pair
-    ' below (private cells), not the bare data pointer: the callee REDIMs
-    ' through `*dd`. This arm is data-only forwarding to ORDINARY array
-    ' positions (`*` params, caller storage shared).
-    IF is_desc_param$(##curFnName$, varName$) = "1" AND is_array_position$(##curCallFn$, ##curCallArg) = "1" AND is_desc_position$(##curCallFn$, ##curCallArg) = "0" THEN
-      emit_expr$ = arr_acc_name$(varName$, varType$)
-      RETURN emit_expr$
-    END IF
+    ' Descriptor-param source referenced by value (byref() was stripped for
+    ' the by-value callee position): fall through to the copy arm below.
+    ' The interpreter copies here (callee writes isolated); the old
+    ' data-only forward shared caller storage (p27: Plain's p[0]=99 leaked
+    ' into m[0]/a[0]). Explicit @-byref calls never reach this site (they
+    ' keep byref() and use the forwarding arms at ~4518+). A descriptor
+    ' source to a descriptor callee likewise needs the copy pair, not the
+    ' callee's cells (those would write back).
     ' By-value whole-array arg to an array param (interp copies; mirrors the
     ' Rust CEmitter xb_array_copy arm). The scalar facet would otherwise
     ' shadow the array data. Fires for dual-use names with array storage at

@@ -5702,6 +5702,70 @@ fn cemitter_and_cgen_agree_on_byval_string_descriptor_chain_copy() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+#[test]
+fn cemitter_and_cgen_agree_on_byval_desc_to_plain_copy() {
+    // Descriptor source passed by value to a PLAIN array callee
+    // (`Mid(@m[])` with `REDIM m` calls `Plain(m[])`, `Plain` writes):
+    // the interpreter copies (callee writes isolated), so cgen.x must
+    // take the copy arm, not data-only forwarding (which leaked
+    // `p[0]=99` into `m[0]`/`a[0]`). Explicit @-byref keeps byref()
+    // and never reaches the copy site.
+    let tmp = std::env::temp_dir().join("xb_sync_byval_desc_plain");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM a[1]\n\
+               a[0] = 3\n\
+               a[1] = 4\n\
+               Mid(@a[])\n\
+               PRINT a[0]\n\
+               PRINT a[1]\n\
+               END FUNCTION\n\
+               FUNCTION Mid (@m[])\n\
+               REDIM m[3]\n\
+               Plain(m[])\n\
+               PRINT m[0]\n\
+               END FUNCTION\n\
+               FUNCTION Plain (XLONG p[])\n\
+               p[0] = 99\n\
+               PRINT p[0]\n\
+               PRINT p[1]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byval_desc_plain program")
+        .lower_ir()
+        .expect("lower byval_desc_plain program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byval_desc_plain_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byval_desc_plain_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byval_desc_plain program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "99\n4\n3\n3\n4\n",
+        "byval_desc_plain reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled by-value desc-to-plain copy"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled by-value desc-to-plain copy"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// REDIM-through-byref with different function, callee-param, and caller-var
 /// names proves cgen.x descriptor dispatch is positional, not name-based.
 /// `Expand(123, @payload[], newSize)` expands second-position callee param
