@@ -5577,6 +5577,70 @@ fn cemitter_and_cgen_agree_on_byval_two_descriptor_redim() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+#[test]
+fn cemitter_and_cgen_agree_on_byval_descriptor_chain_copy() {
+    // Descriptor source passed by value to a descriptor callee
+    // (`Mid(@m[])` calls `Leaf(m[])`, `Leaf` REDIMs): cgen.x must take
+    // the copy-pair arm, not data-only forwarding (drops the ub cell:
+    // cc arity error) or scalar fold. The copy arm's dual gate needs
+    // scope-qualified facet evidence (`##curFacetDual$`): descriptor
+    // params carry facet dual=1 but no DIM for the scanner to see.
+    let tmp = std::env::temp_dir().join("xb_sync_byval_desc_chain");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM a[1]\n\
+               a[0] = 3\n\
+               a[1] = 4\n\
+               Mid(@a[])\n\
+               PRINT a[0]\n\
+               PRINT UBOUND(a[])\n\
+               END FUNCTION\n\
+               FUNCTION Mid (@m[])\n\
+               Leaf(m[])\n\
+               PRINT m[0]\n\
+               PRINT UBOUND(m[])\n\
+               END FUNCTION\n\
+               FUNCTION Leaf (XLONG w[])\n\
+               REDIM w[5]\n\
+               w[0] = 30\n\
+               PRINT UBOUND(w[])\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byval_desc_chain program")
+        .lower_ir()
+        .expect("lower byval_desc_chain program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byval_desc_chain_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byval_desc_chain_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byval_desc_chain program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "5\n3\n1\n3\n1\n",
+        "byval_desc_chain reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled chained by-value REDIM copy"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled chained by-value REDIM copy"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// REDIM-through-byref with different function, callee-param, and caller-var
 /// names proves cgen.x descriptor dispatch is positional, not name-based.
 /// `Expand(123, @payload[], newSize)` expands second-position callee param

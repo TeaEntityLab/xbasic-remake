@@ -3405,7 +3405,11 @@ FUNCTION emit_expr$(e$)
       varName$ = t$
       varType$ = "integer"
     END IF
-    IF is_desc_param$(##curFnName$, varName$) = "1" AND is_array_position$(##curCallFn$, ##curCallArg) = "1" THEN
+    ' Descriptor source forwarded to a DESCRIPTOR callee needs the copy pair
+    ' below (private cells), not the bare data pointer: the callee REDIMs
+    ' through `*dd`. This arm is data-only forwarding to ORDINARY array
+    ' positions (`*` params, caller storage shared).
+    IF is_desc_param$(##curFnName$, varName$) = "1" AND is_array_position$(##curCallFn$, ##curCallArg) = "1" AND is_desc_position$(##curCallFn$, ##curCallArg) = "0" THEN
       emit_expr$ = arr_acc_name$(varName$, varType$)
       RETURN emit_expr$
     END IF
@@ -3415,7 +3419,12 @@ FUNCTION emit_expr$(e$)
     ' a callee array position (facet table or declaration scan); scalar-
     ' DIM-only duals keep folding. Callee writes die in the fresh copy.
     IF LEN(##curCallFn$) > 0 AND ##curCallArg >= 0 AND (is_array_position$(##curCallFn$, ##curCallArg) = "1" OR is_array_param_pos$(##curCallFn$, ##curCallArg) = "1") THEN
-      IF (INSTR(##dualUse$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0) AND is_array_var_in_scope$(varName$) = "1" AND (INSTR(##curFnArrays$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 OR INSTR(##curDescLocals$, ":" + varName$ + ":") > 0) THEN
+      ' Dual gate: scanner sets plus scope-qualified facet duals (RR-03 safe).
+      ' Facet evidence matters for descriptor params (dual=1, no DIM for the
+      ' scanner to see): without it a descriptor source folds to its scalar
+      ' facet and drops the callee ub cell (p23: cc arity error). Storage and
+      ' scope disjuncts below still guard.
+      IF (INSTR(##dualUse$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0 OR INSTR(##curFacetDual$, ":" + varName$ + ":") > 0) AND is_array_var_in_scope$(varName$) = "1" AND (INSTR(##curFnArrays$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 OR INSTR(##curDescLocals$, ":" + varName$ + ":") > 0) THEN
         DIM cpData$
         DIM cpUb$
         DIM cpEt$
