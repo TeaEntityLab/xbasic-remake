@@ -234,6 +234,29 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
   `checks/verify-bootstrap.sh` `ok` including `cgen_cemitter_sync` **66/66**,
   15/15 core libs, 114/114 demos.
 
+- **2026-09-05 (slice 5: strDual use-based union):** cgen.x unions owned
+  string-dual facets (`type=string`, `rank>=1`, `dual=1`, `storage!=shared`,
+  `storage!=param`) into `##strDual$` after both scan passes — the pass-2
+  rescan near the forward-decl block rebuilds scanner-only sets and would
+  otherwise clobber the pass-1 facet values (same for `##dualUse$`/`##arr2d$`;
+  only `##allStrArr$` has no pass-2 rescan). Settles the slice-4.1 open
+  question: use-based facet dual is the correct semantics (the reference
+  emitter splits scalar+`_arr` for use-duals such as arecurse `file$`, which
+  has only `DIM file$[]`); DIM-duality is neither necessary nor sufficient
+  (param/shared duals such as xit `symbol$[]` must not split caller-owned
+  storage — verified once by probe: unguarded union split it, guards fixed
+  it). Measured over the 17 programs holding all 153 facet-only names:
+  declaration-shape agreement vs the reference emitter 89/153 (baseline) ->
+  113/153 (union), 24 fixed, 0 caused divergences; the 25 remaining under
+  (param/shared/dotted/descriptor architecture) and 15 pre-existing over
+  (`scan_dual_use$`, already use-based) are union-untouched. Locked by
+  `cgen_strdual_union::cgen_strdual_facet_union_decl_shape` (ubound `s$`,
+  arecurse `file$`, xgrids `list$`). `scan_str_dual$` stays as the headerless
+  fallback; deletion still blocked on compiler.x emitting facets. Residual:
+  per-scope precision (`##strDual$` is program-global, facet dual per-scope;
+  qbtoxb `text$`/`xb$`/`xbasic$` and xui `start$` stay under on param/shared
+  facets) needs consumers moved to `facets_in_scope$` (RR-03 pattern).
+
 - `cgen_cemitter_sync::cemitter_and_cgen_agree_on_positive_corpus` asserts
   per-program byte-identical emitted C; the header must not break this.
 - `cgen_x_compiles_all_demos_cc_clean` is the RR-13 raw-output compile gate;

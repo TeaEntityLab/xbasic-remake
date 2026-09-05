@@ -914,6 +914,7 @@ IF LEN(##facetTab$) > 0 THEN
   fArr2d$ = ""
   fShared$ = ""
   fAllStrArr$ = ""
+  fStrDual$ = ""
   fPos2 = 1
   WHILE fPos2 <= LEN(##facetTab$)
     fLe2 = INSTR(##facetTab$, CHR$(10), fPos2)
@@ -1026,6 +1027,16 @@ IF LEN(##facetTab$) > 0 THEN
             fAllStrArr$ = fAllStrArr$ + ":" + fNm2$ + ":"
           END IF
         END IF
+        ' Slice 5: owned string-dual facet set. Same ownership contract as the
+        ' allStrArr replacement above (caller-owned shared/param storage stays
+        ' on scanner/descriptor paths); byref-forwarded locals stay included
+        ' (the reference emitter splits those). Unioned into ##strDual$ below
+        ' and after the pass-2 rescan.
+        IF fAllType$ = "string" AND VAL(fAllRank$) >= 1 AND INSTR(fRest2$, " dual=1") > 0 AND INSTR(fRest2$, " storage=shared") = 0 AND INSTR(fRest2$, " storage=param") = 0 THEN
+          IF INSTR(fStrDual$, ":" + fNm2$ + ":") = 0 THEN
+            fStrDual$ = fStrDual$ + ":" + fNm2$ + ":"
+          END IF
+        END IF
       END IF
     END IF
   WEND
@@ -1035,6 +1046,25 @@ IF LEN(##facetTab$) > 0 THEN
   ' Facet-bearing producers use the exact allStrArr replacement. Headerless
   ' historical/self-hosted IR retains scan_all_strarr$ as the migration fallback.
   ##allStrArr$ = fAllStrArr$
+  ' Slice 5 (CGEN-FACET-RETIREMENT): union owned string-dual facets into
+  ' ##strDual$. Use-based facet dual=1 is a superset of the DIM-based
+  ' scanner (scalar+array DIM anywhere); the scanner stays as the headerless
+  ' fallback (compiler.x --emit-ir carries no facets). Measured 2026-09-05:
+  ' declaration-shape agreement vs the reference emitter 89/153 -> 113/153
+  ' across the facet-only corpus, 0 caused divergences. Re-applied after
+  ' the pass-2 rescan below, which rebuilds the scanner sets.
+  pSD = 1
+  WHILE pSD <= LEN(fStrDual$)
+    leSD = INSTR(fStrDual$, ":", pSD + 1)
+    IF leSD = 0 THEN
+      leSD = LEN(fStrDual$) + 1
+    END IF
+    nmSD$ = MID$(fStrDual$, pSD + 1, leSD - pSD - 1)
+    IF LEN(nmSD$) > 0 AND INSTR(##strDual$, ":" + nmSD$ + ":") = 0 THEN
+      ##strDual$ = ##strDual$ + ":" + nmSD$ + ":"
+    END IF
+    pSD = leSD
+  WEND
   ' Additive shared: keep scanner ##sharedArrays$ and union facet top-level shared (preserves composite-member leaves)
   pShare = 1
   WHILE pShare <= LEN(fShared$)
@@ -1677,6 +1707,20 @@ END IF
 ##strDual$ = scan_str_dual$(src$)
 ##strDual$ = replace$(##strDual$, ":found:", ":")
 ##strDual$ = replace$(##strDual$, "::", ":")
+' Slice 5 (pass 2): re-apply the owned string-dual facet union — the rescan
+' above rebuilds scanner-only sets and would otherwise clobber pass 1.
+pSD = 1
+WHILE pSD <= LEN(fStrDual$)
+  leSD = INSTR(fStrDual$, ":", pSD + 1)
+  IF leSD = 0 THEN
+    leSD = LEN(fStrDual$) + 1
+  END IF
+  nmSD$ = MID$(fStrDual$, pSD + 1, leSD - pSD - 1)
+  IF LEN(nmSD$) > 0 AND INSTR(##strDual$, ":" + nmSD$ + ":") = 0 THEN
+    ##strDual$ = ##strDual$ + ":" + nmSD$ + ":"
+  END IF
+  pSD = leSD
+WEND
 ##dualUse$ = scan_dual_use$(src$)
 ##arr2d$ = scan_arr2d$(src$)
 ' RR-03: save scanner-derived global dyn set for per-function filtering.
