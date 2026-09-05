@@ -943,10 +943,16 @@ pub(crate) fn emit_call_args(name: &str, args: &[IrExpr], out: &mut String) {
                                     out.push('&');
                                     crate::c_emit::emit_raw_array_name(s, out);
                                 }
-                            } else if crate::c_emit::is_dyn_array(&s.name)
-                                && !crate::c_emit::is_dual_use(&s.name)
-                            {
-                                emit_var_name(s, out);
+                            } else if crate::c_emit::is_dyn_array(&s.name) {
+                                // Heap array forwarded by-ref: pass the array
+                                // itself, never &scalar. Non-dual dyn base IS
+                                // the heap pointer; dual needs the _arr facet
+                                // (p8: &scalar reads garbage, loses writeback).
+                                if crate::c_emit::is_dual_use(&s.name) {
+                                    crate::c_emit::emit_array_var_name(s, out);
+                                } else {
+                                    emit_var_name(s, out);
+                                }
                             } else {
                                 out.push('&');
                                 emit_var_name(s, out);

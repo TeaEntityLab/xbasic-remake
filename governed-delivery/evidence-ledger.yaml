@@ -113,3 +113,19 @@ entries:
     receipt: "/tmp/xb-verify-ac4.log (session)"
     freshness_kind: recheck_date
     date_checked: "2026-09-05"
+  - claim: "Dual-divert + heap-bare slice passes for real: checks/validate-all.sh ALL PASS (348 tests across 41 binaries, incl. 3 new byref-forward locks)"
+    source: "./checks/validate-all.sh"
+    attester: "validate-all.sh (deterministic)"
+    revision: "working tree after 721088d (this change set)"
+    exit_status: 0
+    receipt: "/tmp/xb-validate-divert5.log (session); core libs 15/15; Tier-1 guard passed"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"
+  - claim: "checks/verify-bootstrap.sh ok with divert slice: fmt/clippy/debug-suite green; cgen1 C == cgen2 C fixed point exact"
+    source: "./checks/verify-bootstrap.sh"
+    attester: "verify-bootstrap.sh (deterministic)"
+    revision: "working tree after 721088d (this change set)"
+    exit_status: 0
+    receipt: "/tmp/xb-verify-divert.log (session)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"

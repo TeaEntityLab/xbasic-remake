@@ -2922,6 +2922,192 @@ fn cemitter_and_cgen_agree_on_param_ubound_c_model() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
+/// By-ref heap array forwarding (M1-ABI): `W(@a[])` on a heap (dyn) array
+/// passes the array pointer itself. Both C backends used to take address-of
+/// (`&heapptr`, a triple pointer): Rust read garbage, cgen.x segfaulted.
+/// Fixed arrays keep `&` (address equivalence). Callee writes reach the
+/// caller (writeback). All three engines must produce `7\n30\n`.
+#[test]
+fn cemitter_and_cgen_agree_on_byref_heap_forward() {
+    let tmp = std::env::temp_dir().join("xb_sync_at_heap");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"ath\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main ()\n",
+        "XLONG a[]\n",
+        "DIM a[1]\n",
+        "a[0] = 3\n",
+        "a[1] = 4\n",
+        "W(@a[])\n",
+        "PRINT a[0]\n",
+        "END FUNCTION\n",
+        "FUNCTION W (XLONG w[])\n",
+        "PRINT w[0] + w[1]\n",
+        "w[0] = 30\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse at-heap program")
+        .lower_ir()
+        .expect("lower at-heap program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "ath_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "ath_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret at-heap program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "7\n30\n", "at-heap reference output");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter broke @-forwarding of heap arrays"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x broke @-forwarding of heap arrays"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// Dual-use heap array by-ref (M1-ABI): an array with a genuine scalar use
+/// (`IF a[]`) forwarded with `@` passes the `_arr` facet, not `&scalar`.
+/// The Rust CEmitter read garbage and lost the writeback here; cgen.x routes
+/// via `arr_acc_name$`. All three engines must produce `11\n30\n`.
+#[test]
+fn cemitter_and_cgen_agree_on_byref_dual_heap_forward() {
+    let tmp = std::env::temp_dir().join("xb_sync_dual_at");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"dat\"\n",
+        "VERSION \"0.1\"\n",
+        "FUNCTION Main ()\n",
+        "XLONG a[]\n",
+        "DIM a[1]\n",
+        "a[0] = 5\n",
+        "a[1] = 6\n",
+        "IF a[] THEN\n",
+        "PRINT \"nz\"\n",
+        "END IF\n",
+        "W(@a[])\n",
+        "PRINT a[0]\n",
+        "END FUNCTION\n",
+        "FUNCTION W (XLONG w[])\n",
+        "PRINT w[0] + w[1]\n",
+        "w[0] = 30\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse dual at-heap program")
+        .lower_ir()
+        .expect("lower dual at-heap program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "dat_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "dat_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret dual at-heap program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "11\n30\n", "dual at-heap reference output");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter broke @-forwarding of dual heap arrays"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x broke @-forwarding of dual heap arrays"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// Composite string-member by-ref (M1-ABI): `Show(@r[])` with a `STRING`
+/// member array. Combines three fixes: dual/use scanners divert @-forwarding
+/// (no spurious scalar facet), `arr_acc_name$` routes byrefDual past the
+/// unsuffixed allStrArr return (matching `_arr` param decls), and the call
+/// passes the heap pointer bare. All three engines: `aa\n12\nzz\n99\n`.
+#[test]
+fn cemitter_and_cgen_agree_on_composite_string_member_byref() {
+    let tmp = std::env::temp_dir().join("xb_sync_comp_str_at");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"csa\"\n",
+        "VERSION \"0.1\"\n",
+        "TYPE REC\n",
+        "STRING .name\n",
+        "XLONG .vals[]\n",
+        "END TYPE\n",
+        "FUNCTION Main ()\n",
+        "REC r[]\n",
+        "DIM r[1]\n",
+        "r[0].name = \"aa\"\n",
+        "r[0].vals[0] = 1\n",
+        "r[0].vals[1] = 2\n",
+        "r[1].name = \"bb\"\n",
+        "r[1].vals[0] = 10\n",
+        "Show(@r[])\n",
+        "PRINT r[0].name\n",
+        "PRINT r[1].vals[0]\n",
+        "END FUNCTION\n",
+        "FUNCTION Show (REC r[])\n",
+        "PRINT r[0].name\n",
+        "PRINT r[0].vals[0] + r[0].vals[1]\n",
+        "r[0].name = \"zz\"\n",
+        "r[1].vals[0] = 99\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse composite string byref program")
+        .lower_ir()
+        .expect("lower composite string byref program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "csa_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "csa_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret composite string byref program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "aa\n12\nzz\n99\n",
+        "composite string byref reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter broke composite string member by-ref"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x broke composite string member by-ref"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 /// Composite member UBOUND in the callee (M1-ABI): `UBOUND(p[])` lowers to the
 /// first member (`array_ubound(p.x)`). The interpreter forwards member storage
 /// so the callee sees the real bound (`1`); both C backends pass plain member

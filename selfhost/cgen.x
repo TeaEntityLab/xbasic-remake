@@ -776,6 +776,7 @@ END IF
 ##attachGroupMembers$ = ":"
 ##attachDynAdd$ = ""
 ##redimNames$ = ""
+##nonstrArrDims$ = ""
 ##undimmed$ = ""
 ##sharedDual$ = ""
 ##fileScopeDecls$ = ""
@@ -907,6 +908,7 @@ WEND
 ##scanDynAll$ = ##dynNames$
 ##byrefDual$ = scan_byref_dual$(src$)
 ##redimNames$ = scan_redim_names$(src$)
+##nonstrArrDims$ = scan_nonstr_arr_dims$(src$)
 ##strDual$ = scan_str_dual$(src$)
 ##strDual$ = replace$(##strDual$, ":found:", ":")
 ##strDual$ = replace$(##strDual$, "::", ":")
@@ -3413,7 +3415,7 @@ FUNCTION emit_expr$(e$)
     ' a callee array position (facet table or declaration scan); scalar-
     ' DIM-only duals keep folding. Callee writes die in the fresh copy.
     IF LEN(##curCallFn$) > 0 AND ##curCallArg >= 0 AND (is_array_position$(##curCallFn$, ##curCallArg) = "1" OR is_array_param_pos$(##curCallFn$, ##curCallArg) = "1") THEN
-      IF (INSTR(##dualUse$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0) AND is_array_var_in_scope$(varName$) = "1" THEN
+      IF (INSTR(##dualUse$, ":" + varName$ + ":") > 0 OR INSTR(##strDual$, ":" + varName$ + ":") > 0) AND is_array_var_in_scope$(varName$) = "1" AND (INSTR(##dynNames$, ":" + varName$ + ":") > 0 OR INSTR(##dynStr$, ":" + varName$ + ":") > 0 OR INSTR(##curFnArrays$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 OR INSTR(##curDescLocals$, ":" + varName$ + ":") > 0) THEN
         DIM cpData$
         DIM cpUb$
         DIM cpEt$
@@ -4517,6 +4519,19 @@ FUNCTION emit_expr$(e$)
         ' strUbDual array passed byref: emit the _arr array pointer directly
         ' (the callee's array param is char** X_arr, not char* X).
         emit_expr$ = "xb_str_" + sanitize_dual$(varName$) + "_arr"
+        RETURN emit_expr$
+      END IF
+      ' Heap-stored array forwarded by-ref: pass the array pointer itself.
+      ' `&` of a heap pointer is a triple pointer (p2/p7 segfaults); fixed
+      ' in-place arrays keep `&` below (address equivalence). Dual heap
+      ' arrays pass the _arr facet via arr_acc_name$ (matching _arr-suffixed
+      ' param decls); non-dual heap base IS the pointer. Storage test uses
+      ' ONLY function-local evidence (local DIMs, own params, forwarded
+      ' cells): program-global sets leak across scopes — RR-03 keeps
+      ' scanner-only names without facet entries, so dynNames would misfire
+      ' for scalar-here/array-elsewhere names (xst n$). Mirrors Rust.
+      IF INSTR(##curFnArrays$, ":" + varName$ + ":") > 0 OR INSTR(CHR$(10) + ##arrParams$, CHR$(10) + varName$ + CHR$(10)) > 0 OR INSTR(##curDescLocals$, ":" + varName$ + ":") > 0 THEN
+        emit_expr$ = arr_acc_name$(varName$, varType$)
         RETURN emit_expr$
       END IF
       ' Mixed-function check: if callee has mixed byref/byval calls,
@@ -5668,14 +5683,17 @@ FUNCTION emit_hoists$(used$, dimmed$)
         IF ty$ = "string" AND RIGHT$(nm$, 1) <> "$" AND INSTR(CHR$(10) + ##curParams$, CHR$(10) + nm$ + CHR$(10)) = 0 THEN
           IF INSTR(##sharedArrays$, ":" + nm$ + ":") > 0 THEN
             _strFacet = 1
-          ELSEIF INSTR(used$, CHR$(10) + nm$ + "|integer") > 0 OR INSTR(used$, CHR$(10) + nm$ + "|float") > 0 THEN
-            _strFacet = 1
-          ELSEIF INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) > 0 AND INSTR(##curFnArrays$, ":" + nm$ + ":") > 0 THEN
+          ELSEIF INSTR(dimmed$, CHR$(10) + nm$ + CHR$(10)) > 0 AND INSTR(##curFnArrays$, ":" + nm$ + ":") > 0 AND (INSTR(##nonstrArrDims$, ":" + nm$ + ":") > 0 OR (LEN(##facetTab$) > 0 AND facet_type$(##facetTab$, nm$, ##curHoistFn$) <> "string")) THEN
             ' Variable DIM'd as an array with a different type (e.g.,
             ' dim arg:integer[...] but used as symbol(arg:string)).
             ' The string facet xb_str_X is a separate C variable and needs hoisting.
             ' Only fire for array DIMs (##curFnArrays$); scalar string DIMs
             ' (dim lastCommandLine:string) should NOT trigger this.
+            ' Type evidence: an explicitly non-string array DIM anywhere
+            ' (##nonstrArrDims$) or a non-string facet in this scope. A
+            ' same-type string array DIM (e.g. dotted member
+            ' dim r.name:string[1]) needs no separate scalar facet — emitting
+            ' one collides with the array decl.
             _strFacet = 1
           END IF
         END IF
@@ -7122,7 +7140,16 @@ FUNCTION scan_dual_use$(s$)
       p = LEN(s$) + 1
     ELSE
       IF sp + 7 <= LEN(s$) THEN
-        nc$ = MID$(s$, sp + 7, 1)
+        ' Whole-array @-forwarding (`byref(symbol(X))`) is array-context,
+        ' not scalar use (mirrors Rust walk_expr divert_byref): without
+        ' this, @-forwarded arrays gain a spurious scalar facet and collide
+        ' with the array decl (dotted-string-dual double-decl). Scalar DIMs
+        ' still count via the second loop, so genuine scalars are unaffected.
+        IF sp >= 7 AND MID$(s$, sp - 6, 6) = "byref(" THEN
+          nc$ = CHR$(34)
+        ELSE
+          nc$ = MID$(s$, sp + 7, 1)
+        END IF
         IF nc$ <> CHR$(34) THEN
           cp = INSTR(s$, ":", sp + 7)
           IF cp > 0 THEN
@@ -7294,6 +7321,19 @@ FUNCTION scan_dual_use$(s$)
       END IF
     END IF
   WEND
+  ' Fiat duals (mirrors bd$): null/window/host_address need the _arr split
+  ' even when their only scalar evidence is @-forwarding (diverted above).
+  ' Restore membership exactly when the old rule would have fired: real
+  ' array evidence plus dyn storage (same gate as the main loop above).
+  IF INSTR(arraySet$, ":null:") > 0 AND INSTR(res$, ":null:") = 0 AND INSTR(##dynNames$, ":null:") > 0 THEN
+    res$ = res$ + ":null:"
+  END IF
+  IF INSTR(arraySet$, ":window:") > 0 AND INSTR(res$, ":window:") = 0 AND INSTR(##dynNames$, ":window:") > 0 THEN
+    res$ = res$ + ":window:"
+  END IF
+  IF INSTR(arraySet$, ":host_address:") > 0 AND INSTR(res$, ":host_address:") = 0 AND INSTR(##dynNames$, ":host_address:") > 0 THEN
+    res$ = res$ + ":host_address:"
+  END IF
   scan_dual_use$ = res$
 END FUNCTION
 
@@ -7803,6 +7843,57 @@ FUNCTION scan_redim_names$(s$)
   WEND
   scan_redim_names$ = res$
 END FUNCTION
+' Names with an explicitly non-string array DIM (`dim X:integer[..]`,
+' `redim`, `dim shared` forms). Headerless-safe DIM-type evidence for the
+' _strFacet type-mismatch rule: a same-type string array DIM (e.g. dotted
+' member `dim r.name:string[1]`) needs no separate scalar facet, while a
+' non-string array DIM with a string use does (xgr `def:integer[80]`).
+' Untyped DIMs (`dim X[]`) carry no evidence either way.
+FUNCTION scan_nonstr_arr_dims$(s$)
+  DIM res$
+  DIM p
+  DIM le
+  DIM ln$
+  DIM r$
+  DIM nm$
+  DIM cp
+  DIM ty$
+  DIM bp
+  res$ = ""
+  p = 1
+  WHILE p <= LEN(s$)
+    le = INSTR(s$, CHR$(10), p)
+    IF le = 0 THEN
+      le = LEN(s$) + 1
+    END IF
+    ln$ = trim_spaces$(MID$(s$, p, le - p))
+    p = le + 1
+    r$ = ""
+    IF LEFT$(ln$, 4) = "dim " THEN
+      r$ = MID$(ln$, 5, LEN(ln$) - 4)
+    ELSEIF LEFT$(ln$, 6) = "redim " THEN
+      r$ = MID$(ln$, 7, LEN(ln$) - 6)
+    END IF
+    IF LEN(r$) > 0 THEN
+      IF LEFT$(r$, 7) = "shared " THEN
+        r$ = MID$(r$, 8, LEN(r$) - 7)
+      END IF
+      cp = INSTR(r$, ":")
+      IF cp > 0 THEN
+        nm$ = trim_spaces$(LEFT$(r$, cp - 1))
+        ty$ = MID$(r$, cp + 1, LEN(r$) - cp)
+        bp = INSTR(ty$, "[")
+        IF bp > 0 THEN
+          ty$ = trim_spaces$(LEFT$(ty$, bp - 1))
+          IF LEN(nm$) > 0 AND ty$ <> "string" AND INSTR(res$, ":" + nm$ + ":") = 0 THEN
+            res$ = res$ + ":" + nm$ + ":"
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  scan_nonstr_arr_dims$ = res$
+END FUNCTION
 
 ' The C-name suffix for the ARRAY facet of a byref-dual name (`_arr`), else "".
 ' Array-context sites (dyn decl, calloc, access, assign, ubound) append bd$(X);
@@ -7830,37 +7921,53 @@ END FUNCTION
 FUNCTION arr_acc_name$(n$, t$)
 
   ' Descriptor param: deref the data pointer (*xb_var_x_dd or *xb_str_x_s_dd)
+  IF n$ = "n" THEN
+  END IF
   IF is_desc_param$(##curFnName$, n$) = "1" THEN
     arr_acc_name$ = "(*" + c_var_name$(n$, t$) + "_dd)"
     RETURN arr_acc_name$
+    IF n$ = "n" THEN
+    END IF
   END IF
   ' A descriptor-forwarded local keeps its original scalar cell and uses a
   ' synthetic `_arr` heap cell for caller-owned array storage.
   IF INSTR(##curDescLocals$, ":" + n$ + ":") > 0 THEN
     arr_acc_name$ = c_var_name$(n$, t$) + "_arr"
     RETURN arr_acc_name$
+    IF n$ = "n" THEN
+    END IF
   END IF
   ' Shared dual-use: array facet takes _arr (matching Rust is_shared_dual).
   IF INSTR(##sharedDual$, ":" + n$ + ":") > 0 THEN
     arr_acc_name$ = c_var_name$(n$, t$) + "_arr"
     RETURN arr_acc_name$
+    IF n$ = "n" THEN
+    END IF
   END IF
   ' Non-dual shared arrays are one file-scope pointer. Never the dual `_arr`
   ' facet (Rust `is_shared_array` skips `_arr`). `envp$[]` must match `xb_str_envp_s`.
   IF INSTR(##sharedArrays$, ":" + n$ + ":") > 0 THEN
     arr_acc_name$ = c_var_name$(n$, t$)
     RETURN arr_acc_name$
+    IF n$ = "n" THEN
+    END IF
   END IF
   IF INSTR(##strUbDual$, ":" + n$ + ":") > 0 THEN
     arr_acc_name$ = "xb_str_" + sanitize_dual$(n$) + "_arr"
     RETURN arr_acc_name$
+    IF n$ = "n" THEN
+    END IF
   END IF
   ' allStrArr names use direct char** storage (matching the DIM handler at
   ' ~7846 and the hoist at ~5150), not the dual _arr facet. strDual names
-  ' keep the scalar + _arr split via bd$ below.
-  IF INSTR(##allStrArr$, ":" + n$ + ":") > 0 AND INSTR(##strDual$, ":" + n$ + ":") = 0 THEN
+  ' keep the scalar + _arr split via bd$ below. byrefDual names are excluded:
+  ' their param decls are _arr-suffixed, so reads/writes must route via bd$
+  ' (which yields _arr exactly for array params, unsuffixed otherwise).
+  IF INSTR(##allStrArr$, ":" + n$ + ":") > 0 AND INSTR(##strDual$, ":" + n$ + ":") = 0 AND INSTR(##byrefDual$, ":" + n$ + ":") = 0 THEN
     arr_acc_name$ = c_var_name$(n$, t$)
     RETURN arr_acc_name$
+    IF n$ = "n" THEN
+    END IF
   END IF
   arr_acc_name$ = c_var_name$(n$, t$) + bd$(n$)
 END FUNCTION
