@@ -3036,6 +3036,65 @@ fn cemitter_and_cgen_agree_on_shared_shadow_forward_split() {
     );
     let _ = fs::remove_dir_all(&tmp);
 }
+
+/// Shared-array by-value copy (documented split): `W(S[])` copies the
+/// caller-visible slot (Main's local shadow `[3,4]`), so the callee sees
+/// `7` and writes die (`3\n4\n`); the interpreter instead copies the
+/// shared slot (empty: `0\n3\n4\n`). Same local-shadow consistency as the
+/// byref shared-shadow lock: C sides agree with each other and with what
+/// the caller observes. Exercises the copy arm on shared storage.
+#[test]
+fn cemitter_and_cgen_agree_on_shared_array_byvalue_copy() {
+    let tmp = std::env::temp_dir().join("xb_sync_shared_byval");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = concat!(
+        "PROGRAM \"shb\"\n",
+        "VERSION \"0.1\"\n",
+        "DIM SHARED S[]\n",
+        "FUNCTION Main ()\n",
+        "DIM S[1]\n",
+        "S[0] = 3\n",
+        "S[1] = 4\n",
+        "W(S[])\n",
+        "PRINT S[0]\n",
+        "PRINT S[1]\n",
+        "END FUNCTION\n",
+        "FUNCTION W (XLONG w[])\n",
+        "PRINT w[0] + w[1]\n",
+        "w[0] = 30\n",
+        "END FUNCTION\n"
+    );
+    let prog = FrontendUnit::parse(src)
+        .expect("parse shared byvalue program")
+        .lower_ir()
+        .expect("lower shared byvalue program");
+    let ir = TextIrEmitter::new().emit_program(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "shb_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "shb_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret shared byvalue program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "0\n3\n4\n", "shared byvalue reference output");
+    assert_eq!(
+        rust_out, "7\n3\n4\n",
+        "CEmitter shared by-value copy changed"
+    );
+    assert_eq!(
+        self_out, "7\n3\n4\n",
+        "cgen.x shared by-value copy must match the C-model"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
 /// String alias-then-append (value semantics): `y$ = x$` duplicates (both
 /// emitters `xb_strdup` on assign), so a later in-place `xb_append` on `x$`
 /// (Rust's `x = x + ...` chain optimization; cgen.x emits `xb_concat`)
@@ -5284,6 +5343,62 @@ fn cemitter_and_cgen_agree_on_byref_redim_minimal() {
     assert_eq!(
         self_out, interp_out,
         "cgen.x mishandled byref REDIM (descriptor spike)"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn cemitter_and_cgen_agree_on_byval_to_descriptor_redim() {
+    // By-value array arg to a REDIM-capable (descriptor) callee: the C
+    // backends must pass a private pointer cell + ubound cell holding a
+    // heap copy (`&(T*){copy}, &(intptr_t){ub}`). Passing the copy itself
+    // is one indirection level short: the callee reads copy[0] as a
+    // pointer (cc-clean SIGABRT/abort on realloc). Callee REDIMs its
+    // copy to 5; the caller's data (3) and bound (1) survive.
+    let tmp = std::env::temp_dir().join("xb_sync_byval_desc");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM a[1]\n\
+               a[0] = 3\n\
+               a[1] = 4\n\
+               W(a[])\n\
+               PRINT a[0]\n\
+               PRINT UBOUND(a[])\n\
+               END FUNCTION\n\
+               FUNCTION W (XLONG w[])\n\
+               REDIM w[5]\n\
+               w[0] = 30\n\
+               PRINT UBOUND(w[])\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byval_desc program")
+        .lower_ir()
+        .expect("lower byval_desc program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byval_desc_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byval_desc_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byval_desc program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(interp_out, "5\n3\n1\n", "byval_desc reference output");
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled by-value REDIM copy"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled by-value REDIM copy (descriptor spike)"
     );
     let _ = fs::remove_dir_all(&tmp);
 }

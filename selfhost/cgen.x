@@ -3427,10 +3427,21 @@ FUNCTION emit_expr$(e$)
         IF is_desc_param$(##curFnName$, varName$) = "0" AND INSTR(cpUb$, "_arr") = 0 THEN
           cpUb$ = "xb_ub_" + sanitize_ident$(varName$) + "_arr"
         END IF
+        DIM cpCt$
         cpEt$ = "0"
+        cpCt$ = "intptr_t"
         IF varType$ = "string" OR RIGHT$(varName$, 1) = "$" THEN cpEt$ = "2"
+        IF varType$ = "string" OR RIGHT$(varName$, 1) = "$" THEN cpCt$ = "char*"
         IF varType$ = "float" THEN cpEt$ = "1"
-        emit_expr$ = "xb_array_copy((const void*)" + cpData$ + ", (" + cpUb$ + " + 1), " + cpEt$ + ")"
+        IF varType$ = "float" THEN cpCt$ = "double"
+        ' Descriptor callee position: the copy needs its own pointer cell AND
+        ' ubound cell (`&(T*){copy}, &(intptr_t){ub}`). Bare copy is one
+        ' indirection level short (callee reads copy[0] as a pointer).
+        IF is_desc_position$(##curCallFn$, ##curCallArg) = "1" THEN
+          emit_expr$ = "&(" + cpCt$ + "*){xb_array_copy((const void*)" + cpData$ + ", (" + cpUb$ + " + 1), " + cpEt$ + ")}, &(intptr_t){(" + cpUb$ + " + 1) - 1}"
+        ELSE
+          emit_expr$ = "xb_array_copy((const void*)" + cpData$ + ", (" + cpUb$ + " + 1), " + cpEt$ + ")"
+        END IF
         RETURN emit_expr$
       END IF
     END IF

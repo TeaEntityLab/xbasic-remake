@@ -997,13 +997,36 @@ pub(crate) fn emit_call_args(name: &str, args: &[IrExpr], out: &mut String) {
                             || crate::c_emit::is_descriptor_param(&s.name)
                             || crate::c_emit::has_array_dim(&s.name))
                     {
-                        out.push_str("xb_array_copy((const void*)");
-                        crate::c_emit::emit_array_var_name(s, out);
-                        out.push_str(", ");
-                        emit_array_len(s, out);
-                        out.push_str(", ");
-                        out.push_str(array_et(s.value_type));
-                        out.push(')');
+                        let mut len_buf = String::new();
+                        emit_array_len(s, &mut len_buf);
+                        let callee_desc = param_descriptor
+                            .as_ref()
+                            .is_some_and(|pd| pd.get(i).copied().unwrap_or(false));
+                        let mut copy_expr = String::new();
+                        copy_expr.push_str("xb_array_copy((const void*)");
+                        crate::c_emit::emit_array_var_name(s, &mut copy_expr);
+                        copy_expr.push_str(", ");
+                        copy_expr.push_str(&len_buf);
+                        copy_expr.push_str(", ");
+                        copy_expr.push_str(array_et(s.value_type));
+                        copy_expr.push_str(")");
+                        if callee_desc {
+                            // Descriptor callee position (`**`): pass ADDRESS OF A
+                            // POINTER CELL holding the copy (`&(T*){copy}`) plus its
+                            // own ubound cell. The bare copy is one indirection level
+                            // short: the callee reads `*dd` (= copy[0]) as a pointer
+                            // (cc-clean SIGABRT). Plain array params (`*`) take the
+                            // bare copy; wrapping those breaks the other way.
+                            out.push_str("&(");
+                            out.push_str(array_ct(s.value_type));
+                            out.push_str("*){");
+                            out.push_str(&copy_expr);
+                            out.push_str("}, &(intptr_t){");
+                            out.push_str(&len_buf);
+                            out.push_str(" - 1}");
+                        } else {
+                            out.push_str(&copy_expr);
+                        }
                         continue;
                     }
                 }
@@ -1072,6 +1095,13 @@ fn array_et(vt: ValueType) -> &'static str {
         ValueType::Float => "1",
         ValueType::String => "2",
         _ => "0",
+    }
+}
+fn array_ct(vt: ValueType) -> &'static str {
+    match vt {
+        ValueType::Float => "double",
+        ValueType::String => "char*",
+        _ => "intptr_t",
     }
 }
 
