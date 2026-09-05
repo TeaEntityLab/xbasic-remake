@@ -1097,6 +1097,10 @@ fn array_et(vt: ValueType) -> &'static str {
         _ => "0",
     }
 }
+/// C element type for the descriptor-copy pointer cell. The Float arm is
+/// currently unreachable (the frontend stores unsuffixed FLOAT arrays as
+/// integer); kept so a future float-storage change cannot silently emit
+/// `intptr_t`.
 fn array_ct(vt: ValueType) -> &'static str {
     match vt {
         ValueType::Float => "double",
