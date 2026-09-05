@@ -1,0 +1,41 @@
+spec_version: "docs/17-2026-09-05"
+state_ledger_ref: "docs/17-open-work-roadmap.md (execution queue §0, rows CGEN-FACET-RETIREMENT, CGEN-MODULARITY-GATE, COMPOSITE-ARR-BYREF)"
+oracle_manifest_ref: "governed-delivery/oracle-manifest.yaml"
+# Acceptance criteria = the M1 exit gate, docs/20 §3 M1 lines 145-154.
+# Status is against the delivery, not the historical baseline. A run whose
+# packet lacks any criterion stops (missing_acceptance below).
+acceptance_criteria:
+  - id: AC1
+    text: "Raw demo (114/114), gtk/helpsrc, 15-library, positive-corpus (81/81 byte-identical), and cgen_cemitter_sync gates pass without post-emission repair"
+    oracle: "cgen_x_compiles_all_demos_cc_clean; cemitter_compiles_gtk_and_helpsrc_clean; cgen_x_compiles_core_libs_floor_9_cc_clean; cemitter_and_cgen_agree_on_positive_corpus; cgen_cemitter_sync"
+    status: baseline_green_at_a92168e   # not yet re-verified for this delivery
+  - id: AC2
+    text: "Direct facet tests cover every retired classifier; no replaced scanner or fallback remains in selfhost/cgen.x"
+    oracle: "facet_header_covers_cgen_scanner_facts_ratchet + deletion of scan_all_strarr$/scan_str_dual$/scan_xst_arrays$ fallbacks"
+    status: open   # allStrArr facet-consumption landed, scanner kept as fallback; strDual open
+  - id: AC3
+    text: "Named three-engine behavior probes cover shared arrays, descriptor REDIM, composite calls, and AT writes"
+    oracle: "cemitter_and_cgen_agree_on_{shared_array,shared_2d_array,hash_shared_array}_cross_function; ..._byref_redim_*; ..._composite_by_value_param; ..._user_type_composite_return; ..._at_write_real_memory"
+    status: baseline_green_at_a92168e
+  - id: AC4
+    text: "The composite-signature injection filter is removed, and bootstrap fixed-point checks remain exact"
+    oracle: "verify-bootstrap.sh (cgen1 C == cgen2 C; Rust IR == compA IR == compB IR); native_compiler_emits_cgen_ir_for_cgen"
+    status: open   # filter removal not done; fixed point green at baseline
+  - id: AC5
+    text: "General composite-array by-ref lowers (COMPOSITE-ARR-BYREF) rather than Nop"
+    oracle: "new three-engine differential to be added under RR-02 design-first"
+    status: open
+files:
+  - "crates/xb-frontend/src/ (lexer, parser, syntax surface)"
+  - "crates/xb-compiler/src/ (semantic analysis, typed IR, CEmitter, text IR, LLVM backend)"
+  - "crates/xb-runtime/src/ (interpreter, runtime, capability gates)"
+  - "crates/xb-runtime/tests/cgen_cemitter_sync.rs (85 sync oracles)"
+  - "crates/xb-runtime/tests/cgen_demo_regression.rs (27 demo oracles)"
+  - "crates/xb-runtime/tests/interpreter.rs (attach_move_* locks)"
+  - "crates/xb-compiler/tests/facet_scanner_gap.rs (234-program ratchet)"
+  - "selfhost/compiler.x (parser/semantics in XBasic)"
+  - "selfhost/cgen.x (C generator in XBasic)"
+  - "checks/validate-all.sh; checks/verify-bootstrap.sh; checks/link-core-libs.sh"
+  - "docs/16, docs/17, docs/18, docs/19, docs/20"
+  - "xbasic/lib/*.x (15 core libraries); xbasic/demo/*.x (133 demos); xbasic/helpsrc/*.x"
+missing_acceptance: stop_and_repair

@@ -8,7 +8,8 @@ set -e
 cd "$(dirname "$0")/.."
 
 OUT=$(mktemp)
-CARGO_BUILD_JOBS=4 cargo test --release -- --test-threads=1 > "$OUT" 2>&1 || true
+CARGO_RC=0
+CARGO_BUILD_JOBS=4 cargo test --release -- --test-threads=1 > "$OUT" 2>&1 || CARGO_RC=$?
 
 echo "=== suites ==="
 grep "Running" "$OUT" | sed 's|.*deps/||; s|-[0-9a-f]*||' | head -40
@@ -24,17 +25,31 @@ if [ "$FAILURES" != "0" ]; then
     exit 1
 fi
 
-TOTAL=$(grep -oE "[0-9]+ passed" "$OUT" | grep -oE "[0-9]+" | awk "{s+=\$1} END {print s}")
-echo "=== ALL PASS ($TOTAL tests across $(grep -c 'test result:' "$OUT") binaries) ==="
+TOTAL=$(grep -oE "[0-9]+ passed" "$OUT" | grep -oE "[0-9]+" | awk "{s+=\$1} END {print s+0}")
+BINARIES=$(grep -c 'test result:' "$OUT" || true)
+# Fail closed: a non-zero cargo exit with no parsed test failure means the run
+# died before/without emitting results (compile error, harness crash, OOM kill).
+if [ "$CARGO_RC" -ne 0 ] || [ "$BINARIES" -eq 0 ] || [ "$TOTAL" -eq 0 ]; then
+    echo ""
+    echo "=== CARGO GATE FAILED (exit $CARGO_RC, $BINARIES binaries, $TOTAL passed) ==="
+    tail -n 40 "$OUT"
+    echo "full log: $OUT"
+    exit 1
+fi
+echo "=== ALL PASS ($TOTAL tests across $BINARIES binaries) ==="
 rm -f "$OUT"
 
 echo "=== core libs (link-core-libs.sh) ==="
 rm -rf /tmp/xblib-validate
-if ! checks/link-core-libs.sh /tmp/xblib-validate 2>&1 | tee /tmp/xblib-validate.log | tail -n 20; then
-    echo "link-core-libs.sh FAILED (see /tmp/xblib-validate.log)"
+# Capture the helper's own status; a pipeline's status is its last command (tail).
+LINK_RC=0
+checks/link-core-libs.sh /tmp/xblib-validate > /tmp/xblib-validate.log 2>&1 || LINK_RC=$?
+tail -n 20 /tmp/xblib-validate.log
+if [ "$LINK_RC" -ne 0 ]; then
+    echo "link-core-libs.sh FAILED (exit $LINK_RC, see /tmp/xblib-validate.log)"
     exit 1
 fi
-echo "=== core libs OK (15/15, smoke 7 Version$) ==="
+echo "=== core libs OK (15/15 compile+link; Version\$ smoke is informational, see link-core-libs.sh) ==="
 OUT_BIN="/tmp/xblib-validate/xblibs"
 if [ ! -f "$OUT_BIN" ]; then
     echo "ERROR: $OUT_BIN was not generated"

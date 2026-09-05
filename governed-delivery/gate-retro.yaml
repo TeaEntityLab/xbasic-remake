@@ -1,0 +1,30 @@
+gates:
+  - name: intent
+    fired: false
+    bypassed: false
+    caught_nothing: false
+  - name: spec
+    fired: false
+    bypassed: false
+    caught_nothing: false
+  - name: plan
+    fired: false
+    bypassed: false
+    caught_nothing: false
+  - name: execution
+    fired: false
+    bypassed: false
+    caught_nothing: false
+  - name: verification
+    fired: false
+    bypassed: false
+    caught_nothing: false
+  - name: acceptance
+    fired: false
+    bypassed: false
+    caught_nothing: false
+  - name: retro
+    fired: false
+    bypassed: false
+    caught_nothing: false
+policy_change: separate_from_activation

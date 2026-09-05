@@ -1,0 +1,51 @@
+intent_id: "XBASIC-M1-DELIVERY-2026-09-05"
+goal: >
+  Complete M1 (Semantic storage & ABI convergence) for the XBasic 6.5.0 remake
+  and self-hosting toolchain: finish CGEN-FACET-RETIREMENT (strDual), close
+  composite-array by-ref (docs/18), and pass the M1 exit gate (docs/20 §3 M1,
+  lines 145-154). Then sequence M2 (console runtime) and M3 (GUI runtime) as
+  parallel tracks per docs/20.
+out_of_scope:
+  - "M4 legacy PDE (needs M2 + M3)"
+  - "M5 full self-hosting bootstrap (needs M1 + M2)"
+  - "M6 distribution and portability (needs M4 + M5)"
+  - "x87 bit-exact FPU semantics (JIT-X87 stays deferred)"
+  - "32-bit binary compatibility with libxb64.a"
+  - "Re-porting generated .s assembly (replaced by Rust/C backends)"
+  - "Demo-wide byte-identical generated C (de-scoped per panel 2026-08-27)"
+  - "Weakening any existing behavior, bootstrap fixed-point, or ratchet gate"
+unknowns:
+  - item: "strDual facet retirement: use-based (facet dual=1) vs DIM-based (scanner) is a semantic decision. Ratchet 2026-09-05: scanner-only 0 (enforced), facet-only 153 names across 234 programs (informational)."
+    owner: "teee (project maintainer)"
+    status: open
+  - item: "Composite-array by-ref ABI shape (per-leaf descriptors vs unified structured descriptor) — COMPOSITE-ARR-BYREF open, RR-02 design-first"
+    owner: "teee (project maintainer)"
+    status: open
+  - item: "2-D stride tracking for forwarded locals (first-index fallback matches reference emitter for now)"
+    owner: "teee (project maintainer)"
+    status: open
+  - item: "CGEN-MODULARITY-GATE: choose physical boundaries only after scanner retirement"
+    owner: "teee (project maintainer)"
+    status: open
+  - item: "Whether an LLVM-direct path can help facet emission. LLVM backend today consumes the Rust frontend's typed IR (crates/xb-compiler/src/lib.rs L199-206); it does not produce facets from compiler.x. Investigation branch only."
+    owner: "teee (project maintainer)"
+    status: open
+irreversible_assumptions:
+  - item: "ATTACH semantics are move (ownership transfer), NOT aliasing or copy — reversed 2026-09-05 per xbasic/helpsrc/help_text/lang.txt:57-62"
+    human_review: required
+    maintainer_observation_2026-09-05: "Spot-checked real legacy code (ary.x class) through the compiled binary; move semantics correct for tested idioms. 431 legacy ATTACH sites compile-clean; not comprehensively runtime-verified."
+    residual_risk: "Untested ATTACH patterns in xcol/xst/xit could diverge at runtime."
+  - item: "Self-hosted cgen.x scanner retirement requires compiler.x to emit facets (bootstrap IR_IDENTICAL) before any scanner is deleted"
+    human_review: required
+    maintainer_observation_2026-09-05: "Highest-risk assumption per maintainer. Preference stated: explore LLVM-direct solutions; keep all implementations behaviorally synced. This is a direction for investigation, NOT an authorization to change the retirement contract, the ratchet, or bootstrap identity requirements."
+    residual_risk: "If compiler.x cannot emit matching facets, scanner retirement and M5 are blocked."
+  - item: "License boundary: remake code MIT; ported tree GPL-2/LGPL-2.1; 3 no-notice shims (gdi32 537 lines, kernel32 1004, user32 669) must not be redistributed without provenance resolution (RR-11)"
+    human_review: required
+    maintainer_observation_2026-09-05: "Provenance genuinely unknown — cannot confirm clean-room vs ported from Win32 headers."
+    residual_risk: "Blocks M6 distribution. M3 stage 3 (runtime builtins from observed call signatures) may retire the redistribution question for binaries."
+signed_by: ""
+status: unsigned
+signature_note: >
+  The 2026-09-05 Q&A recorded above supplied observations and priorities. It
+  was not a signature on this record. Release of the `intent` gate requires
+  the maintainer to set signed_by and status: signed after reading this file.

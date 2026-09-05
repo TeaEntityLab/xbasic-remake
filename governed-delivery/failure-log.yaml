@@ -1,0 +1,31 @@
+entries:
+  - oracle: "cgen_cemitter_sync"
+    error_class: "OOM process kill (exit None)"
+    surface: "85 sync tests each spawn external cgen+cc processes; default parallelism exhausts 8-core machine memory"
+    after_correction: true
+    exit: strategy_change
+  - oracle: "cgen_cemitter_sync"
+    error_class: "temp-dir race (No such file or directory)"
+    surface: "concurrent test binaries share temp directory paths"
+    after_correction: true
+    exit: strategy_change
+  - oracle: "verify-bootstrap.sh"
+    error_class: "cgen1 C != cgen2 C (cgen self-compilation drift)"
+    surface: "selfhost/cgen.x changes not reflected in bootstrap fixed point"
+    after_correction: false
+    exit: rollback
+  - oracle: "validate-all.sh"
+    error_class: "aprofile behavior divergence (callee-early-return leaves caller cells NULL)"
+    surface: "dimmed.extend caused callee-early-return to leave caller cells NULL; interp falls back to scalar, compiled read NULL"
+    after_correction: true
+    exit: strategy_change
+  - oracle: "LLVM backend"
+    error_class: "2-D REDIM clobbers dim-0 count slot"
+    surface: "redim path passed dim-0 count slot as dyn_resize total slot, storing flat product into it"
+    after_correction: true
+    exit: strategy_change
+  - oracle: "cgen_cemitter_sync"
+    error_class: "GOTO to non-existent label (_hoistNext)"
+    surface: "selfhost/cgen.x used GOTO _hoistNext without defining the label"
+    after_correction: true
+    exit: strategy_change

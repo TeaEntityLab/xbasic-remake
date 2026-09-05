@@ -351,6 +351,17 @@ fn facet_header_covers_cgen_scanner_facts_ratchet() {
     //   needed dyn membership; the old `XST_NOT_DYN = 4` constant recorded
     //   the dyn-only shortfall this refinement closes.
     assert!(
+        all_strarr.scanner_only == 0 && all_strarr.facet_only == 0,
+        "allStrArr facet/scanner equivalence broken: scanner-only={} facet-only={}",
+        all_strarr.scanner_only,
+        all_strarr.facet_only
+    );
+    assert!(
+        str_dual.scanner_only == 0,
+        "strDual scanner-only regressed (retirement blocker; facet-only is informational): {}",
+        str_dual.scanner_only
+    );
+    assert!(
         xst_not_dyn.scanner_only == 0 && xst_not_dyn.facet_only == 0,
         "xstArrays storage-classification broken: scanner-only={} facet-only={}",
         xst_not_dyn.scanner_only,

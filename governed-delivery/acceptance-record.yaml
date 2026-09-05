@@ -1,0 +1,10 @@
+spec_version: "docs/17-2026-09-05"
+accepter: "teee (project maintainer)"
+oracle_manifest_ref: "governed-delivery/oracle-manifest.yaml"
+product_evidence_refs:
+  - "governed-delivery/evidence-ledger.yaml"
+  - "docs/17-open-work-roadmap.md (execution queue, lines 229-258)"
+  - "docs/20-port-completion-roadmap.md (M1 exit gate, lines 145-154)"
+  - "git commit 06fa96c (roadmap wording updates R1-R7)"
+  - "git commit a92168e (M1-ATTACH-MOVE-SEMANTICS)"
+closed: false

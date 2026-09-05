@@ -1,0 +1,83 @@
+# receipt = where the actual tool output lives. `not_retained` means the claim
+# rests on a session summary and must be re-run before it can release a gate.
+# Entries are appended by flow.sh (state/NN-*.log) and by hand for out-of-band
+# evidence. Never edit an existing entry; append a superseding one.
+entries:
+  - claim: "facet_header_covers_cgen_scanner_facts_ratchet passes with allStrArr 0/0, strDual scanner-only 0 / facet-only 153, xst 0/0 — all three now asserted"
+    source: "cargo test --release -p xb-compiler --test facet_scanner_gap -- --nocapture"
+    attester: "cargo test runner"
+    revision: "working tree after 06fa96c (facet_scanner_gap.rs strengthened)"
+    exit_status: 0
+    receipt: "session tool output 2026-09-05 (234 programs; test result: ok. 1 passed)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-05"
+  - claim: "checks/validate-all.sh fails closed when cargo exits non-zero without results, when no binaries ran, and when link-core-libs.sh fails; passes with exit 0 on a stubbed green run"
+    source: "fault-injection rig over the unmodified script prefix (5 cases)"
+    attester: "sh (deterministic)"
+    revision: "working tree after 06fa96c"
+    exit_status: "1,1,1,1 on injected failures; 0 on stub happy path"
+    receipt: "session tool output 2026-09-05"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-05"
+  - claim: "docs_headline_claims_are_recorded_at_named_surfaces passes"
+    source: "cargo test --release -p xb-runtime --test cgen_cemitter_sync -- docs_headline_claims"
+    attester: "cargo test runner"
+    revision: "06fa96c"
+    exit_status: 0
+    receipt: "session tool output 2026-09-05"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-05"
+  - claim: "cgen_cemitter_sync 85/85; cgen_demo_regression 27/27; validate-all.sh 339 tests/40 binaries + 15/15 libs; verify-bootstrap.sh ok"
+    source: "prior session runs"
+    attester: "not_retained — session self-report"
+    revision: "a92168e"
+    exit_status: unknown
+    receipt: not_retained
+    freshness_kind: unknown
+    date_checked: "2026-09-05 (reported); rerun required before any gate release"
+  - claim: "LLVM feature gate green (144 tests, one documented ignore)"
+    source: "CI llvm-build job"
+    attester: "GitHub Actions"
+    revision: unknown
+    exit_status: unknown
+    receipt: "no run URL recorded"
+    freshness_kind: unknown
+    date_checked: unknown
+  - claim: "ATTACH is move semantics (src emptied, dst must be empty, jagged trailing-comma rows)"
+    source: "xbasic/helpsrc/help_text/lang.txt:57-62, :2244-2260"
+    attester: "upstream source text"
+    revision: "xbasic/ tracked tree"
+    receipt: "file content"
+    freshness_kind: immutable_pin
+    date_checked: "2026-09-05"
+  - claim: "Move semantics correct on ary.x-class programs through the compiled binary"
+    source: "maintainer spot-check"
+    attester: "teee (user-reported)"
+    revision: "a92168e"
+    receipt: not_retained
+    freshness_kind: recheck_date
+    date_checked: "2026-09-05"
+  - claim: "docs/17 rows CORE-LIBS-CC, ARY-STATUS-RECONCILIATION, RR-08a, RR-08b restored to full length from 5caa152/a92168e/799b967/08c6b1e; zero unterminated table rows remain"
+    source: "git show + splice; scan for rows not ending in '|'"
+    attester: "script (deterministic)"
+    revision: "working tree after 06fa96c"
+    exit_status: 0
+    receipt: "session tool output 2026-09-05 (tableRowsNotEndingInPipe: [])"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-05"
+  - claim: "Modified checks/validate-all.sh passes for real: cargo gate + 15/15 compile+link + Tier-1 symbol guard"
+    source: "./checks/validate-all.sh"
+    attester: "validate-all.sh (deterministic; fixed exit-status propagation)"
+    revision: "working tree after 06fa96c (this change set)"
+    exit_status: 0
+    receipt: "session tool output 2026-09-05, 488 s; smoke 3/6 Version$ mismatches tolerated by design (link-core-libs.sh L36-42)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-05"
+  - claim: "checks/verify-bootstrap.sh ok: 339 passed / 40 binaries / 0 failing; strengthened facet ratchet ok; Rust IR == compA == compB; cgen1 C == cgen2 C"
+    source: "./checks/verify-bootstrap.sh"
+    attester: "verify-bootstrap.sh (deterministic)"
+    revision: "working tree after 06fa96c (this change set)"
+    exit_status: 0
+    receipt: "/tmp/xb-verify-bootstrap.log (session), 540 s"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-05"

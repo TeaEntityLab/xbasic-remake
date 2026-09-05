@@ -1,0 +1,39 @@
+# Bounds for ONE run of governed-delivery/flow.sh. Owner-approval is recorded
+# by setting approved_by; the flow refuses to run the execution step otherwise.
+approved_by: ""
+budget:
+  execution_steps_per_run: 1          # flow.sh is a pipeline, not a loop; iteration belongs to flow-loop-harness
+  gate_timeout_seconds: 1800          # per gate; host-provided `timeout` wrapper if available
+  max_files_touched_by_execution: 12  # checked from git diff --stat after the execution step
+  max_parallel_jobs: 1                # --test-threads=1 is mandatory (OOM on 8-core, see docs/17 gate note)
+pause_actions:                        # require a human decision before proceeding, even attended
+  - "delete or modify any file under constitutional_paths (oracle-manifest.yaml)"
+  - "delete unrelated code not written by the agent"
+  - "force-push or rewrite git history"
+  - "modify .github/workflows/"
+  - "change any Cargo.toml license field or relicense xbasic/"
+  - "git push"
+  - "memory or skill promotion (learn / manage_skill)"
+kill_conditions:                      # any → run stops with non-zero exit, state left on disk
+  - "constitutional path hash changed during execution (GDR-1 detection)"
+  - "validate-all.sh exit != 0"
+  - "verify-bootstrap.sh exit != 0"
+  - "OOM process kill (exit None / signal) in any test binary"
+  - "cargo fmt --check or clippy failure"
+  - "files touched > max_files_touched_by_execution"
+failure_signature_limit: 1            # one correction attempt per distinct (oracle, error_class, surface); a repeat exits — never an identical retry
+allowed_sinks:
+  - "local file writes under crates/, selfhost/, docs/ — excluding constitutional_paths"
+  - "cargo build/test (release and debug)"
+  - "cc/clang compilation"
+  - "temp directories ($TMPDIR, mktemp)"
+  - "git commit (local only)"
+denied_sinks:
+  - secrets
+  - permissions
+  - deployment
+  - outbound network (other than cargo registry fetch)
+  - money
+  - memory_or_skill_promotion
+accepter: "teee (project maintainer)"
+strictness: L3

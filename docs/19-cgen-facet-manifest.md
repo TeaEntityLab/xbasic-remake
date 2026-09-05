@@ -204,8 +204,9 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
   `-1`, growth, zero-fill, and reset. The 234-program
   `facet_header_covers_cgen_scanner_facts_ratchet` now measures:
   `allStrArr` scanner-only/facet-only **0/0** (an exact facet replacement and
-  the next safe one-classifier retirement); `strDual` **0/187** (not
-  equivalent—facet `dual=1` is use-based while the scanner is DIM-based);
+  the next safe one-classifier retirement); `strDual` **0/153** scanner-only/
+  facet-only *names* across 234 programs (2026-09-05; not equivalent—facet
+  `dual=1` is use-based while the scanner is DIM-based; only scanner-only is ratcheted);
   `xstArrays` **unclassified 0/0** under the refined invariant (every Xst
   array has a facet with an owning storage — dyn, shared, or param — in some
   scope; the 4 former `not facet-dyn` names are shared globals / array params

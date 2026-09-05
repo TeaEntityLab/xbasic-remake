@@ -1,0 +1,41 @@
+# Channels are grouped by what actually produces the signal. Suites that run
+# inside the same `cargo test` invocation share a build, a runner, and a host;
+# they are one deterministic channel with many assertions, not many channels.
+channels:
+  - kind: deterministic
+    independent: true
+    name: "checks/validate-all.sh — cargo test --release --test-threads=1 (all workspace suites incl. cgen_cemitter_sync, cgen_demo_regression, demo_parity, pure/stateful_lib_behavior, facet ratchet, docs guard) + link-core-libs.sh compile/link + symbol floor"
+    proves: "AC1 (compile+behavior differentials), AC3 (behavior locks), part of AC2 (ratchet)"
+    exit_code_is_signal: true   # fixed 2026-09-05: cargo status and helper status now propagate
+  - kind: deterministic
+    independent: true           # separate invocation: fmt + clippy + debug-profile tests + native bootstrap + cgen self-compile
+    name: "checks/verify-bootstrap.sh"
+    proves: "AC4 bootstrap fixed point (Rust IR == compA IR == compB IR; cgen1 C == cgen2 C); workspace clean"
+    exit_code_is_signal: true
+  - kind: runtime
+    independent: false          # same host + toolchain as above; different OS legs in CI are the independent part
+    name: "GitHub Actions bootstrap-verify (ubuntu/macos/windows) + llvm-build (ubuntu)"
+    proves: "portability of AC4 and the LLVM feature gate"
+    note: "runs only on push/PR; local runs are not attested by it; a run URL is the receipt"
+  - kind: external_primary
+    independent: true
+    name: "xbasic/helpsrc/help_text/lang.txt:57-62 and :2244-2260 (ATTACH move semantics, jagged trailing-comma rows)"
+    proves: "the ATTACH semantic decision, not its implementation"
+  - kind: runtime
+    independent: true
+    name: "Maintainer spot-check of ary.x-class programs through the compiled binary (2026-09-05, user-reported)"
+    proves: "move semantics on tested idioms only"
+    receipt: "none retained; user-reported ground truth"
+  - kind: self_assessment
+    independent: false
+    name: "agent summaries of gate results"
+    proves: "nothing on its own; tool output is the evidence"
+high_risk_pass_requires_non_model: true
+acceptance_pass_rule: >
+  AC1/AC3/AC4 pass only on a retained receipt (state/NN-*.log with exit 0)
+  from channels 1-2 at the revision under acceptance. AC2/AC5 are open work;
+  no channel can pass them today.
+compatibility_bounds:
+  tools: "cargo 1.94 (Homebrew) or 1.97.1 (rustup stable); cc/clang; python3 (for YAML parse in flow.sh); LLVM 22.1.8 feature-gated"
+  models: "flow.sh execution step uses $AGENT_CMD (default: claude -p); stub dry run uses AGENT_CMD=cat"
+  repos: "xbasic-remake main; xbasic/ tracked corpus (GPL-2/LGPL-2.1)"

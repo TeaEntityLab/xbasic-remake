@@ -1,0 +1,48 @@
+spec_version: "docs/17-2026-09-05"
+# host_seal is stated for a LOCAL run. The repo has no branch protection and no
+# CODEOWNERS; CI (bootstrap-verify.yml) runs on push/PR only and does not run
+# validate-all.sh. An executing agent can edit every file below locally, so the
+# honest local seal is `none`. Detection (not prevention) is provided by
+# governed-delivery/flow.sh, which hashes constitutional paths before execution
+# and fails the run if they changed. Prevention is a host precondition.
+constitutional_paths:
+  - "governed-delivery/oracle-manifest.yaml"
+  - "governed-delivery/verification-plan.yaml"
+  - "governed-delivery/acceptance-record.yaml"
+  - "governed-delivery/envelope.yaml"
+  - "governed-delivery/task-packet.yaml"
+  - "governed-delivery/prompts/"
+  - "checks/"
+  - "crates/xb-runtime/tests/cgen_cemitter_sync.rs"
+  - "crates/xb-runtime/tests/cgen_demo_regression.rs"
+  - "crates/xb-runtime/tests/native_pipeline.rs"
+  - "crates/xb-runtime/tests/interpreter.rs"
+  - "crates/xb-compiler/tests/facet_scanner_gap.rs"
+  - "fixtures/corpus/"
+oracles:
+  # --- Authoritative (read-only in-run; change only out-of-band by a different owner) ---
+  - {name: "cgen_cemitter_sync (85 tests)",                                   class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "push/PR via verify-bootstrap.sh cargo test --workspace", change_protocol: out_of_band}
+  - {name: "cgen_demo_regression (27 tests)",                                 class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "push/PR", change_protocol: out_of_band}
+  - {name: "cgen_x_compiles_all_demos_cc_clean (114/114 raw)",                class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "push/PR", change_protocol: out_of_band}
+  - {name: "cgen_x_compiles_core_libs_floor_9_cc_clean (15/15)",              class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "push/PR", change_protocol: out_of_band}
+  - {name: "cemitter_and_cgen_agree_on_positive_corpus (81/81 byte-identical)", class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "push/PR", change_protocol: out_of_band}
+  - {name: "cemitter_compiles_gtk_and_helpsrc_clean",                          class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "push/PR", change_protocol: out_of_band}
+  - {name: "verify-bootstrap.sh (fmt, clippy, workspace tests, native bootstrap IR identity, cgen1==cgen2 C)", class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "push/PR (3-OS matrix)", change_protocol: out_of_band}
+  - {name: "native_compiler_emits_cgen_ir_for_cgen (cgen3==cgen1)",            class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "push/PR", change_protocol: out_of_band}
+  - {name: "docs_headline_claims_are_recorded_at_named_surfaces",              class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "push/PR", change_protocol: out_of_band}
+  - {name: "pure_lib_behavior (175 checks)",                                    class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "push/PR", change_protocol: out_of_band}
+  - {name: "stateful_lib_behavior (165 checks)",                                class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "push/PR", change_protocol: out_of_band}
+  - {name: "demo_parity (112 matches, 2 real-I/O skips; needs target/release/xb)", class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "not in CI (release binary); local validate-all.sh only", change_protocol: out_of_band}
+  - {name: "LLVM feature gate (cargo test --features llvm -p xb-compiler -p xb-cli)", class: authoritative, owner: "teee", host_seal: none, ci_runs_on: "push/PR llvm-build job (ubuntu only)", change_protocol: out_of_band}
+  # M1 behavior locks (all in cgen_cemitter_sync.rs / interpreter.rs; listed for AC traceability)
+  - {name: "cemitter_and_cgen_agree_on_{shared_array,shared_2d_array,hash_shared_array}_cross_function", class: authoritative, owner: "teee", host_seal: none, change_protocol: out_of_band, acceptance: AC3}
+  - {name: "cemitter_and_cgen_agree_on_at_write_real_memory",                  class: authoritative, owner: "teee", host_seal: none, change_protocol: out_of_band, acceptance: AC3}
+  - {name: "cemitter_and_cgen_agree_on_composite_by_value_param; ..._user_type_composite_return", class: authoritative, owner: "teee", host_seal: none, change_protocol: out_of_band, acceptance: AC3}
+  - {name: "cemitter_and_cgen_agree_on_byref_redim_{minimal,generalized,promoted_local,string_array,two_dimensional}", class: authoritative, owner: "teee", host_seal: none, change_protocol: out_of_band, acceptance: AC3}
+  - {name: "cemitter_and_cgen_agree_on_redim_preserves_content; ..._dynamic_trailing_comma_dim; ..._2d_forward_first_index", class: authoritative, owner: "teee", host_seal: none, change_protocol: out_of_band, acceptance: AC3}
+  - {name: "cemitter_attach_move_semantics_match_interp; cemitter_attach_whole_array_move; cemitter_attach_row_growth_round_trip; attach_move_* (interpreter)", class: authoritative, owner: "teee", host_seal: none, change_protocol: out_of_band, acceptance: AC3}
+  # --- Compile/link evidence (NOT behavior; smoke mismatches tolerated by design, link-core-libs.sh L36-42, L82) ---
+  - {name: "checks/link-core-libs.sh (15/15 emit+cc+link; 1736 xb_user_* symbol floor 1690)", class: authoritative, owner: "teee", host_seal: none, evidence_class: compile_link_only, change_protocol: out_of_band}
+  # --- Developer oracles (may be extended in-run; never weakened) ---
+  - {name: "facet_header_covers_cgen_scanner_facts_ratchet (allStrArr 0/0, strDual scanner-only 0, xst 0/0 enforced)", class: developer, owner: "teee", host_seal: none, change_protocol: in_band_extend_only, acceptance: AC2}
+  - {name: "docs_adopted_wording_guard",                                        class: developer, owner: "teee", host_seal: none, change_protocol: in_band_extend_only}
