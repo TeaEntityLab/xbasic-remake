@@ -145,3 +145,19 @@ entries:
     receipt: "/tmp/xb-verify-tight.log (session)"
     freshness_kind: recheck_date
     date_checked: "2026-09-06"
+  - claim: "at_scalar lock included passes for real: checks/validate-all.sh ALL PASS (350 tests across 41 binaries)"
+    source: "./checks/validate-all.sh"
+    attester: "validate-all.sh (deterministic)"
+    revision: "working tree after a05a099 (this change set)"
+    exit_status: 0
+    receipt: "/tmp/xb-validate-350.log (session); core libs 15/15; Tier-1 guard passed"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"
+  - claim: "checks/verify-bootstrap.sh ok with at_scalar lock: fmt/clippy/debug-suite green; cgen1 C == cgen2 C fixed point exact"
+    source: "./checks/verify-bootstrap.sh"
+    attester: "verify-bootstrap.sh (deterministic)"
+    revision: "working tree after a05a099 (this change set)"
+    exit_status: 0
+    receipt: "/tmp/xb-verify-350.log (session)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"
