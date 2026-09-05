@@ -7,9 +7,8 @@
 > finalized.
 >
 > Historical 2026-08-30 evidence recorded 15/15 core libraries and 114/114
-> demos compiling through the facet path. The current active tree has a
-> separate 21-demo label-emission regression, so those totals are not a
-> current-green claim. This document owns the facet migration regardless of
+> demos compiling through the facet path (both locked by named cargo tests
+> since 2026-08-30). This document owns the facet migration regardless of
 > transient generator defects.
 >
 > Single-letter identifier dual-use (`a` vs `align`/`array`, `k` vs `kid`)

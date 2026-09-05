@@ -6,11 +6,10 @@
 > implementation regression; it does not relax the contract. Demo- and
 > library-scale C-text identity remains a non-goal.
 >
-> **Active development notice (2026-09-01):**
-> `cgen_x_compiles_all_demos_cc_clean` currently fails for 21 demos on missing
-> generated label definitions, and the positive-corpus `fileio_test` golden is
-> under investigation. The last green totals below are dated historical
-> evidence. Current defects and exit gates are owned by docs/17.
+> **Active development notice (2026-09-05):**
+> `cgen_x_compiles_all_demos_cc_clean` is now a raw-generator contract
+> (114/114, RR-13 done 2026-08-30). The positive-corpus `fileio_test` golden
+> has been resolved. Current defects and exit gates are owned by docs/17.
 >
 > Historical snapshot **2026-08-29/30**: the positive-corpus test asserted
 > per-program emitted-C equality; RR-13 subsequently removed all-demo harness

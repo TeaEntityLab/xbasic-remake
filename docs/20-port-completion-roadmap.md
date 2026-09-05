@@ -39,11 +39,10 @@ the generated `.s` assembly (replaced by the Rust/C backends by design).
 | Licensing | remake code MIT; ported tree GPL-2/LGPL-2.1; RR-11 legal residue = 3 no-notice shims |
 | IDE | `crates/xb-ide` scaffold only (egui optional deps); legacy PDE not runnable (needs GUI runtime) |
 
-> **Active development notice (2026-09-01):** the latest targeted run passed
-> the gtk/helpsrc compile guard but the raw cgen demo compile gate failed for 21
-> demos on missing label definitions; the positive-corpus `fileio_test` golden
-> also needs resolution. No milestone is closed from the historical table
-> alone. Current defects and named exit gates live in docs/17.
+> **Active development notice (2026-09-05):** the raw cgen demo compile gate
+> is now 114/114 (RR-13 done 2026-08-30), and the positive-corpus
+> `fileio_test` golden has been resolved. No milestone is closed from the
+> historical table alone. Current defects and named exit gates live in docs/17.
 
 ## 2. Milestone graph
 
@@ -302,13 +301,17 @@ or improve diagnostic locality, runtime, and every observable assertion.
 
 ## 6. Immediate next actions
 
-1. Restore the raw cgen demo and positive-corpus gates: emit referenced
-   `xb_label_*` definitions, resolve `fileio_test`, and finish type-aware
-   SUBADDR lowering.
-2. Complete remaining facet facts and direct facet tests; delete corresponding
-   cgen scanners/fallbacks one classifier at a time.
-3. Re-run and record the M1 shared-array, descriptor-REDIM, composite-call, and
-   AT-write behavior probes across the applicable engines.
+1. ✅ **Done (2026-08-30/2026-09-05):** raw cgen demo gate is 114/114
+   (RR-13), `fileio_test` golden resolved, type-aware SUBADDR lowering locked
+   (`CGEN-SUBADDR-TYPING`).
+2. **In progress:** `allStrArr` facet-driven consumption landed; scanner kept
+   as headerless fallback. `strDual` remains (use-based vs DIM-based dual is
+   a semantic decision). Cannot delete scanners until compiler.x emits facets
+   (bootstrap `IR_IDENTICAL`).
+3. ✅ **Done (2026-09-05):** M1 shared-array, descriptor-REDIM, ATTACH
+   move-semantics, composite-call, and AT-write behavior probes locked across
+   interpreter, Rust CEmitter, and selfhosted cgen.x (`cgen_cemitter_sync`
+   85/85, `cgen_demo_regression` 27/27, `demo_parity` ok).
 4. Only after scanner retirement, execute the cgen modularization decision gate
    and record its chosen mechanism and falsifiable acceptance checks in docs/17.
 5. Start M2 console-runtime and M3 GUI work from the re-verified M1 exit, not
