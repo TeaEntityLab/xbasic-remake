@@ -265,17 +265,14 @@ fn resolve_import_decls(path: &Path, unit: &FrontendUnit) -> Vec<xb_compiler::St
                                 decls.push(stmt.clone());
                             }
                         }
-                        // Composite-typed signatures (DCOMPLEX return/params)
-                        // are only injected as knowledge the CEmitter can use
-                        // once the composite call ABI covers import-only
-                        // functions (RR-08/18-byref-array-abi). Injecting them
-                        // today makes call sites emit struct-return handling
-                        // for functions whose flattened variables don't exist.
-                        Statement::Function(f)
-                            if f.body.is_empty()
-                                && f.return_type_name.is_none()
-                                && f.params.iter().all(|p| p.type_name.is_none()) =>
-                        {
+                        // AC4 (docs/20 M1 exit): composite-typed import
+                        // signatures are injected — the composite call ABI
+                        // (by-value/by-ref/composite-return, three-engine
+                        // locked) covers import-only functions: the emitter
+                        // gives bodyless composites a zeroed-struct stub
+                        // instead of flattened-var assembly (docs/21 §6).
+                        // Locked by cli_import_composite_signatures_emit_clean_stub.
+                        Statement::Function(f) if f.body.is_empty() => {
                             let key = xb_compiler::full_name(f.name.clone(), f.suffix);
                             if seen_funcs.insert(key) {
                                 decls.push(stmt.clone());

@@ -2314,7 +2314,17 @@ fn emit_functions(program: &IrProgram, out: &mut String) {
             emit_body(body, out, 1);
             emit_byref_copy_out(out, 1);
             if is_composite_ret {
-                emit_composite_fallback_return(name, return_type_name.as_deref().unwrap(), out);
+                // Import-only (bodyless DECLARE/EXTERNAL, AC4): no body means
+                // no hoisted member variables — return the zeroed struct
+                // instead of assembling from nonexistent flattened vars
+                // (docs/21 §6: xb_var_DCACOS_R/_I). Prototype carries the ABI.
+                if body.is_empty() {
+                    out.push_str("    return xb_var_");
+                    out.push_str(name);
+                    out.push_str(";\n");
+                } else {
+                    emit_composite_fallback_return(name, return_type_name.as_deref().unwrap(), out);
+                }
             } else if *return_type != ValueType::Integer || own_name_used {
                 emit_fallback_return(name, *return_type, out);
             } else {

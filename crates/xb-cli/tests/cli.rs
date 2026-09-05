@@ -316,3 +316,64 @@ fn cli_run_reads_piped_stdin_as_input() {
     assert_eq!(String::from_utf8(output.stdout).unwrap(), "got:hello\n");
     let _ = std::fs::remove_file(&prog);
 }
+
+/// AC4 (docs/20 M1 exit, docs/21 §6): import-only composite signatures
+/// (`.dec` EXTERNAL with DCOMPLEX return/params, e.g. xcm.dec into xit.x)
+/// must flow through `resolve_import_decls` and emit a well-formed stub —
+/// no filter, no references to nonexistent flattened `_R`/`_I` variables.
+/// The stub is never called here (import-only functions have no bodies to
+/// link); the gate is clean `cc` + correct program output.
+#[test]
+fn cli_import_composite_signatures_emit_clean_stub() {
+    let dir = std::env::temp_dir().join("xb_cli_ac4_test");
+    let _ = std::fs::create_dir_all(&dir);
+    std::fs::write(
+        dir.join("mini.dec"),
+        "EXTERNAL FUNCTION DCOMPLEX  DCMINI      (DCOMPLEX z)\nEXTERNAL FUNCTION DOUBLE    DCMINIABS   (DCOMPLEX z)\n",
+    )
+    .unwrap();
+    let prog = dir.join("ac4prog.x");
+    std::fs::write(
+        &prog,
+        "PROGRAM \"ac4\"\nVERSION \"0.1\"\nIMPORT \"mini\"\nFUNCTION Main\nPRINT \"ok\"\nEND FUNCTION\n",
+    )
+    .unwrap();
+
+    let emit = Command::new(env!("CARGO_BIN_EXE_xb"))
+        .args(["--emit-c", prog.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(emit.status.success(), "emit-c failed");
+    let c_src = String::from_utf8(emit.stdout).unwrap();
+    assert!(
+        c_src.contains("xb_user_DCMINI"),
+        "composite import signature missing from C output"
+    );
+    assert!(
+        !c_src.contains("DCMINI_R") && !c_src.contains("DCMINI_I"),
+        "stub references nonexistent flattened variables"
+    );
+
+    let c_path = dir.join("ac4prog.c");
+    let exe = dir.join("ac4prog");
+    std::fs::write(&c_path, &c_src).unwrap();
+    let cc = Command::new("cc")
+        .args([
+            "-O0",
+            "-w",
+            "-Werror=implicit-function-declaration",
+            "-o",
+            exe.to_str().unwrap(),
+            c_path.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        cc.status.success(),
+        "cc failed: {}",
+        String::from_utf8_lossy(&cc.stderr)
+    );
+    let run = Command::new(&exe).output().unwrap();
+    assert_eq!(String::from_utf8(run.stdout).unwrap(), "ok\n");
+    let _ = std::fs::remove_dir_all(&dir);
+}
