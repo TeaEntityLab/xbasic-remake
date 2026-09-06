@@ -132,6 +132,7 @@ DIM fCompSkip
 DIM fQuit
 DIM up
 DIM udep
+DIM uSzDep
 DIM urdep
 DIM ufresh
 DIM udecl
@@ -976,7 +977,7 @@ IF facetDump = 1 THEN
           fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
           IF frk > 0 AND INSTR(fSeen$, fKey$) = 0 THEN
             fSeen$ = fSeen$ + fKey$
-            IF INSTR(fCompVars$, fKey$) = 0 THEN
+          IF INSTR(fCompVars$, fKey$) = 0 AND NOT (fst$ = "shared" AND INSTR(fCompVars$, ":*:" + fnm$ + ":") > 0) THEN
               fTab$ = fTab$ + fLn$ + CHR$(10)
             END IF
           END IF
@@ -994,7 +995,9 @@ IF facetDump = 1 THEN
                 fResized$ = fResized$ + fKey$
               END IF
             END IF
-          ELSEIF fst$ <> "shared" THEN
+          ELSEIF fst$ <> "shared" OR fRedimMode = 2 THEN
+            ' STATIC scalars stay local even when a SHARED array of the
+            ' same name exists (CheckState funcKind vs funcKind[]).
             GOSUB uStripSfx
             fKey$ = ":" + curScope$ + ":" + uBase$ + ":"
             IF INSTR(fScalar$, fKey$) = 0 THEN
@@ -1167,7 +1170,7 @@ IF facetDump = 1 THEN
             fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
             IF frk > 0 AND INSTR(fSeen$, fKey$) = 0 THEN
               fSeen$ = fSeen$ + fKey$
-              IF INSTR(fCompVars$, fKey$) = 0 THEN
+              IF INSTR(fCompVars$, fKey$) = 0 AND NOT (fst$ = "shared" AND INSTR(fCompVars$, ":*:" + fnm$ + ":") > 0) THEN
                 fTab$ = fTab$ + fLn$ + CHR$(10)
               END IF
             END IF
@@ -1566,11 +1569,12 @@ GOTO uAfterScan
     urdep = 0
     ufresh = 1
     udep = 0
+    uSzDep = 0
     uprev$ = ""
     uDone = 0
     uArmCall = 0
     WHILE up <= ntok AND uDone = 0 AND NOT (tt$(up) = "newline")
-      IF tt$(up) = "ident" THEN
+      IF tt$(up) = "ident" OR tt$(up) = "shared" THEN
         fnm$ = tv$(up)
         GOSUB uCanonName
         fKey$ = ":" + ucurScope$ + ":" + fnm$ + ":"
@@ -1633,8 +1637,10 @@ GOTO uAfterScan
                     fArrUse$ = fArrUse$ + fKey$
                   END IF
                 END IF
-                IF udep = 0 OR RIGHT$(fnm$, 1) = "$" THEN
-                  IF INSTR(fSharedScalar$, fKey$) = 0 AND INSTR(fScalar$, fKey$) = 0 THEN
+                IF uSzDep = 0 AND (udep = 0 OR RIGHT$(fnm$, 1) = "$") THEN
+                  ' IFZ a[] / SWAP a[] / &a[] are scalar reads; LEN(a[]) and
+                  ' SIZE(a[]) lower to SizeOf, which names no scalar.
+                  IF INSTR(fScalar$, fKey$) = 0 THEN
                     fScalar$ = fScalar$ + fKey$
                   END IF
                 END IF
@@ -1651,6 +1657,8 @@ GOTO uAfterScan
           ELSEIF up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "(" THEN
             IF fnm$ = "UBOUND" THEN
               udep = 1
+            ELSEIF fnm$ = "LEN" OR fnm$ = "SIZE" THEN
+              uSzDep = uSzDep + 1
             ELSEIF uCallDepth = 0 THEN
               uCallDepth = 1
               uCal$ = tv$(up)
@@ -1680,9 +1688,9 @@ GOTO uAfterScan
                 END IF
               ELSEIF ufresh = 1 AND up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "=" AND (INSTR(fSharedScalar$, uSKey$) > 0 OR INSTR(fSharedScalar$, fKey$) > 0) THEN
                 ' scalar-shared assignment target (SharedAssignment in Rust):
-                ' the shared global is written, no local scalar is read.
-                ' Array-shared targets are plain assignments (scalar noted).
-              ELSEIF udep = 0 OR RIGHT$(fnm$, 1) = "$" THEN
+              ELSEIF (udep = 0 OR RIGHT$(fnm$, 1) = "$") AND tt$(up) <> "shared" THEN
+                ' Bare #name is SharedVariable (not a local scalar). Empty
+                ' #name[] still notes above (IFZ #asm$[] / SWAP #qbasic$[]).
                 IF INSTR(fSharedScalar$, uSKey$) = 0 AND INSTR(fScalar$, uSKey$) = 0 THEN
                   fScalar$ = fScalar$ + uSKey$
                 END IF
@@ -1707,6 +1715,9 @@ GOTO uAfterScan
             urdep = urdep + 1
           END IF
         ELSEIF tt$(up) = "symbol" AND tv$(up) = ")" THEN
+          IF uSzDep > 0 THEN
+            uSzDep = uSzDep - 1
+          END IF
           IF udep > 0 THEN
             udep = udep - 1
           END IF
