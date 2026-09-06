@@ -22,16 +22,16 @@
 > `scan_all_strarr$` for headerless producers), adds a scanner-hostile
 > three-engine behavior lock, and fixes `arr_acc_name$`/`ub_ref$` to use
 > direct `char**`/`xb_ub_` naming for non-strDual allStrArr members.
-> `checks/validate-all.sh` passes **366 tests across 41 binaries**;
+> `checks/validate-all.sh` passes **371 tests across 41 binaries**;
 > `checks/verify-bootstrap.sh` is green, including `cgen_cemitter_sync`
-> **110/110**. The LLVM feature gate passes **144 tests** with one documented
+> **115/115**. The LLVM feature gate passes **144 tests** with one documented
 > ignore. Remaining known non-green: none in the default gates. Advisory only:
 > LLVM backend lacks `INLINE$` and kernel32 I/O (`ahello.x` skipped,
 > `llvm_backend_kernel32_stdio` ignored with reason).
 >
 > **Gate parallelism note (2026-09-05):** both `checks/validate-all.sh` and
 > `checks/verify-bootstrap.sh` use `--test-threads=1` to prevent OOM process
-> kills when 110 `cgen_cemitter_sync` tests each spawn external cgen+cc
+> kills when 115 `cgen_cemitter_sync` tests each spawn external cgen+cc
 > processes on an 8-core machine under load. `cargo test` runs test binaries
 > sequentially; `--test-threads=1` only affects within-binary parallelism.
 >
