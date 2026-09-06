@@ -2,10 +2,110 @@ mod common;
 
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use xb_compiler::{CEmitter, FrontendUnit, TextIrEmitter};
 use xb_runtime::Interpreter;
+
+/// Rust bootstraps `selfhost/cgen.x` → C → cc → native cgen at `tmp/<name>`.
+/// Returns (executable, C source) so callers can clean up.
+fn build_native_cgen(root: &Path, tmp: &Path, name: &str) -> (PathBuf, PathBuf) {
+    let cgen_source = fs::read_to_string(root.join("selfhost/cgen.x")).expect("read cgen.x");
+    let cgen_program = FrontendUnit::parse(&cgen_source)
+        .expect("parse cgen.x")
+        .lower_ir()
+        .expect("lower cgen.x");
+    let cgen_c = CEmitter::new().emit_program(&cgen_program);
+    let cgen_c_path = tmp.join(format!("{name}.c"));
+    let cgen_exe = tmp.join(name);
+    fs::write(&cgen_c_path, &cgen_c).expect("write cgen.c");
+    let cc = Command::new(common::cc::cc())
+        .args([
+            "-o",
+            cgen_exe.to_str().unwrap(),
+            cgen_c_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("cc cgen");
+    assert!(
+        cc.status.success(),
+        "cc failed for cgen.x: {}",
+        String::from_utf8_lossy(&cc.stderr)
+    );
+    (cgen_exe, cgen_c_path)
+}
+
+/// Peak-memory contract for the native C generator on the largest core
+/// library (`xui.x`, 1.4 MB source → 2.8 MB facet IR). The generated C's
+/// string model never frees temporaries, so a child's resident size is its
+/// cumulative temporary volume. Measured through this probe: the per-name
+/// facet-table rescan (docs/17 CGEN-OOM, 2026-09-06) peaked at 7.0 GiB,
+/// the fixed generator at 3.9 GiB. Resident size shrinks under host memory
+/// pressure (compressed pages are not resident - a concurrent 7.5 GB run
+/// dropped the pre-fix reading to ~6 GiB), so the ceiling sits between the
+/// two with margin on both sides rather than just above the fixed peak.
+/// `ru_maxrss` for RUSAGE_CHILDREN is the largest child this test process
+/// has waited for, so the assertion bounds every cgen/cc spawned so far.
+#[cfg(unix)]
+#[test]
+fn cgen_x_peak_rss_on_largest_core_lib_stays_bounded() {
+    const CEILING_BYTES: i64 = 5 * 1024 * 1024 * 1024;
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let tmp = std::env::temp_dir().join("xb_cgen_peak_rss");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let (cgen_exe, cgen_c_path) = build_native_cgen(&root, &tmp, "cgen_rss");
+
+    let src = fs::read_to_string(root.join("xbasic/lib/xui.x")).expect("read xui.x");
+    let prog = FrontendUnit::parse(&src)
+        .expect("parse xui.x")
+        .lower_ir()
+        .expect("lower xui.x");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let mut child = Command::new(common::exe_path(&cgen_exe))
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn cgen");
+    child
+        .stdin
+        .take()
+        .expect("cgen stdin")
+        .write_all(ir.as_bytes())
+        .expect("write IR");
+    let out = child.wait_with_output().expect("wait cgen");
+    assert!(
+        out.status.success(),
+        "cgen failed on xui.x (exit {:?}): {}",
+        out.status.code(),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!out.stdout.is_empty(), "cgen emitted nothing for xui.x");
+
+    let peak_bytes = {
+        let mut ru: libc::rusage = unsafe { std::mem::zeroed() };
+        let rc = unsafe { libc::getrusage(libc::RUSAGE_CHILDREN, &mut ru) };
+        assert_eq!(rc, 0, "getrusage failed");
+        // macOS reports bytes; Linux and the BSDs report kilobytes.
+        // `c_long` is i32 on 32-bit unix targets; the conversion is real there.
+        #[allow(clippy::useless_conversion)]
+        let raw = i64::from(ru.ru_maxrss);
+        if cfg!(target_os = "macos") {
+            raw
+        } else {
+            raw * 1024
+        }
+    };
+    assert!(
+        peak_bytes < CEILING_BYTES,
+        "native cgen peak RSS {:.2} GiB exceeds the {} GiB ceiling on xui.x",
+        peak_bytes as f64 / 1073741824.0,
+        CEILING_BYTES / 1073741824
+    );
+    let _ = fs::remove_file(&cgen_c_path);
+    let _ = fs::remove_file(&cgen_exe);
+}
 
 /// Self-hosting C generator: cgen.x → C → cc → native cgen
 /// Then: compiler.x text IR → native cgen → C → cc → native compiler
@@ -17,26 +117,7 @@ fn cgen_x_self_hosting_pipeline() {
     fs::create_dir_all(&tmp).expect("mkdir");
 
     // Step 1: Compile cgen.x to native executable using Rust C emitter
-    let cgen_source = fs::read_to_string(root.join("selfhost/cgen.x")).expect("read cgen.x");
-    let cgen_unit = FrontendUnit::parse(&cgen_source).expect("parse cgen.x");
-    let cgen_program = cgen_unit.lower_ir().expect("lower cgen.x");
-    let cgen_c = CEmitter::new().emit_program(&cgen_program);
-    let cgen_c_path = tmp.join("cgen.c");
-    let cgen_exe = tmp.join("cgen_native");
-    fs::write(&cgen_c_path, &cgen_c).expect("write cgen.c");
-    let cc1 = Command::new(common::cc::cc())
-        .args([
-            "-o",
-            cgen_exe.to_str().unwrap(),
-            cgen_c_path.to_str().unwrap(),
-        ])
-        .output()
-        .expect("cc cgen");
-    assert!(
-        cc1.status.success(),
-        "cc failed for cgen.x: {}",
-        String::from_utf8_lossy(&cc1.stderr)
-    );
+    let (cgen_exe, cgen_c_path) = build_native_cgen(&root, &tmp, "cgen_native");
 
     // Step 2: Generate text IR for compiler.x
     let compiler_source =
@@ -142,28 +223,7 @@ fn true_bootstrap_without_rust_host() {
     fs::create_dir_all(&tmp).expect("mkdir");
 
     // Step 1: Rust bootstraps cgen.x → native cgen
-    let cgen_src = fs::read_to_string(root.join("selfhost/cgen.x")).expect("read cgen.x");
-    let cgen_prog = FrontendUnit::parse(&cgen_src)
-        .expect("parse cgen")
-        .lower_ir()
-        .expect("lower");
-    let cgen_c = CEmitter::new().emit_program(&cgen_prog);
-    let cgen_exe = tmp.join("cgen");
-    let cgen_c_path = tmp.join("cgen.c");
-    fs::write(&cgen_c_path, &cgen_c).expect("write");
-    let cc0 = Command::new(common::cc::cc())
-        .args([
-            "-o",
-            cgen_exe.to_str().unwrap(),
-            cgen_c_path.to_str().unwrap(),
-        ])
-        .output()
-        .expect("cc");
-    assert!(
-        cc0.status.success(),
-        "cc cgen failed: {}",
-        String::from_utf8_lossy(&cc0.stderr)
-    );
+    let (cgen_exe, cgen_c_path) = build_native_cgen(&root, &tmp, "cgen");
 
     // Step 2: Rust bootstraps compiler.x → native compiler A
     let comp_src = fs::read_to_string(root.join("selfhost/compiler.x")).expect("read compiler.x");

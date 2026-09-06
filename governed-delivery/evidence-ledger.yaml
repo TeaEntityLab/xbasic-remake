@@ -185,3 +185,27 @@ entries:
     receipt: "session tool output 2026-09-06 (test result: ok. 1 passed)"
     freshness_kind: recheck_date
     date_checked: "2026-09-06"
+  - claim: "CGEN-OOM root cause: native cgen.x on xgr.x peaked at 7.6 GB RSS / 585 G instructions / 37 s; xui 7.46 GB / 55 s; xit 7.93 GB / 23 s (the three libs killed with exit None under cgen_x_compiles_core_libs_floor_9_cc_clean). RR-03 filter_dyn_scope$ called facet_has_entry$ per scanner-dyn name per function, each re-tokenizing the whole facet table; its result was compared `= 0` (string vs integer -> LEN()=0, always false in interp, CEmitter and cgen - three-engine probe), so the branch was dead weight. Emitted C never frees string temporaries (10 free( in cgen.c), so RSS = cumulative temporaries"
+    source: "/usr/bin/time -l on $TMPDIR/xb_sync_cgen_shared/cgen < xb --emit-ir-facets <lib>; sample(1) call graph; xb_alloc backtrace sampling (1/1024); /tmp/probe_strint.x on three engines"
+    attester: "session measurement 2026-09-06"
+    revision: "83b3aec (pre-fix cgen.x)"
+    exit_status: 0
+    receipt: "session tool output 2026-09-06 (maximum resident set size 7602110464 for xgr; 'ne0 ne0' on all three engines)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"
+  - claim: "CGEN-OOM fix (selfhost/cgen.x only): dead facet_has_entry$ branch + function deleted, facet_scope_sets$ single pass per function replaces four facets_in_scope$ scans (scope tested before allocating), facet lines trimmed once at table build, replace$ index-based, write-only ##facetDynAll$ removed. Emitted C byte-identical on xgr/xit/xui (cmp against pre-fix cgen output). After: xgr 1.96 GB / 4.4 s, xit 1.77 GB / 3.7 s, xui 3.63 GB / 7.7 s"
+    source: "xb --emit-c selfhost/cgen.x | cc; cmp /tmp/<lib>_old.c /tmp/<lib>_final.c; /usr/bin/time -l"
+    attester: "session measurement 2026-09-06"
+    revision: "working tree after 83b3aec (this change set)"
+    exit_status: 0
+    receipt: "session tool output 2026-09-06 (xgr/xit/xui IDENTICAL; RSS figures above)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"
+  - claim: "Gates green on the fixed tree: cgen_x_compiles_core_libs_floor_9_cc_clean 15/15 (27.8 s, was killed); verify-bootstrap.sh ok (41 suites, cgen1==cgen2, IR identity); validate-all.sh ALL PASS 371 tests / 41 binaries + core libs 15/15 link; cargo fmt --check clean; clippy --workspace --all-targets 0 warnings. New lock cgen_x_peak_rss_on_largest_core_lib_stays_bounded (crates/xb-runtime/tests/cgen_selfhost.rs, non-constitutional): passes at 3.9 GiB on the fix, fails at 6.98 GiB on the pre-fix cgen.x (mutation verified via git stash); 5 GiB ceiling chosen because host memory pressure lowered a contended pre-fix reading to ~6 GiB"
+    source: "cargo test --release -p xb-runtime --test cgen_cemitter_sync -- --test-threads=1 cgen_x_compiles_core_libs_floor_9_cc_clean; bash checks/verify-bootstrap.sh; bash checks/validate-all.sh; cargo test --release -p xb-runtime --test cgen_selfhost -- --test-threads=1"
+    attester: "cargo test runner / gate scripts"
+    revision: "working tree after 83b3aec (this change set)"
+    exit_status: 0
+    receipt: "/tmp/vb.log (verify-bootstrap: ok), /tmp/va.log (=== ALL PASS (371 tests across 41 binaries) ===), session tool output 2026-09-06"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"

@@ -822,9 +822,9 @@ END IF
 ##nestFns$ = ""
 ##selectExitStack$ = ""
 ##facetTab$ = ""
-##facetDynAll$ = ""
 ##scanDynAll$ = ""
 ##curHoistFn$ = ""
+##curHoistArr1$ = ""
 ##compRet$ = ""
 ##compMembers$ = ""
 ##descParams$ = ""
@@ -850,7 +850,7 @@ WHILE facetPos <= LEN(src$)
   facetPos = facetE + 1
   facetLine$ = trim_spaces$(facetLine$)
   IF LEFT$(facetLine$, 6) = "facet " THEN
-    facetRest$ = MID$(facetLine$, 7, LEN(facetLine$) - 6)
+    facetRest$ = trim_spaces$(MID$(facetLine$, 7, LEN(facetLine$) - 6))
     ##facetTab$ = ##facetTab$ + CHR$(10) + facetRest$ + CHR$(10)
   END IF
 WEND
@@ -1093,8 +1093,6 @@ IF LEN(##facetTab$) > 0 THEN
       EXIT WHILE
     END IF
   WEND
-  ' RR-03: store full (all-scope) facet-derived dyn set for per-function filtering.
-  ##facetDynAll$ = fDyn$
 END IF
 ' CG-BYTES: string arrays whose UBOUND is read (array_ubound(X:string))
 ' are dual-use in the Rust CEmitter (the string UBOUND notes a scalar
@@ -1905,22 +1903,22 @@ WHILE pos <= LEN(src$)
           ##curParams$ = param_names$(params$)
           ##curParamTypes$ = param_types$(params$)
           ##curFnName$ = funcName$
-          ' RR-03: scope-qualified facet filtering. Filter dynNames to
-          ' remove names that are dyn in OTHER scopes but not THIS scope.
-          ' dualUse/arr2d stay scanner-derived (facet dual classifier is
-          ' incomplete for string UBOUND patterns).
-          ##curDescLocals$ = ""
-          ##curFacetDual$ = ""
+          ' RR-03: scope-qualified facet sets. ##dynNames$ restarts from the
+          ' program-wide scanner set each function (scope-leak removal was
+          ' never active - see filter_dyn_scope$) and gains this scope's
+          ' facet-confirmed dyn names below. dualUse/arr2d stay
+          ' scanner-derived (facet dual classifier is incomplete for string
+          ' UBOUND patterns). One facet-table pass fills ##curDescLocals$/
+          ' ##curFacetDual$/##curHoistArr1$ and returns the storage=dyn set
+          ' (all "" when the table is empty).
+          DIM _fdExtra$
+          _fdExtra$ = facet_scope_sets$(##facetTab$, funcName$)
           IF LEN(##facetTab$) > 0 THEN
-            ##curDescLocals$ = facets_in_scope$(##facetTab$, funcName$, "byref")
-            ##curFacetDual$ = facets_in_scope$(##facetTab$, funcName$, "dual")
-            ##dynNames$ = filter_dyn_scope$(##scanDynAll$, ##facetDynAll$, facets_in_scope$(##facetTab$, funcName$, "dyn"), ##facetTab$, funcName$)
+            ##dynNames$ = filter_dyn_scope$(##scanDynAll$)
             ' Add facet-confirmed dyn names that the scanner missed (e.g.,
             ' tokenTemp — storage=dyn in facets but only DIM'd as scalar,
             ' so scan_dyn$ doesn't detect it). These need to be in dynNames$
             ' so the scalar DIM emits nothing and the hoist declares the scalar.
-            DIM _fdExtra$
-            _fdExtra$ = facets_in_scope$(##facetTab$, funcName$, "dyn")
             DIM _fdPos
             _fdPos = 1
             WHILE _fdPos <= LEN(_fdExtra$)
@@ -2008,6 +2006,8 @@ WHILE pos <= LEN(src$)
         ##curNodeArrays$ = ""
         ' RR-03: restore happens after function body emission (below).
         ##curHoistFn$ = funcName$
+        ' emit_hoists$ reads ##curHoistArr1$ (rank>=1 facets in this scope),
+        ' filled by facet_scope_sets$ at the function header.
         IF skipFunc = 0 THEN
           hoists$ = emit_hoists$(CHR$(10) + usedSyms$, CHR$(10) + dimmedSyms$)
           ' Match Rust CEmitter: always declare return var for non-integer
@@ -5773,7 +5773,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
             IF INSTR(out$, "char** " + c_var_name$(nm$, "string") + " = 0;") = 0 THEN
               out$ = out$ + "    char** " + c_var_name$(nm$, "string") + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
-          ELSEIF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 AND INSTR(##allStrArr$, ":" + nm$ + ":") = 0 AND INSTR(##dynNames$, ":" + nm$ + ":") = 0 AND (LEN(##facetTab$) = 0 OR facet_has_entry$(##facetTab$, nm$, ##curHoistFn$) = 0 OR INSTR(facets_in_scope$(##facetTab$, ##curHoistFn$, "arr1"), ":" + nm$ + ":") > 0) AND ty$ <> "string" AND RIGHT$(nm$, 1) <> "$" THEN
+          ELSEIF INSTR(##xstArrays$, ":" + nm$ + ":") > 0 AND INSTR(##allStrArr$, ":" + nm$ + ":") = 0 AND INSTR(##dynNames$, ":" + nm$ + ":") = 0 AND (LEN(##facetTab$) = 0 OR INSTR(##curHoistArr1$, ":" + nm$ + ":") > 0) AND ty$ <> "string" AND RIGHT$(nm$, 1) <> "$" THEN
             IF INSTR(out$, " xb_var_" + sanitize_ident$(nm$) + " = 0; intptr_t xb_ub_") = 0 THEN
               out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(nm$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(nm$) + " = -1;" + CHR$(10)
             END IF
@@ -5923,7 +5923,7 @@ FUNCTION emit_hoists$(used$, dimmed$)
           END IF
         END IF
         END IF
-      ELSEIF INSTR(##xstArrays$, ":" + entry$ + ":") > 0 AND INSTR(##dynNames$, ":" + entry$ + ":") = 0 AND (LEN(##facetTab$) = 0 OR facet_has_entry$(##facetTab$, entry$, ##curHoistFn$) = 0 OR INSTR(facets_in_scope$(##facetTab$, ##curHoistFn$, "arr1"), ":" + entry$ + ":") > 0) AND INSTR(##allStrArr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 THEN
+      ELSEIF INSTR(##xstArrays$, ":" + entry$ + ":") > 0 AND INSTR(##dynNames$, ":" + entry$ + ":") = 0 AND (LEN(##facetTab$) = 0 OR INSTR(##curHoistArr1$, ":" + entry$ + ":") > 0) AND INSTR(##allStrArr$, ":" + entry$ + ":") = 0 AND INSTR(##strDual$, ":" + entry$ + ":") = 0 THEN
         IF INSTR(out$, " xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_") = 0 THEN
           out$ = out$ + "    intptr_t* xb_var_" + sanitize_ident$(entry$) + " = 0; intptr_t xb_ub_" + sanitize_ident$(entry$) + " = -1;" + CHR$(10)
         END IF
@@ -8043,40 +8043,49 @@ FUNCTION emit_desc_local_decls$(existing$)
   emit_desc_local_decls$ = out$
 END FUNCTION
 
-' RR-03: Scope-qualified facet lookup. Returns ":name:name:..." for facets
-' matching scope sc$ (or "*" scope) and the requested field.
-' field$ = "dyn" (storage=dyn), "dual" (dual=1), "arr2d" (rank>=2).
-' When ##facetTab$ is empty, returns "" (caller falls back to scanners).
-FUNCTION facets_in_scope$(tab$, sc$, field$)
-  DIM result$
+' RR-03: Scope-qualified facet sets for scope sc$ (or "*" scope), built in
+' ONE tokenization pass over tab$: fills ##curDescLocals$ (byref=1),
+' ##curFacetDual$ (dual=1) and ##curHoistArr1$ (rank>=1) and returns the
+' storage=dyn set. Every set is ":name:name:..." in table order with dedup,
+' identical to the former per-field facets_in_scope$ calls (which rescanned
+' and re-tokenized the whole table once per field per function - the
+' largest allocation source after facet_has_entry$, docs/17 CGEN-OOM).
+' Lines are trimmed when ##facetTab$ is built, so none is re-trimmed here.
+' When tab$ is empty every set is "" (caller falls back to scanners).
+FUNCTION facet_scope_sets$(tab$, sc$)
+  DIM dyn$
   DIM pos
   DIM le
   DIM line$
   DIM cp
   DIM nm$
+  DIM key$
   DIM rest$
   DIM sp
   DIM scope$
   DIM spEnd
-  DIM val$
-  result$ = ""
+  dyn$ = ""
+  ##curDescLocals$ = ""
+  ##curFacetDual$ = ""
+  ##curHoistArr1$ = ""
   pos = 1
   WHILE pos <= LEN(tab$)
     le = INSTR(tab$, CHR$(10), pos)
     IF le = 0 THEN
       le = LEN(tab$) + 1
     END IF
-    line$ = trim_spaces$(MID$(tab$, pos, le - pos))
+    line$ = MID$(tab$, pos, le - pos)
     pos = le + 1
     IF LEN(line$) > 0 THEN
       cp = INSTR(line$, ":")
       IF cp > 0 THEN
-        nm$ = LEFT$(line$, cp - 1)
-        rest$ = MID$(line$, cp + 1, LEN(line$) - cp)
-        ' Parse scope
-        sp = INSTR(rest$, " scope=")
+        ' Parse scope first (positions relative to line$; the name holds no
+        ' spaces, so searching from cp equals searching the remainder) and
+        ' skip the line before allocating anything else when it belongs to
+        ' another function - most lines do.
+        sp = INSTR(line$, " scope=", cp + 1)
         IF sp > 0 THEN
-          scope$ = MID$(rest$, sp + 7, LEN(rest$) - sp - 6)
+          scope$ = MID$(line$, sp + 7, LEN(line$) - sp - 6)
           spEnd = INSTR(scope$, " ")
           IF spEnd > 0 THEN
             scope$ = LEFT$(scope$, spEnd - 1)
@@ -8086,65 +8095,53 @@ FUNCTION facets_in_scope$(tab$, sc$, field$)
         END IF
         ' Check scope match (current function or module-shared *)
         IF scope$ = sc$ OR scope$ = "*" THEN
-          IF field$ = "dyn" THEN
-            sp = INSTR(rest$, " storage=")
-            IF sp > 0 THEN
-              val$ = MID$(rest$, sp + 9, 3)
-              IF val$ = "dyn" THEN
-                IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
-                  result$ = result$ + ":" + nm$ + ":"
-                END IF
+          nm$ = LEFT$(line$, cp - 1)
+          rest$ = MID$(line$, cp + 1, LEN(line$) - cp)
+          key$ = ":" + nm$ + ":"
+          sp = INSTR(rest$, " storage=")
+          IF sp > 0 THEN
+            IF MID$(rest$, sp + 9, 3) = "dyn" THEN
+              IF INSTR(dyn$, key$) = 0 THEN
+                dyn$ = dyn$ + key$
               END IF
             END IF
-          ELSEIF field$ = "dual" THEN
-            sp = INSTR(rest$, " dual=")
-            IF sp > 0 THEN
-              val$ = MID$(rest$, sp + 6, 1)
-              IF val$ = "1" THEN
-                IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
-                  result$ = result$ + ":" + nm$ + ":"
-                END IF
+          END IF
+          sp = INSTR(rest$, " dual=")
+          IF sp > 0 THEN
+            IF MID$(rest$, sp + 6, 1) = "1" THEN
+              IF INSTR(##curFacetDual$, key$) = 0 THEN
+                ##curFacetDual$ = ##curFacetDual$ + key$
               END IF
             END IF
-          ELSEIF field$ = "arr2d" THEN
-            sp = INSTR(rest$, " rank=")
-            IF sp > 0 THEN
-              val$ = MID$(rest$, sp + 6, 1)
-              IF VAL(val$) >= 2 THEN
-                IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
-                  result$ = result$ + ":" + nm$ + ":"
-                END IF
+          END IF
+          sp = INSTR(rest$, " rank=")
+          IF sp > 0 THEN
+            IF VAL(MID$(rest$, sp + 6, 1)) >= 1 THEN
+              IF INSTR(##curHoistArr1$, key$) = 0 THEN
+                ##curHoistArr1$ = ##curHoistArr1$ + key$
               END IF
             END IF
-          ELSEIF field$ = "arr1" THEN
-            sp = INSTR(rest$, " rank=")
-            IF sp > 0 THEN
-              val$ = MID$(rest$, sp + 6, 1)
-              IF VAL(val$) >= 1 THEN
-                IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
-                  result$ = result$ + ":" + nm$ + ":"
-                END IF
-              END IF
-            END IF
-          ELSEIF field$ = "byref" THEN
-            IF INSTR(rest$, " byref=1") > 0 THEN
-              IF INSTR(result$, ":" + nm$ + ":") = 0 THEN
-                result$ = result$ + ":" + nm$ + ":"
-              END IF
+          END IF
+          IF INSTR(rest$, " byref=1") > 0 THEN
+            IF INSTR(##curDescLocals$, key$) = 0 THEN
+              ##curDescLocals$ = ##curDescLocals$ + key$
             END IF
           END IF
         END IF
       END IF
     END IF
   WEND
-  facets_in_scope$ = result$
+  facet_scope_sets$ = dyn$
 END FUNCTION
-' RR-03: filter_dyn_scope$ — like filter_scope$ but handles :name:type: format.
-' scanAll$ is :name:type:name:type:... (from scan_dyn$)
-' facetAll$ and facetThis$ are :name: format (from facet consumption)
-' Returns :name:type: entries from scanAll$ where name is scanner-only
-' (not in facetAll$) OR facet-confirmed for this scope (in facetThis$).
-FUNCTION filter_dyn_scope$(scanAll$, facetAll$, facetThis$, tab$, scope$)
+' RR-03: filter_dyn_scope$ re-serializes scanAll$ (:name:type:... from
+' scan_dyn$), dropping empty names. It USED to carry a scope-leak removal
+' branch (`ELSEIF facet_has_entry$(tab$, name$, scope$) = 0`): that compared
+' a string against an integer, which every engine lowers to LEN()=0 - always
+' false - so no name was ever removed, while the call rescanned and
+' re-tokenized the whole facet table per dyn name per function (the cgen
+' OOM root cause: 7.6 GB RSS on xgr.x, docs/17 CGEN-OOM). Activating real
+' scope-leak removal is a semantic change and stays an RR-03 decision.
+FUNCTION filter_dyn_scope$(scanAll$)
   DIM result$
   DIM pos
   DIM le
@@ -8167,68 +8164,11 @@ FUNCTION filter_dyn_scope$(scanAll$, facetAll$, facetThis$, tab$, scope$)
     END IF
     type$ = MID$(scanAll$, typeStart, typeEnd - typeStart)
     IF LEN(name$) > 0 THEN
-      IF INSTR(facetAll$, ":" + name$ + ":") = 0 THEN
-        ' Scanner-only detection (not in any facet) → keep
-        result$ = result$ + ":" + name$ + ":" + type$ + ":"
-      ELSEIF INSTR(facetThis$, ":" + name$ + ":") > 0 THEN
-        ' Facet confirms dyn in this scope → keep
-        result$ = result$ + ":" + name$ + ":" + type$ + ":"
-      ELSEIF facet_has_entry$(tab$, name$, scope$) = 0 THEN
-        ' No facet entry at all for this scope → safe to remove (scope leak)
-        ' (don't add to result = removed)
-      ELSE
-        ' Has a facet entry (e.g. storage=fixed) in this scope → keep
-        ' to avoid fixed-array/scalar declaration conflict
-        result$ = result$ + ":" + name$ + ":" + type$ + ":"
-      END IF
+      result$ = result$ + ":" + name$ + ":" + type$ + ":"
     END IF
     pos = typeEnd + 1
   WEND
   filter_dyn_scope$ = result$
-END FUNCTION
-' RR-03: facet_has_entry$ — returns "1" if any facet entry exists for name$
-' in scope scope$ (or "*" scope), "0" otherwise.
-FUNCTION facet_has_entry$(tab$, name$, scope$)
-  DIM pos
-  DIM le
-  DIM line$
-  DIM cp
-  DIM fname$
-  DIM rest$
-  DIM sp
-  DIM fscope$
-  DIM spEnd
-  pos = 1
-  WHILE pos <= LEN(tab$)
-    le = INSTR(tab$, CHR$(10), pos)
-    IF le = 0 THEN
-      le = LEN(tab$) + 1
-    END IF
-    line$ = trim_spaces$(MID$(tab$, pos, le - pos))
-    pos = le + 1
-    cp = INSTR(line$, ":")
-    IF cp > 0 THEN
-      fname$ = LEFT$(line$, cp - 1)
-      IF fname$ = name$ THEN
-        rest$ = MID$(line$, cp + 1, LEN(line$) - cp)
-        sp = INSTR(rest$, " scope=")
-        IF sp > 0 THEN
-          fscope$ = MID$(rest$, sp + 7, LEN(rest$) - sp - 6)
-          spEnd = INSTR(fscope$, " ")
-          IF spEnd > 0 THEN
-            fscope$ = LEFT$(fscope$, spEnd - 1)
-          END IF
-        ELSE
-          fscope$ = "*"
-        END IF
-        IF fscope$ = scope$ OR fscope$ = "*" THEN
-          facet_has_entry$ = "1"
-          RETURN facet_has_entry$
-        END IF
-      END IF
-    END IF
-  WEND
-  facet_has_entry$ = "0"
 END FUNCTION
 ' Look up a name's type from the facet table in a given scope.
 ' Returns "integer" if not found (matching dyn_type$ default).
@@ -8911,23 +8851,26 @@ FUNCTION func_id_of$(target$)
 END FUNCTION
 
 ' Replace every occurrence of `n$` in `h$` with `r$` (cgen.x has no built-in).
+' Scans by index: the former `rest$ = MID$(rest$, ...)` copied the whole
+' remaining haystack per match, O(matches x |h$|) on function bodies with
+' hundreds of hits (docs/17 CGEN-OOM).
 FUNCTION replace$(h$, n$, r$)
   DIM out$
-  DIM rest$
   DIM p
-  out$ = ""
-  rest$ = h$
+  DIM start
   IF LEN(n$) = 0 THEN
     replace$ = h$
     RETURN replace$
   END IF
-  p = INSTR(rest$, n$)
+  out$ = ""
+  start = 1
+  p = INSTR(h$, n$, start)
   WHILE p > 0
-    out$ = out$ + LEFT$(rest$, p - 1) + r$
-    rest$ = MID$(rest$, p + LEN(n$), LEN(rest$) - p - LEN(n$) + 1)
-    p = INSTR(rest$, n$)
+    out$ = out$ + MID$(h$, start, p - start) + r$
+    start = p + LEN(n$)
+    p = INSTR(h$, n$, start)
   WEND
-  out$ = out$ + rest$
+  out$ = out$ + MID$(h$, start, LEN(h$) - start + 1)
   replace$ = out$
 END FUNCTION
 
