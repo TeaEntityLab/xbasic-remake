@@ -5641,6 +5641,69 @@ fn cemitter_and_cgen_agree_on_byval_two_string_descriptor_redim() {
 }
 
 #[test]
+fn cemitter_and_cgen_agree_on_byval_two_shared_to_descriptor() {
+    // Twin shared-dual sources by value to twin descriptor callees:
+    // crosses the sharedDual storage gate with multi-copy emission.
+    let tmp = std::env::temp_dir().join("xb_sync_byval_shared_two");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM SHARED a[]\n\
+               DIM SHARED b[]\n\
+               DIM a[1]\n\
+               DIM b[1]\n\
+               a[0] = 3\n\
+               a[1] = 4\n\
+               b[0] = 7\n\
+               b[1] = 8\n\
+               W(a[], b[])\n\
+               PRINT a[0]\n\
+               PRINT b[0]\n\
+               END FUNCTION\n\
+               FUNCTION W (XLONG x[], XLONG y[])\n\
+               REDIM x[5]\n\
+               REDIM y[5]\n\
+               x[0] = 30\n\
+               y[0] = 70\n\
+               PRINT UBOUND(x[])\n\
+               PRINT UBOUND(y[])\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byval_shared_two program")
+        .lower_ir()
+        .expect("lower byval_shared_two program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byval_shared_two_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byval_shared_two_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byval_shared_two program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "5\n5\n3\n7\n",
+        "byval_shared_two reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled twin shared by-value copies"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled twin shared by-value copies"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+#[test]
 fn cemitter_and_cgen_agree_on_byval_descriptor_chain_copy() {
     // Descriptor source passed by value to a descriptor callee
     // (`Mid(@m[])` calls `Leaf(m[])`, `Leaf` REDIMs): cgen.x must take
