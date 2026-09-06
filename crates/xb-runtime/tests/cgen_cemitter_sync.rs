@@ -5830,6 +5830,76 @@ fn cemitter_and_cgen_agree_on_byval_desc_to_plain_copy() {
 }
 
 #[test]
+fn cemitter_and_cgen_agree_on_byval_two_desc_to_plain_copy() {
+    // Twin descriptor sources by value to twin plain callees in one
+    // call (both REDIM'd upstream, callee writes both): crosses the
+    // deleted-3408 copy routing with multi-copy emission. Callee
+    // writes must die in the two private copies (3/7 preserved).
+    let tmp = std::env::temp_dir().join("xb_sync_byval_desc_plain_two");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM a[1]\n\
+               DIM b[1]\n\
+               a[0] = 3\n\
+               a[1] = 4\n\
+               b[0] = 7\n\
+               b[1] = 8\n\
+               Mid(@a[], @b[])\n\
+               PRINT a[0]\n\
+               PRINT b[0]\n\
+               END FUNCTION\n\
+               FUNCTION Mid (@m[], @n[])\n\
+               REDIM m[3]\n\
+               REDIM n[3]\n\
+               Leaf(m[], n[])\n\
+               PRINT m[0]\n\
+               PRINT n[0]\n\
+               END FUNCTION\n\
+               FUNCTION Leaf (XLONG p[], XLONG q[])\n\
+               p[0] = 99\n\
+               q[0] = 88\n\
+               PRINT p[0]\n\
+               PRINT q[0]\n\
+               PRINT p[1]\n\
+               PRINT q[1]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byval_desc_plain_two program")
+        .lower_ir()
+        .expect("lower byval_desc_plain_two program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byval_desc_plain_two_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byval_desc_plain_two_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byval_desc_plain_two program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "99\n88\n4\n8\n3\n7\n3\n7\n",
+        "byval_desc_plain_two reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled twin by-value desc-to-plain copies"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled twin by-value desc-to-plain copies"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+#[test]
 fn cemitter_and_cgen_agree_on_byval_str_desc_to_plain_split() {
     // String twin of the desc-to-plain lock, pinned as a DOCUMENTED SPLIT:
     // both C backends copy correctly (no leak, no crash) but report the
