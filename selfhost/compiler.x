@@ -805,6 +805,7 @@ IF facetDump = 1 THEN
         fsp = fsp + 1
       END IF
       fFirstQual = 1
+      fCompSkip = 0
       fMore = 1
       WHILE fMore = 1 AND fsp <= ntok AND (tt$(fsp) = "ident" OR tt$(fsp) = "shared")
         fst$ = "fixed"
@@ -818,6 +819,9 @@ IF facetDump = 1 THEN
             fnm$ = tv$(fsp + 1)
             GOSUB uCanonName
             IF fIsKw = 0 THEN
+              IF INSTR(fTypeNames$, ":" + tv$(fsp) + ":") > 0 THEN
+                fCompSkip = 1
+              END IF
               fsp = fsp + 1
             END IF
           END IF
@@ -825,6 +829,13 @@ IF facetDump = 1 THEN
         END IF
         fnm$ = tv$(fsp)
         GOSUB uCanonName
+        IF fCompSkip = 1 THEN
+          fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
+          IF INSTR(fCompVars$, fKey$) = 0 THEN
+            fCompVars$ = fCompVars$ + fKey$
+          END IF
+          fCompSkip = 0
+        END IF
         ftmp$ = strip_suffix$(fnm$)
         ftp$ = ##suffixType$
         IF fRedimMode = 3 THEN
@@ -895,11 +906,10 @@ IF facetDump = 1 THEN
               fArrDim$ = fArrDim$ + fKey$
             END IF
           ELSEIF fst$ <> "shared" THEN
+            GOSUB uStripSfx
+            fKey$ = ":" + curScope$ + ":" + uBase$ + ":"
             IF INSTR(fScalar$, fKey$) = 0 THEN
               fScalar$ = fScalar$ + fKey$
-            END IF
-            IF INSTR(fDeclScalar$, fKey$) = 0 THEN
-              fDeclScalar$ = fDeclScalar$ + fKey$
             END IF
           ELSE
             IF INSTR(fSharedScalar$, fKey$) = 0 THEN
@@ -1072,11 +1082,10 @@ IF facetDump = 1 THEN
                 fArrDim$ = fArrDim$ + fKey$
               END IF
             ELSEIF fst$ <> "shared" THEN
+              GOSUB uStripSfx
+              fKey$ = ":" + curScope$ + ":" + uBase$ + ":"
               IF INSTR(fScalar$, fKey$) = 0 THEN
                 fScalar$ = fScalar$ + fKey$
-              END IF
-              IF INSTR(fDeclScalar$, fKey$) = 0 THEN
-                fDeclScalar$ = fDeclScalar$ + fKey$
               END IF
             ELSE
               IF INSTR(fSharedScalar$, fKey$) = 0 THEN
