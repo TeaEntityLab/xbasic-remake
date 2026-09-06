@@ -127,6 +127,28 @@ DIM fFirstQual
 DIM fEnd
 DIM fMore
 DIM fIsDef
+DIM fCompSkip
+DIM fQuit
+DIM up
+DIM udep
+DIM urdep
+DIM ufresh
+DIM udecl
+DIM fNameSk
+DIM ucurScope$
+DIM uprev$
+DIM uInType
+DIM ue1
+DIM ue2
+DIM up0
+DIM ueol
+DIM udp
+DIM fInType
+DIM ufound
+DIM ui
+DIM uch
+DIM uDone
+DIM fIsKw
 nConst = 0
 ' Line table: unsized (heap, auto-grow on indexed write - the 2026-09-02
 ' unsized-DIM contract) instead of a fixed VLA. xui.x is 41958 lines; the
@@ -546,12 +568,16 @@ IF facetDump = 1 THEN
         ' Scope is the name as the compiler itself emits it (stripped: the
         ' IR function line prints bn$, and Rust scopes agree - c_type, not
         ' c_type$).
-        ftmp$ = strip_suffix$(tv$(fp + 1))
+        fNameSk = fp + 1
+        IF fNameSk + 2 <= ntok AND (tt$(fNameSk + 1) = "ident" OR tt$(fNameSk + 1) = "shared") AND tt$(fNameSk + 2) = "symbol" AND tv$(fNameSk + 2) = "(" THEN
+          fNameSk = fNameSk + 1
+        END IF
+        ftmp$ = strip_suffix$(tv$(fNameSk))
         curScope$ = ftmp$
         ' A fresh function scope gets a fresh shared set (Rust per-function
         ' shared_arrays, semantics_function.rs).
         fSharedFn$ = ""
-        fp = fp + 2
+        fp = fNameSk + 1
         fpc = 0
         IF fp <= ntok AND tt$(fp) = "symbol" AND tv$(fp) = "(" THEN
           fdep = 1
@@ -578,6 +604,7 @@ IF facetDump = 1 THEN
               ' descriptor=1 (P4 owns descriptor facts); dual=0 is P2.
               IF fp + 1 <= ntok AND tt$(fp + 1) = "symbol" AND (tv$(fp + 1) = "[" OR tv$(fp + 1) = "(") THEN
                 fnm$ = tv$(fp)
+                GOSUB uCanonName
                 ftmp$ = strip_suffix$(fnm$)
                 ftp$ = ##suffixType$
                 IF LEN(fnm$) >= 2 THEN
@@ -602,6 +629,16 @@ IF facetDump = 1 THEN
           WEND
         END IF
       END IF
+    ELSEIF tt$(fp) = "keyword" AND tv$(fp) = "TYPE" AND NOT (fp + 1 <= ntok AND tt$(fp + 1) = "symbol" AND tv$(fp + 1) = "(") THEN
+      ' TYPE block (not the TYPE() call): member lines declare composite
+      ' members, never plain facets - skip to END TYPE like Phase B.
+      fInType = 1
+      fp = fp + 1
+    ELSEIF tt$(fp) = "keyword" AND tv$(fp) = "END" AND fp + 1 <= ntok AND tt$(fp + 1) = "keyword" AND tv$(fp + 1) = "TYPE" THEN
+      fInType = 0
+      fp = fp + 2
+    ELSEIF fInType = 1 THEN
+      fp = fp + 1
     ELSEIF tt$(fp) = "keyword" AND tv$(fp) = "SHARED" THEN
       ' SHARED statement: each name lowers to its own Dim{shared}
       ' (parser_select.rs shared_static_stmt), but only bracket-form names
@@ -613,12 +650,34 @@ IF facetDump = 1 THEN
       ' and idents inside them don't read as names. A variable literally
       ' named SHARED with no following name is untouched.
       fsp = fp + 1
-      WHILE fsp <= ntok AND (tt$(fsp) = "ident" OR tt$(fsp) = "shared" OR (tt$(fsp) = "symbol" AND (tv$(fsp) = "," OR tv$(fsp) = "[" OR tv$(fsp) = "(")))
+      fCompSkip = 0
+      fQuit = 0
+      WHILE fsp <= ntok AND fQuit = 0 AND (tt$(fsp) = "ident" OR tt$(fsp) = "shared" OR (tt$(fsp) = "symbol" AND (tv$(fsp) = "," OR tv$(fsp) = "[" OR tv$(fsp) = "(")))
         IF tt$(fsp) = "ident" OR tt$(fsp) = "shared" THEN
-          fnm$ = tv$(fsp)
           fIsType = 0
-          IF fsp + 1 <= ntok AND (tt$(fsp + 1) = "ident" OR tt$(fsp + 1) = "shared") THEN
+          IF fsp + 1 <= ntok AND tt$(fsp + 1) = "shared" THEN
             fIsType = 1
+          ELSEIF fsp + 1 <= ntok AND tt$(fsp + 1) = "ident" THEN
+            ' A next token Rust lexes as a keyword is not a name (shared_
+            ' static_stmt restores it): STATIC SUBADDR sub[] names SUBADDR.
+            fnm$ = tv$(fsp + 1)
+            GOSUB uCanonName
+            IF fIsKw = 0 THEN
+              fIsType = 1
+            END IF
+          END IF
+          fnm$ = tv$(fsp)
+          GOSUB uCanonName
+          IF fIsType = 1 THEN
+            IF INSTR(fTypeNames$, ":" + fnm$ + ":") > 0 THEN
+              fCompSkip = 1
+            END IF
+          END IF
+          IF fIsType = 0 AND fCompSkip = 1 THEN
+            fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
+            IF INSTR(fCompVars$, fKey$) = 0 THEN
+              fCompVars$ = fCompVars$ + fKey$
+            END IF
           END IF
           IF fIsType = 0 THEN
             IF fsp + 1 <= ntok AND tt$(fsp + 1) = "symbol" AND (tv$(fsp + 1) = "[" OR tv$(fsp + 1) = "(") THEN
@@ -632,6 +691,8 @@ IF facetDump = 1 THEN
               ' SHARED-statement arrays feed dim_info like any DIM, so they
               ' get facet lines (dual patched later like all lines). Rank
               ' counted; shared facets never affect the allStrArr predicate.
+              ' Composite-qualified names (fCompSkip) get member facets in
+              ' Rust, never plain ones: scan and track, but emit nothing.
               ftmp$ = strip_suffix$(fnm$)
               ftp$ = ##suffixType$
               IF LEN(fnm$) >= 2 THEN
@@ -656,16 +717,42 @@ IF facetDump = 1 THEN
                 END IF
                 fi = fi + 1
               WEND
-              fLn$ = "facet " + fnm$ + ":" + ftp$ + " scope=" + curScope$ + " storage=shared rank=" + STR$(frk) + " dual=0 shared"
+              IF fCompSkip = 0 THEN
+                fLn$ = "facet " + fnm$ + ":" + ftp$ + " scope=" + curScope$ + " storage=shared rank=" + STR$(frk) + " dual=0 shared"
+                fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
+                IF INSTR(fSeen$, fKey$) = 0 THEN
+                  fSeen$ = fSeen$ + fKey$
+                IF INSTR(fCompVars$, fKey$) = 0 THEN
+                  fTab$ = fTab$ + fLn$ + CHR$(10)
+                END IF
+                END IF
+                IF INSTR(fArrDim$, fKey$) = 0 THEN
+                  fArrDim$ = fArrDim$ + fKey$
+                END IF
+              END IF
               fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
-              IF INSTR(fSeen$, fKey$) = 0 THEN
-                fSeen$ = fSeen$ + fKey$
-                fTab$ = fTab$ + fLn$ + CHR$(10)
+              IF INSTR(fSharedAll$, fKey$) = 0 THEN
+                fSharedAll$ = fSharedAll$ + fKey$
               END IF
               IF INSTR(fScopeArrs$, ":" + curScope$ + ":" + fnm$ + ":") = 0 THEN
                 fScopeArrs$ = fScopeArrs$ + ":" + curScope$ + ":" + fnm$ + ":"
               END IF
+            ELSE
+              ' scalar SHARED name: shared-tracked; Rust ends the statement
+              ' unless a comma follows (STATIC SUBADDR sub[] names SUBADDR).
+              fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
+              IF INSTR(fSharedAll$, fKey$) = 0 THEN
+                fSharedAll$ = fSharedAll$ + fKey$
+              END IF
+              IF INSTR(fSharedScalar$, fKey$) = 0 THEN
+                fSharedScalar$ = fSharedScalar$ + fKey$
+              END IF
+              IF NOT (fsp + 1 <= ntok AND tt$(fsp + 1) = "symbol" AND tv$(fsp + 1) = ",") THEN
+                fQuit = 1
+                fsp = fsp + 1
+              END IF
             END IF
+            fCompSkip = 0
           END IF
           fsp = fsp + 1
         ELSEIF tt$(fsp) = "symbol" AND (tv$(fsp) = "[" OR tv$(fsp) = "(") THEN
@@ -728,11 +815,16 @@ IF facetDump = 1 THEN
         END IF
         IF fRedimMode = 2 AND fFirstQual = 1 THEN
           IF tt$(fsp) = "ident" AND fsp + 1 <= ntok AND (tt$(fsp + 1) = "ident" OR tt$(fsp + 1) = "shared") THEN
-            fsp = fsp + 1
+            fnm$ = tv$(fsp + 1)
+            GOSUB uCanonName
+            IF fIsKw = 0 THEN
+              fsp = fsp + 1
+            END IF
           END IF
           fFirstQual = 0
         END IF
         fnm$ = tv$(fsp)
+        GOSUB uCanonName
         ftmp$ = strip_suffix$(fnm$)
         ftp$ = ##suffixType$
         IF fRedimMode = 3 THEN
@@ -787,13 +879,37 @@ IF facetDump = 1 THEN
             fLn$ = fLn$ + " shared"
           END IF
           fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
-          IF INSTR(fSeen$, fKey$) = 0 THEN
+          IF frk > 0 AND INSTR(fSeen$, fKey$) = 0 THEN
             fSeen$ = fSeen$ + fKey$
-            fTab$ = fTab$ + fLn$ + CHR$(10)
+            IF INSTR(fCompVars$, fKey$) = 0 THEN
+              fTab$ = fTab$ + fLn$ + CHR$(10)
+            END IF
+          END IF
           ' P2 array knowledge: every array declarator, any type/storage.
           IF INSTR(fScopeArrs$, ":" + curScope$ + ":" + fnm$ + ":") = 0 THEN
             fScopeArrs$ = fScopeArrs$ + ":" + curScope$ + ":" + fnm$ + ":"
           END IF
+          END IF
+          IF fEnd > 0 THEN
+            IF INSTR(fArrDim$, fKey$) = 0 THEN
+              fArrDim$ = fArrDim$ + fKey$
+            END IF
+          ELSEIF fst$ <> "shared" THEN
+            IF INSTR(fScalar$, fKey$) = 0 THEN
+              fScalar$ = fScalar$ + fKey$
+            END IF
+            IF INSTR(fDeclScalar$, fKey$) = 0 THEN
+              fDeclScalar$ = fDeclScalar$ + fKey$
+            END IF
+          ELSE
+            IF INSTR(fSharedScalar$, fKey$) = 0 THEN
+              fSharedScalar$ = fSharedScalar$ + fKey$
+            END IF
+          END IF
+          IF fst$ = "shared" THEN
+            IF INSTR(fSharedAll$, fKey$) = 0 THEN
+              fSharedAll$ = fSharedAll$ + fKey$
+            END IF
           END IF
           IF fst$ = "shared" THEN
             IF curScope$ = "*" THEN
@@ -841,14 +957,51 @@ IF facetDump = 1 THEN
       ' facets, never plain DIMs - that case falls through with fsp past the
       ' names (no declarator pass). Otherwise the declarator mirrors DIM
       ' (suffix types; no SHARED-keyword form).
-      fsp = fp + 1
+      fsp = fp
       fIsType = 0
-      WHILE fsp <= ntok AND (tt$(fsp) = "ident" OR tt$(fsp) = "shared")
+      WHILE fsp + 1 <= ntok AND (tt$(fsp + 1) = "ident" OR tt$(fsp + 1) = "shared")
         IF INSTR(fTypeNames$, ":" + tv$(fsp) + ":") > 0 THEN
           fIsType = 1
         END IF
         fsp = fsp + 1
       WEND
+      IF fIsType = 1 THEN
+        ' Composite-typed names lower to member facets in Rust: record them
+        ' so later plain DIMs suppress their plain facet (arecord TYPE0).
+        WHILE fsp <= ntok AND (tt$(fsp) = "ident" OR tt$(fsp) = "shared")
+          IF fsp + 1 <= ntok AND (tt$(fsp + 1) = "ident" OR tt$(fsp + 1) = "shared") THEN
+            fsp = fsp + 1
+          ELSE
+            fnm$ = tv$(fsp)
+            GOSUB uCanonName
+            fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
+            IF INSTR(fCompVars$, fKey$) = 0 THEN
+              fCompVars$ = fCompVars$ + fKey$
+            END IF
+            fsp = fsp + 1
+            IF fsp <= ntok AND tt$(fsp) = "symbol" AND (tv$(fsp) = "[" OR tv$(fsp) = "(") THEN
+              fdep = 1
+              fsp = fsp + 1
+              WHILE fsp <= ntok AND fdep > 0
+                IF tt$(fsp) = "symbol" AND (tv$(fsp) = "[" OR tv$(fsp) = "(") THEN
+                  fdep = fdep + 1
+                END IF
+                IF tt$(fsp) = "symbol" AND (tv$(fsp) = "]" OR tv$(fsp) = ")") THEN
+                  fdep = fdep - 1
+                END IF
+                fsp = fsp + 1
+              WEND
+            END IF
+            IF fsp <= ntok AND tt$(fsp) = "symbol" AND tv$(fsp) = "," THEN
+              fsp = fsp + 1
+            ELSE
+              WHILE fsp <= ntok AND NOT (tt$(fsp) = "newline")
+                fsp = fsp + 1
+              WEND
+            END IF
+          END IF
+        WEND
+      END IF
       IF fIsType = 0 THEN
         fsp = fp + 1
         WHILE fsp + 1 <= ntok AND (tt$(fsp + 1) = "ident" OR tt$(fsp + 1) = "shared")
@@ -867,6 +1020,7 @@ IF facetDump = 1 THEN
             fst$ = "shared"
           END IF
           fnm$ = tv$(fsp)
+          GOSUB uCanonName
           ftmp$ = strip_suffix$(fnm$)
           ftp$ = ##suffixType$
           IF tt$(fsp) = "shared" THEN
@@ -907,9 +1061,32 @@ IF facetDump = 1 THEN
               fLn$ = fLn$ + " shared"
             END IF
             fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
-            IF INSTR(fSeen$, fKey$) = 0 THEN
+            IF frk > 0 AND INSTR(fSeen$, fKey$) = 0 THEN
               fSeen$ = fSeen$ + fKey$
-              fTab$ = fTab$ + fLn$ + CHR$(10)
+              IF INSTR(fCompVars$, fKey$) = 0 THEN
+                fTab$ = fTab$ + fLn$ + CHR$(10)
+              END IF
+            END IF
+            IF fEnd > 0 THEN
+              IF INSTR(fArrDim$, fKey$) = 0 THEN
+                fArrDim$ = fArrDim$ + fKey$
+              END IF
+            ELSEIF fst$ <> "shared" THEN
+              IF INSTR(fScalar$, fKey$) = 0 THEN
+                fScalar$ = fScalar$ + fKey$
+              END IF
+              IF INSTR(fDeclScalar$, fKey$) = 0 THEN
+                fDeclScalar$ = fDeclScalar$ + fKey$
+              END IF
+            ELSE
+              IF INSTR(fSharedScalar$, fKey$) = 0 THEN
+                fSharedScalar$ = fSharedScalar$ + fKey$
+              END IF
+            END IF
+            IF fst$ = "shared" THEN
+              IF INSTR(fSharedAll$, fKey$) = 0 THEN
+                fSharedAll$ = fSharedAll$ + fKey$
+              END IF
             END IF
             IF fst$ = "shared" THEN
               IF curScope$ = "*" THEN
@@ -954,9 +1131,369 @@ IF facetDump = 1 THEN
       fp = fp + 1
     END IF
   WEND
+  ' Phase B use-walk (P2 dual): per-scope scalar/array use sets, then patch
+  ' dual=0 to dual=1 on fTab$ lines whose (scope,name) sits in both sets.
+  ' Rules mirror c_emit_hoist.rs with divert_byref=true: a bare ident is a
+  ' scalar use unless it names a declaration (skipped lines carry Phase A
+  ' facts already), a call callee (followed by (), a label (followed by :),
+  ' a member (after .), a goto/gosub label, or an @-forwarded name; name[
+  ' is always an array use. DIM sizes are walked (their idents are scalar
+  ' reads); UBOUND(string) counts as a scalar use too. DATA, ATTACH,
+  ' DECLARE/EXTERNAL, SUB headers, and TYPE blocks contribute no facts in
+  ' Rust (catch-all arms) and are skipped here.
+  fArrUse$ = ""
+  fDual$ = ""
+  ucurScope$ = "*"
+  uInType = 0
+  up = 1
+  WHILE up <= ntok AND NOT (tt$(up) = "newline")
+    up = up + 1
+  WEND
+  up = up + 1
+  WHILE up <= ntok
+    IF tt$(up) = "newline" THEN
+      up = up + 1
+    ELSEIF tt$(up) = "keyword" AND tv$(up) = "FUNCTION" THEN
+      ' Scope-set mirrors Phase A (rettype skip); header params are not uses.
+      fNameSk = up + 1
+      IF fNameSk + 2 <= ntok AND (tt$(fNameSk + 1) = "ident" OR tt$(fNameSk + 1) = "shared") AND tt$(fNameSk + 2) = "symbol" AND tv$(fNameSk + 2) = "(" THEN
+        fNameSk = fNameSk + 1
+      END IF
+      ftmp$ = strip_suffix$(tv$(fNameSk))
+      ucurScope$ = ftmp$
+      WHILE up <= ntok AND NOT (tt$(up) = "newline")
+        up = up + 1
+      WEND
+      up = up + 1
+    ELSEIF tt$(up) = "keyword" AND tv$(up) = "END" AND up + 1 <= ntok AND tt$(up + 1) = "keyword" AND tv$(up + 1) = "FUNCTION" THEN
+      ucurScope$ = "*"
+      up = up + 2
+    ELSEIF tt$(up) = "keyword" AND (tv$(up) = "DECLARE" OR tv$(up) = "EXTERNAL") AND up + 1 <= ntok AND tt$(up + 1) = "keyword" AND tv$(up + 1) = "FUNCTION" THEN
+      WHILE up <= ntok AND NOT (tt$(up) = "newline")
+        up = up + 1
+      WEND
+      up = up + 1
+    ELSEIF (tt$(up) = "keyword" AND (tv$(up) = "DIM" OR tv$(up) = "REDIM" OR tv$(up) = "STATIC" OR tv$(up) = "SHARED" OR tv$(up) = "DATA")) OR (tt$(up) = "ident" AND tv$(up) = "STRING") THEN
+      udecl = 1
+      GOSUB uScanEOL
+      WHILE up <= ntok AND uprev$ = ","
+        up = up + 1
+        GOSUB uScanEOL
+      WEND
+    ELSEIF tt$(up) = "keyword" AND tv$(up) = "SUB" THEN
+      WHILE up <= ntok AND NOT (tt$(up) = "newline")
+        up = up + 1
+      WEND
+      up = up + 1
+    ELSEIF tt$(up) = "keyword" AND tv$(up) = "TYPE" AND NOT (up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "(") THEN
+      uInType = 1
+      up = up + 1
+    ELSEIF tt$(up) = "keyword" AND tv$(up) = "END" AND up + 1 <= ntok AND tt$(up + 1) = "keyword" AND tv$(up + 1) = "TYPE" THEN
+      uInType = 0
+      up = up + 2
+    ELSEIF uInType = 1 THEN
+      WHILE up <= ntok AND NOT (tt$(up) = "newline")
+        up = up + 1
+      WEND
+      up = up + 1
+    ELSE
+      udecl = 0
+      GOSUB uScanEOL
+      WHILE up <= ntok AND uprev$ = ","
+        up = up + 1
+        GOSUB uScanEOL
+      WEND
+    END IF
+  WEND
+  ' Dual compute: scalar use ∩ array use (array = fArrUse$ ∪ fArrDim$),
+  ' keyed :scope:name:. Then patch matching fTab$ lines dual=0 -> dual=1.
+  WHILE LEN(fScalar$) > 0
+    fScalar$ = MID$(fScalar$, 2)
+    ue1 = INSTR(fScalar$, ":")
+    IF ue1 = 0 THEN
+      fScalar$ = ""
+    ELSE
+      ftmp$ = LEFT$(fScalar$, ue1 - 1)
+      fLn$ = MID$(fScalar$, ue1 + 1)
+      ue2 = INSTR(fLn$, ":")
+      IF ue2 = 0 THEN
+        fScalar$ = ""
+      ELSE
+        fnm$ = LEFT$(fLn$, ue2 - 1)
+        fScalar$ = MID$(fLn$, ue2 + 1)
+        fKey$ = ":" + ftmp$ + ":" + fnm$ + ":"
+        IF INSTR(fArrUse$, fKey$) > 0 OR INSTR(fArrDim$, fKey$) > 0 THEN
+            fDual$ = fDual$ + fKey$
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  WHILE LEN(fDual$) > 0
+    fDual$ = MID$(fDual$, 2)
+    ue1 = INSTR(fDual$, ":")
+    IF ue1 = 0 THEN
+      fDual$ = ""
+    ELSE
+      ftmp$ = LEFT$(fDual$, ue1 - 1)
+      fLn$ = MID$(fDual$, ue1 + 1)
+      ue2 = INSTR(fLn$, ":")
+      IF ue2 = 0 THEN
+        fDual$ = ""
+      ELSE
+        fnm$ = LEFT$(fLn$, ue2 - 1)
+        fDual$ = MID$(fLn$, ue2 + 1)
+        uAnchor$ = "facet " + fnm$ + ":"
+        uSeg$ = fTab$
+        ufound = 0
+        WHILE LEN(uSeg$) > 0 AND ufound = 0
+          up0 = INSTR(uSeg$, uAnchor$)
+          IF up0 = 0 THEN
+            uSeg$ = ""
+          ELSE
+            uTail$ = MID$(uSeg$, up0)
+            ueol = INSTR(uTail$, CHR$(10))
+            IF ueol = 0 THEN
+              uLine$ = uTail$
+            ELSE
+              uLine$ = LEFT$(uTail$, ueol - 1)
+            END IF
+            IF INSTR(uLine$, " scope=" + ftmp$ + " storage=") > 0 THEN
+              udp = INSTR(uLine$, " dual=0")
+              IF udp > 0 THEN
+                uNew$ = LEFT$(uLine$, udp - 1) + " dual=1" + MID$(uLine$, udp + 7)
+                udp = INSTR(uNew$, " storage=fixed ")
+                IF udp > 0 THEN
+                  uNew$ = LEFT$(uNew$, udp - 1) + " storage=dyn " + MID$(uNew$, udp + 15)
+                END IF
+                up0 = INSTR(fTab$, uLine$)
+                fTab$ = LEFT$(fTab$, up0 - 1) + uNew$ + MID$(fTab$, up0 + LEN(uLine$))
+              END IF
+              ufound = 1
+            ELSE
+              IF ueol = 0 THEN
+                uSeg$ = ""
+              ELSE
+                uSeg$ = MID$(uTail$, ueol + 1)
+              END IF
+            END IF
+          END IF
+        WEND
+      END IF
+    END IF
+  WEND
+  ' Descriptor-forwarded locals (whole-array @x[] with no array DIM in
+  ' scope): Rust emits a dyn rank=1 dual=1 byref=1 facet (dual by
+  ' construction). byref=1 keeps them out of the allStrArr predicate.
+  WHILE LEN(fByrefFwd$) > 0
+    fByrefFwd$ = MID$(fByrefFwd$, 2)
+    ue1 = INSTR(fByrefFwd$, ":")
+    IF ue1 = 0 THEN
+      fByrefFwd$ = ""
+    ELSE
+      ftmp$ = LEFT$(fByrefFwd$, ue1 - 1)
+      fLn$ = MID$(fByrefFwd$, ue1 + 1)
+      ue2 = INSTR(fLn$, ":")
+      IF ue2 = 0 THEN
+        fByrefFwd$ = ""
+      ELSE
+        fnm$ = LEFT$(fLn$, ue2 - 1)
+        fByrefFwd$ = MID$(fLn$, ue2 + 1)
+        fKey$ = ":" + ftmp$ + ":" + fnm$ + ":"
+        IF ftmp$ <> "*" AND INSTR(fCompVars$, fKey$) = 0 AND INSTR(fSeen$, fKey$) = 0 AND INSTR(fArrSub$, fKey$) = 0 THEN
+          fSeen$ = fSeen$ + fKey$
+          IF RIGHT$(fnm$, 1) = "$" THEN
+            ftp$ = "string"
+          ELSE
+            ftp$ = "integer"
+          END IF
+          fTab$ = fTab$ + "facet " + fnm$ + ":" + ftp$ + " scope=" + ftmp$ + " storage=dyn rank=1 dual=1 byref=1" + CHR$(10)
+        END IF
+      END IF
+    END IF
+  WEND
   PRINT fTab$
   tpos = ntok + 1
 END IF
+GOTO uAfterScan
+  uScanEOL:
+    urdep = 0
+    ufresh = 1
+    udep = 0
+    uprev$ = ""
+    uDone = 0
+    WHILE up <= ntok AND uDone = 0 AND NOT (tt$(up) = "newline")
+      IF tt$(up) = "ident" THEN
+        fnm$ = tv$(up)
+        GOSUB uCanonName
+        fKey$ = ":" + ucurScope$ + ":" + fnm$ + ":"
+        GOSUB uStripSfx
+        uSKey$ = ":" + ucurScope$ + ":" + uBase$ + ":"
+        IF udecl = 1 THEN
+          IF urdep >= 1 THEN
+            IF up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "[" THEN
+              IF INSTR(fArrUse$, fKey$) = 0 THEN
+                fArrUse$ = fArrUse$ + fKey$
+              END IF
+            ELSEIF up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "(" THEN
+              ' nested call callee inside a size: not a use (UBOUND below still tracks).
+            ELSEIF udep > 0 AND RIGHT$(fnm$, 1) = "$" AND INSTR(fSharedScalar$, fKey$) = 0 THEN
+              IF INSTR(fScalar$, fKey$) = 0 THEN
+                fScalar$ = fScalar$ + fKey$
+              END IF
+            ELSE
+              IF INSTR(fSharedScalar$, uSKey$) = 0 AND INSTR(fScalar$, uSKey$) = 0 THEN
+                fScalar$ = fScalar$ + uSKey$
+              END IF
+          END IF
+        END IF
+        ELSE
+          IF ufresh = 1 AND up + 1 <= ntok AND (tt$(up + 1) = "ident" OR tt$(up + 1) = "shared") AND fnm$ <> "SELECT" AND fnm$ <> "CASE" AND fnm$ <> "INC" AND fnm$ <> "DEC" AND fnm$ <> "ATTACH" AND fnm$ <> "DECLARE" AND fnm$ <> "SUB" AND fnm$ <> "DATA" AND fnm$ <> "READ" AND fnm$ <> "CONST" AND fnm$ <> "LET" AND fnm$ <> "RESTORE" AND fnm$ <> "STOP" AND fnm$ <> "REM" THEN
+            ' TYPENAME-led declaration mirror (Phase A trigger): the leader
+            ' is a qualifier; the rest of the line declares.
+            udecl = 1
+          ELSEIF ufresh = 1 AND fnm$ = "ATTACH" THEN
+            WHILE up <= ntok AND NOT (tt$(up) = "newline")
+              up = up + 1
+            WEND
+            uDone = 1
+          ELSEIF uprev$ = "." THEN
+            ' member name: not a variable use.
+          ELSEIF uprev$ = "GOTO" OR uprev$ = "GOSUB" THEN
+            IF INSTR(fScopeArrs$, uSKey$) > 0 THEN
+              IF INSTR(fScalar$, uSKey$) = 0 THEN
+                fScalar$ = fScalar$ + uSKey$
+              END IF
+            END IF
+          ELSEIF up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "[" THEN
+            IF up + 2 <= ntok AND tt$(up + 2) = "symbol" AND tv$(up + 2) = "]" THEN
+              ' empty brackets lower to a scalar read (IFZ sub[]); @-whole
+              ' arrays divert (descriptor forwarding records a byref fact,
+              ' emitted below); UBOUND still takes the array ref.
+              IF uprev$ = "@" THEN
+                IF INSTR(fByrefFwd$, fKey$) = 0 THEN
+                  fByrefFwd$ = fByrefFwd$ + fKey$
+                END IF
+              ELSE
+                IF udep > 0 THEN
+                  IF INSTR(fArrUse$, fKey$) = 0 THEN
+                    fArrUse$ = fArrUse$ + fKey$
+                  END IF
+                END IF
+                IF udep = 0 OR RIGHT$(fnm$, 1) = "$" THEN
+                  IF INSTR(fSharedScalar$, fKey$) = 0 AND INSTR(fScalar$, fKey$) = 0 THEN
+                    fScalar$ = fScalar$ + fKey$
+                  END IF
+                END IF
+              END IF
+            ELSE
+              IF INSTR(fArrUse$, fKey$) = 0 THEN
+                fArrUse$ = fArrUse$ + fKey$
+              END IF
+              IF udep = 0 AND INSTR(fArrSub$, fKey$) = 0 THEN
+                fArrSub$ = fArrSub$ + fKey$
+              END IF
+              IF udep > 0 AND RIGHT$(fnm$, 1) = "$" AND uprev$ <> "@" AND INSTR(fSharedScalar$, fKey$) = 0 THEN
+                  fScalar$ = fScalar$ + fKey$
+                END IF
+            END IF
+          ELSEIF up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "(" THEN
+            IF fnm$ = "UBOUND" THEN
+              udep = 1
+            END IF
+          ELSEIF up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = ":" THEN
+            ' label definition: not a use.
+          ELSE
+            IF uprev$ <> "@" THEN
+              IF udep = 1 AND up + 1 <= ntok AND tt$(up + 1) = "symbol" AND (tv$(up + 1) = ")" OR tv$(up + 1) = ",") THEN
+                IF INSTR(fSharedScalar$, fKey$) = 0 AND INSTR(fScalar$, fKey$) = 0 THEN
+                  fScalar$ = fScalar$ + fKey$
+                END IF
+                IF INSTR(fArrUse$, fKey$) = 0 THEN
+                  fArrUse$ = fArrUse$ + fKey$
+                END IF
+              ELSEIF uprev$ = "FOR" THEN
+                IF INSTR(fScalar$, uSKey$) = 0 THEN
+                  fScalar$ = fScalar$ + uSKey$
+                END IF
+              ELSEIF ufresh = 1 AND up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "=" AND INSTR(fSharedAll$, uSKey$) > 0 THEN
+                ' shared assignment target (SharedAssignment in Rust): the
+                ' shared global is written, no local scalar is read.
+              ELSEIF udep = 0 OR RIGHT$(fnm$, 1) = "$" THEN
+                IF INSTR(fSharedScalar$, uSKey$) = 0 AND INSTR(fScalar$, uSKey$) = 0 THEN
+                  fScalar$ = fScalar$ + uSKey$
+                END IF
+              END IF
+            END IF
+          END IF
+        END IF
+      END IF
+        uprev$ = tv$(up)
+        IF tt$(up) = "keyword" AND (tv$(up) = "DIM" OR tv$(up) = "REDIM" OR tv$(up) = "STATIC" OR tv$(up) = "SHARED" OR tv$(up) = "DATA" OR tv$(up) = "SUB") THEN
+          udecl = 1
+        ELSEIF tt$(up) = "symbol" AND tv$(up) = ":" THEN
+          ufresh = 1
+        ELSEIF tt$(up) = "keyword" AND (tv$(up) = "THEN" OR tv$(up) = "ELSE") THEN
+          ufresh = 1
+        ELSEIF tt$(up) = "symbol" AND tv$(up) = "(" AND udep > 0 THEN
+          udep = udep + 1
+        ELSEIF tt$(up) = "symbol" AND tv$(up) = ")" AND udep > 0 THEN
+          udep = udep - 1
+        ELSEIF tt$(up) = "symbol" AND (tv$(up) = "[" OR tv$(up) = "(") AND udecl = 1 THEN
+          urdep = urdep + 1
+        ELSEIF tt$(up) = "symbol" AND (tv$(up) = "]" OR tv$(up) = ")") AND udecl = 1 AND urdep > 0 THEN
+          urdep = urdep - 1
+        ELSE
+          ufresh = 0
+        END IF
+        up = up + 1
+    WEND
+    RETURN
+  uCanonName:
+    ' Canonicalize a program identifier to Rust's facet-name spelling:
+    ' words the Rust lexer takes as keywords (case-insensitively) become
+    ' the Keyword Debug spelling (sub -> Sub); everything else keeps
+    ' source case. Suffixed names (sub$) never match and pass through.
+    ' In: fnm$. Out: fnm$ (canonical), fIsKw (1 if keyword), uTmp$ (upper).
+    IF uKwMap$ = "" THEN
+      uKwMap$ = ":FUNCTION:Function:END:End:DECLARE:Declare:INTERNAL:Internal:EXTERNAL:External:CFUNCTION:CFunction:IF:If:THEN:Then:ELSE:Else:ELSEIF:ElseIf:SELECT:Select:CASE:Case:FOR:For:TO:To:NEXT:Next:STEP:Step:DO:Do:LOOP:Loop:WHILE:While:UNTIL:Until:WEND:Wend:RETURN:Return:DIM:Dim:TYPE:Type:PACKED:Packed:PRINT:Print:IMPORT:Import:AND:And:OR:Or:NOT:Not:MOD:Mod:EXIT:Exit:VERSION:Version:INC:Inc:DEC:Dec:SWAP:Swap:PROGRAM:Program:SUB:Sub:IFZ:Ifz:IFT:Ift:IFF:Iff:STATIC:Static:REDIM:Redim:DOEVENTS:DoEvents:GOSUB:Gosub:BREAK:Break:SHARED:Shared:XOR:Xor:LET:Let:GOTO:Goto:CONST:Const:EXPORT:Export:RANDOMIZE:Randomize:DATA:Data:READ:Read:STOP:Stop:RESTORE:Restore:FUNCADDR:FuncAddr:"
+    END IF
+    uTmp$ = ""
+    ui = 1
+    WHILE ui <= LEN(fnm$)
+      uch = ASC(MID$(fnm$, ui, 1))
+      IF uch >= 97 AND uch <= 122 THEN
+        uch = uch - 32
+      END IF
+      uTmp$ = uTmp$ + CHR$(uch)
+      ui = ui + 1
+    WEND
+    fIsKw = 0
+    up0 = INSTR(uKwMap$, ":" + uTmp$ + ":")
+    IF up0 > 0 THEN
+      fIsKw = 1
+      uRest$ = MID$(uKwMap$, up0 + LEN(uTmp$) + 2)
+      ue1 = INSTR(uRest$, ":")
+      IF ue1 > 0 THEN
+        fnm$ = LEFT$(uRest$, ue1 - 1)
+      END IF
+    END IF
+    RETURN
+  uStripSfx:
+    ' Split a suffixed name to its scalar base (Rust Symbol lowering keeps
+    ' the type but drops the suffix: text$ reads/writes as text:string).
+    ' Array/DIM/UBOUND positions keep the full spelling; only scalar-use
+    ' keys strip. In: fnm$. Out: uBase$.
+    uBase$ = fnm$
+    IF LEN(uBase$) >= 2 THEN
+      IF RIGHT$(uBase$, 2) = "&&" THEN
+        uBase$ = LEFT$(uBase$, LEN(uBase$) - 2)
+      ELSEIF RIGHT$(uBase$, 1) = "$" OR RIGHT$(uBase$, 1) = "#" OR RIGHT$(uBase$, 1) = "%" OR RIGHT$(uBase$, 1) = "!" THEN
+        uBase$ = LEFT$(uBase$, LEN(uBase$) - 1)
+      END IF
+    END IF
+    RETURN
+uAfterScan:
 WHILE tpos <= ntok
   IF stmtState = 0 THEN
     IF singleLineIf = 2 THEN
