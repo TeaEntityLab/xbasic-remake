@@ -161,3 +161,19 @@ entries:
     receipt: "/tmp/xb-verify-350.log (session)"
     freshness_kind: recheck_date
     date_checked: "2026-09-06"
+  - claim: "SUPERSEDES revision attribution of the two AC4 entries above: the composite-signature import-filter removal + import-only composite stub fix landed in 721088d (M1-AC4), whose parent is af4487a — not 'after af4487a'. Filter absence re-confirmed at HEAD (no sigfilter/sign_filter/filter-inject matches in crates/xb-compiler/src/c_emit.rs or selfhost/cgen.x); lock test cli_import_composite_signatures_emit_clean_stub passes at HEAD"
+    source: "git show --stat 721088d + git rev-parse 721088d^ (= af4487a); grep -rni sigfilter/sign_filter/filter-inject (zero matches); cargo test --release -p xb-cli --test cli -- cli_import_composite_signatures_emit_clean_stub --test-threads=1"
+    attester: "git + grep (deterministic) + cargo test runner"
+    revision: "1d2ff85 (HEAD; fix commit 721088d)"
+    exit_status: 0
+    receipt: "session tool output 2026-09-06 (test result: ok. 1 passed); grep FILTER_SEARCH_DONE with zero matches"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"
+  - claim: "CORRECTS the previous SUPERSEDES entry (which wrongly charged an off-by-one): the ledger's 'working tree after X' convention is parent-HEAD-plus-uncommitted-slice, gates run pre-commit — verified: af4487a^=6ab940c, c7161b2^=721088d, 1dd83ae^=c7161b2, 721088d^=af4487a, each matching its entries' cited revision. The convention is consistent, not erroneous. Residual: at_scalar entries cite 'after a05a099' but e9f5daa^=c2f5d79 (sequence a05a099->c2f5d79->e9f5daa); whether gates ran at a05a099+uncommitted or c2f5d79+uncommitted is unattestable from retained receipts (/tmp logs gone) — re-run before any gate release per header rule"
+    source: "git rev-parse <slice>^ for af4487a, c7161b2, 1dd83ae, 721088d, e9f5daa; git log --reverse a05a099..e9f5daa"
+    attester: "git (deterministic)"
+    revision: "1d2ff85 (HEAD; ledger-only change)"
+    exit_status: 0
+    receipt: "session tool output 2026-09-06 (parent hashes listed)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"
