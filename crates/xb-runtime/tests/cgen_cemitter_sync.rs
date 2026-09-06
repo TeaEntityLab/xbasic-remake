@@ -6137,6 +6137,63 @@ fn cemitter_and_cgen_agree_on_byval_shared_to_descriptor_copy() {
 }
 
 #[test]
+fn cemitter_and_cgen_agree_on_byval_shared_to_plain_copy() {
+    // Shared-dual source by value to a PLAIN callee that writes:
+    // the copy arm must copy from the `_arr` facet cells (bare copy,
+    // plain position), isolating the shared caller storage.
+    let tmp = std::env::temp_dir().join("xb_sync_byval_shared_plain");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM SHARED s[]\n\
+               DIM s[1]\n\
+               s[0] = 3\n\
+               s[1] = 4\n\
+               Plain(s[])\n\
+               PRINT s[0]\n\
+               PRINT s[1]\n\
+               END FUNCTION\n\
+               FUNCTION Plain (XLONG p[])\n\
+               p[0] = 99\n\
+               PRINT p[0]\n\
+               PRINT p[1]\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byval_shared_plain program")
+        .lower_ir()
+        .expect("lower byval_shared_plain program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byval_shared_plain_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byval_shared_plain_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byval_shared_plain program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "99\n4\n3\n4\n",
+        "byval_shared_plain reference output"
+    );
+    assert_eq!(
+        rust_out, interp_out,
+        "CEmitter mishandled shared by-value plain copy"
+    );
+    assert_eq!(
+        self_out, interp_out,
+        "cgen.x mishandled shared by-value plain copy"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+#[test]
 fn cemitter_and_cgen_agree_on_byval_shared_string_to_descriptor_copy() {
     // String twin of the shared-descriptor lock: both emitters must
     // copy from the shared string `_arr` facet with the `&(char**)`
