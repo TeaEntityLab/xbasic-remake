@@ -35,34 +35,35 @@ fn build_native_cgen(root: &Path, tmp: &Path, name: &str) -> (PathBuf, PathBuf) 
     (cgen_exe, cgen_c_path)
 }
 
-/// Peak-memory contract for the native C generator on the largest core
-/// library (`xui.x`, 1.4 MB source → 2.8 MB facet IR). The generated C's
-/// string model never frees temporaries, so a child's resident size is its
-/// cumulative temporary volume. Measured through this probe: the per-name
-/// facet-table rescan (docs/17 CGEN-OOM, 2026-09-06) peaked at 7.0 GiB,
-/// the fixed generator at 3.9 GiB. Resident size shrinks under host memory
-/// pressure (compressed pages are not resident - a concurrent 7.5 GB run
-/// dropped the pre-fix reading to ~6 GiB), so the ceiling sits between the
-/// two with margin on both sides rather than just above the fixed peak.
-/// `ru_maxrss` for RUSAGE_CHILDREN is the largest child this test process
-/// has waited for, so the assertion bounds every cgen/cc spawned so far.
+/// Largest resident size of any child this test process has waited for
+/// (`ru_maxrss` of RUSAGE_CHILDREN), in bytes.
 #[cfg(unix)]
-#[test]
-fn cgen_x_peak_rss_on_largest_core_lib_stays_bounded() {
-    const CEILING_BYTES: i64 = 5 * 1024 * 1024 * 1024;
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let tmp = std::env::temp_dir().join("xb_cgen_peak_rss");
-    fs::create_dir_all(&tmp).expect("mkdir");
-    let (cgen_exe, cgen_c_path) = build_native_cgen(&root, &tmp, "cgen_rss");
+fn peak_child_rss_bytes() -> i64 {
+    let mut ru: libc::rusage = unsafe { std::mem::zeroed() };
+    let rc = unsafe { libc::getrusage(libc::RUSAGE_CHILDREN, &mut ru) };
+    assert_eq!(rc, 0, "getrusage failed");
+    // macOS reports bytes; Linux and the BSDs report kilobytes.
+    // `c_long` is i32 on 32-bit unix targets; the conversion is real there.
+    #[allow(clippy::useless_conversion)]
+    let raw = i64::from(ru.ru_maxrss);
+    if cfg!(target_os = "macos") {
+        raw
+    } else {
+        raw * 1024
+    }
+}
 
-    let src = fs::read_to_string(root.join("xbasic/lib/xui.x")).expect("read xui.x");
+/// Runs the native cgen on `xbasic/lib/<lib>.x` facet IR and asserts that no
+/// child waited for so far exceeded `ceiling_gib` resident.
+#[cfg(unix)]
+fn assert_cgen_peak_rss(root: &Path, cgen_exe: &Path, lib: &str, ceiling_gib: i64) {
+    let src = fs::read_to_string(root.join(format!("xbasic/lib/{lib}.x"))).expect("read lib");
     let prog = FrontendUnit::parse(&src)
-        .expect("parse xui.x")
+        .expect("parse lib")
         .lower_ir()
-        .expect("lower xui.x");
+        .expect("lower lib");
     let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
-
-    let mut child = Command::new(common::exe_path(&cgen_exe))
+    let mut child = Command::new(common::exe_path(cgen_exe))
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -77,32 +78,41 @@ fn cgen_x_peak_rss_on_largest_core_lib_stays_bounded() {
     let out = child.wait_with_output().expect("wait cgen");
     assert!(
         out.status.success(),
-        "cgen failed on xui.x (exit {:?}): {}",
+        "cgen failed on {lib}.x (exit {:?}): {}",
         out.status.code(),
         String::from_utf8_lossy(&out.stderr)
     );
-    assert!(!out.stdout.is_empty(), "cgen emitted nothing for xui.x");
-
-    let peak_bytes = {
-        let mut ru: libc::rusage = unsafe { std::mem::zeroed() };
-        let rc = unsafe { libc::getrusage(libc::RUSAGE_CHILDREN, &mut ru) };
-        assert_eq!(rc, 0, "getrusage failed");
-        // macOS reports bytes; Linux and the BSDs report kilobytes.
-        // `c_long` is i32 on 32-bit unix targets; the conversion is real there.
-        #[allow(clippy::useless_conversion)]
-        let raw = i64::from(ru.ru_maxrss);
-        if cfg!(target_os = "macos") {
-            raw
-        } else {
-            raw * 1024
-        }
-    };
+    assert!(!out.stdout.is_empty(), "cgen emitted nothing for {lib}.x");
+    let peak = peak_child_rss_bytes();
     assert!(
-        peak_bytes < CEILING_BYTES,
-        "native cgen peak RSS {:.2} GiB exceeds the {} GiB ceiling on xui.x",
-        peak_bytes as f64 / 1073741824.0,
-        CEILING_BYTES / 1073741824
+        peak < ceiling_gib * 1024 * 1024 * 1024,
+        "native cgen peak RSS {:.2} GiB exceeds the {ceiling_gib} GiB ceiling on {lib}.x",
+        peak as f64 / 1073741824.0
     );
+}
+
+/// Peak-memory contract for the native C generator. The generated C's string
+/// model never frees temporaries, so a child's resident size is its cumulative
+/// temporary volume. Two probes, measured through this test on 2026-09-06
+/// against the per-name facet-table rescan (docs/17 CGEN-OOM):
+/// - `xgr.x`: pre-fix 5.9 GiB here (7.1 GiB under `/usr/bin/time -l`), fixed
+///   1.8 GiB - the widest separation, so its 4 GiB ceiling is the sharp
+///   refuter;
+/// - `xui.x`: pre-fix 7.0 GiB, fixed 3.6 GiB - the largest library and the
+///   highest fixed peak, bounded at 5 GiB.
+/// Resident size shrinks under host memory pressure (compressed pages are not
+/// resident: a concurrent 7.5 GiB run dropped a pre-fix xui reading below
+/// 6 GiB), which is why each ceiling keeps margin on both sides and the gate
+/// scripts run one suite at a time.
+#[cfg(unix)]
+#[test]
+fn cgen_x_peak_rss_on_core_libs_stays_bounded() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let tmp = std::env::temp_dir().join("xb_cgen_peak_rss");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let (cgen_exe, cgen_c_path) = build_native_cgen(&root, &tmp, "cgen_rss");
+    assert_cgen_peak_rss(&root, &cgen_exe, "xgr", 4);
+    assert_cgen_peak_rss(&root, &cgen_exe, "xui", 5);
     let _ = fs::remove_file(&cgen_c_path);
     let _ = fs::remove_file(&cgen_exe);
 }
