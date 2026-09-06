@@ -89,6 +89,31 @@ facet <name>:<type> scope=<func|*> storage=<fixed|dyn|param|shared> rank=<n> dua
 A producer may emit facets only for names that need non-default handling; missing
 names default to `storage=fixed, rank=0, dual=0`.
 
+**P1 emitted subset (landed, `native_facet_gap` green over 234 programs, 41
+nonzero, 158 names):** `selfhost/compiler.x` emits `facet name:type scope=S
+storage=T rank=R dual=0[ shared][ position=N]` behind the `##FACETS##` dump
+hook (normal emission unchanged except two hanging/garbage prototype lines
+now skipped, matching Rust). Covered declaration forms: `DIM` (with `#`,
+`DIM SHARED`, comma-separated multi-name lists), `REDIM` (never forces
+shared from `#`), `STATIC` (never forces shared), `STRING`-typename
+statements (type forced string; other typenames need no rule — non-string
+both sides), `SHARED` statements (per-element brackets; scalar names and
+TYPE qualifiers skipped), array params (`storage=param` with position;
+DIMs of param names suppressed by first-wins dedup, matching lowering).
+Shared promotes per-scope in source order with feedback (top-level and
+function sets, fresh per FUNCTION). `dual=0` is a placeholder (P2 owns
+dual); no `descriptor=`/`byref=` (P4). `rank` counts top-level comma
+groups. `scope` is the stripped function name as the IR prints it, or `*`;
+`EXIT FUNCTION` and DECLARE/EXTERNAL prototypes set no scope. A trailing
+`$$` suffix forces `giant` (Rust canonicalizes `a$$` to `a&&`). The gate
+compares only the allStrArr field (names with `type=string`, `rank>=1`, no
+`shared`/`param`/`byref`), for which this subset is exact. Two
+plan-sanctioned carve-outs (§9.4, both reported in the ok output, both
+removed by later phases): dotted member facets (need composite parsing +
+P2 dual; P5 removes) and names Rust marks `byref=1` (need P4 call-graph
+analysis; rust-only names always fail). fixed/dyn confusion is
+gate-invisible (both included by the predicate).
+
 ### 3.2 Example (aback's `user`)
 
 Current text IR:

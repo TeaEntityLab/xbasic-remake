@@ -8,8 +8,10 @@ DIM pos
 DIM ch
 DIM ntok
 DIM done
-DIM tt$(131072)
-DIM tv$(131072)
+' tt$/tv$ are sized after the source is joined (see the token-table DIMs
+' below); declared unsized here so they live on the heap.
+DIM tt$[]
+DIM tv$[]
 DIM tpos
 DIM indent
 DIM i
@@ -44,7 +46,7 @@ DIM funcSP
 DIM fnargs
 DIM nargs
 DIM cir$
-DIM fargs$(8)
+DIM fargs$[]
 DIM iname$
 DIM vname$
 DIM vtype$
@@ -76,7 +78,7 @@ DIM singleLineIf
 DIM midTarget$
 DIM midStart$
 DIM midLen$
-DIM arrNames$(64)
+DIM arrNames$[]
 DIM arrSP
 DIM isArr
 DIM lookPos
@@ -85,17 +87,51 @@ DIM params$
 DIM pname$
 DIM esc$
 DIM ei
-DIM constName$(64)
-DIM constType$(64)
-DIM constValue$(64)
+' Size-driven tables are unsized (heap, auto-grow on indexed write): the
+' fixed (64)/(8) forms overflowed their stack VLAs on the core libs
+' (xcol.x: 485 $$ constants, 15-arg calls; xui.x: 274 DIMs) -> SIGSEGV.
+' Depth stacks (opStack/valStack 256, funcName/ifStack 64) stay fixed:
+' they bound nesting, not program size.
+DIM constName$[]
+DIM constType$[]
+DIM constValue$[]
 DIM nConst
 DIM ci
 DIM isFloat
 DIM subName$
+DIM curScope$
+DIM facetDump
+DIM fTab$
+DIM fSeen$
+DIM fScopeArrs$
+DIM fTypeNames$
+DIM fp
+DIM fsp
+DIM fdep
+DIM frk
+DIM fnm$
+DIM ftp$
+DIM fst$
+DIM fLn$
+DIM fKey$
+DIM ftmp$
+DIM fSharedTop$
+DIM fSharedFn$
+DIM fIsType
+DIM fi
+DIM fpc
+DIM fRedimMode
 ##suffixType$ = ""
+DIM fListShared
+DIM fFirstQual
+DIM fEnd
+DIM fMore
+DIM fIsDef
 nConst = 0
-
-DIM srcLines$(20000)
+' Line table: unsized (heap, auto-grow on indexed write - the 2026-09-02
+' unsized-DIM contract) instead of a fixed VLA. xui.x is 41958 lines; the
+' old srcLines$(20000) silently wrote past the stack array in native C.
+DIM srcLines$[]
 nLines = 0
 totalLen = 0
 WHILE EOF() = 0
@@ -120,6 +156,22 @@ FOR i = 1 TO nLines
     srcPos = srcPos + 1
   END IF
 NEXT i
+' Token tables: sized from the joined source once its length is known
+' (tokens <= characters), on the heap via the same unsized-then-sized
+' contract. The old fixed 131072 overflowed on xcol/xgr/xit/xui
+' (147K-294K tokens) -> SIGSEGV; and at 393216 x 2 x 8 B the VLAs alone
+' would exceed the 8 MB main-thread stack.
+DIM tt$[LEN(src$) + 1]
+DIM tv$[LEN(src$) + 1]
+' P1 facet dump hook (docs/19 §9.4): a leading ##FACETS## line asks for
+' facet lines only instead of normal emission. Normal path sees one extra
+' IF evaluation and is otherwise untouched.
+facetDump = 0
+IF nLines >= 1 THEN
+  IF srcLines$(1) = "##FACETS##" THEN
+    facetDump = 1
+  END IF
+END IF
 
 ntok = 0
 pos = 1
@@ -196,6 +248,12 @@ WHILE pos <= LEN(src$)
     ELSEIF tok$ = "WHILE" OR tok$ = "WEND" OR tok$ = "RETURN" OR tok$ = "AND" OR tok$ = "OR" OR tok$ = "XOR" OR tok$ = "UNTIL" OR tok$ = "LOOP" THEN
       tk$ = "keyword"
     ELSEIF tok$ = "NOT" OR tok$ = "MOD" OR tok$ = "EXIT" OR tok$ = "ELSEIF" OR tok$ = "VERSION" OR tok$ = "GOSUB" OR tok$ = "BREAK" OR tok$ = "CONST" OR tok$ = "LET" OR tok$ = "GOTO" THEN
+      tk$ = "keyword"
+    ELSEIF tok$ = "SELECT" OR tok$ = "CASE" OR tok$ = "TYPE" OR tok$ = "PACKED" OR tok$ = "IMPORT" OR tok$ = "INC" OR tok$ = "DEC" OR tok$ = "SWAP" OR tok$ = "SUB" OR tok$ = "PROGRAM" THEN
+      tk$ = "keyword"
+    ELSEIF tok$ = "IFZ" OR tok$ = "IFT" OR tok$ = "IFF" OR tok$ = "STATIC" OR tok$ = "REDIM" OR tok$ = "DOEVENTS" OR tok$ = "SHARED" OR tok$ = "EXPORT" OR tok$ = "RANDOMIZE" OR tok$ = "DATA" THEN
+      tk$ = "keyword"
+    ELSEIF tok$ = "READ" OR tok$ = "STOP" OR tok$ = "RESTORE" OR tok$ = "FUNCADDR" OR tok$ = "DECLARE" OR tok$ = "INTERNAL" OR tok$ = "EXTERNAL" OR tok$ = "CFUNCTION" THEN
       tk$ = "keyword"
     END IF
     ntok = ntok + 1
@@ -416,6 +474,489 @@ arrSP = 0
 singleLineIf = 0
 midLen$ = ""
 
+' P1 facet accumulation (docs/19 §9.1-9.2, §9.5 P1): dump-only pre-pass over
+' the token tables, in source order. Recognition mirrors the emit-pass
+' triggers (FUNCTION / END FUNCTION / DIM) plus the SHARED statement form.
+' Storage is syntactic only; shared promotes per-scope in source order:
+' DIM # / DIM SHARED / SHARED-statement names mark the current scope set
+' (fresh per FUNCTION, top level separate), and later array DIMs of those
+' names in the same scope promote (Rust: semantics_stmts.rs,
+' semantics_function.rs, parser_select.rs shared_static_stmt, parser.rs
+' DIM SHARED). Scalar SHARED names do not propagate. dyn/dual/descriptor/
+' position/byref are later phases, so dual=0 is a placeholder and
+' params/member DIMs emit nothing (no array-param or dotted-member-DIM
+' syntax). Rank counts top-level comma groups in the DIM brackets.
+' DECLARE/EXTERNAL FUNCTION forward decls do not set scope. Scope is the
+' stripped function name as the IR prints it.
+
+IF facetDump = 1 THEN
+  curScope$ = "*"
+  fTab$ = ""
+  fSeen$ = ""
+  fScopeArrs$ = ""
+  fSharedTop$ = ""
+  fSharedFn$ = ""
+  fp = 1
+  WHILE fp <= ntok AND NOT (tt$(fp) = "newline")
+    fp = fp + 1
+  WEND
+  fp = fp + 1
+  ' Composite TYPE names (for the typed-dim mirror: composite-typed
+  ' declarations lower to member facets, not plain DIMs). Program-wide and
+  ' order-free: collected before the main walk.
+  fTypeNames$ = ""
+  fsp = 1
+  WHILE fsp <= ntok
+    IF tt$(fsp) = "keyword" AND (tv$(fsp) = "TYPE" OR tv$(fsp) = "PACKED") AND fsp + 1 <= ntok AND tt$(fsp + 1) = "ident" THEN
+      IF INSTR(fTypeNames$, ":" + tv$(fsp + 1) + ":") = 0 THEN
+        fTypeNames$ = fTypeNames$ + ":" + tv$(fsp + 1) + ":"
+      END IF
+    END IF
+    fsp = fsp + 1
+  WEND
+  WHILE fp <= ntok
+    IF tt$(fp) = "keyword" AND tv$(fp) = "END" AND fp + 1 <= ntok AND tt$(fp + 1) = "keyword" AND tv$(fp + 1) = "FUNCTION" THEN
+      curScope$ = "*"
+      fp = fp + 2
+    ELSEIF tt$(fp) = "keyword" AND tv$(fp) = "FUNCTION" THEN
+      ' Prototypes (DECLARE/EXTERNAL FUNCTION) contribute no IR item in
+      ' Rust, so they set no scope and emit no param facets: skip the whole
+      ' line (the walk would otherwise read the prototype's param list as
+      ' declarations - TOKEN tok[] misfires the typed-dim mirror). Matched
+      ' by tv$ text of the previous token. INTERNAL is deliberately NOT
+      ' here: Rust emits real function items for INTERNAL FUNCTION
+      ' (verified: param + body-DIM facets), so it defines scope like a
+      ' plain FUNCTION. A variable literally named DECLARE followed by a
+      ' real FUNCTION line would misfire, but Rust lexes DECLARE as a
+      ' keyword too, so no Rust-parseable program contains that shape.
+      fIsDef = 0
+      IF fp > 1 AND (tv$(fp - 1) = "DECLARE" OR tv$(fp - 1) = "EXTERNAL") THEN
+        WHILE fp <= ntok AND NOT (tt$(fp) = "newline")
+          fp = fp + 1
+        WEND
+        fp = fp + 1
+      ELSEIF fp + 1 > ntok THEN
+        fp = fp + 1
+      ELSEIF tt$(fp + 1) = "ident" OR tt$(fp + 1) = "shared" THEN
+        fIsDef = 1
+      ELSE
+        fp = fp + 1
+      END IF
+      IF fIsDef = 1 THEN
+        ' Scope is the name as the compiler itself emits it (stripped: the
+        ' IR function line prints bn$, and Rust scopes agree - c_type, not
+        ' c_type$).
+        ftmp$ = strip_suffix$(tv$(fp + 1))
+        curScope$ = ftmp$
+        ' A fresh function scope gets a fresh shared set (Rust per-function
+        ' shared_arrays, semantics_function.rs).
+        fSharedFn$ = ""
+        fp = fp + 2
+        fpc = 0
+        IF fp <= ntok AND tt$(fp) = "symbol" AND tv$(fp) = "(" THEN
+          fdep = 1
+          fp = fp + 1
+          WHILE fp <= ntok AND fdep > 0
+            IF tt$(fp) = "symbol" AND tv$(fp) = "(" THEN
+              fdep = fdep + 1
+            END IF
+            IF tt$(fp) = "symbol" AND tv$(fp) = ")" THEN
+              fdep = fdep - 1
+            END IF
+            IF fdep = 1 AND tt$(fp) = "symbol" AND tv$(fp) = "," THEN
+              fpc = fpc + 1
+            END IF
+            ' Only depth 1: a parenthesized group inside the param list
+            ' (e.g. XuiDropBox (..., (r1, r1$, r1[], r1$[]))) is not a param
+            ' position Rust recognizes, so its contents classify nothing.
+            IF fdep = 1 AND (tt$(fp) = "ident" OR tt$(fp) = "shared") THEN
+              ' Array param (name[] - the brackets are visible even though
+              ' the emit pass treats params as scalars): Rust emits only the
+              ' param facet in this scope (DIMs of the name are dropped at
+              ' lowering), so emit it here and let fSeen$ suppress the later
+              ' DIM facet. rank=1 (params are unsized in practice) and no
+              ' descriptor=1 (P4 owns descriptor facts); dual=0 is P2.
+              IF fp + 1 <= ntok AND tt$(fp + 1) = "symbol" AND (tv$(fp + 1) = "[" OR tv$(fp + 1) = "(") THEN
+                fnm$ = tv$(fp)
+                ftmp$ = strip_suffix$(fnm$)
+                ftp$ = ##suffixType$
+                IF LEN(fnm$) >= 2 THEN
+                  IF RIGHT$(fnm$, 2) = "$$" THEN
+                    ftp$ = "giant"
+                  END IF
+                END IF
+                fLn$ = "facet " + fnm$ + ":" + ftp$ + " scope=" + curScope$ + " storage=param rank=1 dual=0 position=" + STR$(fpc)
+                fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
+                IF INSTR(fSeen$, fKey$) = 0 THEN
+                  fSeen$ = fSeen$ + fKey$
+                  fTab$ = fTab$ + fLn$ + CHR$(10)
+                ' P2 array knowledge (all types/storages, for paren-form
+                ' access-vs-call disambiguation in the use-walk).
+                IF INSTR(fScopeArrs$, ":" + curScope$ + ":" + fnm$ + ":") = 0 THEN
+                  fScopeArrs$ = fScopeArrs$ + ":" + curScope$ + ":" + fnm$ + ":"
+                END IF
+                END IF
+              END IF
+            END IF
+            fp = fp + 1
+          WEND
+        END IF
+      END IF
+    ELSEIF tt$(fp) = "keyword" AND tv$(fp) = "SHARED" THEN
+      ' SHARED statement: each name lowers to its own Dim{shared}
+      ' (parser_select.rs shared_static_stmt), but only bracket-form names
+      ' enter the scope shared set - scalar shared DIMs do not propagate
+      ' (semantics_stmts.rs: only `shared && is_array` inserts). Per-element
+      ' brackets: SHARED a[], b[] marks both; a TYPE qualifier (ident
+      ' directly followed by another name, e.g. SHARED SQUAREINFORMATION
+      ' squareInfo[]) is skipped. Bracketed size exprs are skipped so commas
+      ' and idents inside them don't read as names. A variable literally
+      ' named SHARED with no following name is untouched.
+      fsp = fp + 1
+      WHILE fsp <= ntok AND (tt$(fsp) = "ident" OR tt$(fsp) = "shared" OR (tt$(fsp) = "symbol" AND (tv$(fsp) = "," OR tv$(fsp) = "[" OR tv$(fsp) = "(")))
+        IF tt$(fsp) = "ident" OR tt$(fsp) = "shared" THEN
+          fnm$ = tv$(fsp)
+          fIsType = 0
+          IF fsp + 1 <= ntok AND (tt$(fsp + 1) = "ident" OR tt$(fsp + 1) = "shared") THEN
+            fIsType = 1
+          END IF
+          IF fIsType = 0 THEN
+            IF fsp + 1 <= ntok AND tt$(fsp + 1) = "symbol" AND (tv$(fsp + 1) = "[" OR tv$(fsp + 1) = "(") THEN
+              IF curScope$ = "*" THEN
+                IF INSTR(fSharedTop$, ":" + fnm$ + ":") = 0 THEN
+                  fSharedTop$ = fSharedTop$ + ":" + fnm$ + ":"
+                END IF
+              ELSEIF INSTR(fSharedFn$, ":" + fnm$ + ":") = 0 THEN
+                fSharedFn$ = fSharedFn$ + ":" + fnm$ + ":"
+              END IF
+              ' SHARED-statement arrays feed dim_info like any DIM, so they
+              ' get facet lines (dual patched later like all lines). Rank
+              ' counted; shared facets never affect the allStrArr predicate.
+              ftmp$ = strip_suffix$(fnm$)
+              ftp$ = ##suffixType$
+              IF LEN(fnm$) >= 2 THEN
+                IF RIGHT$(fnm$, 2) = "$$" THEN
+                  ftp$ = "giant"
+                END IF
+              END IF
+              frk = 1
+              fdep = 0
+              fi = fsp + 1
+              fEnd = 0
+              WHILE fi <= ntok AND fEnd = 0
+                IF tt$(fi) = "symbol" AND (tv$(fi) = "[" OR tv$(fi) = "(") THEN
+                  fdep = fdep + 1
+                ELSEIF tt$(fi) = "symbol" AND (tv$(fi) = "]" OR tv$(fi) = ")") THEN
+                  fdep = fdep - 1
+                  IF fdep = 0 THEN
+                    fEnd = fi
+                  END IF
+                ELSEIF fdep = 1 AND tt$(fi) = "symbol" AND tv$(fi) = "," THEN
+                  frk = frk + 1
+                END IF
+                fi = fi + 1
+              WEND
+              fLn$ = "facet " + fnm$ + ":" + ftp$ + " scope=" + curScope$ + " storage=shared rank=" + STR$(frk) + " dual=0 shared"
+              fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
+              IF INSTR(fSeen$, fKey$) = 0 THEN
+                fSeen$ = fSeen$ + fKey$
+                fTab$ = fTab$ + fLn$ + CHR$(10)
+              END IF
+              IF INSTR(fScopeArrs$, ":" + curScope$ + ":" + fnm$ + ":") = 0 THEN
+                fScopeArrs$ = fScopeArrs$ + ":" + curScope$ + ":" + fnm$ + ":"
+              END IF
+            END IF
+          END IF
+          fsp = fsp + 1
+        ELSEIF tt$(fsp) = "symbol" AND (tv$(fsp) = "[" OR tv$(fsp) = "(") THEN
+          fdep = 1
+          fsp = fsp + 1
+          WHILE fsp <= ntok AND fdep > 0
+            IF tt$(fsp) = "symbol" AND (tv$(fsp) = "[" OR tv$(fsp) = "(") THEN
+              fdep = fdep + 1
+            END IF
+            IF tt$(fsp) = "symbol" AND (tv$(fsp) = "]" OR tv$(fsp) = ")") THEN
+              fdep = fdep - 1
+            END IF
+            fsp = fsp + 1
+          WEND
+        ELSE
+          fsp = fsp + 1
+        END IF
+      WEND
+      fp = fsp
+    ELSEIF (tt$(fp) = "keyword" AND tv$(fp) = "DIM") OR (tt$(fp) = "keyword" AND tv$(fp) = "REDIM") OR (tt$(fp) = "keyword" AND tv$(fp) = "STATIC") OR (tt$(fp) = "ident" AND tv$(fp) = "STRING") THEN
+      ' DIM [SHARED] name[...] [, ...] / STATIC name[...] [, ...] - the
+      ' classic shared-storage form plus #, comma-separated declarators each
+      ' with optional brackets (xcol `DIM op[255], op$[255]`; `STATIC a[],
+      ' b[]` lists). REDIM and STATIC take the same branch: they lower to
+      ' Dim with shared:false (parser_select.rs), so neither forces shared
+      ' from # (unlike DIM) nor takes a SHARED keyword (REDIM SHARED is a
+      ' parse error in Rust); the scope set still applies, and a shared
+      ' outcome feeds back like DIM. Storage promotes through the current
+      ' scope set in source order (semantics_stmts.rs). fixed/dyn confusion
+      ' is gate-invisible (both included by the predicate).
+      fsp = fp + 1
+      fst$ = "fixed"
+      fRedimMode = 0
+      IF tt$(fp) = "keyword" AND tv$(fp) = "REDIM" THEN
+        fRedimMode = 1
+      END IF
+      IF tt$(fp) = "keyword" AND tv$(fp) = "STATIC" THEN
+        fRedimMode = 2
+      END IF
+      ' STRING name[] declares explicit-string arrays (xst temp1$[]); the
+      ' typename wins over the suffix, and TYPENAME # shares like DIM #
+      ' (qbtoxb `STRING #string$[]`); other TYPENAME statements need no
+      ' rule (their facets are non-string on both sides).
+      IF tt$(fp) = "ident" AND tv$(fp) = "STRING" THEN
+        fRedimMode = 3
+      END IF
+      fListShared = 0
+      IF fRedimMode = 0 AND fsp <= ntok AND tt$(fsp) = "keyword" AND tv$(fsp) = "SHARED" AND fsp + 1 <= ntok AND (tt$(fsp + 1) = "ident" OR tt$(fsp + 1) = "shared") THEN
+        fListShared = 1
+        fsp = fsp + 1
+      END IF
+      fFirstQual = 1
+      fMore = 1
+      WHILE fMore = 1 AND fsp <= ntok AND (tt$(fsp) = "ident" OR tt$(fsp) = "shared")
+        fst$ = "fixed"
+        frk = 0
+        fEnd = 0
+        IF fListShared = 1 THEN
+          fst$ = "shared"
+        END IF
+        IF fRedimMode = 2 AND fFirstQual = 1 THEN
+          IF tt$(fsp) = "ident" AND fsp + 1 <= ntok AND (tt$(fsp + 1) = "ident" OR tt$(fsp + 1) = "shared") THEN
+            fsp = fsp + 1
+          END IF
+          fFirstQual = 0
+        END IF
+        fnm$ = tv$(fsp)
+        ftmp$ = strip_suffix$(fnm$)
+        ftp$ = ##suffixType$
+        IF fRedimMode = 3 THEN
+          ftp$ = "string"
+        END IF
+        ' A trailing $$ suffix is GIANT (Rust canonicalizes a$$ to a&&);
+        ' strip_suffix$ only strips one $, so override the string it reports.
+        ' Giant is predicate-excluded like every non-string, so only the
+        ' typename-vs-suffix direction matters here.
+        IF LEN(fnm$) >= 2 THEN
+          IF RIGHT$(fnm$, 2) = "$$" THEN
+            ftp$ = "giant"
+          END IF
+        END IF
+        IF tt$(fsp) = "shared" AND (fRedimMode = 0 OR fRedimMode = 3) THEN
+          ' DIM # and TYPENAME # share; REDIM # and STATIC # do not force
+          ' (parser hardcodes shared:false for both).
+          fst$ = "shared"
+        ELSEIF curScope$ = "*" THEN
+          IF INSTR(fSharedTop$, ":" + fnm$ + ":") > 0 THEN
+            fst$ = "shared"
+          END IF
+        ELSEIF INSTR(fSharedFn$, ":" + fnm$ + ":") > 0 THEN
+          fst$ = "shared"
+        END IF
+        IF fsp + 1 <= ntok AND tt$(fsp + 1) = "symbol" AND (tv$(fsp + 1) = "[" OR tv$(fsp + 1) = "(") THEN
+          frk = 1
+          fdep = 0
+          fi = fsp + 1
+          fEnd = 0
+          WHILE fi <= ntok AND fEnd = 0
+            IF tt$(fi) = "symbol" AND (tv$(fi) = "[" OR tv$(fi) = "(") THEN
+              fdep = fdep + 1
+            ELSEIF tt$(fi) = "symbol" AND (tv$(fi) = "]" OR tv$(fi) = ")") THEN
+              fdep = fdep - 1
+              IF fdep = 0 THEN
+                fEnd = fi
+              END IF
+            ELSEIF fdep = 1 AND tt$(fi) = "symbol" AND tv$(fi) = "," THEN
+              frk = frk + 1
+            END IF
+            fi = fi + 1
+          WEND
+          IF fEnd > 0 THEN
+            fsp = fEnd
+          ELSE
+            fsp = ntok + 1
+          END IF
+        END IF
+          fLn$ = "facet " + fnm$ + ":" + ftp$ + " scope=" + curScope$ + " storage=" + fst$ + " rank=" + STR$(frk) + " dual=0"
+          IF fst$ = "shared" THEN
+            fLn$ = fLn$ + " shared"
+          END IF
+          fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
+          IF INSTR(fSeen$, fKey$) = 0 THEN
+            fSeen$ = fSeen$ + fKey$
+            fTab$ = fTab$ + fLn$ + CHR$(10)
+          ' P2 array knowledge: every array declarator, any type/storage.
+          IF INSTR(fScopeArrs$, ":" + curScope$ + ":" + fnm$ + ":") = 0 THEN
+            fScopeArrs$ = fScopeArrs$ + ":" + curScope$ + ":" + fnm$ + ":"
+          END IF
+          END IF
+          IF fst$ = "shared" THEN
+            IF curScope$ = "*" THEN
+              IF INSTR(fSharedTop$, ":" + fnm$ + ":") = 0 THEN
+                fSharedTop$ = fSharedTop$ + ":" + fnm$ + ":"
+              END IF
+            ELSEIF INSTR(fSharedFn$, ":" + fnm$ + ":") = 0 THEN
+              fSharedFn$ = fSharedFn$ + ":" + fnm$ + ":"
+            END IF
+          END IF
+        fsp = fsp + 1
+        IF fsp > ntok THEN
+          fMore = 0
+        ELSE
+          IF tt$(fsp) = "symbol" THEN
+            IF tv$(fsp) = "," THEN
+              IF fsp + 1 <= ntok THEN
+                IF tt$(fsp + 1) = "ident" OR tt$(fsp + 1) = "shared" THEN
+                  fsp = fsp + 1
+                ELSE
+                  fMore = 0
+                END IF
+              ELSE
+                fMore = 0
+              END IF
+            ELSE
+              fMore = 0
+            END IF
+          ELSE
+            fMore = 0
+          END IF
+        END IF
+      WEND
+      fp = fsp
+    ELSEIF tt$(fp) = "ident" AND fp + 1 <= ntok AND (tt$(fp + 1) = "ident" OR tt$(fp + 1) = "shared") AND fp > 1 AND (tt$(fp - 1) = "newline" OR (tt$(fp - 1) = "symbol" AND tv$(fp - 1) = ":") OR (tt$(fp - 1) = "keyword" AND (tv$(fp - 1) = "THEN" OR tv$(fp - 1) = "ELSE"))) AND tv$(fp) <> "SELECT" AND tv$(fp) <> "CASE" AND tv$(fp) <> "INC" AND tv$(fp) <> "DEC" AND tv$(fp) <> "ATTACH" AND tv$(fp) <> "DECLARE" AND tv$(fp) <> "SUB" AND tv$(fp) <> "DATA" AND tv$(fp) <> "READ" AND tv$(fp) <> "CONST" AND tv$(fp) <> "LET" AND tv$(fp) <> "RESTORE" AND tv$(fp) <> "STOP" AND tv$(fp) <> "REM" THEN
+      ' TYPENAME-led declaration mirror (typed_dim_stmt): leading identifiers
+      ' are qualifiers, the last identifier before [/=,comma/EOL is the name.
+      ' Statement-start gated (prev is newline, :, THEN, or ELSE): Rust only
+      ' reaches typed_dim_stmt at statement position (statement keywords
+      ' dispatch first), so a mid-statement pair like `address HEXX$(...)`
+      ' inside PRINT is an expression, never a declaration. Each excluded
+      ' verb above is routed elsewhere in Rust (its own statement rule or
+      ' skip); REM lines never reach here (skipped at the chain head).
+      ' Composite typenames (TYPE blocks, fTypeNames$) lower to member
+      ' facets, never plain DIMs - that case falls through with fsp past the
+      ' names (no declarator pass). Otherwise the declarator mirrors DIM
+      ' (suffix types; no SHARED-keyword form).
+      fsp = fp + 1
+      fIsType = 0
+      WHILE fsp <= ntok AND (tt$(fsp) = "ident" OR tt$(fsp) = "shared")
+        IF INSTR(fTypeNames$, ":" + tv$(fsp) + ":") > 0 THEN
+          fIsType = 1
+        END IF
+        fsp = fsp + 1
+      WEND
+      IF fIsType = 0 THEN
+        fsp = fp + 1
+        WHILE fsp + 1 <= ntok AND (tt$(fsp + 1) = "ident" OR tt$(fsp + 1) = "shared")
+          fsp = fsp + 1
+        WEND
+        ' fsp now at the declarator name (or past end); run one declarator
+        ' pass over name[, name...] exactly like DIM.
+        fRedimMode = 0
+        fListShared = 0
+        fMore = 1
+        WHILE fMore = 1 AND fsp <= ntok AND (tt$(fsp) = "ident" OR tt$(fsp) = "shared")
+          fst$ = "fixed"
+          frk = 0
+          fEnd = 0
+          IF fListShared = 1 THEN
+            fst$ = "shared"
+          END IF
+          fnm$ = tv$(fsp)
+          ftmp$ = strip_suffix$(fnm$)
+          ftp$ = ##suffixType$
+          IF tt$(fsp) = "shared" THEN
+            fst$ = "shared"
+          ELSEIF curScope$ = "*" THEN
+            IF INSTR(fSharedTop$, ":" + fnm$ + ":") > 0 THEN
+              fst$ = "shared"
+            END IF
+          ELSEIF INSTR(fSharedFn$, ":" + fnm$ + ":") > 0 THEN
+            fst$ = "shared"
+          END IF
+          IF fsp + 1 <= ntok AND tt$(fsp + 1) = "symbol" AND (tv$(fsp + 1) = "[" OR tv$(fsp + 1) = "(") THEN
+            frk = 1
+            fdep = 0
+            fi = fsp + 1
+            fEnd = 0
+            WHILE fi <= ntok AND fEnd = 0
+              IF tt$(fi) = "symbol" AND (tv$(fi) = "[" OR tv$(fi) = "(") THEN
+                fdep = fdep + 1
+              ELSEIF tt$(fi) = "symbol" AND (tv$(fi) = "]" OR tv$(fi) = ")") THEN
+                fdep = fdep - 1
+                IF fdep = 0 THEN
+                  fEnd = fi
+                END IF
+              ELSEIF fdep = 1 AND tt$(fi) = "symbol" AND tv$(fi) = "," THEN
+                frk = frk + 1
+              END IF
+              fi = fi + 1
+            WEND
+            IF fEnd > 0 THEN
+              fsp = fEnd
+            ELSE
+              fsp = ntok + 1
+          END IF
+          END IF
+            fLn$ = "facet " + fnm$ + ":" + ftp$ + " scope=" + curScope$ + " storage=" + fst$ + " rank=" + STR$(frk) + " dual=0"
+            IF fst$ = "shared" THEN
+              fLn$ = fLn$ + " shared"
+            END IF
+            fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
+            IF INSTR(fSeen$, fKey$) = 0 THEN
+              fSeen$ = fSeen$ + fKey$
+              fTab$ = fTab$ + fLn$ + CHR$(10)
+            END IF
+            IF fst$ = "shared" THEN
+              IF curScope$ = "*" THEN
+                IF INSTR(fSharedTop$, ":" + fnm$ + ":") = 0 THEN
+                  fSharedTop$ = fSharedTop$ + ":" + fnm$ + ":"
+                END IF
+              ELSEIF INSTR(fSharedFn$, ":" + fnm$ + ":") = 0 THEN
+                fSharedFn$ = fSharedFn$ + ":" + fnm$ + ":"
+              END IF
+            END IF
+            IF INSTR(fScopeArrs$, ":" + curScope$ + ":" + fnm$ + ":") = 0 THEN
+              fScopeArrs$ = fScopeArrs$ + ":" + curScope$ + ":" + fnm$ + ":"
+            END IF
+          fsp = fsp + 1
+          IF fsp > ntok THEN
+            fMore = 0
+          ELSE
+            IF tt$(fsp) = "symbol" THEN
+              IF tv$(fsp) = "," THEN
+                IF fsp + 1 <= ntok THEN
+                  IF tt$(fsp + 1) = "ident" OR tt$(fsp + 1) = "shared" THEN
+                    fsp = fsp + 1
+                  ELSE
+                    fMore = 0
+                  END IF
+                ELSE
+                  fMore = 0
+                END IF
+              ELSE
+                fMore = 0
+              END IF
+            ELSE
+              fMore = 0
+            END IF
+          END IF
+        WEND
+        fp = fsp
+      ELSE
+        fp = fp + 1
+      END IF
+    ELSE
+      fp = fp + 1
+    END IF
+  WEND
+  PRINT fTab$
+  tpos = ntok + 1
+END IF
 WHILE tpos <= ntok
   IF stmtState = 0 THEN
     IF singleLineIf = 2 THEN
@@ -701,6 +1242,15 @@ WHILE tpos <= ntok
       tpos = tpos + 2
       stmtState = 18
       exprStop$ = "COMMA_OR_RPAREN"
+    ELSEIF t$ = "keyword" AND (v$ = "DECLARE" OR v$ = "INTERNAL" OR v$ = "EXTERNAL") AND tpos + 1 <= ntok AND tt$(tpos + 1) = "keyword" AND tv$(tpos + 1) = "FUNCTION" THEN
+      ' Prototype line (Rust parser: forward declaration, no IR item). It
+      ' used to fall into the assignment arm and parse `Foo (TOKEN token)`
+      ' as an expression, where an ident after an ident never advances tpos
+      ' and the unclosed `(` spun the op-stack drain forever (xcol.x, every
+      ' INTERNAL FUNCTION ... (TYPE name) prototype). Skip to end of line.
+      WHILE tpos <= ntok AND NOT (tt$(tpos) = "newline")
+        tpos = tpos + 1
+      WEND
     ELSEIF t$ = "ident" THEN
       isArr = 0
       j = 1
@@ -756,6 +1306,17 @@ WHILE tpos <= ntok
     funcSP = 0
     WHILE edone = 0 OR spOp > 0
       IF edone = 1 AND popPrec >= 99 AND spOp > 0 THEN
+        ' Expression ended with an unclosed `(` / call / index frame on the
+        ' stack (malformed or unsupported input). Nothing below can pop it,
+        ' so the drain would spin forever, allocating each turn. Discard the
+        ' frame; the popped expression is emitted as-is. Balanced input
+        ' never reaches this branch, so normal IR is unchanged.
+        IF opStack$(spOp) = "(" OR LEFT$(opStack$(spOp), 5) = "FUNC:" OR LEFT$(opStack$(spOp), 4) = "ARR:" THEN
+          IF LEFT$(opStack$(spOp), 5) = "FUNC:" AND funcSP > 0 THEN
+            funcSP = funcSP - 1
+          END IF
+          spOp = spOp - 1
+        END IF
         popPrec = 0
       END IF
       IF popPrec < 99 THEN
@@ -1280,6 +1841,12 @@ WHILE tpos <= ntok
       constName$(nConst) = assignTarget$
       constType$(nConst) = assignType$
       constValue$(nConst) = eir$
+      ' Every statement arm returns to state 0; this one did not, so the
+      ' next token was re-parsed as this const's expression. A token the
+      ' expression parser stops on without consuming then re-emitted the
+      ' same const line forever (aarray_ISNODE `$$X = 0x20000000`: 5.9 M
+      ' lines / 1.5 GB before the CPU cap).
+      stmtState = 0
     ELSEIF stmtState = 14 THEN
       prefix$ = ""
       i = 1

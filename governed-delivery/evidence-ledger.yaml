@@ -225,3 +225,19 @@ entries:
     receipt: "this entry is the proposal; no constitutional file modified (git diff --stat confirms)"
     freshness_kind: recheck_date
     date_checked: "2026-09-06"
+  - claim: "P1 compiler.x facet emission landed (docs/19 §9.5): dump-only token pre-pass in selfhost/compiler.x behind ##FACETS## first-line hook (normal emission byte-identical vs HEAD through the interpreter); emits facet name:type scope=S storage=T rank=R dual=0[ shared] for array DIMs (storage syntactic fixed/shared from # prefix; rank counts top-level comma groups; DECLARE/EXTERNAL forward decls do not set scope; no param/member/descriptor facts). New non-constitutional lock crates/xb-runtime/tests/native_facet_gap.rs: native vs Rust allStrArr-field sets equal over selfhost tools + 81 positive-corpus programs (non-vacuous: compiler.x 12, cgen.x 3, ubound_test.x 1 names; 0.9 s). Mutation verified: fails on pre-P1 compiler.x (native empty vs 12 Rust names). Normal-path gates: native_pipeline compA byte-identical, cgen_selfhost 3/3, facet_scanner_gap green; fmt clean, clippy 0. No cgen.x touch, no scanner deletion, no constitutional edit. Uncommitted per execute prompt"
+    source: "selfhost/compiler.x P1 blocks; cargo test --release -p xb-runtime --test native_facet_gap,native_pipeline,cgen_selfhost -- --test-threads=1; cargo test --release -p xb-compiler --test facet_scanner_gap"
+    attester: "cargo test runner"
+    revision: "working tree after 3cfe265 (this change set, uncommitted)"
+    exit_status: 0
+    receipt: "session tool output 2026-09-06 (native_facet_gap ok 0.9 s; native_pipeline ok; cgen_selfhost 3/3; facet gap ok)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"
+  - claim: "P1 complete: native_facet_gap allstrarr gate green over the full 234-program ratchet universe (41 nonzero, 158 names, 0 differing, 1 byref carve-out); dual split to an ignored P2 tracker (39 differing at split; dual=0 placeholder, P2 owns the use-based port). Rounds after the initial landing: per-scope order-sensitive shared sets (Rust symbol-global premise falsified against semantics_stmts.rs per-function fresh sets); SHARED-statement per-element brackets; comma-separated multi-name DIM/STATIC lists; array-param facets with DIM suppression; REDIM-as-Dim{shared:false}; STATIC (never forces shared); STRING-typename statements (type forced, TYPENAME # shares like DIM #); stripped scopes; EXIT FUNCTION/prototype scope guards (a dropped-guard incident silently poisoned scopes to '' and was caught by re-bisect, not by the order-blind first smoke); $$-suffix forces giant; member (dotted) + byref carve-outs per §9.4. Robustness fixes required by the widened corpus, all normal-path-neutral (native_pipeline byte-identical): DECLARE/EXTERNAL/INTERNAL prototype skip (was infinite hang on typed params), expr drain-loop unclosed-frame guard, stmtState=13 missing reset (was 5.9M-line/1.5GB flood), heap tables for srcLines/tt/tv/const/arrNames/fargs (xcol/xgr/xit/xui SIGSEGV). Known out-of-scope residuals (M5 language coverage, never green): normal-path library compilation (valStack[256] depth overflow on aarray_ISNODE expressions), compA normal-path xcol OOM-kill after 75K lines; emitter-level temporary-release memory work. Uncommitted per execute prompt"
+    source: "cargo test --release -p xb-runtime --test native_facet_gap,native_pipeline,cgen_selfhost,bootstrap -- --test-threads=1; cargo test --release -p xb-compiler --test facet_scanner_gap; fmt --check; clippy --workspace --all-targets (0 warnings)"
+    attester: "cargo test runner"
+    revision: "working tree after 3cfe265 (this change set, uncommitted)"
+    exit_status: 0
+    receipt: "session tool output 2026-09-06 (allstrarr gate 4.3 s green; dual tracker ignored/39 differing; 8-case declarator matrix + DECLARE/IFZ/HEXX misfire probes green via interpreter; normal-mode IR smoke green)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"
