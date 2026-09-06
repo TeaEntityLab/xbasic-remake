@@ -146,9 +146,9 @@ pub(crate) fn exec_attach(
         // Check if string scalar to string scalar
         let is_str_scalar = left.value_type == ValueType::String
             && get_slot_mut(state, &left.name)
-                .map_or(false, |s| s.array.is_none() && s.node_rows.is_none());
+                .is_some_and(|s| s.array.is_none() && s.node_rows.is_none());
         if is_str_scalar {
-            let dst_empty = get_slot_mut(state, &right.name).map_or(true, |s| match &s.value {
+            let dst_empty = get_slot_mut(state, &right.name).is_none_or(|s| match &s.value {
                 RuntimeValue::String(bytes) => bytes.is_empty(),
                 _ => false,
             });

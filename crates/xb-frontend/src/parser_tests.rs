@@ -433,6 +433,6 @@ fn rejects_redim_shared_keyword() {
     // `REDIM SHARED g[n]` silently parsed as `redim Shared` plus a no-op
     let result = parse_program("FUNCTION Main\nDIM SHARED g[2]\nREDIM SHARED g[4]\nEND FUNCTION\n");
     assert!(
-        matches!(result, Err(ParseError::Expected { expected: ref e, .. }) if e.contains("REDIM does not take SHARED"))
+        matches!(result, Err(ParseError::Expected { expected: e, .. }) if e.contains("REDIM does not take SHARED"))
     );
 }

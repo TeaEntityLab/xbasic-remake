@@ -1136,9 +1136,8 @@ pub(crate) fn emit_item(item: &IrItem, out: &mut String, indent: usize) {
             crate::c_emit::emit_byref_copy_out(out, indent);
             out.push_str(&ind);
             let comp_ret = crate::c_emit::current_composite_ret();
-            if comp_ret.is_some() {
+            if let Some(tn) = &comp_ret {
                 if let Some(fname) = crate::c_emit::current_fn_name() {
-                    let tn = comp_ret.as_ref().unwrap();
                     let is_builtin = tn == "DCOMPLEX" || tn == "SCOMPLEX";
                     let members: Vec<(String, ValueType)> = if is_builtin {
                         vec![

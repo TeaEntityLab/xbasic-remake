@@ -285,7 +285,6 @@ pub(crate) fn emit_attach(
             emit_expr(&left_indices[0], out);
             out.push_str("];\n");
         }
-        return;
     }
 }
 

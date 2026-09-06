@@ -186,6 +186,7 @@ impl TextIrEmitter {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn emit_facets_for_scope(
         self,
         items: &[IrItem],

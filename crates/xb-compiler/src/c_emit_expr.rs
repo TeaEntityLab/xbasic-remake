@@ -1009,7 +1009,7 @@ pub(crate) fn emit_call_args(name: &str, args: &[IrExpr], out: &mut String) {
                         copy_expr.push_str(&len_buf);
                         copy_expr.push_str(", ");
                         copy_expr.push_str(array_et(s.value_type));
-                        copy_expr.push_str(")");
+                        copy_expr.push(')');
                         if callee_desc {
                             // Descriptor callee position (`**`): pass ADDRESS OF A
                             // POINTER CELL holding the copy (`&(T*){copy}`) plus its

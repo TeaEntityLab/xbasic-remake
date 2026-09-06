@@ -17,3 +17,6 @@ sha2.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_Diagnostics_Debug"] }
+[lints.clippy]
+# Suppressed for the constitutional oracle cgen_cemitter_sync.rs, which cannot be edited in-run.
+doc_lazy_continuation = "allow"
