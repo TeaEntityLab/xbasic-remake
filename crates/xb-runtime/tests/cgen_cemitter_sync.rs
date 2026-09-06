@@ -6141,6 +6141,69 @@ fn cemitter_and_cgen_agree_on_byval_empty_descriptor_split() {
 }
 
 #[test]
+fn cemitter_and_cgen_agree_on_byval_empty_chain_split() {
+    // Empty array through a descriptor chain by value, pinned as a
+    // DOCUMENTED SPLIT: the copy reads emptied descriptor-owned
+    // storage (NULL-safe: `xb_array_copy` returns 0 for len 0,
+    // REDIM-from-empty works via realloc-NULL) and both C backends
+    // report UBOUND-of-empty as raw -1 where the interpreter says 0
+    // (pre-existing split, same as the local-empty lock).
+    let tmp = std::env::temp_dir().join("xb_sync_byval_empty_chain");
+    fs::create_dir_all(&tmp).expect("mkdir");
+    let cgen_exe = build_native_cgen(&tmp);
+
+    let src = "VERSION \"0.1\"\n\
+               FUNCTION Main\n\
+               DIM a[0]\n\
+               a[0] = 3\n\
+               REDIM a[-1]\n\
+               Mid(@a[])\n\
+               PRINT UBOUND(a[])\n\
+               END FUNCTION\n\
+               FUNCTION Mid (@m[])\n\
+               Leaf(m[])\n\
+               PRINT UBOUND(m[])\n\
+               END FUNCTION\n\
+               FUNCTION Leaf (XLONG w[])\n\
+               PRINT UBOUND(w[])\n\
+               REDIM w[2]\n\
+               w[0] = 30\n\
+               PRINT UBOUND(w[])\n\
+               END FUNCTION\n";
+    let prog = FrontendUnit::parse(src)
+        .expect("parse byval_empty_chain program")
+        .lower_ir()
+        .expect("lower byval_empty_chain program");
+    let ir = TextIrEmitter::new().emit_program_with_facets(&prog);
+
+    let rust_c = CEmitter::new().emit_program(&prog);
+    let rust_out = compile_and_exec(&tmp, "byval_empty_chain_rust", rust_c.as_bytes(), None);
+
+    let self_c = cgen_emit(&cgen_exe, &ir);
+    let self_out = compile_and_exec(&tmp, "byval_empty_chain_self", &self_c, None);
+
+    let mut interp = Vec::new();
+    Interpreter::new()
+        .execute_main_with_input(&prog, Vec::new(), &mut interp)
+        .expect("interpret byval_empty_chain program");
+    let interp_out: String = interp.into_iter().map(|l| format!("{l}\n")).collect();
+
+    assert_eq!(
+        interp_out, "0\n2\n0\n0\n",
+        "byval_empty_chain reference output"
+    );
+    assert_eq!(
+        rust_out, "-1\n2\n-1\n-1\n",
+        "CEmitter empty-chain behavior changed"
+    );
+    assert_eq!(
+        self_out, "-1\n2\n-1\n-1\n",
+        "cgen.x empty-chain behavior changed"
+    );
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+#[test]
 fn cemitter_and_cgen_agree_on_byval_shared_to_descriptor_copy() {
     // Shared-dual source passed by value to a descriptor callee: the
     // copy arm's storage gate needs `##sharedDual$` (function-local
