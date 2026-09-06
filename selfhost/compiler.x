@@ -209,9 +209,41 @@ WHILE pos <= LEN(src$)
   IF ch = 32 OR ch = 9 OR ch = 13 THEN
     pos = pos + 1
   ELSEIF ch = 39 THEN
-    WHILE pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) <> 10
-      pos = pos + 1
-    WEND
+    ' Quote handling mirrors the Rust lexer just enough for token parity:
+    ' after tab/newline/CR/colon (or file start) it is always a comment.
+    ' Otherwise a later quote on the line makes it a char/string literal
+    ' (skip to the match so its parens survive for call tracking); with no
+    ' match it is a comment. Residual: space-indented comments containing
+    ' apostrophes (don't) scan the tail as code - rare and gate-quiet.
+    fIsType = 0
+    IF pos = 1 THEN
+      fIsType = 1
+    ELSE
+      fi = ASC(MID$(src$, pos - 1, 1))
+      IF fi = 9 OR fi = 10 OR fi = 13 OR fi = 58 THEN
+        fIsType = 1
+      END IF
+    END IF
+    IF fIsType = 0 THEN
+      fIsType = 1
+      fi = pos + 1
+      WHILE fi <= LEN(src$) AND ASC(MID$(src$, fi, 1)) <> 39 AND ASC(MID$(src$, fi, 1)) <> 10
+        fi = fi + 1
+      WEND
+      IF fi <= LEN(src$) AND ASC(MID$(src$, fi, 1)) = 39 THEN
+        fIsType = 0
+      END IF
+    END IF
+    IF fIsType = 1 THEN
+      WHILE pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) <> 10
+        pos = pos + 1
+      WEND
+    ELSE
+      ntok = ntok + 1
+      tt$(ntok) = "string"
+      tv$(ntok) = MID$(src$, pos + 1, fi - pos - 1)
+      pos = fi + 1
+    END IF
   ELSEIF ch = 10 THEN
     ntok = ntok + 1
     tt$(ntok) = "newline"
@@ -269,6 +301,12 @@ WHILE pos <= LEN(src$)
         pos = pos + 1
       END IF
     END IF
+    IF pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) = 64 THEN
+      WHILE pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) = 64
+        tok$ = tok$ + CHR$(64)
+        pos = pos + 1
+      WEND
+    END IF
     tk$ = "ident"
     IF tok$ = "PRINT" OR tok$ = "IF" OR tok$ = "THEN" OR tok$ = "ELSE" OR tok$ = "END" THEN
       tk$ = "keyword"
@@ -285,9 +323,18 @@ WHILE pos <= LEN(src$)
     ELSEIF tok$ = "READ" OR tok$ = "STOP" OR tok$ = "RESTORE" OR tok$ = "FUNCADDR" OR tok$ = "DECLARE" OR tok$ = "INTERNAL" OR tok$ = "EXTERNAL" OR tok$ = "CFUNCTION" THEN
       tk$ = "keyword"
     END IF
-    ntok = ntok + 1
-    tt$(ntok) = tk$
-    tv$(ntok) = tok$
+    IF UCASE$(tok$) = "REM" THEN
+      WHILE pos <= LEN(src$) AND ASC(MID$(src$, pos, 1)) <> 10
+        pos = pos + 1
+      WEND
+      ntok = ntok + 1
+      tt$(ntok) = "newline"
+      tv$(ntok) = ""
+    ELSE
+      ntok = ntok + 1
+      tt$(ntok) = tk$
+      tv$(ntok) = tok$
+    END IF
   ELSEIF (ch >= 48 AND ch <= 57) THEN
     tok$ = ""
     done = 0
@@ -932,12 +979,12 @@ IF facetDump = 1 THEN
           END IF
           IF fEnd > 0 THEN
             IF INSTR(fArrDim$, fKey$) = 0 THEN
-            IF fEnd > 0 AND (fSized = 1 OR fRedimMode = 1) THEN
+              fArrDim$ = fArrDim$ + fKey$
+            END IF
+            IF fSized = 1 OR fRedimMode = 1 THEN
               IF INSTR(fResized$, fKey$) = 0 THEN
                 fResized$ = fResized$ + fKey$
               END IF
-            END IF
-              fArrDim$ = fArrDim$ + fKey$
             END IF
           ELSEIF fst$ <> "shared" THEN
             GOSUB uStripSfx
@@ -1118,12 +1165,12 @@ IF facetDump = 1 THEN
             END IF
             IF fEnd > 0 THEN
               IF INSTR(fArrDim$, fKey$) = 0 THEN
-              IF fEnd > 0 AND (fSized = 1 OR fRedimMode = 1) THEN
+                fArrDim$ = fArrDim$ + fKey$
+              END IF
+              IF fSized = 1 OR fRedimMode = 1 THEN
                 IF INSTR(fResized$, fKey$) = 0 THEN
                   fResized$ = fResized$ + fKey$
                 END IF
-              END IF
-                fArrDim$ = fArrDim$ + fKey$
               END IF
             ELSEIF fst$ <> "shared" THEN
               GOSUB uStripSfx
@@ -1623,9 +1670,10 @@ GOTO uAfterScan
                 IF INSTR(fScalar$, uSKey$) = 0 THEN
                   fScalar$ = fScalar$ + uSKey$
                 END IF
-              ELSEIF ufresh = 1 AND up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "=" AND INSTR(fSharedAll$, uSKey$) > 0 THEN
-                ' shared assignment target (SharedAssignment in Rust): the
-                ' shared global is written, no local scalar is read.
+              ELSEIF ufresh = 1 AND up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "=" AND (INSTR(fSharedScalar$, uSKey$) > 0 OR INSTR(fSharedScalar$, fKey$) > 0) THEN
+                ' scalar-shared assignment target (SharedAssignment in Rust):
+                ' the shared global is written, no local scalar is read.
+                ' Array-shared targets are plain assignments (scalar noted).
               ELSEIF udep = 0 OR RIGHT$(fnm$, 1) = "$" THEN
                 IF INSTR(fSharedScalar$, uSKey$) = 0 AND INSTR(fScalar$, uSKey$) = 0 THEN
                   fScalar$ = fScalar$ + uSKey$
@@ -1713,6 +1761,11 @@ GOTO uAfterScan
         uBase$ = LEFT$(uBase$, LEN(uBase$) - 2)
       ELSEIF RIGHT$(uBase$, 1) = "$" OR RIGHT$(uBase$, 1) = "#" OR RIGHT$(uBase$, 1) = "%" OR RIGHT$(uBase$, 1) = "!" THEN
         uBase$ = LEFT$(uBase$, LEN(uBase$) - 1)
+      END IF
+    END IF
+    IF uBase$ <> fnm$ THEN
+      IF INSTR(fArrDim$, ":" + ucurScope$ + ":" + uBase$ + ":") > 0 THEN
+        uBase$ = fnm$
       END IF
     END IF
     RETURN
