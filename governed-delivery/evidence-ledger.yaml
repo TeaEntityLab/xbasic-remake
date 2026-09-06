@@ -177,3 +177,11 @@ entries:
     receipt: "session tool output 2026-09-06 (parent hashes listed)"
     freshness_kind: recheck_date
     date_checked: "2026-09-06"
+  - claim: "AC2 ratchet re-verified at HEAD: allStrArr 0/0, strDual scanner-only 0 / facet-only 153, xst 0/0 — identical to 2026-09-05 baseline. AC2 remains open (153 facet-only names; scanner deletion still blocked on compiler.x facet emission + maintainer semantic decision per intent-record unknowns)"
+    source: "cargo test --release -p xb-compiler --test facet_scanner_gap -- --nocapture"
+    attester: "cargo test runner"
+    revision: "3355584 (HEAD)"
+    exit_status: 0
+    receipt: "session tool output 2026-09-06 (test result: ok. 1 passed)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"
