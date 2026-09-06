@@ -296,9 +296,9 @@ changes (it already scans `facet ` position-independently).
 **Decision required (maintainer, before any phase):** docs/20 M1 work package 2
 and the M1 exit gate place facet-manifest completion (incl. scanner deletion)
 in M1; review guidance places compiler.x expansion in M5 and defers AC2
-deletion. This plan is milestone-neutral: phases P1–P6 build and prove emission
-(zero behavior change, safe under either milestone); P7 flips emission on;
-P8 (scanner deletion, AC2 proper) is explicitly OUT of scope here either way.
+deletion. This plan is milestone-neutral: phases P1–P5 build and prove emission
+(zero behavior change, safe under either milestone); P6 flips emission on;
+P7 (scanner deletion, AC2 proper) is explicitly OUT of scope here either way.
 
 ### 9.1 Enabling facts (all verified this session, with evidence)
 
@@ -328,7 +328,7 @@ P8 (scanner deletion, AC2 proper) is explicitly OUT of scope here either way.
    exactly three spots: `verify-bootstrap.sh` RUST_IR==STAGE1_IR and the
    per-tool loop (both compare against `xb --emit-ir`), and
    `native_pipeline.rs` native-vs-`emit_program`. (`self_rebuild.rs`/
-   `cgen_corpus.rs` must be audited in P7 for Rust-parse paths over native IR.)
+   `cgen_corpus.rs` must be audited in P6 for Rust-parse paths over native IR.)
 5. **Rust `TextIrParser` needs a `facet ` skip rule** wherever native-faceted
    IR may flow into Rust parsing (one-line pre-pass + test; it currently has
    zero facet handling and would fail on header lines).
@@ -360,7 +360,7 @@ P8 (scanner deletion, AC2 proper) is explicitly OUT of scope here either way.
 - New `##`-style globals (XBasic convention) + append-only table updates
   during the existing parse-emit pass. READ-ONLY wrt emit state: accumulation
   must never mutate what's printed (normal-path output stays byte-identical
-  through P1–P6; enforced by gates running green throughout).
+  through P1–P5; enforced by gates running green throughout).
 - Per-function tables reset at each `function ` line; program tables (call
   graph edges, shared names) accumulate monotonically.
 - Budgets: tables are small delimited strings (facets for xst ≈ tens of KB;
@@ -428,8 +428,8 @@ CG-BYTES untouched).
 
 ### 9.6 Risks
 
-- Triple-implementation window (P1–P6: Rust analysis, cgen.x scanners,
-  compiler.x tables): honest debt with a payoff date (P5 proof, P7 flip);
+- Triple-implementation window (P1–P5: Rust analysis, cgen.x scanners,
+  compiler.x tables): honest debt with a payoff date (P5 proof, P6 flip);
   mitigated by read-only accumulation (normal path provably untouched —
   gates green every phase).
 - Descriptor fixpoint divergence (the long pole): mitigated by seeding-rule
@@ -440,15 +440,22 @@ CG-BYTES untouched).
 - XBasic performance: native compiler runs hot paths in gates (bootstrap
   builds); per-phase wall-clock comparison against baseline required if any
   phase adds >10% to `native_compiler_emits_cgen_ir_for_cgen`.
-- Over-scoping into cgen.x changes: FORBIDDEN in P1–P6 (consumer already
+- Memory, not only wall-clock: the emitted C never frees string temporaries
+  (docs/17 CGEN-OOM, 2026-09-06 - a per-name facet-table rescan in cgen.x
+  reached 7.6 GB RSS and was killed under the gates). compiler.x runs on the
+  same string model, and P4's call-graph fixpoint over facet tables is the
+  same allocation shape. Every phase needs a peak-RSS reading on the largest
+  inputs (`cgen_x_peak_rss_on_core_libs_stays_bounded` is the pattern) next
+  to the wall-clock comparison; per-name rescans of a whole table are out.
+- Over-scoping into cgen.x changes: FORBIDDEN in P1–P5 (consumer already
   correct); any cgen.x touch restarts its own gate proof.
 
 ### 9.7 Open questions (maintainer)
 
 1. Milestone: M1-track (docs/20 work package 2 + exit gate) or M5-track
-   (compiler.x expansion guidance)? P1–P6 are safe under either; P7/flip
+   (compiler.x expansion guidance)? P1–P5 are safe under either; P6/flip
    timing follows the answer.
-2. If AC2 deletion stays deferred regardless: is P1–P6 emission+proof work
+2. If AC2 deletion stays deferred regardless: is P1–P5 emission+proof work
    worth doing for evidence/optionality, or parked until M5?
 3. Corpus for P1: selfhost tools + positive corpus sufficient to start, or
    include libs/demos from day one (slower gates, wider net)?

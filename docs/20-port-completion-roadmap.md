@@ -67,15 +67,17 @@ M2 (real builtins) but not the GUI. M4 is the integration milestone; M6 ships.
 
 Everything hard downstream depends on both C generators consuming the same
 frontend facts and implementing the same storage/runtime ABI. M1 is active.
-Facet, shared-array, descriptor, and AT-write slices have landed historically,
-but the current named gates are not green; completion is based on re-executed
-behavior, compile, and bootstrap checks rather than landed code alone.
+Facet, shared-array, descriptor, and AT-write slices have landed and the named
+contract gates are green again (§6.1, 2026-09-05); completion is based on
+re-executed behavior, compile, and bootstrap checks rather than landed code
+alone.
 
 Work packages (canonical open rows live in docs/17):
 
-1. **Restore contract gates.** Fix cgen label-definition emission, resolve the
-   positive-corpus `fileio_test` mismatch, and complete the active SUBADDR
-   type-aware lowering without parser special cases.
+1. ~~**Restore contract gates.**~~ Done 2026-09-02: cgen label-definition
+   emission (CGEN-LABEL-EMIT), the positive-corpus `fileio_test` golden
+   (CGEN-POSITIVE-FILEIO), and type-aware SUBADDR lowering
+   (CGEN-SUBADDR-TYPING) - see §6.1.
 2. **Finish CGEN-FACET-MANIFEST.** Emit and consume complete scope-qualified
    facts for `strDual`, `allStrArr`, `sharedArrays`, and `xstArrays`; add direct
    nested/shared/composite facet contracts; delete each replaced scanner and
