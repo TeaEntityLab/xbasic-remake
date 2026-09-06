@@ -149,6 +149,13 @@ DIM ui
 DIM uch
 DIM uDone
 DIM fIsKw
+DIM uCallDepth
+DIM uPos
+DIM fSized
+DIM uArmCall
+DIM uChanged
+DIM uIter
+DIM uIsDesc
 nConst = 0
 ' Line table: unsized (heap, auto-grow on indexed write - the 2026-09-02
 ' unsized-DIM contract) instead of a fixed VLA. xui.x is 41958 lines; the
@@ -622,6 +629,13 @@ IF facetDump = 1 THEN
                 IF INSTR(fScopeArrs$, ":" + curScope$ + ":" + fnm$ + ":") = 0 THEN
                   fScopeArrs$ = fScopeArrs$ + ":" + curScope$ + ":" + fnm$ + ":"
                 END IF
+                IF INSTR(fAPnames$, fKey$) = 0 THEN
+                  fAPnames$ = fAPnames$ + fKey$
+                END IF
+                uEdge$ = ":" + curScope$ + ":" + STR$(fpc) + ":" + fnm$ + ":"
+                IF INSTR(fAPpos$, uEdge$) = 0 THEN
+                  fAPpos$ = fAPpos$ + uEdge$
+                END IF
                 END IF
               END IF
             END IF
@@ -717,6 +731,11 @@ IF facetDump = 1 THEN
                 END IF
                 fi = fi + 1
               WEND
+              IF fEnd = fsp + 2 THEN
+                fSized = 0
+              ELSE
+                fSized = 1
+              END IF
               IF fCompSkip = 0 THEN
                 fLn$ = "facet " + fnm$ + ":" + ftp$ + " scope=" + curScope$ + " storage=shared rank=" + STR$(frk) + " dual=0 shared"
                 fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
@@ -728,6 +747,11 @@ IF facetDump = 1 THEN
                 END IF
                 IF INSTR(fArrDim$, fKey$) = 0 THEN
                   fArrDim$ = fArrDim$ + fKey$
+                END IF
+                IF fEnd > 0 AND (fSized = 1 OR fRedimMode = 1) THEN
+                  IF INSTR(fResized$, fKey$) = 0 THEN
+                    fResized$ = fResized$ + fKey$
+                  END IF
                 END IF
               END IF
               fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
@@ -879,6 +903,11 @@ IF facetDump = 1 THEN
             END IF
             fi = fi + 1
           WEND
+          IF fEnd = fsp + 2 THEN
+            fSized = 0
+          ELSE
+            fSized = 1
+          END IF
           IF fEnd > 0 THEN
             fsp = fEnd
           ELSE
@@ -903,6 +932,11 @@ IF facetDump = 1 THEN
           END IF
           IF fEnd > 0 THEN
             IF INSTR(fArrDim$, fKey$) = 0 THEN
+            IF fEnd > 0 AND (fSized = 1 OR fRedimMode = 1) THEN
+              IF INSTR(fResized$, fKey$) = 0 THEN
+                fResized$ = fResized$ + fKey$
+              END IF
+            END IF
               fArrDim$ = fArrDim$ + fKey$
             END IF
           ELSEIF fst$ <> "shared" THEN
@@ -1060,6 +1094,11 @@ IF facetDump = 1 THEN
               END IF
               fi = fi + 1
             WEND
+            IF fEnd = fsp + 2 THEN
+              fSized = 0
+            ELSE
+              fSized = 1
+            END IF
             IF fEnd > 0 THEN
               fsp = fEnd
             ELSE
@@ -1079,6 +1118,11 @@ IF facetDump = 1 THEN
             END IF
             IF fEnd > 0 THEN
               IF INSTR(fArrDim$, fKey$) = 0 THEN
+              IF fEnd > 0 AND (fSized = 1 OR fRedimMode = 1) THEN
+                IF INSTR(fResized$, fKey$) = 0 THEN
+                  fResized$ = fResized$ + fKey$
+                END IF
+              END IF
                 fArrDim$ = fArrDim$ + fKey$
               END IF
             ELSEIF fst$ <> "shared" THEN
@@ -1195,7 +1239,6 @@ IF facetDump = 1 THEN
       WEND
       up = up + 1
     ELSEIF tt$(up) = "keyword" AND tv$(up) = "TYPE" AND NOT (up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "(") THEN
-      uInType = 1
       up = up + 1
     ELSEIF tt$(up) = "keyword" AND tv$(up) = "END" AND up + 1 <= ntok AND tt$(up + 1) = "keyword" AND tv$(up + 1) = "TYPE" THEN
       uInType = 0
@@ -1214,6 +1257,144 @@ IF facetDump = 1 THEN
       WEND
     END IF
   WEND
+  ' Descriptor fixpoint seeds (mirrors collect_descriptor_params): resized
+  ' array params, and array params at XstQuickSort/XstCopyArray positions
+  ' 0-1. Out: fDescParam$ (:S:N:).
+  uWork$ = fAPnames$
+  WHILE LEN(uWork$) > 0
+    uWork$ = MID$(uWork$, 2)
+    ue1 = INSTR(uWork$, ":")
+    IF ue1 = 0 THEN
+      uWork$ = ""
+    ELSE
+      ftmp$ = LEFT$(uWork$, ue1 - 1)
+      fLn$ = MID$(uWork$, ue1 + 1)
+      ue2 = INSTR(fLn$, ":")
+      IF ue2 = 0 THEN
+        uWork$ = ""
+      ELSE
+        fnm$ = LEFT$(fLn$, ue2 - 1)
+        uWork$ = MID$(fLn$, ue2 + 1)
+        fKey$ = ":" + ftmp$ + ":" + fnm$ + ":"
+        IF INSTR(fResized$, fKey$) > 0 THEN
+          IF INSTR(fDescParam$, fKey$) = 0 THEN
+            fDescParam$ = fDescParam$ + fKey$
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
+  ' Seed: array params forwarded to XstQuickSort/XstCopyArray positions 0-1.
+  uWork$ = fEdges$
+  WHILE LEN(uWork$) > 0
+    uWork$ = MID$(uWork$, 2)
+    ue1 = INSTR(uWork$, ":")
+    IF ue1 = 0 THEN
+      uWork$ = ""
+    ELSE
+      uCaller$ = LEFT$(uWork$, ue1 - 1)
+      uWork$ = MID$(uWork$, ue1 + 1)
+      ue1 = INSTR(uWork$, ":")
+      IF ue1 = 0 THEN
+        uWork$ = ""
+      ELSE
+        uCal2$ = LEFT$(uWork$, ue1 - 1)
+        uWork$ = MID$(uWork$, ue1 + 1)
+        ue1 = INSTR(uWork$, ":")
+        IF ue1 = 0 THEN
+          uWork$ = ""
+        ELSE
+          uPos$ = LEFT$(uWork$, ue1 - 1)
+          uWork$ = MID$(uWork$, ue1 + 1)
+          ue1 = INSTR(uWork$, ":")
+          IF ue1 = 0 THEN
+            uWork$ = ""
+          ELSE
+            uSym$ = LEFT$(uWork$, ue1 - 1)
+            uWork$ = MID$(uWork$, ue1 + 1)
+            IF (uCal2$ = "XstQuickSort" OR uCal2$ = "XstCopyArray") AND (uPos$ = "0" OR uPos$ = "1") THEN
+            IF INSTR(fAPnames$, ":" + uCaller$ + ":" + uSym$ + ":") > 0 THEN
+              fKey$ = ":" + uCaller$ + ":" + uSym$ + ":"
+              IF INSTR(fDescParam$, fKey$) = 0 THEN
+                fDescParam$ = fDescParam$ + fKey$
+              END IF
+            END IF
+            END IF
+            END IF
+          END IF
+        END IF
+      END IF
+  WEND
+  uChanged = 1
+  uIter = 0
+  WHILE uChanged = 1 AND uIter < 50
+    uChanged = 0
+    uIter = uIter + 1
+    uWork$ = fEdges$
+    WHILE LEN(uWork$) > 0
+      uWork$ = MID$(uWork$, 2)
+      ue1 = INSTR(uWork$, ":")
+      IF ue1 = 0 THEN
+        uWork$ = ""
+      ELSE
+        uCaller$ = LEFT$(uWork$, ue1 - 1)
+        uWork$ = MID$(uWork$, ue1 + 1)
+        ue1 = INSTR(uWork$, ":")
+        IF ue1 = 0 THEN
+          uWork$ = ""
+        ELSE
+          uCal2$ = LEFT$(uWork$, ue1 - 1)
+          uWork$ = MID$(uWork$, ue1 + 1)
+          ue1 = INSTR(uWork$, ":")
+          IF ue1 = 0 THEN
+            uWork$ = ""
+          ELSE
+            uPos$ = LEFT$(uWork$, ue1 - 1)
+            uWork$ = MID$(uWork$, ue1 + 1)
+            ue1 = INSTR(uWork$, ":")
+            IF ue1 = 0 THEN
+              uWork$ = ""
+            ELSE
+              uSym$ = LEFT$(uWork$, ue1 - 1)
+              uWork$ = MID$(uWork$, ue1 + 1)
+              uIsDesc = 0
+              IF (uCal2$ = "XstQuickSort" OR uCal2$ = "XstCopyArray") AND (uPos$ = "0" OR uPos$ = "1") THEN
+                uIsDesc = 1
+              ELSE
+                uPat$ = ":" + uCal2$ + ":" + uPos$ + ":"
+                up0 = INSTR(fAPpos$, uPat$)
+                IF up0 > 0 THEN
+                  uRest$ = MID$(fAPpos$, up0 + LEN(uPat$))
+                  ue1 = INSTR(uRest$, ":")
+                  IF ue1 > 0 THEN
+                    uPn$ = LEFT$(uRest$, ue1 - 1)
+                    IF INSTR(fDescParam$, ":" + uCal2$ + ":" + uPn$ + ":") > 0 THEN
+                      uIsDesc = 1
+                    END IF
+                  END IF
+                END IF
+              END IF
+              IF uIsDesc = 1 THEN
+                IF INSTR(fAPnames$, ":" + uCaller$ + ":" + uSym$ + ":") > 0 THEN
+                  fKey$ = ":" + uCaller$ + ":" + uSym$ + ":"
+                  IF INSTR(fDescParam$, fKey$) = 0 THEN
+                    fDescParam$ = fDescParam$ + fKey$
+                    uChanged = 1
+                  END IF
+                ELSE
+                  fKey$ = ":" + uCaller$ + ":" + uSym$ + ":"
+                  IF INSTR(fDynLocal$, fKey$) = 0 THEN
+                    fDynLocal$ = fDynLocal$ + fKey$
+                    uChanged = 1
+                  END IF
+                END IF
+              END IF
+            END IF
+          END IF
+        END IF
+      END IF
+    WEND
+  WEND
   ' Dual compute: scalar use ∩ array use (array = fArrUse$ ∪ fArrDim$),
   ' keyed :scope:name:. Then patch matching fTab$ lines dual=0 -> dual=1.
   WHILE LEN(fScalar$) > 0
@@ -1231,7 +1412,8 @@ IF facetDump = 1 THEN
         fnm$ = LEFT$(fLn$, ue2 - 1)
         fScalar$ = MID$(fLn$, ue2 + 1)
         fKey$ = ":" + ftmp$ + ":" + fnm$ + ":"
-        IF INSTR(fArrUse$, fKey$) > 0 OR INSTR(fArrDim$, fKey$) > 0 THEN
+        IF INSTR(fArrUse$, fKey$) > 0 OR INSTR(fArrDim$, fKey$) > 0 OR INSTR(fDescParam$, fKey$) > 0 OR INSTR(fDynLocal$, fKey$) > 0 THEN
+          IF INSTR(fDual$, fKey$) = 0 THEN
             fDual$ = fDual$ + fKey$
           END IF
         END IF
@@ -1294,22 +1476,22 @@ IF facetDump = 1 THEN
   ' Descriptor-forwarded locals (whole-array @x[] with no array DIM in
   ' scope): Rust emits a dyn rank=1 dual=1 byref=1 facet (dual by
   ' construction). byref=1 keeps them out of the allStrArr predicate.
-  WHILE LEN(fByrefFwd$) > 0
-    fByrefFwd$ = MID$(fByrefFwd$, 2)
-    ue1 = INSTR(fByrefFwd$, ":")
+  WHILE LEN(fDynLocal$) > 0
+    fDynLocal$ = MID$(fDynLocal$, 2)
+    ue1 = INSTR(fDynLocal$, ":")
     IF ue1 = 0 THEN
-      fByrefFwd$ = ""
+      fDynLocal$ = ""
     ELSE
-      ftmp$ = LEFT$(fByrefFwd$, ue1 - 1)
-      fLn$ = MID$(fByrefFwd$, ue1 + 1)
+      ftmp$ = LEFT$(fDynLocal$, ue1 - 1)
+      fLn$ = MID$(fDynLocal$, ue1 + 1)
       ue2 = INSTR(fLn$, ":")
       IF ue2 = 0 THEN
-        fByrefFwd$ = ""
+        fDynLocal$ = ""
       ELSE
         fnm$ = LEFT$(fLn$, ue2 - 1)
-        fByrefFwd$ = MID$(fLn$, ue2 + 1)
+        fDynLocal$ = MID$(fLn$, ue2 + 1)
         fKey$ = ":" + ftmp$ + ":" + fnm$ + ":"
-        IF ftmp$ <> "*" AND INSTR(fCompVars$, fKey$) = 0 AND INSTR(fSeen$, fKey$) = 0 AND INSTR(fArrSub$, fKey$) = 0 THEN
+        IF ftmp$ <> "*" AND INSTR(fCompVars$, fKey$) = 0 AND INSTR(fSeen$, fKey$) = 0 THEN
           fSeen$ = fSeen$ + fKey$
           IF RIGHT$(fnm$, 1) = "$" THEN
             ftp$ = "string"
@@ -1331,6 +1513,7 @@ GOTO uAfterScan
     udep = 0
     uprev$ = ""
     uDone = 0
+    uArmCall = 0
     WHILE up <= ntok AND uDone = 0 AND NOT (tt$(up) = "newline")
       IF tt$(up) = "ident" THEN
         fnm$ = tv$(up)
@@ -1383,6 +1566,12 @@ GOTO uAfterScan
                 IF INSTR(fByrefFwd$, fKey$) = 0 THEN
                   fByrefFwd$ = fByrefFwd$ + fKey$
                 END IF
+                IF uCallDepth = 1 THEN
+                  uEdge$ = ":" + ucurScope$ + ":" + uCal$ + ":" + STR$(uPos) + ":" + fnm$ + ":"
+                  IF INSTR(fEdges$, uEdge$) = 0 THEN
+                    fEdges$ = fEdges$ + uEdge$
+                  END IF
+                END IF
               ELSE
                 IF udep > 0 THEN
                   IF INSTR(fArrUse$, fKey$) = 0 THEN
@@ -1402,17 +1591,26 @@ GOTO uAfterScan
               IF udep = 0 AND INSTR(fArrSub$, fKey$) = 0 THEN
                 fArrSub$ = fArrSub$ + fKey$
               END IF
-              IF udep > 0 AND RIGHT$(fnm$, 1) = "$" AND uprev$ <> "@" AND INSTR(fSharedScalar$, fKey$) = 0 THEN
-                  fScalar$ = fScalar$ + fKey$
-                END IF
+              ' indexed UBOUND never notes a scalar (only empty/bare do).
             END IF
           ELSEIF up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "(" THEN
             IF fnm$ = "UBOUND" THEN
               udep = 1
+            ELSEIF uCallDepth = 0 THEN
+              uCallDepth = 1
+              uCal$ = tv$(up)
+              uPos = 0
+              uArmCall = 1
             END IF
           ELSEIF up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = ":" THEN
             ' label definition: not a use.
           ELSE
+            IF uprev$ = "@" AND uCallDepth = 1 THEN
+                uEdge$ = ":" + ucurScope$ + ":" + uCal$ + ":" + STR$(uPos) + ":" + uBase$ + ":"
+                IF INSTR(fEdges$, uEdge$) = 0 THEN
+                  fEdges$ = fEdges$ + uEdge$
+                END IF
+            END IF
             IF uprev$ <> "@" THEN
               IF udep = 1 AND up + 1 <= ntok AND tt$(up + 1) = "symbol" AND (tv$(up + 1) = ")" OR tv$(up + 1) = ",") THEN
                 IF INSTR(fSharedScalar$, fKey$) = 0 AND INSTR(fScalar$, fKey$) = 0 THEN
@@ -1440,17 +1638,33 @@ GOTO uAfterScan
         uprev$ = tv$(up)
         IF tt$(up) = "keyword" AND (tv$(up) = "DIM" OR tv$(up) = "REDIM" OR tv$(up) = "STATIC" OR tv$(up) = "SHARED" OR tv$(up) = "DATA" OR tv$(up) = "SUB") THEN
           udecl = 1
-        ELSEIF tt$(up) = "symbol" AND tv$(up) = ":" THEN
-          ufresh = 1
-        ELSEIF tt$(up) = "keyword" AND (tv$(up) = "THEN" OR tv$(up) = "ELSE") THEN
-          ufresh = 1
-        ELSEIF tt$(up) = "symbol" AND tv$(up) = "(" AND udep > 0 THEN
-          udep = udep + 1
-        ELSEIF tt$(up) = "symbol" AND tv$(up) = ")" AND udep > 0 THEN
-          udep = udep - 1
-        ELSEIF tt$(up) = "symbol" AND (tv$(up) = "[" OR tv$(up) = "(") AND udecl = 1 THEN
+        ELSEIF tt$(up) = "symbol" AND tv$(up) = "(" THEN
+          IF uArmCall = 1 THEN
+            uArmCall = 0
+          ELSEIF uCallDepth > 0 THEN
+            uCallDepth = uCallDepth + 1
+          END IF
+          IF udep > 0 THEN
+            udep = udep + 1
+          END IF
+          IF udecl = 1 THEN
+            urdep = urdep + 1
+          END IF
+        ELSEIF tt$(up) = "symbol" AND tv$(up) = ")" THEN
+          IF udep > 0 THEN
+            udep = udep - 1
+          END IF
+          IF uCallDepth > 0 THEN
+            uCallDepth = uCallDepth - 1
+          END IF
+          IF udecl = 1 AND urdep > 0 THEN
+            urdep = urdep - 1
+          END IF
+        ELSEIF tt$(up) = "symbol" AND tv$(up) = "," AND uCallDepth = 1 THEN
+          uPos = uPos + 1
+        ELSEIF tt$(up) = "symbol" AND tv$(up) = "[" AND udecl = 1 THEN
           urdep = urdep + 1
-        ELSEIF tt$(up) = "symbol" AND (tv$(up) = "]" OR tv$(up) = ")") AND udecl = 1 AND urdep > 0 THEN
+        ELSEIF tt$(up) = "symbol" AND tv$(up) = "]" AND udecl = 1 AND urdep > 0 THEN
           urdep = urdep - 1
         ELSE
           ufresh = 0
