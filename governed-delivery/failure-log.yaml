@@ -1,7 +1,7 @@
 entries:
   - oracle: "cgen_cemitter_sync"
     error_class: "OOM process kill (exit None)"
-    surface: "85 sync tests each spawn external cgen+cc processes; default parallelism exhausts 8-core machine memory"
+    surface: "115 sync tests (85 at the time) each spawn external cgen+cc processes; default parallelism exhausts 8-core machine memory"
     after_correction: true
     exit: strategy_change
   - oracle: "cgen_cemitter_sync"

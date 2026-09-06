@@ -148,12 +148,28 @@ Exit gate:
 
 - The raw demo, gtk/helpsrc, 15-library, positive-corpus, and
   `cgen_cemitter_sync` gates pass without post-emission repair.
+  *(re-verified 2026-09-06 at `9f6d816`: `validate-all.sh` 371/41,
+  `verify-bootstrap.sh` ok, sync 115/115; acceptance not yet recorded)*
 - Direct facet tests cover every retired classifier; no replaced scanner or
   fallback remains.
+  *(open — DEFINITION DECISION REQUIRED, maintainer: this bullet needs
+  `compiler.x` to emit facet headers first (docs/19 §9), which no document
+  assigns to M1; either move "no scanner remains" to M5 with compiler.x
+  emission P1–P6, or pull compiler.x emission into M1. Ratchet 2026-09-06:
+  allStrArr 0/0, strDual scanner-only 0 / facet-only 153, xst 0/0.)*
 - Named three-engine behavior probes cover shared arrays, descriptor REDIM,
   composite calls, and AT writes.
+  *(re-verified 2026-09-06: all 11 named probes pass at `83b3aec`/`9f6d816`)*
 - The composite-signature injection filter is removed, and bootstrap
   fixed-point checks remain exact.
+  *(filter removed in `721088d`; fixed point green at `9f6d816`; acceptance
+  not yet recorded)*
+
+The governed-delivery task packet carries a fifth criterion (COMPOSITE-ARR-BYREF
+lowers rather than `Nop`) that is not in this exit gate; docs/17
+COMPOSITE-ARR-BYREF records the `Nop` finding as the by-value copy bug fixed
+2026-09-05 with residuals "none blocking M1 exit by itself". Reconcile the
+packet to this list or extend this list - maintainer call.
 
 Risk control: keep changes contract-sized. A new source-string classifier, a
 parser input special case, or a weaker test assertion is not an admissible fix.
@@ -163,11 +179,12 @@ parser input special case, or a weaker test assertion is not an admissible fix.
 Make every non-GUI legacy behavior real, not stubbed.
 
 In scope:
-- Real `XstStringToNumber`, `XstQuickSort`, `XstCopyArray` (coordinated
-  interp + C backend per the byte-faithful lock; golden-safe).
-- Float formatting parity: shortest-round-trip decimal (Ryū/Grisu-class) in
-  the C runtime so computed-float prints match the interpreter (`geo.x`
-  class); mirrored in cgen.x.
+- ~~Real `XstStringToNumber`, `XstQuickSort`, `XstCopyArray`~~ done 2026-08-21
+  (docs/17 RT-XST, corpus-complete; interp + C backend per the byte-faithful
+  lock). Still open: the cgen.x Xst mirror (deferred while no bootstrap tool
+  uses Xst).
+- ~~Float formatting parity~~ done (docs/17 CGEN-FLOAT-FMT `6357403`,
+  mirrored in cgen.x).
 - File/time runtime correctness on top of M1's time builtins
   (`XstFileTimeToDateAndTime` fields become real).
 - XBSourceLib 13/13 clean (local-only tree; tests keep skip-if-absent).
@@ -307,13 +324,17 @@ or improve diagnostic locality, runtime, and every observable assertion.
    (RR-13), `fileio_test` golden resolved, type-aware SUBADDR lowering locked
    (`CGEN-SUBADDR-TYPING`).
 2. **In progress:** `allStrArr` facet-driven consumption landed; scanner kept
-   as headerless fallback. `strDual` remains (use-based vs DIM-based dual is
-   a semantic decision). Cannot delete scanners until compiler.x emits facets
-   (bootstrap `IR_IDENTICAL`).
-3. ✅ **Done (2026-09-05):** M1 shared-array, descriptor-REDIM, ATTACH
-   move-semantics, composite-call, and AT-write behavior probes locked across
-   interpreter, Rust CEmitter, and selfhosted cgen.x (`cgen_cemitter_sync`
-   85/85, `cgen_demo_regression` 27/27, `demo_parity` ok).
+   as headerless fallback. `strDual` semantics settled 2026-09-05 (use-based
+   additive union: owned string rank>=1 dual=1 facets join the scanner set;
+   ratchet scanner-only 0 / facet-only 153, the 153 adjudicated correct
+   non-splits - docs/17 CGEN-FACET-RETIREMENT, docs/19 §6). Scanner deletion
+   waits only on compiler.x emitting facets (bootstrap `IR_IDENTICAL`) - the
+   M1-vs-M5 definition decision in §3 M1.
+3. ✅ **Done (2026-09-05, re-verified 2026-09-06):** M1 shared-array,
+   descriptor-REDIM, ATTACH move-semantics, composite-call, and AT-write
+   behavior probes locked across interpreter, Rust CEmitter, and selfhosted
+   cgen.x (`cgen_cemitter_sync` 115/115, `cgen_demo_regression` 27/27,
+   `demo_parity` ok).
 4. Only after scanner retirement, execute the cgen modularization decision gate
    and record its chosen mechanism and falsifiable acceptance checks in docs/17.
 5. Start M2 console-runtime and M3 GUI work from the re-verified M1 exit, not

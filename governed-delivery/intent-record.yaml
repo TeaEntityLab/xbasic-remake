@@ -3,7 +3,7 @@ goal: >
   Complete M1 (Semantic storage & ABI convergence) for the XBasic 6.5.0 remake
   and self-hosting toolchain: finish CGEN-FACET-RETIREMENT (strDual), close
   composite-array by-ref (docs/18), and pass the M1 exit gate (docs/20 §3 M1,
-  lines 145-154). Then sequence M2 (console runtime) and M3 (GUI runtime) as
+  lines 147-172). Then sequence M2 (console runtime) and M3 (GUI runtime) as
   parallel tracks per docs/20.
 out_of_scope:
   - "M4 legacy PDE (needs M2 + M3)"
@@ -15,7 +15,13 @@ out_of_scope:
   - "Demo-wide byte-identical generated C (de-scoped per panel 2026-08-27)"
   - "Weakening any existing behavior, bootstrap fixed-point, or ratchet gate"
 unknowns:
-  - item: "strDual facet retirement: use-based (facet dual=1) vs DIM-based (scanner) is a semantic decision. Ratchet 2026-09-05: scanner-only 0 (enforced), facet-only 153 names across 234 programs (informational)."
+  - item: "strDual facet retirement semantics: SETTLED 2026-09-05 as use-based additive union (owned string rank>=1 dual=1 facets join the scanner set); ratchet 2026-09-06 scanner-only 0 (enforced), facet-only 153 across 234 programs, the 153 adjudicated correct non-splits (docs/19 §6). No semantic choice remains; scanner deletion waits only on the headerless producer (next item)."
+    owner: "teee (project maintainer)"
+    status: resolved_pending_signature
+  - item: "M1 DEFINITION (AC2 blocker): docs/20 M1 exit gate says 'no replaced scanner or fallback remains', which needs compiler.x to emit facet headers (docs/19 §9 P1-P6), work no document assigns to M1. Maintainer must either move that bullet to M5 with compiler.x emission, or pull compiler.x emission into M1. Until then AC2 cannot advance and every execution step escalates."
+    owner: "teee (project maintainer)"
+    status: open
+  - item: "Task packet vs docs/20: the packet lists 5 criteria (AC5 COMPOSITE-ARR-BYREF 'rather than Nop') against a 4-bullet exit gate; docs/17 records the Nop finding as the by-value copy bug fixed 2026-09-05, residuals not blocking M1 exit. Packet counts also stale (85 -> 115 sync oracles). Constitutional: maintainer applies out-of-band (proposed text in evidence-ledger 2026-09-06 entry)."
     owner: "teee (project maintainer)"
     status: open
   - item: "Composite-array by-ref ABI shape (per-leaf descriptors vs unified structured descriptor) — COMPOSITE-ARR-BYREF open, RR-02 design-first"

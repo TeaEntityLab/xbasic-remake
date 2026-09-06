@@ -60,6 +60,7 @@ change.
 | [19 — CGEN Facets](19-cgen-facet-manifest.md) | Scope-qualified symbol-facet contract and retirement of cgen.x heuristic inference; scope-qualified consumption and full heuristic replacement remain open | living contract |
 | [20 — Port Completion](20-port-completion-roadmap.md) | M1–M6 milestone sequencing from current open rows to full legacy behavior, bootstrap, and distribution | living roadmap |
 | [21 — Session Record 2026-08-31](21-session-2026-08-31-licensing-port-record.md) | Dated handoff evidence; never an execution queue | frozen session record |
+| [22 — Open-Work History](22-open-work-history.md) | Narratives archived out of docs/17 (2026-08-31 snapshot, 2026-08-17..20 sections); never an open row or exit gate | frozen historical record |
 | Docs 00–12 | Original-system reference, reverse engineering, historical proposals, and research | historical reference |
 | Docs 13–15, Stage-2 contracts v0.1–v0.18, `TASKS.bootstrap.md`, `TASKS.stage2.md` | Completed bootstrap decisions and milestone evidence | frozen milestones |
 

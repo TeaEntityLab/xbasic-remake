@@ -209,3 +209,19 @@ entries:
     receipt: "/tmp/vb.log (verify-bootstrap: ok), /tmp/va.log (=== ALL PASS (371 tests across 41 binaries) ===), session tool output 2026-09-06"
     freshness_kind: recheck_date
     date_checked: "2026-09-06"
+  - claim: "Roadmap review 2026-09-06 applied to non-constitutional surfaces: docs/17 open-rows table syntax repaired (never rendered), stale duplicate status cells removed, spliced panel sentence unspliced, CGEN-FACET-RETIREMENT row refreshed, 2026-08-31 snapshot narrative (140 lines) and sections 1-4 (560 lines) archived verbatim to docs/22 under P10 / CAL-20260901-09 with one-line pointers kept (docs/17 1719 -> 1030 lines; all guard anchors retained), L15 paths updated to xbasic/lib/, §0 preamble made truthful; docs/20 M1 body/WP1 aligned with §6.1, exit-gate bullets annotated with verification state and the pending definition decision, packet-vs-exit-gate discrepancy recorded, §6.2 strDual wording settled, M2 done items marked; docs/19 §9 numbering unified (P6 flip / P7 out of scope) and memory risk added; docs/README authority map lists docs/22; intent-record unknowns updated (strDual resolved_pending_signature; M1 definition and packet reconciliation added) - status stays unsigned; failure-log count refreshed"
+    source: "git diff d90a74b..HEAD (docs/, governed-delivery/intent-record.yaml, governed-delivery/failure-log.yaml)"
+    attester: "session edits 2026-09-06; docs_adopted_wording_guard + docs_headline_claims re-run"
+    revision: "working tree after d90a74b (this change set)"
+    exit_status: 0
+    receipt: "session tool output 2026-09-06 (both doc guards ok)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"
+  - claim: "PROPOSED constitutional updates (NOT applied - GDR-1 / envelope pause action; maintainer applies out-of-band): (1) task-packet.yaml line 4 'docs/20 §3 M1 lines 145-154' -> 'lines 147-172'; line 32 '(85 sync oracles)' -> '(115 sync oracles)'; AC1 status comment '# not yet re-verified for this delivery' -> '# re-verified 2026-09-06 at 9f6d816: validate-all 371/41, verify-bootstrap ok (acceptance pending)'; AC3 comment add '# 11 named probes re-verified 2026-09-06'; AC4 comment '# filter removal not done; fixed point green at baseline' -> '# filter removed 721088d; fixed point green at 9f6d816 (acceptance pending)'; AC5: either delete (docs/20 exit gate has 4 bullets; docs/17 says residuals not blocking M1 exit) or add its text to docs/20 §3 M1 - maintainer decision. (2) oracle-manifest.yaml line 24 'cgen_cemitter_sync (85 tests)' -> '(115 tests)'. (3) acceptance-record.yaml lines 6-7: 'execution queue, lines 229-258' -> 'lines 98-127'; 'M1 exit gate, lines 145-154' -> 'lines 147-172'. (4) README.md 'Full workspace:** 308 passed / 0 failed' is stale (371/41) but pinned verbatim by docs_headline_claims_are_recorded_at_named_surfaces - update README and the test needle together"
+    source: "governed-delivery/oracle-manifest.yaml constitutional_paths; envelope.yaml pause_actions"
+    attester: "session review 2026-09-06"
+    revision: "working tree after d90a74b"
+    exit_status: 0
+    receipt: "this entry is the proposal; no constitutional file modified (git diff --stat confirms)"
+    freshness_kind: recheck_date
+    date_checked: "2026-09-06"
