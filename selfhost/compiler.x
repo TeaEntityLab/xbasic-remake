@@ -6,6 +6,7 @@ DIM tok$
 DIM tk$
 DIM pos
 DIM ch
+DIM ch2
 DIM ntok
 DIM done
 ' tt$/tv$ are sized after the source is joined (see the token-table DIMs
@@ -209,20 +210,27 @@ WHILE pos <= LEN(src$)
   IF ch = 32 OR ch = 9 OR ch = 13 THEN
     pos = pos + 1
   ELSEIF ch = 39 THEN
-    ' Quote handling mirrors the Rust lexer just enough for token parity:
-    ' after tab/newline/CR/colon (or file start) it is always a comment.
-    ' Otherwise a later quote on the line makes it a char/string literal
-    ' (skip to the match so its parens survive for call tracking); with no
-    ' match it is a comment. Residual: space-indented comments containing
-    ' apostrophes (don't) scan the tail as code - rare and gate-quiet.
+    ' Quote handling: a quote that is the first non-whitespace on its line
+    ' always opens a comment (covers indented ' comments containing
+    ' apostrophes like Don't). Otherwise a later quote on the line makes
+    ' it a char/string literal - skip to the match (emitting a string
+    ' token so brackets around it never read as empty) so surviving
+    ' parens keep call tracking balanced; with no match it is a comment.
+    fi = pos - 1
     fIsType = 0
-    IF pos = 1 THEN
-      fIsType = 1
-    ELSE
-      fi = ASC(MID$(src$, pos - 1, 1))
-      IF fi = 9 OR fi = 10 OR fi = 13 OR fi = 58 THEN
+    WHILE fi >= 1 AND fIsType = 0
+      ch2 = ASC(MID$(src$, fi, 1))
+      IF ch2 = 10 THEN
         fIsType = 1
+      ELSEIF ch2 <> 32 AND ch2 <> 9 AND ch2 <> 13 THEN
+        fIsType = 2
       END IF
+      fi = fi - 1
+    WEND
+    IF fIsType = 0 THEN
+      fIsType = 1
+    ELSEIF fIsType = 2 THEN
+      fIsType = 0
     END IF
     IF fIsType = 0 THEN
       fIsType = 1
