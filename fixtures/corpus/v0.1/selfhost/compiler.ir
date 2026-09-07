@@ -1739,7 +1739,12 @@ function Main() -> integer
               if and(and(and(compare(array_access(tt$:string[symbol(up:integer)]) = string("symbol")) compare(array_access(tv$:string[symbol(up:integer)]) = string("]"))) compare(symbol(udecl:integer) = integer(1))) compare(symbol(urdep:integer) > integer(0)))
                 assign urdep:integer = arith(symbol(urdep:integer) - integer(1))
               else
-                assign ufresh:integer = integer(0)
+                if and(and(and(and(compare(array_access(tt$:string[symbol(up:integer)]) = string("symbol")) compare(array_access(tv$:string[symbol(up:integer)]) = string(":"))) compare(symbol(udep:integer) = integer(0))) compare(symbol(urdep:integer) = integer(0))) compare(symbol(uCallDepth:integer) = integer(0)))
+                  assign udecl:integer = integer(0)
+                  assign ufresh:integer = integer(1)
+                else
+                  assign ufresh:integer = integer(0)
+                end if
               end if
             end if
           end if

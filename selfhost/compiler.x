@@ -1762,6 +1762,12 @@ GOTO uAfterScan
           urdep = urdep + 1
         ELSEIF tt$(up) = "symbol" AND tv$(up) = "]" AND udecl = 1 AND urdep > 0 THEN
           urdep = urdep - 1
+        ELSEIF tt$(up) = "symbol" AND tv$(up) = ":" AND udep = 0 AND urdep = 0 AND uCallDepth = 0 THEN
+          ' A colon at depth 0 ends the statement (DIM temp[3] : SWAP a[], temp[]).
+          ' Rust parses those as separate items, so the declaration context must
+          ' not leak into the next one - otherwise the SWAP arm notes nothing.
+          udecl = 0
+          ufresh = 1
         ELSE
           ufresh = 0
         END IF
