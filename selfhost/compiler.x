@@ -139,6 +139,7 @@ DIM uPreOk
 DIM uPreScope$
 DIM uPreBase$
 DIM fNonStr$
+DIM fInherit
 DIM urdep
 DIM ufresh
 DIM udecl
@@ -960,6 +961,7 @@ IF facetDump = 1 THEN
             ftp$ = "giant"
           END IF
         END IF
+        fInherit = 0
         IF tt$(fsp) = "shared" AND (fRedimMode = 0 OR fRedimMode = 3) THEN
           ' DIM # and TYPENAME # share; REDIM # and STATIC # do not force
           ' (parser hardcodes shared:false for both).
@@ -967,9 +969,16 @@ IF facetDump = 1 THEN
         ELSEIF curScope$ = "*" THEN
           IF INSTR(fSharedTop$, ":" + fnm$ + ":") > 0 THEN
             fst$ = "shared"
+            fInherit = 1
           END IF
         ELSEIF INSTR(fSharedFn$, ":" + fnm$ + ":") > 0 THEN
+          ' Storage is inherited from a same-named SHARED array, but the
+          ' declaration itself is still a LOCAL scalar: only an explicit
+          ' `SHARED name` statement makes the scalar shared. Rust duals
+          ' `DIM sicon`/`XLONG sicon` beside `SHARED sicon[]`, not `SHARED
+          ' sicon`.
           fst$ = "shared"
+          fInherit = 1
         END IF
         IF fsp + 1 <= ntok AND tt$(fsp + 1) = "symbol" AND (tv$(fsp + 1) = "[" OR tv$(fsp + 1) = "(") THEN
           frk = 1
@@ -1024,7 +1033,7 @@ IF facetDump = 1 THEN
                 fResized$ = fResized$ + fKey$
               END IF
             END IF
-          ELSEIF fst$ <> "shared" OR fRedimMode = 2 THEN
+          ELSEIF fst$ <> "shared" OR fRedimMode = 2 OR fInherit = 1 THEN
             ' STATIC scalars stay local even when a SHARED array of the
             ' same name exists (CheckState funcKind vs funcKind[]).
             GOSUB uStripSfx
@@ -1154,14 +1163,17 @@ IF facetDump = 1 THEN
           GOSUB uCanonName
           ftmp$ = strip_suffix$(fnm$)
           ftp$ = ##suffixType$
+          fInherit = 0
           IF tt$(fsp) = "shared" THEN
             fst$ = "shared"
           ELSEIF curScope$ = "*" THEN
             IF INSTR(fSharedTop$, ":" + fnm$ + ":") > 0 THEN
               fst$ = "shared"
+              fInherit = 1
             END IF
           ELSEIF INSTR(fSharedFn$, ":" + fnm$ + ":") > 0 THEN
             fst$ = "shared"
+            fInherit = 1
           END IF
           IF fsp + 1 <= ntok AND tt$(fsp + 1) = "symbol" AND (tv$(fsp + 1) = "[" OR tv$(fsp + 1) = "(") THEN
             frk = 1
@@ -1212,7 +1224,7 @@ IF facetDump = 1 THEN
                   fResized$ = fResized$ + fKey$
                 END IF
               END IF
-            ELSEIF fst$ <> "shared" THEN
+            ELSEIF fst$ <> "shared" OR fInherit = 1 THEN
               GOSUB uStripSfx
               fKey$ = ":" + curScope$ + ":" + uBase$ + ":"
               IF INSTR(fScalar$, fKey$) = 0 THEN

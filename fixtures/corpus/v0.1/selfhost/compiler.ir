@@ -132,6 +132,7 @@ function Main() -> integer
   dim uPreScope:string
   dim uPreBase:string
   dim fNonStr:string
+  dim fInherit:integer
   dim urdep:integer
   dim ufresh:integer
   dim udecl:integer
@@ -908,16 +909,19 @@ function Main() -> integer
                           assign ftp:string = string("giant")
                         end if
                       end if
+                      assign fInherit:integer = integer(0)
                       if and(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("shared")) or(compare(symbol(fRedimMode:integer) = integer(0)) compare(symbol(fRedimMode:integer) = integer(3))))
                         assign fst:string = string("shared")
                       else
                         if compare(symbol(curScope:string) = string("*"))
                           if compare(call INSTR(symbol(fSharedTop:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) > integer(0))
                             assign fst:string = string("shared")
+                            assign fInherit:integer = integer(1)
                           end if
                         else
                           if compare(call INSTR(symbol(fSharedFn:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) > integer(0))
                             assign fst:string = string("shared")
+                            assign fInherit:integer = integer(1)
                           end if
                         end if
                       end if
@@ -978,7 +982,7 @@ function Main() -> integer
                           end if
                         end if
                       else
-                        if or(compare(symbol(fst:string) <> string("shared")) compare(symbol(fRedimMode:integer) = integer(2)))
+                        if or(or(compare(symbol(fst:string) <> string("shared")) compare(symbol(fRedimMode:integer) = integer(2))) compare(symbol(fInherit:integer) = integer(1)))
                           gosub uStripSfx
                           assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(uBase:string)) + string(":"))
                           if compare(call INSTR(symbol(fScalar:string), symbol(fKey:string)) = integer(0))
@@ -1094,16 +1098,19 @@ function Main() -> integer
                           gosub uCanonName
                           assign ftmp:string = call strip_suffix(symbol(fnm:string))
                           assign ftp:string = shared(##suffixType:string)
+                          assign fInherit:integer = integer(0)
                           if compare(array_access(tt$:string[symbol(fsp:integer)]) = string("shared"))
                             assign fst:string = string("shared")
                           else
                             if compare(symbol(curScope:string) = string("*"))
                               if compare(call INSTR(symbol(fSharedTop:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) > integer(0))
                                 assign fst:string = string("shared")
+                                assign fInherit:integer = integer(1)
                               end if
                             else
                               if compare(call INSTR(symbol(fSharedFn:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) > integer(0))
                                 assign fst:string = string("shared")
+                                assign fInherit:integer = integer(1)
                               end if
                             end if
                           end if
@@ -1161,7 +1168,7 @@ function Main() -> integer
                               end if
                             end if
                           else
-                            if compare(symbol(fst:string) <> string("shared"))
+                            if or(compare(symbol(fst:string) <> string("shared")) compare(symbol(fInherit:integer) = integer(1)))
                               gosub uStripSfx
                               assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(uBase:string)) + string(":"))
                               if compare(call INSTR(symbol(fScalar:string), symbol(fKey:string)) = integer(0))
