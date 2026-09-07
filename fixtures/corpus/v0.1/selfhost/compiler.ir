@@ -794,7 +794,7 @@ function Main() -> integer
                             assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
                             if compare(call INSTR(symbol(fSeen:string), symbol(fKey:string)) = integer(0))
                               assign fSeen:string = arith(symbol(fSeen:string) + symbol(fKey:string))
-                              if compare(call INSTR(symbol(fCompVars:string), symbol(fKey:string)) = integer(0))
+                              if and(compare(call INSTR(symbol(fCompVars:string), symbol(fKey:string)) = integer(0)) compare(call INSTR(symbol(fCompVars:string), arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + call strip_suffix(symbol(fnm:string))) + string(":"))) = integer(0)))
                                 assign fTab:string = arith(arith(symbol(fTab:string) + symbol(fLn:string)) + call CHR$(integer(10)))
                               end if
                             end if

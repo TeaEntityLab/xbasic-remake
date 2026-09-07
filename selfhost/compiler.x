@@ -824,7 +824,10 @@ IF facetDump = 1 THEN
                 fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
                 IF INSTR(fSeen$, fKey$) = 0 THEN
                   fSeen$ = fSeen$ + fKey$
-                IF INSTR(fCompVars$, fKey$) = 0 THEN
+                IF INSTR(fCompVars$, fKey$) = 0 AND INSTR(fCompVars$, ":" + curScope$ + ":" + strip_suffix$(fnm$) + ":") = 0 THEN
+                  ' Rust keys its per-scope `seen` set on the suffix-stripped
+                  ' name, so a composite `DISPLAY display[]` already claims
+                  ' `display` and the sibling `display$[]` emits no facet.
                   fTab$ = fTab$ + fLn$ + CHR$(10)
                 END IF
                 END IF
