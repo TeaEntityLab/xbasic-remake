@@ -126,6 +126,7 @@ function Main() -> integer
   dim up:integer
   dim udep:integer
   dim uSzDep:integer
+  dim fPScalar:string
   dim urdep:integer
   dim ufresh:integer
   dim udecl:integer
@@ -588,6 +589,7 @@ function Main() -> integer
     assign fTab:string = string("")
     assign fSeen:string = string("")
     assign fScopeArrs:string = string("")
+    assign fPScalar:string = string("")
     assign fSharedTop:string = string("")
     assign fSharedFn:string = string("")
     assign fp:integer = integer(1)
@@ -676,6 +678,15 @@ function Main() -> integer
                       assign uEdge:string = arith(arith(arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + call STR$(symbol(fpc:integer))) + string(":")) + symbol(fnm:string)) + string(":"))
                       if compare(call INSTR(symbol(fAPpos:string), symbol(uEdge:string)) = integer(0))
                         assign fAPpos:string = arith(symbol(fAPpos:string) + symbol(uEdge:string))
+                      end if
+                    end if
+                  else
+                    if compare(call RIGHT$(array_access(tv$:string[symbol(fp:integer)]), integer(1)) <> string("$"))
+                      assign fnm:string = array_access(tv$:string[symbol(fp:integer)])
+                      gosub uCanonName
+                      assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                      if compare(call INSTR(symbol(fPScalar:string), symbol(fKey:string)) = integer(0))
+                        assign fPScalar:string = arith(symbol(fPScalar:string) + symbol(fKey:string))
                       end if
                     end if
                   end if
@@ -1770,6 +1781,10 @@ function Main() -> integer
   if compare(symbol(uBase:string) <> symbol(fnm:string))
     if compare(call INSTR(symbol(fArrDim:string), arith(arith(arith(arith(string(":") + symbol(ucurScope:string)) + string(":")) + symbol(uBase:string)) + string(":"))) > integer(0))
       assign uBase:string = symbol(fnm:string)
+    else
+      if compare(call INSTR(symbol(fPScalar:string), arith(arith(arith(arith(string(":") + symbol(ucurScope:string)) + string(":")) + symbol(uBase:string)) + string(":"))) > integer(0))
+        assign uBase:string = symbol(fnm:string)
+      end if
     end if
   end if
   gosub_return

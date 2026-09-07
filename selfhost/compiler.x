@@ -133,6 +133,7 @@ DIM fQuit
 DIM up
 DIM udep
 DIM uSzDep
+DIM fPScalar$
 DIM urdep
 DIM ufresh
 DIM udecl
@@ -579,6 +580,7 @@ IF facetDump = 1 THEN
   fTab$ = ""
   fSeen$ = ""
   fScopeArrs$ = ""
+  fPScalar$ = ""
   fSharedTop$ = ""
   fSharedFn$ = ""
   fp = 1
@@ -692,6 +694,18 @@ IF facetDump = 1 THEN
                 IF INSTR(fAPpos$, uEdge$) = 0 THEN
                   fAPpos$ = fAPpos$ + uEdge$
                 END IF
+                END IF
+              ELSE
+                ' Scalar param: record the name only, so a later `name$`
+                ' scalar use keeps its suffix (uStripSfx collision rule).
+                ' No facet here - P2 emits no scalar facets.
+                IF RIGHT$(tv$(fp), 1) <> "$" THEN
+                  fnm$ = tv$(fp)
+                  GOSUB uCanonName
+                  fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
+                  IF INSTR(fPScalar$, fKey$) = 0 THEN
+                    fPScalar$ = fPScalar$ + fKey$
+                  END IF
                 END IF
               END IF
             END IF
@@ -1782,7 +1796,15 @@ GOTO uAfterScan
       END IF
     END IF
     IF uBase$ <> fnm$ THEN
+      ' Keep the suffix when the STRIPPED name is already taken in this scope
+      ' by a differently-typed symbol - an array (text$ scalar vs text[]) or a
+      ' non-string scalar param (XuiCanNumberToName(can, can$)). Rust keeps the
+      ' `$` there to disambiguate the two C variables, so the scalar key must
+      ' keep it too. With no collision the suffix drops (SHARED gridName$[]
+      ' plus scalar gridName$ stays `gridName`, i.e. not dual).
       IF INSTR(fArrDim$, ":" + ucurScope$ + ":" + uBase$ + ":") > 0 THEN
+        uBase$ = fnm$
+      ELSEIF INSTR(fPScalar$, ":" + ucurScope$ + ":" + uBase$ + ":") > 0 THEN
         uBase$ = fnm$
       END IF
     END IF
