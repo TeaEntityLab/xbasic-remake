@@ -612,7 +612,7 @@ function Main() -> integer
         assign curScope:string = string("*")
         assign fp:integer = arith(symbol(fp:integer) + integer(2))
       else
-        if and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("FUNCTION")))
+        if and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) or(compare(array_access(tv$:string[symbol(fp:integer)]) = string("FUNCTION")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("CFUNCTION"))))
           assign fIsDef:integer = integer(0)
           if and(compare(symbol(fp:integer) > integer(1)) or(compare(array_access(tv$:string[arith(symbol(fp:integer) - integer(1))]) = string("DECLARE")) compare(array_access(tv$:string[arith(symbol(fp:integer) - integer(1))]) = string("EXTERNAL"))))
             while and(compare(symbol(fp:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(fp:integer)]) = string("newline"))))
@@ -1238,7 +1238,7 @@ function Main() -> integer
       if compare(array_access(tt$:string[symbol(up:integer)]) = string("newline"))
         assign up:integer = arith(symbol(up:integer) + integer(1))
       else
-        if and(compare(array_access(tt$:string[symbol(up:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(up:integer)]) = string("FUNCTION")))
+        if and(compare(array_access(tt$:string[symbol(up:integer)]) = string("keyword")) or(compare(array_access(tv$:string[symbol(up:integer)]) = string("FUNCTION")) compare(array_access(tv$:string[symbol(up:integer)]) = string("CFUNCTION"))))
           assign fNameSk:integer = arith(symbol(up:integer) + integer(1))
           if and(and(and(compare(arith(symbol(fNameSk:integer) + integer(2)) <= symbol(ntok:integer)) or(compare(array_access(tt$:string[arith(symbol(fNameSk:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fNameSk:integer) + integer(1))]) = string("shared")))) compare(array_access(tt$:string[arith(symbol(fNameSk:integer) + integer(2))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(fNameSk:integer) + integer(2))]) = string("(")))
             assign fNameSk:integer = arith(symbol(fNameSk:integer) + integer(1))
@@ -1254,7 +1254,7 @@ function Main() -> integer
             assign ucurScope:string = string("*")
             assign up:integer = arith(symbol(up:integer) + integer(2))
           else
-            if and(and(and(and(compare(array_access(tt$:string[symbol(up:integer)]) = string("keyword")) or(compare(array_access(tv$:string[symbol(up:integer)]) = string("DECLARE")) compare(array_access(tv$:string[symbol(up:integer)]) = string("EXTERNAL")))) compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("keyword"))) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string("FUNCTION")))
+            if and(and(and(and(compare(array_access(tt$:string[symbol(up:integer)]) = string("keyword")) or(compare(array_access(tv$:string[symbol(up:integer)]) = string("DECLARE")) compare(array_access(tv$:string[symbol(up:integer)]) = string("EXTERNAL")))) compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("keyword"))) or(compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string("FUNCTION")) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string("CFUNCTION"))))
               while and(compare(symbol(up:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(up:integer)]) = string("newline"))))
                 assign up:integer = arith(symbol(up:integer) + integer(1))
               wend

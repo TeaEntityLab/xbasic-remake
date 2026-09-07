@@ -605,7 +605,9 @@ IF facetDump = 1 THEN
     IF tt$(fp) = "keyword" AND tv$(fp) = "END" AND fp + 1 <= ntok AND tt$(fp + 1) = "keyword" AND tv$(fp + 1) = "FUNCTION" THEN
       curScope$ = "*"
       fp = fp + 2
-    ELSEIF tt$(fp) = "keyword" AND tv$(fp) = "FUNCTION" THEN
+    ELSEIF tt$(fp) = "keyword" AND (tv$(fp) = "FUNCTION" OR tv$(fp) = "CFUNCTION") THEN
+      ' CFUNCTION (xit's signal handler) is a real function item in Rust and
+      ' scopes like FUNCTION; it also closes with END FUNCTION.
       ' Prototypes (DECLARE/EXTERNAL FUNCTION) contribute no IR item in
       ' Rust, so they set no scope and emit no param facets: skip the whole
       ' line (the walk would otherwise read the prototype's param list as
@@ -1277,7 +1279,7 @@ IF facetDump = 1 THEN
   WHILE up <= ntok
     IF tt$(up) = "newline" THEN
       up = up + 1
-    ELSEIF tt$(up) = "keyword" AND tv$(up) = "FUNCTION" THEN
+    ELSEIF tt$(up) = "keyword" AND (tv$(up) = "FUNCTION" OR tv$(up) = "CFUNCTION") THEN
       ' Scope-set mirrors Phase A (rettype skip); header params are not uses.
       fNameSk = up + 1
       IF fNameSk + 2 <= ntok AND (tt$(fNameSk + 1) = "ident" OR tt$(fNameSk + 1) = "shared") AND tt$(fNameSk + 2) = "symbol" AND tv$(fNameSk + 2) = "(" THEN
@@ -1292,7 +1294,7 @@ IF facetDump = 1 THEN
     ELSEIF tt$(up) = "keyword" AND tv$(up) = "END" AND up + 1 <= ntok AND tt$(up + 1) = "keyword" AND tv$(up + 1) = "FUNCTION" THEN
       ucurScope$ = "*"
       up = up + 2
-    ELSEIF tt$(up) = "keyword" AND (tv$(up) = "DECLARE" OR tv$(up) = "EXTERNAL") AND up + 1 <= ntok AND tt$(up + 1) = "keyword" AND tv$(up + 1) = "FUNCTION" THEN
+    ELSEIF tt$(up) = "keyword" AND (tv$(up) = "DECLARE" OR tv$(up) = "EXTERNAL") AND up + 1 <= ntok AND tt$(up + 1) = "keyword" AND (tv$(up + 1) = "FUNCTION" OR tv$(up + 1) = "CFUNCTION") THEN
       WHILE up <= ntok AND NOT (tt$(up) = "newline")
         up = up + 1
       WEND
