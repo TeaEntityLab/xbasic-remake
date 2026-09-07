@@ -309,7 +309,7 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
 - `docs/16-cgen-cemitter-sync-roadmap.md` CG-BYTES
 - `docs/17-open-work-roadmap.md` DEMO-BYTES DE-SCOPED, CGEN-FACET-MANIFEST
 
-## 9. Compiler.x facet emission plan (P1/P2 landed; P3+ still proposed)
+## 9. Compiler.x facet emission plan (P1/P2/P3 landed; P4+ still proposed)
 
 Covers the last AC2 blocker (docs/17 CGEN-FACET-RETIREMENT: scanners cannot be
 deleted until a non-Rust producer emits facets). Design-only session: no
@@ -441,7 +441,8 @@ CG-BYTES untouched).
   allStrArr-field equality. (S)
 - P2 — Dual: use-walk + divert rules → `dual=` equality. **LANDED
   2026-09-07** (45 → 5 differing names; rules and residual in §9.8). (M)
-- P3 — Dyn: DIM-order/counts + force rules → `storage=` equality. (M)
+- P3 — Dyn: DIM-order/counts + force rules → `storage=` equality. **LANDED
+  2026-09-07** (313 → 0 mismatches; rules, traps, and P4 residual in §9.9). (M)
 - P4 — Descriptors/positions/byref: call-graph fixpoint → remaining-field
   equality. (L; split allowed)
 - P5 — Member-2D + full-set equality over the expanded corpus; behavior
@@ -554,3 +555,74 @@ composite-suppression rule folds away.
 
 Cost: the collision pre-pass is a second full token walk and adds ~10 s to the
 P1 gate (17 s → 26 s).
+
+### 9.9 P3 landed — dyn storage rules (2026-09-07)
+
+P3 is code-complete and gated. Over the same 234-program universe the
+corpus-wide `storage=` comparison on shared facet keys went from **313
+mismatches across 43 programs (true HEAD baseline) to 0 across 234**, with
+facet *presence* byte-identical to HEAD (106 presence diffs before and
+after, exact same set). The P1 allStrArr gate stays green and the
+compiler.x self-compilation fixed point was re-verified after the work.
+
+Rules (mirroring `collect_dyn_names` in `c_emit_hoist.rs`, minus the
+descriptor forces, which are P4):
+
+| Rule | fires when | Forced by |
+|---|---|---|
+| count ≥ 2 | 2+ DIM/REDIM/STATIC/TYPENAME declarators of one `:scope:name:` (scalar declarators count too — Rust counts every `Dim` item; scalar+array mixes go dyn even where dual already fires) | `DIM a[3]` + `DIM a[5]`, `DIM s` + `DIM s[3]`, `XLONG s` + `DIM s[3]` |
+| late | any reference earlier in token order than the first array DIM (`DynWalk.late`) | use-before-DIM; `DIM a[n]` before `DIM n` (size exprs are touches) |
+| unsized | `DIM a[]` with empty brackets (`fEnd = fsp + 2`) | `DIM a$[]` |
+| nested | array DIM under `IF`/`IFZ`/`IFT`/`IFF`/`FOR`/`WHILE`/`DO`/`SELECT` (block-scoped VLAs are invisible out of block) | DIM in IF/FOR/SELECT/WHILE/DO bodies |
+| gosub | any array DIM in a function containing `GOSUB` **or a bare `RETURN`** (both lower to `Gosub*` items; `RETURN <expr>` does not) | `GOSUB lbl` fns; xcol `InitArrays` (bare `RETURN`, zero `GOSUB`s) |
+
+Implementation (all in `selfhost/compiler.x`, read-only accumulation +
+one patch loop, same shape as P2):
+
+- `uNoteDim` subroutine, called once per DIM-arm and TYPENAME-arm
+  declarator with `:scope:name:` key (composite-typed declarators excluded
+  — they lower to member facts, never plain DIMs). Records `fDimSeen$`
+  (first sighting), `fDyn$` (second sighting = count rule, unsized,
+  nested), `fFirstDim$` (`key=pos`, declarator-START token pos).
+- Block depth (`fNest`) tracked in the main token walk with single-line-IF
+  handling (rest of line nested to newline, `;;`-continuation aware) and
+  `ELSE`-preceded-`IF` continuation guard. Resets at FUNCTION/END FUNCTION
+  and SUB boundaries; closers floored at 0.
+- Late-use marking in the Phase-B use-walk: any ident visit with
+  `udecl = 0 OR urdep >= 1` whose scope+name has a later first-DIM pos
+  joins `fLate$`. The `urdep` gate is load-bearing (see traps).
+- `fGosubFn$` scopes from `GOSUB` statements and bare `RETURN`s.
+- One line-walk patch over `fTab$` flips `storage=fixed rank>=1` lines
+  whose key is in `fDyn$`/`fLate$` or whose scope is in `fGosubFn$`.
+  Shared/param/byref/dotted lines never match.
+
+Four traps, three semantic and one methodological:
+
+1. **XBasic `VAL` is strict**: `VAL("1 dual=0")` returns 0 (trailing
+   garbage fails the whole parse; leading space is fine). Isolate the
+   numeric token before `VAL`.
+2. **Late positions must be declarator-START**: recording the post-bracket
+   cursor makes every declarator self-visit read as use-before-DIM. Save
+   the name token pos (`fDimPos`) at `fnm$ = tv$(fsp)` time.
+3. **Declaration statements are not touches**: the use-walk visits
+   declarator names and type qualifiers (`SHARED FUNCADDR ehelp[]`
+   visits `ehelp` before its `DIM`), which must not mark late. Gate on
+   `urdep >= 1` (size exprs) in `udecl = 1` statements. Without this,
+   xgr `ehelp`/`event` falsely flip to dyn.
+4. **Verify the baseline binary before trusting a divergence**: a stale
+   `/tmp/compA` (built from a dirty tree) once reported 420 mismatches
+   and several phantom P2 holes (basic `dual=1` cases "failing",
+   `ehelp` as shared) that pristine HEAD never had. Rebuilding from
+   `git show HEAD:` collapsed the caseload to the true 313 and confirmed
+   the P2 ledger. Divergences that contradict the committed record are a
+   measurement bug until proven otherwise.
+
+**Residual (storage): none.** The last two under-fires classified as
+non-P3: xcol `InitArrays/temp%` was a bare-`RETURN` gosub function (fixed
+by the second gosub trigger above); xit `EditAbandon/text$` (`dyn dual=0`)
+is forwarded `@text$[]` to `TokenArrayToText`'s `descriptor=1` param —
+descriptor-local force, P4's call-graph fixpoint. The remaining presence
+diffs (106, unchanged by P3) are P4/P5 classes: `Program`/`program`
+casing, bogus `ANY` facets, `a$$`/`a&&` giant spelling, `*`-vs-`L`
+file-scope keys, composite-qualified SHARED (`FUNCADDR`), and scalar-facet
+presence.

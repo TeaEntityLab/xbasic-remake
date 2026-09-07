@@ -161,6 +161,25 @@ DIM fIsKw
 DIM uCallDepth
 DIM uPos
 DIM fSized
+DIM fDimSeen$
+DIM fDyn$
+DIM fLate$
+DIM fFirstDim$
+DIM fGosubFn$
+DIM fNest
+DIM fNestSingle
+DIM fNestScan
+DIM fNestThen
+DIM uDimPos
+DIM uDimLn$
+DIM uDimEnd
+DIM uLn$
+DIM uScope$
+DIM uName$
+DIM uRank
+DIM uP
+DIM uQ
+DIM fDimPos
 DIM uArmCall
 DIM uChanged
 DIM uIter
@@ -588,6 +607,15 @@ IF facetDump = 1 THEN
   fScopeArrs$ = ""
   fSharedTop$ = ""
   fSharedFn$ = ""
+  ' P3 dyn tables: DIM-count/unsized/nested/late/gosub facts accumulate
+  ' here; the patch loop after the dual patch flips storage=fixed to dyn.
+  fDimSeen$ = ""
+  fDyn$ = ""
+  fLate$ = ""
+  fFirstDim$ = ""
+  fGosubFn$ = ""
+  fNest = 0
+  fNestSingle = 0
   fp = 1
   WHILE fp <= ntok AND NOT (tt$(fp) = "newline")
     fp = fp + 1
@@ -609,6 +637,9 @@ IF facetDump = 1 THEN
   WHILE fp <= ntok
     IF tt$(fp) = "keyword" AND tv$(fp) = "END" AND fp + 1 <= ntok AND tt$(fp + 1) = "keyword" AND tv$(fp + 1) = "FUNCTION" THEN
       curScope$ = "*"
+      ' P3 depth hygiene: blocks never span functions.
+      fNest = 0
+      fNestSingle = 0
       fp = fp + 2
     ELSEIF tt$(fp) = "keyword" AND (tv$(fp) = "FUNCTION" OR tv$(fp) = "CFUNCTION") THEN
       ' CFUNCTION (xit's signal handler) is a real function item in Rust and
@@ -649,6 +680,9 @@ IF facetDump = 1 THEN
         ' A fresh function scope gets a fresh shared set (Rust per-function
         ' shared_arrays, semantics_function.rs).
         fSharedFn$ = ""
+        ' P3 depth hygiene: blocks never span functions.
+        fNest = 0
+        fNestSingle = 0
         fp = fNameSk + 1
         fpc = 0
         IF fp <= ntok AND tt$(fp) = "symbol" AND tv$(fp) = "(" THEN
@@ -940,6 +974,9 @@ IF facetDump = 1 THEN
         END IF
         fnm$ = tv$(fsp)
         GOSUB uCanonName
+        ' P3 declarator-start token pos (late-use compares use-pos against
+        ' the NAME, not the post-bracket cursor: self-visits compare equal).
+        fDimPos = fsp
         IF fCompSkip = 1 THEN
           fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
           IF INSTR(fCompVars$, fKey$) = 0 THEN
@@ -1020,6 +1057,10 @@ IF facetDump = 1 THEN
               fTab$ = fTab$ + fLn$ + CHR$(10)
             END IF
           END IF
+          ' P3 dyn facts: DIM-count, first-DIM position, unsized, nested.
+          ' Composite-typed declarators lower to member facts (never plain
+          ' DIMs), so they count for none of these (Xgr FUNCADDR ehelp[]).
+          GOSUB uNoteDim
           ' P2 array knowledge: every array declarator, any type/storage.
           IF INSTR(fScopeArrs$, ":" + curScope$ + ":" + fnm$ + ":") = 0 THEN
             fScopeArrs$ = fScopeArrs$ + ":" + curScope$ + ":" + fnm$ + ":"
@@ -1162,6 +1203,8 @@ IF facetDump = 1 THEN
           fnm$ = tv$(fsp)
           GOSUB uCanonName
           ftmp$ = strip_suffix$(fnm$)
+        ' P3 declarator-start token pos (see DIM arm).
+        fDimPos = fsp
           ftp$ = ##suffixType$
           fInherit = 0
           IF tt$(fsp) = "shared" THEN
@@ -1215,6 +1258,8 @@ IF facetDump = 1 THEN
                 fTab$ = fTab$ + fLn$ + CHR$(10)
               END IF
             END IF
+            ' P3 dyn facts (TYPENAME arm shares the DIM-arm rule).
+            GOSUB uNoteDim
             IF fEnd > 0 THEN
               IF INSTR(fArrDim$, fKey$) = 0 THEN
                 fArrDim$ = fArrDim$ + fKey$
@@ -1279,6 +1324,72 @@ IF facetDump = 1 THEN
       ELSE
         fp = fp + 1
       END IF
+    ELSEIF tt$(fp) = "keyword" AND (tv$(fp) = "IF" OR tv$(fp) = "IFZ" OR tv$(fp) = "IFT" OR tv$(fp) = "IFF") THEN
+      ' P3 block depth: a multiline IF opens a nested block (array DIMs
+      ' inside must be heap: a block-scoped VLA is invisible to later
+      ' out-of-block uses). A single-line IF (tokens after THEN on this
+      ' line) nests only to end of line. ELSE IF continues a block.
+      IF fp > 1 AND tt$(fp - 1) = "keyword" AND tv$(fp - 1) = "ELSE" THEN
+        fp = fp + 1
+      ELSE
+        fNestScan = fp + 1
+        fNestThen = 0
+        WHILE fNestScan <= ntok AND NOT (tt$(fNestScan) = "newline")
+          IF tt$(fNestScan) = "keyword" AND tv$(fNestScan) = "THEN" THEN
+            fNestThen = fNestScan
+          END IF
+          fNestScan = fNestScan + 1
+        WEND
+        IF fNestThen > 0 AND fNestThen + 1 < fNestScan THEN
+          fNestSingle = 1
+        ELSE
+          fNest = fNest + 1
+        END IF
+        fp = fp + 1
+      END IF
+    ELSEIF tt$(fp) = "keyword" AND (tv$(fp) = "FOR" OR tv$(fp) = "WHILE" OR tv$(fp) = "DO" OR tv$(fp) = "SELECT") THEN
+      fNest = fNest + 1
+      fp = fp + 1
+    ELSEIF tt$(fp) = "keyword" AND tv$(fp) = "END" AND fp + 1 <= ntok AND tt$(fp + 1) = "keyword" AND (tv$(fp + 1) = "IF" OR tv$(fp + 1) = "SELECT" OR tv$(fp + 1) = "SUB") THEN
+      IF fNest > 0 THEN
+        fNest = fNest - 1
+      END IF
+      fp = fp + 2
+    ELSEIF tt$(fp) = "keyword" AND (tv$(fp) = "NEXT" OR tv$(fp) = "WEND" OR tv$(fp) = "LOOP") THEN
+      IF fNest > 0 THEN
+        fNest = fNest - 1
+      END IF
+      fp = fp + 1
+    ELSEIF tt$(fp) = "keyword" AND (tv$(fp) = "GOSUB" OR tv$(fp) = "SUB") THEN
+      ' P3 gosub functions: a GOSUB goto can bypass a VLA declaration,
+      ' so every array DIM in the scope is heap (dyn). SUB resets depth
+      ' hygiene (bodies walk under the enclosing scope here).
+      IF tv$(fp) = "GOSUB" THEN
+        IF INSTR(fGosubFn$, ":" + curScope$ + ":") = 0 THEN
+          fGosubFn$ = fGosubFn$ + ":" + curScope$ + ":"
+        END IF
+      ELSE
+        fNest = 0
+        fNestSingle = 0
+      END IF
+      fp = fp + 1
+    ELSEIF tt$(fp) = "keyword" AND tv$(fp) = "RETURN" THEN
+      ' P3 gosub functions, second signal: a bare RETURN lowers to
+      ' GosubReturn (xcol InitArrays), forcing dyn like GOSUB does.
+      ' RETURN <expr> lowers to Return and forces nothing.
+      IF fp + 1 > ntok OR tt$(fp + 1) = "newline" OR (tt$(fp + 1) = "symbol" AND tv$(fp + 1) = ":") THEN
+        IF INSTR(fGosubFn$, ":" + curScope$ + ":") = 0 THEN
+          fGosubFn$ = fGosubFn$ + ":" + curScope$ + ":"
+        END IF
+      END IF
+      fp = fp + 1
+    ELSEIF tt$(fp) = "newline" THEN
+      ' Single-line IF nests only to end of line (;; continues it).
+      IF fp > 2 AND tt$(fp - 1) = "symbol" AND tv$(fp - 1) = ";" AND tt$(fp - 2) = "symbol" AND tv$(fp - 2) = ";" THEN
+      ELSE
+        fNestSingle = 0
+      END IF
+      fp = fp + 1
     ELSE
       fp = fp + 1
     END IF
@@ -1631,6 +1742,56 @@ IF facetDump = 1 THEN
       END IF
     END IF
   WEND
+  ' P3 dyn patch: storage=fixed rank>=1 facets whose (scope,name) is DIM'd
+  ' 2+ times, unsized, nested, or used-before-DIM (fDyn$/fLate$), or DIM'd
+  ' in a GOSUB function (fGosubFn$), become storage=dyn. Mirrors
+  ' collect_dyn_names minus the descriptor forces (P4 owns those).
+  ' Shared/param/byref lines never match (different storage text); dotted
+  ' member names stay P5.
+  uSeg$ = fTab$
+  WHILE LEN(uSeg$) > 0
+    ueol = INSTR(uSeg$, CHR$(10))
+    IF ueol = 0 THEN
+      uLn$ = uSeg$
+      uSeg$ = ""
+    ELSE
+      uLn$ = LEFT$(uSeg$, ueol - 1)
+      uSeg$ = MID$(uSeg$, ueol + 1)
+    END IF
+    IF INSTR(uLn$, " storage=fixed rank=") > 0 THEN
+      uP = INSTR(uLn$, ":")
+      uName$ = MID$(uLn$, 7, uP - 7)
+      IF INSTR(uName$, ".") = 0 THEN
+        uP = INSTR(uLn$, " scope=")
+        uScope$ = MID$(uLn$, uP + 7)
+        uQ = INSTR(uScope$, " ")
+        IF uQ > 0 THEN
+          uScope$ = LEFT$(uScope$, uQ - 1)
+        END IF
+        uP = INSTR(uLn$, " rank=")
+        ' VAL demands a clean numeric token (VAL("1 dual=0") = 0).
+        uDimLn$ = MID$(uLn$, uP + 6)
+        uQ = INSTR(uDimLn$, " ")
+        IF uQ > 0 THEN
+          uDimLn$ = LEFT$(uDimLn$, uQ - 1)
+        END IF
+        uRank = VAL(uDimLn$)
+        IF uRank >= 1 THEN
+          fKey$ = ":" + uScope$ + ":" + uName$ + ":"
+          IF INSTR(fDyn$, fKey$) > 0 OR INSTR(fLate$, fKey$) > 0 OR INSTR(fGosubFn$, ":" + uScope$ + ":") > 0 THEN
+            uP = INSTR(uLn$, " storage=fixed ")
+            IF uP > 0 THEN
+              uNew$ = LEFT$(uLn$, uP - 1) + " storage=dyn " + MID$(uLn$, uP + 15)
+              uP = INSTR(fTab$, uLn$)
+              IF uP > 0 THEN
+                fTab$ = LEFT$(fTab$, uP - 1) + uNew$ + MID$(fTab$, uP + LEN(uLn$))
+              END IF
+            END IF
+          END IF
+        END IF
+      END IF
+    END IF
+  WEND
   ' Descriptor-forwarded locals (whole-array @x[] with no array DIM in
   ' scope): Rust emits a dyn rank=1 dual=1 byref=1 facet (dual by
   ' construction). byref=1 keeps them out of the allStrArr predicate.
@@ -1665,6 +1826,36 @@ IF facetDump = 1 THEN
   tpos = ntok + 1
 END IF
 GOTO uAfterScan
+  uNoteDim:
+  ' P3 dyn facts for one declarator. Inputs: fKey$ (:scope:name:), fEnd
+  ' (bracket match, 0 for scalars), fSized (0 for empty []), fDimPos
+  ' (declarator-start token pos). Composite-typed declarators lower to
+  ' member facts, never plain DIMs, so they count for none of these.
+  IF INSTR(fCompVars$, fKey$) = 0 THEN
+    IF INSTR(fDimSeen$, fKey$) > 0 THEN
+      IF INSTR(fDyn$, fKey$) = 0 THEN
+        fDyn$ = fDyn$ + fKey$
+      END IF
+    ELSE
+      fDimSeen$ = fDimSeen$ + fKey$
+    END IF
+    IF fEnd > 0 THEN
+      IF INSTR(fFirstDim$, fKey$ + "=") = 0 THEN
+        fFirstDim$ = fFirstDim$ + fKey$ + "=" + STR$(fDimPos) + ":"
+      END IF
+      IF fSized = 0 THEN
+        IF INSTR(fDyn$, fKey$) = 0 THEN
+          fDyn$ = fDyn$ + fKey$
+        END IF
+      END IF
+      IF fNest > 0 OR fNestSingle = 1 THEN
+        IF INSTR(fDyn$, fKey$) = 0 THEN
+          fDyn$ = fDyn$ + fKey$
+        END IF
+      END IF
+    END IF
+  END IF
+  RETURN
   uScanEOL:
     urdep = 0
     ufresh = 1
@@ -1681,6 +1872,26 @@ GOTO uAfterScan
         fKey$ = ":" + ucurScope$ + ":" + fnm$ + ":"
         GOSUB uStripSfx
         uSKey$ = ":" + ucurScope$ + ":" + uBase$ + ":"
+        ' P3 late-use: a reference earlier in token order than the first
+        ' array DIM forces dyn (Rust DynWalk.late). Declarator names and
+        ' type qualifiers sit at urdep=0 in declaration statements and are
+        ' not touches (Xgr SHARED FUNCADDR ehelp[] before DIM ehelp[] must
+        ' not read as use-before-DIM); DIM size exprs at urdep>=1 are
+        ' genuine touches (DIM a[n] before DIM n) and must fire.
+        IF udecl = 0 OR urdep >= 1 THEN
+          uDimPos = INSTR(fFirstDim$, fKey$ + "=")
+          IF uDimPos > 0 THEN
+            uDimLn$ = MID$(fFirstDim$, uDimPos + LEN(fKey$) + 1)
+            uDimEnd = INSTR(uDimLn$, ":")
+            IF uDimEnd > 0 THEN
+              IF VAL(LEFT$(uDimLn$, uDimEnd - 1)) > up THEN
+                IF INSTR(fLate$, fKey$) = 0 THEN
+                  fLate$ = fLate$ + fKey$
+                END IF
+              END IF
+            END IF
+          END IF
+        END IF
         IF udecl = 1 THEN
           IF urdep >= 1 THEN
             IF up + 1 <= ntok AND tt$(up + 1) = "symbol" AND tv$(up + 1) = "[" THEN
