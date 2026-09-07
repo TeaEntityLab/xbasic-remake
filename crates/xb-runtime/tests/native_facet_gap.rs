@@ -214,13 +214,19 @@ fn collect_x(dir: &Path, out: &mut Vec<(String, PathBuf)>, root: &Path) {
     }
 }
 
+/// Per-program allStrArr divergence: label, native-only names, rust-only names.
+type NameDiffRow = (String, Vec<String>, Vec<String>);
+/// Per-program dual divergence: label, native-only pairs, rust-only pairs,
+/// each pair being `(scope, name)`.
+type DualDiffRow = (String, Vec<(String, String)>, Vec<(String, String)>);
+
 fn run_facet_gap() -> (
     usize,
     usize,
-    Vec<(String, Vec<String>, Vec<String>)>,
+    Vec<NameDiffRow>,
     usize,
     usize,
-    Vec<(String, Vec<(String, String)>, Vec<(String, String)>)>,
+    Vec<DualDiffRow>,
 ) {
     let comp = NATIVE_COMP.clone();
     let r = root();
@@ -244,10 +250,10 @@ fn run_facet_gap() -> (
     let mut nonzero_programs = 0usize;
     let mut total_names = 0usize;
     let mut carved_byref = 0usize;
-    let mut diffs: Vec<(String, Vec<String>, Vec<String>)> = Vec::new();
+    let mut diffs: Vec<NameDiffRow> = Vec::new();
     let mut dual_programs = 0usize;
     let mut dual_names = 0usize;
-    let mut dual_diffs: Vec<(String, Vec<(String, String)>, Vec<(String, String)>)> = Vec::new();
+    let mut dual_diffs: Vec<DualDiffRow> = Vec::new();
     for (label, path) in &corpus {
         let src = fs::read_to_string(path).expect("read corpus program");
         let (rust, rust_byref, rust_dual) = rust_facets(&src, label);

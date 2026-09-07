@@ -6,10 +6,11 @@ function Main() -> integer
   dim tk:string
   dim pos:integer
   dim ch:integer
+  dim ch2:integer
   dim ntok:integer
   dim done:integer
-  dim tt$:string[integer(131072)]
-  dim tv$:string[integer(131072)]
+  dim tt$:string[]
+  dim tv$:string[]
   dim tpos:integer
   dim indent:integer
   dim i:integer
@@ -44,7 +45,7 @@ function Main() -> integer
   dim fnargs:integer
   dim nargs:integer
   dim cir:string
-  dim fargs$:string[integer(8)]
+  dim fargs$:string[]
   dim iname:string
   dim vname:string
   dim vtype:string
@@ -76,7 +77,7 @@ function Main() -> integer
   dim midTarget:string
   dim midStart:string
   dim midLen:string
-  dim arrNames$:string[integer(64)]
+  dim arrNames$:string[]
   dim arrSP:integer
   dim isArr:integer
   dim lookPos:integer
@@ -85,16 +86,73 @@ function Main() -> integer
   dim pname:string
   dim esc:string
   dim ei:integer
-  dim constName$:string[integer(64)]
-  dim constType$:string[integer(64)]
-  dim constValue$:string[integer(64)]
+  dim constName$:string[]
+  dim constType$:string[]
+  dim constValue$:string[]
   dim nConst:integer
   dim ci:integer
   dim isFloat:integer
   dim subName:string
+  dim curScope:string
+  dim facetDump:integer
+  dim fTab:string
+  dim fSeen:string
+  dim fScopeArrs:string
+  dim fTypeNames:string
+  dim fp:integer
+  dim fsp:integer
+  dim fdep:integer
+  dim frk:integer
+  dim fnm:string
+  dim ftp:string
+  dim fst:string
+  dim fLn:string
+  dim fKey:string
+  dim ftmp:string
+  dim fSharedTop:string
+  dim fSharedFn:string
+  dim fIsType:integer
+  dim fi:integer
+  dim fpc:integer
+  dim fRedimMode:integer
   shared ##suffixType:string = string("")
+  dim fListShared:integer
+  dim fFirstQual:integer
+  dim fEnd:integer
+  dim fMore:integer
+  dim fIsDef:integer
+  dim fCompSkip:integer
+  dim fQuit:integer
+  dim up:integer
+  dim udep:integer
+  dim uSzDep:integer
+  dim urdep:integer
+  dim ufresh:integer
+  dim udecl:integer
+  dim fNameSk:integer
+  dim ucurScope:string
+  dim uprev:string
+  dim uInType:integer
+  dim ue1:integer
+  dim ue2:integer
+  dim up0:integer
+  dim ueol:integer
+  dim udp:integer
+  dim fInType:integer
+  dim ufound:integer
+  dim ui:integer
+  dim uch:integer
+  dim uDone:integer
+  dim fIsKw:integer
+  dim uCallDepth:integer
+  dim uPos:integer
+  dim fSized:integer
+  dim uArmCall:integer
+  dim uChanged:integer
+  dim uIter:integer
+  dim uIsDesc:integer
   assign nConst:integer = integer(0)
-  dim srcLines$:string[integer(20000)]
+  dim srcLines$:string[]
   assign nLines:integer = integer(0)
   assign totalLen:integer = integer(0)
   while compare(call EOF() = integer(0))
@@ -119,6 +177,14 @@ function Main() -> integer
       assign srcPos:integer = arith(symbol(srcPos:integer) + integer(1))
     end if
   next
+  dim tt$:string[arith(call LEN(symbol(src:string)) + integer(1))]
+  dim tv$:string[arith(call LEN(symbol(src:string)) + integer(1))]
+  assign facetDump:integer = integer(0)
+  if compare(symbol(nLines:integer) >= integer(1))
+    if compare(array_access(srcLines$:string[integer(1)]) = string("##FACETS##"))
+      assign facetDump:integer = integer(1)
+    end if
+  end if
   assign ntok:integer = integer(0)
   assign pos:integer = integer(1)
   while compare(symbol(pos:integer) <= call LEN(symbol(src:string)))
@@ -127,9 +193,46 @@ function Main() -> integer
       assign pos:integer = arith(symbol(pos:integer) + integer(1))
     else
       if compare(symbol(ch:integer) = integer(39))
-        while and(compare(symbol(pos:integer) <= call LEN(symbol(src:string))) compare(call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1))) <> integer(10)))
-          assign pos:integer = arith(symbol(pos:integer) + integer(1))
+        assign fi:integer = arith(symbol(pos:integer) - integer(1))
+        assign fIsType:integer = integer(0)
+        while and(compare(symbol(fi:integer) >= integer(1)) compare(symbol(fIsType:integer) = integer(0)))
+          assign ch2:integer = call ASC(call MID$(symbol(src:string), symbol(fi:integer), integer(1)))
+          if compare(symbol(ch2:integer) = integer(10))
+            assign fIsType:integer = integer(1)
+          else
+            if and(and(compare(symbol(ch2:integer) <> integer(32)) compare(symbol(ch2:integer) <> integer(9))) compare(symbol(ch2:integer) <> integer(13)))
+              assign fIsType:integer = integer(2)
+            end if
+          end if
+          assign fi:integer = arith(symbol(fi:integer) - integer(1))
         wend
+        if compare(symbol(fIsType:integer) = integer(0))
+          assign fIsType:integer = integer(1)
+        else
+          if compare(symbol(fIsType:integer) = integer(2))
+            assign fIsType:integer = integer(0)
+          end if
+        end if
+        if compare(symbol(fIsType:integer) = integer(0))
+          assign fIsType:integer = integer(1)
+          assign fi:integer = arith(symbol(pos:integer) + integer(1))
+          while and(and(compare(symbol(fi:integer) <= call LEN(symbol(src:string))) compare(call ASC(call MID$(symbol(src:string), symbol(fi:integer), integer(1))) <> integer(39))) compare(call ASC(call MID$(symbol(src:string), symbol(fi:integer), integer(1))) <> integer(10)))
+            assign fi:integer = arith(symbol(fi:integer) + integer(1))
+          wend
+          if and(compare(symbol(fi:integer) <= call LEN(symbol(src:string))) compare(call ASC(call MID$(symbol(src:string), symbol(fi:integer), integer(1))) = integer(39)))
+            assign fIsType:integer = integer(0)
+          end if
+        end if
+        if compare(symbol(fIsType:integer) = integer(1))
+          while and(compare(symbol(pos:integer) <= call LEN(symbol(src:string))) compare(call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1))) <> integer(10)))
+            assign pos:integer = arith(symbol(pos:integer) + integer(1))
+          wend
+        else
+          assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
+          array_assign tt$:string[symbol(ntok:integer)] = string("string")
+          array_assign tv$:string[symbol(ntok:integer)] = call MID$(symbol(src:string), arith(symbol(pos:integer) + integer(1)), arith(arith(symbol(fi:integer) - symbol(pos:integer)) - integer(1)))
+          assign pos:integer = arith(symbol(fi:integer) + integer(1))
+        end if
       else
         if compare(symbol(ch:integer) = integer(10))
           assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
@@ -192,6 +295,12 @@ function Main() -> integer
                   end if
                 end if
               end if
+              if and(compare(symbol(pos:integer) <= call LEN(symbol(src:string))) compare(call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1))) = integer(64)))
+                while and(compare(symbol(pos:integer) <= call LEN(symbol(src:string))) compare(call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1))) = integer(64)))
+                  assign tok:string = arith(symbol(tok:string) + call CHR$(integer(64)))
+                  assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                wend
+              end if
               assign tk:string = string("ident")
               if or(or(or(or(compare(symbol(tok:string) = string("PRINT")) compare(symbol(tok:string) = string("IF"))) compare(symbol(tok:string) = string("THEN"))) compare(symbol(tok:string) = string("ELSE"))) compare(symbol(tok:string) = string("END")))
                 assign tk:string = string("keyword")
@@ -204,13 +313,34 @@ function Main() -> integer
                   else
                     if or(or(or(or(or(or(or(or(or(compare(symbol(tok:string) = string("NOT")) compare(symbol(tok:string) = string("MOD"))) compare(symbol(tok:string) = string("EXIT"))) compare(symbol(tok:string) = string("ELSEIF"))) compare(symbol(tok:string) = string("VERSION"))) compare(symbol(tok:string) = string("GOSUB"))) compare(symbol(tok:string) = string("BREAK"))) compare(symbol(tok:string) = string("CONST"))) compare(symbol(tok:string) = string("LET"))) compare(symbol(tok:string) = string("GOTO")))
                       assign tk:string = string("keyword")
+                    else
+                      if or(or(or(or(or(or(or(or(or(compare(symbol(tok:string) = string("SELECT")) compare(symbol(tok:string) = string("CASE"))) compare(symbol(tok:string) = string("TYPE"))) compare(symbol(tok:string) = string("PACKED"))) compare(symbol(tok:string) = string("IMPORT"))) compare(symbol(tok:string) = string("INC"))) compare(symbol(tok:string) = string("DEC"))) compare(symbol(tok:string) = string("SWAP"))) compare(symbol(tok:string) = string("SUB"))) compare(symbol(tok:string) = string("PROGRAM")))
+                        assign tk:string = string("keyword")
+                      else
+                        if or(or(or(or(or(or(or(or(or(compare(symbol(tok:string) = string("IFZ")) compare(symbol(tok:string) = string("IFT"))) compare(symbol(tok:string) = string("IFF"))) compare(symbol(tok:string) = string("STATIC"))) compare(symbol(tok:string) = string("REDIM"))) compare(symbol(tok:string) = string("DOEVENTS"))) compare(symbol(tok:string) = string("SHARED"))) compare(symbol(tok:string) = string("EXPORT"))) compare(symbol(tok:string) = string("RANDOMIZE"))) compare(symbol(tok:string) = string("DATA")))
+                          assign tk:string = string("keyword")
+                        else
+                          if or(or(or(or(or(or(or(compare(symbol(tok:string) = string("READ")) compare(symbol(tok:string) = string("STOP"))) compare(symbol(tok:string) = string("RESTORE"))) compare(symbol(tok:string) = string("FUNCADDR"))) compare(symbol(tok:string) = string("DECLARE"))) compare(symbol(tok:string) = string("INTERNAL"))) compare(symbol(tok:string) = string("EXTERNAL"))) compare(symbol(tok:string) = string("CFUNCTION")))
+                            assign tk:string = string("keyword")
+                          end if
+                        end if
+                      end if
                     end if
                   end if
                 end if
               end if
-              assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
-              array_assign tt$:string[symbol(ntok:integer)] = symbol(tk:string)
-              array_assign tv$:string[symbol(ntok:integer)] = symbol(tok:string)
+              if compare(call UCASE$(symbol(tok:string)) = string("REM"))
+                while and(compare(symbol(pos:integer) <= call LEN(symbol(src:string))) compare(call ASC(call MID$(symbol(src:string), symbol(pos:integer), integer(1))) <> integer(10)))
+                  assign pos:integer = arith(symbol(pos:integer) + integer(1))
+                wend
+                assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
+                array_assign tt$:string[symbol(ntok:integer)] = string("newline")
+                array_assign tv$:string[symbol(ntok:integer)] = string("")
+              else
+                assign ntok:integer = arith(symbol(ntok:integer) + integer(1))
+                array_assign tt$:string[symbol(ntok:integer)] = symbol(tk:string)
+                array_assign tv$:string[symbol(ntok:integer)] = symbol(tok:string)
+              end if
             else
               if and(compare(symbol(ch:integer) >= integer(48)) compare(symbol(ch:integer) <= integer(57)))
                 assign tok:string = string("")
@@ -453,6 +583,1197 @@ function Main() -> integer
   assign arrSP:integer = integer(0)
   assign singleLineIf:integer = integer(0)
   assign midLen:string = string("")
+  if compare(symbol(facetDump:integer) = integer(1))
+    assign curScope:string = string("*")
+    assign fTab:string = string("")
+    assign fSeen:string = string("")
+    assign fScopeArrs:string = string("")
+    assign fSharedTop:string = string("")
+    assign fSharedFn:string = string("")
+    assign fp:integer = integer(1)
+    while and(compare(symbol(fp:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(fp:integer)]) = string("newline"))))
+      assign fp:integer = arith(symbol(fp:integer) + integer(1))
+    wend
+    assign fp:integer = arith(symbol(fp:integer) + integer(1))
+    assign fTypeNames:string = string("")
+    assign fsp:integer = integer(1)
+    while compare(symbol(fsp:integer) <= symbol(ntok:integer))
+      if and(and(and(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("keyword")) or(compare(array_access(tv$:string[symbol(fsp:integer)]) = string("TYPE")) compare(array_access(tv$:string[symbol(fsp:integer)]) = string("PACKED")))) compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("ident")))
+        if compare(call INSTR(symbol(fTypeNames:string), arith(arith(string(":") + array_access(tv$:string[arith(symbol(fsp:integer) + integer(1))])) + string(":"))) = integer(0))
+          assign fTypeNames:string = arith(arith(arith(symbol(fTypeNames:string) + string(":")) + array_access(tv$:string[arith(symbol(fsp:integer) + integer(1))])) + string(":"))
+        end if
+      end if
+      assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+    wend
+    while compare(symbol(fp:integer) <= symbol(ntok:integer))
+      if and(and(and(and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("END"))) compare(arith(symbol(fp:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(fp:integer) + integer(1))]) = string("keyword"))) compare(array_access(tv$:string[arith(symbol(fp:integer) + integer(1))]) = string("FUNCTION")))
+        assign curScope:string = string("*")
+        assign fp:integer = arith(symbol(fp:integer) + integer(2))
+      else
+        if and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("FUNCTION")))
+          assign fIsDef:integer = integer(0)
+          if and(compare(symbol(fp:integer) > integer(1)) or(compare(array_access(tv$:string[arith(symbol(fp:integer) - integer(1))]) = string("DECLARE")) compare(array_access(tv$:string[arith(symbol(fp:integer) - integer(1))]) = string("EXTERNAL"))))
+            while and(compare(symbol(fp:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(fp:integer)]) = string("newline"))))
+              assign fp:integer = arith(symbol(fp:integer) + integer(1))
+            wend
+            assign fp:integer = arith(symbol(fp:integer) + integer(1))
+          else
+            if compare(arith(symbol(fp:integer) + integer(1)) > symbol(ntok:integer))
+              assign fp:integer = arith(symbol(fp:integer) + integer(1))
+            else
+              if or(compare(array_access(tt$:string[arith(symbol(fp:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fp:integer) + integer(1))]) = string("shared")))
+                assign fIsDef:integer = integer(1)
+              else
+                assign fp:integer = arith(symbol(fp:integer) + integer(1))
+              end if
+            end if
+          end if
+          if compare(symbol(fIsDef:integer) = integer(1))
+            assign fNameSk:integer = arith(symbol(fp:integer) + integer(1))
+            if and(and(and(compare(arith(symbol(fNameSk:integer) + integer(2)) <= symbol(ntok:integer)) or(compare(array_access(tt$:string[arith(symbol(fNameSk:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fNameSk:integer) + integer(1))]) = string("shared")))) compare(array_access(tt$:string[arith(symbol(fNameSk:integer) + integer(2))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(fNameSk:integer) + integer(2))]) = string("(")))
+              assign fNameSk:integer = arith(symbol(fNameSk:integer) + integer(1))
+            end if
+            assign ftmp:string = call strip_suffix(array_access(tv$:string[symbol(fNameSk:integer)]))
+            assign curScope:string = symbol(ftmp:string)
+            assign fSharedFn:string = string("")
+            assign fp:integer = arith(symbol(fNameSk:integer) + integer(1))
+            assign fpc:integer = integer(0)
+            if and(and(compare(symbol(fp:integer) <= symbol(ntok:integer)) compare(array_access(tt$:string[symbol(fp:integer)]) = string("symbol"))) compare(array_access(tv$:string[symbol(fp:integer)]) = string("(")))
+              assign fdep:integer = integer(1)
+              assign fp:integer = arith(symbol(fp:integer) + integer(1))
+              while and(compare(symbol(fp:integer) <= symbol(ntok:integer)) compare(symbol(fdep:integer) > integer(0)))
+                if and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("symbol")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("(")))
+                  assign fdep:integer = arith(symbol(fdep:integer) + integer(1))
+                end if
+                if and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("symbol")) compare(array_access(tv$:string[symbol(fp:integer)]) = string(")")))
+                  assign fdep:integer = arith(symbol(fdep:integer) - integer(1))
+                end if
+                if and(and(compare(symbol(fdep:integer) = integer(1)) compare(array_access(tt$:string[symbol(fp:integer)]) = string("symbol"))) compare(array_access(tv$:string[symbol(fp:integer)]) = string(",")))
+                  assign fpc:integer = arith(symbol(fpc:integer) + integer(1))
+                end if
+                if and(compare(symbol(fdep:integer) = integer(1)) or(compare(array_access(tt$:string[symbol(fp:integer)]) = string("ident")) compare(array_access(tt$:string[symbol(fp:integer)]) = string("shared"))))
+                  if and(and(compare(arith(symbol(fp:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(fp:integer) + integer(1))]) = string("symbol"))) or(compare(array_access(tv$:string[arith(symbol(fp:integer) + integer(1))]) = string("[")) compare(array_access(tv$:string[arith(symbol(fp:integer) + integer(1))]) = string("("))))
+                    assign fnm:string = array_access(tv$:string[symbol(fp:integer)])
+                    gosub uCanonName
+                    assign ftmp:string = call strip_suffix(symbol(fnm:string))
+                    assign ftp:string = shared(##suffixType:string)
+                    if compare(call LEN(symbol(fnm:string)) >= integer(2))
+                      if compare(call RIGHT$(symbol(fnm:string), integer(2)) = string("$$"))
+                        assign ftp:string = string("giant")
+                      end if
+                    end if
+                    assign fLn:string = arith(arith(arith(arith(arith(arith(arith(string("facet ") + symbol(fnm:string)) + string(":")) + symbol(ftp:string)) + string(" scope=")) + symbol(curScope:string)) + string(" storage=param rank=1 dual=0 position=")) + call STR$(symbol(fpc:integer)))
+                    assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                    if compare(call INSTR(symbol(fSeen:string), symbol(fKey:string)) = integer(0))
+                      assign fSeen:string = arith(symbol(fSeen:string) + symbol(fKey:string))
+                      assign fTab:string = arith(arith(symbol(fTab:string) + symbol(fLn:string)) + call CHR$(integer(10)))
+                      if compare(call INSTR(symbol(fScopeArrs:string), arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))) = integer(0))
+                        assign fScopeArrs:string = arith(arith(arith(arith(arith(symbol(fScopeArrs:string) + string(":")) + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                      end if
+                      if compare(call INSTR(symbol(fAPnames:string), symbol(fKey:string)) = integer(0))
+                        assign fAPnames:string = arith(symbol(fAPnames:string) + symbol(fKey:string))
+                      end if
+                      assign uEdge:string = arith(arith(arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + call STR$(symbol(fpc:integer))) + string(":")) + symbol(fnm:string)) + string(":"))
+                      if compare(call INSTR(symbol(fAPpos:string), symbol(uEdge:string)) = integer(0))
+                        assign fAPpos:string = arith(symbol(fAPpos:string) + symbol(uEdge:string))
+                      end if
+                    end if
+                  end if
+                end if
+                assign fp:integer = arith(symbol(fp:integer) + integer(1))
+              wend
+            end if
+          end if
+        else
+          if and(and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("TYPE"))) not(and(and(compare(arith(symbol(fp:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(fp:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(fp:integer) + integer(1))]) = string("(")))))
+            assign fInType:integer = integer(1)
+            assign fp:integer = arith(symbol(fp:integer) + integer(1))
+          else
+            if and(and(and(and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("END"))) compare(arith(symbol(fp:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(fp:integer) + integer(1))]) = string("keyword"))) compare(array_access(tv$:string[arith(symbol(fp:integer) + integer(1))]) = string("TYPE")))
+              assign fInType:integer = integer(0)
+              assign fp:integer = arith(symbol(fp:integer) + integer(2))
+            else
+              if compare(symbol(fInType:integer) = integer(1))
+                assign fp:integer = arith(symbol(fp:integer) + integer(1))
+              else
+                if and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("SHARED")))
+                  assign fsp:integer = arith(symbol(fp:integer) + integer(1))
+                  assign fCompSkip:integer = integer(0)
+                  assign fQuit:integer = integer(0)
+                  while and(and(compare(symbol(fsp:integer) <= symbol(ntok:integer)) compare(symbol(fQuit:integer) = integer(0))) or(or(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("ident")) compare(array_access(tt$:string[symbol(fsp:integer)]) = string("shared"))) and(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("symbol")) or(or(compare(array_access(tv$:string[symbol(fsp:integer)]) = string(",")) compare(array_access(tv$:string[symbol(fsp:integer)]) = string("["))) compare(array_access(tv$:string[symbol(fsp:integer)]) = string("("))))))
+                    if or(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("ident")) compare(array_access(tt$:string[symbol(fsp:integer)]) = string("shared")))
+                      assign fIsType:integer = integer(0)
+                      if and(compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("shared")))
+                        assign fIsType:integer = integer(1)
+                      else
+                        if and(compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("ident")))
+                          assign fnm:string = array_access(tv$:string[arith(symbol(fsp:integer) + integer(1))])
+                          gosub uCanonName
+                          if compare(symbol(fIsKw:integer) = integer(0))
+                            assign fIsType:integer = integer(1)
+                          end if
+                        end if
+                      end if
+                      assign fnm:string = array_access(tv$:string[symbol(fsp:integer)])
+                      gosub uCanonName
+                      if compare(symbol(fIsType:integer) = integer(1))
+                        if compare(call INSTR(symbol(fTypeNames:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) > integer(0))
+                          assign fCompSkip:integer = integer(1)
+                        end if
+                      end if
+                      if and(compare(symbol(fIsType:integer) = integer(0)) compare(symbol(fCompSkip:integer) = integer(1)))
+                        assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                        if compare(call INSTR(symbol(fCompVars:string), symbol(fKey:string)) = integer(0))
+                          assign fCompVars:string = arith(symbol(fCompVars:string) + symbol(fKey:string))
+                        end if
+                      end if
+                      if compare(symbol(fIsType:integer) = integer(0))
+                        if and(and(compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("symbol"))) or(compare(array_access(tv$:string[arith(symbol(fsp:integer) + integer(1))]) = string("[")) compare(array_access(tv$:string[arith(symbol(fsp:integer) + integer(1))]) = string("("))))
+                          if compare(symbol(curScope:string) = string("*"))
+                            if compare(call INSTR(symbol(fSharedTop:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) = integer(0))
+                              assign fSharedTop:string = arith(arith(arith(symbol(fSharedTop:string) + string(":")) + symbol(fnm:string)) + string(":"))
+                            end if
+                          else
+                            if compare(call INSTR(symbol(fSharedFn:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) = integer(0))
+                              assign fSharedFn:string = arith(arith(arith(symbol(fSharedFn:string) + string(":")) + symbol(fnm:string)) + string(":"))
+                            end if
+                          end if
+                          assign ftmp:string = call strip_suffix(symbol(fnm:string))
+                          assign ftp:string = shared(##suffixType:string)
+                          if compare(call LEN(symbol(fnm:string)) >= integer(2))
+                            if compare(call RIGHT$(symbol(fnm:string), integer(2)) = string("$$"))
+                              assign ftp:string = string("giant")
+                            end if
+                          end if
+                          assign frk:integer = integer(1)
+                          assign fdep:integer = integer(0)
+                          assign fi:integer = arith(symbol(fsp:integer) + integer(1))
+                          assign fEnd:integer = integer(0)
+                          while and(compare(symbol(fi:integer) <= symbol(ntok:integer)) compare(symbol(fEnd:integer) = integer(0)))
+                            if and(compare(array_access(tt$:string[symbol(fi:integer)]) = string("symbol")) or(compare(array_access(tv$:string[symbol(fi:integer)]) = string("[")) compare(array_access(tv$:string[symbol(fi:integer)]) = string("("))))
+                              assign fdep:integer = arith(symbol(fdep:integer) + integer(1))
+                            else
+                              if and(compare(array_access(tt$:string[symbol(fi:integer)]) = string("symbol")) or(compare(array_access(tv$:string[symbol(fi:integer)]) = string("]")) compare(array_access(tv$:string[symbol(fi:integer)]) = string(")"))))
+                                assign fdep:integer = arith(symbol(fdep:integer) - integer(1))
+                                if compare(symbol(fdep:integer) = integer(0))
+                                  assign fEnd:integer = symbol(fi:integer)
+                                end if
+                              else
+                                if and(and(compare(symbol(fdep:integer) = integer(1)) compare(array_access(tt$:string[symbol(fi:integer)]) = string("symbol"))) compare(array_access(tv$:string[symbol(fi:integer)]) = string(",")))
+                                  assign frk:integer = arith(symbol(frk:integer) + integer(1))
+                                end if
+                              end if
+                            end if
+                            assign fi:integer = arith(symbol(fi:integer) + integer(1))
+                          wend
+                          if compare(symbol(fEnd:integer) = arith(symbol(fsp:integer) + integer(2)))
+                            assign fSized:integer = integer(0)
+                          else
+                            assign fSized:integer = integer(1)
+                          end if
+                          if compare(symbol(fCompSkip:integer) = integer(0))
+                            assign fLn:string = arith(arith(arith(arith(arith(arith(arith(arith(string("facet ") + symbol(fnm:string)) + string(":")) + symbol(ftp:string)) + string(" scope=")) + symbol(curScope:string)) + string(" storage=shared rank=")) + call STR$(symbol(frk:integer))) + string(" dual=0 shared"))
+                            assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                            if compare(call INSTR(symbol(fSeen:string), symbol(fKey:string)) = integer(0))
+                              assign fSeen:string = arith(symbol(fSeen:string) + symbol(fKey:string))
+                              if compare(call INSTR(symbol(fCompVars:string), symbol(fKey:string)) = integer(0))
+                                assign fTab:string = arith(arith(symbol(fTab:string) + symbol(fLn:string)) + call CHR$(integer(10)))
+                              end if
+                            end if
+                            if compare(call INSTR(symbol(fArrDim:string), symbol(fKey:string)) = integer(0))
+                              assign fArrDim:string = arith(symbol(fArrDim:string) + symbol(fKey:string))
+                            end if
+                            if and(compare(symbol(fEnd:integer) > integer(0)) or(compare(symbol(fSized:integer) = integer(1)) compare(symbol(fRedimMode:integer) = integer(1))))
+                              if compare(call INSTR(symbol(fResized:string), symbol(fKey:string)) = integer(0))
+                                assign fResized:string = arith(symbol(fResized:string) + symbol(fKey:string))
+                              end if
+                            end if
+                          end if
+                          assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                          if compare(call INSTR(symbol(fSharedAll:string), symbol(fKey:string)) = integer(0))
+                            assign fSharedAll:string = arith(symbol(fSharedAll:string) + symbol(fKey:string))
+                          end if
+                          if compare(call INSTR(symbol(fScopeArrs:string), arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))) = integer(0))
+                            assign fScopeArrs:string = arith(arith(arith(arith(arith(symbol(fScopeArrs:string) + string(":")) + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                          end if
+                        else
+                          assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                          if compare(call INSTR(symbol(fSharedAll:string), symbol(fKey:string)) = integer(0))
+                            assign fSharedAll:string = arith(symbol(fSharedAll:string) + symbol(fKey:string))
+                          end if
+                          if compare(call INSTR(symbol(fSharedScalar:string), symbol(fKey:string)) = integer(0))
+                            assign fSharedScalar:string = arith(symbol(fSharedScalar:string) + symbol(fKey:string))
+                          end if
+                          if not(and(and(compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(fsp:integer) + integer(1))]) = string(","))))
+                            assign fQuit:integer = integer(1)
+                            assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                          end if
+                        end if
+                        assign fCompSkip:integer = integer(0)
+                      end if
+                      assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                    else
+                      if and(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("symbol")) or(compare(array_access(tv$:string[symbol(fsp:integer)]) = string("[")) compare(array_access(tv$:string[symbol(fsp:integer)]) = string("("))))
+                        assign fdep:integer = integer(1)
+                        assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                        while and(compare(symbol(fsp:integer) <= symbol(ntok:integer)) compare(symbol(fdep:integer) > integer(0)))
+                          if and(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("symbol")) or(compare(array_access(tv$:string[symbol(fsp:integer)]) = string("[")) compare(array_access(tv$:string[symbol(fsp:integer)]) = string("("))))
+                            assign fdep:integer = arith(symbol(fdep:integer) + integer(1))
+                          end if
+                          if and(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("symbol")) or(compare(array_access(tv$:string[symbol(fsp:integer)]) = string("]")) compare(array_access(tv$:string[symbol(fsp:integer)]) = string(")"))))
+                            assign fdep:integer = arith(symbol(fdep:integer) - integer(1))
+                          end if
+                          assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                        wend
+                      else
+                        assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                      end if
+                    end if
+                  wend
+                  assign fp:integer = symbol(fsp:integer)
+                else
+                  if or(or(or(and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("DIM"))) and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("REDIM")))) and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("STATIC")))) and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("ident")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("STRING"))))
+                    assign fsp:integer = arith(symbol(fp:integer) + integer(1))
+                    assign fst:string = string("fixed")
+                    assign fRedimMode:integer = integer(0)
+                    if and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("REDIM")))
+                      assign fRedimMode:integer = integer(1)
+                    end if
+                    if and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("STATIC")))
+                      assign fRedimMode:integer = integer(2)
+                    end if
+                    if and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("ident")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("STRING")))
+                      assign fRedimMode:integer = integer(3)
+                    end if
+                    assign fListShared:integer = integer(0)
+                    if and(and(and(and(and(compare(symbol(fRedimMode:integer) = integer(0)) compare(symbol(fsp:integer) <= symbol(ntok:integer))) compare(array_access(tt$:string[symbol(fsp:integer)]) = string("keyword"))) compare(array_access(tv$:string[symbol(fsp:integer)]) = string("SHARED"))) compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer))) or(compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("shared"))))
+                      assign fListShared:integer = integer(1)
+                      assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                    end if
+                    assign fFirstQual:integer = integer(1)
+                    assign fCompSkip:integer = integer(0)
+                    assign fMore:integer = integer(1)
+                    while and(and(compare(symbol(fMore:integer) = integer(1)) compare(symbol(fsp:integer) <= symbol(ntok:integer))) or(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("ident")) compare(array_access(tt$:string[symbol(fsp:integer)]) = string("shared"))))
+                      assign fst:string = string("fixed")
+                      assign frk:integer = integer(0)
+                      assign fEnd:integer = integer(0)
+                      if compare(symbol(fListShared:integer) = integer(1))
+                        assign fst:string = string("shared")
+                      end if
+                      if and(compare(symbol(fRedimMode:integer) = integer(2)) compare(symbol(fFirstQual:integer) = integer(1)))
+                        if and(and(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("ident")) compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer))) or(compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("shared"))))
+                          assign fnm:string = array_access(tv$:string[arith(symbol(fsp:integer) + integer(1))])
+                          gosub uCanonName
+                          if compare(symbol(fIsKw:integer) = integer(0))
+                            if compare(call INSTR(symbol(fTypeNames:string), arith(arith(string(":") + array_access(tv$:string[symbol(fsp:integer)])) + string(":"))) > integer(0))
+                              assign fCompSkip:integer = integer(1)
+                            end if
+                            assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                          end if
+                        end if
+                        assign fFirstQual:integer = integer(0)
+                      end if
+                      assign fnm:string = array_access(tv$:string[symbol(fsp:integer)])
+                      gosub uCanonName
+                      if compare(symbol(fCompSkip:integer) = integer(1))
+                        assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                        if compare(call INSTR(symbol(fCompVars:string), symbol(fKey:string)) = integer(0))
+                          assign fCompVars:string = arith(symbol(fCompVars:string) + symbol(fKey:string))
+                        end if
+                        assign fCompSkip:integer = integer(0)
+                      end if
+                      assign ftmp:string = call strip_suffix(symbol(fnm:string))
+                      assign ftp:string = shared(##suffixType:string)
+                      if compare(symbol(fRedimMode:integer) = integer(3))
+                        assign ftp:string = string("string")
+                      end if
+                      if compare(call LEN(symbol(fnm:string)) >= integer(2))
+                        if compare(call RIGHT$(symbol(fnm:string), integer(2)) = string("$$"))
+                          assign ftp:string = string("giant")
+                        end if
+                      end if
+                      if and(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("shared")) or(compare(symbol(fRedimMode:integer) = integer(0)) compare(symbol(fRedimMode:integer) = integer(3))))
+                        assign fst:string = string("shared")
+                      else
+                        if compare(symbol(curScope:string) = string("*"))
+                          if compare(call INSTR(symbol(fSharedTop:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) > integer(0))
+                            assign fst:string = string("shared")
+                          end if
+                        else
+                          if compare(call INSTR(symbol(fSharedFn:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) > integer(0))
+                            assign fst:string = string("shared")
+                          end if
+                        end if
+                      end if
+                      if and(and(compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("symbol"))) or(compare(array_access(tv$:string[arith(symbol(fsp:integer) + integer(1))]) = string("[")) compare(array_access(tv$:string[arith(symbol(fsp:integer) + integer(1))]) = string("("))))
+                        assign frk:integer = integer(1)
+                        assign fdep:integer = integer(0)
+                        assign fi:integer = arith(symbol(fsp:integer) + integer(1))
+                        assign fEnd:integer = integer(0)
+                        while and(compare(symbol(fi:integer) <= symbol(ntok:integer)) compare(symbol(fEnd:integer) = integer(0)))
+                          if and(compare(array_access(tt$:string[symbol(fi:integer)]) = string("symbol")) or(compare(array_access(tv$:string[symbol(fi:integer)]) = string("[")) compare(array_access(tv$:string[symbol(fi:integer)]) = string("("))))
+                            assign fdep:integer = arith(symbol(fdep:integer) + integer(1))
+                          else
+                            if and(compare(array_access(tt$:string[symbol(fi:integer)]) = string("symbol")) or(compare(array_access(tv$:string[symbol(fi:integer)]) = string("]")) compare(array_access(tv$:string[symbol(fi:integer)]) = string(")"))))
+                              assign fdep:integer = arith(symbol(fdep:integer) - integer(1))
+                              if compare(symbol(fdep:integer) = integer(0))
+                                assign fEnd:integer = symbol(fi:integer)
+                              end if
+                            else
+                              if and(and(compare(symbol(fdep:integer) = integer(1)) compare(array_access(tt$:string[symbol(fi:integer)]) = string("symbol"))) compare(array_access(tv$:string[symbol(fi:integer)]) = string(",")))
+                                assign frk:integer = arith(symbol(frk:integer) + integer(1))
+                              end if
+                            end if
+                          end if
+                          assign fi:integer = arith(symbol(fi:integer) + integer(1))
+                        wend
+                        if compare(symbol(fEnd:integer) = arith(symbol(fsp:integer) + integer(2)))
+                          assign fSized:integer = integer(0)
+                        else
+                          assign fSized:integer = integer(1)
+                        end if
+                        if compare(symbol(fEnd:integer) > integer(0))
+                          assign fsp:integer = symbol(fEnd:integer)
+                        else
+                          assign fsp:integer = arith(symbol(ntok:integer) + integer(1))
+                        end if
+                      end if
+                      assign fLn:string = arith(arith(arith(arith(arith(arith(arith(arith(arith(arith(string("facet ") + symbol(fnm:string)) + string(":")) + symbol(ftp:string)) + string(" scope=")) + symbol(curScope:string)) + string(" storage=")) + symbol(fst:string)) + string(" rank=")) + call STR$(symbol(frk:integer))) + string(" dual=0"))
+                      if compare(symbol(fst:string) = string("shared"))
+                        assign fLn:string = arith(symbol(fLn:string) + string(" shared"))
+                      end if
+                      assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                      if and(compare(symbol(frk:integer) > integer(0)) compare(call INSTR(symbol(fSeen:string), symbol(fKey:string)) = integer(0)))
+                        assign fSeen:string = arith(symbol(fSeen:string) + symbol(fKey:string))
+                        if and(compare(call INSTR(symbol(fCompVars:string), symbol(fKey:string)) = integer(0)) not(and(compare(symbol(fst:string) = string("shared")) compare(call INSTR(symbol(fCompVars:string), arith(arith(string(":*:") + symbol(fnm:string)) + string(":"))) > integer(0)))))
+                          assign fTab:string = arith(arith(symbol(fTab:string) + symbol(fLn:string)) + call CHR$(integer(10)))
+                        end if
+                      end if
+                      if compare(call INSTR(symbol(fScopeArrs:string), arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))) = integer(0))
+                        assign fScopeArrs:string = arith(arith(arith(arith(arith(symbol(fScopeArrs:string) + string(":")) + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                      end if
+                      if compare(symbol(fEnd:integer) > integer(0))
+                        if compare(call INSTR(symbol(fArrDim:string), symbol(fKey:string)) = integer(0))
+                          assign fArrDim:string = arith(symbol(fArrDim:string) + symbol(fKey:string))
+                        end if
+                        if or(compare(symbol(fSized:integer) = integer(1)) compare(symbol(fRedimMode:integer) = integer(1)))
+                          if compare(call INSTR(symbol(fResized:string), symbol(fKey:string)) = integer(0))
+                            assign fResized:string = arith(symbol(fResized:string) + symbol(fKey:string))
+                          end if
+                        end if
+                      else
+                        if or(compare(symbol(fst:string) <> string("shared")) compare(symbol(fRedimMode:integer) = integer(2)))
+                          gosub uStripSfx
+                          assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(uBase:string)) + string(":"))
+                          if compare(call INSTR(symbol(fScalar:string), symbol(fKey:string)) = integer(0))
+                            assign fScalar:string = arith(symbol(fScalar:string) + symbol(fKey:string))
+                          end if
+                        else
+                          if compare(call INSTR(symbol(fSharedScalar:string), symbol(fKey:string)) = integer(0))
+                            assign fSharedScalar:string = arith(symbol(fSharedScalar:string) + symbol(fKey:string))
+                          end if
+                        end if
+                      end if
+                      if compare(symbol(fst:string) = string("shared"))
+                        if compare(call INSTR(symbol(fSharedAll:string), symbol(fKey:string)) = integer(0))
+                          assign fSharedAll:string = arith(symbol(fSharedAll:string) + symbol(fKey:string))
+                        end if
+                      end if
+                      if compare(symbol(fst:string) = string("shared"))
+                        if compare(symbol(curScope:string) = string("*"))
+                          if compare(call INSTR(symbol(fSharedTop:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) = integer(0))
+                            assign fSharedTop:string = arith(arith(arith(symbol(fSharedTop:string) + string(":")) + symbol(fnm:string)) + string(":"))
+                          end if
+                        else
+                          if compare(call INSTR(symbol(fSharedFn:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) = integer(0))
+                            assign fSharedFn:string = arith(arith(arith(symbol(fSharedFn:string) + string(":")) + symbol(fnm:string)) + string(":"))
+                          end if
+                        end if
+                      end if
+                      assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                      if compare(symbol(fsp:integer) > symbol(ntok:integer))
+                        assign fMore:integer = integer(0)
+                      else
+                        if compare(array_access(tt$:string[symbol(fsp:integer)]) = string("symbol"))
+                          if compare(array_access(tv$:string[symbol(fsp:integer)]) = string(","))
+                            if compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer))
+                              if or(compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("shared")))
+                                assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                              else
+                                assign fMore:integer = integer(0)
+                              end if
+                            else
+                              assign fMore:integer = integer(0)
+                            end if
+                          else
+                            assign fMore:integer = integer(0)
+                          end if
+                        else
+                          assign fMore:integer = integer(0)
+                        end if
+                      end if
+                    wend
+                    assign fp:integer = symbol(fsp:integer)
+                  else
+                    if and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("ident")) compare(arith(symbol(fp:integer) + integer(1)) <= symbol(ntok:integer))) or(compare(array_access(tt$:string[arith(symbol(fp:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fp:integer) + integer(1))]) = string("shared")))) compare(symbol(fp:integer) > integer(1))) or(or(compare(array_access(tt$:string[arith(symbol(fp:integer) - integer(1))]) = string("newline")) and(compare(array_access(tt$:string[arith(symbol(fp:integer) - integer(1))]) = string("symbol")) compare(array_access(tv$:string[arith(symbol(fp:integer) - integer(1))]) = string(":")))) and(compare(array_access(tt$:string[arith(symbol(fp:integer) - integer(1))]) = string("keyword")) or(compare(array_access(tv$:string[arith(symbol(fp:integer) - integer(1))]) = string("THEN")) compare(array_access(tv$:string[arith(symbol(fp:integer) - integer(1))]) = string("ELSE")))))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("SELECT"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("CASE"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("INC"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("DEC"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("ATTACH"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("DECLARE"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("SUB"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("DATA"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("READ"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("CONST"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("LET"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("RESTORE"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("STOP"))) compare(array_access(tv$:string[symbol(fp:integer)]) <> string("REM")))
+                      assign fsp:integer = symbol(fp:integer)
+                      assign fIsType:integer = integer(0)
+                      while and(compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer)) or(compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("shared"))))
+                        if compare(call INSTR(symbol(fTypeNames:string), arith(arith(string(":") + array_access(tv$:string[symbol(fsp:integer)])) + string(":"))) > integer(0))
+                          assign fIsType:integer = integer(1)
+                        end if
+                        assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                      wend
+                      if compare(symbol(fIsType:integer) = integer(1))
+                        while and(compare(symbol(fsp:integer) <= symbol(ntok:integer)) or(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("ident")) compare(array_access(tt$:string[symbol(fsp:integer)]) = string("shared"))))
+                          if and(compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer)) or(compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("shared"))))
+                            assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                          else
+                            assign fnm:string = array_access(tv$:string[symbol(fsp:integer)])
+                            gosub uCanonName
+                            assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                            if compare(call INSTR(symbol(fCompVars:string), symbol(fKey:string)) = integer(0))
+                              assign fCompVars:string = arith(symbol(fCompVars:string) + symbol(fKey:string))
+                            end if
+                            assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                            if and(and(compare(symbol(fsp:integer) <= symbol(ntok:integer)) compare(array_access(tt$:string[symbol(fsp:integer)]) = string("symbol"))) or(compare(array_access(tv$:string[symbol(fsp:integer)]) = string("[")) compare(array_access(tv$:string[symbol(fsp:integer)]) = string("("))))
+                              assign fdep:integer = integer(1)
+                              assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                              while and(compare(symbol(fsp:integer) <= symbol(ntok:integer)) compare(symbol(fdep:integer) > integer(0)))
+                                if and(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("symbol")) or(compare(array_access(tv$:string[symbol(fsp:integer)]) = string("[")) compare(array_access(tv$:string[symbol(fsp:integer)]) = string("("))))
+                                  assign fdep:integer = arith(symbol(fdep:integer) + integer(1))
+                                end if
+                                if and(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("symbol")) or(compare(array_access(tv$:string[symbol(fsp:integer)]) = string("]")) compare(array_access(tv$:string[symbol(fsp:integer)]) = string(")"))))
+                                  assign fdep:integer = arith(symbol(fdep:integer) - integer(1))
+                                end if
+                                assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                              wend
+                            end if
+                            if and(and(compare(symbol(fsp:integer) <= symbol(ntok:integer)) compare(array_access(tt$:string[symbol(fsp:integer)]) = string("symbol"))) compare(array_access(tv$:string[symbol(fsp:integer)]) = string(",")))
+                              assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                            else
+                              while and(compare(symbol(fsp:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("newline"))))
+                                assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                              wend
+                            end if
+                          end if
+                        wend
+                      end if
+                      if compare(symbol(fIsType:integer) = integer(0))
+                        assign fsp:integer = arith(symbol(fp:integer) + integer(1))
+                        while and(compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer)) or(compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("shared"))))
+                          assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                        wend
+                        assign fRedimMode:integer = integer(0)
+                        assign fListShared:integer = integer(0)
+                        assign fMore:integer = integer(1)
+                        while and(and(compare(symbol(fMore:integer) = integer(1)) compare(symbol(fsp:integer) <= symbol(ntok:integer))) or(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("ident")) compare(array_access(tt$:string[symbol(fsp:integer)]) = string("shared"))))
+                          assign fst:string = string("fixed")
+                          assign frk:integer = integer(0)
+                          assign fEnd:integer = integer(0)
+                          if compare(symbol(fListShared:integer) = integer(1))
+                            assign fst:string = string("shared")
+                          end if
+                          assign fnm:string = array_access(tv$:string[symbol(fsp:integer)])
+                          gosub uCanonName
+                          assign ftmp:string = call strip_suffix(symbol(fnm:string))
+                          assign ftp:string = shared(##suffixType:string)
+                          if compare(array_access(tt$:string[symbol(fsp:integer)]) = string("shared"))
+                            assign fst:string = string("shared")
+                          else
+                            if compare(symbol(curScope:string) = string("*"))
+                              if compare(call INSTR(symbol(fSharedTop:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) > integer(0))
+                                assign fst:string = string("shared")
+                              end if
+                            else
+                              if compare(call INSTR(symbol(fSharedFn:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) > integer(0))
+                                assign fst:string = string("shared")
+                              end if
+                            end if
+                          end if
+                          if and(and(compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("symbol"))) or(compare(array_access(tv$:string[arith(symbol(fsp:integer) + integer(1))]) = string("[")) compare(array_access(tv$:string[arith(symbol(fsp:integer) + integer(1))]) = string("("))))
+                            assign frk:integer = integer(1)
+                            assign fdep:integer = integer(0)
+                            assign fi:integer = arith(symbol(fsp:integer) + integer(1))
+                            assign fEnd:integer = integer(0)
+                            while and(compare(symbol(fi:integer) <= symbol(ntok:integer)) compare(symbol(fEnd:integer) = integer(0)))
+                              if and(compare(array_access(tt$:string[symbol(fi:integer)]) = string("symbol")) or(compare(array_access(tv$:string[symbol(fi:integer)]) = string("[")) compare(array_access(tv$:string[symbol(fi:integer)]) = string("("))))
+                                assign fdep:integer = arith(symbol(fdep:integer) + integer(1))
+                              else
+                                if and(compare(array_access(tt$:string[symbol(fi:integer)]) = string("symbol")) or(compare(array_access(tv$:string[symbol(fi:integer)]) = string("]")) compare(array_access(tv$:string[symbol(fi:integer)]) = string(")"))))
+                                  assign fdep:integer = arith(symbol(fdep:integer) - integer(1))
+                                  if compare(symbol(fdep:integer) = integer(0))
+                                    assign fEnd:integer = symbol(fi:integer)
+                                  end if
+                                else
+                                  if and(and(compare(symbol(fdep:integer) = integer(1)) compare(array_access(tt$:string[symbol(fi:integer)]) = string("symbol"))) compare(array_access(tv$:string[symbol(fi:integer)]) = string(",")))
+                                    assign frk:integer = arith(symbol(frk:integer) + integer(1))
+                                  end if
+                                end if
+                              end if
+                              assign fi:integer = arith(symbol(fi:integer) + integer(1))
+                            wend
+                            if compare(symbol(fEnd:integer) = arith(symbol(fsp:integer) + integer(2)))
+                              assign fSized:integer = integer(0)
+                            else
+                              assign fSized:integer = integer(1)
+                            end if
+                            if compare(symbol(fEnd:integer) > integer(0))
+                              assign fsp:integer = symbol(fEnd:integer)
+                            else
+                              assign fsp:integer = arith(symbol(ntok:integer) + integer(1))
+                            end if
+                          end if
+                          assign fLn:string = arith(arith(arith(arith(arith(arith(arith(arith(arith(arith(string("facet ") + symbol(fnm:string)) + string(":")) + symbol(ftp:string)) + string(" scope=")) + symbol(curScope:string)) + string(" storage=")) + symbol(fst:string)) + string(" rank=")) + call STR$(symbol(frk:integer))) + string(" dual=0"))
+                          if compare(symbol(fst:string) = string("shared"))
+                            assign fLn:string = arith(symbol(fLn:string) + string(" shared"))
+                          end if
+                          assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                          if and(compare(symbol(frk:integer) > integer(0)) compare(call INSTR(symbol(fSeen:string), symbol(fKey:string)) = integer(0)))
+                            assign fSeen:string = arith(symbol(fSeen:string) + symbol(fKey:string))
+                            if and(compare(call INSTR(symbol(fCompVars:string), symbol(fKey:string)) = integer(0)) not(and(compare(symbol(fst:string) = string("shared")) compare(call INSTR(symbol(fCompVars:string), arith(arith(string(":*:") + symbol(fnm:string)) + string(":"))) > integer(0)))))
+                              assign fTab:string = arith(arith(symbol(fTab:string) + symbol(fLn:string)) + call CHR$(integer(10)))
+                            end if
+                          end if
+                          if compare(symbol(fEnd:integer) > integer(0))
+                            if compare(call INSTR(symbol(fArrDim:string), symbol(fKey:string)) = integer(0))
+                              assign fArrDim:string = arith(symbol(fArrDim:string) + symbol(fKey:string))
+                            end if
+                            if or(compare(symbol(fSized:integer) = integer(1)) compare(symbol(fRedimMode:integer) = integer(1)))
+                              if compare(call INSTR(symbol(fResized:string), symbol(fKey:string)) = integer(0))
+                                assign fResized:string = arith(symbol(fResized:string) + symbol(fKey:string))
+                              end if
+                            end if
+                          else
+                            if compare(symbol(fst:string) <> string("shared"))
+                              gosub uStripSfx
+                              assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(uBase:string)) + string(":"))
+                              if compare(call INSTR(symbol(fScalar:string), symbol(fKey:string)) = integer(0))
+                                assign fScalar:string = arith(symbol(fScalar:string) + symbol(fKey:string))
+                              end if
+                            else
+                              if compare(call INSTR(symbol(fSharedScalar:string), symbol(fKey:string)) = integer(0))
+                                assign fSharedScalar:string = arith(symbol(fSharedScalar:string) + symbol(fKey:string))
+                              end if
+                            end if
+                          end if
+                          if compare(symbol(fst:string) = string("shared"))
+                            if compare(call INSTR(symbol(fSharedAll:string), symbol(fKey:string)) = integer(0))
+                              assign fSharedAll:string = arith(symbol(fSharedAll:string) + symbol(fKey:string))
+                            end if
+                          end if
+                          if compare(symbol(fst:string) = string("shared"))
+                            if compare(symbol(curScope:string) = string("*"))
+                              if compare(call INSTR(symbol(fSharedTop:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) = integer(0))
+                                assign fSharedTop:string = arith(arith(arith(symbol(fSharedTop:string) + string(":")) + symbol(fnm:string)) + string(":"))
+                              end if
+                            else
+                              if compare(call INSTR(symbol(fSharedFn:string), arith(arith(string(":") + symbol(fnm:string)) + string(":"))) = integer(0))
+                                assign fSharedFn:string = arith(arith(arith(symbol(fSharedFn:string) + string(":")) + symbol(fnm:string)) + string(":"))
+                              end if
+                            end if
+                          end if
+                          if compare(call INSTR(symbol(fScopeArrs:string), arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))) = integer(0))
+                            assign fScopeArrs:string = arith(arith(arith(arith(arith(symbol(fScopeArrs:string) + string(":")) + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                          end if
+                          assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                          if compare(symbol(fsp:integer) > symbol(ntok:integer))
+                            assign fMore:integer = integer(0)
+                          else
+                            if compare(array_access(tt$:string[symbol(fsp:integer)]) = string("symbol"))
+                              if compare(array_access(tv$:string[symbol(fsp:integer)]) = string(","))
+                                if compare(arith(symbol(fsp:integer) + integer(1)) <= symbol(ntok:integer))
+                                  if or(compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("shared")))
+                                    assign fsp:integer = arith(symbol(fsp:integer) + integer(1))
+                                  else
+                                    assign fMore:integer = integer(0)
+                                  end if
+                                else
+                                  assign fMore:integer = integer(0)
+                                end if
+                              else
+                                assign fMore:integer = integer(0)
+                              end if
+                            else
+                              assign fMore:integer = integer(0)
+                            end if
+                          end if
+                        wend
+                        assign fp:integer = symbol(fsp:integer)
+                      else
+                        assign fp:integer = arith(symbol(fp:integer) + integer(1))
+                      end if
+                    else
+                      assign fp:integer = arith(symbol(fp:integer) + integer(1))
+                    end if
+                  end if
+                end if
+              end if
+            end if
+          end if
+        end if
+      end if
+    wend
+    assign fArrUse:string = string("")
+    assign fDual:string = string("")
+    assign ucurScope:string = string("*")
+    assign uInType:integer = integer(0)
+    assign up:integer = integer(1)
+    while and(compare(symbol(up:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(up:integer)]) = string("newline"))))
+      assign up:integer = arith(symbol(up:integer) + integer(1))
+    wend
+    assign up:integer = arith(symbol(up:integer) + integer(1))
+    while compare(symbol(up:integer) <= symbol(ntok:integer))
+      if compare(array_access(tt$:string[symbol(up:integer)]) = string("newline"))
+        assign up:integer = arith(symbol(up:integer) + integer(1))
+      else
+        if and(compare(array_access(tt$:string[symbol(up:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(up:integer)]) = string("FUNCTION")))
+          assign fNameSk:integer = arith(symbol(up:integer) + integer(1))
+          if and(and(and(compare(arith(symbol(fNameSk:integer) + integer(2)) <= symbol(ntok:integer)) or(compare(array_access(tt$:string[arith(symbol(fNameSk:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fNameSk:integer) + integer(1))]) = string("shared")))) compare(array_access(tt$:string[arith(symbol(fNameSk:integer) + integer(2))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(fNameSk:integer) + integer(2))]) = string("(")))
+            assign fNameSk:integer = arith(symbol(fNameSk:integer) + integer(1))
+          end if
+          assign ftmp:string = call strip_suffix(array_access(tv$:string[symbol(fNameSk:integer)]))
+          assign ucurScope:string = symbol(ftmp:string)
+          while and(compare(symbol(up:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(up:integer)]) = string("newline"))))
+            assign up:integer = arith(symbol(up:integer) + integer(1))
+          wend
+          assign up:integer = arith(symbol(up:integer) + integer(1))
+        else
+          if and(and(and(and(compare(array_access(tt$:string[symbol(up:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(up:integer)]) = string("END"))) compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("keyword"))) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string("FUNCTION")))
+            assign ucurScope:string = string("*")
+            assign up:integer = arith(symbol(up:integer) + integer(2))
+          else
+            if and(and(and(and(compare(array_access(tt$:string[symbol(up:integer)]) = string("keyword")) or(compare(array_access(tv$:string[symbol(up:integer)]) = string("DECLARE")) compare(array_access(tv$:string[symbol(up:integer)]) = string("EXTERNAL")))) compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("keyword"))) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string("FUNCTION")))
+              while and(compare(symbol(up:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(up:integer)]) = string("newline"))))
+                assign up:integer = arith(symbol(up:integer) + integer(1))
+              wend
+              assign up:integer = arith(symbol(up:integer) + integer(1))
+            else
+              if or(and(compare(array_access(tt$:string[symbol(up:integer)]) = string("keyword")) or(or(or(or(compare(array_access(tv$:string[symbol(up:integer)]) = string("DIM")) compare(array_access(tv$:string[symbol(up:integer)]) = string("REDIM"))) compare(array_access(tv$:string[symbol(up:integer)]) = string("STATIC"))) compare(array_access(tv$:string[symbol(up:integer)]) = string("SHARED"))) compare(array_access(tv$:string[symbol(up:integer)]) = string("DATA")))) and(compare(array_access(tt$:string[symbol(up:integer)]) = string("ident")) compare(array_access(tv$:string[symbol(up:integer)]) = string("STRING"))))
+                assign udecl:integer = integer(1)
+                gosub uScanEOL
+                while and(compare(symbol(up:integer) <= symbol(ntok:integer)) compare(symbol(uprev:string) = string(",")))
+                  assign up:integer = arith(symbol(up:integer) + integer(1))
+                  gosub uScanEOL
+                wend
+              else
+                if and(compare(array_access(tt$:string[symbol(up:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(up:integer)]) = string("SUB")))
+                  while and(compare(symbol(up:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(up:integer)]) = string("newline"))))
+                    assign up:integer = arith(symbol(up:integer) + integer(1))
+                  wend
+                  assign up:integer = arith(symbol(up:integer) + integer(1))
+                else
+                  if and(and(compare(array_access(tt$:string[symbol(up:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(up:integer)]) = string("TYPE"))) not(and(and(compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string("(")))))
+                    assign up:integer = arith(symbol(up:integer) + integer(1))
+                  else
+                    if and(and(and(and(compare(array_access(tt$:string[symbol(up:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(up:integer)]) = string("END"))) compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("keyword"))) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string("TYPE")))
+                      assign uInType:integer = integer(0)
+                      assign up:integer = arith(symbol(up:integer) + integer(2))
+                    else
+                      if compare(symbol(uInType:integer) = integer(1))
+                        while and(compare(symbol(up:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(up:integer)]) = string("newline"))))
+                          assign up:integer = arith(symbol(up:integer) + integer(1))
+                        wend
+                        assign up:integer = arith(symbol(up:integer) + integer(1))
+                      else
+                        assign udecl:integer = integer(0)
+                        gosub uScanEOL
+                        while and(compare(symbol(up:integer) <= symbol(ntok:integer)) compare(symbol(uprev:string) = string(",")))
+                          assign up:integer = arith(symbol(up:integer) + integer(1))
+                          gosub uScanEOL
+                        wend
+                      end if
+                    end if
+                  end if
+                end if
+              end if
+            end if
+          end if
+        end if
+      end if
+    wend
+    assign uWork:string = symbol(fAPnames:string)
+    while compare(call LEN(symbol(uWork:string)) > integer(0))
+      assign uWork:string = call MID$(symbol(uWork:string), integer(2))
+      assign ue1:integer = call INSTR(symbol(uWork:string), string(":"))
+      if compare(symbol(ue1:integer) = integer(0))
+        assign uWork:string = string("")
+      else
+        assign ftmp:string = call LEFT$(symbol(uWork:string), arith(symbol(ue1:integer) - integer(1)))
+        assign fLn:string = call MID$(symbol(uWork:string), arith(symbol(ue1:integer) + integer(1)))
+        assign ue2:integer = call INSTR(symbol(fLn:string), string(":"))
+        if compare(symbol(ue2:integer) = integer(0))
+          assign uWork:string = string("")
+        else
+          assign fnm:string = call LEFT$(symbol(fLn:string), arith(symbol(ue2:integer) - integer(1)))
+          assign uWork:string = call MID$(symbol(fLn:string), arith(symbol(ue2:integer) + integer(1)))
+          assign fKey:string = arith(arith(arith(arith(string(":") + symbol(ftmp:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+          if compare(call INSTR(symbol(fResized:string), symbol(fKey:string)) > integer(0))
+            if compare(call INSTR(symbol(fDescParam:string), symbol(fKey:string)) = integer(0))
+              assign fDescParam:string = arith(symbol(fDescParam:string) + symbol(fKey:string))
+            end if
+          end if
+        end if
+      end if
+    wend
+    assign uWork:string = symbol(fEdges:string)
+    while compare(call LEN(symbol(uWork:string)) > integer(0))
+      assign uWork:string = call MID$(symbol(uWork:string), integer(2))
+      assign ue1:integer = call INSTR(symbol(uWork:string), string(":"))
+      if compare(symbol(ue1:integer) = integer(0))
+        assign uWork:string = string("")
+      else
+        assign uCaller:string = call LEFT$(symbol(uWork:string), arith(symbol(ue1:integer) - integer(1)))
+        assign uWork:string = call MID$(symbol(uWork:string), arith(symbol(ue1:integer) + integer(1)))
+        assign ue1:integer = call INSTR(symbol(uWork:string), string(":"))
+        if compare(symbol(ue1:integer) = integer(0))
+          assign uWork:string = string("")
+        else
+          assign uCal2:string = call LEFT$(symbol(uWork:string), arith(symbol(ue1:integer) - integer(1)))
+          assign uWork:string = call MID$(symbol(uWork:string), arith(symbol(ue1:integer) + integer(1)))
+          assign ue1:integer = call INSTR(symbol(uWork:string), string(":"))
+          if compare(symbol(ue1:integer) = integer(0))
+            assign uWork:string = string("")
+          else
+            assign uArgPos:string = call LEFT$(symbol(uWork:string), arith(symbol(ue1:integer) - integer(1)))
+            assign uWork:string = call MID$(symbol(uWork:string), arith(symbol(ue1:integer) + integer(1)))
+            assign ue1:integer = call INSTR(symbol(uWork:string), string(":"))
+            if compare(symbol(ue1:integer) = integer(0))
+              assign uWork:string = string("")
+            else
+              assign uSym:string = call LEFT$(symbol(uWork:string), arith(symbol(ue1:integer) - integer(1)))
+              assign uWork:string = call MID$(symbol(uWork:string), arith(symbol(ue1:integer) + integer(1)))
+              if and(or(compare(symbol(uCal2:string) = string("XstQuickSort")) compare(symbol(uCal2:string) = string("XstCopyArray"))) or(compare(symbol(uArgPos:string) = string("0")) compare(symbol(uArgPos:string) = string("1"))))
+                if compare(call INSTR(symbol(fAPnames:string), arith(arith(arith(arith(string(":") + symbol(uCaller:string)) + string(":")) + symbol(uSym:string)) + string(":"))) > integer(0))
+                  assign fKey:string = arith(arith(arith(arith(string(":") + symbol(uCaller:string)) + string(":")) + symbol(uSym:string)) + string(":"))
+                  if compare(call INSTR(symbol(fDescParam:string), symbol(fKey:string)) = integer(0))
+                    assign fDescParam:string = arith(symbol(fDescParam:string) + symbol(fKey:string))
+                  end if
+                end if
+              end if
+            end if
+          end if
+        end if
+      end if
+    wend
+    assign uChanged:integer = integer(1)
+    assign uIter:integer = integer(0)
+    while and(compare(symbol(uChanged:integer) = integer(1)) compare(symbol(uIter:integer) < integer(50)))
+      assign uChanged:integer = integer(0)
+      assign uIter:integer = arith(symbol(uIter:integer) + integer(1))
+      assign uWork:string = symbol(fEdges:string)
+      while compare(call LEN(symbol(uWork:string)) > integer(0))
+        assign uWork:string = call MID$(symbol(uWork:string), integer(2))
+        assign ue1:integer = call INSTR(symbol(uWork:string), string(":"))
+        if compare(symbol(ue1:integer) = integer(0))
+          assign uWork:string = string("")
+        else
+          assign uCaller:string = call LEFT$(symbol(uWork:string), arith(symbol(ue1:integer) - integer(1)))
+          assign uWork:string = call MID$(symbol(uWork:string), arith(symbol(ue1:integer) + integer(1)))
+          assign ue1:integer = call INSTR(symbol(uWork:string), string(":"))
+          if compare(symbol(ue1:integer) = integer(0))
+            assign uWork:string = string("")
+          else
+            assign uCal2:string = call LEFT$(symbol(uWork:string), arith(symbol(ue1:integer) - integer(1)))
+            assign uWork:string = call MID$(symbol(uWork:string), arith(symbol(ue1:integer) + integer(1)))
+            assign ue1:integer = call INSTR(symbol(uWork:string), string(":"))
+            if compare(symbol(ue1:integer) = integer(0))
+              assign uWork:string = string("")
+            else
+              assign uArgPos:string = call LEFT$(symbol(uWork:string), arith(symbol(ue1:integer) - integer(1)))
+              assign uWork:string = call MID$(symbol(uWork:string), arith(symbol(ue1:integer) + integer(1)))
+              assign ue1:integer = call INSTR(symbol(uWork:string), string(":"))
+              if compare(symbol(ue1:integer) = integer(0))
+                assign uWork:string = string("")
+              else
+                assign uSym:string = call LEFT$(symbol(uWork:string), arith(symbol(ue1:integer) - integer(1)))
+                assign uWork:string = call MID$(symbol(uWork:string), arith(symbol(ue1:integer) + integer(1)))
+                assign uIsDesc:integer = integer(0)
+                if and(or(compare(symbol(uCal2:string) = string("XstQuickSort")) compare(symbol(uCal2:string) = string("XstCopyArray"))) or(compare(symbol(uArgPos:string) = string("0")) compare(symbol(uArgPos:string) = string("1"))))
+                  assign uIsDesc:integer = integer(1)
+                else
+                  assign uPat:string = arith(arith(arith(arith(string(":") + symbol(uCal2:string)) + string(":")) + symbol(uArgPos:string)) + string(":"))
+                  assign up0:integer = call INSTR(symbol(fAPpos:string), symbol(uPat:string))
+                  if compare(symbol(up0:integer) > integer(0))
+                    assign uRest:string = call MID$(symbol(fAPpos:string), arith(symbol(up0:integer) + call LEN(symbol(uPat:string))))
+                    assign ue1:integer = call INSTR(symbol(uRest:string), string(":"))
+                    if compare(symbol(ue1:integer) > integer(0))
+                      assign uPn:string = call LEFT$(symbol(uRest:string), arith(symbol(ue1:integer) - integer(1)))
+                      if compare(call INSTR(symbol(fDescParam:string), arith(arith(arith(arith(string(":") + symbol(uCal2:string)) + string(":")) + symbol(uPn:string)) + string(":"))) > integer(0))
+                        assign uIsDesc:integer = integer(1)
+                      end if
+                    end if
+                  end if
+                end if
+                if compare(symbol(uIsDesc:integer) = integer(1))
+                  if compare(call INSTR(symbol(fAPnames:string), arith(arith(arith(arith(string(":") + symbol(uCaller:string)) + string(":")) + symbol(uSym:string)) + string(":"))) > integer(0))
+                    assign fKey:string = arith(arith(arith(arith(string(":") + symbol(uCaller:string)) + string(":")) + symbol(uSym:string)) + string(":"))
+                    if compare(call INSTR(symbol(fDescParam:string), symbol(fKey:string)) = integer(0))
+                      assign fDescParam:string = arith(symbol(fDescParam:string) + symbol(fKey:string))
+                      assign uChanged:integer = integer(1)
+                    end if
+                  else
+                    assign fKey:string = arith(arith(arith(arith(string(":") + symbol(uCaller:string)) + string(":")) + symbol(uSym:string)) + string(":"))
+                    if compare(call INSTR(symbol(fDynLocal:string), symbol(fKey:string)) = integer(0))
+                      assign fDynLocal:string = arith(symbol(fDynLocal:string) + symbol(fKey:string))
+                      assign uChanged:integer = integer(1)
+                    end if
+                  end if
+                end if
+              end if
+            end if
+          end if
+        end if
+      wend
+    wend
+    while compare(call LEN(symbol(fScalar:string)) > integer(0))
+      assign fScalar:string = call MID$(symbol(fScalar:string), integer(2))
+      assign ue1:integer = call INSTR(symbol(fScalar:string), string(":"))
+      if compare(symbol(ue1:integer) = integer(0))
+        assign fScalar:string = string("")
+      else
+        assign ftmp:string = call LEFT$(symbol(fScalar:string), arith(symbol(ue1:integer) - integer(1)))
+        assign fLn:string = call MID$(symbol(fScalar:string), arith(symbol(ue1:integer) + integer(1)))
+        assign ue2:integer = call INSTR(symbol(fLn:string), string(":"))
+        if compare(symbol(ue2:integer) = integer(0))
+          assign fScalar:string = string("")
+        else
+          assign fnm:string = call LEFT$(symbol(fLn:string), arith(symbol(ue2:integer) - integer(1)))
+          assign fScalar:string = call MID$(symbol(fLn:string), arith(symbol(ue2:integer) + integer(1)))
+          assign fKey:string = arith(arith(arith(arith(string(":") + symbol(ftmp:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+          if or(or(or(compare(call INSTR(symbol(fArrUse:string), symbol(fKey:string)) > integer(0)) compare(call INSTR(symbol(fArrDim:string), symbol(fKey:string)) > integer(0))) compare(call INSTR(symbol(fDescParam:string), symbol(fKey:string)) > integer(0))) compare(call INSTR(symbol(fDynLocal:string), symbol(fKey:string)) > integer(0)))
+            if compare(call INSTR(symbol(fDual:string), symbol(fKey:string)) = integer(0))
+              assign fDual:string = arith(symbol(fDual:string) + symbol(fKey:string))
+            end if
+          end if
+        end if
+      end if
+    wend
+    while compare(call LEN(symbol(fDual:string)) > integer(0))
+      assign fDual:string = call MID$(symbol(fDual:string), integer(2))
+      assign ue1:integer = call INSTR(symbol(fDual:string), string(":"))
+      if compare(symbol(ue1:integer) = integer(0))
+        assign fDual:string = string("")
+      else
+        assign ftmp:string = call LEFT$(symbol(fDual:string), arith(symbol(ue1:integer) - integer(1)))
+        assign fLn:string = call MID$(symbol(fDual:string), arith(symbol(ue1:integer) + integer(1)))
+        assign ue2:integer = call INSTR(symbol(fLn:string), string(":"))
+        if compare(symbol(ue2:integer) = integer(0))
+          assign fDual:string = string("")
+        else
+          assign fnm:string = call LEFT$(symbol(fLn:string), arith(symbol(ue2:integer) - integer(1)))
+          assign fDual:string = call MID$(symbol(fLn:string), arith(symbol(ue2:integer) + integer(1)))
+          assign uAnchor:string = arith(arith(string("facet ") + symbol(fnm:string)) + string(":"))
+          assign uSeg:string = symbol(fTab:string)
+          assign ufound:integer = integer(0)
+          while and(compare(call LEN(symbol(uSeg:string)) > integer(0)) compare(symbol(ufound:integer) = integer(0)))
+            assign up0:integer = call INSTR(symbol(uSeg:string), symbol(uAnchor:string))
+            if compare(symbol(up0:integer) = integer(0))
+              assign uSeg:string = string("")
+            else
+              assign uTail:string = call MID$(symbol(uSeg:string), symbol(up0:integer))
+              assign ueol:integer = call INSTR(symbol(uTail:string), call CHR$(integer(10)))
+              if compare(symbol(ueol:integer) = integer(0))
+                assign uLine:string = symbol(uTail:string)
+              else
+                assign uLine:string = call LEFT$(symbol(uTail:string), arith(symbol(ueol:integer) - integer(1)))
+              end if
+              if compare(call INSTR(symbol(uLine:string), arith(arith(string(" scope=") + symbol(ftmp:string)) + string(" storage="))) > integer(0))
+                assign udp:integer = call INSTR(symbol(uLine:string), string(" dual=0"))
+                if compare(symbol(udp:integer) > integer(0))
+                  assign uNew:string = arith(arith(call LEFT$(symbol(uLine:string), arith(symbol(udp:integer) - integer(1))) + string(" dual=1")) + call MID$(symbol(uLine:string), arith(symbol(udp:integer) + integer(7))))
+                  assign udp:integer = call INSTR(symbol(uNew:string), string(" storage=fixed "))
+                  if compare(symbol(udp:integer) > integer(0))
+                    assign uNew:string = arith(arith(call LEFT$(symbol(uNew:string), arith(symbol(udp:integer) - integer(1))) + string(" storage=dyn ")) + call MID$(symbol(uNew:string), arith(symbol(udp:integer) + integer(15))))
+                  end if
+                  assign up0:integer = call INSTR(symbol(fTab:string), symbol(uLine:string))
+                  assign fTab:string = arith(arith(call LEFT$(symbol(fTab:string), arith(symbol(up0:integer) - integer(1))) + symbol(uNew:string)) + call MID$(symbol(fTab:string), arith(symbol(up0:integer) + call LEN(symbol(uLine:string)))))
+                end if
+                assign ufound:integer = integer(1)
+              else
+                if compare(symbol(ueol:integer) = integer(0))
+                  assign uSeg:string = string("")
+                else
+                  assign uSeg:string = call MID$(symbol(uTail:string), arith(symbol(ueol:integer) + integer(1)))
+                end if
+              end if
+            end if
+          wend
+        end if
+      end if
+    wend
+    while compare(call LEN(symbol(fDynLocal:string)) > integer(0))
+      assign fDynLocal:string = call MID$(symbol(fDynLocal:string), integer(2))
+      assign ue1:integer = call INSTR(symbol(fDynLocal:string), string(":"))
+      if compare(symbol(ue1:integer) = integer(0))
+        assign fDynLocal:string = string("")
+      else
+        assign ftmp:string = call LEFT$(symbol(fDynLocal:string), arith(symbol(ue1:integer) - integer(1)))
+        assign fLn:string = call MID$(symbol(fDynLocal:string), arith(symbol(ue1:integer) + integer(1)))
+        assign ue2:integer = call INSTR(symbol(fLn:string), string(":"))
+        if compare(symbol(ue2:integer) = integer(0))
+          assign fDynLocal:string = string("")
+        else
+          assign fnm:string = call LEFT$(symbol(fLn:string), arith(symbol(ue2:integer) - integer(1)))
+          assign fDynLocal:string = call MID$(symbol(fLn:string), arith(symbol(ue2:integer) + integer(1)))
+          assign fKey:string = arith(arith(arith(arith(string(":") + symbol(ftmp:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+          if and(and(compare(symbol(ftmp:string) <> string("*")) compare(call INSTR(symbol(fCompVars:string), symbol(fKey:string)) = integer(0))) compare(call INSTR(symbol(fSeen:string), symbol(fKey:string)) = integer(0)))
+            assign fSeen:string = arith(symbol(fSeen:string) + symbol(fKey:string))
+            if compare(call RIGHT$(symbol(fnm:string), integer(1)) = string("$"))
+              assign ftp:string = string("string")
+            else
+              assign ftp:string = string("integer")
+            end if
+            assign fTab:string = arith(arith(arith(arith(arith(arith(arith(arith(symbol(fTab:string) + string("facet ")) + symbol(fnm:string)) + string(":")) + symbol(ftp:string)) + string(" scope=")) + symbol(ftmp:string)) + string(" storage=dyn rank=1 dual=1 byref=1")) + call CHR$(integer(10)))
+          end if
+        end if
+      end if
+    wend
+    print symbol(fTab:string)
+    assign tpos:integer = arith(symbol(ntok:integer) + integer(1))
+  end if
+  goto uAfterScan
+  label uScanEOL
+  assign urdep:integer = integer(0)
+  assign ufresh:integer = integer(1)
+  assign udep:integer = integer(0)
+  assign uSzDep:integer = integer(0)
+  assign uprev:string = string("")
+  assign uDone:integer = integer(0)
+  assign uArmCall:integer = integer(0)
+  while and(and(compare(symbol(up:integer) <= symbol(ntok:integer)) compare(symbol(uDone:integer) = integer(0))) not(compare(array_access(tt$:string[symbol(up:integer)]) = string("newline"))))
+    if or(compare(array_access(tt$:string[symbol(up:integer)]) = string("ident")) compare(array_access(tt$:string[symbol(up:integer)]) = string("shared")))
+      assign fnm:string = array_access(tv$:string[symbol(up:integer)])
+      gosub uCanonName
+      assign fKey:string = arith(arith(arith(arith(string(":") + symbol(ucurScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+      gosub uStripSfx
+      assign uSKey:string = arith(arith(arith(arith(string(":") + symbol(ucurScope:string)) + string(":")) + symbol(uBase:string)) + string(":"))
+      if compare(symbol(udecl:integer) = integer(1))
+        if compare(symbol(urdep:integer) >= integer(1))
+          if and(and(compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string("[")))
+            if compare(call INSTR(symbol(fArrUse:string), symbol(fKey:string)) = integer(0))
+              assign fArrUse:string = arith(symbol(fArrUse:string) + symbol(fKey:string))
+            end if
+          else
+            if and(and(compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string("(")))
+            else
+              if and(and(compare(symbol(udep:integer) > integer(0)) compare(call RIGHT$(symbol(fnm:string), integer(1)) = string("$"))) compare(call INSTR(symbol(fSharedScalar:string), symbol(fKey:string)) = integer(0)))
+                if compare(call INSTR(symbol(fScalar:string), symbol(fKey:string)) = integer(0))
+                  assign fScalar:string = arith(symbol(fScalar:string) + symbol(fKey:string))
+                end if
+              else
+                if and(compare(call INSTR(symbol(fSharedScalar:string), symbol(uSKey:string)) = integer(0)) compare(call INSTR(symbol(fScalar:string), symbol(uSKey:string)) = integer(0)))
+                  assign fScalar:string = arith(symbol(fScalar:string) + symbol(uSKey:string))
+                end if
+              end if
+            end if
+          end if
+        end if
+      else
+        if and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(and(compare(symbol(ufresh:integer) = integer(1)) compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer))) or(compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("shared")))) compare(symbol(fnm:string) <> string("SELECT"))) compare(symbol(fnm:string) <> string("CASE"))) compare(symbol(fnm:string) <> string("INC"))) compare(symbol(fnm:string) <> string("DEC"))) compare(symbol(fnm:string) <> string("ATTACH"))) compare(symbol(fnm:string) <> string("DECLARE"))) compare(symbol(fnm:string) <> string("SUB"))) compare(symbol(fnm:string) <> string("DATA"))) compare(symbol(fnm:string) <> string("READ"))) compare(symbol(fnm:string) <> string("CONST"))) compare(symbol(fnm:string) <> string("LET"))) compare(symbol(fnm:string) <> string("RESTORE"))) compare(symbol(fnm:string) <> string("STOP"))) compare(symbol(fnm:string) <> string("REM")))
+          assign udecl:integer = integer(1)
+        else
+          if and(compare(symbol(ufresh:integer) = integer(1)) compare(symbol(fnm:string) = string("ATTACH")))
+            while and(compare(symbol(up:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(up:integer)]) = string("newline"))))
+              assign up:integer = arith(symbol(up:integer) + integer(1))
+            wend
+            assign uDone:integer = integer(1)
+          else
+            if compare(symbol(uprev:string) = string("."))
+            else
+              if or(compare(symbol(uprev:string) = string("GOTO")) compare(symbol(uprev:string) = string("GOSUB")))
+                if compare(call INSTR(symbol(fScopeArrs:string), symbol(uSKey:string)) > integer(0))
+                  if compare(call INSTR(symbol(fScalar:string), symbol(uSKey:string)) = integer(0))
+                    assign fScalar:string = arith(symbol(fScalar:string) + symbol(uSKey:string))
+                  end if
+                end if
+              else
+                if and(and(compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string("[")))
+                  if and(and(compare(arith(symbol(up:integer) + integer(2)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(2))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(2))]) = string("]")))
+                    if compare(symbol(uprev:string) = string("@"))
+                      if compare(call INSTR(symbol(fByrefFwd:string), symbol(fKey:string)) = integer(0))
+                        assign fByrefFwd:string = arith(symbol(fByrefFwd:string) + symbol(fKey:string))
+                      end if
+                      if compare(symbol(uCallDepth:integer) = integer(1))
+                        assign uEdge:string = arith(arith(arith(arith(arith(arith(arith(arith(string(":") + symbol(ucurScope:string)) + string(":")) + symbol(uCal:string)) + string(":")) + call STR$(symbol(uPos:integer))) + string(":")) + symbol(fnm:string)) + string(":"))
+                        if compare(call INSTR(symbol(fEdges:string), symbol(uEdge:string)) = integer(0))
+                          assign fEdges:string = arith(symbol(fEdges:string) + symbol(uEdge:string))
+                        end if
+                      end if
+                    else
+                      if compare(symbol(udep:integer) > integer(0))
+                        if compare(call INSTR(symbol(fArrUse:string), symbol(fKey:string)) = integer(0))
+                          assign fArrUse:string = arith(symbol(fArrUse:string) + symbol(fKey:string))
+                        end if
+                      end if
+                      if and(compare(symbol(uSzDep:integer) = integer(0)) or(compare(symbol(udep:integer) = integer(0)) compare(call RIGHT$(symbol(fnm:string), integer(1)) = string("$"))))
+                        if compare(call INSTR(symbol(fScalar:string), symbol(fKey:string)) = integer(0))
+                          assign fScalar:string = arith(symbol(fScalar:string) + symbol(fKey:string))
+                        end if
+                      end if
+                    end if
+                  else
+                    if compare(call INSTR(symbol(fArrUse:string), symbol(fKey:string)) = integer(0))
+                      assign fArrUse:string = arith(symbol(fArrUse:string) + symbol(fKey:string))
+                    end if
+                    if and(compare(symbol(udep:integer) = integer(0)) compare(call INSTR(symbol(fArrSub:string), symbol(fKey:string)) = integer(0)))
+                      assign fArrSub:string = arith(symbol(fArrSub:string) + symbol(fKey:string))
+                    end if
+                  end if
+                else
+                  if and(and(compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string("(")))
+                    if compare(symbol(fnm:string) = string("UBOUND"))
+                      assign udep:integer = integer(1)
+                    else
+                      if or(compare(symbol(fnm:string) = string("LEN")) compare(symbol(fnm:string) = string("SIZE")))
+                        assign uSzDep:integer = arith(symbol(uSzDep:integer) + integer(1))
+                      else
+                        if compare(symbol(uCallDepth:integer) = integer(0))
+                          assign uCallDepth:integer = integer(1)
+                          assign uCal:string = array_access(tv$:string[symbol(up:integer)])
+                          assign uPos:integer = integer(0)
+                          assign uArmCall:integer = integer(1)
+                        end if
+                      end if
+                    end if
+                  else
+                    if and(and(compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string(":")))
+                    else
+                      if and(compare(symbol(uprev:string) = string("@")) compare(symbol(uCallDepth:integer) = integer(1)))
+                        assign uEdge:string = arith(arith(arith(arith(arith(arith(arith(arith(string(":") + symbol(ucurScope:string)) + string(":")) + symbol(uCal:string)) + string(":")) + call STR$(symbol(uPos:integer))) + string(":")) + symbol(uBase:string)) + string(":"))
+                        if compare(call INSTR(symbol(fEdges:string), symbol(uEdge:string)) = integer(0))
+                          assign fEdges:string = arith(symbol(fEdges:string) + symbol(uEdge:string))
+                        end if
+                      end if
+                      if compare(symbol(uprev:string) <> string("@"))
+                        if and(and(and(compare(symbol(udep:integer) = integer(1)) compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("symbol"))) or(compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string(")")) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string(","))))
+                          if and(compare(call INSTR(symbol(fSharedScalar:string), symbol(fKey:string)) = integer(0)) compare(call INSTR(symbol(fScalar:string), symbol(fKey:string)) = integer(0)))
+                            assign fScalar:string = arith(symbol(fScalar:string) + symbol(fKey:string))
+                          end if
+                          if compare(call INSTR(symbol(fArrUse:string), symbol(fKey:string)) = integer(0))
+                            assign fArrUse:string = arith(symbol(fArrUse:string) + symbol(fKey:string))
+                          end if
+                        else
+                          if compare(symbol(uprev:string) = string("FOR"))
+                            if compare(call INSTR(symbol(fScalar:string), symbol(uSKey:string)) = integer(0))
+                              assign fScalar:string = arith(symbol(fScalar:string) + symbol(uSKey:string))
+                            end if
+                          else
+                            if and(and(and(and(compare(symbol(ufresh:integer) = integer(1)) compare(arith(symbol(up:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(up:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(up:integer) + integer(1))]) = string("="))) or(compare(call INSTR(symbol(fSharedScalar:string), symbol(uSKey:string)) > integer(0)) compare(call INSTR(symbol(fSharedScalar:string), symbol(fKey:string)) > integer(0))))
+                            else
+                              if and(or(compare(symbol(udep:integer) = integer(0)) compare(call RIGHT$(symbol(fnm:string), integer(1)) = string("$"))) compare(array_access(tt$:string[symbol(up:integer)]) <> string("shared")))
+                                if and(compare(call INSTR(symbol(fSharedScalar:string), symbol(uSKey:string)) = integer(0)) compare(call INSTR(symbol(fScalar:string), symbol(uSKey:string)) = integer(0)))
+                                  assign fScalar:string = arith(symbol(fScalar:string) + symbol(uSKey:string))
+                                end if
+                              end if
+                            end if
+                          end if
+                        end if
+                      end if
+                    end if
+                  end if
+                end if
+              end if
+            end if
+          end if
+        end if
+      end if
+    end if
+    assign uprev:string = array_access(tv$:string[symbol(up:integer)])
+    if and(compare(array_access(tt$:string[symbol(up:integer)]) = string("keyword")) or(or(or(or(or(compare(array_access(tv$:string[symbol(up:integer)]) = string("DIM")) compare(array_access(tv$:string[symbol(up:integer)]) = string("REDIM"))) compare(array_access(tv$:string[symbol(up:integer)]) = string("STATIC"))) compare(array_access(tv$:string[symbol(up:integer)]) = string("SHARED"))) compare(array_access(tv$:string[symbol(up:integer)]) = string("DATA"))) compare(array_access(tv$:string[symbol(up:integer)]) = string("SUB"))))
+      assign udecl:integer = integer(1)
+    else
+      if and(compare(array_access(tt$:string[symbol(up:integer)]) = string("symbol")) compare(array_access(tv$:string[symbol(up:integer)]) = string("(")))
+        if compare(symbol(uArmCall:integer) = integer(1))
+          assign uArmCall:integer = integer(0)
+        else
+          if compare(symbol(uCallDepth:integer) > integer(0))
+            assign uCallDepth:integer = arith(symbol(uCallDepth:integer) + integer(1))
+          end if
+        end if
+        if compare(symbol(udep:integer) > integer(0))
+          assign udep:integer = arith(symbol(udep:integer) + integer(1))
+        end if
+        if compare(symbol(udecl:integer) = integer(1))
+          assign urdep:integer = arith(symbol(urdep:integer) + integer(1))
+        end if
+      else
+        if and(compare(array_access(tt$:string[symbol(up:integer)]) = string("symbol")) compare(array_access(tv$:string[symbol(up:integer)]) = string(")")))
+          if compare(symbol(uSzDep:integer) > integer(0))
+            assign uSzDep:integer = arith(symbol(uSzDep:integer) - integer(1))
+          end if
+          if compare(symbol(udep:integer) > integer(0))
+            assign udep:integer = arith(symbol(udep:integer) - integer(1))
+          end if
+          if compare(symbol(uCallDepth:integer) > integer(0))
+            assign uCallDepth:integer = arith(symbol(uCallDepth:integer) - integer(1))
+          end if
+          if and(compare(symbol(udecl:integer) = integer(1)) compare(symbol(urdep:integer) > integer(0)))
+            assign urdep:integer = arith(symbol(urdep:integer) - integer(1))
+          end if
+        else
+          if and(and(compare(array_access(tt$:string[symbol(up:integer)]) = string("symbol")) compare(array_access(tv$:string[symbol(up:integer)]) = string(","))) compare(symbol(uCallDepth:integer) = integer(1)))
+            assign uPos:integer = arith(symbol(uPos:integer) + integer(1))
+          else
+            if and(and(compare(array_access(tt$:string[symbol(up:integer)]) = string("symbol")) compare(array_access(tv$:string[symbol(up:integer)]) = string("["))) compare(symbol(udecl:integer) = integer(1)))
+              assign urdep:integer = arith(symbol(urdep:integer) + integer(1))
+            else
+              if and(and(and(compare(array_access(tt$:string[symbol(up:integer)]) = string("symbol")) compare(array_access(tv$:string[symbol(up:integer)]) = string("]"))) compare(symbol(udecl:integer) = integer(1))) compare(symbol(urdep:integer) > integer(0)))
+                assign urdep:integer = arith(symbol(urdep:integer) - integer(1))
+              else
+                assign ufresh:integer = integer(0)
+              end if
+            end if
+          end if
+        end if
+      end if
+    end if
+    assign up:integer = arith(symbol(up:integer) + integer(1))
+  wend
+  gosub_return
+  label uCanonName
+  if compare(symbol(uKwMap:string) = string(""))
+    assign uKwMap:string = string(":FUNCTION:Function:END:End:DECLARE:Declare:INTERNAL:Internal:EXTERNAL:External:CFUNCTION:CFunction:IF:If:THEN:Then:ELSE:Else:ELSEIF:ElseIf:SELECT:Select:CASE:Case:FOR:For:TO:To:NEXT:Next:STEP:Step:DO:Do:LOOP:Loop:WHILE:While:UNTIL:Until:WEND:Wend:RETURN:Return:DIM:Dim:TYPE:Type:PACKED:Packed:PRINT:Print:IMPORT:Import:AND:And:OR:Or:NOT:Not:MOD:Mod:EXIT:Exit:VERSION:Version:INC:Inc:DEC:Dec:SWAP:Swap:PROGRAM:Program:SUB:Sub:IFZ:Ifz:IFT:Ift:IFF:Iff:STATIC:Static:REDIM:Redim:DOEVENTS:DoEvents:GOSUB:Gosub:BREAK:Break:SHARED:Shared:XOR:Xor:LET:Let:GOTO:Goto:CONST:Const:EXPORT:Export:RANDOMIZE:Randomize:DATA:Data:READ:Read:STOP:Stop:RESTORE:Restore:FUNCADDR:FuncAddr:")
+  end if
+  assign uTmp:string = string("")
+  assign ui:integer = integer(1)
+  while compare(symbol(ui:integer) <= call LEN(symbol(fnm:string)))
+    assign uch:integer = call ASC(call MID$(symbol(fnm:string), symbol(ui:integer), integer(1)))
+    if and(compare(symbol(uch:integer) >= integer(97)) compare(symbol(uch:integer) <= integer(122)))
+      assign uch:integer = arith(symbol(uch:integer) - integer(32))
+    end if
+    assign uTmp:string = arith(symbol(uTmp:string) + call CHR$(symbol(uch:integer)))
+    assign ui:integer = arith(symbol(ui:integer) + integer(1))
+  wend
+  assign fIsKw:integer = integer(0)
+  assign up0:integer = call INSTR(symbol(uKwMap:string), arith(arith(string(":") + symbol(uTmp:string)) + string(":")))
+  if compare(symbol(up0:integer) > integer(0))
+    assign fIsKw:integer = integer(1)
+    assign uRest:string = call MID$(symbol(uKwMap:string), arith(arith(symbol(up0:integer) + call LEN(symbol(uTmp:string))) + integer(2)))
+    assign ue1:integer = call INSTR(symbol(uRest:string), string(":"))
+    if compare(symbol(ue1:integer) > integer(0))
+      assign fnm:string = call LEFT$(symbol(uRest:string), arith(symbol(ue1:integer) - integer(1)))
+    end if
+  end if
+  gosub_return
+  label uStripSfx
+  assign uBase:string = symbol(fnm:string)
+  if compare(call LEN(symbol(uBase:string)) >= integer(2))
+    if compare(call RIGHT$(symbol(uBase:string), integer(2)) = string("&&"))
+      assign uBase:string = call LEFT$(symbol(uBase:string), arith(call LEN(symbol(uBase:string)) - integer(2)))
+    else
+      if or(or(or(compare(call RIGHT$(symbol(uBase:string), integer(1)) = string("$")) compare(call RIGHT$(symbol(uBase:string), integer(1)) = string("#"))) compare(call RIGHT$(symbol(uBase:string), integer(1)) = string("%"))) compare(call RIGHT$(symbol(uBase:string), integer(1)) = string("!")))
+        assign uBase:string = call LEFT$(symbol(uBase:string), arith(call LEN(symbol(uBase:string)) - integer(1)))
+      end if
+    end if
+  end if
+  if compare(symbol(uBase:string) <> symbol(fnm:string))
+    if compare(call INSTR(symbol(fArrDim:string), arith(arith(arith(arith(string(":") + symbol(ucurScope:string)) + string(":")) + symbol(uBase:string)) + string(":"))) > integer(0))
+      assign uBase:string = symbol(fnm:string)
+    end if
+  end if
+  gosub_return
+  label uAfterScan
   while compare(symbol(tpos:integer) <= symbol(ntok:integer))
     if compare(symbol(stmtState:integer) = integer(0))
       if compare(symbol(singleLineIf:integer) = integer(2))
@@ -707,7 +2028,7 @@ function Main() -> integer
                                             assign prefix:string = arith(symbol(prefix:string) + string("  "))
                                             assign i:integer = arith(symbol(i:integer) + integer(1))
                                           wend
-                                          print arith(symbol(prefix:string) + string("return"))
+                                          print arith(symbol(prefix:string) + string("gosub_return"))
                                         else
                                           assign stmtState:integer = integer(10)
                                           assign exprStop:string = string("newline")
@@ -715,6 +2036,13 @@ function Main() -> integer
                                       else
                                         if and(compare(symbol(t:string) = string("keyword")) compare(symbol(v:string) = string("GOSUB")))
                                           assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
+                                          assign prefix:string = string("")
+                                          assign i:integer = integer(1)
+                                          while compare(symbol(i:integer) <= symbol(indent:integer))
+                                            assign prefix:string = arith(symbol(prefix:string) + string("  "))
+                                            assign i:integer = arith(symbol(i:integer) + integer(1))
+                                          wend
+                                          print arith(arith(symbol(prefix:string) + string("gosub ")) + array_access(tv$:string[symbol(tpos:integer)]))
                                           assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                                         else
                                           if and(compare(symbol(t:string) = string("keyword")) compare(symbol(v:string) = string("BREAK")))
@@ -740,6 +2068,13 @@ function Main() -> integer
                                               else
                                                 if and(compare(symbol(t:string) = string("keyword")) compare(symbol(v:string) = string("GOTO")))
                                                   assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
+                                                  assign prefix:string = string("")
+                                                  assign i:integer = integer(1)
+                                                  while compare(symbol(i:integer) <= symbol(indent:integer))
+                                                    assign prefix:string = arith(symbol(prefix:string) + string("  "))
+                                                    assign i:integer = arith(symbol(i:integer) + integer(1))
+                                                  wend
+                                                  print arith(arith(symbol(prefix:string) + string("goto ")) + array_access(tv$:string[symbol(tpos:integer)]))
                                                   assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                                                 else
                                                   if compare(symbol(t:string) = string("sysconst"))
@@ -750,6 +2085,13 @@ function Main() -> integer
                                                     assign exprStop:string = string("newline")
                                                   else
                                                     if and(and(and(compare(symbol(t:string) = string("ident")) compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string(":")))
+                                                      assign prefix:string = string("")
+                                                      assign i:integer = integer(1)
+                                                      while compare(symbol(i:integer) <= symbol(indent:integer))
+                                                        assign prefix:string = arith(symbol(prefix:string) + string("  "))
+                                                        assign i:integer = arith(symbol(i:integer) + integer(1))
+                                                      wend
+                                                      print arith(arith(symbol(prefix:string) + string("label ")) + symbol(v:string))
                                                       assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
                                                     else
                                                       if and(and(and(and(compare(symbol(t:string) = string("ident")) compare(symbol(v:string) = string("MID$"))) compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("(")))
@@ -757,26 +2099,44 @@ function Main() -> integer
                                                         assign stmtState:integer = integer(18)
                                                         assign exprStop:string = string("COMMA_OR_RPAREN")
                                                       else
-                                                        if compare(symbol(t:string) = string("ident"))
-                                                          assign isArr:integer = integer(0)
-                                                          assign j:integer = integer(1)
-                                                          while compare(symbol(j:integer) <= symbol(arrSP:integer))
-                                                            if compare(array_access(arrNames$:string[symbol(j:integer)]) = symbol(v:string))
-                                                              assign isArr:integer = integer(1)
-                                                              assign j:integer = arith(symbol(arrSP:integer) + integer(1))
-                                                            end if
-                                                            assign j:integer = arith(symbol(j:integer) + integer(1))
+                                                        if and(and(and(and(compare(symbol(t:string) = string("keyword")) or(or(compare(symbol(v:string) = string("DECLARE")) compare(symbol(v:string) = string("INTERNAL"))) compare(symbol(v:string) = string("EXTERNAL")))) compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("keyword"))) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("FUNCTION")))
+                                                          while and(compare(symbol(tpos:integer) <= symbol(ntok:integer)) not(compare(array_access(tt$:string[symbol(tpos:integer)]) = string("newline"))))
+                                                            assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                                                           wend
-                                                          if and(and(and(compare(symbol(isArr:integer) = integer(1)) compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("symbol"))) or(compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("(")) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("["))))
-                                                            assign arrName:string = symbol(v:string)
-                                                            assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
-                                                            assign stmtState:integer = integer(8)
-                                                            assign exprStop:string = string(")")
-                                                          else
-                                                            if and(and(compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("(")))
-                                                              assign stmtState:integer = integer(11)
-                                                              assign exprStop:string = string("newline")
+                                                        else
+                                                          if compare(symbol(t:string) = string("ident"))
+                                                            assign isArr:integer = integer(0)
+                                                            assign j:integer = integer(1)
+                                                            while compare(symbol(j:integer) <= symbol(arrSP:integer))
+                                                              if compare(array_access(arrNames$:string[symbol(j:integer)]) = symbol(v:string))
+                                                                assign isArr:integer = integer(1)
+                                                                assign j:integer = arith(symbol(arrSP:integer) + integer(1))
+                                                              end if
+                                                              assign j:integer = arith(symbol(j:integer) + integer(1))
+                                                            wend
+                                                            if and(and(and(compare(symbol(isArr:integer) = integer(1)) compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer))) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("symbol"))) or(compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("(")) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("["))))
+                                                              assign arrName:string = symbol(v:string)
+                                                              assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
+                                                              assign stmtState:integer = integer(8)
+                                                              assign exprStop:string = string(")")
                                                             else
+                                                              if and(and(compare(arith(symbol(tpos:integer) + integer(1)) <= symbol(ntok:integer)) compare(array_access(tt$:string[arith(symbol(tpos:integer) + integer(1))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(tpos:integer) + integer(1))]) = string("(")))
+                                                                assign stmtState:integer = integer(11)
+                                                                assign exprStop:string = string("newline")
+                                                              else
+                                                                assign assignTarget:string = symbol(v:string)
+                                                                assign vt:string = string("integer")
+                                                                assign bn:string = call strip_suffix(symbol(v:string))
+                                                                assign vt:string = shared(##suffixType:string)
+                                                                assign assignType:string = symbol(vt:string)
+                                                                assign assignTarget:string = symbol(bn:string)
+                                                                assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
+                                                                assign stmtState:integer = integer(2)
+                                                                assign exprStop:string = string("newline")
+                                                              end if
+                                                            end if
+                                                          else
+                                                            if compare(symbol(t:string) = string("shared"))
                                                               assign assignTarget:string = symbol(v:string)
                                                               assign vt:string = string("integer")
                                                               assign bn:string = call strip_suffix(symbol(v:string))
@@ -784,23 +2144,11 @@ function Main() -> integer
                                                               assign assignType:string = symbol(vt:string)
                                                               assign assignTarget:string = symbol(bn:string)
                                                               assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
-                                                              assign stmtState:integer = integer(2)
+                                                              assign stmtState:integer = integer(12)
                                                               assign exprStop:string = string("newline")
+                                                            else
+                                                              assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                                                             end if
-                                                          end if
-                                                        else
-                                                          if compare(symbol(t:string) = string("shared"))
-                                                            assign assignTarget:string = symbol(v:string)
-                                                            assign vt:string = string("integer")
-                                                            assign bn:string = call strip_suffix(symbol(v:string))
-                                                            assign vt:string = shared(##suffixType:string)
-                                                            assign assignType:string = symbol(vt:string)
-                                                            assign assignTarget:string = symbol(bn:string)
-                                                            assign tpos:integer = arith(symbol(tpos:integer) + integer(2))
-                                                            assign stmtState:integer = integer(12)
-                                                            assign exprStop:string = string("newline")
-                                                          else
-                                                            assign tpos:integer = arith(symbol(tpos:integer) + integer(1))
                                                           end if
                                                         end if
                                                       end if
@@ -839,6 +2187,12 @@ function Main() -> integer
       assign funcSP:integer = integer(0)
       while or(compare(symbol(edone:integer) = integer(0)) compare(symbol(spOp:integer) > integer(0)))
         if and(and(compare(symbol(edone:integer) = integer(1)) compare(symbol(popPrec:integer) >= integer(99))) compare(symbol(spOp:integer) > integer(0)))
+          if or(or(compare(array_access(opStack$:string[symbol(spOp:integer)]) = string("(")) compare(call LEFT$(array_access(opStack$:string[symbol(spOp:integer)]), integer(5)) = string("FUNC:"))) compare(call LEFT$(array_access(opStack$:string[symbol(spOp:integer)]), integer(4)) = string("ARR:")))
+            if and(compare(call LEFT$(array_access(opStack$:string[symbol(spOp:integer)]), integer(5)) = string("FUNC:")) compare(symbol(funcSP:integer) > integer(0)))
+              assign funcSP:integer = arith(symbol(funcSP:integer) - integer(1))
+            end if
+            assign spOp:integer = arith(symbol(spOp:integer) - integer(1))
+          end if
           assign popPrec:integer = integer(0)
         end if
         if compare(symbol(popPrec:integer) < integer(99))
@@ -1474,6 +2828,7 @@ function Main() -> integer
                                 array_assign constName$:string[symbol(nConst:integer)] = symbol(assignTarget:string)
                                 array_assign constType$:string[symbol(nConst:integer)] = symbol(assignType:string)
                                 array_assign constValue$:string[symbol(nConst:integer)] = symbol(eir:string)
+                                assign stmtState:integer = integer(0)
                               else
                                 if compare(symbol(stmtState:integer) = integer(14))
                                   assign prefix:string = string("")

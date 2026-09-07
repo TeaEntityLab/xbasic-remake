@@ -985,7 +985,6 @@ IF facetDump = 1 THEN
           IF INSTR(fScopeArrs$, ":" + curScope$ + ":" + fnm$ + ":") = 0 THEN
             fScopeArrs$ = fScopeArrs$ + ":" + curScope$ + ":" + fnm$ + ":"
           END IF
-          END IF
           IF fEnd > 0 THEN
             IF INSTR(fArrDim$, fKey$) = 0 THEN
               fArrDim$ = fArrDim$ + fKey$
@@ -1362,7 +1361,7 @@ IF facetDump = 1 THEN
         IF ue1 = 0 THEN
           uWork$ = ""
         ELSE
-          uPos$ = LEFT$(uWork$, ue1 - 1)
+          uArgPos$ = LEFT$(uWork$, ue1 - 1)
           uWork$ = MID$(uWork$, ue1 + 1)
           ue1 = INSTR(uWork$, ":")
           IF ue1 = 0 THEN
@@ -1370,7 +1369,7 @@ IF facetDump = 1 THEN
           ELSE
             uSym$ = LEFT$(uWork$, ue1 - 1)
             uWork$ = MID$(uWork$, ue1 + 1)
-            IF (uCal2$ = "XstQuickSort" OR uCal2$ = "XstCopyArray") AND (uPos$ = "0" OR uPos$ = "1") THEN
+            IF (uCal2$ = "XstQuickSort" OR uCal2$ = "XstCopyArray") AND (uArgPos$ = "0" OR uArgPos$ = "1") THEN
             IF INSTR(fAPnames$, ":" + uCaller$ + ":" + uSym$ + ":") > 0 THEN
               fKey$ = ":" + uCaller$ + ":" + uSym$ + ":"
               IF INSTR(fDescParam$, fKey$) = 0 THEN
@@ -1407,7 +1406,7 @@ IF facetDump = 1 THEN
           IF ue1 = 0 THEN
             uWork$ = ""
           ELSE
-            uPos$ = LEFT$(uWork$, ue1 - 1)
+            uArgPos$ = LEFT$(uWork$, ue1 - 1)
             uWork$ = MID$(uWork$, ue1 + 1)
             ue1 = INSTR(uWork$, ":")
             IF ue1 = 0 THEN
@@ -1416,10 +1415,10 @@ IF facetDump = 1 THEN
               uSym$ = LEFT$(uWork$, ue1 - 1)
               uWork$ = MID$(uWork$, ue1 + 1)
               uIsDesc = 0
-              IF (uCal2$ = "XstQuickSort" OR uCal2$ = "XstCopyArray") AND (uPos$ = "0" OR uPos$ = "1") THEN
+              IF (uCal2$ = "XstQuickSort" OR uCal2$ = "XstCopyArray") AND (uArgPos$ = "0" OR uArgPos$ = "1") THEN
                 uIsDesc = 1
               ELSE
-                uPat$ = ":" + uCal2$ + ":" + uPos$ + ":"
+                uPat$ = ":" + uCal2$ + ":" + uArgPos$ + ":"
                 up0 = INSTR(fAPpos$, uPat$)
                 IF up0 > 0 THEN
                   uRest$ = MID$(fAPpos$, up0 + LEN(uPat$))
@@ -2032,13 +2031,24 @@ WHILE tpos <= ntok
           prefix$ = prefix$ + "  "
           i = i + 1
         WEND
-        PRINT prefix$ + "return"
+        ' A bare RETURN lowers to GosubReturn (semantics.rs); only
+        ' RETURN <expr> is a function return.
+        PRINT prefix$ + "gosub_return"
       ELSE
         stmtState = 10
         exprStop$ = "newline"
       END IF
     ELSEIF t$ = "keyword" AND v$ = "GOSUB" THEN
+      ' Plain `GOSUB label`; the computed form (GOSUB @tab[i]) lowers to a
+      ' gosub_expr item and is not used by the selfhost sources.
       tpos = tpos + 1
+      prefix$ = ""
+      i = 1
+      WHILE i <= indent
+        prefix$ = prefix$ + "  "
+        i = i + 1
+      WEND
+      PRINT prefix$ + "gosub " + tv$(tpos)
       tpos = tpos + 1
     ELSEIF t$ = "keyword" AND v$ = "BREAK" THEN
       tpos = tpos + 1
@@ -2060,6 +2070,13 @@ WHILE tpos <= ntok
       tpos = tpos + 1
     ELSEIF t$ = "keyword" AND v$ = "GOTO" THEN
       tpos = tpos + 1
+      prefix$ = ""
+      i = 1
+      WHILE i <= indent
+        prefix$ = prefix$ + "  "
+        i = i + 1
+      WEND
+      PRINT prefix$ + "goto " + tv$(tpos)
       tpos = tpos + 1
     ELSEIF t$ = "sysconst" THEN
       assignTarget$ = v$
@@ -2068,6 +2085,14 @@ WHILE tpos <= ntok
       stmtState = 13
       exprStop$ = "newline"
     ELSEIF t$ = "ident" AND tpos + 1 <= ntok AND tt$(tpos + 1) = "symbol" AND tv$(tpos + 1) = ":" THEN
+      ' Label definition: Rust emits a `label NAME` item at body level.
+      prefix$ = ""
+      i = 1
+      WHILE i <= indent
+        prefix$ = prefix$ + "  "
+        i = i + 1
+      WEND
+      PRINT prefix$ + "label " + v$
       tpos = tpos + 2
     ELSEIF t$ = "ident" AND v$ = "MID$" AND tpos + 1 <= ntok AND tt$(tpos + 1) = "symbol" AND tv$(tpos + 1) = "(" THEN
       ' MID$ assignment: MID$(target, start[, len]) = value
