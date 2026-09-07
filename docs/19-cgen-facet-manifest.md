@@ -309,7 +309,7 @@ Header parsing is one pass, per-symbol, scope-qualified — no substring collisi
 - `docs/16-cgen-cemitter-sync-roadmap.md` CG-BYTES
 - `docs/17-open-work-roadmap.md` DEMO-BYTES DE-SCOPED, CGEN-FACET-MANIFEST
 
-## 9. Compiler.x facet emission plan (PROPOSED 2026-09-06 — not reviewed, no code)
+## 9. Compiler.x facet emission plan (P1/P2 landed; P3+ still proposed)
 
 Covers the last AC2 blocker (docs/17 CGEN-FACET-RETIREMENT: scanners cannot be
 deleted until a non-Rust producer emits facets). Design-only session: no
@@ -439,7 +439,8 @@ CG-BYTES untouched).
 - P1 — Scaffold + schema: tables, dump hook, `native_facet_gap` harness,
   §3.1 spec update, DIM/rank/scope/params/shared/member emission +
   allStrArr-field equality. (S)
-- P2 — Dual: use-walk + divert rules → `dual=` equality. (M)
+- P2 — Dual: use-walk + divert rules → `dual=` equality. **LANDED
+  2026-09-07** (45 → 5 differing names; rules and residual in §9.8). (M)
 - P3 — Dyn: DIM-order/counts + force rules → `storage=` equality. (M)
 - P4 — Descriptors/positions/byref: call-graph fixpoint → remaining-field
   equality. (L; split allowed)
@@ -484,3 +485,72 @@ CG-BYTES untouched).
    worth doing for evidence/optionality, or parked until M5?
 3. Corpus for P1: selfhost tools + positive corpus sufficient to start, or
    include libs/demos from day one (slower gates, wider net)?
+
+### 9.8 P2 landed — dual classification rules (2026-09-07)
+
+P2 is code-complete and gated. `native_facet_gap` (P1, allStrArr-field
+equality) is green; the ignored P2 tracker over the same 234-program universe
+went from **22 native-only / 23 rust-only (45 names)** to **1 native-only /
+4 rust-only (5)**. Every rule below was landed only after an isolated
+Rust-vs-native probe pair disagreed without it, and the `compiler.x`
+self-compilation fixed point was re-verified after each commit.
+
+Dual = a name in both scalar-use and array context. The non-obvious rules,
+each with the construct that forced it:
+
+| Rule | Forced by |
+|---|---|
+| `LEN`/`SIZE` open a SizeOf context: `LEN(a[])` names no scalar, but `IFZ a[]` and `&a[]` still do | `arecord` `#globaltype0..5` |
+| A shared composite declared at file scope suppresses its plain facet program-wide | `arecord` |
+| `CFUNCTION` defines a function scope and closes with `END FUNCTION` | `xit` `XxxXitMain` |
+| Composite-typed array params (`TOKEN tok[]`, `DISPLAY d[]`) emit no plain facet, like composite DIMs; a bare type qualifier is not a param name | `xcol`, `xgr` |
+| A suffixed sibling of a composite emits no plain facet (Rust keys its per-scope `seen` set on the stripped name) | `display$` beside `DISPLAY display[]` |
+| A depth-0 colon ends the statement, so declaration context stops leaking | `DIM temp[3] : SWAP values[grid,], temp[]` |
+| `SWAP` operands keep their suffixed spelling (`SWAP t$, tt$[n]` assigns to `t$`); a plain assignment strips to `t` | `ToolkitCode` `t$` |
+| Step over the shared group in `SHARED /cb/ TYPE name[]` | `XuiQueueCallbacks` |
+| A scalar that only *inherits* shared storage from a same-named shared array is still a local scalar; only an explicit `SHARED name` statement is non-dual | `XgrRegisterIcon` `sicon` (`AUTOX`/`XLONG`/`DIM` vs `SHARED`) |
+
+**Suffix retention (VAR-SUFFIX-COLLISION).** This mirrors
+`crates/xb-compiler/src/semantics_suffix.rs` and is the one rule worth reading
+the source for before touching. `slot_name` keeps a `$` only for a STRING
+scalar and only when `collisions.contains(base)`; every non-string suffix
+(`#`, `%`, `!`, `&&`) always takes the bare base. `collisions` comes solely
+from `scan_body_collisions(&inlined)` (`semantics_function.rs`), flagging a
+base referenced with BOTH a string and a non-string type. `note_var` fires on
+scalar `Dim` (`size.is_none() && !is_array`), `Assignment`/`Inc`/`Dec`/`Read`
+targets, `For` vars, both `Swap` operands, and `Identifier`/`ByRefIdentifier`;
+it never fires on an `ArrayAccess`/`ArrayAssignment` **base** (only their
+index/value), and skips dotted names. Params are not scanned — only their body
+uses count.
+
+`compiler.x` mirrors this with a one-pass pre-pass (`fNonStr$`) run before the
+use-walk, plus one rule that is **not** derivable from the `note_var` call
+sites and was established empirically instead: an unsuffixed **array
+declaration** of the base also forces retention (`DIM v[]`, `DIM v[3]`,
+`DIM v[n]`, `SHARED v[]`, `STATIC v[]` all make a sibling `v$` keep its `$`).
+Using the body-reference half alone regressed the corpus 10 → 12, so the
+predicate is the union of the two.
+
+Two traps recorded so the next reader does not repeat them:
+
+- `uStripSfx`'s collision clauses key on `ucurScope$`, which only the use-walk
+  sets. Phase A callers leave it unset **on purpose** so a *declaration*
+  always strips — that keeps `DIM text[3]` + `DIM text$` unified on `text`
+  the way Rust does. "Fixing" Phase A to pass its scope flips that case to
+  `dual=0`.
+- When grepping emitted IR for a scalar assignment, `grep 'assign x$:string'`
+  also matches `array_assign x$:string[...]`. Anchor it (`^\s+assign`) or a
+  stripped case looks retained.
+
+**Residual (5 names), all P3/P4-owned, not P2:**
+`RunJump text$` (native emits a `byref=1` dyn-local facet Rust does not);
+`XxxXitMain arg`, `Expresso farg`, `XstLoadArrayData temp`, `ParseQBasic
+qbasic` (Rust emits `storage=dyn dual=1`, three of them `byref=1`). These turn
+on dyn-local/descriptor classification — P3's `storage=` gate and P4's
+descriptor fixpoint — not on the use-walk. `Expresso farg` additionally needs
+the composite-plus-plain case (`AUTOX FUNCARG farg[]` *and* `farg`, where Rust
+emits both member facets and a plain `farg`), which the current
+composite-suppression rule folds away.
+
+Cost: the collision pre-pass is a second full token walk and adds ~10 s to the
+P1 gate (17 s → 26 s).
