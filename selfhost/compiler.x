@@ -133,6 +133,7 @@ DIM fQuit
 DIM up
 DIM udep
 DIM uSzDep
+DIM uSwap
 DIM fPScalar$
 DIM urdep
 DIM ufresh
@@ -1608,6 +1609,7 @@ GOTO uAfterScan
     ufresh = 1
     udep = 0
     uSzDep = 0
+    uSwap = 0
     uprev$ = ""
     uDone = 0
     uArmCall = 0
@@ -1729,6 +1731,12 @@ GOTO uAfterScan
               ELSEIF (udep = 0 OR RIGHT$(fnm$, 1) = "$") AND tt$(up) <> "shared" THEN
                 ' Bare #name is SharedVariable (not a local scalar). Empty
                 ' #name[] still notes above (IFZ #asm$[] / SWAP #qbasic$[]).
+                ' SWAP keeps the suffixed spelling in Rust (`swap t$ tt$`,
+                ' and `SWAP t$, tt$[n]` assigns to `t$`), unlike a plain
+                ' assignment which strips it - so note the full key there.
+                IF uSwap = 1 THEN
+                  uSKey$ = fKey$
+                END IF
                 IF INSTR(fSharedScalar$, uSKey$) = 0 AND INSTR(fScalar$, uSKey$) = 0 THEN
                   fScalar$ = fScalar$ + uSKey$
                 END IF
@@ -1740,6 +1748,8 @@ GOTO uAfterScan
         uprev$ = tv$(up)
         IF tt$(up) = "keyword" AND (tv$(up) = "DIM" OR tv$(up) = "REDIM" OR tv$(up) = "STATIC" OR tv$(up) = "SHARED" OR tv$(up) = "DATA" OR tv$(up) = "SUB") THEN
           udecl = 1
+        ELSEIF tt$(up) = "keyword" AND tv$(up) = "SWAP" THEN
+          uSwap = 1
         ELSEIF tt$(up) = "symbol" AND tv$(up) = "(" THEN
           IF uArmCall = 1 THEN
             uArmCall = 0
@@ -1776,6 +1786,7 @@ GOTO uAfterScan
           ' Rust parses those as separate items, so the declaration context must
           ' not leak into the next one - otherwise the SWAP arm notes nothing.
           udecl = 0
+          uSwap = 0
           ufresh = 1
         ELSE
           ufresh = 0
