@@ -134,6 +134,11 @@ DIM up
 DIM udep
 DIM uSzDep
 DIM uSwap
+DIM un
+DIM uPreOk
+DIM uPreScope$
+DIM uPreBase$
+DIM fNonStr$
 DIM fPScalar$
 DIM urdep
 DIM ufresh
@@ -1293,6 +1298,65 @@ IF facetDump = 1 THEN
   ' Rust (catch-all arms) and are skipped here.
   fArrUse$ = ""
   fDual$ = ""
+  ' VAR-SUFFIX-COLLISION pre-pass (mirrors semantics_suffix.rs
+  ' scan_body_collisions): a base name referenced with BOTH a string and a
+  ' non-string type collides on its base-keyed slot, and only then does a
+  ' string scalar keep its `$`. The string side is implicit here (uStripSfx is
+  ' only asked about a suffixed name), so record just the NON-string side.
+  ' note_var fires on scalar refs, scalar DIMs, assignment/INC/DEC/SWAP/READ
+  ' targets and FOR vars - never on an array base (name[ ) or a call (name( ),
+  ' never on dotted members, and never on a bare shared #name (that lowers to
+  ' SharedVariable, not Identifier).
+  fNonStr$ = ""
+  uPreScope$ = "*"
+  un = 1
+  WHILE un <= ntok AND NOT (tt$(un) = "newline")
+    un = un + 1
+  WEND
+  un = un + 1
+  WHILE un <= ntok
+    IF tt$(un) = "keyword" AND tv$(un) = "END" AND un + 1 <= ntok AND tt$(un + 1) = "keyword" AND tv$(un + 1) = "FUNCTION" THEN
+      uPreScope$ = "*"
+      un = un + 2
+    ELSEIF tt$(un) = "keyword" AND (tv$(un) = "DECLARE" OR tv$(un) = "EXTERNAL") THEN
+      WHILE un <= ntok AND NOT (tt$(un) = "newline")
+        un = un + 1
+      WEND
+      un = un + 1
+    ELSEIF tt$(un) = "keyword" AND (tv$(un) = "FUNCTION" OR tv$(un) = "CFUNCTION") THEN
+      fNameSk = un + 1
+      IF fNameSk + 2 <= ntok AND (tt$(fNameSk + 1) = "ident" OR tt$(fNameSk + 1) = "shared") AND tt$(fNameSk + 2) = "symbol" AND tv$(fNameSk + 2) = "(" THEN
+        fNameSk = fNameSk + 1
+      END IF
+      uPreScope$ = strip_suffix$(tv$(fNameSk))
+      WHILE un <= ntok AND NOT (tt$(un) = "newline")
+        un = un + 1
+      WEND
+      un = un + 1
+    ELSE
+      IF tt$(un) = "ident" THEN
+        uPreOk = 1
+        IF un + 1 <= ntok AND tt$(un + 1) = "symbol" AND (tv$(un + 1) = "[" OR tv$(un + 1) = "(" OR tv$(un + 1) = ".") THEN
+          uPreOk = 0
+        END IF
+        IF un > 1 AND tt$(un - 1) = "symbol" AND tv$(un - 1) = "." THEN
+          uPreOk = 0
+        END IF
+        IF uPreOk = 1 THEN
+          fnm$ = tv$(un)
+          GOSUB uCanonName
+          IF fIsKw = 0 AND RIGHT$(fnm$, 1) <> "$" THEN
+            uPreBase$ = strip_suffix$(fnm$)
+            uEdge$ = ":" + uPreScope$ + ":" + uPreBase$ + ":"
+            IF INSTR(fNonStr$, uEdge$) = 0 THEN
+              fNonStr$ = fNonStr$ + uEdge$
+            END IF
+          END IF
+        END IF
+      END IF
+      un = un + 1
+    END IF
+  WEND
   ucurScope$ = "*"
   uInType = 0
   up = 1
@@ -1830,12 +1894,13 @@ GOTO uAfterScan
     ' Array/DIM/UBOUND positions keep the full spelling; only scalar-use
     ' keys strip. In: fnm$. Out: uBase$.
     '
-    ' The collision clauses below key on ucurScope$, which is only set by the
-    ' use-walk - Phase A callers deliberately leave it unset so a *declared*
-    ' scalar always strips. That matches Rust: `DIM text[3]` + `DIM text$`
-    ' unifies on `text` (one dual facet), while a scalar *use* of `text$`
-    ' beside `text[]` keeps the suffix. Do not "fix" Phase A to pass its
-    ' scope here: it flips that DIM case to dual=0 (verified 2026-09-07).
+    ' Suffix retention follows semantics_suffix.rs::slot_name exactly: a
+    ' STRING scalar keeps its `$` iff the base name also has a non-string
+    ' reference in the same body (fNonStr$, built in the pre-pass above);
+    ' every non-string suffix (#, %, !, &&) always takes the bare base.
+    ' Phase A callers leave ucurScope$ unset on purpose, so a *declaration*
+    ' always strips - that keeps `DIM text[3]` + `DIM text$` unified on
+    ' `text` the way Rust does (array DIMs never note a collision).
     uBase$ = fnm$
     IF LEN(uBase$) >= 2 THEN
       IF RIGHT$(uBase$, 2) = "&&" THEN
@@ -1844,16 +1909,18 @@ GOTO uAfterScan
         uBase$ = LEFT$(uBase$, LEN(uBase$) - 1)
       END IF
     END IF
-    IF uBase$ <> fnm$ THEN
-      ' Keep the suffix when the STRIPPED name is already taken in this scope
-      ' by a differently-typed symbol - an array (text$ scalar vs text[]) or a
-      ' non-string scalar param (XuiCanNumberToName(can, can$)). Rust keeps the
-      ' `$` there to disambiguate the two C variables, so the scalar key must
-      ' keep it too. With no collision the suffix drops (SHARED gridName$[]
-      ' plus scalar gridName$ stays `gridName`, i.e. not dual).
+    IF uBase$ <> fnm$ AND RIGHT$(fnm$, 1) = "$" THEN
+      ' Only a STRING scalar can keep its suffix (slot_name: non-string always
+      ' takes the bare base), and only when the base also has a non-string
+      ' reference in the same body. Two note sources, both required:
+      '   - an unsuffixed ARRAY declaration of the base (verified: DIM v[],
+      '     DIM v[3], DIM v[n], SHARED v[], STATIC v[] all make v$ keep it)
+      '   - a non-string scalar reference anywhere in the body (fNonStr$),
+      '     e.g. the index in dir$[dir], or STATIC window beside window$
+      ' `SHARED gridName$[]` plus scalar gridName$ has neither, so it strips.
       IF INSTR(fArrDim$, ":" + ucurScope$ + ":" + uBase$ + ":") > 0 THEN
         uBase$ = fnm$
-      ELSEIF INSTR(fPScalar$, ":" + ucurScope$ + ":" + uBase$ + ":") > 0 THEN
+      ELSEIF INSTR(fNonStr$, ":" + ucurScope$ + ":" + uBase$ + ":") > 0 THEN
         uBase$ = fnm$
       END IF
     END IF
