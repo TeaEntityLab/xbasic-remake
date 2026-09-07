@@ -739,6 +739,14 @@ IF facetDump = 1 THEN
       ' and idents inside them don't read as names. A variable literally
       ' named SHARED with no following name is untouched.
       fsp = fp + 1
+      ' `SHARED /cb/ CALLBACKS callbacks[]` names a shared GROUP first; the
+      ' group is not a declared name, so step over `/ ident /` before the
+      ' qualifier walk. Without this the leading `/` aborts the whole arm and
+      ' a composite like CALLBACKS never reaches fCompVars$, so a later
+      ' `DIM callbacks[..]` wrongly emits a plain facet.
+      IF fsp + 2 <= ntok AND tt$(fsp) = "symbol" AND tv$(fsp) = "/" AND (tt$(fsp + 1) = "ident" OR tt$(fsp + 1) = "shared") AND tt$(fsp + 2) = "symbol" AND tv$(fsp + 2) = "/" THEN
+        fsp = fsp + 3
+      END IF
       fCompSkip = 0
       fQuit = 0
       WHILE fsp <= ntok AND fQuit = 0 AND (tt$(fsp) = "ident" OR tt$(fsp) = "shared" OR (tt$(fsp) = "symbol" AND (tv$(fsp) = "," OR tv$(fsp) = "[" OR tv$(fsp) = "(")))

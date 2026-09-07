@@ -711,6 +711,9 @@ function Main() -> integer
               else
                 if and(compare(array_access(tt$:string[symbol(fp:integer)]) = string("keyword")) compare(array_access(tv$:string[symbol(fp:integer)]) = string("SHARED")))
                   assign fsp:integer = arith(symbol(fp:integer) + integer(1))
+                  if and(and(and(and(and(compare(arith(symbol(fsp:integer) + integer(2)) <= symbol(ntok:integer)) compare(array_access(tt$:string[symbol(fsp:integer)]) = string("symbol"))) compare(array_access(tv$:string[symbol(fsp:integer)]) = string("/"))) or(compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(1))]) = string("shared")))) compare(array_access(tt$:string[arith(symbol(fsp:integer) + integer(2))]) = string("symbol"))) compare(array_access(tv$:string[arith(symbol(fsp:integer) + integer(2))]) = string("/")))
+                    assign fsp:integer = arith(symbol(fsp:integer) + integer(3))
+                  end if
                   assign fCompSkip:integer = integer(0)
                   assign fQuit:integer = integer(0)
                   while and(and(compare(symbol(fsp:integer) <= symbol(ntok:integer)) compare(symbol(fQuit:integer) = integer(0))) or(or(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("ident")) compare(array_access(tt$:string[symbol(fsp:integer)]) = string("shared"))) and(compare(array_access(tt$:string[symbol(fsp:integer)]) = string("symbol")) or(or(compare(array_access(tv$:string[symbol(fsp:integer)]) = string(",")) compare(array_access(tv$:string[symbol(fsp:integer)]) = string("["))) compare(array_access(tv$:string[symbol(fsp:integer)]) = string("("))))))
