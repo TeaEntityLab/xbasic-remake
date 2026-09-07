@@ -1803,6 +1803,13 @@ GOTO uAfterScan
     ' the type but drops the suffix: text$ reads/writes as text:string).
     ' Array/DIM/UBOUND positions keep the full spelling; only scalar-use
     ' keys strip. In: fnm$. Out: uBase$.
+    '
+    ' The collision clauses below key on ucurScope$, which is only set by the
+    ' use-walk - Phase A callers deliberately leave it unset so a *declared*
+    ' scalar always strips. That matches Rust: `DIM text[3]` + `DIM text$`
+    ' unifies on `text` (one dual facet), while a scalar *use* of `text$`
+    ' beside `text[]` keeps the suffix. Do not "fix" Phase A to pass its
+    ' scope here: it flips that DIM case to dual=0 (verified 2026-09-07).
     uBase$ = fnm$
     IF LEN(uBase$) >= 2 THEN
       IF RIGHT$(uBase$, 2) = "&&" THEN
