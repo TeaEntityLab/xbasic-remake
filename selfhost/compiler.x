@@ -139,7 +139,6 @@ DIM uPreOk
 DIM uPreScope$
 DIM uPreBase$
 DIM fNonStr$
-DIM fPScalar$
 DIM urdep
 DIM ufresh
 DIM udecl
@@ -586,7 +585,6 @@ IF facetDump = 1 THEN
   fTab$ = ""
   fSeen$ = ""
   fScopeArrs$ = ""
-  fPScalar$ = ""
   fSharedTop$ = ""
   fSharedFn$ = ""
   fp = 1
@@ -713,18 +711,6 @@ IF facetDump = 1 THEN
                 IF INSTR(fAPpos$, uEdge$) = 0 THEN
                   fAPpos$ = fAPpos$ + uEdge$
                 END IF
-                END IF
-              ELSE
-                ' Scalar param: record the name only, so a later `name$`
-                ' scalar use keeps its suffix (uStripSfx collision rule).
-                ' No facet here - P2 emits no scalar facets.
-                IF RIGHT$(tv$(fp), 1) <> "$" AND NOT (fp + 1 <= ntok AND (tt$(fp + 1) = "ident" OR tt$(fp + 1) = "shared")) THEN
-                  fnm$ = tv$(fp)
-                  GOSUB uCanonName
-                  fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
-                  IF INSTR(fPScalar$, fKey$) = 0 THEN
-                    fPScalar$ = fPScalar$ + fKey$
-                  END IF
                 END IF
               END IF
             END IF
@@ -1041,15 +1027,6 @@ IF facetDump = 1 THEN
           ELSE
             IF INSTR(fSharedScalar$, fKey$) = 0 THEN
               fSharedScalar$ = fSharedScalar$ + fKey$
-            END IF
-          END IF
-          IF fEnd = 0 AND RIGHT$(fnm$, 1) <> "$" AND RIGHT$(fnm$, 1) <> "#" AND RIGHT$(fnm$, 1) <> "%" AND RIGHT$(fnm$, 1) <> "!" THEN
-            ' An unsuffixed scalar claims the stripped name in this scope, so a
-            ' sibling `name$` keeps its suffix in Rust (STATIC window$ beside
-            ' STATIC window). Same collision set as scalar params.
-            uEdge$ = ":" + curScope$ + ":" + fnm$ + ":"
-            IF INSTR(fPScalar$, uEdge$) = 0 THEN
-              fPScalar$ = fPScalar$ + uEdge$
             END IF
           END IF
           IF fst$ = "shared" THEN
