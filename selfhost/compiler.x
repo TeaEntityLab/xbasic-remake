@@ -1037,6 +1037,15 @@ IF facetDump = 1 THEN
               fSharedScalar$ = fSharedScalar$ + fKey$
             END IF
           END IF
+          IF fEnd = 0 AND RIGHT$(fnm$, 1) <> "$" AND RIGHT$(fnm$, 1) <> "#" AND RIGHT$(fnm$, 1) <> "%" AND RIGHT$(fnm$, 1) <> "!" THEN
+            ' An unsuffixed scalar claims the stripped name in this scope, so a
+            ' sibling `name$` keeps its suffix in Rust (STATIC window$ beside
+            ' STATIC window). Same collision set as scalar params.
+            uEdge$ = ":" + curScope$ + ":" + fnm$ + ":"
+            IF INSTR(fPScalar$, uEdge$) = 0 THEN
+              fPScalar$ = fPScalar$ + uEdge$
+            END IF
+          END IF
           IF fst$ = "shared" THEN
             IF INSTR(fSharedAll$, fKey$) = 0 THEN
               fSharedAll$ = fSharedAll$ + fKey$

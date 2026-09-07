@@ -992,6 +992,12 @@ function Main() -> integer
                           end if
                         end if
                       end if
+                      if and(and(and(and(compare(symbol(fEnd:integer) = integer(0)) compare(call RIGHT$(symbol(fnm:string), integer(1)) <> string("$"))) compare(call RIGHT$(symbol(fnm:string), integer(1)) <> string("#"))) compare(call RIGHT$(symbol(fnm:string), integer(1)) <> string("%"))) compare(call RIGHT$(symbol(fnm:string), integer(1)) <> string("!")))
+                        assign uEdge:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                        if compare(call INSTR(symbol(fPScalar:string), symbol(uEdge:string)) = integer(0))
+                          assign fPScalar:string = arith(symbol(fPScalar:string) + symbol(uEdge:string))
+                        end if
+                      end if
                       if compare(symbol(fst:string) = string("shared"))
                         if compare(call INSTR(symbol(fSharedAll:string), symbol(fKey:string)) = integer(0))
                           assign fSharedAll:string = arith(symbol(fSharedAll:string) + symbol(fKey:string))
