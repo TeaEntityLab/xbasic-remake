@@ -681,9 +681,20 @@ IF facetDump = 1 THEN
                 END IF
                 fLn$ = "facet " + fnm$ + ":" + ftp$ + " scope=" + curScope$ + " storage=param rank=1 dual=0 position=" + STR$(fpc)
                 fKey$ = ":" + curScope$ + ":" + fnm$ + ":"
+                IF fp > 1 AND tt$(fp - 1) = "ident" AND INSTR(fTypeNames$, ":" + tv$(fp - 1) + ":") > 0 THEN
+                  ' Composite-typed array param (TOKEN tok[], DISPLAY d[]):
+                  ' Rust lowers it to member facts and emits no plain facet,
+                  ' exactly like a composite DIM. Track it so later DIMs of
+                  ' the name stay suppressed too.
+                  IF INSTR(fCompVars$, fKey$) = 0 THEN
+                    fCompVars$ = fCompVars$ + fKey$
+                  END IF
+                END IF
                 IF INSTR(fSeen$, fKey$) = 0 THEN
                   fSeen$ = fSeen$ + fKey$
-                  fTab$ = fTab$ + fLn$ + CHR$(10)
+                  IF INSTR(fCompVars$, fKey$) = 0 THEN
+                    fTab$ = fTab$ + fLn$ + CHR$(10)
+                  END IF
                 ' P2 array knowledge (all types/storages, for paren-form
                 ' access-vs-call disambiguation in the use-walk).
                 IF INSTR(fScopeArrs$, ":" + curScope$ + ":" + fnm$ + ":") = 0 THEN
@@ -701,7 +712,7 @@ IF facetDump = 1 THEN
                 ' Scalar param: record the name only, so a later `name$`
                 ' scalar use keeps its suffix (uStripSfx collision rule).
                 ' No facet here - P2 emits no scalar facets.
-                IF RIGHT$(tv$(fp), 1) <> "$" THEN
+                IF RIGHT$(tv$(fp), 1) <> "$" AND NOT (fp + 1 <= ntok AND (tt$(fp + 1) = "ident" OR tt$(fp + 1) = "shared")) THEN
                   fnm$ = tv$(fp)
                   GOSUB uCanonName
                   fKey$ = ":" + curScope$ + ":" + fnm$ + ":"

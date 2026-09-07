@@ -666,9 +666,16 @@ function Main() -> integer
                     end if
                     assign fLn:string = arith(arith(arith(arith(arith(arith(arith(string("facet ") + symbol(fnm:string)) + string(":")) + symbol(ftp:string)) + string(" scope=")) + symbol(curScope:string)) + string(" storage=param rank=1 dual=0 position=")) + call STR$(symbol(fpc:integer)))
                     assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
+                    if and(and(compare(symbol(fp:integer) > integer(1)) compare(array_access(tt$:string[arith(symbol(fp:integer) - integer(1))]) = string("ident"))) compare(call INSTR(symbol(fTypeNames:string), arith(arith(string(":") + array_access(tv$:string[arith(symbol(fp:integer) - integer(1))])) + string(":"))) > integer(0)))
+                      if compare(call INSTR(symbol(fCompVars:string), symbol(fKey:string)) = integer(0))
+                        assign fCompVars:string = arith(symbol(fCompVars:string) + symbol(fKey:string))
+                      end if
+                    end if
                     if compare(call INSTR(symbol(fSeen:string), symbol(fKey:string)) = integer(0))
                       assign fSeen:string = arith(symbol(fSeen:string) + symbol(fKey:string))
-                      assign fTab:string = arith(arith(symbol(fTab:string) + symbol(fLn:string)) + call CHR$(integer(10)))
+                      if compare(call INSTR(symbol(fCompVars:string), symbol(fKey:string)) = integer(0))
+                        assign fTab:string = arith(arith(symbol(fTab:string) + symbol(fLn:string)) + call CHR$(integer(10)))
+                      end if
                       if compare(call INSTR(symbol(fScopeArrs:string), arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))) = integer(0))
                         assign fScopeArrs:string = arith(arith(arith(arith(arith(symbol(fScopeArrs:string) + string(":")) + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
                       end if
@@ -681,7 +688,7 @@ function Main() -> integer
                       end if
                     end if
                   else
-                    if compare(call RIGHT$(array_access(tv$:string[symbol(fp:integer)]), integer(1)) <> string("$"))
+                    if and(compare(call RIGHT$(array_access(tv$:string[symbol(fp:integer)]), integer(1)) <> string("$")) not(and(compare(arith(symbol(fp:integer) + integer(1)) <= symbol(ntok:integer)) or(compare(array_access(tt$:string[arith(symbol(fp:integer) + integer(1))]) = string("ident")) compare(array_access(tt$:string[arith(symbol(fp:integer) + integer(1))]) = string("shared"))))))
                       assign fnm:string = array_access(tv$:string[symbol(fp:integer)])
                       gosub uCanonName
                       assign fKey:string = arith(arith(arith(arith(string(":") + symbol(curScope:string)) + string(":")) + symbol(fnm:string)) + string(":"))
